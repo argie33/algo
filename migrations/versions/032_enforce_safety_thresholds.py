@@ -12,7 +12,6 @@ This migration ensures critical safety features are enabled with proper threshol
 
 2. Quality Score Thresholds (Hard Gates):
    - min_signal_quality_score: 60 (0-100 scale, signal quality gate)
-   - min_swing_score: 55.0 (regime manager may raise higher)
    - min_completeness_score: 70 (data completeness %, Minervini standard)
    - These ensure we only trade high-quality signals, preventing low-quality entries.
 
@@ -42,7 +41,6 @@ _SAFETY_CONFIG = [
     ("volume_decay_gate_enabled", "false", "bool"),
     # Quality Score Thresholds (hard gates)
     ("min_signal_quality_score", "60", "int"),
-    ("min_swing_score", "55.0", "float"),
     ("min_completeness_score", "70", "int"),
     # Earnings Blackout (hard gate)
     ("earnings_blackout_days_before", "7", "int"),

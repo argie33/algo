@@ -656,14 +656,8 @@ class TradeExecutor:
         stop_method: str | None = None,
         stop_reasoning: str | None = None,
         advanced_components: dict[str, Any] | None = None,
-        # DEPRECATED (kept for backward compatibility, ignored)
-        swing_score: float | None = None,
-        swing_grade: str | None = None,
-        swing_components: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Execute a new entry trade by delegating to EntryHandler.
-
-        SWING SCORE MIGRATION: swing_score, swing_grade, swing_components params deprecated.
 
         Returns: {
             'success': bool,
@@ -687,8 +681,6 @@ class TradeExecutor:
                 entry_date=entry_date,
                 sqs=sqs,
                 trend_score=trend_score,
-                swing_score=swing_score,
-                swing_grade=swing_grade,
                 base_type=base_type,
                 base_quality=base_quality,
                 stage_phase=stage_phase,
@@ -699,7 +691,6 @@ class TradeExecutor:
                 exposure_tier_at_entry=exposure_tier_at_entry,
                 stop_method=stop_method,
                 stop_reasoning=stop_reasoning,
-                swing_components=swing_components,
                 advanced_components=advanced_components,
             )
             return self.entry_handler.execute_entry(context)

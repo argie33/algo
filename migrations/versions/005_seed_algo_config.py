@@ -46,13 +46,6 @@ _DEFAULTS = [
         "int",
         "Max concurrent positions in one industry",
     ),
-    ("min_swing_score", "55.0", "float", "Min swing trader score to enter"),
-    (
-        "min_swing_grade",
-        "",
-        "string",
-        "Min swing grade override (empty=use exposure tier default)",
-    ),
     ("max_total_invested_pct", "95.0", "float", "Max % of portfolio in open positions"),
     # Market Conditions
     ("max_distribution_days", "4", "int", "Max market distribution days"),
@@ -216,37 +209,6 @@ _DEFAULTS = [
     ("block_days_before_earnings", "5", "int", "Block entries N days before earnings"),
     ("max_extension_above_50ma_pct", "15.0", "float", "Max extension above 50-DMA %"),
     ("strong_sector_top_n", "5", "int", "Top N sectors count as strong"),
-    # Swing Trader Score Weights
-    ("swing_weight_setup", "25", "int", "Swing score: Setup quality weight %"),
-    ("swing_weight_trend", "20", "int", "Swing score: Trend quality weight %"),
-    ("swing_weight_momentum", "20", "int", "Swing score: Momentum/RS weight %"),
-    ("swing_weight_volume", "12", "int", "Swing score: Volume weight %"),
-    ("swing_weight_fundamentals", "10", "int", "Swing score: Fundamentals weight %"),
-    ("swing_weight_sector", "8", "int", "Swing score: Sector/industry weight %"),
-    (
-        "swing_weight_multi_timeframe",
-        "5",
-        "int",
-        "Swing score: Multi-timeframe weight %",
-    ),
-    (
-        "swing_min_trend_score",
-        "5",
-        "int",
-        "Swing score: Minimum Minervini trend score 0-8",
-    ),
-    (
-        "swing_min_industry_rank",
-        "100",
-        "int",
-        "Swing score: Industry rank threshold (<=)",
-    ),
-    (
-        "swing_days_to_earnings_block",
-        "5",
-        "int",
-        "Swing score: Block entries N days to earnings",
-    ),
     # Execution
     ("execution_mode", "auto", "string", "paper|dry|review|auto"),
     ("alpaca_paper_trading", "true", "bool", "Use Alpaca paper account"),

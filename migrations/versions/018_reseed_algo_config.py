@@ -45,13 +45,6 @@ _DEFAULTS = [
         "int",
         "Max concurrent positions in one industry",
     ),
-    ("min_swing_score", "55.0", "float", "Min swing trader score to enter"),
-    (
-        "min_swing_grade",
-        "",
-        "string",
-        "Min swing grade override (empty=use exposure tier default)",
-    ),
     ("max_total_invested_pct", "95.0", "float", "Max % of portfolio in open positions"),
     # Market Conditions
     ("max_distribution_days", "4", "int", "Max market distribution days"),

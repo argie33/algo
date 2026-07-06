@@ -8,7 +8,6 @@ which disables all entry quality gates and earnings protection:
 
 Current (DANGEROUS) State:
 - min_signal_quality_score: 0 (should be 60)
-- min_swing_score: 0.0 (should be 55.0)
 - min_completeness_score: 0 (should be 70)
 - earnings_blackout_days_before: 0 (should be 7)
 - earnings_blackout_days_after: 0 (should be 3)
@@ -30,7 +29,6 @@ DESCRIPTION = "URGENT: Restore safety thresholds from zero to safe defaults"
 # Safe default values (matching AlgoConfig.DEFAULTS)
 SAFE_DEFAULTS = [
     ("min_signal_quality_score", "60", "int"),
-    ("min_swing_score", "55.0", "float"),
     ("min_completeness_score", "70", "int"),
     ("earnings_blackout_days_before", "7", "int"),
     ("earnings_blackout_days_after", "3", "int"),

@@ -114,29 +114,6 @@ CREATE TABLE IF NOT EXISTS stock_scores (
 CREATE INDEX IF NOT EXISTS idx_stock_scores_composite ON stock_scores(composite_score DESC);
 CREATE INDEX IF NOT EXISTS idx_stock_scores_updated_at ON stock_scores(updated_at DESC);
 
-CREATE TABLE IF NOT EXISTS swing_trader_scores (
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    signal_score NUMERIC(5, 2),
-    swing_score NUMERIC(5, 2),
-    base_type VARCHAR(50),
-    setup_quality NUMERIC(5, 2),
-    trend_score NUMERIC(5, 2),
-    momentum_score NUMERIC(5, 2),
-    volume_score NUMERIC(5, 2),
-    fundamentals_score NUMERIC(5, 2),
-    sector_score NUMERIC(5, 2),
-    multi_timeframe_score NUMERIC(5, 2),
-    components JSONB,
-    data_unavailable BOOLEAN DEFAULT FALSE,
-    unavailability_reason VARCHAR(500),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (symbol, date)
-);
-CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_symbol ON swing_trader_scores(symbol);
-CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_date ON swing_trader_scores(date DESC);
-CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_swing_score ON swing_trader_scores(swing_score DESC);
-
 -- ============================================================================
 -- SIGNAL TABLES (Trading signals and decisions)
 -- ============================================================================
@@ -147,7 +124,6 @@ CREATE TABLE IF NOT EXISTS signals_daily (
     signal_type VARCHAR(50),
     signal_strength NUMERIC(5, 2),
     signal_score NUMERIC(5, 2),
-    swing_score NUMERIC(5, 2),
     quality_score NUMERIC(5, 2),
     growth_score NUMERIC(5, 2),
     momentum_score NUMERIC(5, 2),

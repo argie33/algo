@@ -125,16 +125,8 @@ class TradeContext:
         stop_reasoning: str | None = None,
         advanced_components: dict[str, Any] | None = None,
         execution_mode: str = "auto",
-        # DEPRECATED params (kept for backward compatibility, ignored)
-        swing_score: float | None = None,
-        swing_grade: str | None = None,
-        swing_components: dict[str, Any] | None = None,
     ) -> TradeContext:
-        """Factory method: construct from flat parameter list (for backward compatibility).
-
-        SWING SCORE MIGRATION: swing_score, swing_grade, swing_components params deprecated.
-        Kept for backward compatibility with old code but are no longer used.
-        """
+        """Factory method: construct from flat parameter list."""
         prices = PriceContext(
             entry_price=Decimal(str(entry_price)),
             stop_loss_price=Decimal(str(stop_loss_price)),
