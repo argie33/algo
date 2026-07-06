@@ -10,11 +10,13 @@ Strategy:
 2. Find any loaders with INCOMPLETE status or completion_pct < 95%
 3. For each incomplete loader:
    - Log diagnostic info (how many symbols missing, last error, etc.)
-   - Wait for 90 seconds (allow some time for external API throttling to reset)
-   - Trigger a retry of the loader
-   - Poll status for completion (up to 15 min timeout)
-   - If retry succeeds (>=95%), mark as recovered and proceed
-   - If retry fails, log alert and halt if critical, warn if auxiliary
+   - Trigger a retry by starting the loader's ECS task (via algo-trigger-loaders,
+     the same mechanism the regular schedule uses) — runs independently of this Lambda
+   - Briefly poll status (up to RETRY_MONITOR_TIMEOUT_SECONDS) in case it finishes fast
+   - If retry succeeds (>=95%) within that short window, mark as recovered and proceed
+   - Otherwise mark as still incomplete for THIS run (halt if critical, warn if
+     auxiliary) — the ECS task keeps running in the background and the next
+     scheduled orchestrator run will see the completed data
 """
 
 import json
@@ -218,7 +220,10 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                                 status_reason = retry_result.get("status_reason", "unknown")
 
                                 if status_reason == "timeout":
-                                    reason_msg = "timeout (loader still running after 15 minutes)"
+                                    reason_msg = (
+                                        f"not yet confirmed recovered after {RETRY_MONITOR_TIMEOUT_SECONDS}s poll "
+                                        "(ECS task still running in background — next scheduled run will re-check)"
+                                    )
                                 elif status_reason == "failed":
                                     reason_msg = f"failed (completed with {pct_str} completion)"
                                 else:

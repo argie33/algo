@@ -1040,7 +1040,10 @@ data "aws_iam_policy_document" "lambda_algo" {
     condition {
       test     = "StringEquals"
       variable = "cloudwatch:namespace"
-      values   = ["${var.project_name}/orchestrator", "Algo/DataLoading"]
+      # "AlgoTrading" is what algo/reporting/metrics.py actually publishes to (and what
+      # the AlgoTrading business-logic alarms in modules/services/main.tf read from) —
+      # confirmed via live CloudWatch AccessDenied that this was missing from the list.
+      values = ["${var.project_name}/orchestrator", "Algo/DataLoading", "AlgoTrading"]
     }
   }
 

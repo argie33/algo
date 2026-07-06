@@ -1540,9 +1540,23 @@ jobs:
 
           # API URL: Use CloudFront domain so browser makes same-origin requests.
           # CloudFront routes /api/* to the API Gateway server-side — no CORS headers needed.
-          # Fall back to API Gateway URL if CloudFront is not enabled (rare, dev-only).
+          # Fall back to API Gateway URL when CloudFront is disabled — this is the normal
+          # case for dev since CloudFront was disabled there as a cost optimization.
           WEBSITE_URL="${{ needs.terraform.outputs.website_url }}"
           API_GATEWAY_URL="${{ needs.terraform.outputs.api_gateway_endpoint }}"
+
+          # Safety net: the "terraform" job's output can come back empty even when the API
+          # Gateway itself exists (e.g. transient `terraform output` hiccup, state drift from
+          # a concurrent apply). Don't fail the whole frontend deploy over it — look the live
+          # resource up directly, same pattern already used above for CloudFront domain discovery.
+          if { [ -z "$API_GATEWAY_URL" ] || [ "$API_GATEWAY_URL" = "null" ] || [ "$API_GATEWAY_URL" = "None" ]; } && \
+             { [ -z "$WEBSITE_URL" ] || [ "$WEBSITE_URL" = "null" ] || [ "$WEBSITE_URL" = "None" ]; }; then
+            echo "[WARN] terraform job output for api_gateway_endpoint is empty — querying AWS directly as a fallback"
+            API_GATEWAY_URL=$(aws apigatewayv2 get-apis \
+              --query "Items[?Name=='algo-api-dev'].ApiEndpoint | [0]" \
+              --output text 2>/dev/null || echo "")
+            [ "$API_GATEWAY_URL" = "None" ] && API_GATEWAY_URL=""
+          fi
 
           if [ -n "$WEBSITE_URL" ] && [ "$WEBSITE_URL" != "null" ] && [ "$WEBSITE_URL" != "None" ]; then
             FINAL_API_URL="$WEBSITE_URL"
@@ -1551,7 +1565,7 @@ jobs:
             FINAL_API_URL="$API_GATEWAY_URL"
             echo "[WARN] CloudFront not available — using API Gateway URL directly (CORS required): $FINAL_API_URL"
           else
-            echo "[ERROR] Neither website_url nor api_gateway_endpoint available — cannot determine API URL"
+            echo "[ERROR] Neither website_url nor api_gateway_endpoint available (checked both terraform output and live AWS lookup) — cannot determine API URL"
             exit 1
           fi
 

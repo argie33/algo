@@ -44,7 +44,7 @@ jobs:
           echo "[ORCHESTRATOR_TRIGGER] Starting invocation at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
 
           aws lambda invoke \
-            --function-name algo-orchestrator-dev \
+            --function-name algo-algo-dev \
             --region us-east-1 \
             --invocation-type Event \
             --payload "{
@@ -58,7 +58,7 @@ jobs:
           echo "[ORCHESTRATOR_TRIGGER] Invocation queued successfully"
 
           # Log the function name for debugging
-          echo "Function: algo-orchestrator-dev"
+          echo "Function: algo-algo-dev"
           echo "Region: us-east-1"
           echo "Mode: Asynchronous (Event)"
 
@@ -68,4 +68,4 @@ jobs:
           # Give the lambda 2 seconds to start
           sleep 2
           echo "[ORCHESTRATOR_MONITOR] Check CloudWatch logs for execution details:"
-          echo "  aws logs tail /aws/lambda/algo-orchestrator-dev --since 1h --follow"
+          echo "  aws logs tail /aws/lambda/algo-algo-dev --since 1h --follow"
