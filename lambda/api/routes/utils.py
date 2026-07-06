@@ -733,9 +733,18 @@ def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> 
         return False
 
 
-def set_current_cursor(cursor: Any) -> None:
-    """Store cursor in thread-local for safe_dict_convert to use."""
-    _thread_local.cursor = cursor
+def set_current_cursor(cursor_or_service: Any) -> None:
+    """Store cursor in thread-local for safe_dict_convert to use.
+
+    Handles both raw psycopg2 cursors and DatabaseQueryService wrappers.
+    """
+    # Extract raw cursor if wrapped in DatabaseQueryService
+    if hasattr(cursor_or_service, 'cursor') and hasattr(cursor_or_service.cursor, 'description'):
+        # This is likely a DatabaseQueryService wrapping a cursor
+        _thread_local.cursor = cursor_or_service.cursor
+    else:
+        # Use as-is (assume it's a raw cursor)
+        _thread_local.cursor = cursor_or_service
 
 
 def safe_dict_convert(row: Any) -> Any:

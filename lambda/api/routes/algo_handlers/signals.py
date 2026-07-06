@@ -389,7 +389,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
 
 
 @db_route_handler("fetch rejection funnel")  # type: ignore[untyped-decorator]
-@validate_api_response("sig")  # type: ignore[untyped-decorator]
+@validate_api_response("sig_eval")  # type: ignore[untyped-decorator]
 def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
     """Get signal rejection funnel with detailed breakdown by filter."""
     try:
