@@ -156,9 +156,21 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                     if prev_rev is not None and float(prev_rev) != 0:
                         latest_rev_f = float(latest_rev)
                         prev_rev_f = float(prev_rev)
-                        rev_growth = (((latest_rev_f / prev_rev_f) ** (1.0 / lookback)) - 1) * 100
-                        metrics[f"revenue_growth_{lookback}y"] = float(round(rev_growth, 2))
-                        metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = None
+
+                        # When revenue changes sign (positive to negative or vice versa),
+                        # nth root of negative number gives complex result.
+                        # In this case, mark growth as unavailable since traditional CAGR
+                        # doesn't apply to revenue swings between positive and negative.
+                        if (latest_rev_f > 0 and prev_rev_f < 0) or (latest_rev_f < 0 and prev_rev_f > 0):
+                            # Sign change: not sustainable growth, mark unavailable
+                            metrics[f"revenue_growth_{lookback}y"] = None
+                            metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = "revenue_sign_change"
+                        else:
+                            # Same sign: calculate CAGR normally
+                            ratio = latest_rev_f / prev_rev_f
+                            rev_growth = (((ratio ** (1.0 / lookback)) - 1) * 100)
+                            metrics[f"revenue_growth_{lookback}y"] = float(round(rev_growth, 2))
+                            metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = None
                     else:
                         metrics[f"revenue_growth_{lookback}y"] = None
                         metrics[f"revenue_growth_{lookback}y_unavailable_reason"] = "insufficient_revenue_data"
@@ -188,9 +200,21 @@ class GrowthMetricsLoader(SecFinancialsLoader):
                     if prev_eps is not None and float(prev_eps) != 0:
                         latest_eps_f = float(latest_eps)
                         prev_eps_f = float(prev_eps)
-                        eps_growth = (((latest_eps_f / prev_eps_f) ** (1.0 / lookback)) - 1) * 100
-                        metrics[f"eps_growth_{lookback}y"] = float(round(eps_growth, 2))
-                        metrics[f"eps_growth_{lookback}y_unavailable_reason"] = None
+
+                        # When EPS changes sign (positive to negative or vice versa),
+                        # nth root of negative number gives complex result.
+                        # In this case, mark growth as unavailable since traditional CAGR
+                        # doesn't apply to profitability swings.
+                        if (latest_eps_f > 0 and prev_eps_f < 0) or (latest_eps_f < 0 and prev_eps_f > 0):
+                            # Sign change: not sustainable growth, mark unavailable
+                            metrics[f"eps_growth_{lookback}y"] = None
+                            metrics[f"eps_growth_{lookback}y_unavailable_reason"] = "eps_sign_change"
+                        else:
+                            # Same sign: calculate CAGR normally
+                            ratio = latest_eps_f / prev_eps_f
+                            eps_growth = (((ratio ** (1.0 / lookback)) - 1) * 100)
+                            metrics[f"eps_growth_{lookback}y"] = float(round(eps_growth, 2))
+                            metrics[f"eps_growth_{lookback}y_unavailable_reason"] = None
                     else:
                         metrics[f"eps_growth_{lookback}y"] = None
                         metrics[f"eps_growth_{lookback}y_unavailable_reason"] = "insufficient_eps_data"
