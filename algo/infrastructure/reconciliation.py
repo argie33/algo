@@ -67,20 +67,6 @@ class DailyReconciliation:
                     f"Live trading requires valid Alpaca credentials."
                 ) from e
 
-            # CRITICAL: Dry-run mode is only valid during explicit testing with ORCHESTRATOR_DRY_RUN=true.
-            # Even in that case, reconciliation will reject dry-run mode below (see run_daily_reconciliation).
-            # This code path should be unreachable in normal operation.
-            logger.critical(
-                f"[CRITICAL] Attempted to use dry-run broker in reconciliation init: {e}. "
-                "This should only occur during explicit testing with ORCHESTRATOR_DRY_RUN=true. "
-                "Reconciliation cannot proceed with mock broker in any mode (see run_daily_reconciliation safety gate)."
-            )
-            raise ValueError(
-                f"Dry-run mode not allowed for reconciliation init: {e}. "
-                "Reconciliation requires live broker connection. "
-                "This error indicates a test configuration issue."
-            ) from e
-
     def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
 
