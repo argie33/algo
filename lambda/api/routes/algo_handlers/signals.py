@@ -654,16 +654,20 @@ def _get_rejection_reason_description(reason: str) -> str:
     return reason or "Unknown rejection reason"
 
 
-@db_route_handler("fetch swing scores")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch stock scores")  # type: ignore[untyped-decorator]
 @validate_api_response("scores")  # type: ignore[untyped-decorator]
 def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = None, symbol: str | None = None) -> Any:
-    """Get swing trade candidates with scoring."""
+    """Get top stock candidates by composite score (SWING SCORE MIGRATION: now uses stock_scores).
+
+    DEPRECATED: API renamed from swing_scores to stock_scores but endpoint kept for backward compat.
+    Now queries stock_scores table using composite_score (primary ranking metric).
+    """
     try:
         # Use psycopg2.sql for safe SQL composition
         filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '14 days'")]
         query_params: list[Any] = []
         if min_score is not None:
-            filters.append(psycopg2.sql.SQL("s.score >= %s"))
+            filters.append(psycopg2.sql.SQL("s.composite_score >= %s"))
             query_params.append(min_score)
         if symbol:
             filters.append(psycopg2.sql.SQL("s.symbol = %s"))
@@ -672,19 +676,30 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         query_params.append(limit)
         query = psycopg2.sql.SQL("""
                 SELECT
-                    s.symbol, s.date, s.score AS swing_score,
-                    s.components->>'grade' AS grade,
-                    COALESCE((s.components->>'pass_gates')::boolean, false) AS pass_gates,
-                    s.components->>'fail_reason' AS fail_reason,
-                    s.components AS components,
+                    s.symbol, s.date, s.composite_score AS swing_score,
+                    CASE
+                        WHEN s.composite_score >= 85 THEN 'A+'
+                        WHEN s.composite_score >= 75 THEN 'A'
+                        WHEN s.composite_score >= 65 THEN 'B'
+                        WHEN s.composite_score >= 55 THEN 'C'
+                        ELSE 'D'
+                    END AS grade,
+                    TRUE AS pass_gates,
+                    NULL AS fail_reason,
+                    jsonb_build_object(
+                        'quality_score', s.quality_score,
+                        'growth_score', s.growth_score,
+                        'momentum_score', s.momentum_score,
+                        'rs_percentile', s.rs_percentile
+                    ) AS components,
                     cp.sector, cp.industry,
                     t.weinstein_stage AS stage, t.minervini_trend_score AS trend_template_score,
                     jsonb_build_object('weinstein_stage', t.weinstein_stage, 'trend_template_score', t.minervini_trend_score, 'stage_substage', 'Stage ' || COALESCE(t.weinstein_stage::text, '')) AS details
-                FROM swing_trader_scores s
+                FROM stock_scores s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
                 LEFT JOIN trend_template_data t ON s.symbol = t.symbol AND s.date = t.date
                 WHERE {where_clause}
-                ORDER BY s.date DESC, s.score DESC
+                ORDER BY s.date DESC, s.composite_score DESC
                 LIMIT %s
             """).format(where_clause=where_clause)
         cur.execute(query, query_params)
@@ -697,7 +712,7 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         psycopg2.DatabaseError,
         Exception,
     ) as e:
-        code, error_type, message = handle_db_error(e, "fetch swing scores")
+        code, error_type, message = handle_db_error(e, "fetch stock scores")
         return error_response(code, error_type, message)
 
 
