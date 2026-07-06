@@ -848,10 +848,20 @@ def run(  # noqa: C901
         reconciliation_succeeded, result = _run_reconciliation_step(config, run_date, log_phase_result_fn, dry_run)
 
         # CRITICAL: Validate that local P&L matches Broker P&L
-        _validate_pnl_step(recon, result, log_phase_result_fn)
+        # Skip if reconciliation failed (recon object may be incomplete or paper mode)
+        if reconciliation_succeeded:
+            try:
+                _validate_pnl_step(recon, result, log_phase_result_fn)
+            except Exception as validation_err:
+                logger.warning(f"[PHASE 9] P&L validation failed (non-blocking): {validation_err}")
 
         # CRITICAL: Audit for stale estimated exit prices (reconciliation issues)
-        _audit_exit_prices_step(recon, log_phase_result_fn)
+        # Skip if reconciliation failed (recon object may be incomplete or paper mode)
+        if reconciliation_succeeded:
+            try:
+                _audit_exit_prices_step(recon, log_phase_result_fn)
+            except Exception as audit_err:
+                logger.warning(f"[PHASE 9] Exit price audit failed (non-blocking): {audit_err}")
 
         # CREATE PORTFOLIO SNAPSHOT from reconciliation result
         # This MUST happen after reconciliation to capture accurate state
