@@ -300,11 +300,8 @@ class PositionMonitor:
                         "Database corruption detected. Margin calculation halted."
                     )
 
-                if pos_value_sum is None:
-                    raise PositionValidationError(
-                        "CRITICAL: Position value sum is NULL — unable to calculate portfolio margin"
-                    )
-                pos_value = float(pos_value_sum)
+                # NULL sum means no open positions (SUM of empty set is NULL, not 0)
+                pos_value = float(pos_value_sum) if pos_value_sum is not None else 0.0
                 if pos_value < 0:
                     # Negative total may be caused by a short position written during
                     # an Alpaca sync anomaly. Log at ERROR but do not halt — Phase 4
