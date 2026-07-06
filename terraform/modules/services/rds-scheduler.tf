@@ -57,7 +57,7 @@ resource "aws_lambda_function" "rds_stop" {
 
   environment {
     variables = {
-      DB_INSTANCE = "algo-db"
+      DB_INSTANCE = var.environment == "staging" ? "${var.project_name}-db-staging" : "${var.project_name}-db"
     }
   }
 
@@ -89,7 +89,7 @@ resource "aws_lambda_function" "rds_start" {
 
   environment {
     variables = {
-      DB_INSTANCE = "algo-db"
+      DB_INSTANCE = var.environment == "staging" ? "${var.project_name}-db-staging" : "${var.project_name}-db"
     }
   }
 
