@@ -10,6 +10,7 @@ from loaders.loader_helper import setup_imports
 
 setup_imports()
 
+import json  # noqa: E402
 import logging  # noqa: E402
 from datetime import date, datetime, timezone  # noqa: E402
 from typing import Any  # noqa: E402
@@ -200,27 +201,27 @@ class SwingTraderScoresLoader(OptimalLoader):
             # Signal score (simplified: same as swing score for now)
             signal_score = swing_score
 
-            return {
-                "symbol": symbol,
-                "date": date_col,
-                "signal_score": float(signal_score),
-                "swing_score": float(swing_score),
-                "base_type": "technical",
+            components_data = {
                 "setup_quality": float(round(setup_quality, 2)),
                 "trend_score": float(round(trend_score, 2)),
                 "momentum_score": float(round(momentum_score, 2)),
                 "volume_score": float(volume_score),
                 "multi_timeframe_score": float(round(multitf_score, 2)),
-                "components": {
-                    "rsi": float(rsi) if rsi else None,
-                    "macd": float(macd) if macd else None,
-                    "sma50": float(sma50) if sma50 else None,
-                    "sma200": float(sma200) if sma200 else None,
-                    "roc20": float(roc20) if roc20 else None,
-                    "roc60": float(roc60) if roc60 else None,
-                    "roc120": float(roc120) if roc120 else None,
-                    "roc252": float(roc252) if roc252 else None,
-                },
+                "rsi": float(rsi) if rsi else None,
+                "macd": float(macd) if macd else None,
+                "sma50": float(sma50) if sma50 else None,
+                "sma200": float(sma200) if sma200 else None,
+                "roc20": float(roc20) if roc20 else None,
+                "roc60": float(roc60) if roc60 else None,
+                "roc120": float(roc120) if roc120 else None,
+                "roc252": float(roc252) if roc252 else None,
+            }
+
+            return {
+                "symbol": symbol,
+                "date": date_col,
+                "score": float(swing_score),
+                "components": json.dumps(components_data),
                 "data_unavailable": False,
                 "unavailability_reason": None,
                 "updated_at": datetime.now(timezone.utc).isoformat(),

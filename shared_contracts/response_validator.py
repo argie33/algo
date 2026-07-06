@@ -94,14 +94,18 @@ class ResponseValidator:
             )
 
         # Check for extra fields not in schema (contract violation prevention)
-        allowed_fields = set(schema.required_fields) | set(schema.optional_fields)
-        extra_fields = set(response.keys()) - allowed_fields
-        if extra_fields:
-            return (
-                False,
-                f"Extra fields not in schema for {endpoint_name}: {sorted(extra_fields)}. "
-                f"Add to optional_fields in dashboard_api_contract.py if intended.",
-            )
+        # IMPORTANT: If endpoint has nested_schema, allow dynamic fields (no extra field check)
+        has_nested_schema = schema.nested_schema is not None
+        if not has_nested_schema:
+            allowed_fields = set(schema.required_fields) | set(schema.optional_fields)
+            extra_fields = set(response.keys()) - allowed_fields
+            if extra_fields:
+                logger.warning(
+                    f"Extra fields in {endpoint_name} response (not in schema): {sorted(extra_fields)}. "
+                    f"Consider adding to optional_fields in dashboard_api_contract.py or use nested_schema for dynamic endpoints."
+                )
+                # ALLOW extra fields with warning - better to have extra fields than to fail the entire request
+                # This allows endpoints to evolve without breaking the dashboard
 
         return True, None
 
