@@ -1225,10 +1225,15 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             qualifying_buy_count = None
         else:
             qualifying_buy_count = int(count_row["n"]) if count_row["n"] is not None else 0
+        # Convert date to ISO format string if present
+        signal_date = sig["d"] if sig else None
+        if signal_date and hasattr(signal_date, 'isoformat'):
+            signal_date = signal_date.isoformat()
+
         sig_response = {
             "n": qualifying_buy_count,
             "total": total_n,
-            "date": sig["d"] if sig else None,
+            "date": signal_date,
             "buy_sigs": buy_sigs[:15] if buy_sigs else [],
             "near": near[:8] if near else [],
             "top_a": top_a[:20] if top_a else [],
