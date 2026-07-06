@@ -1479,6 +1479,35 @@ class Orchestrator:
                 halt_reason = None
 
             self.execution_tracker.save_execution_log(overall_status, halt_reason)
+
+            # ALSO write to algo_orchestrator_runs for backward compatibility and dashboard visibility
+            try:
+                execution_time = time.time() - run_start
+                phases_completed = sum(1 for r in self.phase_results.values() if r["status"] == "success")
+                phases_halted = sum(1 for r in self.phase_results.values() if r["status"] == "halt")
+                phases_errored = sum(1 for r in self.phase_results.values() if r["status"] == "error")
+
+                with DatabaseContext("write") as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO algo_orchestrator_runs
+                        (run_id, run_date, overall_status, started_at, completed_at, execution_time_seconds, halt_reason)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT (run_id) DO NOTHING
+                        """,
+                        (
+                            self.run_id,
+                            self.run_date,
+                            overall_status,
+                            datetime.now(timezone.utc) - timedelta(seconds=execution_time),
+                            datetime.now(timezone.utc),
+                            execution_time,
+                            halt_reason or "",
+                        ),
+                    )
+                logger.debug(f"[EXECUTION_LOG] Wrote to algo_orchestrator_runs: {self.run_id}")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"[EXECUTION_LOG] Could not write to algo_orchestrator_runs: {e}")
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
 
