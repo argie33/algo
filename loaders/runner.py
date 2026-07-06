@@ -19,6 +19,7 @@ Benefits:
 
 import argparse
 import logging
+import os
 import socket
 
 from utils.loaders.config import get_default_parallelism
@@ -59,8 +60,11 @@ def run_loader(
         parser.add_argument(
             "--backfill-days",
             type=int,
-            default=None,
-            help="Refetch last N days instead of using watermark (for recovery/validation).",
+            default=int(os.environ["BACKFILL_DAYS"]) if os.environ.get("BACKFILL_DAYS") else None,
+            help="Refetch last N days instead of using watermark (for recovery/validation). "
+            "Falls back to the BACKFILL_DAYS env var (set this when triggering via ECS RunTask "
+            "container overrides, since environment variables can be overridden per-invocation "
+            "without needing to know or reconstruct the container's full command).",
         )
 
     args = parser.parse_args()

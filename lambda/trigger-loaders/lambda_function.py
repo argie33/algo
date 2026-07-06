@@ -29,6 +29,11 @@ class TriggerLoadersHandler(LambdaHandler):
         Event params:
           - loader_name: (required) 'stock_prices_daily', 'market_health_daily', etc.
           - task_count: (optional, default 1) how many parallel tasks
+          - backfill_days: (optional) forces the loader's --backfill-days flag, which
+            bypasses the per-symbol watermark and refetches the last N days/years of
+            history instead of only what's newer than the last loaded value. Needed for
+            recovery when a symbol's history is stuck incomplete (the watermark won't
+            re-fetch years already "passed" on a normal incremental run).
         """
         loader_name = event.get("loader_name")
         if not loader_name:
@@ -52,6 +57,19 @@ class TriggerLoadersHandler(LambdaHandler):
                 return LambdaResponse.validation_error(
                     "task_count",
                     f"task_count must be numeric, got {task_count_raw!r}",
+                )
+
+        backfill_days_raw = event.get("backfill_days")
+        backfill_days: int | None = None
+        if backfill_days_raw is not None:
+            try:
+                backfill_days = int(backfill_days_raw)
+                if backfill_days < 1:
+                    return LambdaResponse.validation_error("backfill_days", "backfill_days must be >= 1")
+            except (ValueError, TypeError):
+                return LambdaResponse.validation_error(
+                    "backfill_days",
+                    f"backfill_days must be numeric, got {backfill_days_raw!r}",
                 )
 
         project_name = os.getenv("PROJECT_NAME", "algo")
@@ -140,6 +158,11 @@ class TriggerLoadersHandler(LambdaHandler):
             # Increase memory limit flag for batch processing
             "ECS_TASK_MEMORY_LIMIT": "1024" if loader_name in critical_loaders else "512",
         }
+        if backfill_days is not None:
+            # Read by loaders/runner.py as a fallback default for --backfill-days. Using an
+            # env var (rather than a command override) means we don't need to know or
+            # reconstruct each loader's script filename/full command here.
+            environment_overrides["BACKFILL_DAYS"] = str(backfill_days)
 
         task_def = f"{project_name}-{loader_name}-loader"
         logger.info(f"Triggering loader: {loader_name} (task_def={task_def}, count={task_count})")
