@@ -74,16 +74,24 @@ AUXILIARY_INCOMPLETE_LOADERS = {
     "trend_template_data",
 }
 
-# Time to wait before retrying (allow API throttling to reset)
-RETRY_WAIT_SECONDS = 90
+# Time to wait before retrying. Retries now trigger an independent ECS task
+# (see invoke_loader_retry) instead of making API calls in-process, so there's
+# no in-process throttling to wait out — this is just a brief settling delay.
+RETRY_WAIT_SECONDS = 5
 
-# Timeout for monitoring retry (how long to wait for loader to complete)
-# CRITICAL FIX 2026-06-30: Increased from 15 to 25 minutes to accommodate slow metric loaders
-# positioning_metrics and value_metrics make per-symbol yfinance calls: ~0.5-1s each
-# At min parallelism=2: 5000 symbols = ~2500-5000 / 2 = 1250-2500 seconds = 20-41 minutes
-# At parallelism=3: 833-1666 seconds = 13-27 minutes (safer, within 25-min window)
-# With RDS-adaptive parallelism, can exceed parallelism=3 if RDS idle, reducing time further
-RETRY_MONITOR_TIMEOUT_SECONDS = 25 * 60  # 25 minutes (was 15)
+# Timeout for monitoring retry (how long THIS phase blocks waiting to see if the
+# retry already completed, before giving up and letting the run proceed/halt on
+# current data). Real loaders (positioning_metrics, value_metrics, etc.) can take
+# 20-40 minutes on ECS — this Lambda cannot wait that long: its own configured
+# timeout is 300s (terraform.tfvars algo_lambda_timeout) shared with phases 2,6,9
+# which always run afterward. So this is a short best-effort poll, not a real wait
+# for completion: invoke_loader_retry() already fired the ECS task asynchronously;
+# if it doesn't finish within this window, status_reason="timeout" is returned,
+# the loader is left "still_failing" for this run (existing halt_required handling
+# applies), and the NEXT scheduled orchestrator run picks up the by-then-completed
+# data. Multiple incomplete critical loaders are retried sequentially in the
+# calling loop, so keep this small to bound total Phase 1 time.
+RETRY_MONITOR_TIMEOUT_SECONDS = 45
 
 
 def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
