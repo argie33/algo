@@ -90,7 +90,7 @@ class SignalAttributionEngine:
             for comp in self.COMPONENTS
         }
 
-    def compute_ic_by_regime(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict[str, Any]]:  # noqa: C901
+    def compute_ic_by_regime(self, report_date: _date, lookback_trades: int = 40) -> dict[str, dict[str, Any]]:
         """
         Compute IC broken down by market regime.
 
