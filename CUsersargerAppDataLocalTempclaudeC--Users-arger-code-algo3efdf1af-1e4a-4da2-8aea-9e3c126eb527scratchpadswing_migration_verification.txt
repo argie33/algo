@@ -1,0 +1,92 @@
+=== SWING SCORE TO COMPOSITE SCORE MIGRATION VERIFICATION ===
+Date: 2026-07-06
+Status: COMPLETE AND VERIFIED
+
+### 1. ACTIVE SOURCE CODE (lambda/ directory) ✓
+✅ lambda/api/routes/algo.py
+   - No active queries to swing_trader_scores
+   - Uses stock_scores.composite_score
+
+✅ lambda/api/routes/algo_handlers/signals.py  
+   - Functions _get_swing_scores and _get_swing_scores_history are DEPRECATED
+   - Query uses: SELECT s.composite_score FROM stock_scores s
+   - Backward compatibility maintained via aliasing
+
+✅ lambda/api/routes/algo_handlers/dashboard.py
+   - Comment clarifies: "swing_trader_scores table was removed"
+   - All active queries use stock_scores table
+
+✅ Lambda data freshness monitor
+   - Correctly marks swing_trader_scores as optional/warn-only (legacy)
+   - No failures if table is missing
+
+### 2. DATABASE SCHEMA ✓
+✅ Migration 1003: Dropped swing_trader_scores and swing_score_grades tables
+✅ Migration 1004: Removed swing_score columns from:
+   - qualified_trades (swing_score, swing_grade)
+   - signal_trade_performance (swing_score, swing_grade)
+   - filter_rejection_log (swing_score_min_reason)
+   - market_exposure_tiers (min_swing_score, min_swing_grade)
+
+✅ Materialized view algo_positions_with_risk
+   - Recreated without swing_score references
+   - Uses composite_score from stock_scores
+
+### 3. PYTHON ORCHESTRATOR ✓
+✅ Phase 7 (Signal Generation)
+   - Uses composite_score from stock_scores
+   - Comment in code: "SWING SCORE MIGRATION: Removed swing_trader_scores check"
+   - No fallback to swing_trader_scores
+
+✅ Data Loader: load_stock_scores.py
+   - Computes composite_score correctly
+   - Inserts into stock_scores table
+   - No references to swing_trader_scores
+
+### 4. FRONTEND CODE ✓
+✅ StockDetail.jsx
+   - Changed: swing.swing_score → swing.composite_score
+   - Changed: "Swing Score" → "Composite Score" label
+
+✅ SwingCandidates.jsx
+   - All 6 references updated from swing_score → composite_score
+   - Grade funnel uses composite_score >= thresholds
+
+✅ TradeTracker.jsx
+   - Changed: row.swing_score → row.composite_score
+   - Changed: row.swing_grade → row.grade
+
+✅ TradingSignals.jsx
+   - Changed: g?.swing_score → g?.composite_score
+
+### 5. API RESPONSE FORMAT ✓
+✅ webapp/lambda/routes/algo.js
+   - Removed dead config: swing_score_good_threshold, swing_score_excellent_threshold
+   - Response includes: composite_score, score (alias), grade
+   - Backward compatibility via field aliasing
+
+✅ Deprecated endpoints keep backward compat:
+   - /swing-scores endpoint returns composite_score in response
+   - Error handling for deprecated routes
+
+### 6. NO ORPHANED REFERENCES ✓
+✅ No active code writes to swing_trader_scores
+✅ No active code reads from swing_trader_scores (except deprecated routes)
+✅ No active data loaders try to populate swing_trader_scores
+✅ No active config references swing_score thresholds that don't exist
+
+### 7. STALE BUILD ARTIFACTS (NOT A PROBLEM) ⚠️
+Old directories contain outdated code:
+- ./api-pkg/ — build artifact from Jul 5
+- ./lambda-deploy/ — build artifact from older deployment
+
+These are in .gitignore and not used in actual deployment.
+Action: Can safely ignore or clean up in next build cycle.
+
+=== CONCLUSION ===
+✅ MIGRATION COMPLETE AND VERIFIED
+- All active code uses composite_score
+- All removed tables and columns confirmed deleted
+- No broken queries or data loader issues
+- System ready for production use
+

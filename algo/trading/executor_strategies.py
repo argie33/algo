@@ -121,7 +121,10 @@ class AutoExecutionMode(ExecutionModeStrategy):
         return configured_url or "https://api.alpaca.markets"
 
     def resolve_paper_mode(self) -> bool:
-        return False  # Auto mode is live by default (but may fall back)
+        # CRITICAL FIX: Auto mode should return True for paper mode when using paper API
+        # The base URL is paper-api.alpaca.markets in dev/test, so paper_mode must match
+        # Otherwise is_paper flag is inconsistent with actual URL being used
+        return "paper" in (self.resolve_base_url(None) or "").lower()
 
     def validate_and_log_initialization(
         self, alpaca_key: str | None, alpaca_secret: str | None, resolved_url: str
