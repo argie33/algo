@@ -72,13 +72,21 @@ def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout
                 if isinstance(response, dict):
                     return response
                 logger.error("Cached response is not a dict: %s", type(response))
-                return None
+                return {
+                    "data_unavailable": True,
+                    "reason": "idempotency_cache_corruption",
+                    "details": f"Cached response is not a dict: {type(response).__name__}",
+                }
             except (json.JSONDecodeError, TypeError) as e:
                 logger.error(
-                    "Failed to deserialize cached response: %s. Treating as cache miss.",
+                    "Failed to deserialize cached response: %s",
                     e,
                 )
-                return None
+                return {
+                    "data_unavailable": True,
+                    "reason": "idempotency_cache_deserialization_failed",
+                    "details": str(e),
+                }
         logger.debug(f"No idempotency cache entry found for endpoint={endpoint}, key={idempotency_key[:16]}...")
         return None
     except (

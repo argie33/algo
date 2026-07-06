@@ -9,7 +9,7 @@ export const getPortfolioData = vi.fn().mockResolvedValue({
   success: true,
   data: {
     positions: [],
-    total_value: 100000,
+    total_portfolio_value: 100000,
     daily_pnl: 500,
     total_pnl: 5000,
   },

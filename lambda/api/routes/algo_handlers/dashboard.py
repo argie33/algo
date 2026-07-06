@@ -395,7 +395,7 @@ def _get_algo_status(cur: cursor) -> Any:
                 precision=2,
                 allow_none=True,
             ),
-            "unrealized_pnl_dollars": format_decimal_string(unrealized_pnl, precision=2, allow_none=True),
+            "unrealized_pnl_dollars": round(unrealized_pnl, 2) if unrealized_pnl is not None else None,
         }
     except (
         psycopg2.errors.UndefinedTable,

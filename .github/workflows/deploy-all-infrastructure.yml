@@ -7,17 +7,10 @@ name: Deploy All Infrastructure (Terraform)
 # NOTE: This is the ONLY deployment workflow. All infrastructure uses Terraform (IaC).
 
 on:
-  push:
-    branches: [ main ]
-    paths:
-      - 'terraform/**'
-      - 'algo/**'
-      - 'lambda/**'
-      - 'loaders/**'
-      - 'utils/**'
-      - 'config/**'
-      - 'monitoring/**'
-      - 'migrations/**'
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
   workflow_dispatch:
     inputs:
       skip_terraform:

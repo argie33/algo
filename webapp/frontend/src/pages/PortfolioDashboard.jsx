@@ -387,7 +387,7 @@ function PortfolioDashboardPage() {
   );
   const totalPositionValue = safePortfolioValue(safePositionsList);
   const portfolioTotalValue = toSafeNumber(
-    safeGet(portfolio, "total_value"),
+    safeGet(portfolio, "total_portfolio_value"),
     null
   );
   const totalValue =

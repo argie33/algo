@@ -123,7 +123,7 @@ export const useSafePortfolioCalculations = (positions, portfolio = {}) => {
 
     // Verify portfolio total if provided
     const portfolioTotal = toSafeNumber(
-      safeGet(portfolio, "total_value"),
+      safeGet(portfolio, "total_portfolio_value"),
       null
     );
     const finalTotal = portfolioTotal !== null ? portfolioTotal : totalValue;
