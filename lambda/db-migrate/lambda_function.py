@@ -15,12 +15,6 @@ import sys
 
 # All migrations needed, in order
 MIGRATIONS = [
-    # SCHEMA FIXES
-    ("algo_positions.is_open column", """
-        ALTER TABLE algo_positions ADD COLUMN IF NOT EXISTS is_open BOOLEAN
-            GENERATED ALWAYS AS (status IN ('open', 'partially_closed')) STORED
-    """),
-
     # CRITICAL TABLES
     ("algo_signals table", """
         CREATE TABLE IF NOT EXISTS algo_signals (
@@ -183,7 +177,6 @@ def lambda_handler(event, context):
         critical_tables = {
             'algo_signals': ['signal_date', 'symbol'],
             'orchestrator_execution_log': ['run_id', 'overall_status'],
-            'algo_positions': ['is_open'],
         }
 
         all_good = True

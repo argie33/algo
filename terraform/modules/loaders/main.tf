@@ -292,6 +292,7 @@ locals {
     "stability_metrics"     = "load_stability_metrics.py"
     "momentum_metrics"      = "load_momentum_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
+    "swing_trader_scores"   = "load_swing_trader_scores.py"
 
     "market_constituents"         = "load_market_constituents.py"
     "market_health_daily"         = "load_market_health_daily.py"
@@ -426,6 +427,7 @@ locals {
     "stability_metrics"     = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     "momentum_metrics"      = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
     "stock_scores"          = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "swing_trader_scores"   = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 1 }
 
     "market_constituents"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily"         = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
@@ -457,6 +459,7 @@ locals {
     "stock_prices_daily",
     "algo_metrics_daily",
     "stock_scores",
+    "swing_trader_scores",
     "buy_sell_daily",
     "yfinance_snapshot",
     "dxy_index",
