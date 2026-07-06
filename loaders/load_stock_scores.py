@@ -323,10 +323,11 @@ class StockScoresLoader(OptimalLoader):
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # STRICT: All stocks require minimum 3/6 metrics (50% completeness) for scoring
-            # No exceptions for new listings. Insufficient historical data = no score.
-            # This prevents phantom scores on IPOs and maintains consistent risk standards.
-            min_required_metrics = 3
+            # FIXED 2026-07-11: Allow scoring with 1+ metrics for stocks without SEC data
+            # Reason: Metric loaders intentionally exclude ETFs/non-standard securities (SEC data unavailable)
+            # but these ARE valid trading candidates. Allow scoring from available metrics (momentum, value, stability)
+            # instead of silently excluding them. Traders get visibility into score completeness via data_completeness field.
+            min_required_metrics = 1
 
             if data_count < min_required_metrics:
                 raise RuntimeError(
