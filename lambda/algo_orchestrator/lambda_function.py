@@ -31,6 +31,43 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from algo.orchestration import Orchestrator  # noqa: E402
 
 
+def _load_alpaca_credentials_from_secrets() -> None:
+    """Load Alpaca API credentials from AWS Secrets Manager into environment.
+
+    CRITICAL: Must be called before orchestrator initialization to ensure
+    credentials are available for live trading validation in phase 1.
+
+    The algo/alpaca secret contains:
+    - api_key: Alpaca API key
+    - api_secret: Alpaca API secret
+
+    These are loaded into environment variables:
+    - APCA_API_KEY_ID
+    - APCA_API_SECRET_KEY
+    """
+    import json
+
+    # Skip if already loaded (e.g., local development)
+    if os.environ.get("APCA_API_KEY_ID"):
+        logger.debug("Alpaca credentials already in environment, skipping AWS Secrets load")
+        return
+
+    try:
+        import boto3
+        sm = boto3.client('secretsmanager', region_name=os.environ.get('AWS_REGION', 'us-east-1'))
+        secret = sm.get_secret_value(SecretId='algo/alpaca')
+        data = json.loads(secret['SecretString'])
+
+        os.environ['APCA_API_KEY_ID'] = data['api_key']
+        os.environ['APCA_API_SECRET_KEY'] = data['api_secret']
+        logger.info("[CREDENTIALS] Loaded Alpaca API credentials from AWS Secrets Manager")
+    except Exception as e:
+        logger.warning(
+            f"[CREDENTIALS] Could not load Alpaca credentials from AWS Secrets Manager: {type(e).__name__}. "
+            "Will fall back to environment variables or paper trading mode. Error: {e}"
+        )
+
+
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """
     Lambda entry point for Algo Orchestrator.
@@ -56,6 +93,10 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             }
         }
     """
+
+    # Load Alpaca credentials from AWS Secrets Manager into environment
+    # CRITICAL: Must happen BEFORE orchestrator initialization
+    _load_alpaca_credentials_from_secrets()
 
     # Reset config singleton on invocation to load fresh DB config
     from algo.infrastructure import reset_config

@@ -167,12 +167,20 @@ class CredentialManager:
                 # Cache expired, remove it and fetch fresh
                 del self._cache[secret_name]
 
-        # Try Secrets Manager if in AWS
+        # Try Secrets Manager if in AWS (but fall back to env var on access errors)
         if self._is_aws:
-            secret = self._fetch_from_secrets_manager(secret_name)
-            if secret:
-                self._cache[secret_name] = (secret, time.time())
-                return secret
+            try:
+                secret = self._fetch_from_secrets_manager(secret_name)
+                if secret:
+                    self._cache[secret_name] = (secret, time.time())
+                    return secret
+            except RuntimeError as e:
+                # Access denied or unavailable - fall back to environment variable
+                # This is NOT a critical failure; env vars are a valid credential source
+                logger.debug(
+                    f"[CREDENTIALS] AWS Secrets Manager access denied for '{secret_name}', "
+                    f"falling back to environment variable. Error: {e}"
+                )
 
         # Fall back to environment variable
         env_var = secret_name.upper().replace("/", "_")
