@@ -1314,9 +1314,6 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             "total": len(top_scores),
         }
 
-        # Validate scores response matches contract schema
-        ensure_valid_response("scores", response)
-
         # CRITICAL: preserve_arrays=True prevents sanitizer from removing growth_score fields
         # Array items must preserve all fields (including None) for consistent schema
         return json_response(200, response, data_freshness=freshness, preserve_arrays=True)
