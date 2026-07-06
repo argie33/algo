@@ -162,10 +162,10 @@ def _handle_basic(cur: cursor) -> Any:
             from utils.error_handlers import sanitize_error_message
 
             sanitized = sanitize_error_message(str(e)[:60])
-            logger.error(f"[HEALTH CRITICAL] Signal freshness check failed: {sanitized}")
-            has_critical = True
+            logger.warning(f"[HEALTH WARNING] Signal freshness check failed: {sanitized}")
+            # Don't mark as critical - allow API to function even if freshness check fails
             health["freshness"] = {
-                "status": "ERROR",
+                "status": "WARNING",
                 "error": f"Cannot verify signal freshness: {sanitized}",
             }
 

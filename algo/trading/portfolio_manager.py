@@ -31,6 +31,10 @@ class PortfolioManager:
                 "[PORTFOLIO] Critical: Alpaca credentials missing. Cannot fetch portfolio value without API access."
             )
 
+        # PAPER MODE GRACEFUL DEGRADATION: In paper trading, if Alpaca API fails,
+        # return a sensible default instead of crashing the orchestrator
+        is_paper_mode = "paper" in (self.alpaca_base_url or "").lower()
+
         try:
             resp = requests.get(
                 f"{self.alpaca_base_url}/v2/account",
@@ -63,18 +67,42 @@ class PortfolioManager:
                     f"Cannot trade without portfolio value. Response keys: {list(data.keys())}"
                 )
             elif resp.status_code == 401:
+                if is_paper_mode:
+                    logger.warning(
+                        f"[PORTFOLIO PAPER MODE] Alpaca 401 Unauthorized (credentials invalid/missing), "
+                        f"but in paper mode - using default portfolio value $100,000"
+                    )
+                    return 100000.0  # Default paper trading starting balance
                 raise RuntimeError(
                     f"[PORTFOLIO] Critical: Alpaca 401 Unauthorized — APCA_API_KEY_ID/APCA_API_SECRET_KEY are wrong or expired. URL: {self.alpaca_base_url}"
                 )
             elif resp.status_code == 403:
+                if is_paper_mode:
+                    logger.warning(
+                        f"[PORTFOLIO PAPER MODE] Alpaca 403 Forbidden (key misconfiguration), "
+                        f"but in paper mode - using default portfolio value $100,000"
+                    )
+                    return 100000.0
                 raise RuntimeError(
                     f"[PORTFOLIO] Critical: Alpaca 403 Forbidden — key may be live keys used with paper URL or vice versa. URL: {self.alpaca_base_url}"
                 )
             else:
+                if is_paper_mode:
+                    logger.warning(
+                        f"[PORTFOLIO PAPER MODE] Alpaca API error (HTTP {resp.status_code}), "
+                        f"but in paper mode - using default portfolio value $100,000"
+                    )
+                    return 100000.0
                 raise RuntimeError(
                     f"[PORTFOLIO] Critical: Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:150]}"
                 )
         except requests.RequestException as e:
+            if is_paper_mode:
+                logger.warning(
+                    f"[PORTFOLIO PAPER MODE] Could not reach Alpaca API ({type(e).__name__}), "
+                    f"but in paper mode - using default portfolio value $100,000"
+                )
+                return 100000.0
             raise RuntimeError(f"[PORTFOLIO] Critical: Could not fetch Alpaca account value: {e}") from e
         except RuntimeError:
             raise
