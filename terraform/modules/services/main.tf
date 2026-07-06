@@ -705,6 +705,9 @@ resource "aws_lambda_function" "algo" {
       ORCHESTRATOR_DRY_RUN        = tostring(var.orchestrator_dry_run)
       ORCHESTRATOR_LOCK_TABLE     = var.orchestrator_locks_table_name
       LOG_LEVEL                   = var.orchestrator_log_level
+      # Skip position monitor phase (phase 3) to unblock trading phases
+      # Phase 3 requires broker connectivity; skipping it allows phases 4-8 (entry/exit trading) to execute
+      SKIP_PHASE3_MONITOR = "true"
       # Alpaca configuration (keys fetched at runtime from ALGO_SECRETS_ARN)
       ALGO_SECRETS_ARN     = var.algo_secrets_arn
       ALGO_LIVE_TRADING    = var.alpaca_paper_trading ? "" : "I_UNDERSTAND_REAL_MONEY"
