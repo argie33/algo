@@ -1095,6 +1095,7 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         # (they expose DB table names, loader names, row counts, freshness ages).
         "/api/market",  # Market breadth, distribution (aggregate only - no strategy)
         "/api/algo/markets",  # Market regime data (public market conditions)
+        "/api/algo/scores",  # Stock scores (needed for dashboard signals panel - growth/composite scores)
         "/api/algo/swing-scores",  # Swing trader scores (used by TradingSignals page for all users)
         "/api/algo/swing-scores-history",  # Swing scores historical data (dashboard panel)
         "/api/algo/sector-rotation",  # Sector rotation analysis (public market analysis)
