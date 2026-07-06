@@ -15,7 +15,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from routes.utils import error_response, json_response, list_response, success_response
+# CRITICAL: All imports happen at test time, not module load time
+# This prevents sys.modules pollution that breaks test isolation
 
 
 class TestErrorResponseFormat:
@@ -23,6 +24,8 @@ class TestErrorResponseFormat:
 
     def test_error_response_format(self):
         """error_response() should return {statusCode, errorType, message, _error}."""
+        from routes.utils import error_response
+
         response = error_response(400, "bad_request", "Invalid input")
 
         assert response["statusCode"] == 400
@@ -35,6 +38,8 @@ class TestErrorResponseFormat:
 
     def test_error_response_500(self):
         """error_response() with 500 should include _error field."""
+        from routes.utils import error_response
+
         response = error_response(500, "internal_error", "Server error occurred")
 
         assert response["statusCode"] == 500
@@ -44,6 +49,8 @@ class TestErrorResponseFormat:
 
     def test_error_response_503(self):
         """error_response() with 503 should include _error field and mark as transient."""
+        from routes.utils import error_response
+
         response = error_response(503, "service_unavailable", "Database connection failed")
 
         assert response["statusCode"] == 503
@@ -58,6 +65,8 @@ class TestErrorResponseFormat:
         Dashboard retry logic depends on 504 transient marking to retry slow queries with backoff.
         Both 503 (overloaded) and 504 (slow query) indicate temporary service issues that usually recover.
         """
+        from routes.utils import error_response
+
         response = error_response(504, "gateway_timeout", "Request timeout")
 
         assert response["statusCode"] == 504
@@ -68,6 +77,8 @@ class TestErrorResponseFormat:
 
     def test_json_response_success_format(self):
         """json_response(200, data) should return {statusCode, data}."""
+        from routes.utils import json_response
+
         data = {"result": "success", "value": 42}
         response = json_response(200, data)
 
@@ -78,6 +89,8 @@ class TestErrorResponseFormat:
 
     def test_json_response_error_with_message(self):
         """json_response(4xx, {message: '...'}) should ensure _error field."""
+        from routes.utils import json_response
+
         response = json_response(400, {"errorType": "bad_request", "message": "Invalid input"})
 
         assert response["statusCode"] == 400
@@ -87,6 +100,8 @@ class TestErrorResponseFormat:
 
     def test_json_response_error_with_explicit_error_field(self):
         """json_response(4xx, {_error: '...'}) should preserve explicit _error."""
+        from routes.utils import json_response
+
         response = json_response(
             500,
             {
@@ -101,6 +116,8 @@ class TestErrorResponseFormat:
 
     def test_success_response_format(self):
         """success_response() should return {statusCode: 200, data: {...}}."""
+        from routes.utils import success_response
+
         data = {"user": "john", "id": 123}
         response = success_response(data)
 
@@ -111,6 +128,8 @@ class TestErrorResponseFormat:
 
     def test_list_response_format(self):
         """list_response() should return {statusCode: 200, data: {items: [...], total: N}}."""
+        from routes.utils import list_response
+
         items = [{"id": 1}, {"id": 2}]
         response = list_response(items, total=2)
 
@@ -121,6 +140,8 @@ class TestErrorResponseFormat:
 
     def test_error_response_consistency_across_codes(self):
         """All error status codes should produce consistent format."""
+        from routes.utils import error_response
+
         error_codes = [400, 401, 403, 404, 429, 500, 503, 504]
 
         for code in error_codes:
@@ -143,6 +164,8 @@ class TestErrorResponseInConsistentScenarios:
 
     def test_json_response_with_none_message(self):
         """json_response should handle None in message gracefully."""
+        from routes.utils import json_response
+
         response = json_response(500, {"errorType": "error", "message": None})
 
         assert response["statusCode"] == 500
@@ -152,6 +175,8 @@ class TestErrorResponseInConsistentScenarios:
 
     def test_json_response_missing_message_field(self):
         """json_response should handle missing message field."""
+        from routes.utils import json_response
+
         response = json_response(500, {"errorType": "error"})
 
         assert response["statusCode"] == 500
@@ -161,6 +186,8 @@ class TestErrorResponseInConsistentScenarios:
 
     def test_error_response_special_characters(self):
         """error_response should handle special characters in message."""
+        from routes.utils import error_response
+
         response = error_response(400, "validation_error", 'Field "email" is required: please@example.com')
 
         assert response["_error"] == 'Field "email" is required: please@example.com'
@@ -168,6 +195,8 @@ class TestErrorResponseInConsistentScenarios:
 
     def test_error_response_unicode_characters(self):
         """error_response should handle unicode characters."""
+        from routes.utils import error_response
+
         response = error_response(400, "validation_error", "Error: café ☕ 中文")
 
         assert response["_error"] == "Error: café ☕ 中文"
@@ -179,11 +208,15 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_error_response_with_int_statuscode(self):
         """error_response with valid int statusCode should work."""
+        from routes.utils import error_response
+
         response = error_response(400, "bad_request", "Invalid input")
         assert isinstance(response["statusCode"], int)
 
     def test_error_response_with_none_message(self):
         """error_response with None message should handle gracefully."""
+        from routes.utils import error_response
+
         try:
             response = error_response(400, "bad_request", None)
             assert response is not None
@@ -193,6 +226,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_error_response_with_dict_message(self):
         """error_response with dict instead of string message."""
+        from routes.utils import error_response
+
         try:
             response = error_response(400, "bad_request", {"error": "details"})
             assert response is not None
@@ -201,6 +236,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_error_response_with_negative_statuscode(self):
         """error_response with negative statusCode."""
+        from routes.utils import error_response
+
         try:
             response = error_response(-400, "bad_request", "Invalid input")
             assert response is not None
@@ -209,6 +246,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_error_response_with_none_errortype(self):
         """error_response with None errorType."""
+        from routes.utils import error_response
+
         try:
             response = error_response(400, None, "Invalid input")
             assert response is not None
@@ -217,6 +256,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_json_response_with_none_code(self):
         """json_response with None statusCode."""
+        from routes.utils import json_response
+
         try:
             response = json_response(None, {"data": "test"})
             assert response is not None
@@ -225,6 +266,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_json_response_with_malformed_data(self):
         """json_response with non-dict data."""
+        from routes.utils import json_response
+
         try:
             response = json_response(200, "not_a_dict")
             assert response is not None
@@ -233,6 +276,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_success_response_with_none_data(self):
         """success_response with None data."""
+        from routes.utils import success_response
+
         try:
             response = success_response(None)
             assert response is not None
@@ -241,6 +286,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_success_response_with_string_data(self):
         """success_response with string instead of dict."""
+        from routes.utils import success_response
+
         try:
             response = success_response("string_data")
             assert response is not None
@@ -249,6 +296,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_list_response_with_non_list_items(self):
         """list_response with non-list items."""
+        from routes.utils import list_response
+
         try:
             response = list_response({"item": "not_list"}, total=1)
             assert response is not None
@@ -257,6 +306,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_list_response_with_negative_total(self):
         """list_response with negative total."""
+        from routes.utils import list_response
+
         try:
             response = list_response([{"id": 1}], total=-5)
             assert response is not None
@@ -265,6 +316,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_error_response_with_very_long_message(self):
         """error_response with extremely long message."""
+        from routes.utils import error_response
+
         long_msg = "x" * 100000  # 100KB message
         try:
             response = error_response(400, "bad_request", long_msg)
@@ -275,6 +328,8 @@ class TestErrorResponseFormatWithMalformedData:
 
     def test_error_response_with_null_bytes(self):
         """error_response with null bytes in message."""
+        from routes.utils import error_response
+
         try:
             response = error_response(400, "bad_request", "test\x00null")
             assert response is not None
