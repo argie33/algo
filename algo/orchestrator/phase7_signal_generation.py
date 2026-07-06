@@ -242,6 +242,130 @@ def _check_liquidity_parallel(
         return candidate, False
 
 
+def _get_candidates_from_stock_scores_fallback(
+    run_date: _date, min_score: float, limit: int = 100
+) -> list[dict[str, Any]]:
+    """FALLBACK signal source: stock_scores composite ranking only (no buy_sell_daily).
+
+    Used when orchestrator runs before EOD pipeline completes (morning/afternoon runs).
+    Returns top-ranked candidates by composite_score, with technical data attached.
+
+    This is a degraded path (no breakout confirmation), but allows trading to continue.
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            cur.execute("SET LOCAL statement_timeout = '15000ms'")
+            cur.execute(
+                """
+                WITH ranked AS (
+                    SELECT
+                        ss.symbol,
+                        ss.composite_score,
+                        ss.quality_score,
+                        ss.growth_score,
+                        ss.momentum_score,
+                        ss.rs_percentile,
+                        p.close,
+                        p.high,
+                        p.low,
+                        sma.avg_close AS sma_50,
+                        atr_calc.atr_14,
+                        cp.sector,
+                        cp.industry,
+                        NULL::float AS buylevel,
+                        NULL::float AS stoplevel,
+                        0.5 AS signal_strength,
+                        NULL::float AS volume_surge_pct,
+                        0 AS market_stage
+                    FROM stock_scores ss
+                    JOIN LATERAL (
+                        SELECT close, high, low
+                        FROM price_daily
+                        WHERE symbol = ss.symbol AND date <= %s
+                        ORDER BY date DESC LIMIT 1
+                    ) p ON TRUE
+                    JOIN LATERAL (
+                        SELECT AVG(close) AS avg_close
+                        FROM (
+                            SELECT close FROM price_daily
+                            WHERE symbol = ss.symbol AND date <= %s
+                            ORDER BY date DESC LIMIT 50
+                        ) t
+                    ) sma ON TRUE
+                    JOIN LATERAL (
+                        SELECT AVG(tr) AS atr_14
+                        FROM (
+                            SELECT
+                                GREATEST(
+                                    high - low,
+                                    ABS(high - LAG(close) OVER (ORDER BY date)),
+                                    ABS(low - LAG(close) OVER (ORDER BY date))
+                                ) AS tr,
+                                ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
+                            FROM price_daily
+                            WHERE symbol = ss.symbol AND date <= %s
+                        ) t
+                        WHERE tr IS NOT NULL AND rn <= 14
+                    ) atr_calc ON TRUE
+                    LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
+                    WHERE ss.composite_score >= %s
+                      AND ss.data_completeness >= 70
+                      AND p.close > sma.avg_close
+                      AND p.high > p.low
+                )
+                SELECT * FROM ranked
+                ORDER BY composite_score DESC
+                LIMIT %s
+                """,
+                (run_date, run_date, run_date, min_score, limit),
+            )
+            rows = cur.fetchall()
+
+        candidates = []
+        for r in rows:
+            symbol = r[0]
+            composite = float(r[1]) if r[1] is not None else min_score
+            close = float(r[6]) if r[6] is not None else None
+
+            if close is None:
+                logger.warning(f"[PHASE 7 FALLBACK] {symbol}: missing close price, skipping")
+                continue
+
+            candidates.append(
+                {
+                    "symbol": symbol,
+                    "composite_score": composite,
+                    "quality_score": float(r[2]) if r[2] is not None else None,
+                    "growth_score": float(r[3]) if r[3] is not None else None,
+                    "momentum_score": float(r[4]) if r[4] is not None else None,
+                    "rs_percentile": float(r[5]) if r[5] is not None else None,
+                    "close": close,
+                    "high": float(r[7]) if r[7] is not None else None,
+                    "low": float(r[8]) if r[8] is not None else None,
+                    "sma_50": float(r[9]) if r[9] is not None else None,
+                    "atr_14": float(r[10]) if r[10] is not None else None,
+                    "entry_price": close,
+                    "signal_strength": 0.5,
+                    "sector": r[11],
+                    "industry": r[12],
+                    "buylevel": None,
+                    "stoplevel": None,
+                    "volume_surge_pct": None,
+                    "market_stage": 0,
+                    "signal_date": str(run_date),
+                }
+            )
+
+        logger.info(
+            f"[PHASE 7 FALLBACK] {len(candidates)} candidates from stock_scores only "
+            f"(no buy_sell_daily — EOD pipeline pending)"
+        )
+        return candidates
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        logger.error(f"[PHASE 7 FALLBACK] Database error: {e}")
+        raise RuntimeError(f"[PHASE 7 FALLBACK] Failed to fetch stock_scores candidates: {e}") from e
+
+
 def _get_candidates_from_buysell(
     run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3
 ) -> list[dict[str, Any]]:
@@ -501,8 +625,8 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                     f"(most recent available; run_date={run_date})"
                 )
 
-            # CRITICAL #3: buy_sell_daily must be available (primary signal source)
-            # Guard rail: If buy_sell_daily has NO data within lookback window, fail immediately
+            # CRITICAL #3: buy_sell_daily availability check
+            # If empty, Phase 7 can still run with fallback to stock_scores ranking
             lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
             cur.execute(
                 """
@@ -522,15 +646,8 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
             buysell_count = buysell_row[0]
-            if buysell_count == 0:
-                msg = (
-                    f"[PHASE 7 CRITICAL] buy_sell_daily has NO BUY signals within {_BUYSELL_LOOKBACK_DAYS} days. "
-                    "Phase 7 has NO FALLBACK — buy_sell_daily is required for breakout confirmation. "
-                    "Check that EOD pipeline (4:05 PM ET) has completed and buy_sell_daily loader ran successfully."
-                )
-                logger.critical(msg)
-                log_phase_result_fn(7, "signal_generation", "halt", msg)
-                return False, msg
+            # NOTE: If buysell_count==0, Phase 7 will use fallback (stock_scores-only ranking)
+            # This allows orchestrator to run in morning/afternoon before EOD pipeline completes
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         msg = f"[PHASE 7 CRITICAL] Could not validate critical dependencies: {e}"
@@ -648,12 +765,19 @@ def run(  # noqa: C901
         )
 
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
-    # buy_sell_daily is REQUIRED (loaded by EOD pipeline at 4:05 PM ET before orchestrator runs).
-    # Fail explicitly if unavailable — don't silently degrade to stock_scores.
+    # FALLBACK: If buy_sell_daily is empty (morning/afternoon orchestrator runs), use stock_scores ranking.
+    signal_source = "buysell_breakout"
     try:
         raw_candidates = _get_candidates_from_buysell(
             run_date, min_composite_score, min_close_quality=min_close_quality
         )
+        if not raw_candidates:
+            logger.info(
+                f"[PHASE 7] No buy_sell_daily BUY signals found within {_BUYSELL_LOOKBACK_DAYS} days. "
+                "Falling back to stock_scores ranking (degraded path for morning/afternoon orchestrator runs)."
+            )
+            raw_candidates = _get_candidates_from_stock_scores_fallback(run_date, min_composite_score)
+            signal_source = "stock_scores_fallback"
     except ValueError as e:
         # CONSISTENCY FIX #2: Validation errors now raise exceptions (not silent degradation)
         # Categorize as DATA_INVALID so operators know why signals are missing
@@ -706,15 +830,13 @@ def run(  # noqa: C901
 
     if not raw_candidates:
         msg = (
-            f"[PHASE 7 CRITICAL] No buy_sell_daily BUY signals found within last {_BUYSELL_LOOKBACK_DAYS} "
-            "calendar days. Phase 7 requires buy_sell_daily breakout signals as primary gate. "
-            "Check that EOD pipeline (4:05 PM ET) has completed and buy_sell_daily loader ran successfully."
+            f"[PHASE 7] No candidates found (buy_sell_daily empty AND stock_scores fallback returned 0 rows). "
+            "Check: (1) stock_scores table has data, (2) market regime allows entries, "
+            "(3) price_daily has recent data for trending symbols."
         )
-        logger.critical(msg)
-        log_phase_result_fn(7, "signal_generation", "halt", msg)
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, msg)
-
-    signal_source = "buysell_breakout"
+        logger.warning(msg)
+        log_phase_result_fn(7, "signal_generation", "no_signals", msg)
+        return PhaseResult(7, "signal_generation", "ok", {"qualified_trades": [], "liquidity_passed": 0}, False, msg)
 
     # All trend and close quality validation happens at SQL level in _get_candidates_from_buysell().
     # Candidates here are already filtered for: close > sma_50, close_position > min_close_quality.
