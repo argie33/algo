@@ -1207,7 +1207,14 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 FROM swing_trader_scores
                 WHERE date >= CURRENT_DATE - 14
                 GROUP BY date ORDER BY date DESC LIMIT 7""")
-        trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+        trend_rows = cur.fetchall()
+        trend = []
+        for row in trend_rows:
+            row_dict = safe_json_serialize(safe_dict_convert(row))
+            # Convert date field to ISO format string if present
+            if 'date' in row_dict and row_dict['date'] and hasattr(row_dict['date'], 'isoformat'):
+                row_dict['date'] = row_dict['date'].isoformat()
+            trend.append(row_dict)
 
         freshness = check_data_freshness(cur, "swing_trader_scores", "date", warning_days=1)
 
