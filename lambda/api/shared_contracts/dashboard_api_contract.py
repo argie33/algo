@@ -677,8 +677,8 @@ DASHBOARD_ENDPOINTS = {
         "description": "Notifications",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["items"],
-            field_types={"items": list},
+            optional_fields=["items", "total"],
+            field_types={"items": list, "total": int},
             description="Recent notifications",
         ),
         "freshness_max_age_seconds": 300,
@@ -691,7 +691,7 @@ DASHBOARD_ENDPOINTS = {
         "description": "Market sentiment (fear/greed index)",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["fear_greed_index", "label", "date"],
+            optional_fields=["fear_greed_index", "label", "date", "data_freshness"],
             field_types={
                 "fear_greed_index": (float, int),
                 "label": str,
@@ -708,8 +708,8 @@ DASHBOARD_ENDPOINTS = {
         "description": "Economic calendar events",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["items"],
-            field_types={"items": list},
+            optional_fields=["items", "total"],
+            field_types={"items": list, "total": int},
             description="Economic calendar events",
         ),
         "freshness_max_age_seconds": 3600,
