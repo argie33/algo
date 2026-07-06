@@ -171,7 +171,7 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
                     FROM (
                         SELECT DISTINCT ON (symbol) *
                         FROM buy_sell_daily
-                        WHERE signal_type = 'BUY' AND date >= %s AND date <= %s
+                        WHERE signal = 'BUY' AND date >= %s AND date <= %s
                         ORDER BY symbol, date DESC
                     ) bsd
                     LEFT JOIN stock_scores ss ON ss.symbol = bsd.symbol
@@ -631,7 +631,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             cur.execute(
                 """
                 SELECT COUNT(*) FROM buy_sell_daily
-                WHERE signal_type = 'BUY' AND date >= %s AND date <= %s
+                WHERE signal = 'BUY' AND date >= %s AND date <= %s
                 """,
                 (lookback_date, run_date),
             )
