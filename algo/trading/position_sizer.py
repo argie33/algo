@@ -152,23 +152,46 @@ class PositionSizer:
 
     def _fetch_live_alpaca_equity(self) -> Decimal:
         """Fetch live portfolio equity from Alpaca with retries. Raises on credential/API failure."""
+        import logging
         import time
-
         import requests
+
+        logger = logging.getLogger(__name__)
+        execution_mode = self.config.get("execution_mode", "paper")
+
+        # In paper mode, skip Alpaca API and use database portfolio value
+        if execution_mode in ("paper", "auto"):
+            try:
+                from utils.db.context import DatabaseContext
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT total_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                    )
+                    row = cur.fetchone()
+                    if row and row[0] is not None:
+                        logger.debug(f"[POSITION_SIZER] Paper mode: using portfolio snapshot value {row[0]}")
+                        return Decimal(str(row[0]))
+                # No snapshot - return default
+                logger.warning("[POSITION_SIZER] No portfolio snapshot found. Using default paper trading balance.")
+                return Decimal("100000.00")
+            except Exception as db_err:
+                logger.warning(f"[POSITION_SIZER] Paper mode portfolio lookup failed: {db_err}. Using default value.")
+                return Decimal("100000.00")
+
+        # Live mode: attempt Alpaca API call
+        key = None
+        secret = None
 
         try:
             from config.credential_manager import get_credential_manager as _get_cm
 
             _creds = _get_cm().get_alpaca_credentials()
-        except (ImportError, AttributeError) as e:
-            raise RuntimeError(
-                f"CRITICAL: Credential manager unavailable ({type(e).__name__}: {e}). "
-                f"Cannot fall back to environment variables — must use centralized AWS Secrets Manager. "
-                f"Ensure AWS credentials are configured and credential_manager is importable."
-            ) from e
+            key = _creds.get("key")
+            secret = _creds.get("secret")
+        except (ImportError, AttributeError, ValueError) as e:
+            logger.error(f"[POSITION_SIZER] Alpaca credentials unavailable in live mode: {type(e).__name__}")
+            raise RuntimeError(f"Live mode requires Alpaca credentials: {e}") from e
 
-        key = _creds.get("key")
-        secret = _creds.get("secret")
         base = os.getenv("APCA_API_BASE_URL")
         if not base:
             try:

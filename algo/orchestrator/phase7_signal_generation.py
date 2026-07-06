@@ -722,12 +722,12 @@ def run(  # noqa: C901
     # This eliminates wasted I/O and ensures silent data quality drift is detected immediately.
     quality_filtered = raw_candidates
 
-    # Check for upstream data quality issues (e.g., swing_trader_scores not populated)
+    # Check for upstream data quality issues (e.g., composite_score not populated)
     upstream_drift = _detect_upstream_data_quality_drift(run_date, signal_source)
     if upstream_drift.get("has_drift"):
         logger.warning(
-            f"[PHASE 7] Upstream data quality drift detected: {upstream_drift['swing_scores_missing']} symbols "
-            f"missing swing_trader_scores. This may suppress valid candidates."
+            f"[PHASE 7] Upstream data quality drift detected: {upstream_drift.get('drift_message', 'Unknown issue')}. "
+            f"This may suppress valid candidates."
         )
 
     # FAIL-FAST: Validate composite_score is present and numeric before sorting
