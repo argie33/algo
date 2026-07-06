@@ -564,7 +564,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         try:
             cur.execute(
                 "SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, "
-                "consecutive_losses, vix_level, market_stage, computed_at FROM circuit_breaker_status "
+                "consecutive_losses, vix_level, market_stage, check_date FROM circuit_breaker_status "
                 "ORDER BY check_date DESC LIMIT 1"
             )
             cbm_row = cur.fetchone()
@@ -587,8 +587,8 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                     },
                 )
 
-            # Extract computed_at timestamp and calculate data age
-            computed_at = cbm_row["computed_at"]
+            # Extract check_date timestamp and calculate data age
+            computed_at = cbm_row["check_date"]
             if computed_at is not None:
                 # Ensure computed_at is timezone-aware (UTC) for proper comparison
                 if computed_at.tzinfo is None:
