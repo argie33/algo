@@ -1051,13 +1051,12 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             return error_response(503, "no_data", "No swing trader signals available")
         total_n = int(sig["n"])
 
-        # Top swing candidates with swing score, sector, and buy/stop levels from buy_sell_daily
+        # Top swing candidates with signal quality score, sector, and buy/stop levels from buy_sell_daily
         cur.execute("""
                 SELECT s.symbol, t.weinstein_stage AS stage_number, s.score AS signal_quality_score,
                        s.score AS entry_quality_score, p.close,
                        s.components->>'fail_reason' AS reason,
                        cp.sector,
-                       s.score AS swing_score,
                        bsd.buylevel,
                        bsd.stoplevel
                 FROM swing_trader_scores s

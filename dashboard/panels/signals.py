@@ -73,11 +73,9 @@ from ..utilities import (
     Y,
 )
 from ._helpers import (
-    _build_buy_sig_map,
     _composite_score_color,
     _error_panel,
     _score_cell,
-    _swing_cell,
 )
 from .data_extractors import (
     extract_eval_funnel,
@@ -393,7 +391,6 @@ def _build_buy_signals_table(
     sig_table.add_column("Buy Level", justify="right", no_wrap=True, min_width=9)
     sig_table.add_column("Stop Level", justify="right", no_wrap=True, min_width=9)
     sig_table.add_column("R/R", justify="right", no_wrap=True, min_width=6)
-    sig_table.add_column("Swing", justify="right", no_wrap=True, min_width=6)
     sig_table.add_column("Entry Q", justify="right", no_wrap=True, min_width=7)
 
     for score_item in scored_with_signals:
@@ -437,11 +434,6 @@ def _build_buy_signals_table(
         except (StrictValidationError, ValueError, TypeError) as e:
             logger.warning(f"[SIGNAL_PANEL] Composite score conversion failed (comp_score={comp_score}): {e}")
         comp_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
-        swing_c: str = (
-            G
-            if (swing_score is not None and swing_score >= 80)
-            else (CY if (swing_score is not None and swing_score >= 70) else Y)
-        )
         rr_c: str = (
             G
             if rr_ratio is not None and rr_ratio > 1.5
@@ -458,7 +450,6 @@ def _build_buy_signals_table(
             Text(f"${buy_lvl_f:.2f}" if buy_lvl_f is not None else "--", style=CY),
             Text(f"${stop_lvl_f:.2f}" if stop_lvl_f is not None else "--", style=R),
             Text(f"{rr_ratio:.2f}" if rr_ratio else "--", style=rr_c),
-            Text(f"▲{swing_score:.0f}" if swing_score is not None else "--", style=swing_c),
             Text(f"{entry_qual:.0f}" if entry_qual is not None else "--", style=CY),
         )
     rows.append(sig_table)
@@ -707,7 +698,6 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
     rows.append(Rule(style="dim"))
     rows.append(Text.from_markup(f"[{Y}][bold]DETAILED SCORE BREAKDOWN[/][/]"))
 
-    buy_sig_map_exp = _build_buy_sig_map(buy_sigs)
     # GOVERNANCE: Log explicitly when optional data is missing (fail-fast visibility).
     if top_scores is None:
         logger.warning("Signals panel: top_scores is None, showing 0 candidates")
@@ -727,7 +717,6 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
         )
         sig_tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
         sig_tbl.add_column("Score", justify="right", no_wrap=True, min_width=5)
-        sig_tbl.add_column("Swing", justify="right", no_wrap=True, min_width=5)
         sig_tbl.add_column("Mom", justify="right", no_wrap=True, min_width=4)
         sig_tbl.add_column("Qual", justify="right", no_wrap=True, min_width=4)
         sig_tbl.add_column("Val", justify="right", no_wrap=True, min_width=4)
@@ -782,7 +771,6 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             sig_tbl.add_row(
                 sym,
                 Text(comp_display, style=sc_c),
-                _swing_cell(buy_sig_map_exp.get(sym_norm)),
                 _score_cell(mom),
                 _score_cell(qual),
                 _score_cell(val),
