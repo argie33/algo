@@ -93,6 +93,9 @@ class TriggerLoadersHandler(LambdaHandler):
             "algo_metrics_daily",
             "algo_risk_daily",
             "economic_metrics_daily",
+            # Industry and sector analysis (dashboard API data)
+            "industry_ranking",
+            "sector_ranking",
         }
         # Use FARGATE for critical loaders (higher timeout, guaranteed resources)
         use_fargate = loader_name in critical_loaders

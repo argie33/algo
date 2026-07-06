@@ -1158,6 +1158,73 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
+@db_route_handler("fetch dashboard scores")  # type: ignore[untyped-decorator]
+@validate_api_response("scores")  # type: ignore[untyped-decorator]
+def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
+    """Get top stock scores with composite and component scores for dashboard.
+
+    Returns growth-aware composite scores from stock_scores table.
+    """
+    try:
+        cur.execute(
+            """
+            SELECT
+                symbol,
+                COALESCE(ss.security_name, sc.symbol) AS company_name,
+                cp.sector,
+                sc.composite_score,
+                sc.momentum_score,
+                sc.quality_score,
+                sc.value_score,
+                sc.growth_score,
+                sc.positioning_score,
+                sc.stability_score,
+                sc.rs_percentile,
+                COALESCE(pl.close, sc.close) AS current_price,
+                CASE WHEN pl.close IS NOT NULL THEN
+                    ((pl.close - COALESCE(sc.previous_close, pl.close)) / COALESCE(sc.previous_close, 1) * 100)
+                ELSE NULL END AS change_percent,
+                sc.updated_at
+            FROM stock_scores sc
+            LEFT JOIN security_symbols ss ON sc.symbol = ss.symbol
+            LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
+            LEFT JOIN (
+                SELECT symbol, close FROM price_daily
+                WHERE date = (SELECT MAX(date) FROM price_daily)
+            ) pl ON sc.symbol = pl.symbol
+            WHERE sc.composite_score > 0
+            AND sc.data_completeness >= 70
+            ORDER BY sc.composite_score DESC
+            LIMIT %s
+            """,
+            (limit,),
+        )
+        rows = cur.fetchall()
+        top_scores = [safe_json_serialize(safe_dict_convert(row)) for row in rows]
+
+        freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
+
+        response = {
+            "top": top_scores,
+            "total": len(top_scores),
+            "data_freshness": freshness,
+        }
+
+        # Validate scores response matches contract schema
+        ensure_valid_response("scores", response)
+
+        return json_response(200, response)
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch dashboard scores")
+        return error_response(code, error_type, message)
+
+
 @db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
 def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
     """Get equity curve for last N days."""

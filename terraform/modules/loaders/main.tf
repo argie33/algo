@@ -296,6 +296,7 @@ locals {
     "market_constituents"         = "load_market_constituents.py"
     "market_health_daily"         = "load_market_health_daily.py"
     "sector_ranking"              = "load_sector_ranking.py"
+    "industry_ranking"            = "load_industry_ranking.py"
     "algo_metrics_daily"          = "load_algo_metrics_daily.py"
     "buy_sell_daily"              = "load_buy_sell_daily.py"
     "earnings_history"            = "load_earnings_history.py"
@@ -386,6 +387,16 @@ locals {
       description = "Compute composite stock scores - EOD pipeline (depends on all metric loaders)"
       schedule    = "cron(30 21 ? * MON-FRI *)" # 4:30 PM ET (after all metrics)
     }
+
+    # Industry and sector rankings: 4:40 PM ET (after stock_scores complete ~4:35 PM)
+    "industry_ranking" = {
+      description = "Compute industry rankings from stock scores - EOD pipeline (depends on stock_scores)"
+      schedule    = "cron(40 21 ? * MON-FRI *)" # 4:40 PM ET (after stock_scores)
+    }
+    "sector_ranking" = {
+      description = "Compute sector rankings from stock scores - EOD pipeline (depends on stock_scores)"
+      schedule    = "cron(45 21 ? * MON-FRI *)" # 4:45 PM ET (after industry_ranking)
+    }
   }
 }
 
@@ -419,6 +430,7 @@ locals {
     "market_constituents"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily"         = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
     "sector_ranking"              = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
+    "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "algo_metrics_daily"          = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
     "buy_sell_daily"              = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 }
     "earnings_history"            = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }

@@ -41,6 +41,7 @@ from .algo_handlers.dashboard import (
     _get_algo_status,
     _get_algo_trades,
     _get_circuit_breakers,
+    _get_dashboard_scores,
     _get_dashboard_signals,
     _get_equity_curve,
 )
@@ -321,6 +322,9 @@ def _dispatch(  # noqa: C901
         return _get_algo_positions(cur, user_id=user_id)
     elif path == "/api/algo/dashboard-signals":
         return _get_dashboard_signals(cur)
+    elif path == "/api/algo/scores":
+        limit = safe_limit(extract_param(params, "limit"), max_val=100, default=50)
+        return _get_dashboard_scores(cur, limit)
     elif path == "/api/algo/performance":
         return _get_algo_performance(cur)
     elif path == "/api/algo/circuit-breakers":

@@ -104,7 +104,70 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     def _extract_float(result: float | dict[str, Any]) -> float | None:
         return result if isinstance(result, float) else None
 
-    # Stage 1: Get industry base scores + ranking
+    # Try to fetch from industry_ranking table first (simpler fallback)
+    try:
+        cur.execute("""
+            SELECT
+                industry,
+                current_rank,
+                momentum_score,
+                rank_1w_ago,
+                rank_4w_ago,
+                rank_12w_ago
+            FROM industry_ranking
+            WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
+            ORDER BY current_rank
+            LIMIT %s OFFSET %s
+        """, (limit, offset))
+
+        industry_ranking_data = cur.fetchall()
+        if industry_ranking_data:
+            logger.info(f"[INDUSTRIES] Using simplified industry_ranking table data ({len(industry_ranking_data)} records)")
+
+            industries = []
+            for row in industry_ranking_data:
+                industries.append({
+                    "industry": row.get("industry", ""),
+                    "sector": "",  # Not available in industry_ranking table
+                    "current_rank": row.get("current_rank"),
+                    "overall_rank": row.get("current_rank"),
+                    "rank_1w_ago": row.get("rank_1w_ago"),
+                    "rank_4w_ago": row.get("rank_4w_ago"),
+                    "rank_12w_ago": row.get("rank_12w_ago"),
+                    "stock_count": None,
+                    "composite_score": row.get("momentum_score"),
+                    "momentum_score": row.get("momentum_score"),
+                    "value_score": None,
+                    "quality_score": None,
+                    "growth_score": None,
+                    "stability_score": None,
+                    "performance_1d": None,
+                    "performance_5d": None,
+                    "performance_20d": None,
+                    "current_momentum": "Moderate",
+                    "current_trend": "Sideways",
+                    "pe": {"trailing": None, "percentile": None},
+                })
+
+            # Get total count
+            cur.execute("SELECT COUNT(DISTINCT industry) FROM industry_ranking WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)")
+            total_row = cur.fetchone()
+            total = total_row["count"] if total_row else len(industries)
+
+            freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
+
+            result = {
+                "items": industries,
+                "total": int(total),
+                "page": page,
+                "limit": limit,
+                "data_freshness": freshness,
+            }
+            return json_response(200, result)
+    except Exception as e:
+        logger.warning(f"[INDUSTRIES] Fallback to industry_ranking table failed: {e}. Trying complex query.")
+
+    # Stage 1: Get industry base scores + ranking (complex query for detailed data)
     base_scores = execute_with_timeout(
         cur,
         """

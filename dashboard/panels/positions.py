@@ -162,7 +162,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         t.add_column("T1->", justify="right", no_wrap=True)
         t.add_column("Days", justify="right", no_wrap=True, min_width=4)
         t.add_column("Stage", justify="center", no_wrap=True, min_width=3)
-        t.add_column("Swing", justify="right", no_wrap=True, min_width=4)
+        t.add_column("M-Trend", justify="right", no_wrap=True, min_width=6)
         t.add_column("Sector", style="dim", no_wrap=True, max_width=12)
     valid_count = 0
     for p in pos_items:
