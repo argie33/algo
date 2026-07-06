@@ -482,8 +482,10 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
     t.add_column("Composite", justify="right", no_wrap=True, min_width=7)
     t.add_column("Momentum", justify="right", no_wrap=True, min_width=8)
     t.add_column("Quality", justify="right", no_wrap=True, min_width=7)
+    t.add_column("Value", justify="right", no_wrap=True, min_width=5)
     t.add_column("Growth", justify="right", no_wrap=True, min_width=7)
     t.add_column("Stability", justify="right", no_wrap=True, min_width=8)
+    t.add_column("Positioning", justify="right", no_wrap=True, min_width=8)
     t.add_column("RS%", justify="right", no_wrap=True, min_width=5)
     t.add_column("Change%", justify="right", no_wrap=True, min_width=7)
     t.add_column("Sector", no_wrap=True, max_width=12)
@@ -493,8 +495,10 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
         comp = safe_get_field(sc, "composite_score")
         mom = safe_get_field(sc, "momentum_score")
         qual = safe_get_field(sc, "quality_score")
+        val = safe_get_field(sc, "value_score")
         grwth = safe_get_field(sc, "growth_score")
         stab = safe_get_field(sc, "stability_score")
+        pos = safe_get_field(sc, "positioning_score")
         rs_pct = safe_get_field(sc, "rs_percentile")
         chg = safe_get_field(sc, "change_percent")
         sector = (safe_get_field(sc, "sector", ""))[:12]
@@ -509,8 +513,10 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
             Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
             _score_cell(mom),
             _score_cell(qual),
+            _score_cell(val),
             _score_cell(grwth),
             _score_cell(stab),
+            _score_cell(pos),
             Text(
                 f"{rs_v:.0f}" if rs_v is not None else "--",
                 style=G if rs_v is not None and rs_v >= 70 else DIM,
