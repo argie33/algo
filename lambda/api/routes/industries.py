@@ -90,27 +90,47 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     Uses precomputed industry_ranking table populated by EOD loader (depends on stock_scores).
     Table contains rankings, momentum scores, and historical rank changes.
     """
-    limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=500)
-    page = safe_page(extract_param(params, "page"), default=1)
-    offset = (page - 1) * limit
+    try:
+        limit = safe_limit(extract_param(params, "limit"), max_val=50000, default=500)
+        page = safe_page(extract_param(params, "page"), default=1)
+        offset = (page - 1) * limit
+
+        # Validate offset is non-negative and reasonable
+        if offset < 0:
+            return error_response(400, "invalid_offset", "Offset must be non-negative")
+        if limit < 1:
+            return error_response(400, "invalid_limit", "Limit must be at least 1")
+
+    except Exception as e:
+        logger.error(f"[INDUSTRIES] Parameter validation failed: {type(e).__name__}: {e}")
+        return error_response(400, "parameter_error", f"Invalid parameters: {str(e)[:100]}")
 
     from utils.validation import DatabaseResultValidator
 
-    cur.execute("""
-        SELECT
-            industry,
-            current_rank,
-            momentum_score,
-            rank_1w_ago,
-            rank_4w_ago,
-            rank_12w_ago
-        FROM industry_ranking
-        WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
-        ORDER BY current_rank
-        LIMIT %s OFFSET %s
-    """, (limit, offset))
+    try:
+        cur.execute("""
+            SELECT
+                industry,
+                current_rank,
+                momentum_score,
+                rank_1w_ago,
+                rank_4w_ago,
+                rank_12w_ago
+            FROM industry_ranking
+            WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
+            ORDER BY current_rank
+            LIMIT %s OFFSET %s
+        """, (limit, offset))
 
-    industry_ranking_data = cur.fetchall()
+        industry_ranking_data = cur.fetchall()
+    except Exception as e:
+        logger.error(f"[INDUSTRIES] Database query failed: {type(e).__name__}: {e}")
+        return error_response(
+            503,
+            "query_error",
+            f"Failed to fetch industry rankings: {str(e)[:100]}",
+        )
+
     if not industry_ranking_data:
         return error_response(
             503,
@@ -162,7 +182,11 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     total_row = cur.fetchone()
     total = total_row["count"] if total_row else len(industries)
 
-    freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
+    try:
+        freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
+    except Exception as e:
+        logger.warning(f"[INDUSTRIES] Could not check data freshness: {e}. Using safe default.")
+        freshness = {"data_age_days": None, "is_stale": False, "warning": None}
 
     result = {
         "items": industries,
@@ -172,39 +196,44 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         "data_freshness": freshness,
     }
 
+    # Validate response structure
     is_valid, error_msg = ResponseValidator.validate_endpoint_response("industries/list", result)
     if not is_valid:
         logger.error(f"Industries list response validation failed: {error_msg}")
-        if error_msg:
-            return error_response(500, "response_validation_error", error_msg)
-        else:
-            logger.error("[CRITICAL] Industries list validation failed but error_msg is None. Bug.")
-            return error_response(500, "response_validation_error", "Industries list validation failed (internal error: no message)")
+        return error_response(500, "response_validation_error", error_msg or "Response validation failed")
 
     return json_response(200, result)
 
 
 def _industry_detail(cur: cursor, industry_name: str) -> Any:
     """Return detail for a single industry."""
-    cur.execute(
-        """
-        SELECT
-            cp.industry AS industry_name,
-            COUNT(DISTINCT cp.ticker) AS stock_count,
-            AVG(ss.composite_score)  AS composite_score,
-            AVG(ss.momentum_score)   AS momentum_score,
-            AVG(ss.value_score)      AS value_score,
-            AVG(ss.quality_score)    AS quality_score,
-            AVG(ss.growth_score)     AS growth_score,
-            AVG(ss.stability_score)  AS stability_score
-        FROM company_profile cp
-        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
-        WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
-        GROUP BY cp.industry
-    """,
-        (industry_name,),
-    )
-    row = cur.fetchone()
+    if not industry_name or not isinstance(industry_name, str):
+        return error_response(400, "invalid_industry_name", "Industry name is required and must be a string")
+
+    try:
+        cur.execute(
+            """
+            SELECT
+                cp.industry AS industry_name,
+                COUNT(DISTINCT cp.ticker) AS stock_count,
+                AVG(ss.composite_score)  AS composite_score,
+                AVG(ss.momentum_score)   AS momentum_score,
+                AVG(ss.value_score)      AS value_score,
+                AVG(ss.quality_score)    AS quality_score,
+                AVG(ss.growth_score)     AS growth_score,
+                AVG(ss.stability_score)  AS stability_score
+            FROM company_profile cp
+            LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+            WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
+            GROUP BY cp.industry
+        """,
+            (industry_name,),
+        )
+        row = cur.fetchone()
+    except Exception as e:
+        logger.error(f"[INDUSTRIES] Detail query failed for {industry_name}: {type(e).__name__}: {e}")
+        return error_response(503, "query_error", f"Failed to fetch industry detail: {str(e)[:100]}")
+
     if not row:
         return error_response(404, "not_found", f"Industry not found: {industry_name}")
 
@@ -240,35 +269,46 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
 
 def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> Any:
     """Return daily price series for an industry (from price_daily, indexed to 100)."""
-    days = safe_days(extract_param(params, "days"), max_val=365, default=90)
-    limit = safe_limit(extract_param(params, "limit"), max_val=252, default=90)
+    if not industry_name or not isinstance(industry_name, str):
+        return error_response(400, "invalid_industry_name", "Industry name is required and must be a string")
 
-    cur.execute(
-        """
-        WITH prices AS (
-            SELECT
-                DATE(pd.date)                        AS date,
-                AVG(CAST(pd.close AS FLOAT))         AS avg_price,
-                COUNT(DISTINCT pd.symbol)            AS stock_count
-            FROM price_daily pd
-            JOIN company_profile cp ON pd.symbol = cp.ticker
-            WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
-              AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
-              AND pd.close > 0
-            GROUP BY DATE(pd.date)
-            ORDER BY DATE(pd.date) ASC
+    try:
+        days = safe_days(extract_param(params, "days"), max_val=365, default=90)
+        limit = safe_limit(extract_param(params, "limit"), max_val=252, default=90)
+    except Exception as e:
+        logger.error(f"[INDUSTRIES] Trend parameter validation failed: {type(e).__name__}: {e}")
+        return error_response(400, "parameter_error", f"Invalid parameters: {str(e)[:100]}")
+
+    try:
+        cur.execute(
+            """
+            WITH prices AS (
+                SELECT
+                    DATE(pd.date)                        AS date,
+                    AVG(CAST(pd.close AS FLOAT))         AS avg_price,
+                    COUNT(DISTINCT pd.symbol)            AS stock_count
+                FROM price_daily pd
+                JOIN company_profile cp ON pd.symbol = cp.ticker
+                WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
+                  AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                  AND pd.close > 0
+                GROUP BY DATE(pd.date)
+                ORDER BY DATE(pd.date) ASC
+            )
+            SELECT date, avg_price, stock_count,
+                ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100
+                    AS daily_strength_score
+            FROM prices
+            ORDER BY date ASC
+            LIMIT %s
+        """,
+            (industry_name, days, limit),
         )
-        SELECT date, avg_price, stock_count,
-            ((avg_price / NULLIF(FIRST_VALUE(avg_price) OVER (ORDER BY date), 0)) - 1) * 100
-                AS daily_strength_score
-        FROM prices
-        ORDER BY date ASC
-        LIMIT %s
-    """,
-        (industry_name, days, limit),
-    )
 
-    rows = cur.fetchall()
+        rows = cur.fetchall()
+    except Exception as e:
+        logger.error(f"[INDUSTRIES] Trend query failed for {industry_name}: {type(e).__name__}: {e}")
+        return error_response(503, "query_error", f"Failed to fetch industry trend: {str(e)[:100]}")
     from utils.validation import DatabaseResultValidator
 
     trend_data = []
