@@ -856,9 +856,9 @@ DASHBOARD_ENDPOINTS = {
         "description": "Stock composite scores with multi-factor ranking",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["statusCode", "data", "data_freshness"],
-            field_types={"statusCode": int},
-            description="Stock scores list - data contains items array with component factors (composite, momentum, quality, value, growth, positioning, stability)",
+            optional_fields=["statusCode", "data", "data_freshness", "top", "total"],
+            field_types={"statusCode": int, "top": list, "total": int},
+            description="Stock scores list - data contains top array with component factors (composite, momentum, quality, value, growth, positioning, stability)",
         ),
         "freshness_max_age_seconds": 86400,
         "strict_fields": [],
