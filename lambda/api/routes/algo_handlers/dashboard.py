@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import logging
 import math
+import time
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Any
 
 import psycopg2
@@ -12,6 +14,9 @@ import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
 from psycopg2.extensions import cursor
+
+# Response cache: positions don't change frequently, cache for 60 seconds
+_positions_cache = {"data": None, "timestamp": 0, "cache_ttl_seconds": 60}
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
@@ -51,6 +56,16 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     - Sector allocation for pie chart
     - Ladder percentage points for visualization
     """
+    # OPTIMIZATION: Cache positions response for 60 seconds (positions don't update that frequently)
+    # This reduces database load during dashboard refreshes
+    current_time = time.time()
+    if (
+        _positions_cache["data"] is not None
+        and (current_time - _positions_cache["timestamp"]) < _positions_cache["cache_ttl_seconds"]
+    ):
+        logger.info(f"[POSITIONS] Returning cached response (age: {int(current_time - _positions_cache['timestamp'])}s)")
+        return _positions_cache["data"]
+
     cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
     # Initialize alerts tracking early so it can be used throughout

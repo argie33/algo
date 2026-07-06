@@ -468,6 +468,7 @@ class EntryHandler:
                 %s, %s, %s,
                 CURRENT_TIMESTAMP
             )
+            ON CONFLICT (symbol, signal_date, entry_price) DO NOTHING
             """,
             (
                 request.trade_id,
