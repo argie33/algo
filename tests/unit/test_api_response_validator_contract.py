@@ -7,6 +7,7 @@ This test suite verifies that the Lambda API response validator:
 """
 
 import sys
+import importlib
 from pathlib import Path
 
 import pytest
@@ -17,6 +18,23 @@ from shared_contracts.response_validator import (
     ResponseValidationError,
     ResponseValidator,
 )
+
+
+@pytest.fixture(autouse=True)
+def reload_modules():
+    """Reload modules before each test to prevent isolation issues.
+
+    This fixture ensures that the ResponseValidator and DASHBOARD_ENDPOINTS
+    are fresh for each test, preventing cached state from previous tests
+    from affecting test results.
+    """
+    # Reload the modules
+    if "shared_contracts.response_validator" in sys.modules:
+        importlib.reload(sys.modules["shared_contracts.response_validator"])
+    if "shared_contracts.dashboard_api_contract" in sys.modules:
+        importlib.reload(sys.modules["shared_contracts.dashboard_api_contract"])
+    yield
+    # Cleanup after test if needed
 
 
 class TestExtraFieldsValidation:
