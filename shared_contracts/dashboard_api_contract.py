@@ -484,17 +484,7 @@ DASHBOARD_ENDPOINTS = {
         "description": "Activity and audit log",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=[
-                "items",
-                "run_id",
-                "run_at",
-                "phases",
-                "recent_actions",
-                "total",
-                "limit",
-                "offset",
-                "data_freshness",
-            ],
+            optional_fields=["items", "total", "limit", "offset", "data_freshness"],
             field_types={
                 "items": list,
                 "total": int,
