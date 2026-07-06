@@ -39,13 +39,6 @@ latest_technical AS (
     percent_from_52w_high
   FROM trend_template_data
   ORDER BY symbol, date DESC
-),
-latest_swing AS (
-  SELECT DISTINCT ON (symbol)
-    symbol,
-    score AS swing_score
-  FROM swing_trader_scores
-  ORDER BY symbol, date DESC
 )
 SELECT
   ap.id,
@@ -77,8 +70,6 @@ SELECT
   lt_tech.weinstein_stage,
   lt_tech.percent_from_52w_low,
   lt_tech.percent_from_52w_high,
-
-  ls.swing_score,
 
   CASE
     WHEN COALESCE(ap.stop_loss_price, 0) = 0 OR ap.avg_entry_price = 0
@@ -128,7 +119,6 @@ LEFT JOIN latest_prices lp ON ap.symbol = lp.symbol
 LEFT JOIN latest_trades lt ON ap.symbol = lt.symbol
 LEFT JOIN latest_technical lt_tech ON ap.symbol = lt_tech.symbol
 LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
-LEFT JOIN latest_swing ls ON ap.symbol = ls.symbol
 WHERE ap.quantity > 0 AND ap.status NOT IN ('archived', 'deleted');
 
 CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_symbol

@@ -536,10 +536,6 @@ SQL_FRESHNESS_CHECK = """
              MAX(date)::date, (CURRENT_DATE - MAX(date)::date), 1
              FROM buy_sell_daily
       UNION ALL
-      SELECT 'swing_trader_scores','CRIT',
-             MAX(date)::date, (CURRENT_DATE - MAX(date)::date), 1
-             FROM swing_trader_scores
-      UNION ALL
       SELECT 'market_health_daily','CRIT',
              MAX(date)::date, (CURRENT_DATE - MAX(date)::date), 1
              FROM market_health_daily

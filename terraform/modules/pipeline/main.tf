@@ -389,7 +389,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogMetricsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "SwingScores"
+        Next = "TechnicalDataDaily"
       }
 
       LogMetricsFailure = {
@@ -409,74 +409,13 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "SwingScores"
+          Next        = "TechnicalDataDaily"
           ResultPath  = "$.logError"
         }]
-        Next = "SwingScores"
-      }
-
-      # ── Step 8: Swing trader scores (depends on signals + metrics) ───────
-      # FIXED Issue #4: Graceful degradation — if scoring fails, continue with available data
-      # FIXED 2026-06-XX: Switched to vectorized loader (2-3x faster)
-      # Vectorized approach: 1 bulk query → vectorized pandas operations → single bulk insert
-      # Full load (30-day lookback): 10-20 min vs old 30-40 min (2-3x faster)
-      SwingScores = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 7200
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
-          NetworkConfiguration = local.network_config
-          Overrides = {
-            ContainerOverrides = [{
-              Name = "algo-swing_trader_scores"
-              Environment = [
-                { Name = "LOADER_PARALLELISM", Value = "1" }
-              ]
-            }]
-          }
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogSwingScoresFailure"
-          ResultPath  = "$.loaderError"
-        }]
         Next = "TechnicalDataDaily"
       }
 
-      LogSwingScoresFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name        = "swing_trader_scores"
-          "error.$"          = "$.loaderError.Error"
-          "error_message.$"  = "$.loaderError.Cause"
-          is_critical_loader = false
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "TechnicalDataDaily"
-          ResultPath  = "$.handlerError"
-        }]
-        Next = "TechnicalDataDaily"
-      }
-
-      # ── Step 8b: Technical Data Daily (depends on prices) ──────────────
+      # ── Step 8: Technical Data Daily (depends on prices) ──────────────
       # REQUIRED BY PHASE 1 & BUY_SELL_DAILY: Computes RSI, MACD, ATR, Bollinger Bands, etc.
       # buy_sell_daily loader validates that technical_data_daily is fresh before generating signals.
       # Uses vectorized loader: 5000+ symbols in 15-25 minutes (single bulk fetch + vectorized pandas ops).
@@ -1841,40 +1780,8 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "MorningSwingScores"
-          ResultPath  = "$.exposureError"
-        }]
-        Next = "MorningSwingScores"
-      }
-
-      # ── Morning swing trader scores (only critical supporting loader) ─
-      # NOTE: buy_sell_daily runs only in EOD pipeline, not morning.
-      # Morning orchestrator (9:30 AM) uses buy_sell signals from previous day's EOD run.
-      # Removed: signal_quality_scores (computed on-the-fly instead).
-      # FIXED 2026-06-XX: Switched to vectorized loader (2-3x faster)
-      # Vectorized approach: 10-20 min vs old 30-40 min (2-3x faster)
-      MorningSwingScores = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 2700
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
-          NetworkConfiguration = local.network_config
-        }
-        # Fail-open: if swing scores fail, morning prep still succeeds
-        # Orchestrator doesn't depend on pre-computed swing scores
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 90
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
           Next        = "MorningTechnicalData"
-          ResultPath  = "$.swingError"
+          ResultPath  = "$.exposureError"
         }]
         Next = "MorningTechnicalData"
       }
@@ -1910,7 +1817,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Next = "MorningSectorRanking"
       }
 
-      # ── Morning sector ranking (depends on swing_trader_scores) ──────────
+      # ── Morning sector ranking (depends on technical_data_daily) ──────────
       # CRITICAL: Must run before orchestrator to ensure Phase 3 and Phase 5 have current sector data.
       # Timeout 900 seconds (15 minutes) — same as EOD pipeline sector ranking.
       MorningSectorRanking = {
@@ -2410,176 +2317,11 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
 }
 
 # ============================================================
-# Intraday Update Pipelines (1 PM & 3 PM ET)
-# FIXED Issue #???: Enable fresh score updates during trading hours
-# Uses vectorized swing_trader_scores with INTRADAY_MODE for 5-15 min updates
 # ============================================================
-
-resource "aws_sfn_state_machine" "intraday_afternoon_update_pipeline" {
-  name     = "${var.project_name}-intraday-afternoon-update-${var.environment}"
-  role_arn = aws_iam_role.sfn_pipeline.arn
-  type     = "STANDARD"
-
-  logging_configuration {
-    log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
-    include_execution_data = true
-    level                  = "ALL"
-  }
-
-  definition = jsonencode({
-    Comment = "Intraday afternoon score update: 1:00 PM ET, fresh swing_trader_scores for afternoon trading"
-    StartAt = "AfternoonSwingScores"
-
-    States = {
-      AfternoonSwingScores = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
-          NetworkConfiguration = local.network_config
-          Overrides = {
-            ContainerOverrides = [{
-              Name = "${var.project_name}-swing_trader_scores"
-              Environment = [
-                {
-                  Name  = "INTRADAY_MODE"
-                  Value = "true"
-                }
-              ]
-            }]
-          }
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 1
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogAfternoonFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "AfternoonSuccess"
-      }
-
-      LogAfternoonFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "swing_trader_scores (afternoon 1 PM)"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "AfternoonSuccess"
-          ResultPath  = "$.logError"
-        }]
-        Next = "AfternoonSuccess"
-      }
-
-      AfternoonSuccess = {
-        Type = "Succeed"
-      }
-    }
-  })
-
-  tags = var.common_tags
-}
-
-resource "aws_sfn_state_machine" "intraday_preclose_update_pipeline" {
-  name     = "${var.project_name}-intraday-preclose-update-${var.environment}"
-  role_arn = aws_iam_role.sfn_pipeline.arn
-  type     = "STANDARD"
-
-  logging_configuration {
-    log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
-    include_execution_data = true
-    level                  = "ALL"
-  }
-
-  definition = jsonencode({
-    Comment = "Intraday pre-close score update: 3:00 PM ET, fresh swing_trader_scores for final trading (SLA critical: finish by 3:15 PM)"
-    StartAt = "PrecloseSwingScores"
-
-    States = {
-      PrecloseSwingScores = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 900
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["swing_trader_scores"]
-          NetworkConfiguration = local.network_config
-          Overrides = {
-            ContainerOverrides = [{
-              Name = "${var.project_name}-swing_trader_scores"
-              Environment = [
-                {
-                  Name  = "INTRADAY_MODE"
-                  Value = "true"
-                }
-              ]
-            }]
-          }
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 30
-          MaxAttempts     = 1
-          BackoffRate     = 1.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogPrecloseFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "PrecloseSuccess"
-      }
-
-      LogPrecloseFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "swing_trader_scores (preclose 3 PM)"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 1
-          BackoffRate     = 1.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "PrecloseSuccess"
-          ResultPath  = "$.logError"
-        }]
-        Next = "PrecloseSuccess"
-      }
-
-      PrecloseSuccess = {
-        Type = "Succeed"
-      }
-    }
-  })
-
-  tags = var.common_tags
-}
+# DEPRECATED: Intraday Update Pipelines removed
+# REASON: swing_trader_scores loader deprecated. Phase 7 uses buy_sell_daily +
+#         stock_scores for signal ranking. No intraday updates needed.
+# ============================================================
 
 # ============================================================
 # CloudWatch Log Group for EventBridge Scheduler
@@ -2627,57 +2369,10 @@ resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
   }
 }
 
-resource "aws_scheduler_schedule" "afternoon_update_pipeline_trigger" {
-  name                         = "${var.project_name}-afternoon-update-pipeline-${var.environment}"
-  description                  = "Intraday afternoon score update: 12:50 PM ET (10 min before 1 PM orchestrator, 20-25 min total)"
-  schedule_expression          = "cron(50 12 ? * MON-FRI *)"
-  schedule_expression_timezone = "America/New_York"
-  state                        = "ENABLED"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = aws_sfn_state_machine.intraday_afternoon_update_pipeline.arn
-    role_arn = var.eventbridge_scheduler_role_arn
-
-    input = jsonencode({
-      execution_name = "afternoon-<aws.scheduler.execution-id>"
-    })
-
-    retry_policy {
-      maximum_event_age_in_seconds = 3600
-      maximum_retry_attempts       = 2
-    }
-  }
-}
-
-resource "aws_scheduler_schedule" "preclose_update_pipeline_trigger" {
-  name                         = "${var.project_name}-preclose-update-pipeline-${var.environment}"
-  description                  = "Intraday pre-close score update: 2:50 PM ET (10 min before 3 PM orchestrator, SLA critical: finish by 3:15 PM)"
-  schedule_expression          = "cron(50 14 ? * MON-FRI *)"
-  schedule_expression_timezone = "America/New_York"
-  state                        = "ENABLED"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = aws_sfn_state_machine.intraday_preclose_update_pipeline.arn
-    role_arn = var.eventbridge_scheduler_role_arn
-
-    input = jsonencode({
-      execution_name = "preclose-<aws.scheduler.execution-id>"
-    })
-
-    retry_policy {
-      maximum_event_age_in_seconds = 3600
-      maximum_retry_attempts       = 2
-    }
-  }
-}
+# ============================================================
+# DEPRECATED: Removed intraday scheduler triggers
+# REASON: swing_trader_scores loader deprecated; intraday updates no longer needed
+# ============================================================
 
 resource "aws_scheduler_schedule" "financial_data_pipeline_trigger" {
   name                         = "${var.project_name}-financial-data-pipeline-${var.environment}"
