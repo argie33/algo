@@ -232,38 +232,38 @@ def load_all() -> dict[str, Any]:
 
     out: dict[str, Any] = {}
     max_retries = 3
-    batch_timeout = 200
+    batch_timeout = 300  # Increased from 200s to allow slow database queries to complete
 
     # Per-fetcher timeout limits to prevent one slow endpoint from blocking refresh
     fetcher_timeout_seconds = {
-        # Critical fetchers: 8 second timeout (must complete)
-        "run": 8.0,
-        "cfg": 8.0,
-        "mkt": 8.0,
-        "port": 8.0,
-        "perf": 8.0,
-        "pos": 8.0,
-        "trades": 8.0,
-        "sig": 8.0,
-        "health": 8.0,
-        "cb": 8.0,
-        "risk": 8.0,  # CRITICAL: Risk metrics required for position sizing
-        "exp_factors": 8.0,  # CRITICAL: Market exposure factors required for trading decisions
-        # Optional fetchers: 3 second timeout (nice-to-have)
-        "srank": 3.0,
-        "activity": 3.0,
-        "eco": 3.0,
-        "notifs": 3.0,
-        "sentiment": 3.0,
-        "econ_cal": 3.0,
-        "perf_anl": 3.0,
-        "sig_eval": 3.0,
-        "sec_rot": 3.0,
-        "algo_metrics": 3.0,
-        "irank": 3.0,
-        "audit": 3.0,
-        "exec_hist": 3.0,
-        "scores": 8.0,
+        # Critical fetchers: 15 second timeout (must complete, increased from 8s for database queries)
+        "run": 15.0,
+        "cfg": 15.0,
+        "mkt": 15.0,
+        "port": 15.0,
+        "perf": 15.0,
+        "pos": 15.0,
+        "trades": 15.0,
+        "sig": 15.0,
+        "health": 15.0,
+        "cb": 15.0,
+        "risk": 15.0,  # CRITICAL: Risk metrics required for position sizing
+        "exp_factors": 15.0,  # CRITICAL: Market exposure factors required for trading decisions
+        # Optional fetchers: 5 second timeout (nice-to-have, increased from 3s)
+        "srank": 5.0,
+        "activity": 5.0,
+        "eco": 5.0,
+        "notifs": 5.0,
+        "sentiment": 5.0,
+        "econ_cal": 5.0,
+        "perf_anl": 5.0,
+        "sig_eval": 5.0,
+        "sec_rot": 5.0,
+        "algo_metrics": 5.0,
+        "irank": 5.0,
+        "audit": 5.0,
+        "exec_hist": 5.0,
+        "scores": 15.0,
     }
 
     # Categorize fetchers by priority to reduce concurrent RDS connections

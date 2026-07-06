@@ -1061,11 +1061,14 @@ def run(  # noqa: C901
         traceback.print_exc()
         error_msg = str(e)
         error_type = type(e).__name__
+        full_traceback = traceback.format_exc()
         logger.critical(
             f"[PHASE 9 CRITICAL] Unexpected error ({error_type}): {error_msg}. "
             "Full traceback above. Cannot proceed with trading when portfolio state is unknown. "
             "Setting halt flag to prevent further trading until broker is accessible.",
             exc_info=True
         )
-        log_phase_result_fn(9, "reconciliation", "error", f"{error_type}: {error_msg[:100]}")
+        # CRITICAL: Include full traceback in summary so it persists to execution log
+        error_summary = f"{error_type}: {error_msg[:100]}\n{full_traceback[:500]}"
+        log_phase_result_fn(9, "reconciliation", "error", error_summary)
         return PhaseResult(9, "reconciliation", "error", {}, True, f"Phase 9 error ({error_type}): {error_msg[:100]}")
