@@ -1,8 +1,9 @@
 """Test fixes for 5xx validation errors in dashboard API endpoints."""
 
 import pytest
-from shared_contracts.response_validator import ResponseValidator
+
 from shared_contracts.dashboard_api_contract import DASHBOARD_ENDPOINTS
+from shared_contracts.response_validator import ResponseValidator
 
 
 class TestResponseValidatorLeniency:
@@ -63,7 +64,7 @@ class TestResponseValidatorLeniency:
             "total": 5,
         }
 
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", response)
+        is_valid, _error_msg = ResponseValidator.validate_endpoint_response("stocks", response)
 
         # Should be invalid
         assert is_valid is False

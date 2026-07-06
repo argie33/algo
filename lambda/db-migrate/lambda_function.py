@@ -9,9 +9,9 @@ Deployment: zip this file + boto3 + psycopg2, upload to Lambda
 """
 
 import json
+
 import boto3
 import psycopg2
-import sys
 
 # All migrations needed, in order
 MIGRATIONS = [
@@ -182,7 +182,7 @@ def lambda_handler(event, context):
         all_good = True
         for table, cols in critical_tables.items():
             try:
-                cur.execute(f"""
+                cur.execute("""
                     SELECT column_name FROM information_schema.columns
                     WHERE table_name = %s AND table_schema = 'public'
                 """, (table,))

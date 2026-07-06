@@ -16,13 +16,14 @@ import logging
 import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger(__name__)
 
-# Eastern timezone for all time-based conversions
-EASTERN_TZ = timezone.utc
+# Eastern timezone for all time-based conversions (CRITICAL: Must be America/New_York, not UTC)
+EASTERN_TZ = ZoneInfo("America/New_York")
 
 
 class StrictValidationError(Exception):

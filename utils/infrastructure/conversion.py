@@ -11,12 +11,13 @@ See utils/validation/__init__.py for the single source of truth.
 
 import logging
 
-# Re-export unified validation system for backward compatibility
-# Import EASTERN_TZ from timezone to avoid circular import with utils.validation
-from .timezone import EASTERN_TZ
 from utils.validation import (
     safe_float,
 )
+
+# Re-export unified validation system for backward compatibility
+# Import EASTERN_TZ from timezone to avoid circular import with utils.validation
+from .timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 

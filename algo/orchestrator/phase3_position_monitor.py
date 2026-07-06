@@ -18,7 +18,8 @@ from algo.reporting import AlertManager
 logger = logging.getLogger(__name__)
 
 
-def run(
+def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-chain fixes;
+    # revisit as a follow-up refactor rather than rushing a split during live incident work.
     config: Any,
     run_date: _date,
     dry_run: bool,

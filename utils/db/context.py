@@ -362,7 +362,7 @@ class DatabaseContext:
                         if exc_type is None and self.role == "write":
                             logger.info(f"[DB_CONTEXT] __exit__: COMMITTING write (managed={self._externally_managed}, role={self.role}, exc_type={exc_type})")
                             self.conn.commit()
-                            logger.info(f"[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE")
+                            logger.info("[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE")
                         else:
                             logger.info(f"[DB_CONTEXT] __exit__: ROLLBACK (role={self.role}, exc_type={exc_type})")
                             self.conn.rollback()
@@ -372,7 +372,7 @@ class DatabaseContext:
                         if exc_type is None and self.role == "write":
                             logger.info(f"[DB_CONTEXT] __exit__: COMMIT (externally-managed, role={self.role})")
                             self.conn.commit()
-                            logger.info(f"[DB_CONTEXT] __exit__: COMMIT COMPLETE (externally-managed)")
+                            logger.info("[DB_CONTEXT] __exit__: COMMIT COMPLETE (externally-managed)")
                         else:
                             logger.info(f"[DB_CONTEXT] __exit__: ROLLBACK (externally-managed, exc_type={exc_type})")
                             self.conn.rollback()

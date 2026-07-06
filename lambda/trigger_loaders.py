@@ -4,7 +4,6 @@ When dashboard detects stale data, it invokes this Lambda to kick off
 the stock_scores loader task on ECS (which has proper RDS credentials).
 """
 
-import json
 import logging
 import os
 from typing import Any
@@ -66,5 +65,5 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         logger.error(f"[TRIGGER] Error: {e}", exc_info=True)
         return {
             "statusCode": 500,
-            "message": f"Error triggering loader: {str(e)}",
+            "message": f"Error triggering loader: {e!s}",
         }

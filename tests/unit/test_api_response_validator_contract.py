@@ -62,8 +62,9 @@ def get_response_validator():
             del sys.modules[mod]
 
     # Import fresh
-    from shared_contracts.response_validator import ResponseValidator as RV
-    return RV
+    from shared_contracts.response_validator import ResponseValidator as ResponseValidatorFresh
+
+    return ResponseValidatorFresh
 
 
 # For backward compatibility with existing test code that references these at module level,
