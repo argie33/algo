@@ -2409,7 +2409,7 @@ resource "aws_cloudwatch_event_rule" "computed_metrics_trigger" {
   name                = "${var.project_name}-computed-metrics-trigger-${var.environment}"
   description         = "Daily computed metrics pipeline trigger - 7:00 PM ET (quality/growth/value/stability/stock_scores)"
   schedule_expression = "cron(0 19 ? * MON-FRI *)"  # 7:00 PM ET on weekdays
-  is_enabled          = true
+  state               = "ENABLED"
 
   tags = var.common_tags
 }
