@@ -275,6 +275,10 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         if sector is not None:
             sector_risk[sector] += pos_val
 
+    # Sort positions by position value descending (largest positions first) for better UX
+    # This makes the dashboard display more organized and easier to scan
+    items.sort(key=lambda x: float(x.get("position_value", 0)), reverse=True)
+
     # Compute sector_allocation array after processing all positions (E5 fix)
     # CRITICAL: Fail-fast if portfolio appears empty after position processing
     # Division-by-zero fallback (setting total=1) would create FAKE allocation percentages
