@@ -41,13 +41,17 @@ jobs:
       - name: Get Terraform outputs
         id: terraform
         run: |
-          # Get outputs from AWS Terraform state
-          # Since infrastructure is already deployed, we can query it
-          WEBSITE_URL=$(aws cloudfront list-distributions --query "DistributionList.Items[0].DomainName" --output text 2>/dev/null || echo "")
-          API_GW=$(aws apigatewayv2 get-apis --query "Items[0].ApiEndpoint" --output text 2>/dev/null || echo "")
-          POOL_ID=$(aws cognito-idp list-user-pools --max-results 60 --query "UserPools[0].Id" --output text 2>/dev/null || echo "")
-          CLIENT_ID=$(aws cognito-idp list-user-pool-clients --user-pool-id "$POOL_ID" --query "UserPoolClients[0].ClientId" --output text 2>/dev/null || echo "")
-          COGNITO_DOMAIN="https://algo-auth.auth.us-east-1.amazoncognito.com"
+          cd terraform
+
+          # Initialize Terraform to read remote state
+          terraform init -backend=true -input=false 2>&1 | grep -E "backend|Loaded|Success" || true
+
+          # Get outputs from Terraform state
+          WEBSITE_URL=$(terraform output -raw website_url 2>/dev/null || echo "")
+          API_GW=$(terraform output -raw api_gateway_endpoint 2>/dev/null || echo "")
+          POOL_ID=$(terraform output -raw cognito_user_pool_id 2>/dev/null || echo "")
+          CLIENT_ID=$(terraform output -raw cognito_user_pool_client_id 2>/dev/null || echo "")
+          COGNITO_DOMAIN=$(terraform output -raw cognito_domain_url 2>/dev/null || echo "https://algo-auth.auth.us-east-1.amazoncognito.com")
 
           echo "website_url=$WEBSITE_URL" >> $GITHUB_OUTPUT
           echo "api_gateway_endpoint=$API_GW" >> $GITHUB_OUTPUT
@@ -55,19 +59,27 @@ jobs:
           echo "cognito_user_pool_client_id=$CLIENT_ID" >> $GITHUB_OUTPUT
           echo "cognito_domain_url=$COGNITO_DOMAIN" >> $GITHUB_OUTPUT
 
-          echo "CloudFront: ${WEBSITE_URL:-(empty)}"
-          echo "API Gateway: ${API_GW:-(empty)}"
-          echo "Cognito Pool: ${POOL_ID:-(empty)}"
+          echo "📊 Terraform Outputs:"
+          echo "  CloudFront: ${WEBSITE_URL:-(empty)}"
+          echo "  API Gateway: ${API_GW:-(empty)}"
+          echo "  Cognito Pool: ${POOL_ID:-(empty)}"
 
       - name: Build Frontend
         working-directory: webapp/frontend
         env:
-          VITE_API_URL: ${{ steps.terraform.outputs.website_url || steps.terraform.outputs.api_gateway_endpoint }}
+          VITE_API_URL: ${{ steps.terraform.outputs.website_url || steps.terraform.outputs.api_gateway_endpoint || 'https://api.example.com' }}
           VITE_ENVIRONMENT: production
           VITE_COGNITO_USER_POOL_ID: ${{ steps.terraform.outputs.cognito_user_pool_id }}
           VITE_COGNITO_CLIENT_ID: ${{ steps.terraform.outputs.cognito_user_pool_client_id }}
           VITE_COGNITO_DOMAIN: ${{ steps.terraform.outputs.cognito_domain_url }}
-        run: npm run build:prod
+        run: |
+          echo "🔨 Frontend Build Configuration:"
+          echo "  VITE_API_URL: $VITE_API_URL"
+          echo "  VITE_ENVIRONMENT: $VITE_ENVIRONMENT"
+          echo "  VITE_COGNITO_USER_POOL_ID: ${VITE_COGNITO_USER_POOL_ID:-(empty)}"
+          echo "  VITE_COGNITO_CLIENT_ID: ${VITE_COGNITO_CLIENT_ID:-(empty)}"
+          echo ""
+          npm run build:prod
 
       - name: Deploy to S3
         working-directory: webapp/frontend
