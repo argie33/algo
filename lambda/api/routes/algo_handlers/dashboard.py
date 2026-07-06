@@ -1321,7 +1321,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         cur.execute(
             """
             SELECT
-                symbol,
+                sc.symbol,
                 COALESCE(ss.security_name, sc.symbol) AS company_name,
                 cp.sector,
                 sc.composite_score,
@@ -1332,18 +1332,19 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 sc.positioning_score,
                 sc.stability_score,
                 sc.rs_percentile,
-                COALESCE(pl.close, sc.close) AS current_price,
-                CASE WHEN pl.close IS NOT NULL THEN
-                    ((pl.close - COALESCE(sc.previous_close, pl.close)) / COALESCE(sc.previous_close, 1) * 100)
+                pl.close AS current_price,
+                CASE WHEN pl.close IS NOT NULL AND pl.previous_close IS NOT NULL THEN
+                    ((pl.close - pl.previous_close) / pl.previous_close * 100)
                 ELSE NULL END AS change_percent,
                 sc.updated_at
             FROM stock_scores sc
-            LEFT JOIN security_symbols ss ON sc.symbol = ss.symbol
+            LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
             LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
             LEFT JOIN (
-                SELECT symbol, close FROM price_daily
-                WHERE date = (SELECT MAX(date) FROM price_daily)
-            ) pl ON sc.symbol = pl.symbol
+                SELECT symbol, close, LAG(close) OVER (PARTITION BY symbol ORDER BY date DESC) as previous_close
+                FROM price_daily
+                WHERE date >= (SELECT MAX(date) - INTERVAL '5 days' FROM price_daily)
+            ) pl ON sc.symbol = pl.symbol AND pl.close IS NOT NULL
             WHERE sc.composite_score > 0
             AND sc.data_completeness >= 70
             ORDER BY sc.composite_score DESC

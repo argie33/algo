@@ -783,6 +783,51 @@ def run(
         # CRITICAL: Audit for stale estimated exit prices (reconciliation issues)
         _audit_exit_prices_step(recon, log_phase_result_fn)
 
+        # CREATE PORTFOLIO SNAPSHOT from reconciliation result
+        # This MUST happen after reconciliation to capture accurate state
+        try:
+            from decimal import Decimal
+            with DatabaseContext("write") as cur:
+                # Get previous portfolio value for daily return calculation
+                cur.execute("""
+                    SELECT total_portfolio_value
+                    FROM algo_portfolio_snapshots
+                    WHERE snapshot_date < %s
+                    ORDER BY snapshot_date DESC LIMIT 1
+                """, (run_date,))
+                prev_row = cur.fetchone()
+                prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
+
+                current_value = Decimal(str(result.get("portfolio_value", 100000.00)))
+                daily_return_pct = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+
+                # Create snapshot with actual reconciliation data
+                cur.execute("""
+                    INSERT INTO algo_portfolio_snapshots (
+                        snapshot_date, total_portfolio_value, total_cash,
+                        position_count, daily_return_pct, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, NOW())
+                    ON CONFLICT (snapshot_date) DO UPDATE
+                    SET total_portfolio_value = EXCLUDED.total_portfolio_value,
+                        total_cash = EXCLUDED.total_cash,
+                        position_count = EXCLUDED.position_count,
+                        daily_return_pct = EXCLUDED.daily_return_pct,
+                        updated_at = NOW()
+                """, (
+                    run_date,
+                    current_value,
+                    current_value - Decimal(str(result.get("unrealized_pnl", 0))),
+                    result.get("positions", 0),
+                    daily_return_pct,
+                ))
+
+                logger.info(f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={result.get('positions', 0)}")
+                log_phase_result_fn(9, "portfolio_snapshot", "success",
+                    f"snapshot created: ${current_value:.2f}, {result.get('positions', 0)} positions")
+        except Exception as snapshot_err:
+            logger.warning(f"[PHASE 9 SNAPSHOT] Failed to create snapshot: {snapshot_err}")
+            log_phase_result_fn(9, "portfolio_snapshot", "warn", f"snapshot failed: {str(snapshot_err)[:60]}")
+
         # Record exits for recently closed positions (batch operation to avoid N+1 queries)
         _record_closed_positions_exits(run_date, log_phase_result_fn)
 
