@@ -882,10 +882,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
             "expectancy": float(expectancy_val) if expectancy_val is not None else 0.0,
             "max_drawdown_pct": float(max_dd) if max_dd is not None else 0.0,
         }
-        # Add field aliases for dashboard compatibility
-        response_dict_final["sharpe252"] = response_dict_final["rolling_sharpe_252d"]
-        response_dict_final["sortino"] = response_dict_final["rolling_sortino_252d"]
-        response_dict_final["calmar"] = response_dict_final["calmar_ratio"]
 
         # Validate perf_anl response matches contract schema
         sanitized = APIResponseValidator.sanitize_response(response_dict_final)
@@ -951,9 +947,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 "avg_loss_r_50t": 0.0,
                 "expectancy": 0.0,
                 "max_drawdown_pct": 0.0,
-                "sharpe252": 0.0,
-                "sortino": 0.0,
-                "calmar": 0.0,
             }
         )
     except (
@@ -980,9 +973,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
                 "avg_loss_r_50t": 0.0,
                 "expectancy": 0.0,
                 "max_drawdown_pct": 0.0,
-                "sharpe252": 0.0,
-                "sortino": 0.0,
-                "calmar": 0.0,
             }
         )
 

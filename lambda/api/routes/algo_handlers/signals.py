@@ -539,13 +539,6 @@ def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
             raise RuntimeError(f"Signal rejection data schema error: {e}") from e
 
         result = {
-            "funnel": funnel,
-            "summary": {
-                "total_initial": initial_count,
-                "total_passed": high_quality_count,
-                "total_rejected": initial_count - high_quality_count,
-                "pass_rate_pct": (round((high_quality_count / initial_count * 100), 2) if initial_count else 0),
-            },
             "rejected": rejected_list,
             "total": initial_count,
             "t1": t1_count,
