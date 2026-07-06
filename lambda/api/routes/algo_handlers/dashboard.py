@@ -425,10 +425,16 @@ def _get_algo_status(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
     freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
+
+    # Map audit status to success boolean for API contract
+    # Status can be: "success", "halted", "error", or other phase-specific statuses
+    success = row["status"] == "success" if row["status"] else False
+
     return json_response(
         200,
         {
             "run_id": row["run_id"],
+            "success": success,
             "last_run": row["action_date"].isoformat() if row["action_date"] else None,
             "current_phase": row["action_type"],
             "status": row["status"],
