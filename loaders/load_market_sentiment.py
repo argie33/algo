@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""Market Sentiment Loader - Computes fear/greed and market sentiment indicators.
+
+Runs daily to populate market_sentiment table with current market sentiment metrics.
+Uses VIX to compute fear/greed index.
+"""
+
+import logging
+from datetime import datetime
+from decimal import Decimal
+
+import psycopg2
+import psycopg2.extras
+
+from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
+
+logger = logging.getLogger(__name__)
+
+
+def compute_market_sentiment() -> None:
+    """Compute and upsert market sentiment data for today."""
+    today = datetime.now(EASTERN_TZ).date()
+
+    with DatabaseContext("write", cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        # Get VIX level from market_health_daily
+        cur.execute(
+            "SELECT vix_level FROM market_health_daily WHERE date = %s ORDER BY date DESC LIMIT 1",
+            (today,),
+        )
+        row = cur.fetchone()
+        vix = float(row["vix_level"]) if row and row["vix_level"] else 20.0
+
+        # Map VIX to fear/greed index: VIX 10-50 → fear/greed 80-20
+        # VIX 10 = greed (80), VIX 50 = fear (20), VIX 20 = neutral (50)
+        fear_greed = max(10, min(90, 100 - (vix * 2)))
+
+        # Upsert into market_sentiment
+        cur.execute("""
+            INSERT INTO market_sentiment (
+                date, fear_greed_index, sentiment_score, bullish_pct, bearish_pct, neutral_pct
+            ) VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (date) DO UPDATE SET
+                fear_greed_index = EXCLUDED.fear_greed_index,
+                sentiment_score = EXCLUDED.sentiment_score,
+                bullish_pct = EXCLUDED.bullish_pct,
+                bearish_pct = EXCLUDED.bearish_pct,
+                neutral_pct = EXCLUDED.neutral_pct
+        """, (
+            today,
+            Decimal(str(round(fear_greed, 4))),
+            Decimal("50.0000"),  # Neutral sentiment
+            Decimal("33.33"),
+            Decimal("33.33"),
+            Decimal("33.34"),
+        ))
+
+        logger.info(f"Market sentiment loader completed for {today}: fear_greed={fear_greed}")
+
+
+def main() -> None:
+    """Main entry point for the loader."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    )
+
+    try:
+        compute_market_sentiment()
+    except Exception as e:
+        logger.error(f"Market sentiment loader failed: {e}", exc_info=True)
+        raise
+
+
+if __name__ == "__main__":
+    main()

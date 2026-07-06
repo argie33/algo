@@ -83,6 +83,7 @@ SAFE_TABLES = {
     "analyst_sentiment_analysis",
     # Market sentiment
     "aaii_sentiment",
+    "market_sentiment",
     "naaim",
     "fear_greed",
     "fear_greed_index",
