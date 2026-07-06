@@ -8,12 +8,10 @@ to enable dynamic discovery and extensibility.
 # Re-export helper functions that may be used elsewhere
 from ._helpers import (
     _best_halt_reason,
-    _build_buy_sig_map,
     _composite_score_color,
     _error_panel,
     _fmt_phases_halted,
     _score_cell,
-    _swing_cell,
 )
 from .circuit import (
     panel_circuit,
@@ -69,7 +67,6 @@ from .trades import (
 
 __all__ = [
     "_best_halt_reason",
-    "_build_buy_sig_map",
     "_calculate_adjusted_win_rate",
     "_composite_score_color",
     "_error_panel",
@@ -78,7 +75,6 @@ __all__ = [
     "_fmt_phases_halted",
     # Helper functions
     "_score_cell",
-    "_swing_cell",
     "loading_layout",
     "mascot_compact",
     # Mascot and layout panels

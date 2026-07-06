@@ -261,7 +261,6 @@ def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta")
 
 __all__ = [
     "_best_halt_reason",
-    "_build_buy_sig_map",
     "_composite_score_color",
     "_error_panel",
     "_fmt_phases_halted",
@@ -269,5 +268,4 @@ __all__ = [
     "_get_age_hours",
     "_is_stale",
     "_score_cell",
-    "_swing_cell",
 ]
