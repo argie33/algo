@@ -153,7 +153,6 @@ def run(
             "description": "Market regime data missing — no entries allowed",
             "risk_multiplier": 0.0,
             "max_new_positions_today": 0,
-            "min_swing_grade": "A+",
             "halt_new_entries": True,
             "max_concentration_pct": 0.0,
             "halt_reason": f"Market exposure data missing: {str(e)[:80]}",

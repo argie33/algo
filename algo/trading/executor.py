@@ -261,7 +261,6 @@ class TradeExecutor:
         actual_shares: Decimal,
         stop_loss_price: Decimal,
         target_1_price: Decimal | None,
-        swing_score: float | None,
         base_type: str | None,
         execution_mode: str,
     ) -> dict[str, Any]:
@@ -347,7 +346,6 @@ class TradeExecutor:
                     "shares": float(actual_shares),
                     "stop_loss": stop_loss_price,
                     "target_1": target_1_price,
-                    "swing_score": swing_score,
                     "base_type": base_type,
                     "trade_id": trade_id,
                 },

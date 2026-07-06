@@ -104,150 +104,25 @@ class SignalAttributionEngine:
                 'correction': {component: ic_data},
             }
         """
+        # Swing components deprecated - return unavailable data
+        logger.warning(
+            "[ATTRIBUTION] Swing score components are deprecated. "
+            "Regime-specific signal attribution analysis is no longer available."
+        )
         from algo.orchestration import RegimeManager
-
-        regime_mgr = RegimeManager()
-        regime_results: dict[str, dict[str, dict[str, Any]]] = {regime: {} for regime in RegimeManager.REGIMES}
-
-        try:
-            with DatabaseContext("read") as cur:
-                # Fetch last N closed trades with component scores
-                cur.execute(
-                    """
-                    SELECT
-                        t.trade_id, t.swing_score, t.swing_components,
-                        t.exit_r_multiple, t.exit_date, t.signal_date,
-                        t.symbol
-                    FROM algo_trades t
-                    WHERE (t.status = 'closed' OR (t.exit_date IS NOT NULL AND t.exit_date <= %s))
-                    ORDER BY t.exit_date DESC
-                    LIMIT %s
-                    """,
-                    (report_date, lookback_trades),
-                )
-                trades = cur.fetchall()
-
-                if not trades:
-                    logger.info("No closed trades found for regime IC computation.")
-                    return regime_results
-
-                # Group trades by regime at entry date
-                trades_by_regime: dict[str, list[tuple[Any, ...]]] = {regime: [] for regime in RegimeManager.REGIMES}
-
-                for trade in trades:
-                    (
-                        trade_id,
-                        _swing_score,
-                        swing_components,
-                        exit_r_multiple,
-                        _exit_date,
-                        signal_date,
-                        _symbol,
-                    ) = trade
-
-                    if not swing_components or not exit_r_multiple:
-                        continue
-
-                    # Determine regime at signal_date (entry)
-                    try:
-                        signal_regime = regime_mgr.get_current_regime(signal_date)
-                        if signal_regime not in trades_by_regime:
-                            logger.warning(
-                                f"[ATTRIBUTION] Regime '{signal_regime}' not in expected regime list for {signal_date}. "
-                                f"Trade {trade_id} will not contribute to regime-specific IC."
-                            )
-                            continue
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                        logger.error(
-                            f"[ATTRIBUTION] Could not determine regime for {signal_date}: {e}. "
-                            f"Trade {trade_id} excluded from regime-specific IC (must have complete regime data)."
-                        )
-                        continue
-
-                    trades_by_regime[signal_regime].append((trade_id, swing_components, exit_r_multiple))
-
-                # Compute IC for each regime
-                for regime, regime_trades in trades_by_regime.items():
-                    if not regime_trades:
-                        continue
-
-                    ic_data = {}
-                    for component in self.COMPONENTS:
-                        comp_scores = []
-                        r_multiples = []
-
-                        for (
-                            trade_id,
-                            swing_components,
-                            exit_r_multiple,
-                        ) in regime_trades:
-                            try:
-                                if isinstance(swing_components, str):
-                                    swing_components = json.loads(swing_components)
-
-                                if not isinstance(swing_components, dict):
-                                    logger.debug(
-                                        f"[ATTRIBUTION] Swing components for trade {trade_id} has type "
-                                        f"{type(swing_components).__name__} (expected dict after JSON parse). Skipping."
-                                    )
-                                    continue
-
-                                comp_data = swing_components.get(component)
-                                if comp_data is None:
-                                    logger.debug(f"[ATTRIBUTION] Component {component} missing for trade {trade_id}")
-                                    continue
-
-                                if isinstance(comp_data, dict):
-                                    comp_value = comp_data.get("pts")
-                                else:
-                                    logger.debug(
-                                        f"[ATTRIBUTION] Component {component} data has type {type(comp_data).__name__} "
-                                        f"(expected dict). Trade {trade_id} skipped."
-                                    )
-                                    continue
-
-                                if comp_value is not None:
-                                    comp_scores.append(float(comp_value))
-                                    r_multiples.append(float(exit_r_multiple))
-                            except (json.JSONDecodeError, ValueError) as e:
-                                logger.debug(f"[ATTRIBUTION] Could not extract {component} from trade {trade_id}: {e}")
-                                continue
-
-                        # Calculate IC for this component in this regime
-                        if len(comp_scores) >= 5:  # Lower threshold for regime splits
-                            comp_scores_arr = np.array(comp_scores)
-                            r_mult_arr = np.array(r_multiples)
-
-                            if comp_scores_arr.std() > 0 and r_mult_arr.std() > 0:
-                                ic_value, ic_pvalue = stats.pearsonr(comp_scores_arr, r_mult_arr)
-                            else:
-                                ic_value, ic_pvalue = 0.0, 1.0
-
-                            # Interpretation
-                            interpretation = "noise"
-                            if ic_value >= self.IC_THRESHOLDS["strong"]:
-                                interpretation = "strong"
-                            elif ic_value >= self.IC_THRESHOLDS["moderate"]:
-                                interpretation = "moderate"
-                            elif ic_value >= self.IC_THRESHOLDS["weak"]:
-                                interpretation = "weak"
-
-                            ic_data[component] = {
-                                "ic_value": round(float(ic_value), 4),
-                                "ic_pvalue": round(float(ic_pvalue), 4),
-                                "sample_size": len(comp_scores),
-                                "avg_component_score": round(float(comp_scores_arr.mean()), 2),
-                                "avg_realized_pnl": round(float(r_mult_arr.mean()), 2),
-                                "interpretation": interpretation,
-                            }
-
-                    regime_results[regime] = ic_data
-
-                logger.info(f"IC by regime computation complete for {report_date}.")
-                return regime_results
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"IC by regime computation failed: {e}")
-            return regime_results
+        regime_results: dict[str, dict[str, dict[str, Any]]] = {}
+        for regime in RegimeManager.REGIMES:
+            regime_results[regime] = {
+                comp: {
+                    "ic_value": None,
+                    "ic_pvalue": None,
+                    "sample_size": 0,
+                    "data_unavailable": True,
+                    "reason": "swing_components_deprecated",
+                }
+                for comp in self.COMPONENTS
+            }
+        return regime_results
 
     def compute_ic_decay(self, report_date: _date, horizons: list[int] | None = None) -> dict[str, dict[int, float]]:
         """

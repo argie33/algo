@@ -578,8 +578,6 @@ _TIER_CONFIG = {
         "halt": False,
         "halt_new_entries": False,
         "min_grade": "B",
-        "min_swing_grade": "B",
-        "min_swing_score": 60.0,
     },
     "uptrend_under_pressure": {
         "description": "Uptrend under pressure - reduced exposure",
@@ -592,8 +590,6 @@ _TIER_CONFIG = {
         "halt": False,
         "halt_new_entries": False,
         "min_grade": "B",
-        "min_swing_grade": "B",
-        "min_swing_score": 65.0,
     },
     "caution": {
         "description": "Caution - entries halted unless exceptional",
@@ -606,8 +602,6 @@ _TIER_CONFIG = {
         "halt": True,
         "halt_new_entries": True,
         "min_grade": "A",
-        "min_swing_grade": "A",
-        "min_swing_score": 75.0,
     },
     "correction": {
         "description": "Market correction - preserve capital",
@@ -620,8 +614,6 @@ _TIER_CONFIG = {
         "halt": True,
         "halt_new_entries": True,
         "min_grade": "A+",
-        "min_swing_grade": "A+",
-        "min_swing_score": 100.0,
     },
 }
 

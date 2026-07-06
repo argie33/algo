@@ -481,7 +481,7 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
             SELECT trade_id, symbol, signal_date, trade_date, entry_price, entry_time,
                    entry_quantity, entry_reason, exit_price, exit_date, exit_time,
                    exit_reason, exit_r_multiple, profit_loss_dollars, profit_loss_pct,
-                   status, swing_score, swing_grade, base_type, stage_phase,
+                   status, base_type, stage_phase,
                    trade_duration_days, mfe_pct, mae_pct, created_at
             FROM algo_trades
             {where_clause}

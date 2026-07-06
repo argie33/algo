@@ -196,8 +196,6 @@ DASHBOARD_ENDPOINTS = {
                 "min_rs_line_slope_days",
                 "min_signal_quality_score",
                 "min_stock_price",
-                "min_swing_grade",
-                "min_swing_score",
                 "min_trend_template_score",
                 "min_volume_ma_50d",
                 "min_win_rate_pct",
