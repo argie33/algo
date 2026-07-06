@@ -353,6 +353,7 @@ def list_response(
     data_freshness: dict[str, Any] | None = None,
     limit: int | None = None,
     offset: int | None = None,
+    preserve_items: bool = False,
 ) -> Any:
     """Standardized list response for paginated data.
 
@@ -360,9 +361,17 @@ def list_response(
     Sanitizes response to remove None values (Issue #14 FIX).
     Includes pagination metadata for client-side pagination.
     Format: {statusCode: 200, data: {items: [...], total: X, limit?: Y, offset?: Z}, data_freshness?: {...}}
+
+    CRITICAL: preserve_items=True prevents sanitizing individual item dicts.
+    Array items must preserve all fields (including None) for consistent schema.
+    e.g., growth_score field must be present in all stocks even if None.
     """
     # EXPLICIT: Sanitize items; if None, use empty list (INTENT: no data, not missing)
-    sanitized_items = APIResponseValidator.sanitize_response(items if items is not None else [])
+    # CRITICAL FIX: Don't sanitize item dicts if preserve_items=True (maintain consistent schema per item)
+    if preserve_items:
+        sanitized_items = items if items is not None else []
+    else:
+        sanitized_items = APIResponseValidator.sanitize_response(items if items is not None else [])
 
     # EXPLICIT: If total not provided, use len(items); otherwise trust provided total
     total_count = total if total is not None else len(sanitized_items)
@@ -635,7 +644,7 @@ def check_data_freshness(
         }
 
 
-def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any] | None = None) -> Any:
+def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any] | None = None, preserve_arrays: bool = False) -> Any:
     """Standardized JSON response wrapper for single objects.
 
     Returns consistent format:
@@ -643,9 +652,17 @@ def json_response(code: int, data: dict[str, Any], data_freshness: dict[str, Any
     - Error (4xx/5xx): {statusCode: code, errorType: "...", message: "...", _error: "..."}
 
     Sanitizes all responses to prevent None values from reaching frontend (Issue #14).
+
+    CRITICAL: preserve_arrays=True prevents sanitizing dicts inside arrays (e.g., stock items in "top" field).
+    Array items must preserve all fields to maintain consistent schema per item for frontend.
     """
     if code == 200:
-        response = success_response(data)
+        # CRITICAL FIX: Don't sanitize array items - they need consistent schema
+        # e.g., growth_score field must be present in all stocks even if None
+        if preserve_arrays:
+            response = {"statusCode": 200, "data": data}
+        else:
+            response = success_response(data)
         if data_freshness:
             response["data_freshness"] = data_freshness
         return response

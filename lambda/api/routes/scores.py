@@ -290,7 +290,9 @@ def _get_stock_scores(
                     f"Scores endpoint: {prices_missing_count} scores have missing price data (out of {len(items)})"
                 )
 
-        result = list_response(items, data_freshness=freshness)
+        # CRITICAL: preserve_items=True prevents sanitizer from removing growth_score fields
+        # Array items must preserve all fields (including None) for consistent schema
+        result = list_response(items, data_freshness=freshness, preserve_items=True)
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("scores", result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")

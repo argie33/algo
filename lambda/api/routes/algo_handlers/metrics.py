@@ -400,16 +400,30 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                         continue
                     equity_vals.append(float(pv))
 
+                # GRACEFUL DEGRADATION: Build equity curve with available data
+                # Only warn if data quality is severely degraded (>10% NULL)
                 if missing_portfolio_values:
-                    error_msg = (
-                        f"[METRICS] {len(missing_portfolio_values)} snapshots have NULL total_portfolio_value: "
-                        f"{missing_portfolio_values[:3]}{'...' if len(missing_portfolio_values) > 3 else ''}. "
-                        "Cannot compute equity curve with missing portfolio values."
-                    )
-                    logger.error(error_msg)
-                    return error_response(503, "incomplete_snapshot_data", error_msg)
+                    null_count = len(missing_portfolio_values)
+                    total_snapshots = len(snap_rows)
+                    null_pct = (null_count / total_snapshots * 100) if total_snapshots > 0 else 0
 
-                # FAIL-FAST: daily_return_pct is REQUIRED for all recent returns display
+                    if null_pct > 10:
+                        warning_msg = (
+                            f"[METRICS] Equity data degraded: {null_pct:.1f}% "
+                            f"({null_count}/{total_snapshots}) snapshots have NULL total_portfolio_value. "
+                            f"Equity curve incomplete but displayable with {len(equity_vals)} valid values."
+                        )
+                        logger.warning(warning_msg)
+                    else:
+                        info_msg = (
+                            f"[METRICS] Minor data gaps: {null_pct:.1f}% "
+                            f"({null_count}/{total_snapshots}) snapshots NULL. "
+                            f"Equity curve rendered with {len(equity_vals)} valid values."
+                        )
+                        logger.info(info_msg)
+
+                # GRACEFUL DEGRADATION: Build recent returns with available data
+                # Only warn if data quality is severely degraded (>10% NULL)
                 recent_rets = []
                 for r in snap_rows[-10:]:
                     daily_ret = r.get("daily_return_pct")
@@ -425,12 +439,24 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                     recent_rets.append([date_str, float(daily_ret)])
 
                 if missing_return_pcts:
-                    error_msg = (
-                        f"[METRICS] {len(missing_return_pcts)} recent snapshots missing daily_return_pct: "
-                        f"{missing_return_pcts}. Cannot display return history without complete data."
-                    )
-                    logger.error(error_msg)
-                    return error_response(503, "incomplete_return_data", error_msg)
+                    null_count_rets = len(missing_return_pcts)
+                    total_recent = len(snap_rows[-10:])
+                    null_pct_rets = (null_count_rets / total_recent * 100) if total_recent > 0 else 0
+
+                    if null_pct_rets > 10:
+                        warning_msg = (
+                            f"[METRICS] Return data degraded: {null_pct_rets:.1f}% "
+                            f"({null_count_rets}/{total_recent}) recent snapshots missing daily_return_pct. "
+                            f"Recent returns strip incomplete but displayable with {len(recent_rets)} valid values."
+                        )
+                        logger.warning(warning_msg)
+                    else:
+                        info_msg = (
+                            f"[METRICS] Minor return data gaps: {null_pct_rets:.1f}% "
+                            f"({null_count_rets}/{total_recent}) recent snapshots NULL. "
+                            f"Recent returns rendered with {len(recent_rets)} valid values."
+                        )
+                        logger.info(info_msg)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as eq_err:
             logger.error(f"CRITICAL: Could not fetch equity sparkline data for performance: {eq_err}")
             return error_response(
@@ -485,7 +511,6 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             "breakeven_trades": breakeven,
             "win_rate": fds(win_rate_pct, 2, True),
             "win_rate_pct": fds(win_rate_pct, 2, True),
-            "win_rate_pct_adjusted": fds(win_rate_pct_adjusted, 1, True),
             "win_rate_confidence": ("high" if win_loss_total >= 30 else ("medium" if win_loss_total >= 10 else "low")),
             "profit_factor": fds(profit_factor, 2, True),
             "total_pnl_dollars": fds(total_pnl_dollars, 2, True),
@@ -513,7 +538,6 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             "expectancy_r": fds(expectancy_r, 3, True),
             "avg_hold_days": fds(avg_holding_days, 1, True),
             "avg_holding_days": fds(avg_holding_days, 1, True),
-            "portfolio_snapshots": len(equity_vals),
             "best_win_streak": int(best_win_streak) if best_win_streak is not None else None,
             "worst_loss_streak": int(worst_loss_streak) if worst_loss_streak is not None else None,
             "current_streak": current_streak,
@@ -521,13 +545,6 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
             "recent_rets": recent_rets,
             "stale_alerts": [],
             "data_freshness": {"is_stale": False},
-            "confidence_metadata": {
-                "sharpe_confidence": "high",
-                "win_rate_confidence": "high" if win_loss_total >= 30 else "medium",
-                "return_confidence": "high",
-                "snapshot_count": len(equity_vals),
-                "total_trades": total_trades,
-            },
         }
         sanitized = APIResponseValidator.sanitize_response(response_data)
 

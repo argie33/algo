@@ -95,6 +95,16 @@ class ResponseValidator:
                 f"Type validation failed in {endpoint_name}: {type_mismatches}",
             )
 
+        # Check for extra fields not in schema (contract violation prevention)
+        allowed_fields = set(schema.required_fields) | set(schema.optional_fields)
+        extra_fields = set(response.keys()) - allowed_fields
+        if extra_fields:
+            return (
+                False,
+                f"Extra fields not in schema for {endpoint_name}: {sorted(extra_fields)}. "
+                f"Add to optional_fields in dashboard_api_contract.py if intended.",
+            )
+
         return True, None
 
     @staticmethod

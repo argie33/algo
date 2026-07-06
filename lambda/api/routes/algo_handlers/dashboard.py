@@ -170,13 +170,18 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 t2 = float(t2_raw)
                 t3 = float(t3_raw)
 
-                if entry and cur_price and stop:
+                # FIX: Use explicit None checks instead of falsy checks (0.0 is a valid price)
+                if entry is not None and cur_price is not None and stop is not None:
                     lo = min(stop, entry, cur_price)
                     hi = max(t3 or t2 or t1 or entry, cur_price)
                     span = max(0.0001, hi - lo)
 
                     def pos(price: float | None, _lo: float = lo, _span: float = span) -> float | None:
-                        return ((price - _lo) / _span) * 100 if price is not None else None
+                        if price is None:
+                            return None
+                        # Clamp to 0-100 range in case prices are outside ladder bounds
+                        pct = ((price - _lo) / _span) * 100
+                        return max(0.0, min(100.0, pct))
 
                     d["ladder_pct_stop"] = pos(stop)
                     d["ladder_pct_entry"] = pos(entry)
@@ -535,10 +540,13 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         # Fetch pre-computed circuit breaker metrics from database
         # CRITICAL: Fail-fast if metrics are unavailable (don't default to 0 for trading safety)
         cbm_data = {}
+        computed_at: datetime | None = None
+        data_age_seconds: int | None = None
+        data_stale: bool = False
         try:
             cur.execute(
                 "SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct, "
-                "consecutive_losses, vix_level, market_stage FROM circuit_breaker_status "
+                "consecutive_losses, vix_level, market_stage, computed_at FROM circuit_breaker_status "
                 "ORDER BY check_date DESC LIMIT 1"
             )
             cbm_row = cur.fetchone()
@@ -560,6 +568,44 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                         "_error": "Circuit breaker metrics unavailable. Trading disabled until data is available.",
                     },
                 )
+
+            # Extract computed_at timestamp and calculate data age
+            computed_at = cbm_row["computed_at"]
+            if computed_at is not None:
+                # Ensure computed_at is timezone-aware (UTC) for proper comparison
+                if computed_at.tzinfo is None:
+                    computed_at = computed_at.replace(tzinfo=timezone.utc)
+                now_utc = datetime.now(timezone.utc)
+                data_age_seconds = int((now_utc - computed_at).total_seconds())
+                data_stale = data_age_seconds > 3600  # 1 hour staleness threshold
+
+                if data_stale:
+                    logger.critical(
+                        f"[CIRCUIT_BREAKER_STALE] Data age {data_age_seconds}s (>{3600}s). "
+                        f"Trading halted. Computed at: {computed_at.isoformat()}"
+                    )
+                    return json_response(
+                        503,
+                        {
+                            "breakers": [],
+                            "any_triggered": True,  # Fail-closed: treat stale data as triggered
+                            "triggered_count": 0,
+                            "data_freshness": {
+                                "data_age_seconds": data_age_seconds,
+                                "is_stale": True,
+                                "warning": (
+                                    f"Circuit breaker data stale ({data_age_seconds}s old). "
+                                    "Cannot proceed with risk assessment. Trading disabled."
+                                ),
+                            },
+                            "errorType": "stale_circuit_breaker_data",
+                            "message": (
+                                f"Circuit breaker data is {data_age_seconds}s old (>{3600}s threshold). "
+                                "All trading halted until fresh metrics available."
+                            ),
+                            "_error": "Circuit breaker data stale. Trading disabled.",
+                        },
+                    )
 
             # Validate critical fields exist and are non-null (fail-closed)
             critical_fields = [
@@ -1003,7 +1049,21 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         triggered_count = sum(1 for b in breakers if b["triggered"])
         freshness = check_data_freshness(cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1)
 
+        # Enrich all breakers with data staleness information
+        # CRITICAL: Include computed_at age and staleness flag for frontend to detect stale VIX/market_stage
         for breaker in breakers:
+            # Add staleness metadata to each breaker
+            breaker["data_age_seconds"] = data_age_seconds
+            breaker["data_stale"] = data_stale
+            if data_stale:
+                breaker["staleness_warning"] = (
+                    f"Data is {data_age_seconds}s old (>{3600}s threshold). "
+                    "Consider this breaker unreliable for trading decisions."
+                )
+            else:
+                breaker["staleness_warning"] = None
+
+            # Format decimal values for consistent API response
             if breaker["unit"] == "%":
                 breaker["current"] = format_decimal_string(breaker["current"], precision=2, allow_none=True)
                 breaker["threshold"] = format_decimal_string(breaker["threshold"], precision=2, allow_none=False)
@@ -1011,11 +1071,16 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 breaker["current"] = format_decimal_string(breaker["current"], precision=2, allow_none=True)
                 breaker["threshold"] = format_decimal_string(breaker["threshold"], precision=2, allow_none=False)
 
+        # Enhance freshness metadata with circuit breaker-specific staleness data
+        cb_freshness = freshness.copy() if freshness else {}
+        cb_freshness["circuit_breaker_data_age_seconds"] = data_age_seconds
+        cb_freshness["circuit_breaker_computed_at"] = computed_at.isoformat() if computed_at else None
+
         cb_response = {
             "breakers": breakers,
             "any_triggered": any_halted,
             "triggered_count": triggered_count,
-            "data_freshness": freshness,
+            "data_freshness": cb_freshness,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
@@ -1208,13 +1273,14 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         response = {
             "top": top_scores,
             "total": len(top_scores),
-            "data_freshness": freshness,
         }
 
         # Validate scores response matches contract schema
         ensure_valid_response("scores", response)
 
-        return json_response(200, response)
+        # CRITICAL: preserve_arrays=True prevents sanitizer from removing growth_score fields
+        # Array items must preserve all fields (including None) for consistent schema
+        return json_response(200, response, data_freshness=freshness, preserve_arrays=True)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
