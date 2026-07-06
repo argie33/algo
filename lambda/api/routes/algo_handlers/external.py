@@ -79,7 +79,7 @@ def _get_sentiment(cur: cursor) -> Any:
     freshness = check_data_freshness(cur, "market_sentiment", "date", warning_days=1)
 
     cur.execute("""
-        SELECT date, fear_greed_index, label
+        SELECT date, fear_greed_index, sentiment_score, bullish_pct, bearish_pct, neutral_pct
         FROM market_sentiment
         ORDER BY date DESC
         LIMIT 1
@@ -92,17 +92,20 @@ def _get_sentiment(cur: cursor) -> Any:
 
     data = safe_dict_convert(row)
     fear_greed = data.get("fear_greed_index")
-    label = data.get("label")
+    sentiment_score = data.get("sentiment_score")
 
-    if fear_greed is None or label is None:
-        logger.warning(f"Sentiment data incomplete: fear_greed={fear_greed}, label={label}")
+    if fear_greed is None:
+        logger.warning(f"Sentiment data incomplete: fear_greed={fear_greed}")
         return error_response(503, "service_unavailable", "Sentiment data incomplete")
 
     return success_response(
         {
             "date": data.get("date"),
             "fear_greed_index": float(fear_greed),
-            "label": label,
+            "sentiment_score": float(sentiment_score) if sentiment_score is not None else None,
+            "bullish_pct": data.get("bullish_pct"),
+            "bearish_pct": data.get("bearish_pct"),
+            "neutral_pct": data.get("neutral_pct"),
             "data_freshness": freshness,
         }
     )

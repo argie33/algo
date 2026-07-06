@@ -688,15 +688,18 @@ DASHBOARD_ENDPOINTS = {
     "sentiment": {
         "path": "/api/algo/sentiment",
         "method": "GET",
-        "description": "Market sentiment (fear/greed index)",
+        "description": "Market sentiment (fear/greed index and breadth)",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["fear_greed_index", "label", "date", "data_freshness"],
+            optional_fields=["fear_greed_index", "sentiment_score", "bullish_pct", "bearish_pct", "neutral_pct", "date", "data_freshness"],
             field_types={
                 "fear_greed_index": (float, int),
-                "label": str,
+                "sentiment_score": (float, int, type(None)),
+                "bullish_pct": (float, int, type(None)),
+                "bearish_pct": (float, int, type(None)),
+                "neutral_pct": (float, int, type(None)),
             },
-            description="Fear & Greed index and label",
+            description="Market sentiment with fear/greed index and breadth data",
         ),
         "freshness_max_age_seconds": 3600,
         "strict_fields": [],
