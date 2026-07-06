@@ -716,22 +716,22 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch swing scores history")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch stock scores history")  # type: ignore[untyped-decorator]
 @validate_api_response("scores")  # type: ignore[untyped-decorator]
 def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
-    """Get swing scores historical data."""
+    """Get stock scores historical data (SWING SCORE MIGRATION: now uses stock_scores.composite_score)."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
         cur.execute(
             """
                 SELECT date AS eval_date,
-                    COUNT(CASE WHEN (components->>'grade') = 'A+' THEN 1 END) AS grade_aplus,
-                    COUNT(CASE WHEN (components->>'grade') = 'A'  THEN 1 END) AS grade_a,
-                    COUNT(CASE WHEN (components->>'pass_gates')::boolean IS TRUE THEN 1 END) AS pass_count,
+                    COUNT(CASE WHEN composite_score >= 85 THEN 1 END) AS grade_aplus,
+                    COUNT(CASE WHEN composite_score >= 75 THEN 1 END) AS grade_a,
+                    COUNT(CASE WHEN composite_score >= 50 THEN 1 END) AS pass_count,
                     COUNT(*) AS total_candidates,
-                    ROUND(AVG(score)::NUMERIC, 1) AS avg_score
-                FROM swing_trader_scores
-                WHERE date >= %s
+                    ROUND(AVG(composite_score)::NUMERIC, 1) AS avg_score
+                FROM stock_scores
+                WHERE date >= %s AND data_unavailable = FALSE
                 GROUP BY date
                 ORDER BY date ASC
             """,
@@ -747,7 +747,7 @@ def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
         Exception,
     ) as e:
         logger.error(
-            f"Failed to fetch swing scores history: {type(e).__name__}: {e!s}\n  Operation: Query algo_swing_score_history with days parameter\n  Endpoint: GET /api/algo/swing-scores-history",
+            f"Failed to fetch stock scores history: {type(e).__name__}: {e!s}\n  Operation: Query stock_scores with days parameter\n  Endpoint: GET /api/algo/swing-scores-history",
             exc_info=True,
         )
-        return error_response(500, "internal_error", "Failed to fetch swing scores history")
+        return error_response(500, "internal_error", "Failed to fetch stock scores history")
