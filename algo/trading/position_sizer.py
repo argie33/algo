@@ -91,7 +91,7 @@ class PositionSizer:
             # Gracefully fall through to portfolio snapshot instead of raising
             logger.warning(f"[PORTFOLIO] Live Alpaca unavailable ({str(e)[:80]}), falling back to portfolio snapshot")
 
-        def fetch_snapshot(cur):
+        def fetch_snapshot(cur: Any) -> Any:
             cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))
             cur.fetchone()
             try:

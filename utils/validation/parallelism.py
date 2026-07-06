@@ -20,7 +20,6 @@ class ParallelismValidator:
     EXPECTED_PARALLELISM = {
         "stock_prices_daily": (1, 3),  # Limited by yfinance rate limiting
         "technical_data_daily": (1, 8),  # Can scale with RDS available
-        "swing_trader_scores_vectorized": (1, 4),  # Vectorized, CPU-bound
         "market_health_daily": (1, 2),  # Small dataset, quick API calls
         "trend_template_data": (1, 2),  # Singleton or small number
         "buy_sell_daily": (1, 3),  # Historical, manageable size

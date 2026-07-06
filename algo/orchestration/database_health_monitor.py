@@ -261,7 +261,6 @@ class DatabaseHealthMonitor:
                 "value_metrics",
             }
             critical_path_loaders = {
-                "swing_trader_scores_vectorized",
                 "trend_template_data",
                 "sector_ranking",
                 "market_health_daily",

@@ -85,17 +85,17 @@ class DailyReconciliation:
             # Query actual positions and portfolio value from database instead of hardcoding
             from decimal import Decimal
             with DatabaseContext("read") as cur:
-                # Count open positions
-                cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'")
+                # Count open positions (both real and paper_open for paper mode tracking)
+                cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status IN ('open', 'paper_open')")
                 position_row = cur.fetchone()
                 open_position_count = position_row['open_count'] if position_row and position_row['open_count'] else 0
 
-                # Calculate unrealized P&L from positions
+                # Calculate unrealized P&L from positions (both real and paper)
                 cur.execute("""
                     SELECT COALESCE(SUM(unrealized_pnl), 0) as total_pnl,
                            COALESCE(SUM(position_value), 0) as total_invested
                     FROM algo_positions
-                    WHERE status = 'open'
+                    WHERE status IN ('open', 'paper_open')
                 """)
                 pnl_row = cur.fetchone()
                 total_unrealized_pnl = float(pnl_row['total_pnl']) if pnl_row else 0.00

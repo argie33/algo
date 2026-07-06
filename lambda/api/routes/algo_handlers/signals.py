@@ -13,8 +13,6 @@ import psycopg2.sql
 from models.requests import PreTradeImpactRequest, TradePreviewRequest
 from psycopg2.extensions import cursor
 from pydantic import ValidationError
-
-# Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
     error_response,
@@ -25,7 +23,6 @@ from routes.utils import (
     safe_json_serialize,
     validate_api_response,
 )
-
 from utils.validation import (
     format_decimal_string,
 )

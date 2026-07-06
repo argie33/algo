@@ -116,7 +116,7 @@ def _get_signals_stocks(
 ) -> Any:
     """Get stock trading signals from buy_sell_daily (primary signal source).
 
-    EOD pipeline runs: prices → metrics → swing_trader_scores → buy_sell_daily.
+    EOD pipeline runs: prices → metrics → buy_sell_daily.
     buy_sell_daily generates BUY/SELL/HOLD signals from technical indicators and
     quality scores. This endpoint sources from buy_sell_daily with price/sector data.
     """

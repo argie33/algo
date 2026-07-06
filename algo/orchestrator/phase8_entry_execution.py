@@ -27,6 +27,7 @@ import os
 import time
 from collections.abc import Callable
 from datetime import date as _date
+from decimal import Decimal
 from typing import Any, cast
 
 import psycopg2
@@ -466,7 +467,7 @@ def run(
         logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from Alpaca API)")
     except RuntimeError as e:
         if execution_mode in ("paper", "auto"):
-            portfolio_value = 100000.0
+            portfolio_value = Decimal("100000.00")
             logger.warning(
                 f"[PHASE 8] Portfolio value fetch failed, using default ${portfolio_value:,.0f} for paper mode: {e}"
             )

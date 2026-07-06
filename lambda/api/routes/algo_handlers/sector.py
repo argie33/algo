@@ -11,8 +11,6 @@ import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
 from psycopg2.extensions import cursor
-
-# Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
     error_response,
@@ -24,7 +22,6 @@ from routes.utils import (
     success_response,
     validate_api_response,
 )
-
 from shared_contracts.response_validator import ResponseValidator
 
 logger = logging.getLogger(__name__)

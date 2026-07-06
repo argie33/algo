@@ -8,7 +8,6 @@ when loaders are approaching or exceeding their time budgets.
 SLA Targets (from steering/loader-strategy.md):
 - stock_prices_daily: 20-30 min expected, 120 min alert threshold
 - technical_data_daily: 15-25 min expected, 60 min alert threshold
-- swing_trader_scores: 10-15 min expected, 45 min alert threshold
 - morning prep pipeline: 60-90 min total, 300 min alert threshold
 """
 
@@ -39,8 +38,6 @@ LOADER_SLA_TARGETS = {
     "market_health_daily": (20 * 60, 30 * 60, 60 * 60),
     "market_exposure_daily": (10 * 60, 20 * 60, 30 * 60),
     "algo_metrics_daily": (12 * 60, 60 * 60, 120 * 60),
-    "swing_trader_scores_vectorized": (15 * 60, 45 * 60, 90 * 60),
-    "swing_trader_scores": (30 * 60, 60 * 60, 120 * 60),  # Old non-vectorized version
     "technical_data_daily_vectorized": (20 * 60, 45 * 60, 60 * 60),
     "technical_data_daily": (60 * 60, 90 * 60, 120 * 60),  # Old non-vectorized version
     "buy_sell_daily": (30 * 60, 120 * 60, 180 * 60),

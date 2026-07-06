@@ -749,8 +749,10 @@ class EntryHandler:
         )
         self._insert_trade_record(cur, trade_request)
 
-        # Insert position record if order was filled
-        if order_status in ("filled", "partially_filled"):
+        # Insert position record if order was filled or paper_pending (paper mode tracking)
+        # PAPER MODE: Create positions for paper_pending trades to maintain portfolio state
+        # Live mode: Only create positions for actual filled/partially_filled orders
+        if order_status in ("filled", "partially_filled", "paper_pending"):
             if self.context.execution_mode == "auto" and alpaca_order_id:
                 verified_status = self.context._verify_order_status(alpaca_order_id)
                 if verified_status is None:
@@ -778,6 +780,9 @@ class EntryHandler:
 
             # Insert position record
             position_id = f"POS-{trade_id}"
+            # CRITICAL: Paper_pending trades MUST create open positions for portfolio tracking
+            # This ensures paper mode trading maintains accurate position state
+            position_status = "paper_open" if order_status == "paper_pending" else "open"
             cur.execute(
                 """
                 INSERT INTO algo_positions (
@@ -786,7 +791,7 @@ class EntryHandler:
                     trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
                     created_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, 'open',
+                    %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, 0, CURRENT_TIMESTAMP
                 )
                 """,
@@ -797,6 +802,7 @@ class EntryHandler:
                     executed_price,
                     executed_price,
                     position_value,
+                    position_status,
                     [trade_id],
                     stop_loss_price,
                     stop_loss_price,
