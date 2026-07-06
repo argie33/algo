@@ -241,7 +241,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         t0 = time.monotonic()
 
         # Force dashboard to proceed after 30 seconds even if load_all() hangs
-        def timeout_callback():
+        def timeout_callback() -> None:
             logger.warning("[DASHBOARD] Data load timeout (30s) - rendering with empty dashboard")
             if not done.is_set():
                 state.result = {}  # Ensure we have empty data

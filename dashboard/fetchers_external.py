@@ -116,7 +116,8 @@ def fetch_economic_pulse(c: None) -> dict[str, Any]:  # noqa: C901
                         )
                         if val is not None and isinstance(val, float):
                             series_id = i.get("series_id")
-                            by_series[series_id] = val
+                            if series_id is not None:
+                                by_series[series_id] = val
                     except Exception as e:
                         raise ValueError(f"Invalid indicator value for {i.get('series_id')}: {e}") from e
 

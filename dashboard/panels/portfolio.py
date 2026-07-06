@@ -105,8 +105,8 @@ def _calculate_adjusted_win_rate(
         raise ValueError(f"Performance metrics incomplete: wr={wr_val}, wins={w_val}, losses={l_val}")
 
     # HIGH-001 FIX: Remove double fallback — safe_int already uses default=0
-    w_i = safe_int(w_val, default=0, field_name="closed_wins")
-    l_i = safe_int(l_val, default=0, field_name="closed_losses")
+    w_i = safe_int(w_val, default=0, field_name="closed_wins") or 0
+    l_i = safe_int(l_val, default=0, field_name="closed_losses") or 0
 
     closed_wins: int = w_i
     closed_losses: int = l_i
@@ -382,17 +382,14 @@ def panel_performance_spark(  # noqa: C901
     # CRITICAL: Fail-fast on missing closed losses count. Never silently fallback to 0.
     if l_val is None:
         logger.error("[PORTFOLIO] Closed losses count 'l' missing — cannot calculate open losing positions")
-        closed_losses = None
+        closed_losses = 0
     elif not isinstance(l_val, (int, float)):
         logger.error(f"[PORTFOLIO] Closed losses 'l' invalid type {type(l_val).__name__}: {l_val}")
-        closed_losses = None
+        closed_losses = 0
     else:
         closed_losses = int(l_val)
 
-    if closed_losses is None or adj_l is None:
-        losing_open = None
-    else:
-        losing_open = adj_l - closed_losses
+    losing_open = (adj_l or 0) - closed_losses if adj_l is not None else 0
     avg_win_v = perf.get("avg_win")
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
