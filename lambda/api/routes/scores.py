@@ -290,9 +290,14 @@ def _get_stock_scores(
                     f"Scores endpoint: {prices_missing_count} scores have missing price data (out of {len(items)})"
                 )
 
-        # CRITICAL: preserve_items=True prevents sanitizer from removing growth_score fields
-        # Array items must preserve all fields (including None) for consistent schema
-        result = list_response(items, data_freshness=freshness, preserve_items=True)
+        # CRITICAL FIX: Return scores with "top" field (not "items") for dashboard compatibility
+        # Dashboard expects {statusCode: 200, data: {top: [...]}} format
+        result = {
+            "statusCode": 200,
+            "data": {"top": items},
+        }
+        if freshness:
+            result["data_freshness"] = freshness
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("scores", result)
         if not is_valid:
             logger.error(f"Endpoint response validation failed: {error_msg}")
