@@ -732,47 +732,38 @@ def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> 
 def safe_dict_convert(row: Any) -> Any:
     """Safely convert database row to dictionary, handling both DictCursor and tuple rows.
 
-    The API uses regular cursors (not DictCursor) to avoid query complexity issues.
-    This function handles both formats:
-    - DictCursor rows: converted via dict(row)
-    - Tuple rows: detected and converted back to dicts if cursor metadata available
+    Handles both formats:
+    - DictCursor rows: already dict-like
+    - Tuple rows: converted via dict() constructor
+    - DictCursor-like objects: converted via dict()
 
     Args:
-        row: Database row (DictCursor dict-like or tuple)
+        row: Database row (dict-like or tuple)
 
     Returns:
         Dict of row data
 
     Raises:
         ValueError: If row is None
-        RuntimeError: If conversion fails (schema mismatch, no metadata available)
     """
     if row is None:
         raise ValueError("Database row is None — cannot convert None to dict")
 
-    # If it's already a dict (DictCursor), return it
+    # If it's already a dict, return it
     if isinstance(row, dict):
         return row
 
-    # For tuple rows, we can't convert without column names
-    # This is a configuration error: cursors should be DictCursor in the context
-    if isinstance(row, tuple):
-        raise RuntimeError(
-            f"Database returned tuple row instead of DictCursor. "
-            f"This indicates the cursor_factory in DatabaseContext is set to regular cursor. "
-            f"Row data: {row}. "
-            f"Routes cannot work with tuple rows — cursor_factory must be DictCursor."
-        )
-
+    # Try to convert to dict - works for DictCursor and dict-like objects
     try:
         return dict(row)
     except (KeyError, ValueError, TypeError) as e:
+        # Provide helpful error message
         row_keys = list(row.keys()) if hasattr(row, "keys") else "unknown"
         raise RuntimeError(
             f"Failed to convert database row to dict: {type(e).__name__}: {e}\n"
             f"  Row keys: {row_keys}\n"
             f"  Row type: {type(row).__name__}\n"
-            f"  This may indicate a schema mismatch between code and database."
+            f"  Row data: {row}"
         ) from e
 
 
