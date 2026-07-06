@@ -411,7 +411,7 @@ def _get_candidates_from_buysell(
                     FROM (
                         SELECT DISTINCT ON (symbol) *
                         FROM buy_sell_daily
-                        WHERE signal_type = 'BUY'
+                        WHERE signal = 'BUY'
                           AND date >= %s
                           AND date <= %s
                         ORDER BY symbol, date DESC

@@ -698,7 +698,7 @@ def _record_closed_positions_exits(
         ) from e
 
 
-def run(
+def run(  # noqa: C901
     config: Any,
     run_date: _date,
     log_phase_result_fn: Callable[..., Any],
