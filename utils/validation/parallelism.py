@@ -150,48 +150,27 @@ class ParallelismValidator:
             }
 
     def validate_swing_scores_loader(self) -> dict[str, Any]:
-        """Validate swing_trader_scores_vectorized for 5000+ symbols.
+        """DEPRECATED: Swing Trader Scores loader no longer used.
 
-        Constraints:
-        - Vectorized numpy operations (fast, CPU-bound)
-        - Morning prep: 30-40 minutes for 300-day lookback
-        - Intraday update: 5-15 minutes for today-only
+        SWING SCORE MIGRATION: This loader is deprecated and not used by the trading system.
+        The system now uses stock_scores.composite_score for all signal ranking.
 
         Returns:
             {
-                'test_passed': bool,
-                'issues_found': [str]
+                'test_passed': True (deprecated, always passes),
+                'status': 'deprecated'
             }
         """
-        try:
-            from loaders.load_swing_trader_scores import SwingTraderScoresLoader
-
-            loader = SwingTraderScoresLoader()
-
-            issues = []
-
-            # Check 1: Required methods
-            if not hasattr(loader, "fetch_incremental"):
-                issues.append("fetch_incremental method not found")
-            if not hasattr(loader, "_compute_swing_scores"):
-                issues.append("_compute_swing_scores method not found")
-
-            # Check 2: Required attributes
-            if not hasattr(loader, "table_name") or loader.table_name != "swing_trader_scores":
-                issues.append("Invalid table_name attribute")
-
-            return {
-                "test_passed": len(issues) == 0,
-                "issues_found": issues,
-            }
-
-        except Exception as e:
-            logger.error(f"Swing scores loader validation failed: {e}")
-            return {
-                "test_passed": False,
-                "error": str(e),
-                "issues_found": [f"Loader initialization failed: {e}"],
-            }
+        logger.info(
+            "[VALIDATION] Swing trader scores loader is deprecated. "
+            "The trading system uses stock_scores.composite_score instead. "
+            "This loader is no longer needed."
+        )
+        return {
+            "test_passed": True,
+            "status": "deprecated",
+            "message": "Swing trader scores loader deprecated - using stock_scores.composite_score",
+        }
 
     def validate_all_loaders(self) -> dict[str, Any]:
         """Run all validation tests.
