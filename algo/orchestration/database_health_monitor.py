@@ -82,7 +82,6 @@ class DatabaseHealthMonitor:
                     ("buy_sell_daily", "Buy/sell signals (Phase 5)"),
                     ("trend_template_data", "Trend template"),
                     ("sector_ranking", "Sector ranking"),
-                    ("swing_trader_scores", "Swing scores (legacy)"),
                 ]
 
                 logger.info("  Table Freshness Status:")
