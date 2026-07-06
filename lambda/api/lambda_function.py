@@ -1102,35 +1102,22 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/sector-breadth",  # Sector breadth analysis (public market data)
         "/api/algo/sector-stage2",  # Stage 2 sector stocks (public market analysis)
         "/api/algo/dashboard-signals",  # Dashboard signals (used by ops terminal in local dev)
-        # Dev-only: Allow dashboard endpoints for local development without Cognito
-        # These are normally protected but are accessible in dev mode without auth
-        "/api/algo/portfolio",  # Portfolio snapshot (needed for dashboard in dev mode)
-        "/api/algo/positions",  # Open positions (needed for dashboard in dev mode)
-        "/api/algo/trades",  # Trade history (needed for dashboard in dev mode)
-        "/api/algo/performance",  # Performance metrics (needed for dashboard in dev mode)
-        "/api/algo/config",  # Config (needed for dashboard in dev mode)
-        "/api/algo/circuit-breakers",  # Circuit breakers (needed for dashboard in dev mode)
-        "/api/algo/data-status",  # Data loader health (needed for dashboard in dev mode)
-        "/api/algo/notifications",  # Notifications (needed for dashboard in dev mode)
-        "/api/algo/audit-log",  # Audit log (needed for dashboard in dev mode)
-        "/api/algo/metrics",  # Metrics (needed for dashboard in dev mode)
-        "/api/algo/last-run",  # Last algo run status (needed for dashboard in dev mode)
-        "/api/algo/risk-metrics",  # Risk metrics (needed for dashboard in dev mode)
-        "/api/algo/performance-analytics",  # Performance analytics (needed for dashboard in dev mode)
-        "/api/algo/sentiment",  # Sentiment (needed for dashboard in dev mode)
-        "/api/algo/economic-calendar",  # Economic calendar (needed for dashboard in dev mode)
-        "/api/algo/execution/recent",  # Execution history (needed for dashboard in dev mode)
-        "/api/algo/execution/stats",  # Execution stats (needed for dashboard in dev mode)
-        "/api/algo/execution/failed",  # Failed executions (needed for dashboard in dev mode)
-        "/api/algo/execution/patterns",  # Execution patterns (needed for dashboard in dev mode)
-        "/api/algo/status",  # Algo status (needed for dashboard in dev mode)
-        "/api/algo/patrol-log",  # Data patrol log (needed for dashboard in dev mode)
-        "/api/algo/equity-curve",  # Equity curve (needed for dashboard in dev mode)
-        "/api/algo/daily-return-histogram",  # Return histogram (needed for dashboard in dev mode)
-        "/api/algo/trade-distribution",  # Trade distribution (needed for dashboard in dev mode)
-        "/api/algo/holding-period-distribution",  # Holding period distribution (needed for dashboard in dev mode)
-        "/api/algo/stage-distribution",  # Stage distribution (needed for dashboard in dev mode)
-        "/api/algo/rejection-funnel",  # Signal evaluation (needed for dashboard in dev mode)
+        # NOTE: A previous "dev-only" block used to list /api/algo/portfolio, positions,
+        # trades, performance, config, circuit-breakers, etc. here as public, with comments
+        # claiming they were "needed for dashboard in dev mode". That was never true for this
+        # code path: this Lambda only runs in AWS (local dev talks to a separate
+        # dashboard/local_api_server.py, never reaches this function), and this list has no
+        # environment/mode gating -- so it made live trading strategy/position/trade data
+        # unauthenticated in PRODUCTION, directly contradicting the "Protected endpoints"
+        # comment block below which explicitly documents /api/algo/* (besides the aggregate
+        # market-data routes above) as requiring authentication. Verified the dashboard's
+        # Cognito auth (dashboard/cognito_auth.py) already attaches a real Bearer token on
+        # every request before removing these, so this closes the hole without breaking
+        # legitimate dashboard access.
+        "/api/diagnostics",  # Data sync diagnostics (documented public in api_router.py's
+        # PUBLIC_HANDLERS "for debugging data sync issues", but that list was never consulted
+        # here, so it 401'd despite being intended as public; only non-strategy metadata
+        # (table names, row counts, freshness) -- no positions/trades/P&L.
         "/api/economic",  # Economic indicators (public data)
         "/api/sectors",  # Sector analysis (aggregate market data only)
         "/api/sentiment",  # Market sentiment (aggregate only)
