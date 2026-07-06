@@ -665,8 +665,15 @@ resource "aws_lambda_function" "algo" {
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
 
-  # Keep orchestrator Lambda warm to minimize cold starts during critical trading hours
-  reserved_concurrent_executions = 1
+  # NOTE: This does NOT keep the Lambda "warm" (that's provisioned concurrency, not
+  # reserved concurrency). Reserved concurrency only caps max simultaneous invocations.
+  # Was hardcoded to 1, which throttled (dropped) invocations whenever a scheduled run
+  # overlapped another (prewarm colliding with a slow run, manual test invocation during
+  # a scheduled window, etc) -- confirmed via CloudWatch: 97 throttles on 2026-06-29, 39
+  # on 2026-06-30. The orchestrator already serializes trading logic itself via a DB-based
+  # advisory lock (_acquire_run_lock in algo/orchestration/orchestrator.py), so Lambda-level
+  # concurrency=1 was redundant for correctness and only added a failure mode.
+  reserved_concurrent_executions = var.algo_lambda_reserved_concurrency
 
   layers = concat(
     local.shared_deps_layer_arn != "" ? [local.shared_deps_layer_arn] : [],

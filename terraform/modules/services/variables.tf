@@ -237,6 +237,16 @@ variable "api_lambda_reserved_concurrency" {
   }
 }
 
+variable "algo_lambda_reserved_concurrency" {
+  description = "Reserved concurrent executions for orchestrator Lambda. Must be >1: up to 9 EventBridge Scheduler targets (premarket/morning/afternoon/preclose/evening/weight-optimization/3 prewarms) invoke this function per day, and overlapping invocations (slow run + next prewarm, or manual test + schedule) get throttled and dropped at concurrency=1. Concurrency safety across overlapping runs is already handled by the orchestrator's own DB-based advisory lock (_acquire_run_lock), so this only needs to be high enough to avoid EventBridge dropping legitimate invocations, not to serialize execution."
+  type        = number
+  default     = 5
+  validation {
+    condition     = var.algo_lambda_reserved_concurrency >= 1 && var.algo_lambda_reserved_concurrency <= 1000
+    error_message = "Reserved concurrency must be between 1 and 1000"
+  }
+}
+
 variable "api_lambda_provisioned_concurrency" {
   description = "Provisioned concurrent executions for API Lambda (pre-warmed instances to avoid cold starts). Cost: ~$12/month per unit. Set to 0 to disable."
   type        = number

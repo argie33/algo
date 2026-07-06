@@ -1233,7 +1233,7 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
 # ============================================================
 # Reference Data Pipeline - Earnings & Analyst Data
 # FIXED Issue #32: Wire reference data loaders into Step Functions
-# Reference (4:15 AM ET): Runs early morning before prices load
+# Reference (9:15 AM ET): Runs early morning before prices load
 # Loads: earnings_calendar, earnings_history, company_profile, analyst data
 # Independence: No dependencies (separate APIs, can fail gracefully)
 # ============================================================
@@ -2401,81 +2401,21 @@ resource "aws_scheduler_schedule" "financial_data_pipeline_trigger" {
 }
 
 # ============================================================
-# EventBridge Rule + Lambda to trigger computed_metrics_pipeline
-# (EventBridge Scheduler fallback if not deployed)
+# EventBridge Scheduler to trigger computed_metrics_pipeline
 # ============================================================
+# NOTE: Previously used aws_cloudwatch_event_rule with schedule_expression
+# "cron(0 19 ? * MON-FRI *)". That resource type has no timezone support and
+# always evaluates cron in UTC, so despite the "7:00 PM ET" comment it was
+# actually firing at 19:00 UTC = 2-3 PM ET (depending on DST) -- hours before
+# the EOD pipeline (4:05 PM ET) finishes writing that day's prices/technicals.
+# Growth/quality/value/stability/stock_scores were therefore computed against
+# stale/incomplete daily data. Fixed by using aws_scheduler_schedule, which
+# supports schedule_expression_timezone, consistent with every other pipeline
+# trigger in this file (morning, eod, financial-data, reference-data).
 
-resource "aws_cloudwatch_event_rule" "computed_metrics_trigger" {
-  name                = "${var.project_name}-computed-metrics-trigger-${var.environment}"
-  description         = "Daily computed metrics pipeline trigger - 7:00 PM ET (quality/growth/value/stability/stock_scores)"
-  schedule_expression = "cron(0 19 ? * MON-FRI *)"  # 7:00 PM ET on weekdays
-  state               = "ENABLED"
-
-  tags = var.common_tags
-}
-
-resource "aws_cloudwatch_event_target" "computed_metrics_target" {
-  rule      = aws_cloudwatch_event_rule.computed_metrics_trigger.name
-  target_id = "computed-metrics-sfn"
-  arn       = aws_sfn_state_machine.computed_metrics_pipeline.arn
-  role_arn  = aws_iam_role.eventbridge_trigger.arn
-
-  input = jsonencode({
-    execution_name = "scheduled-metrics"
-  })
-
-  retry_policy {
-    maximum_event_age_in_seconds = 3600
-    maximum_retry_attempts       = 2
-  }
-}
-
-# EventBridge role for triggering Step Functions (separate from scheduler role)
-resource "aws_iam_role" "eventbridge_trigger" {
-  name        = "${var.project_name}-eventbridge-trigger-${var.environment}"
-  description = "EventBridge role for triggering Step Functions pipelines"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Principal = {
-        Service = "events.amazonaws.com"
-      }
-      Action = "sts:AssumeRole"
-    }]
-  })
-
-  tags = var.common_tags
-}
-
-resource "aws_iam_role_policy" "eventbridge_trigger" {
-  name = "${var.project_name}-eventbridge-trigger-policy"
-  role = aws_iam_role.eventbridge_trigger.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect = "Allow"
-      Action = [
-        "states:StartExecution"
-      ]
-      Resource = [
-        aws_sfn_state_machine.computed_metrics_pipeline.arn,
-        aws_sfn_state_machine.eod_pipeline.arn,
-        aws_sfn_state_machine.financial_data_pipeline.arn,
-        aws_sfn_state_machine.reference_data_pipeline.arn,
-        aws_sfn_state_machine.morning_prep_pipeline.arn
-      ]
-    }]
-  })
-}
-
-# EventBridge Scheduler (as backup/alternative)
 resource "aws_scheduler_schedule" "computed_metrics_pipeline_trigger" {
-  count                        = 0  # DISABLED - use EventBridge Rule above instead
   name                         = "${var.project_name}-computed-metrics-pipeline-${var.environment}"
-  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 7:00 PM ET (BACKUP - EventBridge Rule primary)"
+  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 7:00 PM ET"
   schedule_expression          = "cron(0 19 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
@@ -2501,7 +2441,7 @@ resource "aws_scheduler_schedule" "computed_metrics_pipeline_trigger" {
 
 resource "aws_scheduler_schedule" "reference_data_pipeline_trigger" {
   name                         = "${var.project_name}-reference-data-pipeline-${var.environment}"
-  description                  = "Daily reference data: earnings calendar/history, company profile, analyst sentiment - 4:15 AM ET"
+  description                  = "Daily reference data: earnings calendar/history, company profile, analyst sentiment - 9:15 AM ET"
   schedule_expression          = "cron(15 9 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
