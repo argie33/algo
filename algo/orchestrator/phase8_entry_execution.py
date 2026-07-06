@@ -477,33 +477,28 @@ def run(
             log_phase_result_fn(8, "entry_execution", "halt", error_msg)
             return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
+    # Get Alpaca credentials if available, but don't fail if missing (TradeExecutor handles paper mode)
+    alpaca_key = None
+    alpaca_secret = None
+    execution_mode = config.get("execution_mode", "paper")
+
     try:
         from config.credential_manager import get_credential_manager
 
         creds = get_credential_manager().get_alpaca_credentials()
-
-        # Validate required credentials are present
-        if "key" not in creds or creds["key"] is None:
-            raise ValueError("Alpaca API key is required but missing from credentials")
-        if "secret" not in creds or creds["secret"] is None:
-            raise ValueError("Alpaca API secret is required but missing from credentials")
-
-        alpaca_key = creds["key"]
-        alpaca_secret = creds["secret"]
-
-    except (RuntimeError, ValueError, KeyError) as e:
-        # In paper mode, gracefully skip trade execution if credentials missing
-        execution_mode = config.get("execution_mode", "paper")
-        if execution_mode in ("paper", "auto"):
-            logger.warning(f"[PHASE 8] Alpaca credentials missing — skipping trade execution in {execution_mode} mode")
-            log_phase_result_fn(8, "entry_execution", "success", f"Broker unavailable - {execution_mode} mode")
-            return PhaseResult(8, "entry_execution", "ok", {"entered": 0}, False, None)
+        if creds and creds.get("key") and creds.get("secret"):
+            alpaca_key = creds["key"]
+            alpaca_secret = creds["secret"]
         else:
-            # Live mode requires credentials
-            error_msg = f"[PHASE 8 CRITICAL] Live mode requires Alpaca credentials: {e}"
-            logger.critical(error_msg)
-            log_phase_result_fn(8, "entry_execution", "error", error_msg)
-            return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+            logger.warning(
+                "[PHASE 8] Alpaca credentials not configured - will use paper trading mode"
+            )
+    except (RuntimeError, ValueError, KeyError) as e:
+        # Credentials unavailable - will use paper trading mode
+        logger.warning(
+            f"[PHASE 8] Could not fetch Alpaca credentials ({type(e).__name__}): {e}. "
+            f"Proceeding with {execution_mode} mode (will skip live broker calls)"
+        )
 
     pretrade = PreTradeChecks(
         config=config,
