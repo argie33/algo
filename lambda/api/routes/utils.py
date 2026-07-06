@@ -525,7 +525,7 @@ def check_data_freshness(
     """Check how fresh data is in a table.
 
     Args:
-        cur: Database cursor
+        cur: Database cursor or DatabaseQueryService wrapper
         table_name: Table to check
         date_column: Column containing date/timestamp (default "date")
         warning_days: Days beyond which data is considered stale.
@@ -537,6 +537,10 @@ def check_data_freshness(
     Raises:
         ValueError: If warning_days calculation fails or config unavailable
     """
+    # Extract raw cursor if wrapped in DatabaseQueryService
+    if hasattr(cur, 'cursor') and hasattr(cur.cursor, 'execute'):
+        cur = cur.cursor
+
     if warning_days is None:
         from api_utils.config import get_config
 
