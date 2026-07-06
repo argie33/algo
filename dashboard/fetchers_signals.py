@@ -215,7 +215,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
                 )
                 record_data_quality_issue("scores", "api_call", "api_unavailable_transient")
                 return {
-                    "top": [],
+                    "items": [],
                     "data_unavailable": True,
                     "reason": "Scores service temporarily unavailable - signals display without score rankings",
                     "unavailability_type": "transient_service_error",
@@ -250,7 +250,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
             record_data_quality_issue("scores", "validation", "items_not_list")
             return FetcherValidator.build_error_response(error_msg)
 
-        return {"top": items}
+        return {"items": items}
     except Exception as e:
         error_msg = format_fetcher_error("scores", e)
         logger.error(error_msg)
