@@ -126,14 +126,9 @@ async function fetchIndustries(req, res) {
         }
       ];
 
-      const mockResult = {
-        rows: mockIndustries,
-        rowCount: mockIndustries.length
-      };
-
       const sf = (v) => (v !== null && v !== undefined ? parseFloat(v) : null);
 
-      const industries = mockIndustries.map((row, idx) => {
+      const industries = mockIndustries.map((row) => {
         const composite = sf(row.composite_score);
         const perf20d = sf(row.perf_20d);
 
