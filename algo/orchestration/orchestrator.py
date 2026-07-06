@@ -66,6 +66,7 @@ class Orchestrator:
         run_date: _date | None = None,
         dry_run: bool = False,
         verbose: bool = True,
+        run_id: str | None = None,
     ) -> None:
         if config is None:
             raise ValueError(
@@ -83,7 +84,11 @@ class Orchestrator:
         self.dry_run = dry_run
         self.verbose = verbose
         self.phase_results: dict[int | str, Any] = {}
-        self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
+        # Use provided run_id if given (from EventBridge scheduler), otherwise generate one
+        if run_id:
+            self.run_id = run_id
+        else:
+            self.run_id = f"RUN-{self.run_date.isoformat()}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
 
         self.execution_tracker = get_tracker()
         self.execution_tracker.set_run_context(self.run_id, self.run_date)
@@ -1636,6 +1641,7 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Plan only, no real trades")
     parser.add_argument("--init-only", action="store_true", help="Run loaders only, no trading")
     parser.add_argument("--quiet", action="store_true", help="Reduce output")
+    parser.add_argument("--run-id", type=str, help="Run identifier (from EventBridge scheduler)", default=None)
     args = parser.parse_args()
 
     run_date = _date.fromisoformat(args.date) if args.date else None
@@ -1662,7 +1668,7 @@ if __name__ == "__main__":
     from algo.infrastructure import get_config
 
     config = get_config()
-    orch = Orchestrator(config=config, run_date=run_date, dry_run=dry_run, verbose=not args.quiet)
+    orch = Orchestrator(config=config, run_date=run_date, dry_run=dry_run, verbose=not args.quiet, run_id=args.run_id)
     try:
         final = orch.run()
         sys.exit(0 if final["success"] else 1)
