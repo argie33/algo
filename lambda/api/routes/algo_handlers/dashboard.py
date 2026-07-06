@@ -36,7 +36,7 @@ from utils.validation import (
 )
 
 # Response cache: positions don't change frequently, cache for 60 seconds
-_positions_cache = {"data": None, "timestamp": 0, "cache_ttl_seconds": 60}
+_positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 60}
 
 logger = logging.getLogger(__name__)
 
