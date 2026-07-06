@@ -268,16 +268,20 @@ class PositionMonitor:
                     ORDER BY snapshot_date DESC LIMIT 1
                 """)
                 eq_row = cur.fetchone()
-                if eq_row is None or eq_row[0] is None:
-                    raise PositionValidationError(
-                        "Portfolio equity unavailable - cannot compute margin utilization. Snapshots missing or stale."
-                    )
 
-                total_equity = float(eq_row[0])
-                if total_equity <= 0:
-                    raise PositionValidationError(
-                        f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
+                # BOOTSTRAP FIX: If no snapshots exist yet (new system), use paper mode default
+                if eq_row is None or eq_row[0] is None:
+                    logger.warning(
+                        "[POSITION_MONITOR] Portfolio snapshots missing (fresh system). "
+                        "Using paper mode bootstrap equity of $100,000 for margin calculations."
                     )
+                    total_equity = 100000.0  # Paper mode default
+                else:
+                    total_equity = float(eq_row[0])
+                    if total_equity <= 0:
+                        raise PositionValidationError(
+                            f"Invalid portfolio equity: {total_equity} <= 0. Cannot monitor positions with zero or negative equity."
+                        )
 
                 # Compute margin usage = (equity - buying_power) / equity
                 # Using proxy: if total open position value > 90% of equity, halt new entries

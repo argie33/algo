@@ -76,18 +76,42 @@ class DailyReconciliation:
         PAPER TRADING: If broker is None (credentials missing but paper trading enabled),
         return success with no positions to allow orchestrator to continue with signal generation.
         """
-        # If broker not available (credentials missing for paper trading), skip reconciliation
+        # If broker not available (credentials missing for paper trading), use database state
         if self.broker is None:
             logger.warning(
-                "[RECONCILIATION] Broker not available - skipping reconciliation. "
+                "[RECONCILIATION] Broker not available - using database portfolio state (paper trading mode). "
                 "Orchestrator will continue with signal generation and exit execution."
             )
+            # Query actual positions and portfolio value from database instead of hardcoding
+            from decimal import Decimal
+            with DatabaseContext("read") as cur:
+                # Count open positions
+                cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'")
+                position_row = cur.fetchone()
+                open_position_count = position_row['open_count'] if position_row and position_row['open_count'] else 0
+
+                # Calculate unrealized P&L from positions
+                cur.execute("""
+                    SELECT COALESCE(SUM(unrealized_pnl), 0) as total_pnl,
+                           COALESCE(SUM(position_value), 0) as total_invested
+                    FROM algo_positions
+                    WHERE status = 'open'
+                """)
+                pnl_row = cur.fetchone()
+                total_unrealized_pnl = float(pnl_row['total_pnl']) if pnl_row else 0.00
+                total_invested = float(pnl_row['total_invested']) if pnl_row else 0.00
+
+                # Portfolio value = base capital + unrealized P&L
+                portfolio_value = 100000.00 + total_unrealized_pnl
+
+                logger.info(f"[RECONCILIATION PAPER MODE] Found {open_position_count} open positions, portfolio value: ${portfolio_value:.2f}")
+
             return {
                 "success": True,
-                "positions": 0,
-                "portfolio_value": 100000.00,
-                "unrealized_pnl": 0.00,
-                "reason": "Reconciliation skipped: broker credentials unavailable (paper trading mode)"
+                "positions": open_position_count,
+                "portfolio_value": portfolio_value,
+                "unrealized_pnl": total_unrealized_pnl,
+                "reason": "Reconciliation skipped: using database state (broker credentials unavailable, paper trading mode)"
             }
 
         if dry_run:

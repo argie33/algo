@@ -1247,7 +1247,7 @@ class Orchestrator:
     # ---------- Main entrypoint ----------
 
     def run(self) -> dict[str, Any]:
-        run_start = time.time()
+        self.run_start = time.time()
         logger.info(f"\n{'#' * 70}")
         logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
         logger.info(f"#   run_id: {self.run_id}")
@@ -1409,7 +1409,7 @@ class Orchestrator:
 
             # Log performance metrics and total time
             log_metrics_summary()
-            total_elapsed = time.time() - run_start
+            total_elapsed = time.time() - self.run_start
             logger.info(f"\n[TOTAL] Orchestrator run completed in {total_elapsed:.2f}s")
             logger.info(f"[END TIME] {datetime.now(timezone.utc).isoformat()}")
 
@@ -1482,7 +1482,7 @@ class Orchestrator:
 
             # ALSO write to algo_orchestrator_runs for backward compatibility and dashboard visibility
             try:
-                execution_time = time.time() - run_start
+                execution_time = time.time() - self.run_start
                 phases_completed = sum(1 for r in self.phase_results.values() if r["status"] == "success")
                 phases_halted = sum(1 for r in self.phase_results.values() if r["status"] == "halt")
                 phases_errored = sum(1 for r in self.phase_results.values() if r["status"] == "error")
