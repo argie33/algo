@@ -667,7 +667,6 @@ class TradeExecutor:
                 entry_date=entry_date,
                 sqs=sqs,
                 trend_score=trend_score,
-                composite_score=composite_score,
                 swing_score=swing_score,
                 swing_grade=swing_grade,
                 base_type=base_type,

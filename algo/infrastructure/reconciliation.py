@@ -683,6 +683,8 @@ class DailyReconciliation:
         estimated prices with actual Alpaca fill prices after market opens.
         """
         try:
+            if not self.broker:
+                return {"updated": 0, "message": "No broker available (paper trading mode)", "no_broker": True}
             since = datetime.now(timezone.utc) - timedelta(days=2)
             orders = self.broker.fetch_closed_orders(since=since)
             if not orders:
@@ -879,6 +881,8 @@ class DailyReconciliation:
 
     def sync_positions(self, cur: Any) -> dict[str, Any]:
         """Sync broker positions via BrokerAdapter."""
+        if not self.broker:
+            return {"synced": 0, "message": "No broker available (paper trading mode)", "no_broker": True}
         return self.broker.sync_positions(cur)
 
     def _process_failed_imports(self, cur: Any, alpaca_positions: list[Any]) -> int:
@@ -1173,6 +1177,8 @@ class DailyReconciliation:
         Returns: dict with reconciliation status and any detected drift
         """
         try:
+            if not self.broker:
+                return {"mismatches": 0, "message": "No broker available (paper trading mode)", "no_broker": True}
             orders = self.broker.fetch_closed_orders()
             if not orders:
                 logger.debug(
@@ -1375,6 +1381,8 @@ class DailyReconciliation:
 
     def _fetch_account(self) -> Any:
         """Fetch account data from broker via BrokerAdapter."""
+        if not self.broker:
+            return {"error": "No broker available (paper trading mode)"}
         return self.broker.fetch_account()
 
     def _fetch_initial_capital(self, cur: Any) -> float:
@@ -1388,6 +1396,8 @@ class DailyReconciliation:
         rather than use potentially months-old snapshot data.
         """
         try:
+            if not self.broker:
+                raise ValueError("No broker available in paper trading mode")
             initial_val = self.broker.fetch_initial_capital()
             # Check if dict (error marker) or float (valid data)
             if isinstance(initial_val, dict):

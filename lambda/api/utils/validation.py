@@ -10,7 +10,7 @@ class DatabaseResultValidator:
     """Utility class for safely extracting typed values from database results."""
 
     @staticmethod
-    def safe_get_str(data: dict[str, Any], key: str, default: str = "") -> str:
+    def safe_get_str(data: dict[str, Any], key: str, default: str | None = None) -> str | None:
         """Safely extract a string value from a database result.
 
         Args:
@@ -29,7 +29,7 @@ class DatabaseResultValidator:
         return str(value)
 
     @staticmethod
-    def safe_get_int(data: dict[str, Any], key: str, default: int = 0) -> int:
+    def safe_get_int(data: dict[str, Any], key: str, default: int | None = None) -> int | None:
         """Safely extract an int value from a database result.
 
         Args:
@@ -51,7 +51,7 @@ class DatabaseResultValidator:
             return default
 
     @staticmethod
-    def safe_get_float(data: dict[str, Any], key: str, default: float = 0.0) -> float:
+    def safe_get_float(data: dict[str, Any], key: str, default: float | None = None) -> float | None:
         """Safely extract a float value from a database result.
 
         Args:
@@ -94,6 +94,20 @@ class DatabaseResultValidator:
         if isinstance(value, str):
             return value.lower() in ("true", "1", "yes")
         return bool(value)
+
+    @staticmethod
+    def safe_get_first_row(data: list[Any] | None) -> dict[str, Any] | None:
+        """Safely extract the first row from a list of database results.
+
+        Args:
+            data: List of database results
+
+        Returns:
+            First row as dict or None if list is empty
+        """
+        if not isinstance(data, list) or len(data) == 0:
+            return None
+        return data[0]
 
 
 class APIResponseValidator:
@@ -217,19 +231,19 @@ def safe_float(value: Any, default: float | None = None) -> float | None:
 # Data freshness rules for different table types
 # Maps table_name to max_age_hours before data is considered stale
 FRESHNESS_RULES = {
-    "price_daily": 24,
-    "technical_data_daily": 24,
-    "market_exposure_daily": 24,
-    "stock_scores": 24,
-    "quality_metrics": 168,  # 7 days
-    "growth_metrics": 168,  # 7 days
-    "value_metrics": 168,  # 7 days
-    "positioning_metrics": 168,  # 7 days
-    "stability_metrics": 168,  # 7 days
-    "market_health_daily": 24,
-    "industry_ranking": 168,  # 7 days
-    "sector_ranking": 24,
-    "buy_sell_daily": 24,
+    "price_daily": {"max_age_hours": 24, "critical": True},
+    "technical_data_daily": {"max_age_hours": 24, "critical": True},
+    "market_exposure_daily": {"max_age_hours": 24, "critical": True},
+    "stock_scores": {"max_age_hours": 24, "critical": True},
+    "quality_metrics": {"max_age_hours": 168, "critical": False},
+    "growth_metrics": {"max_age_hours": 168, "critical": True},
+    "value_metrics": {"max_age_hours": 168, "critical": False},
+    "positioning_metrics": {"max_age_hours": 168, "critical": False},
+    "stability_metrics": {"max_age_hours": 168, "critical": False},
+    "market_health_daily": {"max_age_hours": 24, "critical": True},
+    "industry_ranking": {"max_age_hours": 168, "critical": False},
+    "sector_ranking": {"max_age_hours": 24, "critical": True},
+    "buy_sell_daily": {"max_age_hours": 24, "critical": True},
 }
 
 

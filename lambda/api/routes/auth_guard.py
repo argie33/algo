@@ -9,8 +9,6 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from utils.validation import CognitoValidator
-
 logger = logging.getLogger(__name__)
 
 
@@ -29,7 +27,7 @@ class RouteAuthGuard:
         """Check if user has admin access from verified JWT claims.
 
         Only admin users can access protected admin endpoints.
-        Uses CognitoValidator for centralized validation logic.
+        Checks for admin group in cognito:groups claim.
 
         Args:
             jwt_claims: JWT claims dict from API Gateway event (or None in dev)
@@ -39,13 +37,14 @@ class RouteAuthGuard:
         """
         if not jwt_claims:
             return False
+        if not isinstance(jwt_claims, dict):
+            return False
 
-        # Delegate to centralized validator
-        is_admin = bool(CognitoValidator.validate_admin_access(jwt_claims))
+        groups = jwt_claims.get("cognito:groups", [])
+        is_admin = isinstance(groups, list) and "admin" in groups
 
         if not is_admin:
             user_id = jwt_claims.get("sub", "unknown")
-            groups = jwt_claims.get("cognito:groups", [])
             logger.info(f"[AUTH_GUARD] Admin access denied: user {user_id} not in admin group. Groups: {groups}")
 
         return is_admin

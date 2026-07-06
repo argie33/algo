@@ -310,8 +310,9 @@ class APIHandler(BaseHTTPRequestHandler):
             logger.info(f"[REQ_END] {method} {path} in {elapsed:.2f}s")
 
             # Debug: Log actual response from lambda_function
-            if response.get("statusCode") >= 400:
-                logger.debug(f"[HANDLER_RESPONSE] {method} {path}: status={response.get('statusCode')}")
+            status = response.get("statusCode")
+            if status and status >= 400:
+                logger.debug(f"[HANDLER_RESPONSE] {method} {path}: status={status}")
 
             # Parse response
             status_code = response.get("statusCode")

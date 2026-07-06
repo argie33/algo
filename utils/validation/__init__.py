@@ -61,13 +61,13 @@ except ImportError:
     DataAgeValidator = None  # type: ignore # Graceful fallback if not available
 
 __all__ = [
+    "EASTERN_TZ",
     "APIResponseValidator",
     "AlpacaResponseValidator",
     "CognitoValidator",
     "DataAgeValidator",
     "DatabaseResultValidator",
     "DynamoDBValidator",
-    "EASTERN_TZ",
     "EnumValidator",
     "ParallelismValidator",
     "PhaseValidator",

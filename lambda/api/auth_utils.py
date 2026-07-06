@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from utils.validation import CognitoValidator
-
 
 def check_admin_access(jwt_claims: dict[str, Any] | Any | None) -> bool:
     """Check if user has admin access from verified JWT claims only.
@@ -26,4 +24,9 @@ def check_admin_access(jwt_claims: dict[str, Any] | Any | None) -> bool:
     """
     if not jwt_claims:
         return False
-    return bool(CognitoValidator.validate_admin_access(jwt_claims))
+    if not isinstance(jwt_claims, dict):
+        return False
+    groups = jwt_claims.get("cognito:groups", [])
+    if isinstance(groups, list):
+        return "admin" in groups
+    return False
