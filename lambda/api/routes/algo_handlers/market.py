@@ -1,5 +1,6 @@
 """Route: algo"""
 
+# Force module reload on Lambda deployment (clear bytecode cache)
 from __future__ import annotations
 
 import json
