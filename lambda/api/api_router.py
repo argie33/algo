@@ -50,6 +50,7 @@ _OPTIONAL_ROUTE_MODULES = [
     "settings",
     "risk_dashboard",
     "data_coverage",
+    "diagnostics",  # Position data sync health check endpoint
 ]
 
 # Track startup state for diagnostics (thread-safe)
