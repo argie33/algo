@@ -708,6 +708,22 @@ def run(
                     try:
                         from decimal import Decimal
                         with DatabaseContext("write") as cur:
+                            # Count actual open positions from database
+                            cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'")
+                            position_row = cur.fetchone()
+                            open_position_count = position_row['open_count'] if position_row else 0
+
+                            # Calculate portfolio value from positions
+                            cur.execute("""
+                                SELECT COALESCE(SUM(position_value), 0) as total_invested
+                                FROM algo_positions
+                                WHERE status = 'open'
+                            """)
+                            invested_row = cur.fetchone()
+                            total_invested = Decimal(str(invested_row['total_invested'])) if invested_row else Decimal(0)
+                            total_value = Decimal("100000.00")  # Base paper trading capital
+                            total_cash = total_value - total_invested
+
                             # Calculate daily return vs previous day
                             cur.execute("""
                                 SELECT total_portfolio_value
@@ -717,10 +733,9 @@ def run(
                             """, (run_date,))
                             prev_row = cur.fetchone()
                             prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
-                            current_value = Decimal("100000.00")
-                            daily_return_pct = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+                            daily_return_pct = ((total_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
 
-                            # Use correct column names: total_portfolio_value, total_cash, position_count, daily_return_pct
+                            # Create snapshot with actual position count and portfolio value
                             cur.execute("""
                                 INSERT INTO algo_portfolio_snapshots (
                                     snapshot_date, total_portfolio_value, total_cash,
@@ -734,10 +749,10 @@ def run(
                                     updated_at = NOW()
                             """, (
                                 run_date,
-                                current_value,  # Default paper trading portfolio value
-                                current_value,  # Default paper trading cash
-                                0,  # No open positions
-                                daily_return_pct,  # Calculated daily return
+                                total_value,
+                                total_cash,
+                                open_position_count,
+                                daily_return_pct,
                             ))
                         log_phase_result_fn(9, "portfolio_snapshot", "success", "snapshot created from DB state")
                     except Exception as snapshot_err:
