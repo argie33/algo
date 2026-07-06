@@ -46,16 +46,17 @@ from .data_extractors import safe_get_dict, safe_get_field, safe_get_list
     endpoint_deps=["scores"],
     description="Top stocks by composite growth score",
 )
-def render_scores(data: dict[str, Any]) -> Panel:
+def render_scores(data: dict[str, Any]) -> Panel | None:
     """Render top growth scores panel."""
     try:
         scores_data = safe_get_dict(data.get("scores"))
         if not scores_data:
-            return _error_panel("No scores data available")
+            return _error_panel("scores", scores_data, "TOP GROWTH SCORES", border="cyan")
 
-        top_scores = safe_get_list(scores_data.get("top", []))
+        top_scores_raw = safe_get_list(scores_data.get("top", []))
+        top_scores: list[Any] = top_scores_raw if isinstance(top_scores_raw, list) else []
         if not top_scores:
-            return _error_panel("No top scores available")
+            return _error_panel("scores", {"_error": "No top scores available"}, "TOP GROWTH SCORES", border="cyan")
 
         table = Table(
             title="Top Growth Scores",
@@ -79,7 +80,11 @@ def render_scores(data: dict[str, Any]) -> Panel:
                 continue
 
             symbol = safe_get_field(score_dict, "symbol", "--")
-            company = safe_get_field(score_dict, "company_name", "--")[:20]
+            company = safe_get_field(score_dict, "company_name", "--")
+            if isinstance(company, str):
+                company = company[:20]
+            else:
+                company = "--"
             composite = safe_float(safe_get_field(score_dict, "composite_score"))
             growth = safe_float(safe_get_field(score_dict, "growth_score"))
             quality = safe_float(safe_get_field(score_dict, "quality_score"))
@@ -88,6 +93,9 @@ def render_scores(data: dict[str, Any]) -> Panel:
 
             comp_color = _composite_score_color(composite)
 
+            # Format completeness percentage manually instead of using decimal_places param
+            completeness_str = f"{completeness:.0f}" if completeness is not None else "--"
+
             table.add_row(
                 str(symbol),
                 str(company),
@@ -95,7 +103,7 @@ def render_scores(data: dict[str, Any]) -> Panel:
                 f"[{_composite_score_color(growth)}]{_score_cell(growth)}[/]",
                 f"[{_composite_score_color(quality)}]{_score_cell(quality)}[/]",
                 f"[{_composite_score_color(momentum)}]{_score_cell(momentum)}[/]",
-                f"[dim]{_score_cell(completeness, decimal_places=0)}%[/]",
+                f"[dim]{completeness_str}%[/]",
             )
 
         return Panel(
@@ -107,4 +115,4 @@ def render_scores(data: dict[str, Any]) -> Panel:
 
     except (TypeError, ValueError, KeyError) as e:
         logger.error(f"Error rendering scores panel: {e}")
-        return _error_panel(f"Scores panel error: {type(e).__name__}")
+        return _error_panel("scores", {"_error": str(e)}, "GROWTH SCORES ERROR", border="cyan")

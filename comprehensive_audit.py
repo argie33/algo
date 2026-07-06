@@ -115,7 +115,8 @@ with DatabaseContext('read') as cur:
     ]
     for table, desc in tables:
         cur.execute(f'SELECT COUNT(*) FROM {table}')
-        count = cur.fetchone()[0] if cur.fetchone() else 0
+        row = cur.fetchone()
+        count = row[0] if row and isinstance(row, tuple) else 0
         print(f'  {table:25s}: {count:>10,}')
 
     # 8. CIRCUIT BREAKER STATUS

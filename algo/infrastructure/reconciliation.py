@@ -138,7 +138,7 @@ class DailyReconciliation:
                         0.0,
                         "paper_mode",
                     )
-                    logger.info(f"[RECONCILIATION] Paper mode: Executing INSERT with snapshot_date={reconcile_date}, position_count={open_position_count}")
+                    logger.info(f"[RECONCILIATION] Paper mode: INSERT params - date={reconcile_date}, positions={open_position_count}, portfolio_value={portfolio_value}, cash={100000.00 - total_invested}")
 
                     cur.execute(
                         """
