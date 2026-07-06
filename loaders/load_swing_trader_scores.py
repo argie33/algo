@@ -5,7 +5,6 @@ Metrics: Swing Score (0-100) based on technical setup quality, momentum, and tre
 Requires: technical_data_daily, price_daily populated.
 """
 
-import sys
 
 from loaders.loader_helper import setup_imports
 

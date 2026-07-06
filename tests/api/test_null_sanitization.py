@@ -159,7 +159,7 @@ def test_json_response_sanitizes_errors():
 
 def test_null_in_json_output():
     """Test that serialized responses correctly handle null values."""
-    from routes.utils import success_response, list_response, json_response
+    from routes.utils import json_response, list_response, success_response
 
     responses = [
         success_response({"value": None}),

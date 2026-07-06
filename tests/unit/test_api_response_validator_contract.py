@@ -6,8 +6,8 @@ This test suite verifies that the Lambda API response validator:
 3. Catches API drift before it reaches the dashboard
 """
 
-import sys
 import importlib
+import sys
 from pathlib import Path
 
 import pytest
