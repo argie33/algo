@@ -276,7 +276,6 @@ def load_all() -> dict[str, Any]:
         "trades",
         "sig",
         "health",
-        "cb",
         "risk",  # CRITICAL: Risk metrics for position sizing hard vetoes
         "exp_factors",  # CRITICAL: Market exposure factors for trading decisions
     }
@@ -295,6 +294,7 @@ def load_all() -> dict[str, Any]:
         "audit",
         "exec_hist",
         "scores",
+        "cb",  # Moved to optional temporarily - stale data shouldn't block dashboard display
     }
 
     def one(name: str, fn: Callable[..., Any], timeout_sec: float) -> tuple[str, Any]:
