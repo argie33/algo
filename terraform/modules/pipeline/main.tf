@@ -2400,9 +2400,84 @@ resource "aws_scheduler_schedule" "financial_data_pipeline_trigger" {
   }
 }
 
+# ============================================================
+# EventBridge Rule + Lambda to trigger computed_metrics_pipeline
+# (EventBridge Scheduler fallback if not deployed)
+# ============================================================
+
+resource "aws_cloudwatch_event_rule" "computed_metrics_trigger" {
+  name                = "${var.project_name}-computed-metrics-trigger-${var.environment}"
+  description         = "Daily computed metrics pipeline trigger - 7:00 PM ET (quality/growth/value/stability/stock_scores)"
+  schedule_expression = "cron(0 19 ? * MON-FRI *)"  # 7:00 PM ET on weekdays
+  is_enabled          = true
+
+  tags = var.common_tags
+}
+
+resource "aws_cloudwatch_event_target" "computed_metrics_target" {
+  rule      = aws_cloudwatch_event_rule.computed_metrics_trigger.name
+  target_id = "computed-metrics-sfn"
+  arn       = aws_sfn_state_machine.computed_metrics_pipeline.arn
+  role_arn  = aws_iam_role.eventbridge_trigger.arn
+
+  input = jsonencode({
+    execution_name = "scheduled-metrics"
+  })
+
+  retry_policy {
+    maximum_event_age    = 3600
+    maximum_retry_attempt = 2
+  }
+}
+
+# EventBridge role for triggering Step Functions (separate from scheduler role)
+resource "aws_iam_role" "eventbridge_trigger" {
+  name        = "${var.project_name}-eventbridge-trigger-${var.environment}"
+  description = "EventBridge role for triggering Step Functions pipelines"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Principal = {
+        Service = "events.amazonaws.com"
+      }
+      Action = "sts:AssumeRole"
+    }]
+  })
+
+  tags = var.common_tags
+}
+
+resource "aws_iam_role_policy" "eventbridge_trigger" {
+  name = "${var.project_name}-eventbridge-trigger-policy"
+  role = aws_iam_role.eventbridge_trigger.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect = "Allow"
+      Action = [
+        "states:StartExecution"
+      ]
+      Resource = [
+        aws_sfn_state_machine.computed_metrics_pipeline.arn,
+        aws_sfn_state_machine.eod_pipeline.arn,
+        aws_sfn_state_machine.financial_data_pipeline.arn,
+        aws_sfn_state_machine.reference_data_pipeline.arn,
+        aws_sfn_state_machine.morning_prep_pipeline.arn,
+        aws_sfn_state_machine.intraday_afternoon_update.arn,
+        aws_sfn_state_machine.intraday_preclose_update.arn
+      ]
+    }]
+  })
+}
+
+# EventBridge Scheduler (as backup/alternative)
 resource "aws_scheduler_schedule" "computed_metrics_pipeline_trigger" {
+  count                        = 0  # DISABLED - use EventBridge Rule above instead
   name                         = "${var.project_name}-computed-metrics-pipeline-${var.environment}"
-  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 7:00 PM ET (CRITICAL FIX 2026-07-05: growth_metrics now required; 175min buffer after financial pipeline @ 4:05 PM)"
+  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 7:00 PM ET (BACKUP - EventBridge Rule primary)"
   schedule_expression          = "cron(0 19 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"

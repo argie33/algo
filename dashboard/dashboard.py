@@ -240,10 +240,30 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     def bg() -> None:
         try:
             t0 = time.monotonic()
-            state.result = load_all()
+            # Set timeout to prevent dashboard from hanging on data load indefinitely
+            timeout_event = threading.Event()
+
+            def timeout_callback():
+                logger.warning("[DASHBOARD] Data load timeout (30s) - proceeding with empty data")
+                timeout_event.set()
+
+            # Set a 30-second timeout
+            timer = threading.Timer(30.0, timeout_callback)
+            timer.daemon = True
+            timer.start()
+
+            try:
+                state.result = load_all()
+            except Exception as e:
+                logger.error(f"Background load error: {type(e).__name__}: {e}")
+                state.result = {}
+            finally:
+                timer.cancel()
+                # If timeout fired, ensure we have at least empty data
+                if timeout_event.is_set() and not state.result:
+                    state.result = {}
+
             state.elapsed = time.monotonic() - t0
-        except Exception as e:
-            logger.error(f"Background load error: {type(e).__name__}: {e}")
         finally:
             done.set()
 
