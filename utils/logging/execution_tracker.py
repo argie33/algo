@@ -92,9 +92,9 @@ class OrchestratorExecutionTracker:
         try:
             completed_at = datetime.now(timezone.utc)
 
-            # Count phase outcomes
-            phases_completed = sum(1 for r in self.phase_results.values() if r["status"] == "success")
-            phases_halted = sum(1 for r in self.phase_results.values() if r["status"] == "halt")
+            # Count phase outcomes (status values: "ok", "halted", "error", "degraded", "skipped")
+            phases_completed = sum(1 for r in self.phase_results.values() if r["status"] == "ok")
+            phases_halted = sum(1 for r in self.phase_results.values() if r["status"] == "halted")
             phases_errored = sum(1 for r in self.phase_results.values() if r["status"] == "error")
 
             # Build human-readable summary
