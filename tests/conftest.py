@@ -178,28 +178,33 @@ def reload_lambda_api_modules():
     If one test modifies the cached module (e.g., modifying DASHBOARD_ENDPOINTS),
     subsequent tests see the modified version. This fixture ensures fresh imports.
 
+    Strategy: Remove modules from sys.modules BEFORE test runs (not after), then
+    reload them. This forces a complete reimport on the next import statement.
+
     Affects: ResponseValidator, dashboard_api_contract, and other lambda/api modules.
     """
     import importlib
 
     # Modules to reload before each test
-    modules_to_reload = [
+    modules_to_clear = [
         "shared_contracts.response_validator",
         "shared_contracts.dashboard_api_contract",
         "shared_contracts.api_contracts",
         "routes.algo_handlers.dashboard",
         "routes.algo_handlers.market",
         "routes.utils",
+        "routes.algo",
+        "routes.health",
     ]
 
-    for module_name in modules_to_reload:
-        # Check if module is in sys.modules (it might not be imported yet)
+    # BEFORE test: Clear modules from cache to force reimport
+    for module_name in modules_to_clear:
         if module_name in sys.modules:
-            try:
-                importlib.reload(sys.modules[module_name])
-            except Exception:
-                # If reload fails, that's OK - module might not exist in this test
-                pass
+            del sys.modules[module_name]
 
     yield
-    # Cleanup after test if needed (not necessary, but good practice)
+
+    # AFTER test: Clear again so next test gets fresh state
+    for module_name in modules_to_clear:
+        if module_name in sys.modules:
+            del sys.modules[module_name]
