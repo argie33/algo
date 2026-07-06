@@ -31,7 +31,7 @@ class LoaderConflictDetector:
                 'conflicts_detected': bool,
                 'concurrent_loaders': [
                     {
-                        'table_name': 'swing_trader_scores',
+                        'table_name': 'signal_quality_scores',
                         'start_time': datetime,
                         'duration_sec': 120,
                         'status': 'RUNNING'
