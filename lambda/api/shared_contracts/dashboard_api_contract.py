@@ -360,7 +360,7 @@ DASHBOARD_ENDPOINTS = {
                 "trend": list,
                 "near": list,
                 "top_a": list,
-                "date": (str, type(None)),
+                "date": (str, type(None)),  # ISO format date string or None
                 "data_freshness": dict,
             },
             description="Signal counts and classifications",
