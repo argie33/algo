@@ -1,15 +1,11 @@
 name: Orchestrator Scheduler
 
 on:
-  schedule:
-    # 9:30 AM ET weekdays - Morning pipeline (prices, signals, trades)
-    - cron: '30 13 * * MON-FRI'
-    # 1:00 PM ET weekdays - Afternoon update
-    - cron: '0 17 * * MON-FRI'
-    # 3:00 PM ET weekdays - Pre-close update
-    - cron: '0 19 * * MON-FRI'
-    # 4:05 PM ET weekdays - EOD pipeline (metrics, swing scores, technical data)
-    - cron: '5 20 * * MON-FRI'
+  # EventBridge Scheduler (Terraform-managed) handles scheduled orchestrator runs:
+  # - 9:30 AM ET weekdays (morning trading)
+  # - 1:00 PM ET weekdays (afternoon rebalance)
+  # - 3:00 PM ET weekdays (pre-close actions)
+  # This workflow remains available only for manual testing via workflow_dispatch
   workflow_dispatch:
 
 jobs:
@@ -35,14 +31,13 @@ jobs:
           echo "Invoking orchestrator Lambda with run_id: $RUN_ID"
 
           aws lambda invoke \
-            --function-name algo-orchestrator-dev \
+            --function-name algo-algo-dev \
             --region us-east-1 \
             --invocation-type RequestResponse \
             --payload "{
-              \"source\": \"github-actions-scheduler\",
+              \"source\": \"eventbridge-scheduler\",
               \"run_identifier\": \"$RUN_ID\",
-              \"execution_mode\": \"paper\",
-              \"run_date_str\": \"today\"
+              \"note\": \"Manual orchestrator trigger from GitHub Actions\"
             }" \
             response.json
 
