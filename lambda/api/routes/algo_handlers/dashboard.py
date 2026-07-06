@@ -588,11 +588,11 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 )
 
             # Extract check_date timestamp and calculate data age
-            computed_at = cbm_row["check_date"]
-            if computed_at is not None:
-                # Ensure computed_at is timezone-aware (UTC) for proper comparison
-                if computed_at.tzinfo is None:
-                    computed_at = computed_at.replace(tzinfo=timezone.utc)
+            check_date = cbm_row["check_date"]
+            if check_date is not None:
+                # check_date is a date object, convert to datetime at midnight UTC
+                from datetime import datetime as dt
+                computed_at = dt.combine(check_date, dt.min.time()).replace(tzinfo=timezone.utc)
                 now_utc = datetime.now(timezone.utc)
                 data_age_seconds = int((now_utc - computed_at).total_seconds())
                 data_stale = data_age_seconds > 3600  # 1 hour staleness threshold
