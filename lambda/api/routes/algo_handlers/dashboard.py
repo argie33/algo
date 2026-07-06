@@ -1160,7 +1160,14 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                        bsd.buylevel,
                        bsd.stoplevel,
                        ss.value_score,
-                       ss.positioning_score
+                       ss.positioning_score,
+                       ss.growth_score,
+                       ss.quality_score,
+                       ss.momentum_score,
+                       ss.composite_score,
+                       ss.stability_score,
+                       ss.rs_percentile,
+                       ss.data_completeness
                 FROM swing_trader_scores s
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
                 LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = s.date

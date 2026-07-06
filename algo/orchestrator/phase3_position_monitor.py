@@ -41,10 +41,16 @@ def run(
     Returns:
         PhaseResult with status 'ok', data containing position recommendations
     """
-    # Skip position monitor for paper trading testing
+    # Skip position monitor for paper trading testing or when explicitly disabled
     skip_phase3 = os.getenv("SKIP_PHASE3_MONITOR", "").lower() in ("true", "1", "yes")
+
+    # Also skip if execution mode is paper trading (paper trading doesn't need broker halt checks)
+    if not skip_phase3:
+        execution_mode = config.get("execution_mode", "").lower() if config else ""
+        skip_phase3 = execution_mode == "paper"
+
     if skip_phase3:
-        logger.info("[PHASE 3] Position monitor SKIPPED (no broker access)")
+        logger.info("[PHASE 3] Position monitor SKIPPED (paper trading mode or explicitly disabled)")
         # Return success status (not skipped) so downstream phases execute
         return PhaseResult(
             3,
