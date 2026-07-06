@@ -85,6 +85,8 @@ class DailyReconciliation:
             return {
                 "success": True,
                 "positions": 0,
+                "portfolio_value": 100000.00,
+                "unrealized_pnl": 0.00,
                 "reason": "Reconciliation skipped: broker credentials unavailable (paper trading mode)"
             }
 

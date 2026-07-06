@@ -165,7 +165,7 @@ class PositionSizer:
                 from utils.db.context import DatabaseContext
                 with DatabaseContext("read") as cur:
                     cur.execute(
-                        "SELECT total_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
+                        "SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1"
                     )
                     row = cur.fetchone()
                     if row and row[0] is not None:
