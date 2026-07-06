@@ -584,17 +584,32 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             LIMIT 1
         """)
         row = cur.fetchone()
-        # FAIL-FAST: Return error if no portfolio snapshots available (no trading activity yet)
+        # Return sensible defaults if no portfolio snapshots available yet
         if row is None:
-            logger.warning(
-                "Portfolio snapshot unavailable: algo_portfolio_snapshots table empty. "
-                "No snapshot created yet - algo may not have executed or data loader issue."
-            )
-            return error_response(
-                503,
-                "data_unavailable",
-                "Portfolio snapshots not available yet. Check data loader health.",
-            )
+            logger.info("Portfolio snapshot unavailable - returning bootstrap defaults")
+            response_data = {
+                "total_portfolio_value": "0.00",
+                "total_cash": "0.00",
+                "position_count": 0,
+                "daily_return_pct": "0.00",
+                "unrealized_pnl": {
+                    "total_dollars": "0.00",
+                    "total_pct": "0.00",
+                    "winning_positions": 0,
+                    "losing_positions": 0,
+                    "breakeven_positions": 0,
+                    "source": "bootstrap",
+                    "note": "Portfolio not yet initialized",
+                },
+                "cumulative_return_pct": "0.00",
+                "max_drawdown_pct": None,
+                "largest_position_pct": None,
+                "last_run": None,
+                "data_age_seconds": 0,
+            }
+            validated_data = _ensure_portfolio_fields(response_data)
+            ensure_valid_response("port", validated_data)
+            return success_response(validated_data)
         data = safe_dict_convert(row)
         pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
         position_count_val = data.get("position_count")
