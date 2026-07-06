@@ -51,7 +51,4 @@ ON stability_metrics(data_unavailable, symbol);
 CREATE INDEX IF NOT EXISTS idx_momentum_metrics_data_unavailable
 ON momentum_metrics(data_unavailable, symbol);
 
--- Log migration completion
-INSERT INTO schema_migrations (version, description, installed_on)
-VALUES ('112', 'Add data_unavailable columns to metric tables', NOW())
-ON CONFLICT (version) DO NOTHING;
+-- Migration completed (recorded by migration runner)

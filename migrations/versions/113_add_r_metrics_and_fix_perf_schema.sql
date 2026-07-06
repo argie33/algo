@@ -36,7 +36,4 @@ DO $$ BEGIN
     END IF;
 END $$;
 
--- Log migration completion
-INSERT INTO schema_migrations (version, description, installed_on)
-VALUES ('113', 'Add R-metrics columns to algo_performance_metrics and fix perf_anl schema', NOW())
-ON CONFLICT (version) DO NOTHING;
+-- Migration completed (recorded by migration runner)

@@ -11,7 +11,7 @@
 -- CREATED: 2026-07-03
 
 UPDATE algo_trades
-SET trade_duration_days = EXTRACT(DAY FROM exit_date - entry_date)::INTEGER
+SET trade_duration_days = (exit_date - entry_date)::INTEGER
 WHERE status = 'closed'
   AND exit_date IS NOT NULL
   AND entry_date IS NOT NULL
