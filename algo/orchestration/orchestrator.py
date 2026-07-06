@@ -1388,6 +1388,25 @@ class Orchestrator:
             with TimeBlock("orchestrator_executor"):
                 executor_result = self.executor.run()
 
+            # CRITICAL FIX: Transfer executor's phase results to orchestrator's phase_results
+            # The executor stores results in its own dictionary, but orchestrator needs them
+            # in self.phase_results for final reporting and execution tracking
+            executor_phases = executor_result.get("results", {})
+            for phase_num, phase_result in executor_phases.items():
+                self.phase_results[phase_num] = {
+                    "phase": phase_num,
+                    "name": phase_result.phase_name,
+                    "status": phase_result.status,
+                    "summary": phase_result.data.get("summary", ""),
+                }
+                # Also log each phase to the execution tracker for orchestrator_execution_log
+                self.execution_tracker.log_phase_result(
+                    phase_num,
+                    phase_result.phase_name,
+                    phase_result.status,
+                    phase_result.data.get("summary", ""),
+                )
+
             # Validate executor result structure
             if "success" not in executor_result:
                 raise RuntimeError(
