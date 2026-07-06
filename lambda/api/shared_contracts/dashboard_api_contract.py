@@ -357,7 +357,7 @@ DASHBOARD_ENDPOINTS = {
                 "total": int,
                 "buy_sigs": list,
                 "grades": dict,
-                "date": type(None),
+                "date": (str, type(None)),
                 "data_freshness": dict,
             },
             description="Signal counts and classifications",
