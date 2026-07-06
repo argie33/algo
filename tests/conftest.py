@@ -168,3 +168,38 @@ def mock_db():
     """Mock database context."""
     with patch("utils.db.DatabaseContext") as m:
         yield m
+
+
+@pytest.fixture(autouse=True)
+def reload_lambda_api_modules():
+    """Auto-reload Lambda API modules before each test to prevent isolation issues.
+
+    When tests import modules from lambda/api/shared_contracts, Python caches them.
+    If one test modifies the cached module (e.g., modifying DASHBOARD_ENDPOINTS),
+    subsequent tests see the modified version. This fixture ensures fresh imports.
+
+    Affects: ResponseValidator, dashboard_api_contract, and other lambda/api modules.
+    """
+    import importlib
+
+    # Modules to reload before each test
+    modules_to_reload = [
+        "shared_contracts.response_validator",
+        "shared_contracts.dashboard_api_contract",
+        "shared_contracts.api_contracts",
+        "routes.algo_handlers.dashboard",
+        "routes.algo_handlers.market",
+        "routes.utils",
+    ]
+
+    for module_name in modules_to_reload:
+        # Check if module is in sys.modules (it might not be imported yet)
+        if module_name in sys.modules:
+            try:
+                importlib.reload(sys.modules[module_name])
+            except Exception:
+                # If reload fails, that's OK - module might not exist in this test
+                pass
+
+    yield
+    # Cleanup after test if needed (not necessary, but good practice)
