@@ -30,18 +30,22 @@ def clear_module_cache():
     """
     # Clear modules from cache before test runs
     modules_to_clear = [
+        "shared_contracts",
         "shared_contracts.response_validator",
         "shared_contracts.dashboard_api_contract",
         "shared_contracts.api_contracts",
     ]
-    for module_name in modules_to_clear:
+    # Also clear any modules that imported from shared_contracts
+    modules_to_clear_recursive = [k for k in sys.modules.keys() if k.startswith("shared_contracts")]
+
+    for module_name in modules_to_clear + modules_to_clear_recursive:
         if module_name in sys.modules:
             del sys.modules[module_name]
 
     yield
 
     # Clear after test too for next test
-    for module_name in modules_to_clear:
+    for module_name in modules_to_clear + modules_to_clear_recursive:
         if module_name in sys.modules:
             del sys.modules[module_name]
 
