@@ -28,6 +28,10 @@ from utils.validation import APIResponseValidator
 
 logger = logging.getLogger(__name__)
 
+# Thread-local storage for current cursor (used by safe_dict_convert to convert tuples)
+import threading
+_thread_local = threading.local()
+
 # Type variables for decorators to preserve function signatures
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -729,13 +733,18 @@ def ensure_valid_response(endpoint_name: str, response_data: dict[str, Any]) -> 
         return False
 
 
+def set_current_cursor(cursor: Any) -> None:
+    """Store cursor in thread-local for safe_dict_convert to use."""
+    _thread_local.cursor = cursor
+
+
 def safe_dict_convert(row: Any) -> Any:
     """Safely convert database row to dictionary, handling both DictCursor and tuple rows.
 
-    Handles both formats:
-    - DictCursor rows: already dict-like
-    - Tuple rows: converted via dict() constructor
-    - DictCursor-like objects: converted via dict()
+    Handles:
+    - DictCursor rows: return as-is (already dict-like)
+    - Tuple rows: convert using thread-local cursor.description
+    - Dict-like objects: convert via dict()
 
     Args:
         row: Database row (dict-like or tuple)
@@ -753,17 +762,26 @@ def safe_dict_convert(row: Any) -> Any:
     if isinstance(row, dict):
         return row
 
-    # Try to convert to dict - works for DictCursor and dict-like objects
+    # For tuples, use thread-local cursor.description to get column names
+    if isinstance(row, tuple):
+        cursor = getattr(_thread_local, 'cursor', None)
+        if cursor is None or cursor.description is None:
+            raise RuntimeError(
+                f"Cannot convert tuple row to dict without cursor.description. "
+                f"Cursor: {cursor}, Description: {cursor.description if cursor else 'None'}"
+            )
+        column_names = [desc[0] for desc in cursor.description]
+        return dict(zip(column_names, row))
+
+    # Try to convert dict-like objects
     try:
         return dict(row)
     except (KeyError, ValueError, TypeError) as e:
-        # Provide helpful error message
         row_keys = list(row.keys()) if hasattr(row, "keys") else "unknown"
         raise RuntimeError(
             f"Failed to convert database row to dict: {type(e).__name__}: {e}\n"
             f"  Row keys: {row_keys}\n"
-            f"  Row type: {type(row).__name__}\n"
-            f"  Row data: {row}"
+            f"  Row type: {type(row).__name__}"
         ) from e
 
 
@@ -948,6 +966,10 @@ def db_route_handler(
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> dict[str, Any]:
             try:
+                # Store cursor in thread-local for safe_dict_convert to access
+                # First arg is always the cursor when decorated with @db_route_handler
+                if args:
+                    set_current_cursor(args[0])
                 return func(*args, **kwargs)
             except (
                 psycopg2.errors.UndefinedTable,

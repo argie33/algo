@@ -157,7 +157,7 @@ CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_created
 ON algo_positions_with_risk(status);
 
 -- Refresh the materialized view immediately
-REFRESH MATERIALIZED VIEW CONCURRENTLY algo_positions_with_risk;
+REFRESH MATERIALIZED VIEW algo_positions_with_risk;
 
 COMMENT ON MATERIALIZED VIEW algo_positions_with_risk IS
 'Enriched positions view with sector enrichment, risk metrics, and technical scores. '
