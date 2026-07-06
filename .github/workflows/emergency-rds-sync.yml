@@ -32,7 +32,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN }}
+          role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/algo-svc-github-actions-dev', secrets.AWS_ACCOUNT_ID) }}
           aws-region: us-east-1
 
       - name: Install dependencies
@@ -44,11 +44,9 @@ jobs:
           DB_HOST: localhost
           DB_NAME: stocks
           DB_USER: stocks
-          DB_PASSWORD: ${{ secrets.LOCAL_DB_PASSWORD || 'stocks' }}
+          DB_PASSWORD: stocks
           RDS_HOST: algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com
-          RDS_NAME: stocks
-          RDS_USER: ${{ secrets.RDS_MASTER_USER }}
-          RDS_PASSWORD: ${{ secrets.RDS_MASTER_PASSWORD }}
+          RDS_DB: stocks
         run: |
           python3 << 'PYTHON_EOF'
           import psycopg2
