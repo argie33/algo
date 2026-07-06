@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Local API server for development - serves corrected positions data."""
+"""Local API server for development - serves dashboard data."""
 
 import json
 import os
 import sys
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -20,14 +21,42 @@ from utils.data_queries import get_open_positions  # noqa: E402, I001
 from utils.db import get_db_connection  # noqa: E402
 
 class APIHandler(BaseHTTPRequestHandler):
-    """Handle HTTP requests and return position data."""
+    """Handle HTTP requests and return dashboard data."""
 
     def do_GET(self):
         """Handle GET requests."""
         parsed = urlparse(self.path)
 
+        # Router for all endpoints
         if parsed.path == '/api/algo/positions':
             self._handle_positions()
+        elif parsed.path == '/api/algo/metrics':
+            self._handle_metrics()
+        elif parsed.path == '/api/algo/portfolio':
+            self._handle_portfolio()
+        elif parsed.path == '/api/algo/performance':
+            self._handle_performance()
+        elif parsed.path == '/api/algo/trades':
+            self._handle_trades()
+        elif parsed.path == '/api/algo/dashboard-signals':
+            self._handle_dashboard_signals()
+        elif parsed.path == '/api/algo/data-status':
+            self._handle_data_status()
+        elif parsed.path == '/api/algo/circuit-breakers':
+            self._handle_circuit_breakers()
+        elif parsed.path == '/api/algo/last-run':
+            self._handle_last_run()
+        elif parsed.path == '/api/algo/config':
+            self._handle_config()
+        elif parsed.path == '/api/algo/markets':
+            self._handle_markets()
+        # Optional endpoints - return empty responses
+        elif parsed.path in ['/api/sectors', '/api/algo/audit-log', '/api/algo/notifications',
+                             '/api/algo/sentiment', '/api/algo/economic-calendar', '/api/algo/risk-metrics',
+                             '/api/algo/performance-analytics', '/api/algo/rejection-funnel',
+                             '/api/algo/sector-rotation', '/api/industries', '/api/algo/execution/recent',
+                             '/api/scores', '/api/economic/yield-curve-full', '/api/economic/indicators']:
+            self._handle_optional_empty()
         elif parsed.path == '/api/health':
             self._handle_health()
         else:
@@ -102,6 +131,223 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(200, response)
         except Exception as e:
             self._send_json(500, {'statusCode': 500, 'error': str(e)})
+
+    def _handle_metrics(self):
+        """Return algo metrics."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            cur.execute("""
+                SELECT date, total_actions, entries, exits, avg_signal_score
+                FROM algo_metrics_daily
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            row = cur.fetchone()
+            conn.close()
+
+            if row is None:
+                # Return empty metrics (no data yet)
+                response = {
+                    'statusCode': 200,
+                    'data': {
+                        'date': datetime.now(timezone.utc).date().isoformat(),
+                        'total_actions': 0,
+                        'entries': 0,
+                        'exits': 0,
+                        'avg_signal_score': None
+                    }
+                }
+            else:
+                # Convert date to string for JSON serialization
+                data = dict(row)
+                if 'date' in data and hasattr(data['date'], 'isoformat'):
+                    data['date'] = data['date'].isoformat()
+                response = {
+                    'statusCode': 200,
+                    'data': data
+                }
+
+            self._send_json(200, response)
+        except Exception as e:
+            self._send_json(503, {'statusCode': 503, 'error': str(e)})
+
+    def _handle_portfolio(self):
+        """Return portfolio snapshot."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'total_portfolio_value': 100000.0,
+                'total_cash': 25000.0,
+                'position_count': 5,
+                'daily_return_pct': 0.5,
+                'unrealized_pnl_total': 2500.0,
+                'last_run': datetime.now(timezone.utc).isoformat(),
+                'data_age_seconds': 60
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_performance(self):
+        """Return performance metrics."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'total_trades': 150,
+                'winning': 90,
+                'losing': 55,
+                'breakeven': 5,
+                'win_rate': 60.0,
+                'profit_factor': 1.85,
+                'total_pnl': 12500.0,
+                'total_pnl_pct': 12.5,
+                'avg_trade_pct': 0.45,
+                'best_trade': 5.2,
+                'worst_trade': -3.8,
+                'sharpe': 1.2,
+                'sortino': 1.8,
+                'calmar': 0.95,
+                'max_drawdown': 8.5,
+                'cagr': 25.3,
+                'best_streak': 12,
+                'worst_streak': -4,
+                'current_streak': 3,
+                'expectancy_r': 0.68
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_trades(self):
+        """Return recent trades."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'items': [],
+                'total_count': 0,
+                'pagination': {'limit': 50, 'offset': 0}
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_dashboard_signals(self):
+        """Return dashboard signals."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'items': [],
+                'total_count': 0
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_data_status(self):
+        """Return data loader health status."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'ready_to_trade': True,
+                'items': [
+                    {
+                        'name': 'market_data',
+                        'st': 'ok',
+                        'last_check': datetime.now(timezone.utc).isoformat(),
+                        'age_hours': 0.1
+                    },
+                    {
+                        'name': 'positions',
+                        'st': 'ok',
+                        'last_check': datetime.now(timezone.utc).isoformat(),
+                        'age_hours': 0.1
+                    },
+                    {
+                        'name': 'portfolio',
+                        'st': 'ok',
+                        'last_check': datetime.now(timezone.utc).isoformat(),
+                        'age_hours': 0.1
+                    }
+                ]
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_circuit_breakers(self):
+        """Return circuit breaker status."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'breakers': [],
+                'any_triggered': False,
+                'triggered_count': 0,
+                'data_freshness': {'data_age_days': 0, 'is_stale': False}
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_last_run(self):
+        """Return last algo run status."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'run_id': 'run_' + datetime.now().strftime('%Y%m%d_%H%M%S'),
+                'success': True,
+                'halted': False,
+                'errored': False,
+                'halt_reason': None,
+                'summary': 'Last run completed successfully',
+                'phase_results': [],
+                'started_at': (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
+                'completed_at': datetime.now(timezone.utc).isoformat()
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_config(self):
+        """Return algo configuration."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'enabled': True,
+                'mode': 'paper',
+                'risk_config': {
+                    'max_position_size': 5.0,
+                    'max_portfolio_exposure': 80.0,
+                    'max_sector_exposure': 30.0
+                }
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_markets(self):
+        """Return market data and exposure factors."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'market_status': 'open',
+                'sp500_price': 5500.0,
+                'sp500_change': 0.75,
+                'vix': 15.5,
+                'market_stage': 2,
+                'exposure_factors': {
+                    'sector': 0.65,
+                    'market': 0.85,
+                    'equity': 0.75,
+                    'volatility': 0.45
+                }
+            }
+        }
+        self._send_json(200, response)
+
+    def _handle_optional_empty(self):
+        """Return empty response for optional endpoints."""
+        response = {
+            'statusCode': 200,
+            'data': {
+                'items': [] if 'items' not in self.path else [],
+                'total_count': 0
+            }
+        }
+        self._send_json(200, response)
 
     def _handle_health(self):
         """Return health status."""
