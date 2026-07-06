@@ -293,15 +293,21 @@ class Orchestrator:
             try:
                 from config.credential_manager import CredentialManager
 
-                creds = CredentialManager()
-                api_key = creds.get_password("APCA_API_KEY_ID", default=None)
-                api_secret = creds.get_password("APCA_API_SECRET_KEY", default=None)
-                if not api_key or not api_secret:
-                    raise RuntimeError(
-                        "[STARTUP] CRITICAL: Alpaca credentials missing for live trading. "
-                        "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
-                    )
-                logger.info("[OK] Alpaca credentials validated for live trading")
+                # Check if paper trading is enabled - if so, skip credential validation
+                is_paper_trading = self.config.get("alpaca_paper_trading", False)
+                if is_paper_trading:
+                    logger.info("[OK] Paper trading mode enabled - Alpaca credentials not required")
+                else:
+                    # Live trading requires credentials
+                    creds = CredentialManager()
+                    api_key = creds.get_password("APCA_API_KEY_ID", default=None)
+                    api_secret = creds.get_password("APCA_API_SECRET_KEY", default=None)
+                    if not api_key or not api_secret:
+                        raise RuntimeError(
+                            "[STARTUP] CRITICAL: Alpaca credentials missing for live trading. "
+                            "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
+                        )
+                    logger.info("[OK] Alpaca credentials validated for live trading")
             except ValueError as e:
                 raise RuntimeError(f"[STARTUP] Credential validation failed: {e}") from e
             except RuntimeError as e:

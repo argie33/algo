@@ -259,12 +259,28 @@ class EntryHandler:
                 )
             )
             if not order_ok:
-                return {
-                    "success": False,
-                    "trade_id": trade_id,
-                    "status": "failed",
-                    "message": order_error,
-                }
+                # PAPER MODE GRACEFUL DEGRADATION: In paper trading, still create trade record
+                # even if Alpaca submission fails (connection, auth, etc.)
+                # This ensures trades are tracked for backtesting and portfolio management
+                if execution_mode in ("paper", "auto"):
+                    logger.warning(
+                        f"[PAPER MODE] {symbol}: Alpaca order failed ({order_error}), "
+                        f"but creating trade record in paper mode for backtest/tracking"
+                    )
+                    # Use entry price as executed price since Alpaca didn't fill the order
+                    executed_price = entry_price
+                    order_status = "paper_pending"
+                    alpaca_order_id = None
+                    rejection_reason = f"Paper mode - Alpaca unavailable: {order_error[:200]}"
+                    # Continue to Phase 3 to record the trade
+                else:
+                    # Live mode: Alpaca failure is a hard stop
+                    return {
+                        "success": False,
+                        "trade_id": trade_id,
+                        "status": "failed",
+                        "message": order_error,
+                    }
 
             # Handle slippage: recalculate targets if fill price differs from signal
             if executed_price is None:
