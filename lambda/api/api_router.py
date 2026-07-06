@@ -119,6 +119,12 @@ else:
 if "logs" in _AVAILABLE_ROUTES:
     PUBLIC_HANDLERS["/api/logs"] = _AVAILABLE_ROUTES["logs"]
 
+# Diagnostics endpoint (public, for debugging data sync issues)
+if "diagnostics" in _AVAILABLE_ROUTES:
+    PUBLIC_HANDLERS["/api/diagnostics"] = _AVAILABLE_ROUTES["diagnostics"]
+else:
+    logger.error("WARNING: diagnostics route module failed to import - diagnostics endpoint unavailable")
+
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
 _HANDLER_CONFIG = [
     ("/api/algo/risk-dashboard", "risk_dashboard"),
