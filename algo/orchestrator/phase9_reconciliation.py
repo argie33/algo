@@ -1057,13 +1057,15 @@ def run(  # noqa: C901
 
         return PhaseResult(9, "reconciliation", phase_status, data, False, None)
 
-    except (psycopg2.DatabaseError, psycopg2.OperationalError, RuntimeError, ValueError) as e:
+    except Exception as e:
         traceback.print_exc()
         error_msg = str(e)
+        error_type = type(e).__name__
         logger.critical(
-            f"[PHASE 9 CRITICAL] Reconciliation failed with error: {error_msg}. "
-            "Cannot proceed with trading when portfolio state is unknown. "
-            "Setting halt flag to prevent further trading until broker is accessible."
+            f"[PHASE 9 CRITICAL] Unexpected error ({error_type}): {error_msg}. "
+            "Full traceback above. Cannot proceed with trading when portfolio state is unknown. "
+            "Setting halt flag to prevent further trading until broker is accessible.",
+            exc_info=True
         )
-        log_phase_result_fn(9, "reconciliation", "error", error_msg)
-        return PhaseResult(9, "reconciliation", "error", {}, True, f"Reconciliation failed (halted): {error_msg}")
+        log_phase_result_fn(9, "reconciliation", "error", f"{error_type}: {error_msg[:100]}")
+        return PhaseResult(9, "reconciliation", "error", {}, True, f"Phase 9 error ({error_type}): {error_msg[:100]}")
