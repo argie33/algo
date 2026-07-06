@@ -411,6 +411,31 @@ resource "aws_security_group_rule" "rds_from_dev_machine" {
   description       = "Allow PostgreSQL from development machine (local dev_server)"
 }
 
+# SECURITY REMEDIATION (step 1 of 2): sg-0efd52dc5e807f2e0 has a live 0.0.0.0/0:5432
+# ingress rule that was added out-of-band (console/CLI), not through Terraform -- this SG
+# is managed via separate aws_security_group_rule resources (see comment on
+# aws_security_group.rds above), so Terraform has no record of this rule and a normal
+# `terraform apply` will never touch it. The developer IAM user lacks
+# ec2:RevokeSecurityGroupIngress to fix it directly, but the GitHub Actions OIDC deploy
+# role has full permissions. Importing it here (using the `import` block, which runs
+# automatically during `terraform apply`) brings it under Terraform management using
+# that role's credentials. Step 2 (a follow-up commit removing this block once step 1's
+# apply succeeds) will then show it as "in state, not in config" and destroy/revoke it.
+import {
+  to = aws_security_group_rule.rds_public_drift_step1
+  id = "sg-0efd52dc5e807f2e0_ingress_tcp_5432_5432_0.0.0.0/0"
+}
+
+resource "aws_security_group_rule" "rds_public_drift_step1" {
+  type              = "ingress"
+  from_port         = 5432
+  to_port           = 5432
+  protocol          = "tcp"
+  security_group_id = aws_security_group.rds.id
+  cidr_blocks       = ["0.0.0.0/0"]
+  description       = "TEMP: imported for removal in step 2, see comment above"
+}
+
 # VPC Endpoints Security Group (for services in private subnets to reach AWS services)
 resource "aws_security_group" "vpc_endpoints" {
   name        = "${var.project_name}-vpc-endpoints-sg"
