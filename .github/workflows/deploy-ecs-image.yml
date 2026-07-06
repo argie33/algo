@@ -68,11 +68,6 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    name: Build & Push Docker Image to ECR
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
 
     outputs:
       image_tag: ${{ steps.build.outputs.image_tag }}
