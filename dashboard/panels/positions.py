@@ -268,7 +268,28 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         valid_count += 1
 
     content = t
-    age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]" if pos_timestamp is not None else ""
+
+    # GOVERNANCE FIX: Check data freshness and warn if stale (>24h old)
+    stale_warning = ""
+    if pos_timestamp is not None:
+        from datetime import datetime as dt_cls
+        from datetime import timezone as tz_cls
+        try:
+            now = dt_cls.now(tz_cls.utc)
+            if isinstance(pos_timestamp, dt_cls):
+                # Ensure both are timezone-aware for comparison
+                if pos_timestamp.tzinfo is None:
+                    pos_ts_aware = pos_timestamp.replace(tzinfo=tz_cls.utc)
+                else:
+                    pos_ts_aware = pos_timestamp
+                age_hours = (now - pos_ts_aware).total_seconds() / 3600
+                if age_hours > 24:
+                    stale_warning = " [yellow]⚠ STALE[/]"
+                    logger.warning(f"[POSITIONS] Position data stale ({age_hours:.0f}h old)")
+        except (ValueError, TypeError, AttributeError):
+            logger.debug("[POSITIONS] Could not calculate staleness")
+
+    age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]{stale_warning}" if pos_timestamp is not None else ""
 
     # Show filtering status from API if available
     coverage = None

@@ -212,7 +212,28 @@ def panel_portfolio(
     except (ValueError, TypeError):
         logger.error(f"Config max_pos_n is invalid: {max_n_val}")
         raise RuntimeError("Config corruption: max_pos_n must be integer") from None
-    snap_s = f"  [dim]{fmt_age(snap)}[/]" if snap is not None else ""
+
+    # GOVERNANCE FIX: Check data freshness and warn if stale (>24h old)
+    stale_warning = ""
+    if snap is not None:
+        from datetime import datetime as dt_cls
+        from datetime import timezone as tz_cls
+        try:
+            now = dt_cls.now(tz_cls.utc)
+            if isinstance(snap, dt_cls):
+                # Ensure both are timezone-aware for comparison
+                if snap.tzinfo is None:
+                    snap_aware = snap.replace(tzinfo=tz_cls.utc)
+                else:
+                    snap_aware = snap
+                age_hours = (now - snap_aware).total_seconds() / 3600
+                if age_hours > 24:
+                    stale_warning = " [yellow]⚠ STALE[/]"
+                    logger.warning(f"[PORTFOLIO] Portfolio snapshot stale ({age_hours:.0f}h old)")
+        except (ValueError, TypeError, AttributeError):
+            logger.debug("[PORTFOLIO] Could not calculate staleness")
+
+    snap_s = f"  [dim]{fmt_age(snap)}[/]{stale_warning}" if snap is not None else ""
     # Header: portfolio value + age
     header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
 
