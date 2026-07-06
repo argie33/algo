@@ -1292,9 +1292,10 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
             LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
             LEFT JOIN (
-                SELECT symbol, close, LAG(close) OVER (PARTITION BY symbol ORDER BY date DESC) as previous_close
+                SELECT DISTINCT ON (symbol) symbol, close, LAG(close) OVER (PARTITION BY symbol ORDER BY date DESC) as previous_close
                 FROM price_daily
                 WHERE date >= (SELECT MAX(date) - INTERVAL '5 days' FROM price_daily)
+                ORDER BY symbol, date DESC
             ) pl ON sc.symbol = pl.symbol AND pl.close IS NOT NULL
             WHERE sc.composite_score > 0
             AND sc.data_completeness >= 70

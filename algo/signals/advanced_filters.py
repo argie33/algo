@@ -613,7 +613,7 @@ class AdvancedFilters:
             """
             SELECT s.quality_score
             FROM stock_scores s
-            WHERE s.symbol = %s LIMIT 1
+            WHERE s.symbol = %s AND (s.data_unavailable = FALSE OR s.data_unavailable IS NULL) LIMIT 1
             """,
             (symbol,),
         )

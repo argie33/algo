@@ -30,6 +30,7 @@ CREATE INDEX IF NOT EXISTS idx_growth_metrics_updated_at ON growth_metrics(updat
 
 CREATE TABLE IF NOT EXISTS quality_metrics (
     symbol VARCHAR(20) NOT NULL PRIMARY KEY,
+    quality_score NUMERIC(5, 2),
     roe NUMERIC(6, 2),
     operating_margin NUMERIC(6, 2),
     net_margin NUMERIC(6, 2),
@@ -80,7 +81,9 @@ CREATE TABLE IF NOT EXISTS stability_metrics (
     symbol VARCHAR(20) NOT NULL PRIMARY KEY,
     beta NUMERIC(6, 2),
     volatility_30d NUMERIC(6, 4),
+    volatility_60d NUMERIC(6, 4),
     volatility_90d NUMERIC(6, 4),
+    volatility_252d NUMERIC(6, 4),
     correlation_spy NUMERIC(6, 4),
     max_drawdown_1y NUMERIC(6, 2),
     beta_unavailable_reason VARCHAR(255),

@@ -890,10 +890,10 @@ class StockScoresLoader(OptimalLoader):
                 """
                 SELECT
                     (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1) as current,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '1 month' ORDER BY date DESC LIMIT 1) as price_1m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '3 months' ORDER BY date DESC LIMIT 1) as price_3m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '6 months' ORDER BY date DESC LIMIT 1) as price_6m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= CURRENT_DATE - INTERVAL '1 year' ORDER BY date DESC LIMIT 1) as price_12m_ago
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= (SELECT MAX(date) FROM price_daily) - INTERVAL '30 days' ORDER BY date DESC LIMIT 1) as price_1m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= (SELECT MAX(date) FROM price_daily) - INTERVAL '60 days' ORDER BY date DESC LIMIT 1) as price_3m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= (SELECT MAX(date) FROM price_daily) - INTERVAL '120 days' ORDER BY date DESC LIMIT 1) as price_6m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= (SELECT MAX(date) FROM price_daily) - INTERVAL '252 days' ORDER BY date DESC LIMIT 1) as price_12m_ago
             """,
                 (symbol, symbol, symbol, symbol, symbol),
             )

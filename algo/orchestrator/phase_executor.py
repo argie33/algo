@@ -110,6 +110,36 @@ class OrchestratorPhaseExecutor:
             return data[0]
         return data
 
+    def validate(self) -> list[str]:
+        """Validate all phases are properly configured before execution.
+
+        Checks:
+        - All phases have execute_fn set
+        - All dependencies reference registered phases
+        - No circular dependencies
+
+        Returns:
+            Empty list if valid, list of error messages otherwise.
+        """
+        errors = []
+
+        for phase_num, phase in self.phases.items():
+            if not phase.execute_fn:
+                errors.append(f"Phase {phase_num} ({phase.phase_name}) has no execute_fn set")
+
+            for dep in phase.dependencies:
+                if dep not in self.phases:
+                    errors.append(
+                        f"Phase {phase_num} ({phase.phase_name}) depends on unregistered phase {dep}"
+                    )
+
+        if errors:
+            logger.error(f"[PHASE VALIDATION FAILED] {len(errors)} issues found:")
+            for error in errors:
+                logger.error(f"  - {error}")
+
+        return errors
+
     def _check_dependencies(self, phase_num: int | str) -> str | None:
         """Check if a phase's dependencies are satisfied.
 
@@ -245,6 +275,21 @@ class OrchestratorPhaseExecutor:
         logger.info("#   ORCHESTRATOR EXECUTOR START")
         logger.info(f"#   Executing {len(self.execution_order)} phases")
         logger.info(f"{'#' * 70}")
+
+        # Validate all phases are properly configured before execution
+        validation_errors = self.validate()
+        if validation_errors:
+            logger.critical(
+                f"[ORCHESTRATOR] Cannot proceed with {len(validation_errors)} phase configuration error(s). Aborting."
+            )
+            return {
+                "success": False,
+                "phases_executed": 0,
+                "total_phases": len(self.execution_order),
+                "error_phase": "initialization",
+                "error_message": f"Phase configuration validation failed: {validation_errors}",
+                "results": {},
+            }
 
         success_count = 0
         error_phase = None

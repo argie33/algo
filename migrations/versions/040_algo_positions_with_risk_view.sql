@@ -133,7 +133,7 @@ SELECT
   --                distance_to_tx = (target - current) / current * 100 (distance to target)
   -- CRITICAL: Require explicit stop_loss_price (NULL if missing)
   CASE
-    WHEN COALESCE(lp.current_price, ap.current_price) <= 0 OR lt.stop_loss_price IS NULL
+    WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR lt.stop_loss_price IS NULL
     THEN NULL
     ELSE (COALESCE(lp.current_price, ap.current_price) - lt.stop_loss_price) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
   END::DECIMAL(8, 4) as distance_to_stop_pct,
