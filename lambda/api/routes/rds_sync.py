@@ -10,7 +10,6 @@ import logging
 from typing import Any
 
 from psycopg2.extensions import cursor
-
 from routes.utils import error_response
 
 logger = logging.getLogger(__name__)
