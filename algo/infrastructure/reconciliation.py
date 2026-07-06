@@ -163,8 +163,21 @@ class DailyReconciliation:
                         """,
                         snapshot_params,
                     )
-                    logger.info(f"[RECONCILIATION] Paper mode: INSERT executed successfully, exiting DatabaseContext to commit")
-                    logger.info("[RECONCILIATION] Portfolio snapshot written for paper trading mode")
+                    logger.info(f"[RECONCILIATION] Paper mode: INSERT executed successfully")
+
+                    # VERIFY the insert worked BEFORE exiting the transaction
+                    try:
+                        cur.execute("SELECT position_count FROM algo_portfolio_snapshots WHERE snapshot_date = %s ORDER BY created_at DESC LIMIT 1", (reconcile_date,))
+                        verify_result = cur.fetchone()
+                        if verify_result:
+                            actual_count = verify_result['position_count']
+                            logger.info(f"[RECONCILIATION] VERIFICATION: position_count={actual_count} (expected={open_position_count}) - MATCH={actual_count == open_position_count}")
+                        else:
+                            logger.error(f"[RECONCILIATION] VERIFICATION: No snapshot row found!")
+                    except Exception as verify_err:
+                        logger.error(f"[RECONCILIATION] VERIFICATION QUERY FAILED: {verify_err}")
+
+                    logger.info("[RECONCILIATION] Exiting DatabaseContext to trigger COMMIT")
             except Exception as e:
                 logger.error(f"[RECONCILIATION] Failed to write portfolio snapshot: {e}", exc_info=True)
 

@@ -360,22 +360,25 @@ class DatabaseContext:
                     if not self._externally_managed:
                         # Only close connections we acquired
                         if exc_type is None and self.role == "write":
+                            logger.info(f"[DB_CONTEXT] __exit__: COMMITTING write (managed={self._externally_managed}, role={self.role}, exc_type={exc_type})")
                             self.conn.commit()
+                            logger.info(f"[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE")
                         else:
-                            # Always rollback for:
-                            # - Any exception (clears aborted transaction)
-                            # - Read connections (clears internally-caught failures)
+                            logger.info(f"[DB_CONTEXT] __exit__: ROLLBACK (role={self.role}, exc_type={exc_type})")
                             self.conn.rollback()
                         self.conn.close()
                     else:
                         # Still commit/rollback, but don't close the connection
                         if exc_type is None and self.role == "write":
+                            logger.info(f"[DB_CONTEXT] __exit__: COMMIT (externally-managed, role={self.role})")
                             self.conn.commit()
+                            logger.info(f"[DB_CONTEXT] __exit__: COMMIT COMPLETE (externally-managed)")
                         else:
+                            logger.info(f"[DB_CONTEXT] __exit__: ROLLBACK (externally-managed, exc_type={exc_type})")
                             self.conn.rollback()
                         logger.debug("[DB_CONTEXT] Not closing externally-managed connection")
             except Exception as e:
-                logger.warning(f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}")
+                logger.warning(f"[DB_CLEANUP_WARNING] Error in database context cleanup: {e}", exc_info=True)
             finally:
                 self.cur = None
                 if not self._externally_managed:

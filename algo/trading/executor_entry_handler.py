@@ -823,7 +823,8 @@ class EntryHandler:
         position enters. If we cannot notify, we must not proceed with the trade.
         """
         try:
-            notif_service = TradeNotificationService()
+            config_dict = self.config.to_dict() if hasattr(self.config, 'to_dict') else self.config
+            notif_service = TradeNotificationService(config_dict)
             notif_service._send_notification(
                 subject=f"ENTRY: {symbol}",
                 message=f"{shares:.2f} sh {symbol} @ ${float(executed_price):.2f}",

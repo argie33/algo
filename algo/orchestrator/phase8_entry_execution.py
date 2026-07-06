@@ -803,10 +803,9 @@ def run(
                         signal_date=run_date,
                         entry_date=run_date,
                         composite_score=composite_score,
-                        sector=signal.get("sector"),  # Optional enrichment
-                        industry=signal.get("industry"),  # Optional enrichment
-                        rs_percentile=signal.get("rs_percentile"),  # Already validated as required above
-                        execution_mode=config.get("execution_mode", "paper"),  # CRITICAL: Pass execution mode
+                        sector=signal.get("sector"),
+                        industry=signal.get("industry"),
+                        rs_percentile=signal.get("rs_percentile"),
                     )
 
                     if "success" not in result or result["success"] is None:
