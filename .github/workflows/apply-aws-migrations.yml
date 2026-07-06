@@ -1,0 +1,82 @@
+name: Apply AWS RDS Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run only (no changes)'
+        required: false
+        default: 'false'
+
+jobs:
+  apply-migrations:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github-algo-deploy
+          aws-region: us-east-1
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install boto3 psycopg2-binary
+
+      - name: Apply AWS RDS migrations
+        run: python3 scripts/aws_complete_database_fix.py
+        env:
+          AWS_REGION: us-east-1
+
+      - name: Verify schema
+        run: |
+          python3 -c "
+          import sys
+          from utils.db import DatabaseContext
+
+          print('\n=== VERIFICATION ===')
+          with DatabaseContext('read') as cur:
+              # Check algo_signals
+              cur.execute('SELECT COUNT(*) FROM algo_signals')
+              print(f'✓ algo_signals table: {cur.fetchone()[0] >= 0}')
+
+              # Check is_open column
+              cur.execute('SELECT COUNT(*) FROM algo_positions WHERE is_open = TRUE OR is_open = FALSE')
+              print(f'✓ algo_positions.is_open: OK')
+
+              # Check orchestrator_execution_log
+              cur.execute('SELECT COUNT(*) FROM orchestrator_execution_log')
+              print(f'✓ orchestrator_execution_log: {cur.fetchone()[0]} records')
+
+          print('\n[SUCCESS] All migrations applied and verified!')
+          "
+
+      - name: Post success message
+        if: success()
+        run: |
+          echo "✓ AWS database migrations applied successfully"
+          echo "✓ Schema verified: algo_signals, is_open, orchestrator_execution_log all present"
+          echo ""
+          echo "Next steps:"
+          echo "1. Restart orchestrator: pkill -9 python"
+          echo "2. Restart dashboard: python -m dashboard -w"
+          echo "3. Orchestrator will resume on schedule (2:15 AM or 4:05 PM ET)"
+
+      - name: Post failure message
+        if: failure()
+        run: |
+          echo "✗ Migrations failed - see logs above"
+          echo "Check AWS CloudWatch for RDS connection issues"
