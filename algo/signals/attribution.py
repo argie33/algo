@@ -6,7 +6,6 @@ Previously measured which swing score components predict realized P&L (IC).
 Swing scores have been removed; this module is deprecated and returns unavailable data.
 """
 
-import json
 import logging
 from datetime import date as _date
 from typing import Any, cast
