@@ -284,7 +284,7 @@ class MigrationRunner:
         try:
             if mig_path.suffix == ".sql":
                 # Handle SQL migrations
-                with open(mig_path) as f:
+                with open(mig_path, encoding="utf-8") as f:
                     sql = f.read()
 
                 statements = _split_sql_statements(sql)
