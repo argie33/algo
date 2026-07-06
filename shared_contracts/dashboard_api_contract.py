@@ -302,7 +302,14 @@ DASHBOARD_ENDPOINTS = {
         "response_schema": ResponseSchema(
             required_fields=["items"],
             optional_fields=["timestamp", "coverage", "data_freshness", "pagination", "sector_allocation", "stale_alerts"],
-            field_types={"items": list, "coverage": (dict, type(None)), "data_freshness": (dict, type(None)), "pagination": (dict, type(None)), "sector_allocation": (dict, type(None)), "stale_alerts": (list, type(None))},
+            field_types={
+                "items": list,
+                "coverage": (dict, type(None)),
+                "data_freshness": (dict, type(None)),
+                "pagination": (dict, type(None)),
+                "sector_allocation": (list, dict, type(None)),
+                "stale_alerts": (list, type(None)),
+            },
             description="List of open positions with details",
         ),
         "freshness_max_age_seconds": 300,
