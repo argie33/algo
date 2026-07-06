@@ -31,7 +31,7 @@ jobs:
           echo "Invoking orchestrator Lambda with run_id: $RUN_ID"
 
           aws lambda invoke \
-            --function-name algo-algo-dev \
+            --function-name algo-orchestrator-dev \
             --region us-east-1 \
             --invocation-type RequestResponse \
             --payload "{

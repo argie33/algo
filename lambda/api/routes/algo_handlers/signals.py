@@ -390,180 +390,20 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
 
 @db_route_handler("fetch rejection funnel")  # type: ignore[untyped-decorator]
 @validate_api_response("sig_eval")  # type: ignore[untyped-decorator]
-def _get_rejection_funnel(cur: cursor) -> Any:  # noqa: C901
-    """Get signal rejection funnel with detailed breakdown by filter."""
-    try:
-        today = date.today()
+def _get_rejection_funnel(cur: cursor) -> Any:
+    """Get signal rejection funnel with detailed breakdown by filter.
 
-        # Get all candidate counts in single query using score thresholds for funnel tiers
-        cur.execute("""
-                SELECT
-                    COUNT(DISTINCT symbol) as total_signals,
-                    COUNT(DISTINCT symbol) FILTER (WHERE score > 0) as t1_count,
-                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 40) as t2_count,
-                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 50) as t3_count,
-                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 55) as t4_count,
-                    COUNT(DISTINCT symbol) FILTER (WHERE score >= 60) as t5_count,
-                    ROUND(AVG(score)::numeric, 1) as avg_score,
-                    MAX(date) as signal_date
-                FROM swing_trader_scores
-                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
-            """)
-        row = cur.fetchone()
-        if not row:
-            error_msg = "No signal data available in swing_trader_scores (no records in last 14 days)"
-            logger.error(error_msg)
-            return error_response(503, "no_data", error_msg)
-
-        row_data = safe_json_serialize(safe_dict_convert(row))
-        # Fail-fast: required fields must be present
-        required_fields = ["total_signals", "t1_count", "t5_count"]
-        missing = [f for f in required_fields if row_data.get(f) is None]
-        if missing:
-            error_msg = f"Signal data incomplete: missing {missing}"
-            logger.error(error_msg)
-            return error_response(503, "incomplete_data", error_msg)
-
-        initial_count = int(row_data["total_signals"])
-        t1_count = int(row_data["t1_count"])
-
-        t2_val = row_data.get("t2_count")
-        if t2_val is None:
-            logger.error("Signal rejection funnel data missing t2_count — cannot generate funnel tiers")
-            return error_response(503, "incomplete_data", "Signal tier counts missing: t2_count")
-        t2_count = int(t2_val)
-
-        t3_val = row_data.get("t3_count")
-        if t3_val is None:
-            logger.error("Signal rejection funnel data missing t3_count — cannot generate funnel tiers")
-            return error_response(503, "incomplete_data", "Signal tier counts missing: t3_count")
-        t3_count = int(t3_val)
-
-        t4_val = row_data.get("t4_count")
-        if t4_val is None:
-            logger.error("Signal rejection funnel data missing t4_count — cannot generate funnel tiers")
-            return error_response(503, "incomplete_data", "Signal tier counts missing: t4_count")
-        t4_count = int(t4_val)
-
-        t5_val = row_data.get("t5_count")
-        if t5_val is None:
-            logger.error("Signal rejection funnel data missing t5_count — cannot generate funnel tiers")
-            return error_response(503, "incomplete_data", "Signal tier counts missing: t5_count")
-        high_quality_count = int(t5_val)
-
-        if initial_count <= 0 or high_quality_count <= 0:
-            logger.error(f"Invalid tier counts: initial={initial_count}, t5={high_quality_count}")
-            return error_response(503, "invalid_data", "Signal tiers have zero/negative counts")
-
-        computed_avg_score = float(row_data["avg_score"]) if row_data.get("avg_score") is not None else None
-        signal_date = row_data.get("signal_date")
-
-        def _funnel_stage(stage: str, count: int, prior: int, reason: str | None) -> dict[str, Any]:
-            if initial_count <= 0:
-                raise ValueError("CRITICAL: Initial count is zero — cannot calculate funnel percentages")
-            pct = round((count / initial_count * 100), 2)
-            rejected = prior - count
-            if prior <= 0:
-                raise ValueError(
-                    f"CRITICAL: Prior count is zero/negative ({prior}) for stage {stage} — cannot calculate rejection %"
-                )
-            rej_pct = round((rejected / prior * 100), 2)
-            return {
-                "stage": stage,
-                "count": count,
-                "pct": pct,
-                "rejection_reason": reason,
-                "rejection_count": rejected,
-                "rejection_pct": rej_pct,
-            }
-
-        funnel = [
-            {
-                "stage": "All Evaluated",
-                "count": initial_count,
-                "pct": 100,
-                "rejection_reason": None,
-                "rejection_count": 0,
-                "rejection_pct": 0,
-            }
-        ]
-        if initial_count > 0:
-            funnel.append(
-                _funnel_stage("Scored (SQS > 0)", t1_count, initial_count, "Failed SQS calculation or data validation")
-            )
-        if t1_count > 0:
-            funnel.append(_funnel_stage("Emerging (SQS ≥ 40)", t2_count, t1_count, "Insufficient momentum or trend"))
-        if t2_count > 0:
-            funnel.append(_funnel_stage("Developing (SQS ≥ 50)", t3_count, t2_count, "Below trend quality threshold"))
-        if t3_count > 0:
-            funnel.append(
-                _funnel_stage("Quality (SQS ≥ 55)", t4_count, t3_count, "Near-threshold, below quality floor")
-            )
-        if t4_count > 0:
-            funnel.append(
-                _funnel_stage(
-                    "High-Quality (SQS ≥ 60)", high_quality_count, t4_count, "Low signal quality score (SQS < 60)"
-                )
-            )
-
-        # Get detailed rejection reasons grouped by reason type (top reasons across all tiers)
-        rejected_list = []
-        try:
-            cur.execute(
-                """
-                    SELECT rejection_reason, COUNT(*) as count
-                    FROM filter_rejection_log
-                    WHERE eval_date = %s AND rejection_reason IS NOT NULL AND rejection_reason != ''
-                    GROUP BY rejection_reason
-                    ORDER BY count DESC
-                    LIMIT 10
-                """,
-                (today,),
-            )
-
-            for row in cur.fetchall():
-                # MEDIUM-FIX: Explicit None handling instead of OR fallback
-                rejection_reason = row["rejection_reason"]
-                reason_text = str(rejection_reason) if rejection_reason is not None else None
-                count = row["count"]
-                if reason_text is None or count is None:
-                    continue
-                rejected_list.append(
-                    {
-                        "evaluation_reason": reason_text,
-                        "description": _get_rejection_reason_description(reason_text),
-                        "n": count,
-                    }
-                )
-        except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-            raise RuntimeError(f"Signal rejection data schema error: {e}") from e
-
-        result = {
-            "rejected": rejected_list,
-            "total": initial_count,
-            "t1": t1_count,
-            "t2": t2_count,
-            "t3": t3_count,
-            "t4": t4_count,
-            "t5": high_quality_count,
-            "avg_score": computed_avg_score,
-            "signal_date": signal_date.isoformat() if hasattr(signal_date, "isoformat") else signal_date,
-        }
-        is_valid, validation_error = ResponseValidator.validate_endpoint_response("sig_eval", result)
-        if not is_valid:
-            assert validation_error is not None
-            logger.error(f"Endpoint response validation failed: {validation_error}")
-            return error_response(500, "response_validation_error", validation_error)
-        return json_response(200, result)
-    except (psycopg2.OperationalError, psycopg2.DatabaseError) as e:
-        logger.error(
-            f"Failed to fetch rejection funnel: {type(e).__name__}: {e}\n"
-            f"  Operation: Query candidate_signals_reject table\n"
-            f"  Endpoint: GET /api/algo/rejection-funnel"
-        )
-        raise
-    except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as e:
-        raise RuntimeError(f"Signal rejection funnel schema error - required tables missing: {e}") from e
+    SWING SCORE REMOVAL: This endpoint is deprecated. The swing_trader_scores table
+    no longer exists and has been retired in favor of composite_score from stock_scores.
+    Returns 503 to indicate endpoint is no longer available.
+    """
+    error_msg = (
+        "Signal rejection funnel endpoint has been retired. "
+        "The swing_trader_scores table is no longer maintained. "
+        "Swing score analysis has been replaced with composite_score from stock_scores table."
+    )
+    logger.warning(f"Deprecated endpoint called: /api/algo/rejection-funnel")
+    return error_response(503, "deprecated_endpoint", error_msg)
 
 
 _TIER_CONFIG = {

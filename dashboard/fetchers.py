@@ -146,6 +146,7 @@ def _execute_fetcher_batch(
         "cb",
         "risk",
         "exp_factors",
+        "scores",
     }
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
@@ -278,6 +279,7 @@ def load_all() -> dict[str, Any]:
         "health",
         "risk",  # CRITICAL: Risk metrics for position sizing hard vetoes
         "exp_factors",  # CRITICAL: Market exposure factors for trading decisions
+        "scores",  # CRITICAL: Stock scores displayed in signals panel (growth_score, momentum_score, etc.)
     }
     optional_fetchers = {
         "srank",
@@ -293,7 +295,6 @@ def load_all() -> dict[str, Any]:
         "irank",
         "audit",
         "exec_hist",
-        "scores",
         "cb",  # Moved to optional temporarily - stale data shouldn't block dashboard display
     }
 

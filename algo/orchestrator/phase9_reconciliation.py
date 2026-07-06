@@ -708,22 +708,36 @@ def run(
                     try:
                         from decimal import Decimal
                         with DatabaseContext("write") as cur:
-                            # Use correct column names: total_portfolio_value, total_cash, position_count
+                            # Calculate daily return vs previous day
+                            cur.execute("""
+                                SELECT total_portfolio_value
+                                FROM algo_portfolio_snapshots
+                                WHERE snapshot_date < %s
+                                ORDER BY snapshot_date DESC LIMIT 1
+                            """, (run_date,))
+                            prev_row = cur.fetchone()
+                            prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
+                            current_value = Decimal("100000.00")
+                            daily_return_pct = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+
+                            # Use correct column names: total_portfolio_value, total_cash, position_count, daily_return_pct
                             cur.execute("""
                                 INSERT INTO algo_portfolio_snapshots (
                                     snapshot_date, total_portfolio_value, total_cash,
-                                    position_count, created_at
-                                ) VALUES (%s, %s, %s, %s, NOW())
+                                    position_count, daily_return_pct, created_at
+                                ) VALUES (%s, %s, %s, %s, %s, NOW())
                                 ON CONFLICT (snapshot_date) DO UPDATE
                                 SET total_portfolio_value = EXCLUDED.total_portfolio_value,
                                     total_cash = EXCLUDED.total_cash,
                                     position_count = EXCLUDED.position_count,
+                                    daily_return_pct = EXCLUDED.daily_return_pct,
                                     updated_at = NOW()
                             """, (
                                 run_date,
-                                Decimal("100000.00"),  # Default paper trading portfolio value
-                                Decimal("100000.00"),  # Default paper trading cash
+                                current_value,  # Default paper trading portfolio value
+                                current_value,  # Default paper trading cash
                                 0,  # No open positions
+                                daily_return_pct,  # Calculated daily return
                             ))
                         log_phase_result_fn(9, "portfolio_snapshot", "success", "snapshot created from DB state")
                     except Exception as snapshot_err:
