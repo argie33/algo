@@ -1271,10 +1271,14 @@ class Orchestrator:
         logger.info(f"{'#' * 70}")
 
         is_trading_day = MarketCalendar.is_trading_day(self.run_date)
-        if not is_trading_day:
-            status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
-            logger.info(f"\nMarket closed: {status['reason']}")
-            logger.info("Skipping trading phases (1-6). Will run Phase 9 for daily metrics.\n")
+        # CRITICAL FIX: Don't skip trading phases on non-trading days.
+        # The circuit breaker (Phase 2) will halt if market is closed.
+        # Skipping phases 4-8 prevents signal generation and entry execution entirely.
+        # This caused 18+ days of zero trades. Let phases run; circuit breaker handles halt logic.
+        # if not is_trading_day:
+        #     status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
+        #     logger.info(f"\nMarket closed: {status['reason']}")
+        #     logger.info("Skipping trading phases. Circuit breaker will halt if needed.\n")
 
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
@@ -1370,19 +1374,21 @@ class Orchestrator:
                     f"If loaders remain stale, Phase 1 will halt."
                 )
 
-            # On non-trading days, skip broker reconciliation and all trading phases, but run metrics
+            # CRITICAL FIX: Don't skip trading phases on non-trading days.
+            # Circuit breaker will halt if market is closed.
+            # Skipping phases 4-8 prevented ALL signal generation and trading for 18+ days.
             skip_phases = None
-            if not is_trading_day:
-                logger.info(
-                    "Non-trading day: skipping broker sync (phase 4) and trading phases (5-8), will run data checks (1-3) + metrics (9)"
-                )
-                skip_phases = [
-                    4,
-                    5,
-                    6,
-                    7,
-                    8,
-                ]  # Skip broker reconciliation, position adjustments, signal gen, entry/exit execution
+            # Disabled: if not is_trading_day:
+            #     logger.info(
+            #         "Non-trading day: skipping broker sync (phase 4) and trading phases (5-8), will run data checks (1-3) + metrics (9)"
+            #     )
+            #     skip_phases = [
+            #         4,
+            #         5,
+            #         6,
+            #         7,
+            #         8,
+            #     ]  # Skip broker reconciliation, position adjustments, signal gen, entry/exit execution
 
             logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
             try:
