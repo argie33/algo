@@ -47,6 +47,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_premarket" {
       source         = "eventbridge-scheduler"
       run_date       = "now"
       run_identifier = "premarket"
+      execution_mode = "paper"
       note           = "Pre-market trading run: signals from night before, early entry opportunities"
     })
   }
@@ -83,6 +84,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
       source         = "eventbridge-scheduler"
       run_date       = "now"
       run_identifier = "morning"
+      execution_mode = "paper"
       note           = "Morning trading run: uses prices (today) + technicals (yesterday), primary execution"
     })
   }
@@ -119,6 +121,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
       source         = "eventbridge-scheduler"
       run_date       = "now"
       run_identifier = "afternoon"
+      execution_mode = "paper"
       note           = "Afternoon trading run: uses fresh prices + same signals as morning, catch missed entries + rebalance"
     })
   }
@@ -156,6 +159,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
       source         = "eventbridge-scheduler"
       run_date       = "now"
       run_identifier = "preclose"
+      execution_mode = "paper"
       note           = "Pre-close trading run: final adjustments before 4 PM ET market close, must finish by 3:15 PM"
     })
   }
@@ -195,6 +199,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
       source         = "eventbridge-scheduler"
       run_date       = "now"
       run_identifier = var.enable_morning_orchestrator ? "evening" : "default"
+      execution_mode = "paper"
       note           = var.enable_morning_orchestrator ? "Evening trading run: full pipeline (prices + technicals + metrics)" : null
     })
   }
@@ -287,6 +292,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_morning" {
       run_date       = "now"
       run_identifier = "prewarm"
       dry_run        = true
+      execution_mode = "paper"
       note           = "Pre-warm only: warms Lambda container before 9:30 AM market-open run. No trades executed."
     })
   }
