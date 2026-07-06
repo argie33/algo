@@ -3,8 +3,7 @@
 Unified Grade Classification Engine
 
 Single source of truth for tier/grade classification across all modules.
-Consolidates duplicate logic from algo_swing_score, algo_advanced_filters,
-and load_swing_trader_scores.
+Converts numeric scores (0-100) to letter grades with configurable thresholds.
 
 Grade System: A+ (85+), A (75+), B (65+), C (55+), D (45+), F (<45)
 Thresholds are configurable via algo_config table.
@@ -98,11 +97,6 @@ class GradeClassifier:
             return "D"
         else:
             return "F"
-
-    @staticmethod
-    def classify_swing_score(score: float) -> str:
-        """Classify swing trader score using swing_grade_threshold_* config keys."""
-        return GradeClassifier.classify(score, config_prefix="swing")
 
     @staticmethod
     def classify_ibd_composite(score: float) -> str:

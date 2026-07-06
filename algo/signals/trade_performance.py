@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 
 """
-Signal Trade Performance Populator — extract component scores + realized P&L from closed trades.
+Signal Trade Performance Populator — extract component attribution + realized P&L from closed trades.
 
-Reads closed algo_trades (with swing_components JSONB + exit_r_multiple),
-computes per-trade attribution, persists to signal_trade_performance.
-
-Enables Information Coefficient (IC) calculation per component.
+Reads closed algo_trades and computes per-trade attribution metrics and realized P&L,
+persisting to signal_trade_performance for Information Coefficient (IC) calculation per component.
 """
 
 import logging

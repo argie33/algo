@@ -716,10 +716,9 @@ def run(  # noqa: C901
 
     signal_source = "buysell_breakout"
 
-    # ISSUE #3 FIX: All trend and close quality validation now happens at SQL level in _get_candidates_from_buysell().
+    # All trend and close quality validation happens at SQL level in _get_candidates_from_buysell().
     # Candidates here are already filtered for: close > sma_50, close_position > min_close_quality.
-    # swing_score is optional (LEFT JOIN) since swing_trader_scores computation was removed.
-    # This eliminates wasted I/O and ensures silent data quality drift is detected immediately.
+    # This eliminates wasted I/O and ensures data quality drift is detected immediately.
     quality_filtered = raw_candidates
 
     # Check for upstream data quality issues (e.g., composite_score not populated)

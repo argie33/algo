@@ -255,7 +255,7 @@ class RDSPoolMonitor:
 
         recommendations = []
 
-        # EOD pipeline runs ~6 loaders in parallel (stock_prices, technical_data, swing_scores, market_health, etc.)
+        # EOD pipeline runs multiple loaders in parallel (stock_prices, technical_data, market_health, etc.)
         # Each loader may use 2-4 connections
         # Safe estimate: need 20-30 available connections
         if available < 20:
