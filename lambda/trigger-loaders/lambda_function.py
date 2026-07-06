@@ -62,9 +62,26 @@ class TriggerLoadersHandler(LambdaHandler):
 
         critical_loaders = {
             # SEC financial statements (MUST RUN FIRST - upstream for quality/growth/value metrics)
-            "income_statement",
-            "balance_sheet",
-            "cash_flow",
+            # NOTE: these must match the actual ECS task definition family names registered by
+            # Terraform (terraform state: aws_ecs_task_definition.loader["financials_annual_income"]
+            # etc, also visible in `all_loader_names` output) -- NOT the "income_statement" /
+            # "balance_sheet" / "cash_flow" names previously here, which don't correspond to any
+            # real task definition. Because of that mismatch, triggering the loader by its real,
+            # working name ("financials_annual_income") never matched this set, so use_fargate was
+            # always False and it silently ran on preemptible FARGATE_SPOT with only the default
+            # 300s timeout instead of guaranteed FARGATE + 600s -- for a multi-symbol SEC EDGAR
+            # multi-year history fetch, that's a plausible cause of tasks getting interrupted or
+            # timing out mid-run, leaving many symbols with only partial (single fiscal year)
+            # history in annual_income_statement (which breaks growth_score, since it needs >=2
+            # years; quality_score only needs the latest year so it wasn't affected).
+            "financials_annual_income",
+            "financials_annual_balance",
+            "financials_annual_cashflow",
+            "financials_quarterly_income",
+            "financials_quarterly_balance",
+            "financials_quarterly_cashflow",
+            "financials_ttm_income",
+            "financials_ttm_cashflow",
             # Metric loaders (required before stock_scores; depend on SEC financials above)
             "quality_metrics",
             "growth_metrics",
@@ -100,15 +117,24 @@ class TriggerLoadersHandler(LambdaHandler):
         use_fargate = loader_name in critical_loaders
 
         # Set environment variables for ECS task
+        sec_and_metric_loaders = {
+            "financials_annual_income",
+            "financials_annual_balance",
+            "financials_annual_cashflow",
+            "financials_quarterly_income",
+            "financials_quarterly_balance",
+            "financials_quarterly_cashflow",
+            "financials_ttm_income",
+            "financials_ttm_cashflow",
+            "quality_metrics",
+            "growth_metrics",
+            "value_metrics",
+            "positioning_metrics",
+            "stability_metrics",
+        }
         environment_overrides = {
             # SEC loaders + metric loaders need extended timeout (600s = 10 min for SEC EDGAR + yfinance)
-            "LOADER_TIMEOUT_SEC": "600"
-            if loader_name
-            in {
-                "income_statement", "balance_sheet", "cash_flow",
-                "quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics"
-            }
-            else "300",
+            "LOADER_TIMEOUT_SEC": "600" if loader_name in sec_and_metric_loaders else "300",
             # Reduce batch size in AWS to avoid yfinance rate limiting
             "LOADER_CHUNK_SIZE": "100",
             # Increase memory limit flag for batch processing
