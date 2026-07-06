@@ -17,6 +17,7 @@ from typing import Any  # noqa: E402
 
 import psycopg2  # noqa: E402
 
+from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 

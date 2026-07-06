@@ -92,8 +92,8 @@ class PhaseRegistry:
             phase_name="EXIT EXECUTION",
             dependencies=[3, 5],  # Depends on position monitor (Phase 3) AND exposure policy (Phase 5)
             execute_fn=None,
-            skip_if_halted=False,
-            always_run=True,
+            skip_if_halted=True,  # EXIT EXECUTION skipped on non-trading days (no open positions to manage)
+            always_run=False,  # FIX: Removed always_run=True that contradicted skip_if_halted on non-trading days
         ),
         PhaseRegistryEntry(
             phase_num=7,
