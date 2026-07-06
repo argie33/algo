@@ -150,26 +150,24 @@ class TestConfigCriticalThresholds:
             assert val != 0 and val != 0.0, f"Critical threshold {key} is zero — validation should have failed"
 
     def test_database_connection_failure_graceful_fallback(self):
-        """Should gracefully fallback to defaults when database connection fails."""
+        """Should fail fast when database connection fails - no graceful fallback for safety config."""
         from algo.infrastructure.config import AlgoConfig
 
         with mock.patch("algo.infrastructure.config.main.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.side_effect = ConnectionError("Database connection timeout")
-            config = AlgoConfig()
-            assert config is not None
-            assert hasattr(config, "risk_model") or hasattr(config, "circuit_breaker")
+            with pytest.raises(RuntimeError, match="Database unavailable|database unavailable"):
+                config = AlgoConfig()
 
     def test_database_query_failure_graceful_fallback(self):
-        """Should gracefully fallback to defaults when database query fails."""
+        """Should fail fast when database query fails - no graceful fallback for safety config."""
         from algo.infrastructure.config import AlgoConfig
 
         with mock.patch("algo.infrastructure.config.main.DatabaseContext") as mock_db:
             mock_cursor = mock.MagicMock()
             mock_cursor.execute.side_effect = Exception("Database query error: syntax error")
             mock_db.return_value.__enter__.return_value = mock_cursor
-            config = AlgoConfig()
-            assert config is not None
-            assert hasattr(config, "risk_model") or hasattr(config, "circuit_breaker")
+            with pytest.raises(RuntimeError, match="database|configuration"):
+                config = AlgoConfig()
 
 
 class TestConfigValidationSchema:

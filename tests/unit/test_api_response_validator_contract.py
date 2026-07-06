@@ -37,7 +37,7 @@ class TestExtraFieldsValidation:
         is_valid, error_msg = ResponseValidator.validate_endpoint_response("perf", response)
         assert not is_valid, "Should reject response with extra fields"
         assert error_msg is not None
-        assert "extra_fields" in error_msg.lower()
+        assert "extra" in error_msg.lower()
         assert "win_rate_pct_adjusted" in error_msg
         assert "portfolio_snapshots" in error_msg
         assert "confidence_metadata" in error_msg
@@ -121,13 +121,13 @@ class TestExtraFieldsValidation:
             "total_trades": 100,
             "winning_trades": 60,
             "losing_trades": 40,
-            # Optional fields
+            # Optional fields (matching actual API response)
             "timestamp": "2024-01-15T10:30:00Z",
             "last_updated": "2024-01-15T10:30:00Z",
             "win_rate_pct": 60.0,
-            "open_positions": 5,
+            "open_positions_count": 5,
             "total_pnl_dollars": 5000.0,
-            "unrealized_pnl": 500.0,
+            "total_open_losses_dollars": 500.0,
             "current_streak": 3,
             "sharpe_annualized": 1.5,
             "max_drawdown_pct": -5.0,

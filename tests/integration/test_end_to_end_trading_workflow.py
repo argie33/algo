@@ -254,7 +254,7 @@ class TestEndToEndTradingWorkflow:
         assert deploy_workflow.exists(), "Main deployment workflow must exist"
 
         # Check it contains required steps
-        with open(deploy_workflow) as f:
+        with open(deploy_workflow, encoding='utf-8') as f:
             content = f.read()
             assert "terraform" in content.lower(), "Must include Terraform deployment"
             assert "lambda" in content.lower(), "Must include Lambda deployment"
