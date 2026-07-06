@@ -292,7 +292,6 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         open_losses_count = 0
         open_positions_count = 0
         total_open_losses_dollars = 0.0
-        win_rate_pct_adjusted = None
         try:
             cur.execute("""
                     SELECT
@@ -350,7 +349,9 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                     lose_count = losing if losing is not None else 0
                     break_count = breakeven if breakeven is not None else 0
                     total_adj = win_count + lose_count + open_losses_count + break_count
-                    win_rate_pct_adjusted = round((win_count / total_adj * 100) if total_adj > 0 else wr, 1)
+                    # Adjusted win rate with open losses: (win_count / total_adj * 100)
+                    # Currently unused; computed for future analytics panel enhancement
+                    _ = round((win_count / total_adj * 100) if total_adj > 0 else wr, 1)
         except (ValueError, ZeroDivisionError, TypeError) as pe:
             logger.warning(f"Could not compute open losses: {pe}")
 
