@@ -72,7 +72,7 @@ def fetch_run(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("run", "api_call", "api_error", error_msg)
+            record_data_quality_issue("run", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         inner = data
@@ -82,7 +82,7 @@ def fetch_run(c: None) -> dict[str, Any]:
         valid, error_msg = FetcherValidator.require_fields(inner, required, "fetch_run")
         if not valid:
             logger.error(error_msg)
-            record_data_quality_issue("run", "validation", "missing_fields", error_msg)
+            record_data_quality_issue("run", "validation", "missing_fields", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         phases = inner["phases"]
@@ -153,7 +153,7 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("cfg", "api_call", "api_error", error_msg)
+            record_data_quality_issue("cfg", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         raw = data
@@ -256,7 +256,7 @@ def fetch_health(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("health", "api_call", "api_error", error_msg)
+            record_data_quality_issue("health", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         inner = data
@@ -396,7 +396,7 @@ def fetch_circuit(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("cb", "api_call", "api_error", error_msg)
+            record_data_quality_issue("cb", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         result = data
@@ -515,7 +515,7 @@ def fetch_algo_metrics(c: None) -> dict[str, Any] | list[Any]:
 
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            record_data_quality_issue("algo_metrics", "api_call", "api_error", error_msg)
+            record_data_quality_issue("algo_metrics", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 
         d = data
