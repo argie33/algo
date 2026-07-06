@@ -16,7 +16,7 @@ describe("responseNormalizer Integration Tests", () => {
             current_phase: "phase_1_planning_mode",
             status: "success",
             portfolio: {
-              total_value: 74180.93,
+              total_portfolio_value: 74180.93,
               daily_return_pct: 0.0,
               unrealized_pnl_pct: 1.53,
               open_positions: 9,
@@ -32,7 +32,7 @@ describe("responseNormalizer Integration Tests", () => {
       expect(result.success).toBe(true);
       expect(result.data).toBeDefined();
       expect(result.data.run_id).toBe("RUN-2026-06-08-014331");
-      expect(result.data.portfolio.total_value).toBe(74180.93);
+      expect(result.data.portfolio.total_portfolio_value).toBe(74180.93);
     });
 
     test("handles paginated response (trades endpoint format)", () => {

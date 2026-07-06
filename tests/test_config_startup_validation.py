@@ -155,8 +155,8 @@ class TestConfigCriticalThresholds:
 
         with mock.patch("algo.infrastructure.config.main.DatabaseContext") as mock_db:
             mock_db.return_value.__enter__.side_effect = ConnectionError("Database connection timeout")
-            with pytest.raises(RuntimeError, match="Database unavailable|database unavailable"):
-                config = AlgoConfig()
+            with pytest.raises(RuntimeError, match=r"Database unavailable|database unavailable"):
+                AlgoConfig()
 
     def test_database_query_failure_graceful_fallback(self):
         """Should fail fast when database query fails - no graceful fallback for safety config."""
@@ -166,8 +166,8 @@ class TestConfigCriticalThresholds:
             mock_cursor = mock.MagicMock()
             mock_cursor.execute.side_effect = Exception("Database query error: syntax error")
             mock_db.return_value.__enter__.return_value = mock_cursor
-            with pytest.raises(RuntimeError, match="database|configuration"):
-                config = AlgoConfig()
+            with pytest.raises(RuntimeError, match=r"database|configuration"):
+                AlgoConfig()
 
 
 class TestConfigValidationSchema:

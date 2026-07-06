@@ -9,7 +9,7 @@
  *     {
  *       schema: {
  *         positions: [],
- *         portfolio: { total_value: 0, unrealized_pnl_dollars: 0 }
+ *         portfolio: { total_portfolio_value: 0, unrealized_pnl_dollars: 0 }
  *       }
  *     }
  *   );
