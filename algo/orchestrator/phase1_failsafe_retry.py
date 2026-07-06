@@ -382,7 +382,6 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
             # Other single-table loaders
             "stock_scores": "loaders.load_stock_scores",
             "technical_data_daily": "loaders.load_technical_data_daily",
-            "swing_trader_scores": "loaders.load_swing_trader_scores",
             "growth_metrics": "loaders.load_growth_metrics",
             "value_metrics": "loaders.load_value_metrics",
             "positioning_metrics": "loaders.load_positioning_metrics",

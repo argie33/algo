@@ -47,7 +47,7 @@ def run(
     # Also skip if execution mode is paper trading (paper trading doesn't need broker halt checks)
     if not skip_phase3:
         execution_mode = config.get("execution_mode", "").lower() if config else ""
-        skip_phase3 = execution_mode == "paper"
+        skip_phase3 = execution_mode in ("paper", "auto")
 
     if skip_phase3:
         logger.info("[PHASE 3] Position monitor SKIPPED (paper trading mode or explicitly disabled)")
