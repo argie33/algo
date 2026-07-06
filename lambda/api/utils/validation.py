@@ -79,9 +79,9 @@ class DatabaseResultValidator:
             return default
         try:
             return float(value)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
             if strict:
-                raise ValueError(f"Cannot convert {key}={value} to float")
+                raise ValueError(f"Cannot convert {key}={value} to float") from e
             return default
 
     @staticmethod
