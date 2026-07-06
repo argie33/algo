@@ -281,6 +281,48 @@ CREATE TABLE IF NOT EXISTS orchestrator_execution_log (
 CREATE INDEX IF NOT EXISTS idx_orchestrator_execution_log_created_at ON orchestrator_execution_log(created_at DESC);
 
 -- ============================================================================
+-- SIGNAL STORAGE (Critical for dashboard and API)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS algo_signals (
+    id SERIAL PRIMARY KEY,
+    signal_date DATE NOT NULL,
+    symbol VARCHAR(20) NOT NULL,
+    source_table VARCHAR(50),
+    source_timeframe VARCHAR(20),
+    raw_signal VARCHAR(20),
+    entry_price DECIMAL(12, 4),
+    entry_stage VARCHAR(20),
+    signal_active BOOLEAN DEFAULT TRUE,
+    signal_quality_score INTEGER,
+    risk_score DECIMAL(8, 2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(signal_date, symbol, source_timeframe)
+);
+CREATE INDEX IF NOT EXISTS idx_algo_signals_symbol_date ON algo_signals(symbol, signal_date DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_signals_entry_stage ON algo_signals(entry_stage) WHERE entry_stage IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_algo_signals_active ON algo_signals(signal_active);
+
+-- ============================================================================
+-- MARKET SENTIMENT (Critical for market data endpoints)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS market_sentiment (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL UNIQUE,
+    fear_greed_index DECIMAL(8, 4),
+    put_call_ratio DECIMAL(8, 4),
+    vix DECIMAL(8, 4),
+    sentiment_score DECIMAL(8, 4),
+    bullish_pct DECIMAL(8, 2),
+    bearish_pct DECIMAL(8, 2),
+    neutral_pct DECIMAL(8, 2),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
+
+-- ============================================================================
 -- MARKET CONSTITUENTS (S&P 500, ETF memberships)
 -- ============================================================================
 
