@@ -27,6 +27,7 @@ def up():
         # Drop the columns - these have always been NULL, no data loss
         cur.execute("ALTER TABLE algo_trades DROP COLUMN IF EXISTS swing_score")
         cur.execute("ALTER TABLE algo_trades DROP COLUMN IF EXISTS swing_grade")
+        cur.execute("ALTER TABLE algo_trades DROP COLUMN IF EXISTS swing_components")
 
 
 def down():
@@ -37,6 +38,7 @@ def down():
             """
             ALTER TABLE algo_trades
             ADD COLUMN swing_score FLOAT DEFAULT NULL,
-            ADD COLUMN swing_grade VARCHAR(10) DEFAULT NULL
+            ADD COLUMN swing_grade VARCHAR(10) DEFAULT NULL,
+            ADD COLUMN swing_components JSONB DEFAULT NULL
             """
         )
