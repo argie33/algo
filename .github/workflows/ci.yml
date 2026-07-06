@@ -27,7 +27,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Cache pip dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@ab5e6d0c88ed541ec0a4ea4d65b4f3d292ab2ea7  # v4
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
@@ -106,7 +106,7 @@ jobs:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@7fa6eadc0452a1cac4e55ce842f7ebeabf17b8c47  # v4
         with:
           node-version: '24'
 
@@ -156,7 +156,7 @@ jobs:
             -v
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@6b57ba1bea6a82e79b75c9f00c2cd1f1d38f41d9  # v4
         with:
           files: ./.coverage
           flags: unittests

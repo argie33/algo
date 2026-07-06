@@ -1152,7 +1152,9 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                        s.components->>'fail_reason' AS reason,
                        cp.sector,
                        bsd.buylevel,
-                       bsd.stoplevel
+                       bsd.stoplevel,
+                       ss.value_score,
+                       ss.positioning_score
                 FROM swing_trader_scores s
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
                 LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = s.date
@@ -1163,6 +1165,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                     SELECT buylevel, stoplevel FROM buy_sell_daily
                     WHERE symbol = s.symbol ORDER BY date DESC LIMIT 1
                 ) bsd ON true
+                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
                 WHERE s.date=(SELECT MAX(date) FROM swing_trader_scores)
                 ORDER BY s.score DESC
                 LIMIT 30""")

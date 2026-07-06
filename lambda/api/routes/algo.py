@@ -253,9 +253,20 @@ def _dispatch(  # noqa: C901
             raise_api_error(400, "bad_request", "Request body is required and must be a JSON object")
         return _calculate_pre_trade_impact(cur, cast(dict[str, Any], body))
 
-    # Position management endpoints
+    # Position management endpoints and aliases
     if path.startswith("/api/position/"):
         return handle_positions(cur, path, method, params, body, jwt_claims)
+
+    # Alias: /api/positions redirects to /api/algo/positions
+    if path == "/api/positions":
+        if jwt_claims is not None and not check_admin_access(jwt_claims):
+            logger.warning(f"Unauthorized algo positions access attempt by {user_id}")
+            raise_api_error(403, "forbidden", "Admin access required")
+        return _get_algo_positions(cur, user_id=user_id)
+
+    # Alias: /api/portfolio redirects to /api/algo/portfolio
+    if path == "/api/portfolio":
+        return _get_algo_portfolio(cur)
 
     # Config key sub-routes with custom dispatch
     if path.startswith("/api/algo/config/"):

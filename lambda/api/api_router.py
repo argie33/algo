@@ -126,9 +126,12 @@ else:
     logger.error("WARNING: diagnostics route module failed to import - diagnostics endpoint unavailable")
 
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
+# Also includes aliases: /api/positions → /api/algo/positions, /api/portfolio → /api/algo/portfolio
 _HANDLER_CONFIG = [
     ("/api/algo/risk-dashboard", "risk_dashboard"),
     ("/api/algo", "algo"),
+    ("/api/positions", "algo"),  # Alias for /api/algo/positions
+    ("/api/portfolio", "algo"),  # Alias for /api/algo/portfolio
     ("/api/financials", "financials"),
     ("/api/earnings", "earnings"),
     ("/api/signals", "signals"),
