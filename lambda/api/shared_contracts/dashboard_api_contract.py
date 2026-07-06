@@ -653,13 +653,10 @@ DASHBOARD_ENDPOINTS = {
         "method": "GET",
         "description": "Stock composite scores with multi-factor ranking",
         "response_schema": ResponseSchema(
-            required_fields=["top"],
-            optional_fields=["total", "data_freshness"],
-            field_types={
-                "top": list,
-                "total": int,
-            },
-            description="Top stock scores with component factors (composite, momentum, quality, value, growth, positioning, stability)",
+            required_fields=[],
+            optional_fields=["statusCode", "data", "data_freshness"],
+            field_types={"statusCode": int},
+            description="Stock scores list - data contains items array with component factors (composite, momentum, quality, value, growth, positioning, stability)",
         ),
         "freshness_max_age_seconds": 86400,
         "strict_fields": [],
