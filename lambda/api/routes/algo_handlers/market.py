@@ -161,11 +161,11 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
     try:
         from algo.infrastructure import MarketCalendar
 
+        # FRESHNESS_RULES optional - use empty dict if not found
         try:
-            from utils.validation import FRESHNESS_RULES
-
-            _fr = FRESHNESS_RULES
-        except ImportError:
+            from utils.validation import FRESHNESS_RULES  # type: ignore[attr-defined]
+            _fr: dict[str, dict[str, int | bool]] = FRESHNESS_RULES
+        except (ImportError, AttributeError):
             _fr = {}
 
         # Tables intentionally removed from the EOD pipeline — orchestrator Phase 5

@@ -96,7 +96,7 @@ class DatabaseResultValidator:
         return bool(value)
 
     @staticmethod
-    def safe_get_first_row(data: list[Any] | None) -> dict[str, Any] | None:
+    def safe_get_first_row(data: list[dict[str, Any]] | None) -> dict[str, Any] | None:
         """Safely extract the first row from a list of database results.
 
         Args:

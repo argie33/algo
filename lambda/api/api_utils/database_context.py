@@ -44,7 +44,7 @@ else:
 __all__ = ["DatabaseContext"]
 
 
-class DatabaseContext(_DatabaseContext):  # type: ignore[misc]
+class DatabaseContext(_DatabaseContext):
     """REST API database context with disabled correlation tracking.
 
     Re-exports utils.DatabaseContext but:
