@@ -84,10 +84,10 @@ class StockScoresLoader(OptimalLoader):
                 # toward value/momentum and away from growth signals. This is dangerous for growth-focused
                 # portfolios. Enforce minimum coverage threshold.
                 required_metric_tables = {
-                    "value_metrics": 0.50,  # TEMPORARILY LOWERED FOR DEMO: value metrics only 53% available
-                    "growth_metrics": 0.50,  # TEMPORARILY LOWERED: growth metrics only partial
-                    "positioning_metrics": 0.50,  # TEMPORARILY LOWERED: positioning metrics only partial
-                    "stability_metrics": 0.50,  # TEMPORARILY LOWERED: stability metrics only partial
+                    "value_metrics": 0.70,  # PRODUCTION: Value metrics required for 70%+ of stocks
+                    "growth_metrics": 0.50,  # SEC-filing dependent (some stocks have no annual filings)
+                    "positioning_metrics": 0.70,  # PRODUCTION: Positioning metrics required for 70%+ of stocks
+                    "stability_metrics": 0.70,  # PRODUCTION: Stability metrics required for 70%+ of stocks
                 }
                 # SEC-filing-dependent metrics: acceptable to have 0% real data if upstream
                 # annual_income_statement is empty (known infrastructure gap). Only fail if
