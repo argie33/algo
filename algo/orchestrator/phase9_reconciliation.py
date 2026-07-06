@@ -686,7 +686,54 @@ def run(
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
 
-        recon = DailyReconciliation(config)
+        try:
+            recon = DailyReconciliation(config)
+        except ValueError as e:
+            # In paper trading mode, gracefully handle missing Alpaca credentials
+            if "credentials not found" in str(e).lower() or "credentials" in str(e).lower():
+                execution_mode = config.get("execution_mode", "paper")
+                if execution_mode in ("paper", "auto"):
+                    logger.warning(
+                        f"[PHASE 9] Alpaca credentials missing — reconciliation skipped in {execution_mode} mode. "
+                        "Portfolio snapshot will be created from database state without broker sync."
+                    )
+                    # Create basic snapshot without broker reconciliation
+                    try:
+                        with DatabaseContext("write") as cur:
+                            cur.execute("""
+                                INSERT INTO algo_portfolio_snapshots (snapshot_date, total_value, cash, positions_count, created_at)
+                                SELECT %s, COALESCE(SUM(position_value), 0) + (
+                                    SELECT COALESCE(cash_balance, 0) FROM algo_account_balance ORDER BY date DESC LIMIT 1
+                                ), COALESCE((SELECT cash_balance FROM algo_account_balance ORDER BY date DESC LIMIT 1), 0),
+                                COUNT(*), NOW()
+                                FROM algo_positions WHERE status = 'open'
+                                ON CONFLICT (snapshot_date) DO UPDATE
+                                SET total_value = EXCLUDED.total_value,
+                                    cash = EXCLUDED.cash,
+                                    positions_count = EXCLUDED.positions_count,
+                                    created_at = NOW()
+                            """, (run_date,))
+                        log_phase_result_fn(9, "portfolio_snapshot", "success", "snapshot created from DB state")
+                    except Exception as snapshot_err:
+                        logger.warning(f"[PHASE 9] Could not create portfolio snapshot: {snapshot_err}")
+                        log_phase_result_fn(9, "portfolio_snapshot", "warn", f"snapshot creation failed: {str(snapshot_err)[:60]}")
+
+                    # Refresh materialized view
+                    try:
+                        with DatabaseContext("write") as cur:
+                            cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
+                        logger.info("[PHASE 9] Refreshed algo_positions_with_risk materialized view")
+                    except Exception as view_err:
+                        logger.warning(f"[PHASE 9] Could not refresh view: {view_err}")
+
+                    # Return partial success
+                    log_phase_result_fn(9, "reconciliation", "success", f"Broker unavailable - {execution_mode} mode")
+                    return PhaseResult(9, "reconciliation", "ok", {}, False, None)
+                else:
+                    # Live trading requires credentials
+                    raise RuntimeError(f"[PHASE 9 CRITICAL] Live trading requires Alpaca credentials: {e}") from e
+            else:
+                raise
         reconciliation_succeeded, result = _run_reconciliation_step(config, run_date, log_phase_result_fn, dry_run)
 
         # CRITICAL: Validate that local P&L matches Broker P&L

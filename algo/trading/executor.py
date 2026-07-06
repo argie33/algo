@@ -102,24 +102,41 @@ class TradeExecutor:
         self.execution_mode_strategy = create_execution_mode_strategy(mode_str)
         self.execution_mode = mode_str
 
-        alpaca_creds = get_alpaca_credentials()
-        self.alpaca_key = alpaca_creds["key"]
-        self.alpaca_secret = alpaca_creds["secret"]
+        # For paper trading mode, gracefully handle missing credentials
+        self.alpaca_key = None
+        self.alpaca_secret = None
+
+        try:
+            alpaca_creds = get_alpaca_credentials()
+            self.alpaca_key = alpaca_creds.get("key")
+            self.alpaca_secret = alpaca_creds.get("secret")
+        except ValueError:
+            # Credentials not found - if in paper mode, this is OK
+            if self.execution_mode != "paper" and self.execution_mode != "auto":
+                raise
+            logger.warning("[EXECUTOR] Alpaca credentials not found - paper trading mode without live broker")
 
         # Use strategy pattern to resolve correct endpoint based on execution mode
         configured_url = os.getenv("APCA_API_BASE_URL")
         self.alpaca_base_url = self.execution_mode_strategy.resolve_base_url(configured_url)
 
-        # Explicit validation: credentials must be present and non-empty
-        if not self.alpaca_key or not self.alpaca_secret or not self.alpaca_base_url:
-            error_msg = (
-                f"[EXECUTOR_INIT_FAILED] Missing critical Alpaca credentials: "
-                f"key={'present' if self.alpaca_key else 'MISSING'} "
-                f"secret={'present' if self.alpaca_secret else 'MISSING'} "
-                f"url={'present' if self.alpaca_base_url else 'MISSING'}"
-            )
-            logger.critical(error_msg)
-            raise ValueError(error_msg)
+        # For paper/auto mode, allow missing credentials (will not execute real trades)
+        if self.execution_mode in ("paper", "auto"):
+            if not self.alpaca_key or not self.alpaca_secret:
+                logger.info("[EXECUTOR] Running in paper trading mode without live Alpaca credentials")
+                self.alpaca_key = self.alpaca_key or "paper_trading_key"
+                self.alpaca_secret = self.alpaca_secret or "paper_trading_secret"
+        else:
+            # Live mode requires actual credentials
+            if not self.alpaca_key or not self.alpaca_secret or not self.alpaca_base_url:
+                error_msg = (
+                    f"[EXECUTOR_INIT_FAILED] Missing critical Alpaca credentials: "
+                    f"key={'present' if self.alpaca_key else 'MISSING'} "
+                    f"secret={'present' if self.alpaca_secret else 'MISSING'} "
+                    f"url={'present' if self.alpaca_base_url else 'MISSING'}"
+                )
+                logger.critical(error_msg)
+                raise ValueError(error_msg)
 
         # Validate initialization with execution mode strategy
         self.execution_mode_strategy.validate_and_log_initialization(

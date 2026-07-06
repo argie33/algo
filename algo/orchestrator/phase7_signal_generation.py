@@ -340,7 +340,6 @@ def _get_candidates_from_buysell(
                     run_date,
                     run_date,
                     run_date,
-                    run_date,
                     min_score,
                     min_close_quality,
                     limit,

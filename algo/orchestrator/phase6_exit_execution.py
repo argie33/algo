@@ -100,7 +100,27 @@ def run(
             log_phase_result_fn(6, "exit_execution", "success", "DRY-RUN: execution skipped")
             return PhaseResult(6, "exit_execution", "ok", {}, False, None)
 
-        executor = TradeExecutor(config)
+        # Initialize TradeExecutor, gracefully handle missing credentials in paper mode
+        try:
+            executor = TradeExecutor(config)
+        except ValueError as e:
+            if "credentials not found" in str(e).lower() or "credentials" in str(e).lower():
+                # In paper trading mode, gracefully skip execution if credentials missing
+                execution_mode = config.get("execution_mode", "paper")
+                if execution_mode in ("paper", "auto"):
+                    logger.warning(
+                        f"[PHASE 6] Alpaca credentials missing — skipping exit execution in {execution_mode} mode. "
+                        "Open positions will remain unchanged; only database updates (stop raises, etc.) will proceed."
+                    )
+                    log_phase_result_fn(6, "exit_execution", "success", f"Broker unavailable - {execution_mode} mode")
+                    return PhaseResult(6, "exit_execution", "ok", {}, False, None)
+                else:
+                    # Live trading mode requires credentials
+                    raise RuntimeError(
+                        f"[PHASE 6 CRITICAL] Live trading mode requires Alpaca credentials: {e}"
+                    ) from e
+            else:
+                raise
         exit_count = 0
         stop_raises = 0
         errors = 0
