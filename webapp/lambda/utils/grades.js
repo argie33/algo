@@ -24,7 +24,7 @@ async function getSwingGrades() {
  * Grade assignment was based on swing_trader_scores table which has been removed.
  * This function stub remains for backward compatibility only.
  */
-function getGradeForScore(score, grades) {
+function getGradeForScore(_score, _grades) {
   throw new Error(
     "DEPRECATED: Swing score grading has been removed (migration 1003). " +
       "Use signal_quality_score from algo_signals table instead."
