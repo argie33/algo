@@ -63,11 +63,15 @@ def execution_timeout(max_seconds: int = 5400, label: str = "loader") -> Any:
             logger.info(f"[TIMEOUT] Using signal-based timeout for {label}: {max_seconds}s")
 
             # Set SIGALRM handler
-            old_handler = signal.signal(signal.SIGALRM, _timeout_handler_unix)            signal.alarm(max_seconds)            try:
+            old_handler = signal.signal(signal.SIGALRM, _timeout_handler_unix)
+            signal.alarm(max_seconds)
+            try:
                 yield
             finally:
                 # Cancel alarm and restore old handler
-                signal.alarm(0)                signal.signal(signal.SIGALRM, old_handler)        # Windows / Other: Use threading-based timeout
+                signal.alarm(0)
+                signal.signal(signal.SIGALRM, old_handler)
+        # Windows / Other: Use threading-based timeout
         else:
             logger.info(f"[TIMEOUT] Using threading-based timeout for {label}: {max_seconds}s (non-signal platform)")
 
