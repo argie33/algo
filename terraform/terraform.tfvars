@@ -53,12 +53,12 @@ dev_mode           = false          # Disable dev mode safety gates - enables no
 enable_data_freshness_monitoring = true # Monitor loader data freshness and alert if stale before 9:30 AM trading window
 
 # Orchestrator configuration (moved from GitHub Secrets)
-execution_mode                      = "auto"
+execution_mode                      = "live"  # LIVE TRADING MODE - credentials in algo/alpaca secret, will be loaded at runtime
 orchestrator_dry_run                = false
 orchestrator_log_level              = "info"
 data_patrol_enabled                 = true
 data_patrol_timeout_ms              = 30000
-alpaca_paper_trading                = true # Paper trading — live keys not yet configured in algo/alpaca secret
+alpaca_paper_trading                = true # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 25   # Validation requires max 25s (API Gateway enforces 29s hard limit, but terraform validation stricter). VPC cold start risk: 15-40s, so retry on client side.
 api_lambda_reserved_concurrency     = 25   # OPTIMIZED for dev: MarketsHealth needs peak 26 concurrent calls, but dev rarely has concurrent users. Prod should use 50+. Saves ~$0.40/month.
 api_lambda_provisioned_concurrency  = 0    # OPTIMIZED: Disabled in dev (accept cold starts). Saves $12/month. Cost in prod: ~$12/month
@@ -75,7 +75,12 @@ algo_lambda_provisioned_concurrency = 0    # Orchestrator runs on schedule, cold
 rds_backup_retention_period = 1
 
 # Alpaca API configuration
-alpaca_api_base_url = "https://paper-api.alpaca.markets" # Paper API — matches paper keys in algo/alpaca secret
+# Credentials are stored securely in AWS Secrets Manager (algo/alpaca secret)
+# Set via environment variables at deploy time, NOT in this file (security best practice)
+# To enable live trading: export TF_VAR_alpaca_api_key_id and TF_VAR_alpaca_api_secret_key before terraform apply
+alpaca_api_key_id     = ""  # Set via TF_VAR_alpaca_api_key_id environment variable at deploy time
+alpaca_api_secret_key = ""  # Set via TF_VAR_alpaca_api_secret_key environment variable at deploy time
+alpaca_api_base_url   = "https://paper-api.alpaca.markets" # Paper trading URL
 
 # Execution Monitor - queries RDS for signals and Alpaca for trades
 enable_execution_monitor          = false # OPTIMIZED: Disabled in dev (paper trading only, low value); cost: $13/month
