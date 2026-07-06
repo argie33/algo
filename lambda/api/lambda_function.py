@@ -102,26 +102,32 @@ def _apply_critical_migrations() -> tuple[bool, str]:
         )
         cur = conn.cursor()
 
-        # Apply migrations for data_unavailable columns
-        tables = [
-            "quality_metrics",
-            "growth_metrics",
-            "value_metrics",
-            "positioning_metrics",
-            "stability_metrics",
-            "aaii_sentiment",
-            "fear_greed_index",
-            "naaim",
+        # Apply migrations for data_unavailable and reason columns
+        # Schema migration definitions: (table, column, type, description)
+        migrations_to_apply = [
+            ("quality_metrics", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Quality metrics unavailable flag"),
+            ("quality_metrics", "reason", "VARCHAR(500)", "Quality metrics unavailable reason"),
+            ("growth_metrics", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Growth metrics unavailable flag"),
+            ("growth_metrics", "reason", "VARCHAR(500)", "Growth metrics unavailable reason"),
+            ("value_metrics", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Value metrics unavailable flag"),
+            ("value_metrics", "reason", "VARCHAR(500)", "Value metrics unavailable reason"),
+            ("positioning_metrics", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Positioning metrics unavailable flag"),
+            ("positioning_metrics", "reason", "VARCHAR(500)", "Positioning metrics unavailable reason"),
+            ("stability_metrics", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Stability metrics unavailable flag"),
+            ("stability_metrics", "reason", "VARCHAR(500)", "Stability metrics unavailable reason"),
+            ("aaii_sentiment", "data_unavailable", "BOOLEAN DEFAULT FALSE", "AAII sentiment unavailable flag"),
+            ("fear_greed_index", "data_unavailable", "BOOLEAN DEFAULT FALSE", "Fear/greed index unavailable flag"),
+            ("naaim", "data_unavailable", "BOOLEAN DEFAULT FALSE", "NAAIM sentiment unavailable flag"),
         ]
 
-        for table in tables:
+        for table, column, type_def, description in migrations_to_apply:
             try:
-                sql = f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE"
+                sql = f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {type_def}"
                 cur.execute(sql)
                 conn.commit()
-                logger.info(f"[STARTUP] Ensured {table}.data_unavailable exists")
+                logger.info(f"[STARTUP] Ensured {table}.{column} exists ({description})")
             except Exception as e:
-                logger.warning(f"[STARTUP] Could not update {table}: {e}")
+                logger.warning(f"[STARTUP] Could not update {table}.{column}: {e}")
                 conn.rollback()
 
         # NOTE: R-metrics columns (expectancy, avg_win_r, avg_loss_r) are created by lambda/db-init/lambda_function.py
