@@ -165,7 +165,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         t.add_column("M-Trend", justify="right", no_wrap=True, min_width=6)
         t.add_column("Sector", style="dim", no_wrap=True, max_width=12)
     valid_count = 0
-    for p in pos_items:
+    # Sort positions by position_value descending (largest first) for better visibility
+    sorted_pos_items = sorted(pos_items, key=lambda x: float(x.get("position_value") or 0), reverse=True)
+    for p in sorted_pos_items:
         # TRUST API FILTERING: All positions here are already validated by API layer
         # If data is invalid, it's a contract violation — don't silently skip, raise to catch bugs
         symbol = p.get("symbol")
