@@ -106,6 +106,62 @@ class DailyReconciliation:
 
                 logger.info(f"[RECONCILIATION PAPER MODE] Found {open_position_count} open positions, portfolio value: ${portfolio_value:.2f}")
 
+            # Write portfolio snapshot even in paper mode for position monitor and dashboard
+            if not reconcile_date:
+                reconcile_date = datetime.now(timezone.utc).date()
+
+            try:
+                with DatabaseContext("write") as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO algo_portfolio_snapshots (
+                            snapshot_date, total_portfolio_value, total_cash, total_equity,
+                            position_count, largest_position_pct, average_position_size_pct,
+                            concentration_risk_pct,
+                            realized_pnl_today, unrealized_pnl_total, unrealized_pnl_pct,
+                            unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count,
+                            unrealized_pnl_source,
+                            win_count_today, loss_count_today,
+                            daily_return_pct, cumulative_return_pct, max_drawdown_pct,
+                            sharpe_ratio, market_health_status, created_at
+                        ) VALUES (
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                        )
+                        ON CONFLICT (snapshot_date) DO UPDATE SET
+                        total_portfolio_value = EXCLUDED.total_portfolio_value,
+                        total_cash = EXCLUDED.total_cash,
+                        total_equity = EXCLUDED.total_equity,
+                        position_count = EXCLUDED.position_count
+                        """,
+                        (
+                            reconcile_date,
+                            portfolio_value,
+                            100000.00 - total_invested,
+                            portfolio_value,
+                            open_position_count,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            total_unrealized_pnl,
+                            (total_unrealized_pnl / 100000.0 * 100) if portfolio_value > 0 else 0.0,
+                            0,
+                            0,
+                            0,
+                            "open_positions_only",
+                            0,
+                            0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            0.0,
+                            "paper_mode",
+                        ),
+                    )
+                    logger.info("[RECONCILIATION] Portfolio snapshot written for paper trading mode")
+            except Exception as e:
+                logger.error(f"[RECONCILIATION] Failed to write portfolio snapshot: {e}", exc_info=True)
+
             return {
                 "success": True,
                 "positions": open_position_count,
