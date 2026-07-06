@@ -822,9 +822,11 @@ def run(
 
         # CREATE PORTFOLIO SNAPSHOT from reconciliation result
         # This MUST happen after reconciliation to capture accurate state
+        logger.info(f"[PHASE 9] Creating snapshot: reconciliation_succeeded={reconciliation_succeeded}, result={result}")
         try:
             from decimal import Decimal
             with DatabaseContext("write") as cur:
+                logger.info(f"[PHASE 9] Snapshot: Database connection established")
                 # Get previous portfolio value for daily return calculation
                 cur.execute("""
                     SELECT total_portfolio_value
@@ -834,11 +836,18 @@ def run(
                 """, (run_date,))
                 prev_row = cur.fetchone()
                 prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
+                logger.info(f"[PHASE 9] Snapshot: Previous value={prev_value}")
 
                 current_value = Decimal(str(result.get("portfolio_value", 100000.00)))
                 daily_return_pct = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+                logger.info(f"[PHASE 9] Snapshot: Current value={current_value}, return={daily_return_pct}%")
 
                 # Create snapshot with actual reconciliation data
+                pos_count = result.get("positions", 0)
+                unrealized = Decimal(str(result.get("unrealized_pnl", 0)))
+                cash = current_value - unrealized
+
+                logger.info(f"[PHASE 9] Snapshot: Executing INSERT with position_count={pos_count}, cash={cash}")
                 cur.execute("""
                     INSERT INTO algo_portfolio_snapshots (
                         snapshot_date, total_portfolio_value, total_cash,
@@ -853,16 +862,17 @@ def run(
                 """, (
                     run_date,
                     current_value,
-                    current_value - Decimal(str(result.get("unrealized_pnl", 0))),
-                    result.get("positions", 0),
+                    cash,
+                    pos_count,
                     daily_return_pct,
                 ))
+                logger.info(f"[PHASE 9] Snapshot: INSERT executed, exiting DatabaseContext to trigger commit")
 
                 logger.info(f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={result.get('positions', 0)}")
                 log_phase_result_fn(9, "portfolio_snapshot", "success",
                     f"snapshot created: ${current_value:.2f}, {result.get('positions', 0)} positions")
         except Exception as snapshot_err:
-            logger.warning(f"[PHASE 9 SNAPSHOT] Failed to create snapshot: {snapshot_err}")
+            logger.warning(f"[PHASE 9 SNAPSHOT] Failed to create snapshot: {snapshot_err}", exc_info=True)
             log_phase_result_fn(9, "portfolio_snapshot", "warn", f"snapshot failed: {str(snapshot_err)[:60]}")
 
         # Record exits for recently closed positions (batch operation to avoid N+1 queries)
