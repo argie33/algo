@@ -18,7 +18,7 @@ import sys
 import time
 import uuid
 from collections.abc import Iterable
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
 
 import psycopg2.sql
@@ -1892,6 +1892,30 @@ class PriceLoader(OptimalLoader):
                 self._stats["rows_dedup_skipped"] += before_dedup - len(rows)
 
             if not rows:
+                # GOVERNANCE FIX: Mark symbol as having unavailable price data
+                # Prevents downstream from silently using stale prices
+                try:
+                    unavailable_marker = {
+                        "symbol": symbol,
+                        "date": datetime.now(timezone.utc).date(),
+                        "open": None,
+                        "high": None,
+                        "low": None,
+                        "close": None,
+                        "volume": None,
+                        "data_unavailable": True,
+                        "data_unavailable_reason": "no_price_data_after_validation",
+                    }
+                    self._bulk_insert_mgr.bulk_insert(
+                        [unavailable_marker],
+                        symbol=symbol,
+                        new_watermark=datetime.now(timezone.utc).date(),
+                        watermark_mgr=self._watermark,
+                    )
+                    logger.warning(f"[{self.table_name}] {symbol}: Marked as data_unavailable (no valid prices after validation)")
+                except Exception as e:
+                    logger.warning(f"[{self.table_name}] {symbol}: Could not mark as unavailable: {e} (continuing)")
+
                 self._stats["symbols_processed"] += 1
                 continue
 
