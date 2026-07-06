@@ -10,13 +10,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
 
-from routes.utils import json_response, list_response, success_response
-
-from utils.validation import APIResponseValidator
+# CRITICAL: Import at test time, not module load time, to prevent test isolation issues
+# This prevents sys.modules pollution that breaks other tests running in sequence
 
 
 def test_sanitize_nested_dict_with_nulls():
     """Test sanitizing nested dict with None values."""
+    from utils.validation import APIResponseValidator
+
     data = {
         "profit_factor": None,
         "win_rate": 50.5,
@@ -34,6 +35,8 @@ def test_sanitize_nested_dict_with_nulls():
 
 def test_sanitize_list_with_nulls():
     """Test sanitizing list with None values (should filter them out)."""
+    from utils.validation import APIResponseValidator
+
     data = [
         {"symbol": "AAPL", "price": 150.0},
         None,
@@ -52,6 +55,8 @@ def test_sanitize_list_with_nulls():
 
 def test_success_response_sanitizes():
     """Test that success_response sanitizes None values."""
+    from routes.utils import success_response
+
     data = {"profit_factor": None, "win_rate": 45.0}
 
     response = success_response(data)
@@ -64,6 +69,8 @@ def test_success_response_sanitizes():
 
 def test_list_response_sanitizes():
     """Test that list_response sanitizes None values."""
+    from routes.utils import list_response
+
     items = [{"symbol": "AAPL", "quantity": 10}, {"symbol": "MSFT", "quantity": None}]
 
     response = list_response(items)
@@ -76,6 +83,8 @@ def test_list_response_sanitizes():
 
 def test_validate_no_nulls():
     """Test null detection."""
+    from utils.validation import APIResponseValidator
+
     data = {"a": 1, "b": None, "c": {"d": None, "e": 2}, "f": [1, None, 3]}
 
     nulls = APIResponseValidator.validate_no_nulls(data)
@@ -89,6 +98,8 @@ def test_validate_no_nulls():
 
 def test_json_serializable():
     """Test that sanitized data is JSON serializable."""
+    from utils.validation import APIResponseValidator
+
     data = {
         "profit_factor": None,
         "items": [{"name": "trade1", "pnl": 100.5}, None],
@@ -111,6 +122,8 @@ def test_json_serializable():
 
 def test_json_response_sanitizes_success():
     """Test that json_response sanitizes None values for success (200) responses."""
+    from routes.utils import json_response
+
     data = {"ratio": None, "value": 42}
 
     response = json_response(200, data)
@@ -123,6 +136,8 @@ def test_json_response_sanitizes_success():
 
 def test_json_response_sanitizes_errors():
     """Test that json_response sanitizes None values for error responses."""
+    from routes.utils import json_response
+
     data = {
         "errorType": "validation_error",
         "message": "Invalid input",
@@ -144,6 +159,8 @@ def test_json_response_sanitizes_errors():
 
 def test_null_in_json_output():
     """Test that serialized responses correctly handle null values."""
+    from routes.utils import success_response, list_response, json_response
+
     responses = [
         success_response({"value": None}),
         list_response([{"item": None}]),
