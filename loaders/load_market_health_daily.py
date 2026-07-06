@@ -405,9 +405,9 @@ class MarketHealthDailyLoader(OptimalLoader):
                     reason = result["reason"]
                     logger.debug(f"[MARKET_HEALTH] Put/call ratio unavailable from fetcher: {reason}")
                     return {"data_unavailable": True, "reason": reason, "put_call_ratio": None}
-                # If it's a float, return it as the ratio
+                # If it's a float, return it as the ratio with data_unavailable marker
                 if isinstance(result, float):
-                    return {"put_call_ratio": result}
+                    return {"data_unavailable": False, "put_call_ratio": result, "reason": None}
                 # Shouldn't reach here, but handle unexpected types defensively
                 logger.debug("[MARKET_HEALTH] Put/call fetcher returned unexpected type, marking unavailable")
                 return {"data_unavailable": True, "reason": "unexpected_return_type", "put_call_ratio": None}
