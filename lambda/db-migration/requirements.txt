@@ -1,1 +1,7 @@
-psycopg2-binary==2.9.9
+# psycopg2 is provided by the shared algo-psycopg2-layer-dev Lambda layer (attached in
+# deploy-all-infrastructure.yml), not pip-installed into this function's own package.
+# pip install -t $PKG_DIR (no --platform manylinux2014_x86_64) doesn't reliably produce
+# a working psycopg2-binary wheel for the Lambda runtime -- confirmed live 2026-07-07:
+# "ModuleNotFoundError: No module named 'psycopg2'" at runtime despite this requirement
+# being listed. Every other Lambda in this project (API, orchestrator) gets psycopg2 from
+# that same layer for the same reason.

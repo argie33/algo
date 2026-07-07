@@ -1773,6 +1773,13 @@ jobs:
           PRIVATE_SUBNETS=$(cd terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
           RDS_SG=$(cd terraform && terraform output -raw rds_security_group_id 2>/dev/null || aws ec2 describe-security-groups --filters "Name=tag:Name,Values=algo-rds-sg" --query 'SecurityGroups[0].GroupId' --output text --region $AWS_REGION 2>/dev/null || echo "")
           DB_SECRET_ARN=$(aws secretsmanager list-secrets --region $AWS_REGION --query "SecretList[?Name=='algo-db-credentials-dev'].ARN" --output text 2>/dev/null || echo "")
+          # requirements.txt lists psycopg2-binary, but this Lambda's own package (built by
+          # pip install -t $PKG_DIR without --platform manylinux2014_x86_64) doesn't reliably
+          # end up with it -- confirmed live 2026-07-07: "ModuleNotFoundError: No module named
+          # 'psycopg2'" at runtime. Every other Lambda in this project (API, orchestrator) gets
+          # psycopg2 from the shared Terraform-built layer instead of pip-installing it into
+          # the function package; attach that same layer here rather than debugging pip.
+          PSYCOPG2_LAYER_ARN=$(aws lambda list-layer-versions --layer-name algo-psycopg2-layer-dev --region $AWS_REGION --query 'LayerVersions[0].LayerVersionArn' --output text 2>/dev/null || echo "")
 
           UPDATE_OUTPUT=$(aws lambda update-function-code \
             --function-name "$LAMBDA_NAME" \
@@ -1784,15 +1791,22 @@ jobs:
             echo "[INFO] Updated existing Lambda: $LAMBDA_NAME"
             aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
 
-            if [ ! -z "$VPC_ID" ] && [ ! -z "$PRIVATE_SUBNETS" ] && [ ! -z "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
-              echo "[INFO] Updating Lambda VPC config and environment"
-              aws lambda update-function-configuration \
-                --function-name "$LAMBDA_NAME" \
-                --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
-                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" \
-                --region $AWS_REGION || echo "[WARN] Could not update VPC config"
-              aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
+            if [ ! -z "$PSYCOPG2_LAYER_ARN" ]; then
+              CONFIG_ARGS="--layers $PSYCOPG2_LAYER_ARN"
+            else
+              echo "[WARN] Could not resolve psycopg2 layer ARN; migrations will fail on import"
+              CONFIG_ARGS=""
             fi
+            if [ ! -z "$VPC_ID" ] && [ ! -z "$PRIVATE_SUBNETS" ] && [ ! -z "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
+              CONFIG_ARGS="$CONFIG_ARGS --vpc-config SubnetIds=$PRIVATE_SUBNETS,SecurityGroupIds=$RDS_SG"
+            fi
+            echo "[INFO] Updating Lambda config (layer + VPC + environment)"
+            aws lambda update-function-configuration \
+              --function-name "$LAMBDA_NAME" \
+              $CONFIG_ARGS \
+              --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" \
+              --region $AWS_REGION || echo "[WARN] Could not update Lambda config"
+            aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
           elif echo "$UPDATE_OUTPUT" | grep -q "ResourceNotFoundException"; then
             echo "[INFO] Creating new Lambda: $LAMBDA_NAME"
             # algo-svc-lambda-execution-dev does not exist / has no lambda.amazonaws.com trust
@@ -1802,6 +1816,12 @@ jobs:
             # already has a working lambda.amazonaws.com trust policy, VPC access, and Secrets Manager
             # read on algo-db-credentials-dev.
             ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-lambda-algo-dev"
+            LAYER_ARGS=""
+            if [ ! -z "$PSYCOPG2_LAYER_ARN" ]; then
+              LAYER_ARGS="--layers $PSYCOPG2_LAYER_ARN"
+            else
+              echo "[WARN] Could not resolve psycopg2 layer ARN; migrations will fail on import"
+            fi
 
             if [ -z "$VPC_ID" ] || [ -z "$PRIVATE_SUBNETS" ] || [ -z "$RDS_SG" ] || [ "$RDS_SG" = "None" ]; then
               echo "[WARN] VPC config incomplete (VPC=$VPC_ID, Subnets=$PRIVATE_SUBNETS, SG=$RDS_SG), creating Lambda without VPC access (will fail)"
@@ -1813,6 +1833,7 @@ jobs:
                 --zip-file fileb://migration_lambda.zip \
                 --timeout 300 \
                 --memory-size 512 \
+                $LAYER_ARGS \
                 --region $AWS_REGION \
                 --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
             else
@@ -1825,6 +1846,7 @@ jobs:
                 --zip-file fileb://migration_lambda.zip \
                 --timeout 300 \
                 --memory-size 512 \
+                $LAYER_ARGS \
                 --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
                 --region $AWS_REGION \
                 --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
