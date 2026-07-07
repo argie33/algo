@@ -469,9 +469,7 @@ class CredentialManager:
             except client.exceptions.ResourceNotFoundException:
                 logger.debug("[CREDENTIALS] algo/alpaca secret not found in Secrets Manager")
             except (ClientError, BotoCoreError) as e:
-                logger.debug(
-                    f"[CREDENTIALS] Could not fetch from algo/alpaca: {_sanitize_error(e)}"
-                )
+                logger.debug(f"[CREDENTIALS] Could not fetch from algo/alpaca: {_sanitize_error(e)}")
 
         # Step 3: Try environment variables (APCA_API_KEY_ID / APCA_API_SECRET_KEY)
         key_env = os.getenv("APCA_API_KEY_ID")

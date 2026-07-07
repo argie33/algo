@@ -135,8 +135,7 @@ def validate_credentials() -> tuple[bool, list[str]]:
     except ValueError as e:
         # Credentials not found in any source (Secrets Manager or env vars)
         warnings.append(
-            f"[WARN] Alpaca credentials not configured: {e!s}. "
-            "Paper trading mode will work, but live trading disabled."
+            f"[WARN] Alpaca credentials not configured: {e!s}. Paper trading mode will work, but live trading disabled."
         )
 
     # === OPTIONAL: Email/SMS Alerts ===

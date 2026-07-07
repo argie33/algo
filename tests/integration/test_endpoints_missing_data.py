@@ -92,9 +92,7 @@ class TestEndpointsMissingData:
             assert result.get("statusCode") == 200, (
                 f"Positions should return 200 with empty data, got {result.get('statusCode')}"
             )
-            assert isinstance(result.get("data", {}).get("items"), list), (
-                "Positions should return empty items array"
-            )
+            assert isinstance(result.get("data", {}).get("items"), list), "Positions should return empty items array"
             assert len(result.get("data", {}).get("items", [])) == 0, (
                 "Positions should return empty array when no positions"
             )

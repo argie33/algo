@@ -1287,7 +1287,8 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
     try:
         # Allow 25 seconds for query to complete (safe before API Gateway limit)
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
-        cur.execute("""
+        cur.execute(
+            """
             SELECT symbol, composite_score, growth_score, momentum_score,
                    quality_score, value_score, stability_score, positioning_score,
                    data_completeness, updated_at
@@ -1296,7 +1297,9 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             AND data_completeness >= 70
             ORDER BY composite_score DESC
             LIMIT %s
-        """, (limit,))
+        """,
+            (limit,),
+        )
         rows = cur.fetchall()
         logger.info(f"[SCORES] Direct query returned {len(rows)} rows")
 

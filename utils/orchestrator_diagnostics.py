@@ -71,7 +71,9 @@ class OrchestratorDiagnostics:
                     result["blocked"] = True
 
                 # Check swing trader scores
-                cur.execute("SELECT COUNT(*) FROM swing_trader_scores WHERE date <= %s AND score IS NOT NULL", (run_date,))
+                cur.execute(
+                    "SELECT COUNT(*) FROM swing_trader_scores WHERE date <= %s AND score IS NOT NULL", (run_date,)
+                )
                 sw_row = cur.fetchone()
                 result["swing_scores"] = sw_row[0] if sw_row else 0
 
@@ -144,7 +146,9 @@ class OrchestratorDiagnostics:
 
                 if available_cash < 500:  # Minimum $500 per position
                     result["insufficient_cash"] = True
-                    result["blockers"].append(f"Insufficient cash (${available_cash:,.2f} available, need $500+ per position)")
+                    result["blockers"].append(
+                        f"Insufficient cash (${available_cash:,.2f} available, need $500+ per position)"
+                    )
                     result["blocked"] = True
 
                 # Check for recent order placement errors
@@ -210,9 +214,7 @@ class OrchestratorDiagnostics:
                 result["unavailable_count"] = total - real
 
                 # Get sample of unavailable symbols
-                cur.execute(
-                    "SELECT DISTINCT symbol FROM growth_metrics WHERE data_unavailable = TRUE LIMIT 5"
-                )
+                cur.execute("SELECT DISTINCT symbol FROM growth_metrics WHERE data_unavailable = TRUE LIMIT 5")
                 unavail_rows = cur.fetchall()
                 result["sample_unavailable"] = [r[0] for r in unavail_rows] if unavail_rows else []
 
