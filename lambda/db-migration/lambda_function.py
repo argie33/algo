@@ -175,9 +175,9 @@ def clear_blocking_queries(creds: dict[str, Any]) -> bool:
                 result = cur.fetchone()[0]
                 if result:
                     killed_count += 1
-                    logger.info(f"    ✓ Terminated")
+                    logger.info("    ✓ Terminated")
                 else:
-                    logger.debug(f"    Could not terminate (may have ended already)")
+                    logger.debug("    Could not terminate (may have ended already)")
             except Exception as e:
                 logger.warning(f"    Error terminating: {e}")
 

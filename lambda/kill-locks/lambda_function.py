@@ -6,7 +6,6 @@ Can be invoked before migrations to clear lock contention.
 
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 
@@ -68,7 +67,7 @@ def lambda_handler(event, context):
         long_running = cur.fetchall()
         killed = []
 
-        for pid, user, state, query, duration in long_running:
+        for pid, user, _state, query, duration in long_running:
             logger.info(f"Found long-running query: PID {pid} ({user}) for {duration:.0f}s: {query[:100]}")
 
             # Terminate it
