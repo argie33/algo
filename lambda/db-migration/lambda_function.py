@@ -166,6 +166,21 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
         logger.info(f"Running migrations from: {migration_script}")
         logger.info(f"Target database: {creds['host']}:{creds['port']}/{creds['database']}")
 
+        # Lambda's runtime bootstrap adds layer paths (e.g. /opt/python/lib/python3.12/
+        # site-packages) to sys.path in-process; it does NOT set PYTHONPATH in the OS
+        # environment. A subprocess spawned via subprocess.run() gets a fresh interpreter
+        # that only sees PYTHONPATH, so it never sees the layer's psycopg2 unless we add
+        # it explicitly. Confirmed live 2026-07-07: "ModuleNotFoundError: No module named
+        # 'psycopg2'" in the child process despite the layer being attached and psycopg2
+        # importing fine in this parent process.
+        subprocess_env = dict(os.environ)
+        layer_site_packages = "/opt/python/lib/python3.12/site-packages"
+        subprocess_env["PYTHONPATH"] = (
+            f"{layer_site_packages}:{subprocess_env['PYTHONPATH']}"
+            if subprocess_env.get("PYTHONPATH")
+            else layer_site_packages
+        )
+
         try:
             result = subprocess.run(
                 [sys.executable, str(migration_script), "apply", "--all", "--credentials-from-stdin"],
@@ -173,6 +188,7 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
                 capture_output=True,
                 text=True,
                 timeout=300,  # 5 minute timeout
+                env=subprocess_env,
             )
         except subprocess.TimeoutExpired:
             error_msg = "Migration timeout (exceeded 5 minutes)"
