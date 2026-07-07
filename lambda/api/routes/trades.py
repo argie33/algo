@@ -149,7 +149,7 @@ def handle(
                     total=total,
                     data_freshness=freshness,
                 )
-                is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", trades_result)
+                is_valid, error_msg = ResponseValidator.validate_endpoint_response("trades", trades_result["data"])
                 if not is_valid:
                     # HIGH FIX: Return actual validation error, never fallback per GOVERNANCE.md
                     if error_msg:
