@@ -640,7 +640,8 @@ def _record_closed_positions_exits(
                                 """
                                 UPDATE algo_trades
                                 SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s,
-                                    profit_loss_pct = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                                    profit_loss_pct = %s, exit_reason = %s, status = 'closed',
+                                    updated_at = CURRENT_TIMESTAMP
                                 WHERE trade_id = (
                                     SELECT trade_id FROM algo_trades
                                     WHERE symbol = %s AND exit_date IS NULL
