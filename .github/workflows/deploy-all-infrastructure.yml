@@ -1849,6 +1849,12 @@ jobs:
           ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
           LAMBDA_NAME="${PROJECT}-db-migration-${ENVIRONMENT}"
 
+          # A freshly created Lambda reports State=Pending for a few seconds; invoking it
+          # immediately fails with ResourceConflictException. Confirmed live 2026-07-07:
+          # this step ran ~0.7s after create-function returned and failed every time.
+          echo "Waiting for $LAMBDA_NAME to become Active..."
+          aws lambda wait function-active --function-name "$LAMBDA_NAME" --region $AWS_REGION
+
           echo "=== Invoking Migration Lambda: $LAMBDA_NAME ==="
 
           # Invoke Lambda and capture response
