@@ -432,10 +432,17 @@ def run(  # noqa: C901
                 )
 
             # Halt-critical tables: Phase 5 cannot generate signals without these
+            # FIXED 2026-07-07: Added metrics tables (growth, quality, value, positioning, stability)
+            # These are CRITICAL for stock_scores generation in Phase 7. Missing/stale metrics = HALT.
             halt_tables = {
                 "market_health_daily": "Market health (breadth/regime)",
                 "market_exposure_daily": "Market exposure limits",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
+                "growth_metrics": "Growth metrics (revenue/EPS growth)",
+                "quality_metrics": "Quality metrics (ROE/margins/ratios)",
+                "value_metrics": "Value metrics (P/E, P/B, P/S)",
+                "positioning_metrics": "Positioning metrics (ownership/short interest)",
+                "stability_metrics": "Stability metrics (volatility/beta)",
             }
             # Warning-only tables: stale -> logged, trading continues
             # FIXED 2026-07-06: Removed swing_trader_scores (deprecated table, removed in Session 14)
@@ -449,9 +456,14 @@ def run(  # noqa: C901
 
             # Tables checked by MAX(date) vs price_daily latest date
             # Note: earnings_calendar uses earnings_date instead of date
-            # Note: growth_metrics, quality_metrics, etc. are indexed by symbol, not date
+            # Note: metrics tables (growth, quality, value, positioning, stability) use updated_at instead of date
             date_column_overrides = {
                 "earnings_calendar": "earnings_date",
+                "growth_metrics": "updated_at",
+                "quality_metrics": "updated_at",
+                "value_metrics": "updated_at",
+                "positioning_metrics": "updated_at",
+                "stability_metrics": "updated_at",
             }
             # Only check tables that have a date column for freshness
             date_checked_tables = {**halt_tables, **warn_tables}
