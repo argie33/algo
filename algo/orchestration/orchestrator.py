@@ -1136,7 +1136,7 @@ class Orchestrator:
         # Concurrency lock — prevent two orchestrators running at once
         # which would risk duplicate trades or double-counting circuit breakers
         # Skip lock check in dry-run mode (no actual trades), paper trading (dev/test), or explicit env var
-        is_paper_trading = self.execution_mode == "paper"
+        is_paper_trading = self.config.get("execution_mode") == "paper"
         skip_lock_check = (
             self.dry_run
             or is_paper_trading
