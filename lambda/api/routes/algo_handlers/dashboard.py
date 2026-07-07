@@ -1359,30 +1359,30 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             rows = cur_to_use.fetchall()
             logger.info(f"[SCORES] Direct query returned {len(rows)} rows")
 
-        top_scores = []
-        for row in rows:
-            score_dict = safe_json_serialize(safe_dict_convert(row))
-            top_scores.append(score_dict)
+            top_scores = []
+            for row in rows:
+                score_dict = safe_json_serialize(safe_dict_convert(row))
+                top_scores.append(score_dict)
 
-        freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
+            freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
 
-        response = {
-            "top": top_scores,
-            "total": len(top_scores),
-        }
+            response = {
+                "top": top_scores,
+                "total": len(top_scores),
+            }
 
-        # CRITICAL: preserve_arrays=True prevents sanitizer from removing growth_score fields
-        # Array items must preserve all fields (including None) for consistent schema
-        return json_response(200, response, data_freshness=freshness, preserve_arrays=True)
-    except (
-        psycopg2.errors.UndefinedTable,
-        psycopg2.errors.UndefinedColumn,
-        psycopg2.OperationalError,
-        psycopg2.DatabaseError,
-        Exception,
-    ) as e:
-        code, error_type, message = handle_db_error(e, "fetch dashboard scores")
-        return error_response(code, error_type, message)
+            # CRITICAL: preserve_arrays=True prevents sanitizer from removing growth_score fields
+            # Array items must preserve all fields (including None) for consistent schema
+            return json_response(200, response, data_freshness=freshness, preserve_arrays=True)
+        except (
+            psycopg2.errors.UndefinedTable,
+            psycopg2.errors.UndefinedColumn,
+            psycopg2.OperationalError,
+            psycopg2.DatabaseError,
+            Exception,
+        ) as e:
+            code, error_type, message = handle_db_error(e, "fetch dashboard scores")
+            return error_response(code, error_type, message)
 
 
 @db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
