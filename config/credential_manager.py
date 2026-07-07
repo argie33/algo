@@ -280,12 +280,14 @@ class CredentialManager:
                     raise ValueError(f"DB_SECRET_ARN '{secret_arn}' exists but contains no SecretString")
                 creds = _json.loads(secret_string)
 
-                # Extract host (prefer DB_HOST env var override for proxy endpoints)
-                db_host = os.getenv("DB_HOST")
+                # Extract host (use Secrets Manager primary, only fall back to env var if unavailable)
+                # In Lambda: use RDS Proxy endpoint from Secrets Manager (not localhost override)
+                # In local dev: use DB_HOST/DB_ENDPOINT from environment
+                db_host = creds.get("host")  # Primary: from Secrets Manager
                 if not db_host:
-                    db_host = os.getenv("DB_ENDPOINT")
+                    db_host = os.getenv("DB_HOST")  # Fallback: env var override
                 if not db_host:
-                    db_host = creds.get("host")
+                    db_host = os.getenv("DB_ENDPOINT")  # Fallback: alternate env var
                 if not db_host:
                     raise ValueError("Database host not found in secret or DB_HOST/DB_ENDPOINT environment variables")
 
