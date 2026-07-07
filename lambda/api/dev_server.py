@@ -139,6 +139,12 @@ else:
     print("[DEV_SERVER] [OK] Using localhost postgres (LOCAL_MODE=true)", flush=True)
     print("[DEV_SERVER] Note: This uses demo/stub data only", flush=True)
 
+# CRITICAL: Enable dev mode authentication (no Cognito required)
+# This must be done BEFORE importing lambda_function so that dev_auth is enabled
+os.environ.pop("COGNITO_USER_POOL_ID", None)
+os.environ.pop("COGNITO_CLIENT_ID", None)
+print("[DEV_SERVER] DEV MODE: Cognito auth disabled, using dev token auth (dev-user, dev-admin, etc.)", flush=True)
+
 # Add lambda/api and parent directories to path so we can import all modules
 # NOTE: For dev_server, we prioritize root_dir so that utils.timezone_utils resolves correctly
 # (In production Lambda, api_router.py handles the ordering differently)

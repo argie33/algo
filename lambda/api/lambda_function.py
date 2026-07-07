@@ -1224,6 +1224,8 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
     with _COGNITO_ENABLED_LOCK:
         cognito_enabled = _COGNITO_ENABLED
 
+    logger.debug(f"[AUTH_DEBUG] cognito_enabled={cognito_enabled}, env_COGNITO_USER_POOL_ID={bool(os.getenv('COGNITO_USER_POOL_ID'))}")
+
     if not cognito_enabled:
         # SECURITY FIX S-02: Dev mode only in local development (dev_server.py), never in Lambda
         # In production Lambda, Cognito MUST be configured (this code is unreachable if properly configured)
