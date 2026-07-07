@@ -34,21 +34,15 @@ MARKET_ALT_EARLY_CLOSE_HOUR = 13
 MARKET_ALT_EARLY_CLOSE_MINUTE = 0
 MARKET_ALT_EARLY_CLOSE_TIME = time(13, 0)
 
-# Orchestrator run schedule (ET)
-ORCHESTRATOR_RUN_TIMES = [
-    time(9, 30),  # Market open
-    time(13, 0),  # 1 PM
-    time(15, 0),  # 3 PM
-    time(17, 30),  # 5:30 PM (post-market)
-]
+# Orchestrator run schedule (ET) — runs every 5 minutes during market hours
+# Dashboard requires portfolio snapshots fresher than 360s, so 5-min frequency ensures data freshness
+ORCHESTRATOR_RUN_TIMES = []
+for hour in range(9, 17):  # 9 AM to 4 PM (covers 9:30 AM to 4 PM market hours)
+    for minute in range(0, 60, 5):
+        ORCHESTRATOR_RUN_TIMES.append(time(hour, minute))
 
 # Orchestrator as (hour, minute) tuples for backward compatibility
-ORCHESTRATOR_RUN_TIMES_TUPLE = [
-    (9, 30),  # Market open
-    (13, 0),  # 1 PM
-    (15, 0),  # 3 PM
-    (17, 30),  # 5:30 PM
-]
+ORCHESTRATOR_RUN_TIMES_TUPLE = [(h.hour, h.minute) for h in ORCHESTRATOR_RUN_TIMES]
 
 # Time buffer before orchestrator run to assess if subprocess will complete
 # Morning window: 2-9:30 AM = 450 min; expected load ~285 min; buffer=15 allows 2:00+240min=6:00

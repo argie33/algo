@@ -375,5 +375,40 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_preclose" {
   ]
 }
 
+# ============================================================
+# High-Frequency Orchestrator Trigger (Every 5 Minutes)
+# CRITICAL FIX: Portfolio snapshots must stay <360s old for Dashboard freshness
+# This rule ensures the orchestrator is checked every 5 minutes, allowing
+# Phase 9 to keep portfolio data fresh (currently running 4x/day was stale)
+# ============================================================
+
+resource "aws_scheduler_schedule" "algo_orchestrator_5min" {
+  name                         = "${var.project_name}-algo-schedule-5min-${var.environment}"
+  description                  = "High-frequency orchestrator check every 5 minutes (9 AM-4 PM ET) — keeps portfolio snapshots fresh for Dashboard"
+  schedule_expression          = "rate(5 minutes)"
+  state                        = "ENABLED"
+
+  flexible_time_window {
+    mode = "OFF"
+  }
+
+  target {
+    arn      = aws_lambda_function.algo.arn
+    role_arn = var.eventbridge_scheduler_role_arn
+
+    input = jsonencode({
+      source         = "eventbridge-scheduler"
+      run_date       = "now"
+      run_identifier = "5min-frequent-check"
+      execution_mode = "paper"
+      note           = "Frequent execution check: Lambda will only run if current time matches ORCHESTRATOR_RUN_TIMES_TUPLE (every 5 min 9 AM-4 PM ET)"
+    })
+  }
+
+  depends_on = [
+    aws_lambda_permission.eventbridge_scheduler
+  ]
+}
+
 # Cleanup: remove duplicate schedule resource if it exists
 # (The original aws_scheduler_schedule.algo_orchestrator is kept for backwards compatibility)
