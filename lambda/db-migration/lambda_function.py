@@ -208,14 +208,16 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
         - Migration failure: success=False, error + exit code
         - Unexpected exception: success=False, error message
     """
-    # Clear blocking queries before running migrations (retry once to handle stale connections)
+    # Clear blocking queries before running migrations (multiple retries with increasing waits)
     import time
-    if not clear_blocking_queries(creds):
-        logger.warning("Failed to clear blocking queries on first attempt")
-    logger.info("Waiting 5 seconds for lock state to stabilize...")
-    time.sleep(5)
-    if not clear_blocking_queries(creds):
-        logger.warning("Failed to clear blocking queries on second attempt, but continuing with migrations anyway")
+    for attempt in range(1, 4):
+        if not clear_blocking_queries(creds):
+            logger.warning(f"Failed to clear blocking queries on attempt {attempt}")
+        if attempt < 3:
+            wait_secs = 15 * attempt  # 15s, 30s, then run migrations
+            logger.info(f"Waiting {wait_secs} seconds for lock state to stabilize before attempt {attempt + 1}...")
+            time.sleep(wait_secs)
+    logger.info("Proceeding with migrations after lock clearing attempts")
 
     try:
         # Build credentials JSON to pass to run.py
