@@ -261,13 +261,14 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
         # it explicitly. Confirmed live 2026-07-07: "ModuleNotFoundError: No module named
         # 'psycopg2'" in the child process despite the layer being attached and psycopg2
         # importing fine in this parent process.
+        # Similarly, migrations that import from utils need the Lambda function directory.
         subprocess_env = dict(os.environ)
         layer_site_packages = "/opt/python/lib/python3.12/site-packages"
-        subprocess_env["PYTHONPATH"] = (
-            f"{layer_site_packages}:{subprocess_env['PYTHONPATH']}"
-            if subprocess_env.get("PYTHONPATH")
-            else layer_site_packages
-        )
+        lambda_function_dir = str(Path(__file__).parent.parent.parent)
+        pythonpath_parts = [lambda_function_dir, layer_site_packages]
+        if subprocess_env.get("PYTHONPATH"):
+            pythonpath_parts.append(subprocess_env["PYTHONPATH"])
+        subprocess_env["PYTHONPATH"] = ":".join(pythonpath_parts)
 
         try:
             result = subprocess.run(
