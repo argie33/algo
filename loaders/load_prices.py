@@ -1761,9 +1761,11 @@ class PriceLoader(OptimalLoader):
             mode,
         )
 
-        if self.interval == "1d" and self._is_eod_pipeline:
-            logger.info("[SLA_OPT] Skipping 1d price load during EOD pipeline - reusing morning prep data")
-            return {"symbols_processed": 0, "symbols_failed": 0, "rows_inserted": 0}
+        # CRITICAL FIX: Always load prices, don't skip during EOD pipeline.
+        # Previous logic skipped EOD prices assuming morning prep was sufficient,
+        # but this resulted in stale prices when morning prep failed.
+        # Fresh prices are essential for EOD reconciliation, risk calculations, and position sizing.
+        # Price loading is fast (<5 min) and watermark system prevents redundant fetches.
 
         self._validate_and_check_preconditions()
 

@@ -2415,8 +2415,8 @@ resource "aws_scheduler_schedule" "financial_data_pipeline_trigger" {
 
 resource "aws_scheduler_schedule" "computed_metrics_pipeline_trigger" {
   name                         = "${var.project_name}-computed-metrics-pipeline-${var.environment}"
-  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 7:00 PM ET"
-  schedule_expression          = "cron(0 19 ? * MON-FRI *)"
+  description                  = "Daily computed metrics: quality/growth/value/stability/scores - 4:10 PM ET (after financial data starts)"
+  schedule_expression          = "cron(10 16 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 
