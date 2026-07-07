@@ -769,9 +769,9 @@ def main() -> int:  # noqa: C901
                     """UPDATE data_loader_status
                        SET status = %s, latest_date = %s, last_updated = NOW(), completion_pct = 100.0
                        WHERE table_name = %s""",
-                    ("COMPLETED", today_et.date(), "buy_sell_daily"),
+                    ("COMPLETED", today_et, "buy_sell_daily"),
                 )
-                logger.info(f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={today_et.date()}")
+                logger.info(f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={today_et}")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
             logger.error(f"[STATUS] Could not update loader status to COMPLETED: {status_err}")
             return 1

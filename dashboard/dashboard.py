@@ -244,9 +244,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             state.error = None
             t0 = time.monotonic()
 
-            result = [None]
-            error = [None]
-            def load_with_timeout():
+            result: list[Any] = [None]
+            error: list[Exception | None] = [None]
+            def load_with_timeout() -> None:
                 try:
                     result[0] = load_all()
                 except Exception as e:
@@ -343,9 +343,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
             # Load all data with 5-second timeout so dashboard renders quickly
             # with whatever data loads in that time
-            result = [None]
-            error = [None]
-            def load_with_timeout():
+            result: list[Any] = [None]
+            error: list[Exception | None] = [None]
+            def load_with_timeout() -> None:
                 try:
                     result[0] = load_all()
                 except Exception as e:

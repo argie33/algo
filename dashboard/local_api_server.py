@@ -23,7 +23,7 @@ from utils.db import get_db_connection  # noqa: E402
 class APIHandler(BaseHTTPRequestHandler):
     """Handle HTTP requests and return dashboard data."""
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         """Handle GET requests."""
         parsed = urlparse(self.path)
 
@@ -62,7 +62,7 @@ class APIHandler(BaseHTTPRequestHandler):
         else:
             self.send_error(404, "Not Found")
 
-    def _handle_positions(self):
+    def _handle_positions(self) -> None:
         """Return corrected positions data."""
         try:
             conn = get_db_connection()
@@ -92,7 +92,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
                 val = float(position_value)
                 if sector not in sector_allocation:
-                    sector_allocation[sector] = 0
+                    sector_allocation[sector] = 0.0
                 sector_allocation[sector] += val
 
             total_value = sum(sector_allocation.values())
@@ -132,7 +132,7 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self._send_json(500, {'statusCode': 500, 'error': str(e)})
 
-    def _handle_metrics(self):
+    def _handle_metrics(self) -> None:
         """Return algo metrics."""
         try:
             conn = get_db_connection()
@@ -173,7 +173,7 @@ class APIHandler(BaseHTTPRequestHandler):
         except Exception as e:
             self._send_json(503, {'statusCode': 503, 'error': str(e)})
 
-    def _handle_portfolio(self):
+    def _handle_portfolio(self) -> None:
         """Return portfolio snapshot."""
         response = {
             'statusCode': 200,
@@ -189,7 +189,7 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_performance(self):
+    def _handle_performance(self) -> None:
         """Return performance metrics."""
         response = {
             'statusCode': 200,
@@ -218,7 +218,7 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_trades(self):
+    def _handle_trades(self) -> None:
         """Return recent trades."""
         response = {
             'statusCode': 200,
@@ -230,7 +230,7 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_dashboard_signals(self):
+    def _handle_dashboard_signals(self) -> None:
         """Return dashboard signals."""
         try:
             conn = get_db_connection()
@@ -284,7 +284,7 @@ class APIHandler(BaseHTTPRequestHandler):
             }
         self._send_json(200, response)
 
-    def _handle_data_status(self):
+    def _handle_data_status(self) -> None:
         """Return data loader health status."""
         response = {
             'statusCode': 200,
@@ -314,7 +314,7 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_circuit_breakers(self):
+    def _handle_circuit_breakers(self) -> None:
         """Return circuit breaker status."""
         response = {
             'statusCode': 200,
@@ -327,7 +327,7 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_last_run(self):
+    def _handle_last_run(self) -> None:
         """Return last algo run status."""
         response = {
             'statusCode': 200,
@@ -345,7 +345,7 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_config(self):
+    def _handle_config(self) -> None:
         """Return algo configuration."""
         response = {
             'statusCode': 200,
@@ -361,7 +361,7 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_markets(self):
+    def _handle_markets(self) -> None:
         """Return market data and exposure factors."""
         response = {
             'statusCode': 200,
@@ -381,7 +381,7 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_optional_empty(self):
+    def _handle_optional_empty(self) -> None:
         """Return empty response for optional endpoints."""
         response = {
             'statusCode': 200,
@@ -392,11 +392,11 @@ class APIHandler(BaseHTTPRequestHandler):
         }
         self._send_json(200, response)
 
-    def _handle_health(self):
+    def _handle_health(self) -> None:
         """Return health status."""
         self._send_json(200, {'statusCode': 200, 'status': 'healthy'})
 
-    def _send_json(self, status_code, data):
+    def _send_json(self, status_code: int, data: dict[str, object]) -> None:
         """Send JSON response."""
         import decimal
         self.send_response(status_code)
@@ -404,7 +404,7 @@ class APIHandler(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.end_headers()
 
-        def json_encoder(obj):
+        def json_encoder(obj: object) -> float | None:
             if isinstance(obj, (decimal.Decimal, type(None))):
                 if isinstance(obj, decimal.Decimal):
                     return float(obj)
@@ -413,10 +413,10 @@ class APIHandler(BaseHTTPRequestHandler):
 
         self.wfile.write(json.dumps(data, default=json_encoder).encode())
 
-    def log_message(self, fmt, *args):
+    def log_message(self, fmt: str, *args: object) -> None:
         """Suppress default logging."""
 
-def run_server(port=8000):
+def run_server(port: int = 8000) -> None:
     """Start the local API server."""
     server_address = ('localhost', port)
     httpd = HTTPServer(server_address, APIHandler)

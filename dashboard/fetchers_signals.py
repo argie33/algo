@@ -25,10 +25,10 @@ def fetch_signals(c: None) -> dict[str, Any]:
 
     try:
         # Fetch signals with 5-second timeout using thread (cross-platform compatible)
-        data_container = [None]
-        error_container = [None]
+        data_container: list[Any] = [None]
+        error_container: list[Exception | None] = [None]
 
-        def fetch_with_timeout():
+        def fetch_with_timeout() -> None:
             try:
                 data_container[0] = api_call(get_endpoint_path("sig"))
             except Exception as e:
@@ -55,8 +55,9 @@ def fetch_signals(c: None) -> dict[str, Any]:
                 "unavailability_type": "dashboard_timeout",
             }
 
-        if error_container[0]:
-            raise error_container[0]
+        thread_error = error_container[0]
+        if thread_error is not None:
+            raise thread_error
 
         data = data_container[0]
 
@@ -264,12 +265,14 @@ def fetch_scores(c: None) -> dict[str, Any]:
     try:
         # Fetch scores with 3-second timeout (non-critical for dashboard responsiveness)
         # Uses thread-based timeout for cross-platform compatibility
-        top_data = [None]  # Mutable container to store result from thread
-        error = [None]
+        top_data_container: list[dict[str, Any] | None] = [None]  # Mutable container to store result from thread
+        error: list[Exception | None] = [None]
 
-        def fetch_with_timeout():
+        def fetch_with_timeout() -> None:
             try:
-                top_data[0] = api_call("/api/algo/scores", params={"limit": 50, "sortOrder": "desc", "offset": 0})
+                top_data_container[0] = api_call(
+                    "/api/algo/scores", params={"limit": 50, "sortOrder": "desc", "offset": 0}
+                )
             except Exception as e:
                 error[0] = e
 
@@ -288,10 +291,19 @@ def fetch_scores(c: None) -> dict[str, Any]:
                 "unavailability_type": "dashboard_timeout_for_responsiveness",
             }
 
-        if error[0]:
-            raise error[0]
+        thread_error = error[0]
+        if thread_error is not None:
+            raise thread_error
 
-        top_data = top_data[0]
+        top_data = top_data_container[0]
+        if top_data is None:
+            # No data returned from API (shouldn't happen after thread completed successfully)
+            return {
+                "top": [],
+                "data_unavailable": True,
+                "reason": "Scores API returned no data",
+                "unavailability_type": "no_data_response",
+            }
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)

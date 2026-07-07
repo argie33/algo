@@ -33,7 +33,7 @@ class OrchestratorDiagnostics:
         - circuit_breakers: whether entries are halted
         - data_completeness: highest data_completeness % in stock_scores
         """
-        result = {
+        result: dict[str, Any] = {
             "blocked": False,
             "blockers": [],
             "stock_scores": 0,
@@ -105,7 +105,7 @@ class OrchestratorDiagnostics:
         - insufficient_cash: whether cash prevents sizing
         - order_placement_errors: recent order errors
         """
-        result = {
+        result: dict[str, Any] = {
             "blocked": False,
             "blockers": [],
             "signals_available": 0,
@@ -182,7 +182,7 @@ class OrchestratorDiagnostics:
         - coverage_pct: percentage with real data
         - sample_unavailable: sample symbols lacking growth data
         """
-        result = {
+        result: dict[str, Any] = {
             "total_stocks": 0,
             "real_data_count": 0,
             "unavailable_count": 0,
@@ -195,7 +195,8 @@ class OrchestratorDiagnostics:
             with DatabaseContext("read") as cur:
                 # Get total count
                 cur.execute("SELECT COUNT(*) FROM growth_metrics")
-                total = cur.fetchone()[0] if cur.fetchone() else 0
+                total_row = cur.fetchone()
+                total = total_row[0] if total_row else 0
                 result["total_stocks"] = total
 
                 if total == 0:
@@ -206,7 +207,8 @@ class OrchestratorDiagnostics:
                 cur.execute(
                     "SELECT COUNT(*) FROM growth_metrics WHERE data_unavailable = FALSE OR data_unavailable IS NULL"
                 )
-                real = cur.fetchone()[0] if cur.fetchone() else 0
+                real_row = cur.fetchone()
+                real = real_row[0] if real_row else 0
                 result["real_data_count"] = real
 
                 # Calculate coverage

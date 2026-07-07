@@ -149,10 +149,11 @@ def _is_already_initialized() -> bool:
     initialized = all(os.getenv(var) for var in required_vars)
 
     if initialized:
+        db_user = os.getenv('DB_USER') or ""
         logger.debug(
             "[BOOTSTRAP] Found existing environment variables: "
             f"DB_HOST={os.getenv('DB_HOST')}, DB_PORT={os.getenv('DB_PORT')}, "
-            f"DB_USER={os.getenv('DB_USER')[:8]}..."
+            f"DB_USER={db_user[:8]}..."
         )
 
     return initialized

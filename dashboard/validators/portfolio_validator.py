@@ -176,7 +176,10 @@ def validate_before_rendering(panel_name: str, data: dict[str, Any]) -> bool:
     Returns True if data is acceptable (may have optional fields missing).
     """
     if panel_name == "portfolio":
-        is_valid, msg = PortfolioDataValidator.validate_portfolio_data(data.get("portfolio"))
+        portfolio_data = data.get("portfolio")
+        if portfolio_data is None:
+            raise RuntimeError("Portfolio data missing from API response")
+        is_valid, msg = PortfolioDataValidator.validate_portfolio_data(portfolio_data)
         if not is_valid:
             logger.error(f"[PORTFOLIO_PANEL] {msg}")
             raise RuntimeError(f"Portfolio panel cannot render: {msg}")

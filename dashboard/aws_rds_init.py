@@ -160,9 +160,11 @@ class RDSCredentialFetcher:
                 "dbname": str(secret_data["dbname"]),
             }
 
+            username_str = str(result['username']) if result['username'] else "???"
+            username_preview = username_str[:8]
             logger.info(
                 f"[RDS_INIT] Successfully fetched RDS credentials "
-                f"(host={result['host']}, port={result['port']}, user={result['username'][:8]}...)"
+                f"(host={result['host']}, port={result['port']}, user={username_preview}...)"
             )
             return result
 

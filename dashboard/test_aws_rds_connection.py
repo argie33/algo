@@ -24,6 +24,7 @@ import argparse
 import logging
 import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 # Add project root to path
@@ -186,7 +187,7 @@ def test_error_handling() -> None:
         RDSCredentialFetcher,
     )
 
-    scenarios = [
+    scenarios: list[tuple[str, Callable[[], None]]] = [
         ("Missing DB_HOST", lambda: _test_missing_host()),
         ("Invalid DB_PORT", lambda: _test_invalid_port()),
         ("Invalid Secret", lambda: _test_invalid_secret()),

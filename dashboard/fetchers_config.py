@@ -118,9 +118,9 @@ def fetch_run(c: None) -> dict[str, Any]:
             # If API returns auth error (401), try local database as fallback
             if data.get("_auth_error"):
                 logger.warning(f"API auth error - trying local database fallback")
-                data = _fetch_run_from_local_db()
-                if data:
-                    return data
+                fallback_data = _fetch_run_from_local_db()
+                if fallback_data:
+                    return fallback_data
 
             record_data_quality_issue("run", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
