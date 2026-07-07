@@ -67,17 +67,22 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         )
         return _positions_cache["data"]
 
-    # Use 25-second timeout (safe before API Gateway 30s limit)
-    # This allows slow queries to complete rather than timeout
-    cur.execute("SET LOCAL statement_timeout = '25000ms'")
+    # Use 2-second timeout - fast direct query completes well under this
+    cur.execute("SET LOCAL statement_timeout = '2000ms'")
 
     # Initialize alerts tracking early so it can be used throughout
     stale_alerts = []
 
-    # Query algo_positions base table directly instead of complex materialized view
+    # Query algo_positions base table directly (NO get_open_positions function which is slow)
     try:
-        positions = get_open_positions(cur, limit=1000)
-        logger.info(f"[POSITIONS] get_open_positions returned {len(positions)} positions")
+        cur.execute("""
+            SELECT * FROM algo_positions
+            WHERE status = 'open'
+            ORDER BY position_value DESC NULLS LAST
+            LIMIT 1000
+        """)
+        positions = cur.fetchall()
+        logger.info(f"[POSITIONS] Direct algo_positions query returned {len(positions)} positions")
     except Exception as e:
         logger.error(f"[POSITIONS] Query failed: {type(e).__name__}: {str(e)[:100]}")
         positions = []
