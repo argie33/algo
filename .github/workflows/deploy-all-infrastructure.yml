@@ -1851,7 +1851,13 @@ jobs:
                 --region $AWS_REGION \
                 --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
             fi
+            # function-active only waits for State=Active, which can flip before the layer
+            # and VPC config finish provisioning (LastUpdateStatus stays InProgress longer,
+            # especially with VPC ENIs). Confirmed live 2026-07-07: invoking right after
+            # function-active alone still hit "ModuleNotFoundError: No module named
+            # 'psycopg2'" despite the layer being attached in the create-function call.
             aws lambda wait function-active --function-name "$LAMBDA_NAME" --region $AWS_REGION
+            aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
           else
             echo "[ERROR] update-function-code failed for a reason other than missing function: $UPDATE_OUTPUT"
             exit 1
