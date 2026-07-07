@@ -22,35 +22,27 @@ def lambda_handler(event, context):
         import psycopg2
     except ImportError:
         logger.error("psycopg2 not available in Lambda")
-        return {
-            "statusCode": 500,
-            "body": json.dumps({
-                "success": False,
-                "error": "psycopg2 library not available"
-            })
-        }
+        return {"statusCode": 500, "body": json.dumps({"success": False, "error": "psycopg2 library not available"})}
 
     try:
         from config.credential_manager import get_db_credentials
+
         creds = get_db_credentials()
     except Exception as e:
         logger.error(f"Failed to get credentials: {e}")
         return {
             "statusCode": 400,
-            "body": json.dumps({
-                "success": False,
-                "error": f"Failed to get database credentials: {e}"
-            })
+            "body": json.dumps({"success": False, "error": f"Failed to get database credentials: {e}"}),
         }
 
     try:
         conn = psycopg2.connect(
-            host=creds['host'],
-            port=creds['port'],
-            database=creds['database'],
-            user=creds['user'],
-            password=creds['password'],
-            connect_timeout=5
+            host=creds["host"],
+            port=creds["port"],
+            database=creds["database"],
+            user=creds["user"],
+            password=creds["password"],
+            connect_timeout=5,
         )
         cur = conn.cursor()
 
@@ -82,19 +74,11 @@ def lambda_handler(event, context):
 
         return {
             "statusCode": 200,
-            "body": json.dumps({
-                "success": True,
-                "message": f"Terminated {len(killed)} long-running queries",
-                "killed_pids": killed
-            })
+            "body": json.dumps(
+                {"success": True, "message": f"Terminated {len(killed)} long-running queries", "killed_pids": killed}
+            ),
         }
 
     except Exception as e:
         logger.error(f"Database error: {e}", exc_info=True)
-        return {
-            "statusCode": 500,
-            "body": json.dumps({
-                "success": False,
-                "error": str(e)
-            })
-        }
+        return {"statusCode": 500, "body": json.dumps({"success": False, "error": str(e)})}

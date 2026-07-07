@@ -140,12 +140,12 @@ def clear_blocking_queries(creds: dict[str, Any]) -> bool:
 
     try:
         conn = psycopg2.connect(
-            host=creds['host'],
-            port=creds['port'],
-            database=creds['database'],
-            user=creds['user'],
-            password=creds['password'],
-            connect_timeout=5
+            host=creds["host"],
+            port=creds["port"],
+            database=creds["database"],
+            user=creds["user"],
+            password=creds["password"],
+            connect_timeout=5,
         )
         cur = conn.cursor()
 
@@ -210,6 +210,7 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
     """
     # Clear blocking queries before running migrations (multiple retries with increasing waits)
     import time
+
     for attempt in range(1, 4):
         if not clear_blocking_queries(creds):
             logger.warning(f"Failed to clear blocking queries on attempt {attempt}")
