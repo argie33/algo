@@ -1871,30 +1871,17 @@ jobs:
             exit 1
           fi
 
-          # Check response status
-          STATUS_CODE=$(python3 << 'PYTHON'
-          import json
-          try:
-            with open('/tmp/migration_response.json', 'r') as f:
-              response = json.load(f)
-              print(response.get('statusCode', 500))
-          except:
-            print(500)
-          PYTHON
-          )
+          # Check response status. Uses single-line `python3 -c` (not a heredoc) --
+          # heredocs embedded in a YAML `run: |` block are fragile: the closing delimiter
+          # must sit at literal column 0 with plain `<<`, but YAML block-scalar indentation
+          # stripping doesn't reliably land it there. Confirmed live 2026-07-07: the
+          # heredoc version failed with "here-document ... delimited by end-of-file".
+          STATUS_CODE=$(python3 -c "import json; d = json.load(open('/tmp/migration_response.json')); print(d.get('statusCode', 500))" 2>/dev/null || echo 500)
 
           # Log output if available
           if grep -q "LogResult" /tmp/migration_response.json 2>/dev/null; then
             echo "Lambda Logs:"
-            python3 << 'PYTHON'
-            import json
-            import base64
-            with open('/tmp/migration_response.json', 'r') as f:
-              response = json.load(f)
-              if 'LogResult' in response:
-                logs = base64.b64decode(response['LogResult']).decode('utf-8')
-                print(logs)
-            PYTHON
+            python3 -c "import json, base64; d = json.load(open('/tmp/migration_response.json')); print(base64.b64decode(d['LogResult']).decode('utf-8')) if 'LogResult' in d else None"
           fi
 
           echo "Response:"
