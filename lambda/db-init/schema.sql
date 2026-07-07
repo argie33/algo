@@ -548,6 +548,27 @@ CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_run_id ON algo_portfolio
 CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_date ON algo_portfolio_snapshots(portfolio_date DESC);
 CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_created_at ON algo_portfolio_snapshots(created_at DESC);
 
+-- ============================================================================
+-- DATA PATROL TABLE (Data quality monitoring and phase 1 validation)
+-- ============================================================================
+-- Phase 1 data freshness check requires this table to exist
+-- Stores results from DataPatrol data quality checks
+
+CREATE TABLE IF NOT EXISTS data_patrol_log (
+    id SERIAL PRIMARY KEY,
+    patrol_run_id VARCHAR(100) NOT NULL,
+    check_name VARCHAR(100) NOT NULL,
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('info', 'warning', 'error', 'critical')),
+    target_table VARCHAR(100),
+    message TEXT,
+    details JSONB,
+    patrol_date DATE DEFAULT CURRENT_DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_run_id ON data_patrol_log(patrol_run_id);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date DESC);
+CREATE INDEX IF NOT EXISTS idx_data_patrol_log_severity ON data_patrol_log(severity);
+
 INSERT INTO algo_config (key, value, data_type, is_critical)
 SELECT 'system_initialized', 'true', 'boolean', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM algo_config WHERE key = 'system_initialized');
