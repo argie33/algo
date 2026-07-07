@@ -699,6 +699,10 @@ def run(  # noqa: C901
             )
 
     except Exception as e:
-        logger.error(f"[PHASE 1] ERROR: {e}", exc_info=True)
-        log_phase_result_fn(1, "error", "error", str(e)[:100])
-        return PhaseResult(1, "error", "error", {}, True, f"Phase 1 error: {str(e)[:100]}")
+        # FIXED 2026-07-07: Include exception type and full message, not just truncated str(e)
+        exception_type = type(e).__name__
+        exception_msg = str(e) if str(e) else "(no message)"
+        error_summary = f"{exception_type}: {exception_msg}"[:200]
+        logger.error(f"[PHASE 1] ERROR: {error_summary}", exc_info=True)
+        log_phase_result_fn(1, "error", "error", error_summary)
+        return PhaseResult(1, "error", "error", {}, True, error_summary)
