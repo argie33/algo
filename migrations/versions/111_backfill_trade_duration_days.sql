@@ -6,16 +6,40 @@
 --
 -- FIXES:
 -- - Dashboard panel was failing with StrictValidationError when trade_duration_days was NULL
--- - Ensures all closed trades have trade_duration_days calculated as (exit_date - entry_date)
+-- - Ensures all closed trades have trade_duration_days calculated as (exit_time - entry_time)
 --
 -- CREATED: 2026-07-03
 
-UPDATE algo_trades
-SET trade_duration_days = (exit_date - entry_date)::INTEGER
-WHERE status = 'closed'
-  AND exit_date IS NOT NULL
-  AND entry_date IS NOT NULL
-  AND trade_duration_days IS NULL;
+DO $$
+BEGIN
+    -- Only run if both columns and the table exist
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'algo_trades'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'algo_trades' AND column_name = 'entry_time'
+    ) AND EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public' AND table_name = 'algo_trades' AND column_name = 'exit_time'
+    ) THEN
+        UPDATE algo_trades
+        SET trade_duration_days = (exit_time - entry_time)::INTEGER
+        WHERE status = 'closed'
+          AND exit_time IS NOT NULL
+          AND entry_time IS NOT NULL
+          AND trade_duration_days IS NULL;
+    END IF;
+END $$;
 
-COMMENT ON COLUMN algo_trades.trade_duration_days IS
-'Number of days between entry_date and exit_date. Calculated at trade exit in TradeRecorder. Required for dashboard panels.';
+-- Add comment if table exists
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public' AND table_name = 'algo_trades'
+    ) THEN
+        COMMENT ON COLUMN algo_trades.trade_duration_days IS
+        'Number of days between entry_time and exit_time. Calculated at trade exit in TradeRecorder. Required for dashboard panels.';
+    END IF;
+END $$;
