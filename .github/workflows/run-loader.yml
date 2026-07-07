@@ -17,6 +17,11 @@ on:
         required: false
         default: '1'
         type: string
+      backfill_days:
+        description: 'Force refetch last N days/years instead of using watermark (recovery/validation). Leave blank for normal incremental run.'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   trigger-loader:
@@ -47,6 +52,9 @@ jobs:
               'loader_name': '${{ inputs.loader_name }}',
               'task_count': int('${{ inputs.task_count }}')
           }
+          backfill_days_raw = '${{ inputs.backfill_days }}'
+          if backfill_days_raw:
+              payload['backfill_days'] = int(backfill_days_raw)
 
           print(f"Invoking trigger-loaders Lambda with: {payload}")
 
