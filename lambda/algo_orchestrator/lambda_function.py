@@ -310,6 +310,35 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_completeness NUMERIC(4,2)")
                 except Exception:
                     pass
+                # Create yfinance_snapshot if missing (migrations/versions/1006_create_yfinance_snapshot.sql
+                # sat only in the db-migration Lambda pipeline, which cannot reach RDS due to unresolved VPC
+                # networking issues in that pipeline as of 2026-07-07; loaders/load_value_metrics.py (and
+                # several others) fail on every symbol with 'relation "yfinance_snapshot" does not exist'
+                # without it, confirmed live via ECS task logs. This Lambda's DB connectivity is already
+                # proven working every ~5 minutes, so bootstrap the table here too.)
+                try:
+                    init_cur.execute(
+                        "CREATE TABLE IF NOT EXISTS yfinance_snapshot ("
+                        "symbol VARCHAR(10) PRIMARY KEY, "
+                        "fetched_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP, "
+                        "pe_ratio DECIMAL(10, 2), pb_ratio DECIMAL(10, 2), ps_ratio DECIMAL(10, 2), "
+                        "peg_ratio DECIMAL(10, 2), dividend_yield DECIMAL(8, 6), fcf_yield DECIMAL(8, 6), "
+                        "held_percent_insiders DECIMAL(5, 2), held_percent_institutions DECIMAL(5, 2), "
+                        "short_interest DECIMAL(5, 2), beta DECIMAL(8, 4), fifty_two_week_high DECIMAL(12, 2), "
+                        "fifty_two_week_low DECIMAL(12, 2), market_cap BIGINT, "
+                        "data_available BOOLEAN DEFAULT TRUE, unavailable_reason VARCHAR(255), "
+                        "CONSTRAINT yfinance_snapshot_symbol_fk FOREIGN KEY (symbol) "
+                        "REFERENCES stock_symbols(symbol) ON DELETE CASCADE)"
+                    )
+                    init_cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_yfinance_snapshot_fetched_at ON yfinance_snapshot(fetched_at)"
+                    )
+                    init_cur.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_yfinance_snapshot_data_available "
+                        "ON yfinance_snapshot(data_available)"
+                    )
+                except Exception:
+                    pass
                 init_cur.connection.commit()
             logger.info("[STARTUP] Database schema verified and fixed")
         except Exception as db_init_err:
