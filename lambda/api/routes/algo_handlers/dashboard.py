@@ -73,30 +73,18 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # Initialize alerts tracking early so it can be used throughout
     stale_alerts = []
 
-    # Use FAST direct table query (algo_positions table, not slow view)
+    # Use FAST direct table query (algo_positions base table, not slow materialized view)
     # Views with CTEs/joins are too slow for API Gateway's 30s timeout
     # Direct table query completes in <500ms
     try:
         cur.execute("""
-            SELECT
-                trade_id AS position_id,
-                symbol,
-                status,
-                entry_quantity AS quantity,
-                entry_price AS avg_entry_price,
-                stop_loss_price,
-                target_1_price, target_2_price, target_3_price,
-                target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
-                position_value,
-                unrealized_pnl,
-                current_price
-            FROM algo_trades
-            WHERE exit_time IS NULL AND status IN ('open', 'filled', 'accepted')
-            ORDER BY (entry_quantity * entry_price) DESC NULLS LAST
+            SELECT * FROM algo_positions
+            WHERE status = 'open'
+            ORDER BY position_value DESC NULLS LAST
             LIMIT 1000
         """)
         positions = cur.fetchall()
-        logger.info(f"[POSITIONS] Direct query returned {len(positions)} positions")
+        logger.info(f"[POSITIONS] Direct algo_positions query returned {len(positions)} positions")
     except Exception as e:
         logger.error(f"[POSITIONS] Query failed: {type(e).__name__}: {e}")
         positions = []

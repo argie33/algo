@@ -946,7 +946,14 @@ class DailyReconciliation:
                     updated += 1
                     logger.info(f"   Exit fill reconciled: {symbol} {trade_id} @ ${filled_price:.2f} ({pnl_pct:.1f}%)")
                 except (psycopg2.DatabaseError, ValueError, TypeError) as e:
-                    cur.execute("ROLLBACK TO SAVEPOINT reconcile_fill")
+                    try:
+                        cur.execute("ROLLBACK TO SAVEPOINT reconcile_fill")
+                    except psycopg2.DatabaseError as rollback_err:
+                        if "does not exist" not in str(rollback_err):
+                            raise
+                        logger.warning(
+                            f"[RECONCILIATION] Savepoint missing (transaction may be aborted), skipping rollback for {symbol}"
+                        )
                     logger.error(
                         f"[RECONCILIATION] Exit fill reconciliation failed for {symbol}: {e}. "
                         f"Trade exit price could not be reconciled with Alpaca fill price. "
