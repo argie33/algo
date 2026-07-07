@@ -246,6 +246,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
             result: list[Any] = [None]
             error: list[Exception | None] = [None]
+
             def load_with_timeout() -> None:
                 try:
                     result[0] = load_all()
@@ -345,6 +346,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             # with whatever data loads in that time
             result: list[Any] = [None]
             error: list[Exception | None] = [None]
+
             def load_with_timeout() -> None:
                 try:
                     result[0] = load_all()
@@ -556,7 +558,8 @@ def main() -> None:
         help="Use local API (localhost:3001) instead of AWS",
     )
     parser.add_argument(
-        "-w", "--watch",
+        "-w",
+        "--watch",
         nargs="?",
         const=30,
         type=_validate_watch_interval,

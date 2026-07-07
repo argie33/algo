@@ -101,7 +101,7 @@ def test_rds_initialization(
     try:
         from utils.db import DatabaseContext
 
-        with DatabaseContext('read', timeout=10) as cur:
+        with DatabaseContext("read", timeout=10) as cur:
             cur.execute("SELECT version()")
             version = cur.fetchone()
             if version:

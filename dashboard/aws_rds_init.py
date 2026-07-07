@@ -118,10 +118,7 @@ class RDSCredentialFetcher:
         try:
             client = self._get_secrets_client()
             if not client:
-                raise AWSRDSInitializationError(
-                    "Secrets Manager client unavailable. "
-                    "Cannot fetch RDS credentials."
-                )
+                raise AWSRDSInitializationError("Secrets Manager client unavailable. Cannot fetch RDS credentials.")
 
             logger.info(f"[RDS_INIT] Fetching RDS secret: {secret_arn}")
             response = client.get_secret_value(SecretId=secret_arn)
@@ -129,9 +126,7 @@ class RDSCredentialFetcher:
             # Extract secret value (supports both SecretString and SecretBinary)
             secret_string = response.get("SecretString")
             if not secret_string:
-                raise AWSRDSInitializationError(
-                    f"Secret '{secret_arn}' exists but contains no SecretString"
-                )
+                raise AWSRDSInitializationError(f"Secret '{secret_arn}' exists but contains no SecretString")
 
             secret_data = json.loads(secret_string)
 
@@ -148,9 +143,7 @@ class RDSCredentialFetcher:
             try:
                 port = int(secret_data["port"])
             except (ValueError, TypeError) as e:
-                raise AWSRDSInitializationError(
-                    f"Invalid port in secret '{secret_arn}': {secret_data['port']}"
-                ) from e
+                raise AWSRDSInitializationError(f"Invalid port in secret '{secret_arn}': {secret_data['port']}") from e
 
             result = {
                 "host": str(secret_data["host"]),
@@ -160,7 +153,7 @@ class RDSCredentialFetcher:
                 "dbname": str(secret_data["dbname"]),
             }
 
-            username_str = str(result['username']) if result['username'] else "???"
+            username_str = str(result["username"]) if result["username"] else "???"
             username_preview = username_str[:8]
             logger.info(
                 f"[RDS_INIT] Successfully fetched RDS credentials "
@@ -169,9 +162,7 @@ class RDSCredentialFetcher:
             return result
 
         except json.JSONDecodeError as e:
-            raise AWSRDSInitializationError(
-                f"Failed to parse secret '{secret_arn}' as JSON: {e}"
-            ) from e
+            raise AWSRDSInitializationError(f"Failed to parse secret '{secret_arn}' as JSON: {e}") from e
         except Exception as e:
             # Sanitize error message to avoid leaking ARNs or secrets
             error_msg = str(e)
@@ -179,13 +170,9 @@ class RDSCredentialFetcher:
                 error_msg = "Secret ARN access denied (check IAM permissions)"
             elif "ResourceNotFoundException" in error_msg or "not found" in error_msg:
                 error_msg = "Secret not found (check secret name/ARN)"
-            raise AWSRDSInitializationError(
-                f"Failed to fetch RDS credentials from Secrets Manager: {error_msg}"
-            ) from e
+            raise AWSRDSInitializationError(f"Failed to fetch RDS credentials from Secrets Manager: {error_msg}") from e
 
-    def get_credentials_from_env_or_secrets(
-        self, secret_name: str | None = None
-    ) -> dict[str, Any]:
+    def get_credentials_from_env_or_secrets(self, secret_name: str | None = None) -> dict[str, Any]:
         """Get RDS credentials from environment or AWS Secrets Manager.
 
         Priority:
@@ -208,8 +195,7 @@ class RDSCredentialFetcher:
                 return self.fetch_from_secrets_manager(secret_name)
             except AWSRDSInitializationError as e:
                 logger.warning(
-                    f"[RDS_INIT] Failed to fetch from Secrets Manager: {e}. "
-                    f"Falling back to environment variables."
+                    f"[RDS_INIT] Failed to fetch from Secrets Manager: {e}. Falling back to environment variables."
                 )
 
         # Fall back to environment variables
@@ -237,8 +223,7 @@ class RDSCredentialFetcher:
             host = os.getenv("DB_ENDPOINT")
         if not host:
             raise AWSRDSInitializationError(
-                "DB_HOST or DB_ENDPOINT environment variable not set. "
-                "Cannot determine database host."
+                "DB_HOST or DB_ENDPOINT environment variable not set. Cannot determine database host."
             )
 
         # Get port (default 5432 for PostgreSQL)
@@ -246,9 +231,7 @@ class RDSCredentialFetcher:
         try:
             port = int(port_str)
         except ValueError as e:
-            raise AWSRDSInitializationError(
-                f"Invalid DB_PORT value: {port_str} (must be integer)"
-            ) from e
+            raise AWSRDSInitializationError(f"Invalid DB_PORT value: {port_str} (must be integer)") from e
 
         # Get user
         user = os.getenv("DB_USER")
@@ -265,10 +248,7 @@ class RDSCredentialFetcher:
         if not database:
             raise AWSRDSInitializationError("DB_NAME environment variable not set.")
 
-        logger.info(
-            f"[RDS_INIT] Using environment variables "
-            f"(host={host}, port={port}, user={user[:8]}...)"
-        )
+        logger.info(f"[RDS_INIT] Using environment variables (host={host}, port={port}, user={user[:8]}...)")
 
         return {
             "host": host,
@@ -330,9 +310,7 @@ def validate_aws_rds_connection(timeout: int = 10) -> bool:
         database = os.getenv("DB_NAME")
 
         if not all([host, user, password, database]):
-            raise AWSRDSInitializationError(
-                "Cannot validate connection: missing environment variables"
-            )
+            raise AWSRDSInitializationError("Cannot validate connection: missing environment variables")
 
         # Attempt connection with timeout
         conn = psycopg2.connect(
@@ -360,9 +338,7 @@ def validate_aws_rds_connection(timeout: int = 10) -> bool:
     except ImportError as e:
         raise AWSRDSInitializationError("psycopg2 not available") from e
     except Exception as e:
-        raise AWSRDSInitializationError(
-            f"Database connection validation failed: {str(e)[:200]}"
-        ) from e
+        raise AWSRDSInitializationError(f"Database connection validation failed: {str(e)[:200]}") from e
 
 
 def initialize_aws_rds_credentials(
@@ -414,8 +390,7 @@ def initialize_aws_rds_credentials(
 
         if verbose:
             logger.info(
-                "[RDS_INIT] RDS initialization complete: "
-                f"host={credentials['host']}, database={credentials['dbname']}"
+                f"[RDS_INIT] RDS initialization complete: host={credentials['host']}, database={credentials['dbname']}"
             )
 
         return credentials

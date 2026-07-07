@@ -276,6 +276,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     if pos_timestamp is not None:
         from datetime import datetime as dt_cls
         from datetime import timezone as tz_cls
+
         try:
             now = dt_cls.now(tz_cls.utc)
             if isinstance(pos_timestamp, dt_cls):

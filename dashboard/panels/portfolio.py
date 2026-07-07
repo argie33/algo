@@ -66,9 +66,7 @@ from ..utilities import DIM, G, R, Y, normalize_positions_data
 from ._helpers import _error_panel
 
 
-def _get_actual_position_count(
-    snapshot_count: int, pos: dict[str, Any] | None
-) -> int:
+def _get_actual_position_count(snapshot_count: int, pos: dict[str, Any] | None) -> int:
     """Get actual position count from positions endpoint, fall back to snapshot count.
 
     Ensures position count is always in sync with positions panel.
@@ -218,6 +216,7 @@ def panel_portfolio(
     if snap is not None:
         from datetime import datetime as dt_cls
         from datetime import timezone as tz_cls
+
         try:
             now = dt_cls.now(tz_cls.utc)
             if isinstance(snap, dt_cls):

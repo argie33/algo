@@ -115,10 +115,7 @@ def bootstrap_dashboard_database(
                 initialize_aws_rds_credentials,
             )
         except ImportError as e:
-            raise RuntimeError(
-                "Failed to import aws_rds_init module. "
-                "Ensure dashboard/aws_rds_init.py exists."
-            ) from e
+            raise RuntimeError("Failed to import aws_rds_init module. Ensure dashboard/aws_rds_init.py exists.") from e
 
         # Initialize credentials
         credentials = initialize_aws_rds_credentials(
@@ -149,7 +146,7 @@ def _is_already_initialized() -> bool:
     initialized = all(os.getenv(var) for var in required_vars)
 
     if initialized:
-        db_user = os.getenv('DB_USER') or ""
+        db_user = os.getenv("DB_USER") or ""
         logger.debug(
             "[BOOTSTRAP] Found existing environment variables: "
             f"DB_HOST={os.getenv('DB_HOST')}, DB_PORT={os.getenv('DB_PORT')}, "

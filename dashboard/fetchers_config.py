@@ -24,7 +24,7 @@ def _fetch_run_from_local_db() -> dict[str, Any] | None:
     try:
         from api_utils.database_context import DatabaseContext
 
-        with DatabaseContext('read') as cur:
+        with DatabaseContext("read") as cur:
             cur.execute("""
                 SELECT run_id, overall_status, created_at, phases_completed, phase_results
                 FROM orchestrator_execution_log
@@ -36,9 +36,9 @@ def _fetch_run_from_local_db() -> dict[str, Any] | None:
             if not result:
                 return None
 
-            run_id = result.get('run_id') or result[0]
-            status = result.get('overall_status') or result[1]
-            created_at = result.get('created_at') or result[2]
+            run_id = result.get("run_id") or result[0]
+            status = result.get("overall_status") or result[1]
+            created_at = result.get("created_at") or result[2]
 
             return {
                 "_source": "local_db_fallback",
