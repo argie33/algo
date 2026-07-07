@@ -242,7 +242,7 @@ def handle(  # noqa: C901
                 (symbol,),
                 timeout_sec=3,
             )
-            latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment metrics")
+            latest = DatabaseResultValidator.safe_get_first_row(rows)
             if isinstance(latest, dict) and latest.get("data_unavailable"):
                 return error_response(
                     503,
@@ -250,7 +250,6 @@ def handle(  # noqa: C901
                     f"Analyst sentiment data unavailable for {symbol} — no coverage in analyst_sentiment_analysis table",
                 )
             # Use latest row for metrics summary
-            latest = dict(latest)
             total_val = latest.get("analyst_count")
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
@@ -280,10 +279,10 @@ def handle(  # noqa: C901
                 }
 
             try:
-                total = int(total_val)  # type: ignore[arg-type]
-                bull = int(bull_val)  # type: ignore[arg-type]
-                bear = int(bear_val)  # type: ignore[arg-type]
-                neut = int(neut_val)  # type: ignore[arg-type]
+                total = int(total_val)
+                bull = int(bull_val)
+                bear = int(bear_val)
+                neut = int(neut_val)
             except (ValueError, TypeError) as e:
                 logger.error(f"[SENTIMENT] Invalid analyst count data: {e}")
                 return {
@@ -378,7 +377,7 @@ def handle(  # noqa: C901
                 (symbol,),
             )
             rows = cur.fetchall()
-            latest = DatabaseResultValidator.safe_get_first_row(rows, "analyst sentiment trends")
+            latest = DatabaseResultValidator.safe_get_first_row(rows)
             if isinstance(latest, dict) and latest.get("data_unavailable"):
                 logger.warning("[SENTIMENT] No analyst sentiment trends available - data unavailable")
                 return json_response(
@@ -390,7 +389,6 @@ def handle(  # noqa: C901
                         "priceTargets": [],
                     },
                 )
-            latest = dict(latest)
             total_val = latest.get("analyst_count")
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
@@ -420,10 +418,10 @@ def handle(  # noqa: C901
                 }
 
             try:
-                total = int(total_val)  # type: ignore[arg-type]
-                bull = int(bull_val)  # type: ignore[arg-type]
-                bear = int(bear_val)  # type: ignore[arg-type]
-                neut = int(neut_val)  # type: ignore[arg-type]
+                total = int(total_val)
+                bull = int(bull_val)
+                bear = int(bear_val)
+                neut = int(neut_val)
             except (ValueError, TypeError) as e:
                 logger.error(f"[SENTIMENT] Invalid analyst count data: {e}")
                 return {

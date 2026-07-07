@@ -148,7 +148,8 @@ def safe_int(int_str: str | None, min_val: int | None = None, max_val: int | Non
     from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        return cast(int, ParamValidator.int(int_str, min_val=min_val, max_val=max_val))
+        result = ParamValidator.int(int_str, min_val=min_val, max_val=max_val)
+        return cast(int, result)
     except ParamValidationError as e:
         raise_api_error(e.status_code, e.error_type, e.message)
 
@@ -158,7 +159,8 @@ def safe_float(float_str: str | None, min_val: float | None = None, max_val: flo
     from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        return cast(float, ParamValidator.float(float_str, min_val=min_val, max_val=max_val))
+        result = ParamValidator.float(float_str, min_val=min_val, max_val=max_val)
+        return cast(float, result)
     except ParamValidationError as e:
         raise_api_error(e.status_code, e.error_type, e.message)
 
@@ -168,7 +170,8 @@ def safe_string(value_str: str | None, allowed_values: set[str] | None = None, m
     from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        return cast(str, ParamValidator.string(value_str, allowed_values=allowed_values, max_length=max_length))
+        result = ParamValidator.string(value_str, allowed_values=allowed_values, max_length=max_length)
+        return cast(str, result)
     except ParamValidationError as e:
         raise_api_error(e.status_code, e.error_type, e.message)
 
@@ -178,7 +181,8 @@ def safe_symbol(symbol_str: str | None) -> str:
     from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        return cast(str, ParamValidator.symbol(symbol_str))
+        result = ParamValidator.symbol(symbol_str)
+        return cast(str, result)
     except ParamValidationError as e:
         raise_api_error(e.status_code, e.error_type, e.message)
 

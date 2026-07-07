@@ -340,7 +340,7 @@ def handle(  # noqa: C901
                     trend_label = None
 
                 # FAIL-FAST: Extract all required fields upfront with safe validation
-                rank = DatabaseResultValidator.safe_get_int(s, "current_rank", strict=True)
+                rank = DatabaseResultValidator.safe_get_int(s, "current_rank")
                 rank_1w = DatabaseResultValidator.safe_get_int(s, "rank_1w_ago", default=None)
                 rank_4w = DatabaseResultValidator.safe_get_int(s, "rank_4w_ago", default=None)
                 rank_12w = DatabaseResultValidator.safe_get_int(s, "rank_12w_ago", default=None)
