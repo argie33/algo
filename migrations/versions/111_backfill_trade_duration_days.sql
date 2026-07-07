@@ -24,7 +24,7 @@ BEGIN
         WHERE table_schema = 'public' AND table_name = 'algo_trades' AND column_name = 'exit_time'
     ) THEN
         UPDATE algo_trades
-        SET trade_duration_days = (exit_time - entry_time)::INTEGER
+        SET trade_duration_days = EXTRACT(DAY FROM (exit_time - entry_time))::INTEGER
         WHERE status = 'closed'
           AND exit_time IS NOT NULL
           AND entry_time IS NOT NULL
