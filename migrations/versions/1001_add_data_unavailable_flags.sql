@@ -91,8 +91,3 @@ ON annual_income_statement(data_unavailable) WHERE data_unavailable = TRUE;
 
 CREATE INDEX IF NOT EXISTS idx_annual_cash_flow_unavailable
 ON annual_cash_flow(data_unavailable) WHERE data_unavailable = TRUE;
-
--- Log migration completion
-INSERT INTO schema_migrations (version, description, installed_on)
-VALUES ('1001', 'Add data_unavailable columns to 12 loaders for GOVERNANCE compliance', NOW())
-ON CONFLICT (version) DO NOTHING;

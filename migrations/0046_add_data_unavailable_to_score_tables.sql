@@ -17,8 +17,3 @@ ON stock_scores(data_unavailable, symbol);
 
 CREATE INDEX IF NOT EXISTS idx_swing_trader_scores_data_unavailable
 ON swing_trader_scores(data_unavailable, symbol, date);
-
--- Log migration completion
-INSERT INTO schema_migrations (version, description, installed_on)
-VALUES ('0046', 'Add data_unavailable columns to score tables', NOW())
-ON CONFLICT (version) DO NOTHING;
