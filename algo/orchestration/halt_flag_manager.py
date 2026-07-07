@@ -267,6 +267,101 @@ class HaltFlagManager:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
+    def proactive_clear_stale_halt(self) -> bool:
+        """Proactively clear halt flag at orchestrator startup if halt is from prior trading day.
+
+        ISSUE #31 FIX: Orchestrator could get stuck in deadlock where:
+        1. Halt flag set on Day 1 prevents Phase 1 from running
+        2. Phase 1 never runs, so can't clear the halt
+        3. Halt flag never gets cleared
+
+        This method (called at orchestrator startup) breaks the deadlock by:
+        - Checking if halt_flag was set on a prior trading day
+        - If yes and it's past market open today: auto-clear it
+        - If yes and it's before market open today: leave it (data might still be stale)
+
+        Returns: True if halt was cleared, False if still active or no halt set
+        """
+        try:
+            import boto3
+
+            dynamodb = boto3.resource("dynamodb")
+            table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
+            table = dynamodb.Table(table_name)
+
+            response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
+            if "Item" not in response:
+                return False
+
+            item = response["Item"]
+            if item.get("halt_flag") is not True:
+                return False
+
+            triggered_at_str = item.get("triggered_at")
+            if not triggered_at_str:
+                logger.warning(
+                    "[PROACTIVE_CLEAR] Halt flag is set but triggered_at is missing. "
+                    "Cannot determine age. Leaving halt active."
+                )
+                return False
+
+            try:
+                trigger_dt = datetime.fromisoformat(triggered_at_str.replace("Z", "+00:00"))
+                now_utc = datetime.now(timezone.utc)
+
+                trigger_et = trigger_dt.astimezone(EASTERN_TZ)
+                now_et = now_utc.astimezone(EASTERN_TZ)
+
+                trigger_date = trigger_et.date()
+                now_date_et = now_et.date()
+
+                if trigger_date < now_date_et:
+                    market_open_et = now_et.replace(
+                        hour=MARKET_OPEN_HOUR,
+                        minute=MARKET_OPEN_MINUTE,
+                        second=0,
+                        microsecond=0,
+                    )
+                    market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+
+                    if now_et >= market_open_et:
+                        logger.critical(
+                            f"[PROACTIVE_CLEAR] Halt from {trigger_date} detected at orchestrator startup. "
+                            f"It's now {now_date_et} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET). "
+                            f"Breaking deadlock by auto-clearing halt."
+                        )
+                        table.put_item(
+                            Item={
+                                "key": self.HALT_FLAG_DYNAMODB_KEY,
+                                "halt_flag": False,
+                                "reason": "Proactive clear at orchestrator startup: halt from prior trading day post-market-open",
+                                "reset_at": now_utc.isoformat(),
+                                "original_trigger_date": trigger_date.isoformat(),
+                            }
+                        )
+                        logger.info("[PROACTIVE_CLEAR] Halt flag successfully cleared. Orchestrator will proceed.")
+                        return True
+                    else:
+                        logger.info(
+                            f"[PROACTIVE_CLEAR] Halt from {trigger_date} still active before market open. "
+                            f"Leaving halt in place."
+                        )
+                        return False
+
+                logger.debug(
+                    f"[PROACTIVE_CLEAR] Halt is from today ({trigger_date}). "
+                    f"Leaving it active — Phase 1 will evaluate."
+                )
+                return False
+
+            except (ValueError, KeyError) as parse_err:
+                logger.warning(f"[PROACTIVE_CLEAR] Could not parse triggered_at: {parse_err}")
+                return False
+
+        except (ValueError, ZeroDivisionError, TypeError) as e:
+            logger.warning(f"[PROACTIVE_CLEAR] Could not proactively clear halt: {e}. Continuing anyway.")
+            return False
+
     def clear_halt_flag(self, reason: str = "") -> bool:
         """Clear halt flag in DynamoDB. Returns True if successfully cleared.
 

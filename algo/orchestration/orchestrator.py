@@ -1412,6 +1412,9 @@ class Orchestrator:
                     "[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness."
                 )
 
+            logger.info("\n[DEADLOCK PREVENTION] Checking if halt flag needs proactive clear...")
+            self.halt_manager.proactive_clear_stale_halt()
+
             self.executor = self._setup_executor(skip_phases=skip_phases)
             with TimeBlock("orchestrator_executor"):
                 executor_result = self.executor.run()
