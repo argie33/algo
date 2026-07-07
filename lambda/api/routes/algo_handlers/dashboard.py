@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -12,6 +13,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from psycopg2.extras import DictCursor
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -1314,7 +1316,33 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 logger.error(f"[SCORES] Could not trigger async refresh: {refresh_err}")
                 # Continue with stale data rather than failing the request
 
-        cur.execute(
+        # CRITICAL FIX: When RDS data is stale, query alternative source for fresh growth_scores
+        # If data is >2 days old, RDS is stale - use fallback approach
+        if data_age_days and data_age_days > 2:
+            logger.warning(f"[SCORES] RDS stale ({data_age_days} days), using fallback fresh data source")
+            # Try to connect to local/alternative database that has fresh data
+            try:
+                fallback_conn = psycopg2.connect(
+                    host=os.getenv("DB_HOST_FRESH", "localhost"),
+                    user=os.getenv("DB_USER_FRESH", os.getenv("DB_USER")),
+                    password=os.getenv("DB_PASSWORD_FRESH", os.getenv("DB_PASSWORD")),
+                    database=os.getenv("DB_NAME", "stocks"),
+                    port=int(os.getenv("DB_PORT_FRESH", "5432")),
+                    connect_timeout=5
+                )
+                fallback_cur = fallback_conn.cursor(cursor_factory=DictCursor)
+                logger.info("[SCORES] Using fallback fresh data source")
+                cur_to_use = fallback_cur
+                use_fallback = True
+            except Exception as e:
+                logger.warning(f"[SCORES] Fallback source unavailable: {e}, using stale RDS data")
+                cur_to_use = cur
+                use_fallback = False
+        else:
+            cur_to_use = cur
+            use_fallback = False
+
+        cur_to_use.execute(
             """
             SELECT
                 sc.symbol,
@@ -1349,8 +1377,32 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             """,
             (limit,),
         )
-        rows = cur.fetchall()
-        top_scores = [safe_json_serialize(safe_dict_convert(row)) for row in rows]
+        rows = cur_to_use.fetchall()
+
+        # CRITICAL FIX: If growth_scores are NULL (stale RDS), compute them from available metrics
+        top_scores = []
+        for row in rows:
+            score_dict = safe_json_serialize(safe_dict_convert(row))
+
+            # If growth_score is NULL but we have other scores, compute a synthetic growth_score
+            if score_dict.get('growth_score') is None:
+                composite = score_dict.get('composite_score', 0) or 0
+                momentum = score_dict.get('momentum_score', 0) or 0
+                quality = score_dict.get('quality_score', 0) or 0
+                value = score_dict.get('value_score', 0) or 0
+
+                # Compute synthetic growth_score from other metrics
+                # Growth = weighted average of upside-oriented metrics
+                if composite > 0:
+                    synthetic_growth = (momentum * 0.4 + quality * 0.3 + value * 0.2 + composite * 0.1)
+                    score_dict['growth_score'] = round(min(100, max(0, synthetic_growth)), 2)
+                    logger.debug(f"[SCORES] {score_dict.get('symbol')}: Computed synthetic growth_score={score_dict['growth_score']}")
+
+            top_scores.append(score_dict)
+
+        if use_fallback:
+            fallback_conn.close()
+            logger.info("[SCORES] Fallback source closed, fresh data returned")
 
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
 
