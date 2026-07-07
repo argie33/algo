@@ -93,16 +93,16 @@ def _get_stock_scores(
     """Get stock scores with multi-factor ranking."""
     try:
         allowed_sorts = {
-            "composite_score": "sc.composite_score",
-            "momentum_score": "sc.momentum_score",
-            "quality_score": "sc.quality_score",
-            "value_score": "sc.value_score",
-            "growth_score": "sc.growth_score",
-            "positioning_score": "sc.positioning_score",
-            "stability_score": "sc.stability_score",
-            "symbol": "sc.symbol",
+            "composite_score": "composite_score",
+            "momentum_score": "momentum_score",
+            "quality_score": "quality_score",
+            "value_score": "value_score",
+            "growth_score": "growth_score",
+            "positioning_score": "positioning_score",
+            "stability_score": "stability_score",
+            "symbol": "symbol",
         }
-        sort_col = allowed_sorts.get(sort_by, "sc.composite_score")
+        sort_col = allowed_sorts.get(sort_by, "composite_score")
         sort_direction = "DESC" if sort_order == "desc" else "ASC"
 
         where_clause = """
@@ -128,27 +128,38 @@ def _get_stock_scores(
             # This prevents clients from receiving degraded data without visibility into completeness %.
             where_clause += " AND sc.data_completeness >= 70"
 
-        # Use LATERAL joins instead of CTEs: CTEs scan all symbols before filtering
-        # (full table scans on price_daily/technical_data_daily = timeout for bulk queries).
-        # LATERAL evaluates per-row after WHERE, using (symbol, date) indexes efficiently.
+        # PERFORMANCE: filter/sort/limit to the target page FIRST in a CTE, then run the
+        # per-symbol LATERAL lookups (price_daily/technical_data_daily) only against that
+        # small row set. Previously the LATERAL joins ran against every row of stock_scores
+        # BEFORE the WHERE clause was applied, so a page of 50 rows still paid for thousands
+        # of per-symbol index scans - this was the root cause of the endpoint's 7+ second
+        # latency (and the dashboard's 3s client timeout hiding it as "no data").
         query = f"""
                 WITH max_price_date AS (
                     SELECT MAX(date) AS max_date FROM price_daily
+                ),
+                filtered_scores AS (
+                    SELECT sc.*, ss.security_name, ss.is_sp500
+                    FROM stock_scores sc
+                    JOIN stock_symbols ss ON ss.symbol = sc.symbol
+                    {where_clause}
+                    ORDER BY sc.{sort_col} {sort_direction}
+                    LIMIT %s OFFSET %s
                 )
                 SELECT
-                    sc.symbol,
-                    COALESCE(ss.security_name, sc.symbol) AS company_name,
+                    fs.symbol,
+                    COALESCE(fs.security_name, fs.symbol) AS company_name,
                     cp.sector,
                     cp.industry,
-                    sc.composite_score, sc.momentum_score, sc.quality_score,
-                    sc.value_score, sc.growth_score, sc.positioning_score, sc.stability_score,
-                    sc.rs_percentile, sc.data_completeness,
-                    sc.updated_at AS last_updated,
+                    fs.composite_score, fs.momentum_score, fs.quality_score,
+                    fs.value_score, fs.growth_score, fs.positioning_score, fs.stability_score,
+                    fs.rs_percentile, fs.data_completeness,
+                    fs.updated_at AS last_updated,
                     pl.close AS current_price,
                     pl.close AS price,
                     (pl.close IS NULL) AS _is_fallback,
                     (qm.symbol IS NULL OR qm.data_unavailable = TRUE OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
-                    (sc.growth_score IS NULL) AS _growth_data_unavailable,
+                    (fs.growth_score IS NULL) AS _growth_data_unavailable,
                     (pm.symbol IS NULL OR pm.data_unavailable = TRUE) AS _positioning_data_unavailable,
                     (sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,
                     ROUND(CASE
@@ -198,25 +209,24 @@ def _get_stock_scores(
                     ROUND(CASE WHEN tl.sma_200 IS NOT NULL AND tl.sma_200 > 0 THEN ((pl.close - tl.sma_200) / tl.sma_200 * 100) ELSE NULL END, 2) AS price_vs_sma_200,
                     p52.high_52w AS high_52w_val,
                     ROUND(CASE WHEN p52.high_52w > 0 THEN ((pl.close - p52.high_52w) / p52.high_52w * 100) END, 2) AS price_vs_52w_high_val
-                FROM stock_scores sc
-                JOIN stock_symbols ss ON ss.symbol = sc.symbol
-                LEFT JOIN company_profile cp ON cp.ticker = sc.symbol
-                LEFT JOIN value_metrics vm ON vm.symbol = sc.symbol
-                LEFT JOIN quality_metrics qm ON qm.symbol = sc.symbol
-                LEFT JOIN growth_metrics gm ON gm.symbol = sc.symbol
-                LEFT JOIN stability_metrics sm ON sm.symbol = sc.symbol
-                LEFT JOIN positioning_metrics pm ON pm.symbol = sc.symbol
+                FROM filtered_scores fs
+                LEFT JOIN company_profile cp ON cp.ticker = fs.symbol
+                LEFT JOIN value_metrics vm ON vm.symbol = fs.symbol
+                LEFT JOIN quality_metrics qm ON qm.symbol = fs.symbol
+                LEFT JOIN growth_metrics gm ON gm.symbol = fs.symbol
+                LEFT JOIN stability_metrics sm ON sm.symbol = fs.symbol
+                LEFT JOIN positioning_metrics pm ON pm.symbol = fs.symbol
                 LEFT JOIN LATERAL (
                     SELECT close, date
                     FROM price_daily
-                    WHERE symbol = sc.symbol
+                    WHERE symbol = fs.symbol
                     ORDER BY date DESC
                     LIMIT 1
                 ) pl ON true
                 LEFT JOIN LATERAL (
                     SELECT close
                     FROM price_daily
-                    WHERE symbol = sc.symbol
+                    WHERE symbol = fs.symbol
                       AND date < (SELECT max_date FROM max_price_date)
                     ORDER BY date DESC
                     LIMIT 1
@@ -225,19 +235,17 @@ def _get_stock_scores(
                     SELECT rsi_14, macd, sma_50, sma_200,
                            roc_20d, roc_60d, roc_120d, roc_252d, date
                     FROM technical_data_daily
-                    WHERE symbol = sc.symbol
+                    WHERE symbol = fs.symbol
                     ORDER BY date DESC
                     LIMIT 1
                 ) tl ON true
                 LEFT JOIN LATERAL (
                     SELECT MAX(high) AS high_52w
                     FROM price_daily
-                    WHERE symbol = sc.symbol
+                    WHERE symbol = fs.symbol
                       AND date >= CURRENT_DATE - INTERVAL '52 weeks'
                 ) p52 ON true
-                {where_clause}
-                ORDER BY {sort_col} {sort_direction}
-                LIMIT %s OFFSET %s
+                ORDER BY fs.{sort_col} {sort_direction}
             """
         params_list.extend([limit, offset])
 

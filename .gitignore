@@ -312,3 +312,6 @@ patrol_output.txt
 
 # Dashboard configured for AWS data sources
 test-results.txt
+
+# Stray nohup redirects from local script runs
+nohup.out

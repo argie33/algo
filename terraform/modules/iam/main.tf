@@ -313,7 +313,9 @@ data "aws_iam_policy_document" "github_actions_observability" {
       "scheduler:CreateSchedule", "scheduler:DeleteSchedule",
       "scheduler:GetSchedule", "scheduler:UpdateSchedule"
     ]
-    resources = ["arn:aws:scheduler:*:${var.aws_account_id}:schedule/${var.project_name}*"]
+    # NOTE: real EventBridge Scheduler ARNs are schedule/<group>/<name> - a bare
+    # schedule/<name>* pattern never matches and 403s every request (found 2026-07-07).
+    resources = ["arn:aws:scheduler:*:${var.aws_account_id}:schedule/*/${var.project_name}*"]
   }
 
   statement {
@@ -1442,7 +1444,8 @@ data "aws_iam_policy_document" "developer" {
     ]
 
     resources = [
-      "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/${var.project_name}*",
+      # Real ARNs are schedule/<group>/<name> - fixed 2026-07-07, previously never matched.
+      "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/${var.project_name}*",
       "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule-group/*"
     ]
   }

@@ -32,34 +32,21 @@
 - `steering/AWS_COST_REFERENCE.md` — Quick commands and verification (if created)
 - `terraform/terraform.tfvars.next-optimizations` — Phase 7+ opportunities
 
-## CRITICAL: Orchestrator Execution (Session 32+)
+## Orchestrator Execution
 
-**STATUS**: ✅ OPERATIONAL - Lambda deployed and functional. EventBridge blocked by IAM, using local scheduler as workaround.
+**Production scheduling is EventBridge Scheduler** (`terraform/modules/services/2x-daily-orchestrator.tf`), targeting Lambda `algo-algo-dev` directly (`lambda:InvokeFunction` via `aws_iam_role.eventbridge_scheduler`, which is unaffected by the `algo-developer` read-only IAM gaps below). Verified 2026-07-07: CloudWatch `Invocations` metric shows non-zero daily invocations continuously since 2026-06-07 — the schedule reliably fires on its own. Do NOT reintroduce a persistent local/manual scheduler loop as a "workaround" — a prior session's guidance to do exactly that led to 16 orphaned `orchestrator_scheduler.py` processes accumulating across sessions (found and killed 2026-07-07), which is itself a plausible contributor to the Lambda rate-limiting symptom seen repeatedly. `scripts/orchestrator_scheduler.py` now refuses to run a second copy (file lock), but it should only be used for a one-off manual/emergency trigger (`--once`), never left running in the background.
 
-**HOW TO RUN THE ORCHESTRATOR:**
-
-### Option 1: Local Scheduler (Recommended - No AWS Permissions Needed)
-Runs orchestrator automatically every 4 hours without requiring EventBridge:
-
+**For a one-off manual trigger (testing/emergency only):**
 ```bash
-# Run on schedule (every 4 hours, starting immediately)
-python3 scripts/orchestrator_scheduler.py --mode paper --interval 4
-
-# Run once and exit
 python3 scripts/orchestrator_scheduler.py --once --mode paper
 ```
 
-This can run on:
-- Your local machine during development
-- An EC2 instance for production (via cron or as a service)
-- A Linux VM with `screen` or `tmux` for persistence
-
-### Option 2: Manual Trigger (For Testing)
+### Manual Trigger (For Testing)
 ```bash
 python3 scripts/trigger_orchestrator.py --run morning --mode paper
 ```
 
-### Option 3: Direct AWS Lambda Invocation (Raw)
+### Direct AWS Lambda Invocation (Raw)
 ```bash
 aws lambda invoke \
   --function-name algo-algo-dev \
@@ -68,17 +55,10 @@ aws lambda invoke \
   --region us-east-1
 ```
 
-**WHY LOCAL SCHEDULER INSTEAD OF EVENTBRIDGE?**
-- EventBridge Scheduler requires `scheduler:UpdateSchedule` IAM permission
-- algo-developer user lacks this and related event permissions
-- Terraform apply blocked by missing: `s3:GetBucketPolicy`, `ec2:DescribeVpcAttribute`
-- Local scheduler provides identical functionality without AWS permission constraints
-- Can easily run via cron or as a service on any system
-
-**PERMANENT FIX (If AWS Permissions Granted)**:
-1. Admin grants algo-developer: `s3:GetBucketPolicy`, `s3:PutBucketPolicy`, `ec2:DescribeVpcAttribute`, `scheduler:UpdateSchedule`
-2. Run: `cd terraform && terraform apply -lock=false`
-3. EventBridge will then automatically trigger orchestrator 4x daily
+**IAM gap (real, but narrower than previously documented here):**
+- `algo-developer`'s `SchedulerReadOnly`/`EC2ReadOnly`/`S3ReadOnly` policies (`terraform/modules/iam/main.tf`) only grant read actions (`Get*`/`List*`/`Describe*`), not `scheduler:UpdateSchedule`, `s3:GetBucketPolicy`/`PutBucketPolicy`, or `ec2:DescribeVpcAttribute`. This blocks a human running `terraform apply -lock=false` locally under `algo-developer` creds from creating/updating schedules.
+- It does **not** block the schedules from running: GitHub Actions applies via a separate OIDC role (`aws_iam_role.github_actions`) with full `scheduler:*`/`s3:*`/`ec2:Describe*`, and schedule execution uses yet another role (`aws_iam_role.eventbridge_scheduler`) with only `lambda:InvokeFunction`. Both are already correctly permissioned — this is why the schedules have been firing daily in production despite `algo-developer` being read-only.
+- Known bug: the ARN pattern in `SchedulerReadOnly`'s resource scope is `schedule/algo*` but real EventBridge Scheduler ARNs are `schedule/<group>/<name>` (e.g. `schedule/default/algo-algo-schedule-morning-dev`), so even the read-only grant 403s in practice. Fix: change to `schedule/*/algo*`.
 
 **VERIFICATION**:
 ```sql

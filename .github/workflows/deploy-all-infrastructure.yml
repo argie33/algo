@@ -1896,7 +1896,13 @@ jobs:
           echo "[OK] Migration Lambda ready: $LAMBDA_NAME"
 
       - name: Invoke db-migration Lambda
-        continue-on-error: true
+        # NOT continue-on-error: this step already does its own explicit status-code check
+        # and `exit 1` on failure (below) -- continue-on-error was swallowing that signal,
+        # so a real, actionable failure (e.g. exit 255 from a hung/timed-out invoke) was
+        # reported as an overall green "success" run. Confirmed live 2026-07-07: runs
+        # 28859141648 and 28860273646 both show this step failing (one after a 46-minute
+        # hang) while the workflow as a whole reported success. 91 migrations in
+        # migrations/versions/ have never actually applied as a result. Let it fail loudly.
         run: |
           set -e
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)

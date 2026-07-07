@@ -256,14 +256,15 @@ def fetch_scores(c: None) -> dict[str, Any]:
     On 503 errors (service unavailable), return empty scores list with explicit marker instead of
     failing the entire dashboard. This allows trading to continue with signals, just without score rankings.
 
-    DASHBOARD OPTIMIZATION: Scores API can be slow (7+ seconds). Return empty with marker after 3s
-    so dashboard doesn't hang on loading screen. Scores are non-critical enrichment.
+    DASHBOARD OPTIMIZATION: return empty with marker after 8s so a slow backend can't hang the dashboard
+    loading screen. The /api/algo/scores query was rearchitected (filter+limit before the per-symbol
+    LATERAL price/technical lookups) so a 50-row page should return in well under a second; 8s is
+    headroom for cold Lambda/RDS-Proxy connections, not the expected steady-state latency.
     """
     from dashboard.fetcher_validator import FetcherValidator
     import threading
 
     try:
-        # Fetch scores with 3-second timeout (non-critical for dashboard responsiveness)
         # Uses thread-based timeout for cross-platform compatibility
         top_data_container: list[dict[str, Any] | None] = [None]  # Mutable container to store result from thread
         error: list[Exception | None] = [None]
@@ -278,11 +279,11 @@ def fetch_scores(c: None) -> dict[str, Any]:
 
         thread = threading.Thread(target=fetch_with_timeout, daemon=True)
         thread.start()
-        thread.join(timeout=3)  # Wait max 3 seconds
+        thread.join(timeout=8)  # Wait max 8 seconds
 
         if thread.is_alive():
             # Timeout occurred - scores took too long
-            logger.warning("Scores API timeout (3s dashboard limit) - displaying without scores")
+            logger.warning("Scores API timeout (8s dashboard limit) - displaying without scores")
             record_data_quality_issue("scores", "timeout", "dashboard_timeout")
             return {
                 "top": [],

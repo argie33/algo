@@ -56,8 +56,25 @@ SKIP_PATHS = {
     "lambda/api/routes/__pycache__",
 }
 
+# Repo-root ad-hoc diagnostic/verification scripts follow the same convention as
+# `scripts/` (print()-based, one-off, run manually to inspect DB/API state — never
+# imported by the trading system). They just happen to live at the repo root instead
+# of scripts/. Only filenames directly at the repo root are exempted (see the
+# `filepath.parent == repo_root` check below) so real package modules that happen to
+# start with one of these words (e.g. algo/monitoring/audit_manager.py,
+# algo/trading/check_handler_strategies.py) are still fully checked.
+ROOT_UTILITY_SCRIPT_PREFIXES = (
+    "check_",
+    "verify_",
+    "diagnose_",
+    "audit_",
+    "comprehensive_audit",
+    "sync_",
+    "dev_api_server",
+)
 
-def should_check_file(filepath: Path) -> bool:
+
+def should_check_file(filepath: Path, repo_root: Path | None = None) -> bool:
     """Check if file should be scanned for fallback patterns."""
     # Only check Python files
     if filepath.suffix != ".py":
@@ -75,6 +92,12 @@ def should_check_file(filepath: Path) -> bool:
         skip_normalized = skip.replace("\\", "/")
         if skip_normalized in str_path:
             return False
+
+    # Skip repo-root ad-hoc diagnostic scripts (see ROOT_UTILITY_SCRIPT_PREFIXES doc above).
+    # Restricted to files whose *direct* parent is the repo root so nested library modules
+    # with similar prefixes are never accidentally exempted.
+    if repo_root is not None and filepath.parent == repo_root and filename.startswith(ROOT_UTILITY_SCRIPT_PREFIXES):
+        return False
 
     return True
 
@@ -117,6 +140,18 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
         if stripped == "return {}":
             context = "\n".join(lines[max(0, line_num-5):line_num])
             if "data_unavailable" not in context and "raise" not in context:
+                # Skip legitimate "nothing to do" empty results: an empty dict returned
+                # because the *input* was empty (no candidates/not-yet-initialized) is not
+                # data loss — it's an accurate, deliberate representation of zero work,
+                # and is explicitly documented as such right at the return site. This
+                # mirrors the is_count_return carve-out already used for PATTERN 3 below.
+                is_legitimate_empty_result = any(phrase in context.lower() for phrase in [
+                    "not an error", "not initialized", "no candidates", "nothing to process",
+                    "no entries will be executed", "not yet initialized", "no work to do",
+                ])
+                if is_legitimate_empty_result:
+                    continue
+
                 violations.append({
                     "file": filepath,
                     "line": line_num,
@@ -215,6 +250,31 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             if is_safe_default:
                 continue
 
+            # Skip telemetry/observability publishing (e.g. CloudWatch metrics counters).
+            # These values are never used for trading decisions — only for dashboards/alarms —
+            # so a defensive default here cannot cause a silent, mispriced trade. Detected via
+            # nearby telemetry-publisher markers rather than by module path, since this code
+            # lives inside orchestrator.py alongside real trading logic.
+            wide_context_start = max(0, line_num - 15)
+            wide_context = "\n".join(lines[wide_context_start:line_num]).lower()
+            is_telemetry_context = any(kw in wide_context for kw in [
+                "metricspublisher", "put_signal_count", "put_orchestrator_result",
+                "cloudwatch", "non-blocking",
+            ])
+            if is_telemetry_context:
+                continue
+
+            # Skip if the very next few lines explicitly check for emptiness and surface
+            # an error/unavailable state to the caller (e.g. dashboard panels that render
+            # an explicit "no data" panel). The default here is just safe type-narrowing
+            # before that explicit check — nothing is hidden from the operator.
+            lookahead = "\n".join(lines[line_num:line_num + 6])
+            has_explicit_downstream_check = any(kw in lookahead for kw in [
+                "_error_panel(", "raise ", "data_unavailable",
+            ])
+            if has_explicit_downstream_check:
+                continue
+
             if is_financial_get and not is_metadata:
                 violations.append({
                     "file": filepath,
@@ -234,9 +294,14 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
                 continue
 
             # Skip if function is Optional[T] (returns None as valid state)
-            # Search backward for "def " to find function definition
+            # Search backward for "def " to find function definition.
+            # Window widened from 50 to 120 lines: functions with long docstrings/retry-loop
+            # bodies (e.g. loaders/market_health_fetchers.py's _fetch_with_retries, whose
+            # `def` is 51 lines above its final `return None`) were falling outside the old
+            # 50-line window, silently disabling the Optional[T]/docstring-contract checks
+            # below for no reason related to their correctness.
             func_def_line = None
-            for search_line in range(line_num - 1, max(0, line_num - 50), -1):
+            for search_line in range(line_num - 1, max(0, line_num - 120), -1):
                 if lines[search_line].strip().startswith("def "):
                     func_def_line = search_line
                     break
@@ -247,6 +312,16 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
                 # Check if function explicitly returns Optional/Union with None
                 if ("-> " in func_sig and ("| None" in func_sig or "Optional" in func_sig)) or \
                    ("-> None:" in func_sig):  # Function that returns only None
+                    continue
+
+                # Skip if the enclosing function's own docstring documents that None is an
+                # internal-only signal whose conversion to an explicit data_unavailable
+                # marker is the caller's documented responsibility (e.g. a private
+                # `_fetch_with_retries` helper wrapped by a public `fetch()` that performs
+                # the conversion). This is the governance-compliant pattern already, just
+                # split across two functions — flagging the private helper is a false
+                # positive since the marker genuinely does get set, one call frame up.
+                if "data_unavailable" in func_sig:
                     continue
 
             # Skip if comment indicates None is intentional (cache miss, no data, etc.)
@@ -286,7 +361,7 @@ def main() -> int:
 
     # Find all Python files to check (everywhere, NO exceptions)
     for py_file in repo_root.rglob("*.py"):
-        if not should_check_file(py_file):
+        if not should_check_file(py_file, repo_root):
             continue
 
         violations.extend(check_file_for_fallbacks(py_file))

@@ -6,7 +6,29 @@ Compares position counts across all data sources to catch divergence early.
 from typing import Any
 
 from psycopg2.extensions import cursor
-from routes.utils import db_route_handler, json_response
+from routes.utils import db_route_handler, error_response, json_response
+
+
+def handle(
+    cur: cursor,
+    path: str,
+    method: str,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
+) -> Any:
+    """Handle GET /api/diagnostics request.
+
+    Every route module dispatched via api_router.route_request() must expose a
+    module-level `handle(...)` entry point (see routes/data_coverage.py,
+    routes/risk_dashboard.py, etc.) — route_request() calls `handler.handle(...)`
+    directly on the imported module. This one was missing it, which raised
+    `AttributeError: module 'routes.diagnostics' has no attribute 'handle'`
+    on every request, surfacing as a 500 "Code bug accessing data fields".
+    """
+    if method != "GET":
+        return error_response(405, "method_not_allowed", "Method not allowed. Only GET is supported.")
+    return _check_data_sync_health(cur)
 
 
 @db_route_handler("check data sync health")

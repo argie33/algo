@@ -37,7 +37,7 @@ if os.path.isdir("/opt"):
             sys.stderr.write(f"[DIAG] Adding to sys.path: {_candidate}\n")
             sys.path.insert(0, _candidate)
 
-import psycopg2  # noqa: E402
+import psycopg2
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")

@@ -11,7 +11,9 @@ Runs the orchestrator Lambda every N hours on a schedule matching market hours.
 
 import json
 import logging
+import os
 import sys
+import tempfile
 import time
 import boto3
 import schedule
@@ -25,6 +27,42 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
+
+_LOCK_PATH = Path(tempfile.gettempdir()) / "algo_orchestrator_scheduler.lock"
+
+
+def acquire_singleton_lock():
+    """Refuse to start if another instance already holds the lock.
+
+    NOTE: the orchestrator is scheduled in production via EventBridge Scheduler
+    (terraform/modules/services/2x-daily-orchestrator.tf), which fires reliably on
+    its own. This script is a manual/emergency trigger, not a persistent scheduler -
+    running many copies of it invokes the same Lambda redundantly and was a real
+    contributor to Lambda rate-limiting (16 orphaned copies were found and killed
+    on 2026-07-07). One instance at a time, always.
+    """
+    lock_file = open(_LOCK_PATH, "a+")
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        logger.error(
+            f"Another orchestrator_scheduler.py is already running (lock: {_LOCK_PATH}). "
+            "Refusing to start a duplicate - EventBridge already schedules the orchestrator "
+            "in production; this script should only run once, if at all."
+        )
+        sys.exit(1)
+    lock_file.seek(0)
+    lock_file.truncate()
+    lock_file.write(str(os.getpid()))
+    lock_file.flush()
+    return lock_file  # keep a reference alive for the life of the process
 
 class OrchestratorScheduler:
     """Local scheduler for orchestrator Lambda invocations."""
@@ -141,6 +179,8 @@ def main():
     parser.add_argument('--dry-run', action='store_true', help='Dry-run mode (no actual trades)')
 
     args = parser.parse_args()
+
+    _lock_handle = acquire_singleton_lock()  # held for process lifetime, do not remove
 
     # Validate mode
     if args.mode == 'live' and not args.dry_run:

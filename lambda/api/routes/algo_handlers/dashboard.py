@@ -73,18 +73,17 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     stale_alerts = []
 
     # Query algo_positions base table directly (NO get_open_positions function which is slow)
-    try:
-        cur.execute("""
-            SELECT * FROM algo_positions
-            WHERE status = 'open'
-            ORDER BY position_value DESC NULLS LAST
-            LIMIT 1000
-        """)
-        positions = cur.fetchall()
-        logger.info(f"[POSITIONS] Direct algo_positions query returned {len(positions)} positions")
-    except Exception as e:
-        logger.error(f"[POSITIONS] Query failed: {type(e).__name__}: {str(e)[:100]}")
-        positions = []
+    # NOTE: query errors (including statement_timeout) are intentionally NOT caught here -
+    # they must propagate to @db_route_handler so it can return a real 5xx instead of a
+    # false "zero positions" 200 OK.
+    cur.execute("""
+        SELECT * FROM algo_positions
+        WHERE status = 'open'
+        ORDER BY position_value DESC NULLS LAST
+        LIMIT 1000
+    """)
+    positions = cur.fetchall()
+    logger.info(f"[POSITIONS] Direct algo_positions query returned {len(positions)} positions")
 
     if not positions:
         logger.error(
@@ -421,14 +420,8 @@ def _get_algo_status(cur: cursor) -> Any:
             """)
         snap = cur.fetchone()
         if snap is None:
-            # No portfolio snapshots yet - use defaults
-            snap = {
-                "total_portfolio_value": 0.0,
-                "total_cash": 0.0,
-                "daily_return_pct": 0.0,
-                "unrealized_pnl_total": 0.0,
-                "position_count": 0,
-            }
+            logger.error("Portfolio snapshot unavailable: algo_portfolio_snapshots table is empty")
+            raise RuntimeError("Portfolio snapshot data unavailable - table is empty")
 
         pv = float(snap.get("total_portfolio_value") or 0.0)
         unrealized_pnl = float(snap.get("unrealized_pnl_total") or 0.0)

@@ -190,13 +190,27 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
                 timeout=850,  # leave ~50s of the Lambda's 900s timeout for overhead
                 env=subprocess_env,
             )
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             error_msg = "Migration timeout (exceeded 850s)"
             logger.error(f"[CRITICAL] {error_msg}")
+            # Previously this branch discarded whatever the child process had already
+            # written to stdout/stderr, so every timeout looked like a contextless black
+            # box -- three straight runs hung for ~850s with nothing in CloudWatch to show
+            # which migration was in flight. subprocess.TimeoutExpired carries partial
+            # output (captured before the kill) when capture_output=True; log it so a
+            # future hang is diagnosable instead of a mystery.
+            partial_stdout = e.stdout.decode("utf-8", errors="replace") if isinstance(e.stdout, bytes) else e.stdout
+            partial_stderr = e.stderr.decode("utf-8", errors="replace") if isinstance(e.stderr, bytes) else e.stderr
+            if partial_stdout:
+                logger.error(f"Partial migration stdout before timeout:\n{partial_stdout}")
+            if partial_stderr:
+                logger.error(f"Partial migration stderr before timeout:\n{partial_stderr}")
             return {
                 "success": False,
                 "error": error_msg,
                 "timeout": True,
+                "partial_stdout": partial_stdout,
+                "partial_stderr": partial_stderr,
             }
 
         stdout = result.stdout
