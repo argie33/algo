@@ -658,8 +658,16 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             logger.error("CRITICAL: updated_at/created_at missing from portfolio snapshot query result")
             return error_response(503, "incomplete_data", "Portfolio snapshot missing updated_at/created_at timestamp")
 
-        # Calculate age using database time - both now and last_write_at are in same timezone context
+        # Calculate age using database time. updated_at and created_at can have different
+        # underlying column types (created_at predates migration 006's plain TIMESTAMP
+        # updated_at column and may be TIMESTAMPTZ), so psycopg2 can return one as
+        # timezone-aware and the other naive -- normalize both to naive UTC before
+        # subtracting to avoid "can't subtract offset-naive and offset-aware datetimes".
         if isinstance(last_write_at, datetime) and isinstance(now_utc_db, datetime):
+            if last_write_at.tzinfo is not None:
+                last_write_at = last_write_at.astimezone(timezone.utc).replace(tzinfo=None)
+            if now_utc_db.tzinfo is not None:
+                now_utc_db = now_utc_db.astimezone(timezone.utc).replace(tzinfo=None)
             data_age_seconds = int((now_utc_db - last_write_at).total_seconds())
         else:
             logger.error(
