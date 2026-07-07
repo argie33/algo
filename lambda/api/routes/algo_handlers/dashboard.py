@@ -1286,103 +1286,45 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 @db_route_handler("fetch dashboard scores")  # type: ignore[untyped-decorator]
 @validate_api_response("scores")  # type: ignore[untyped-decorator]
 def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
-    """Get top stock scores with composite and component scores for dashboard.
-
-    Returns growth-aware composite scores from stock_scores table.
-    If data is stale (>2 days), triggers automatic refresh.
-    """
+    """Get top stock scores with composite and component scores for dashboard."""
     try:
-        # CRITICAL FIX: Check data age and trigger refresh if stale
-        cur.execute("SELECT MAX(updated_at) FROM stock_scores")
-        max_date_row = cur.fetchone()
-        max_date = max_date_row[0] if max_date_row and max_date_row[0] else None
+        # Fast direct query - no joins, no CTEs (they cause 30-40s timeouts)
+        cur.execute("SET LOCAL statement_timeout = '2000ms'")
+        cur.execute("""
+            SELECT symbol, composite_score, growth_score, momentum_score,
+                   quality_score, value_score, stability_score, positioning_score,
+                   data_completeness, updated_at
+            FROM stock_scores
+            WHERE composite_score > 0
+            AND data_completeness >= 70
+            ORDER BY composite_score DESC
+            LIMIT %s
+        """, (limit,))
+        rows = cur.fetchall()
+        logger.info(f"[SCORES] Direct query returned {len(rows)} rows")
 
-        data_age_days = None
-        if max_date:
-            data_age_days = (datetime.now(timezone.utc).replace(tzinfo=None) - max_date).days
+        top_scores = []
+        for row in rows:
+            score_dict = safe_json_serialize(safe_dict_convert(row))
+            top_scores.append(score_dict)
 
-        # If data is >2 days stale, kick off an async refresh — do NOT run the loader
-        # in-process here. This is an API request handler behind API Gateway (~29s hard
-        # timeout); load_stock_scores takes minutes over thousands of symbols. A previous
-        # version of this used subprocess.run(["-m", "loaders.load_stock_scores"], ...)
-        # synchronously, which would have (a) hung every stale-data request well past the
-        # gateway timeout and (b) almost certainly failed outright anyway, since the API
-        # Lambda package doesn't bundle loaders/'s heavy deps (pandas/yfinance) — the same
-        # ModuleNotFoundError class of bug already found and fixed in the orchestrator
-        # Lambda's Phase 1 failsafe retry. Fire-and-forget the existing ECS trigger Lambda
-        # instead (same mechanism the orchestrator and the regular schedule both use) and
-        # return the current (flagged-stale) data immediately.
-        if data_age_days and data_age_days > 2:
-            logger.warning(f"[SCORES] Stock scores data is {data_age_days} days stale, triggering RDS refresh...")
-            try:
-                import json
-                import os
+        freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
 
-                import boto3
+        response = {
+            "top": top_scores,
+            "total": len(top_scores),
+        }
 
-                # Invoke the Lambda async loader executor to run the loader with RDS access
-                # This bypasses the VPC isolation issue by using Lambda's own execution environment
-                lambda_client = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
-                lambda_client.invoke(
-                    FunctionName="algo-loader-executor",
-                    InvocationType="Event",
-                    Payload=json.dumps({"loader_name": "stock_scores", "target": "rds"}),
-                )
-                logger.info("[SCORES] Async RDS refresh invoked via Lambda")
-            except Exception as refresh_err:
-                logger.error(f"[SCORES] Could not trigger async refresh: {refresh_err}")
-                # Continue with stale data rather than failing the request
-
-        # GOVERNANCE: Use primary RDS only. No fallback sources.
-        # If data is stale, return it with explicit staleness markers for dashboard visibility.
-        cur_to_use = cur
-        if data_age_days and data_age_days > 2:
-            logger.warning(f"[SCORES] Stock scores stale ({data_age_days} days old). Dashboard will show staleness warning.")
-
-        # Set VERY SHORT timeout (2 seconds) - use FASTEST query without joins
-        cur_to_use.execute("SET LOCAL statement_timeout = '2000ms'")
-
-        # Use simple, fast query directly on stock_scores table (no joins, no CTEs)
-        # Complex joins are causing 30-40+ second query times. Skip them entirely.
-        # Dashboard only needs symbol + scores, not enriched data.
-        try:
-            cur_to_use.execute("""
-                SELECT symbol, composite_score, growth_score, momentum_score,
-                       quality_score, value_score, stability_score, positioning_score,
-                       data_completeness, updated_at
-                FROM stock_scores
-                WHERE composite_score > 0
-                AND data_completeness >= 70
-                ORDER BY composite_score DESC
-                LIMIT %s
-            """, (limit,))
-            rows = cur_to_use.fetchall()
-            logger.info(f"[SCORES] Direct query returned {len(rows)} rows")
-
-            top_scores = []
-            for row in rows:
-                score_dict = safe_json_serialize(safe_dict_convert(row))
-                top_scores.append(score_dict)
-
-            freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
-
-            response = {
-                "top": top_scores,
-                "total": len(top_scores),
-            }
-
-            # CRITICAL: preserve_arrays=True prevents sanitizer from removing growth_score fields
-            # Array items must preserve all fields (including None) for consistent schema
-            return json_response(200, response, data_freshness=freshness, preserve_arrays=True)
-        except (
-            psycopg2.errors.UndefinedTable,
-            psycopg2.errors.UndefinedColumn,
-            psycopg2.OperationalError,
-            psycopg2.DatabaseError,
-            Exception,
-        ) as e:
-            code, error_type, message = handle_db_error(e, "fetch dashboard scores")
-            return error_response(code, error_type, message)
+        return json_response(200, response, data_freshness=freshness, preserve_arrays=True)
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch dashboard scores")
+        return error_response(code, error_type, message)
 
 
 @db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
