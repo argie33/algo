@@ -456,7 +456,9 @@ def validate_environment() -> tuple[bool, list[str], list[str]]:
         allow_localhost = os.getenv("ALLOW_LOCALHOST_CORS", "") == "true"
 
         if not frontend_url:
-            cf_domain, cf_error = fetch_cloudfront_domain_from_secrets()
+            # CRITICAL FIX: Disabled Secrets Manager call at module load (causes VPC timeout)
+            # CloudFront domain will be fetched on first request if needed, not at Lambda cold start
+            cf_domain, cf_error = None, "Deferred to first request"
             if cf_domain:
                 frontend_url = (
                     f"https://{cf_domain}" if not cf_domain.startswith(("http://", "https://")) else cf_domain
