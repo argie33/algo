@@ -183,14 +183,32 @@ resource "aws_lambda_function" "api" {
 # Requires publish = true on the Lambda so Terraform can target a specific version.
 # Cost: ~$12/month per unit in us-east-1 (set api_lambda_provisioned_concurrency = 0 to disable).
 
+# Provisioned concurrency cannot target $LATEST -- it needs a numbered version or an alias
+# pointing to one. No "LIVE" qualifier exists on a Lambda function unless an alias with that
+# exact name is created; the config below previously pointed at a nonexistent alias, so every
+# terraform apply failed with "couldn't find resource" after retrying for ~2 minutes.
+# deploy-api-lambda.yml (out-of-band code deploys) publishes a new version and repoints this
+# alias after each deploy, so ignore_changes keeps Terraform from fighting that update.
+resource "aws_lambda_alias" "api_live" {
+  count            = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
+  name             = "LIVE"
+  description      = "Provisioned-concurrency target; version pointer updated by deploy-api-lambda.yml"
+  function_name    = aws_lambda_function.api.function_name
+  function_version = aws_lambda_function.api.version
+
+  lifecycle {
+    ignore_changes = [function_version]
+  }
+}
+
 resource "aws_lambda_provisioned_concurrency_config" "api" {
   # Only create if: provisioned concurrency is enabled
   count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.api.function_name
-  qualifier                         = "LIVE"
+  qualifier                         = aws_lambda_alias.api_live[0].name
   provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
 
-  depends_on = [aws_lambda_function.api]
+  depends_on = [aws_lambda_alias.api_live]
 }
 
 # ============================================================
