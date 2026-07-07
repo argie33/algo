@@ -27,7 +27,6 @@ from routes.utils import (
 )
 
 from utils.data_queries import (
-    get_open_positions,
     get_trade_win_loss_stats,
 )
 from utils.validation import (
