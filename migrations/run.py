@@ -214,7 +214,7 @@ class MigrationRunner:
                 connect_timeout=10,
             )
             self.cursor = self.conn.cursor()
-            self.cursor.execute("SET lock_timeout = '30s'")
+            self.cursor.execute("SET lock_timeout = '120s'")
             self.conn.commit()
             logger.info(f"Connected to {DB_NAME} at {DB_HOST}:{DB_PORT}")
         except psycopg2.Error as e:
