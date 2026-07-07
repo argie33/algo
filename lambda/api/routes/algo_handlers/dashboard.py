@@ -1156,6 +1156,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
     near-miss signals, top A-grade stocks, and signal trend.
     """
     try:
+        cur.execute("SET LOCAL statement_timeout = '20000ms'")
+
         # Use algo_signals for current active signals (swing_trader_scores table was removed)
         cur.execute("""
                 SELECT COUNT(*) AS n, MAX(signal_date) AS d FROM algo_signals
