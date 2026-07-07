@@ -49,8 +49,8 @@ try:
         print("\n" + "="*60)
         print("SUCCESS! Found Alpaca credentials in AWS Secrets Manager")
         print("="*60)
-        key_id = found_creds.get('APCA_API_KEY_ID', '')
-        key_secret = found_creds.get('APCA_API_SECRET_KEY', '')
+        key_id = found_creds.get('APCA_API_KEY_ID')
+        key_secret = found_creds.get('APCA_API_SECRET_KEY')
         
         print(f"APCA_API_KEY_ID: {key_id[:30]}..." if key_id else "APCA_API_KEY_ID: NOT FOUND")
         print(f"APCA_API_SECRET_KEY: [SET]" if key_secret else "APCA_API_SECRET_KEY: NOT FOUND")
