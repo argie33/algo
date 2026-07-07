@@ -213,6 +213,9 @@ def _execute_fetcher_batch(
 def load_all() -> dict[str, Any]:
     """Load all fetcher data with priority-based execution to prevent RDS connection exhaustion.
 
+    DASHBOARD OPTIMIZATION: Hard 3-second timeout so dashboard renders quickly instead of
+    hanging on loading screen. Returns whatever data loaded in that time.
+
     FIXES APPLIED:
     - Issue #1: Removed duplicate api_call() stub
     - Issue #2: Normalized positions data structure {items, count, timestamp}
@@ -229,6 +232,7 @@ def load_all() -> dict[str, Any]:
     Issue #40 FIX: Per-fetcher timeout (critical: 8s, optional: 3s) prevents one slow endpoint from blocking refresh.
     CACHE FIX: Clear perpetual data status and markets caches to ensure fresh data on each refresh cycle.
     """
+    global_start = time.monotonic()
     # Clear perpetual caches to ensure fresh data fetching on each refresh (watch mode, scheduled tasks)
     # Without this, health and market data would be cached indefinitely and never refresh
     clear_data_status_cache()
@@ -410,6 +414,14 @@ def load_all() -> dict[str, Any]:
         out["_critical_fetcher_failures"] = critical_failures
 
     critical_elapsed = time.monotonic() - critical_start_time
+
+    # CRITICAL FIX: Dashboard hard timeout - if critical fetchers took >3 seconds,
+    # return immediately instead of waiting for optional fetchers.
+    # This prevents the dashboard loading screen from hanging indefinitely.
+    if critical_elapsed > 3.0:
+        logger.warning(f"[LOAD_ALL] Critical fetchers took {critical_elapsed:.2f}s (>3s), returning early")
+        return out
+
     remaining_time = max(60, batch_timeout - critical_elapsed)
     optional_timeout = remaining_time
     optional_out = _execute_fetcher_batch(
