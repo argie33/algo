@@ -1279,11 +1279,15 @@ class Orchestrator:
             # in self.phase_results for final reporting and execution tracking
             executor_phases = executor_result.get("results", {})
             for phase_num, phase_result in executor_phases.items():
+                # For error phases, use the error message as the summary if available
+                summary = phase_result.data.get("summary", "") if phase_result.data else ""
+                if phase_result.status == "error" and phase_result.error and not summary:
+                    summary = phase_result.error
                 self.phase_results[phase_num] = {
                     "phase": phase_num,
                     "name": phase_result.phase_name,
                     "status": phase_result.status,
-                    "summary": phase_result.data.get("summary", ""),
+                    "summary": summary,
                 }
                 # Also log each phase to the execution tracker for orchestrator_execution_log
                 self.execution_tracker.log_phase_result(
