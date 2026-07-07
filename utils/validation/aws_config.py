@@ -64,7 +64,7 @@ class AWSProductionConfigValidator:
             from config.credential_manager import get_credential_manager
 
             cred_mgr = get_credential_manager()
-            creds = cred_mgr.get_alpaca_credentials()
+            cred_mgr.get_alpaca_credentials()
             paper_trading = os.getenv("ALPACA_PAPER_TRADING", "true").lower() == "true"
             mode = "PAPER" if paper_trading else "LIVE"
             self.checks_passed.append(f"Alpaca configured: {mode} mode, credentials present")
