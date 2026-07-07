@@ -262,10 +262,12 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
         # 'psycopg2'" in the child process despite the layer being attached and psycopg2
         # importing fine in this parent process.
         # Similarly, migrations that import from utils need the Lambda function directory.
+        # The deployed Lambda package flattens the structure: lambda_function.py and utils/
+        # sit in the same directory (/var/task), so use .parent not .parent.parent.parent.
         subprocess_env = dict(os.environ)
         layer_site_packages = "/opt/python/lib/python3.12/site-packages"
-        lambda_function_dir = str(Path(__file__).parent.parent.parent)
-        pythonpath_parts = [lambda_function_dir, layer_site_packages]
+        lambda_root_dir = str(Path(__file__).parent)  # /var/task in Lambda, repo-root locally
+        pythonpath_parts = [lambda_root_dir, layer_site_packages]
         if subprocess_env.get("PYTHONPATH"):
             pythonpath_parts.append(subprocess_env["PYTHONPATH"])
         subprocess_env["PYTHONPATH"] = ":".join(pythonpath_parts)
