@@ -1168,7 +1168,17 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 WHERE signal_active = TRUE""")
         sig = cur.fetchone()
         if sig is None or sig.get("n") is None or sig.get("n") == 0:
-            return error_response(503, "no_data", "No active signals available")
+            # No active signals - return 200 OK with empty data (not 503 error)
+            # This allows dashboard to render without signals rather than showing unavailable
+            return json_response(200, {
+                "n": 0,
+                "total": 0,
+                "buy_sigs": [],
+                "near": [],
+                "top_a": [],
+                "trend": [],
+                "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
+            })
         total_n = int(sig["n"])
 
         # Top active signals with signal quality score, sector, and entry/risk details
