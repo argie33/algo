@@ -194,8 +194,8 @@ def _get_stock_scores(
                     tl.roc_60d AS tdd_roc_60d,
                     tl.roc_120d AS tdd_roc_120d,
                     tl.roc_252d AS tdd_roc_252d,
-                    ROUND(CASE WHEN tl.sma_50 > 0 THEN ((pl.close - tl.sma_50) / tl.sma_50 * 100) END, 2) AS price_vs_sma_50,
-                    ROUND(CASE WHEN tl.sma_200 > 0 THEN ((pl.close - tl.sma_200) / tl.sma_200 * 100) END, 2) AS price_vs_sma_200,
+                    ROUND(CASE WHEN tl.sma_50 IS NOT NULL AND tl.sma_50 > 0 THEN ((pl.close - tl.sma_50) / tl.sma_50 * 100) ELSE NULL END, 2) AS price_vs_sma_50,
+                    ROUND(CASE WHEN tl.sma_200 IS NOT NULL AND tl.sma_200 > 0 THEN ((pl.close - tl.sma_200) / tl.sma_200 * 100) ELSE NULL END, 2) AS price_vs_sma_200,
                     p52.high_52w AS high_52w_val,
                     ROUND(CASE WHEN p52.high_52w > 0 THEN ((pl.close - p52.high_52w) / p52.high_52w * 100) END, 2) AS price_vs_52w_high_val
                 FROM stock_scores sc
