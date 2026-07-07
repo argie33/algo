@@ -32,10 +32,33 @@
 - `steering/AWS_COST_REFERENCE.md` — Quick commands and verification (if created)
 - `terraform/terraform.tfvars.next-optimizations` — Phase 7+ opportunities
 
+## CRITICAL: Orchestrator Execution (Session 32+)
+
+**STATUS**: Lambda deployed and callable, but EventBridge schedules not triggering (last automatic run: Jul 6 17:46 UTC).
+
+**IMMEDIATE FIX**: 
+Use GitHub Actions to enable EventBridge schedules OR manually trigger the orchestrator:
+```bash
+python3 scripts/trigger_orchestrator.py --run morning --mode paper
+```
+
+**ROOT CAUSE**: EventBridge Scheduler Lambda invocations are disabled/misconfigured. Terraform apply can't complete due to IAM permission constraints on S3 bucket policies.
+
+**PERMANENT FIX**: 
+1. Grant algo-developer IAM user: `s3:GetBucketPolicy`, `s3:PutBucketPolicy`, `ec2:DescribeVpcAttribute`
+2. Run: `cd terraform && terraform apply -lock=false`
+3. Verify: `aws scheduler list-schedules --region us-east-1 | grep algo` — check State is ENABLED
+
+**VERIFICATION**:
+- Check database: `SELECT COUNT(*) FROM algo_orchestrator_runs WHERE started_at > NOW() - INTERVAL '1 hour'`
+- Check Lambda logs: `/aws/lambda/algo-algo-dev` — should show recent executions
+- Check dashboard: should show fresh portfolio snapshots and scores
+
 ## Instant Fixes
 
 | Problem | Fix |
 |---------|-----|
+| Orchestrator not executing (dashboard shows no data) | `python3 scripts/trigger_orchestrator.py --run morning --mode paper` |
 | AWS credential error | `scripts/refresh-aws-credentials.ps1` |
 | Code fails pre-commit | `make format && make type-check` |
 | Dashboard stale data | `pkill -9 python && python -m dashboard -w` |

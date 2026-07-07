@@ -404,49 +404,22 @@ class CredentialManager:
                         if not secret_string:
                             raise ValueError(f"User secret '{user_secret_id}' exists but contains no SecretString")
                         creds = _json.loads(secret_string)
-                        # CRITICAL: Validate credential fields — must be present and explicitly named
-                        # This is a user-scoped credential; wrong field names could silently load production creds
-                        key = creds.get("api_key")
-                        key_alt = creds.get("APCA_API_KEY_ID")
-                        secret = creds.get("api_secret")
-                        secret_alt = creds.get("APCA_API_SECRET_KEY")
+                        # CRITICAL: Validate credential fields — must use standard Alpaca field names
+                        # No fallback logic: one standard format only
+                        key = creds.get("APCA_API_KEY_ID")
+                        secret = creds.get("APCA_API_SECRET_KEY")
 
-                        # Check which field names are actually present and prefer explicit names
-                        if key and secret:
-                            # Primary field names present — use them
-                            pass
-                        elif key_alt and secret_alt:
-                            # Fallback field names present instead
-                            logger.warning(
-                                f"User secret '{user_secret_id}' using fallback field names "
-                                f"(APCA_API_KEY_ID/APCA_API_SECRET_KEY instead of api_key/api_secret). "
-                                f"This may indicate schema mismatch or incomplete secret configuration."
-                            )
-                            key = key_alt
-                            secret = secret_alt
-                        else:
-                            # Neither primary nor fallback fields present
+                        if not key or not secret:
+                            # User-specific secret exists but is invalid — FAIL HARD
                             available = list(creds.keys())
                             raise ValueError(
                                 f"User secret '{user_secret_id}' missing required credential fields. "
-                                f"Expected (api_key + api_secret) or (APCA_API_KEY_ID + APCA_API_SECRET_KEY). "
+                                f"Expected APCA_API_KEY_ID and APCA_API_SECRET_KEY. "
                                 f"Found fields: {available}"
                             )
 
-                        if not key:
-                            raise ValueError(f"User secret '{user_secret_id}' api_key field is empty")
-                        if not secret:
-                            raise ValueError(f"User secret '{user_secret_id}' api_secret field is empty")
-                        if key and secret:
-                            logger.info(f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}")
-                            return {"key": key, "secret": secret}
-                        else:
-                            # User-specific secret exists but is invalid — FAIL HARD
-                            raise ValueError(
-                                f"[CREDENTIALS_CRITICAL] User secret '{user_secret_id}' exists but missing or invalid credentials. "
-                                f"Cannot fall back to shared credentials (would trade under wrong account). "
-                                f"Verify user secret contains api_key/APCA_API_KEY_ID and api_secret/APCA_API_SECRET_KEY."
-                            )
+                        logger.info(f"[CREDENTIALS] User-scoped Alpaca credentials loaded for {user_id}")
+                        return {"key": key, "secret": secret}
                     except client.exceptions.ResourceNotFoundException:
                         logger.debug(
                             f"[CREDENTIALS] No user-specific Alpaca secret for {user_id}, falling back to shared"

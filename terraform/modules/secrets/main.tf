@@ -15,8 +15,8 @@ resource "aws_secretsmanager_secret" "alpaca" {
 resource "aws_secretsmanager_secret_version" "alpaca" {
   secret_id = aws_secretsmanager_secret.alpaca.id
   secret_string = jsonencode({
-    api_key    = var.alpaca_api_key
-    api_secret = var.alpaca_api_secret
+    APCA_API_KEY_ID    = var.alpaca_api_key
+    APCA_API_SECRET_KEY = var.alpaca_api_secret
   })
 }
 

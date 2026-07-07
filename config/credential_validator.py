@@ -120,21 +120,24 @@ def validate_credentials() -> tuple[bool, list[str]]:
 
     # === IMPORTANT: Alpaca Trading Credentials ===
     # These are optional for paper trading but should be set for live trading
-    alpaca_key = os.getenv("APCA_API_KEY_ID")
-    alpaca_secret = os.getenv("APCA_API_SECRET_KEY")
+    # Use the credential manager to check (supports Secrets Manager + env vars, same as actual app)
+    try:
+        from config.credential_manager import get_credential_manager
 
-    if not alpaca_key or not alpaca_secret:
+        cred_mgr = get_credential_manager()
+        alpaca_creds = cred_mgr.get_alpaca_credentials()
+        # If we get here, credentials exist and are valid (credential manager would raise if missing)
+        if not alpaca_creds.get("key") or not alpaca_creds.get("secret"):
+            errors.append(
+                "[ERROR] Alpaca credentials exist but are missing 'key' or 'secret' fields. "
+                "Verify Secrets Manager or environment variables contain valid credentials."
+            )
+    except ValueError as e:
+        # Credentials not found in any source (Secrets Manager or env vars)
         warnings.append(
-            "[WARN] Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) not set. "
+            f"[WARN] Alpaca credentials not configured: {str(e)}. "
             "Paper trading mode will work, but live trading disabled."
         )
-    else:
-        # Validate credentials are not empty strings
-        if len(alpaca_key.strip()) == 0 or len(alpaca_secret.strip()) == 0:
-            errors.append(
-                "[ERROR] Alpaca credentials are empty strings. "
-                "Check that credentials are properly loaded from environment."
-            )
 
     # === OPTIONAL: Email/SMS Alerts ===
     if os.getenv("ALERT_ENABLED") == "true":
