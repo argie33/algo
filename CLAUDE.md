@@ -34,25 +34,68 @@
 
 ## CRITICAL: Orchestrator Execution (Session 32+)
 
-**STATUS**: Lambda deployed and callable, but EventBridge schedules not triggering (last automatic run: Jul 6 17:46 UTC).
+**STATUS**: ✅ OPERATIONAL - Lambda deployed and functional. EventBridge blocked by IAM, using local scheduler as workaround.
 
-**IMMEDIATE FIX**: 
-Use GitHub Actions to enable EventBridge schedules OR manually trigger the orchestrator:
+**HOW TO RUN THE ORCHESTRATOR:**
+
+### Option 1: Local Scheduler (Recommended - No AWS Permissions Needed)
+Runs orchestrator automatically every 4 hours without requiring EventBridge:
+
+```bash
+# Run on schedule (every 4 hours, starting immediately)
+python3 scripts/orchestrator_scheduler.py --mode paper --interval 4
+
+# Run once and exit
+python3 scripts/orchestrator_scheduler.py --once --mode paper
+```
+
+This can run on:
+- Your local machine during development
+- An EC2 instance for production (via cron or as a service)
+- A Linux VM with `screen` or `tmux` for persistence
+
+### Option 2: Manual Trigger (For Testing)
 ```bash
 python3 scripts/trigger_orchestrator.py --run morning --mode paper
 ```
 
-**ROOT CAUSE**: EventBridge Scheduler Lambda invocations are disabled/misconfigured. Terraform apply can't complete due to IAM permission constraints on S3 bucket policies.
+### Option 3: Direct AWS Lambda Invocation (Raw)
+```bash
+aws lambda invoke \
+  --function-name algo-algo-dev \
+  --payload '{"source":"eventbridge-scheduler","run_identifier":"morning","execution_mode":"paper","dry_run":false}' \
+  /tmp/response.json \
+  --region us-east-1
+```
 
-**PERMANENT FIX**: 
-1. Grant algo-developer IAM user: `s3:GetBucketPolicy`, `s3:PutBucketPolicy`, `ec2:DescribeVpcAttribute`
+**WHY LOCAL SCHEDULER INSTEAD OF EVENTBRIDGE?**
+- EventBridge Scheduler requires `scheduler:UpdateSchedule` IAM permission
+- algo-developer user lacks this and related event permissions
+- Terraform apply blocked by missing: `s3:GetBucketPolicy`, `ec2:DescribeVpcAttribute`
+- Local scheduler provides identical functionality without AWS permission constraints
+- Can easily run via cron or as a service on any system
+
+**PERMANENT FIX (If AWS Permissions Granted)**:
+1. Admin grants algo-developer: `s3:GetBucketPolicy`, `s3:PutBucketPolicy`, `ec2:DescribeVpcAttribute`, `scheduler:UpdateSchedule`
 2. Run: `cd terraform && terraform apply -lock=false`
-3. Verify: `aws scheduler list-schedules --region us-east-1 | grep algo` — check State is ENABLED
+3. EventBridge will then automatically trigger orchestrator 4x daily
 
 **VERIFICATION**:
-- Check database: `SELECT COUNT(*) FROM algo_orchestrator_runs WHERE started_at > NOW() - INTERVAL '1 hour'`
-- Check Lambda logs: `/aws/lambda/algo-algo-dev` — should show recent executions
-- Check dashboard: should show fresh portfolio snapshots and scores
+```sql
+-- Check if orchestrator is running (execute after starting scheduler)
+SELECT COUNT(*) as runs_last_hour, MAX(started_at) as latest
+FROM algo_orchestrator_runs
+WHERE started_at > NOW() - INTERVAL '1 hour';
+
+-- Check fresh portfolio snapshots
+SELECT MAX(created_at) as latest_snapshot
+FROM algo_portfolio_snapshots;
+
+-- Check recent trades
+SELECT COUNT(*) as recent_trades, MAX(created_at) as latest
+FROM algo_trades
+WHERE created_at > NOW() - INTERVAL '24 hours';
+```
 
 ## Instant Fixes
 
