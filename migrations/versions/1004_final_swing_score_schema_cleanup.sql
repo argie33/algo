@@ -12,7 +12,7 @@
 -- Drop dead columns from filter_rejection_log (only if table exists)
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'filter_rejection_log') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'filter_rejection_log') THEN
         ALTER TABLE filter_rejection_log DROP COLUMN IF EXISTS swing_score_min_reason;
     END IF;
 END $$;
@@ -20,7 +20,7 @@ END $$;
 -- Drop dead columns from qualified_trades (only if table exists)
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'qualified_trades') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'qualified_trades') THEN
         ALTER TABLE qualified_trades DROP COLUMN IF EXISTS swing_score;
         ALTER TABLE qualified_trades DROP COLUMN IF EXISTS swing_grade;
     END IF;
@@ -29,7 +29,7 @@ END $$;
 -- Drop dead columns from signal_trade_performance (only if table exists)
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'signal_trade_performance') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'signal_trade_performance') THEN
         ALTER TABLE signal_trade_performance DROP COLUMN IF EXISTS swing_score;
         ALTER TABLE signal_trade_performance DROP COLUMN IF EXISTS swing_grade;
     END IF;
@@ -38,7 +38,7 @@ END $$;
 -- Drop dead config columns from market_exposure_tiers (only if table exists)
 DO $$
 BEGIN
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'market_exposure_tiers') THEN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'market_exposure_tiers') THEN
         ALTER TABLE market_exposure_tiers DROP COLUMN IF EXISTS min_swing_score;
         ALTER TABLE market_exposure_tiers DROP COLUMN IF EXISTS min_swing_grade;
     END IF;
