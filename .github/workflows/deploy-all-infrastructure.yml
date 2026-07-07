@@ -1707,6 +1707,31 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd  # v3
+        with:
+          terraform_wrapper: false
+
+      - name: Init Terraform (to read outputs)
+        working-directory: terraform
+        env:
+          TF_BACKEND_BUCKET: ${{ secrets.TF_STATE_BUCKET || 'stocks-terraform-state' }}
+          TF_BACKEND_KEY: ${{ secrets.TF_STATE_KEY || 'stocks/terraform.tfstate' }}
+        run: |
+          # This job runs on its own fresh runner/checkout (a separate job from
+          # "1. Terraform Apply"), so it has no local .terraform state without this.
+          # Without it, every `terraform output` call below silently returned empty
+          # (redirected to /dev/null) -- confirmed live 2026-07-07: VPC_ID and
+          # PRIVATE_SUBNETS were always blank, so the migration Lambda got created/updated
+          # with no VPC config at all and could never reach the VPC-internal RDS instance
+          # ("Connection timed out"), while RDS_SG happened to still resolve because that
+          # one variable falls back to a direct aws ec2 describe-security-groups call
+          # instead of a terraform output.
+          terraform init -reconfigure \
+            -backend-config="bucket=$TF_BACKEND_BUCKET" \
+            -backend-config="key=$TF_BACKEND_KEY" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="encrypt=true"
+
       - name: Invoke db-init Lambda (initialize database schema)
         continue-on-error: true
         run: |
