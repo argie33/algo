@@ -250,7 +250,7 @@ variable "algo_lambda_reserved_concurrency" {
 variable "api_lambda_provisioned_concurrency" {
   description = "Provisioned concurrent executions for API Lambda (pre-warmed instances to avoid cold starts). Cost: ~$12/month per unit. Set to 0 to disable."
   type        = number
-  default     = 0
+  default     = 1
   validation {
     condition     = var.api_lambda_provisioned_concurrency >= 0 && var.api_lambda_provisioned_concurrency <= 100
     error_message = "Provisioned concurrency must be between 0 and 100"
