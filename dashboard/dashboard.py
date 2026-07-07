@@ -30,8 +30,8 @@ try:
     import msvcrt
 
     def _keypress() -> str:
-        if msvcrt.kbhit():
-            ch = msvcrt.getch()
+        if msvcrt.kbhit():  # type: ignore[attr-defined]
+            ch = msvcrt.getch()  # type: ignore[attr-defined]
             return str(ch.decode("utf-8", errors="ignore").lower())
         return ""
 
@@ -44,13 +44,13 @@ except ImportError:
         if select.select([sys.stdin], [], [], 0)[0]:
             try:
                 fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined]
+                old_settings = termios.tcgetattr(fd)
                 try:
-                    tty.setraw(fd)  # type: ignore[attr-defined]
+                    tty.setraw(fd)
                     ch = sys.stdin.read(1).lower()
                     return ch if ch else ""
                 finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             except (OSError, AttributeError, ValueError) as e:
                 raise RuntimeError(
                     f"Dashboard terminal input failed: {type(e).__name__}: {e}. "
