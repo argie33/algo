@@ -59,7 +59,7 @@ orchestrator_log_level              = "info"
 data_patrol_enabled                 = true
 data_patrol_timeout_ms              = 30000
 alpaca_paper_trading                = true # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
-api_lambda_timeout                  = 60   # FIXED: Increased from 25s for VPC Lambda cold starts (15-40s). API Gateway HTTP API v2 supports up to 29s, but requests can timeout before reaching API Gateway.
+api_lambda_timeout                  = 120  # FIXED: Increased from 25s→60s→120s for VPC Lambda cold starts (15-40s). VPC ENI attachment takes 15-40s, so Lambda must respond within 120s to avoid API Gateway timeout cascade. Provisioned concurrency (=1) below keeps Lambda warm to eliminate cold start delays.
 api_lambda_reserved_concurrency     = 25   # OPTIMIZED for dev: MarketsHealth needs peak 26 concurrent calls, but dev rarely has concurrent users. Prod should use 50+. Saves ~$0.40/month.
 api_lambda_provisioned_concurrency  = 1    # FIXED: Enable to keep Lambda warm and avoid VPC cold-start timeouts. VPC cold starts take 20-30s, exceeding API Gateway's 29s hard limit. Cost: ~$0.40/month for 1 concurrent execution. Essential for API Gateway to work reliably.
 algo_lambda_timeout                 = 300  # OPTIMIZED: Reduced from 600 to 300s (5 min max). Prevents masking slow/failing loaders. Orchestrator typically completes in 2-3 min.
