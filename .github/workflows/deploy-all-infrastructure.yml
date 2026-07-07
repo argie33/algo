@@ -1784,7 +1784,7 @@ jobs:
               aws lambda update-function-configuration \
                 --function-name "$LAMBDA_NAME" \
                 --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
-                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN},AWS_REGION=$AWS_REGION}" \
+                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" \
                 --region $AWS_REGION || echo "[WARN] Could not update VPC config"
             fi
           else
@@ -1817,7 +1817,7 @@ jobs:
                 --timeout 300 \
                 --memory-size 512 \
                 --region $AWS_REGION \
-                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN},AWS_REGION=$AWS_REGION}" || echo "[WARN] Could not create Lambda"
+                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" || echo "[WARN] Could not create Lambda"
             else
               echo "[INFO] Creating Lambda with VPC access: Subnets=$PRIVATE_SUBNETS, SG=$RDS_SG"
               aws lambda create-function \
@@ -1830,7 +1830,7 @@ jobs:
                 --memory-size 512 \
                 --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
                 --region $AWS_REGION \
-                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN},AWS_REGION=$AWS_REGION}" || echo "[WARN] Could not create Lambda"
+                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" || echo "[WARN] Could not create Lambda"
             fi
           fi
 
