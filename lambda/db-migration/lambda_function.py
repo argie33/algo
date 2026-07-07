@@ -119,6 +119,69 @@ def get_credentials() -> dict[str, Any]:
         }
 
 
+def clear_blocking_queries(creds: dict[str, Any]) -> bool:
+    """Terminate long-running queries blocking migrations.
+
+    Returns:
+        bool: True if locks cleared or no blocking queries found, False if error.
+    """
+    try:
+        import psycopg2
+    except ImportError:
+        logger.warning("psycopg2 not available - cannot clear blocking queries")
+        return True
+
+    try:
+        conn = psycopg2.connect(
+            host=creds['host'],
+            port=creds['port'],
+            database=creds['database'],
+            user=creds['user'],
+            password=creds['password'],
+            connect_timeout=5
+        )
+        cur = conn.cursor()
+
+        # Find long-running queries (> 30 seconds)
+        cur.execute("""
+            SELECT pid, usename, state, query, extract(epoch FROM (now() - query_start)) as duration_secs
+            FROM pg_stat_activity
+            WHERE state != 'idle'
+              AND pid != pg_backend_pid()
+              AND query_start < now() - interval '30 seconds'
+            ORDER BY query_start ASC;
+        """)
+
+        long_running = cur.fetchall()
+        if not long_running:
+            logger.info("No blocking queries found")
+            conn.close()
+            return True
+
+        logger.warning(f"Found {len(long_running)} long-running query/queries blocking migrations")
+        for pid, user, state, query, duration in long_running:
+            logger.warning(f"  PID {pid} ({user}): {state} for {duration:.0f}s - {query[:100]}")
+
+        # Terminate them
+        logger.info("Terminating blocking queries...")
+        for pid, user, state, query, duration in long_running:
+            cur.execute("SELECT pg_terminate_backend(%s);", (pid,))
+            result = cur.fetchone()[0]
+            if result:
+                logger.info(f"  ✓ Terminated PID {pid}")
+            else:
+                logger.warning(f"  Could not terminate PID {pid} (may have ended already)")
+
+        conn.commit()
+        conn.close()
+        logger.info("Blocking queries cleared")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to clear blocking queries: {e}")
+        return False
+
+
 def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
     """Execute migrations/run.py apply --all with credentials from Secrets Manager.
 
@@ -132,6 +195,10 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
         - Migration failure: success=False, error + exit code
         - Unexpected exception: success=False, error message
     """
+    # Clear blocking queries before running migrations
+    if not clear_blocking_queries(creds):
+        logger.warning("Failed to clear blocking queries, but continuing with migrations anyway")
+
     try:
         # Build credentials JSON to pass to run.py
         creds_json = json.dumps(
