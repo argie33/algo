@@ -317,8 +317,8 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 time.sleep(0.25)
         except KeyboardInterrupt:
             pass
-    finally:
-        load_data_thread.join(timeout=60)
+
+    load_data_thread.join(timeout=60)
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
