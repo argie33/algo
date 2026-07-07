@@ -1762,33 +1762,39 @@ jobs:
 
           echo "[OK] Migration Lambda ZIP: $(du -sh migration_lambda.zip | cut -f1)"
 
-          # Check if Lambda function already exists in AWS
-          LAMBDA_EXISTS=$(aws lambda get-function --function-name "$LAMBDA_NAME" --region $AWS_REGION 2>/dev/null && echo "true" || echo "false")
+          # Try update first, fall back to create. `aws lambda get-function` as a pre-check
+          # is racy against this same job's own prior runs -- confirmed live 2026-07-07: it
+          # reported the function didn't exist right after a previous run had created it,
+          # so this took the "create" branch, hit "ResourceConflictException: Function
+          # already exist", swallowed it as a warning, and never updated the code that
+          # actually needed the fix. Attempting update-function-code directly and only
+          # creating on a genuine "not found" avoids that race entirely.
+          VPC_ID=$(cd terraform && terraform output -raw vpc_id 2>/dev/null || echo "")
+          PRIVATE_SUBNETS=$(cd terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
+          RDS_SG=$(cd terraform && terraform output -raw rds_security_group_id 2>/dev/null || aws ec2 describe-security-groups --filters "Name=tag:Name,Values=algo-rds-sg" --query 'SecurityGroups[0].GroupId' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          DB_SECRET_ARN=$(aws secretsmanager list-secrets --region $AWS_REGION --query "SecretList[?Name=='algo-db-credentials-dev'].ARN" --output text 2>/dev/null || echo "")
 
-          if [ "$LAMBDA_EXISTS" = "true" ]; then
-            echo "[INFO] Updating existing Lambda: $LAMBDA_NAME"
-            aws lambda update-function-code \
-              --function-name "$LAMBDA_NAME" \
-              --zip-file fileb://migration_lambda.zip \
-              --region $AWS_REGION
+          UPDATE_OUTPUT=$(aws lambda update-function-code \
+            --function-name "$LAMBDA_NAME" \
+            --zip-file fileb://migration_lambda.zip \
+            --region $AWS_REGION 2>&1)
+          UPDATE_EXIT=$?
+
+          if [ $UPDATE_EXIT -eq 0 ]; then
+            echo "[INFO] Updated existing Lambda: $LAMBDA_NAME"
             aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
 
-            # Also ensure VPC config and environment variables are set
-            VPC_ID=$(cd terraform && terraform output -raw vpc_id 2>/dev/null || echo "")
-            PRIVATE_SUBNETS=$(cd terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
-            RDS_SG=$(cd terraform && terraform output -raw rds_security_group_id 2>/dev/null || echo "")
-            DB_SECRET_ARN=$(aws secretsmanager list-secrets --region $AWS_REGION --query "SecretList[?Name=='algo-db-credentials-dev'].ARN" --output text 2>/dev/null || echo "")
-
-            if [ ! -z "$VPC_ID" ] && [ ! -z "$PRIVATE_SUBNETS" ] && [ ! -z "$RDS_SG" ]; then
+            if [ ! -z "$VPC_ID" ] && [ ! -z "$PRIVATE_SUBNETS" ] && [ ! -z "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
               echo "[INFO] Updating Lambda VPC config and environment"
               aws lambda update-function-configuration \
                 --function-name "$LAMBDA_NAME" \
                 --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
                 --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" \
                 --region $AWS_REGION || echo "[WARN] Could not update VPC config"
+              aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
             fi
-          else
-            echo "[INFO] Creating temporary Lambda: $LAMBDA_NAME"
+          elif echo "$UPDATE_OUTPUT" | grep -q "ResourceNotFoundException"; then
+            echo "[INFO] Creating new Lambda: $LAMBDA_NAME"
             # algo-svc-lambda-execution-dev does not exist / has no lambda.amazonaws.com trust
             # relationship ("The role defined for the function cannot be assumed by Lambda",
             # confirmed live 2026-07-07). Use algo-lambda-algo-dev instead -- it's the orchestrator's
@@ -1796,20 +1802,6 @@ jobs:
             # already has a working lambda.amazonaws.com trust policy, VPC access, and Secrets Manager
             # read on algo-db-credentials-dev.
             ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-lambda-algo-dev"
-
-            # Create Lambda with existing execution role
-            # The role algo-lambda-algo-dev already has:
-            # - VPC access (ENI management)
-            # - RDS Secrets Manager read permissions
-            # - CloudWatch Logs permissions
-            # Get VPC configuration from Terraform outputs and AWS
-            VPC_ID=$(cd terraform && terraform output -raw vpc_id 2>/dev/null || echo "")
-            PRIVATE_SUBNETS=$(cd terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
-            # Get RDS security group from AWS (algo-rds-sg)
-            RDS_SG=$(aws ec2 describe-security-groups --filters "Name=tag:Name,Values=algo-rds-sg" --query 'SecurityGroups[0].GroupId' --output text --region $AWS_REGION 2>/dev/null || echo "")
-
-            # Get DB secret ARN for environment variable
-            DB_SECRET_ARN=$(aws secretsmanager list-secrets --region $AWS_REGION --query "SecretList[?Name=='algo-db-credentials-dev'].ARN" --output text 2>/dev/null || echo "")
 
             if [ -z "$VPC_ID" ] || [ -z "$PRIVATE_SUBNETS" ] || [ -z "$RDS_SG" ] || [ "$RDS_SG" = "None" ]; then
               echo "[WARN] VPC config incomplete (VPC=$VPC_ID, Subnets=$PRIVATE_SUBNETS, SG=$RDS_SG), creating Lambda without VPC access (will fail)"
@@ -1822,7 +1814,7 @@ jobs:
                 --timeout 300 \
                 --memory-size 512 \
                 --region $AWS_REGION \
-                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" || echo "[WARN] Could not create Lambda"
+                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
             else
               echo "[INFO] Creating Lambda with VPC access: Subnets=$PRIVATE_SUBNETS, SG=$RDS_SG"
               aws lambda create-function \
@@ -1835,8 +1827,12 @@ jobs:
                 --memory-size 512 \
                 --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
                 --region $AWS_REGION \
-                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" || echo "[WARN] Could not create Lambda"
+                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
             fi
+            aws lambda wait function-active --function-name "$LAMBDA_NAME" --region $AWS_REGION
+          else
+            echo "[ERROR] update-function-code failed for a reason other than missing function: $UPDATE_OUTPUT"
+            exit 1
           fi
 
           echo "[OK] Migration Lambda ready: $LAMBDA_NAME"
