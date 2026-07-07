@@ -899,9 +899,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
         row = cur.fetchone()
 
         if not row:
-            logger.error(
-                "Performance metrics unavailable: algo_performance_metrics table empty."
-            )
+            logger.error("Performance metrics unavailable: algo_performance_metrics table empty.")
             raise RuntimeError("Performance metrics not yet available - table is empty")
 
         return json_response(
@@ -915,9 +913,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
             },
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn) as col_err:
-        logger.error(
-            f"Performance metrics table/columns unavailable: {col_err}"
-        )
+        logger.error(f"Performance metrics table/columns unavailable: {col_err}")
         raise RuntimeError(f"Performance metrics schema incomplete: {col_err}") from col_err
     except (psycopg2.OperationalError, psycopg2.DatabaseError) as db_err:
         code, error_type, message = handle_db_error(db_err, "fetch performance metrics")
