@@ -117,9 +117,10 @@ resource "aws_lambda_function" "api" {
     size = var.api_lambda_ephemeral_storage
   }
 
-  # FIXED: Removed VPC config that blocked API Gateway from invoking Lambda
-  # RDS Proxy is VPC-aware and handles database access; Lambda doesn't need VPC
-  # API Gateway (non-VPC) cannot invoke VPC-Lambda without complex endpoint setup
+  vpc_config {
+    subnet_ids         = var.private_subnet_ids
+    security_group_ids = [var.api_lambda_security_group_id]
+  }
 
   environment {
     variables = {

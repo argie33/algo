@@ -288,20 +288,22 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                             render_state.view_mode = controller.get_view_mode()
                         try:
                             if state.result is None:
-                                raise RuntimeError(
-                                    "[DASHBOARD] Orchestrator state result is None. "
-                                    "Cannot render dashboard without valid orchestrator state. "
-                                    "Check algo_orchestrator.py logs for phase execution failures."
-                                )
+                                logger.warning("[DASHBOARD] State result is None, using empty dict")
+                                state.result = {}
+
+                            logger.debug(f"[DASHBOARD] Rendering with state: {list(state.result.keys())}")
                             layout, _ = recovery.render_with_recovery(state.result, render_state)
                             live.update(layout)
+                            logger.debug("[DASHBOARD] Successfully rendered dashboard")
                         except Exception as e:
-                            error_panel = render_error_panel(e, recovery.get_recovery_status())
+                            logger.error(f"[DASHBOARD] Render failed: {type(e).__name__}: {e}", exc_info=True)
                             try:
+                                error_panel = render_error_panel(e, recovery.get_recovery_status())
                                 live.update(error_panel)
                             except Exception as panel_error:
                                 logger.error(
-                                    f"Failed to render error panel: {type(panel_error).__name__}: {panel_error}"
+                                    f"[DASHBOARD] Failed to render error panel: {type(panel_error).__name__}: {panel_error}",
+                                    exc_info=True
                                 )
                     time.sleep(0.25)
             except KeyboardInterrupt:
