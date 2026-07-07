@@ -1,0 +1,13 @@
+[2026-07-07 00:48:18] [INFO] Found credentials in shared credentials file: ~/.aws/credentials
+[2026-07-07 00:48:18] [INFO] ======================================================================
+[2026-07-07 00:48:18] [INFO] ORCHESTRATOR LOCAL SCHEDULER
+[2026-07-07 00:48:18] [INFO] ======================================================================
+[2026-07-07 00:48:18] [INFO] Mode: paper
+[2026-07-07 00:48:18] [INFO] Interval: 4 hours
+[2026-07-07 00:48:18] [INFO] Dry-run: False
+[2026-07-07 00:48:18] [INFO] Run once: False
+[2026-07-07 00:48:18] [INFO] ======================================================================
+[2026-07-07 00:48:18] [INFO] Starting scheduler (mode=paper, interval=4h)
+[2026-07-07 00:48:18] [INFO] Invoking orchestrator (run #1): startup mode=paper
+[2026-07-07 00:48:24] [ERROR] Failed to invoke orchestrator: An error occurred (TooManyRequestsException) when calling the Invoke operation (reached max retries: 4): Rate Exceeded.
+[2026-07-07 00:48:24] [INFO] Next orchestrator run in 4 hours
