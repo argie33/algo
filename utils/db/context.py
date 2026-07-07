@@ -46,7 +46,8 @@ class _ErrorLoggedCursor:
         self.last_query = query
         self.last_args = args
         try:
-            return self.cursor.execute(query, args)
+            self.cursor.execute(query, args)
+            return self
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             try:
                 context = StructuredDBLogger.extract_context_from_params(args)
@@ -134,7 +135,8 @@ class _CorrelationIdCursor:
         # For psycopg2.sql objects with arguments, don't convert to string
         # (breaks parameter binding). Just pass the object directly.
         if hasattr(query, "as_string") and args is not None:
-            return self.cursor.execute(query, args)
+            self.cursor.execute(query, args)
+            return self
 
         # For string queries or parameterless SQL objects, append comment
         query_str = query.as_string(self.cursor) if hasattr(query, "as_string") else str(query or "")
@@ -142,8 +144,10 @@ class _CorrelationIdCursor:
             query_str = f"{query_str} /* correlation_id: {self.correlation_id} */"
 
         if not hasattr(query, "as_string") and args is None:
-            return self.cursor.execute(query_str)
-        return self.cursor.execute(query_str, args)
+            self.cursor.execute(query_str)
+        else:
+            self.cursor.execute(query_str, args)
+        return self
 
     def executemany(self, query: str, args: Any) -> Any:
         """Execute many with correlation_id comment appended."""
