@@ -68,14 +68,31 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         )
         return _positions_cache["data"]
 
-    cur.execute("SET LOCAL statement_timeout = '30000ms'")
+    # Set SHORT timeout (5 seconds) - algo_positions_with_risk view is too slow
+    # If this times out, try direct table query instead
+    cur.execute("SET LOCAL statement_timeout = '5000ms'")
 
     # Initialize alerts tracking early so it can be used throughout
     stale_alerts = []
 
-    # Get open positions from centralized data query (single source of truth)
-    positions = get_open_positions(cur, limit=1000)
-    logger.debug(f"[POSITIONS] get_open_positions() returned {len(positions)} positions")
+    # Try to get positions from the materialized view first
+    try:
+        positions = get_open_positions(cur, limit=1000)
+        logger.debug(f"[POSITIONS] View query successful: {len(positions)} positions")
+    except psycopg2.errors.QueryCanceled:
+        # View query timed out - query base table directly (much faster, no joins/CTEs)
+        logger.warning("[POSITIONS] View timed out, using direct base table query")
+        cur.execute("""
+            SELECT * FROM algo_positions
+            WHERE status = 'open'
+            ORDER BY position_value DESC NULLS LAST
+            LIMIT %s
+        """, (1000,))
+        positions = cur.fetchall()
+        logger.info(f"[POSITIONS] Direct query returned {len(positions)} positions in < 5s")
+    except Exception as e:
+        logger.error(f"[POSITIONS] Query failed: {type(e).__name__}")
+        positions = []
 
     if not positions:
         logger.error(
@@ -1347,42 +1364,62 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             cur_to_use = cur
             use_fallback = False
 
-        cur_to_use.execute(
-            """
-            SELECT
-                sc.symbol,
-                COALESCE(ss.security_name, sc.symbol) AS company_name,
-                cp.sector,
-                sc.composite_score,
-                sc.momentum_score,
-                sc.quality_score,
-                sc.value_score,
-                sc.growth_score,
-                sc.positioning_score,
-                sc.stability_score,
-                sc.rs_percentile,
-                pl.close AS current_price,
-                CASE WHEN pl.close IS NOT NULL AND pl.previous_close IS NOT NULL THEN
-                    ((pl.close - pl.previous_close) / pl.previous_close * 100)
-                ELSE NULL END AS change_percent,
-                sc.updated_at
-            FROM stock_scores sc
-            LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
-            LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
-            LEFT JOIN (
-                SELECT DISTINCT ON (symbol) symbol, close, LAG(close) OVER (PARTITION BY symbol ORDER BY date DESC) as previous_close
-                FROM price_daily
-                WHERE date >= (SELECT MAX(date) - INTERVAL '5 days' FROM price_daily)
-                ORDER BY symbol, date DESC
-            ) pl ON sc.symbol = pl.symbol AND pl.close IS NOT NULL
-            WHERE sc.composite_score > 0
-            AND sc.data_completeness >= 70
-            ORDER BY sc.composite_score DESC
-            LIMIT %s
-            """,
-            (limit,),
-        )
-        rows = cur_to_use.fetchall()
+        # Set SHORT timeout (5 seconds) for complex query with joins
+        # Fallback to simple query if it times out
+        cur_to_use.execute("SET LOCAL statement_timeout = '5000ms'")
+
+        try:
+            cur_to_use.execute(
+                """
+                SELECT
+                    sc.symbol,
+                    COALESCE(ss.security_name, sc.symbol) AS company_name,
+                    cp.sector,
+                    sc.composite_score,
+                    sc.momentum_score,
+                    sc.quality_score,
+                    sc.value_score,
+                    sc.growth_score,
+                    sc.positioning_score,
+                    sc.stability_score,
+                    sc.rs_percentile,
+                    pl.close AS current_price,
+                    CASE WHEN pl.close IS NOT NULL AND pl.previous_close IS NOT NULL THEN
+                        ((pl.close - pl.previous_close) / pl.previous_close * 100)
+                    ELSE NULL END AS change_percent,
+                    sc.updated_at
+                FROM stock_scores sc
+                LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
+                LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
+                LEFT JOIN (
+                    SELECT DISTINCT ON (symbol) symbol, close, LAG(close) OVER (PARTITION BY symbol ORDER BY date DESC) as previous_close
+                    FROM price_daily
+                    WHERE date >= (SELECT MAX(date) - INTERVAL '5 days' FROM price_daily)
+                    ORDER BY symbol, date DESC
+                ) pl ON sc.symbol = pl.symbol AND pl.close IS NOT NULL
+                WHERE sc.composite_score > 0
+                AND sc.data_completeness >= 70
+                ORDER BY sc.composite_score DESC
+                LIMIT %s
+                """,
+                (limit,),
+            )
+            rows = cur_to_use.fetchall()
+            logger.info(f"[SCORES] Complex query succeeded: {len(rows)} rows")
+        except psycopg2.errors.QueryCanceled:
+            # Complex query timed out - use simple query without joins
+            logger.warning("[SCORES] Complex query timeout, using simple query")
+            cur_to_use.execute("SET LOCAL statement_timeout = '10000ms'")
+            cur_to_use.execute("""
+                SELECT symbol, composite_score, growth_score, momentum_score,
+                       quality_score, value_score, stability_score, updated_at
+                FROM stock_scores
+                WHERE composite_score > 0
+                ORDER BY composite_score DESC
+                LIMIT %s
+            """, (limit,))
+            rows = cur_to_use.fetchall()
+            logger.info(f"[SCORES] Simple query returned {len(rows)} rows")
 
         # CRITICAL FIX: If growth_scores are NULL (stale RDS), compute them from available metrics
         top_scores = []
