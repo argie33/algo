@@ -439,9 +439,9 @@ variable "algo_lambda_provisioned_concurrency" {
 }
 
 variable "algo_lambda_reserved_concurrency" {
-  description = "Reserved concurrency for algo (orchestrator) Lambda. Must exceed 1: up to 9 EventBridge schedules/day invoke this function and overlapping invocations throttle at concurrency=1. Execution safety is handled by the orchestrator's own DB advisory lock, not by Lambda concurrency."
+  description = "Reserved concurrency for algo (orchestrator) Lambda. Increased to 50 to handle orchestrator + API requests without throttling. Execution safety is handled by the orchestrator's own DB advisory lock, not by Lambda concurrency."
   type        = number
-  default     = 5
+  default     = 50
 }
 
 variable "algo_lambda_ephemeral_storage" {
