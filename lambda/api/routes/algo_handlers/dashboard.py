@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import math
-import os
 import time
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -13,8 +12,8 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
-from psycopg2.extras import DictCursor
 from psycopg2.extensions import cursor
+from psycopg2.extras import DictCursor
 from routes.utils import (
     check_data_freshness,
     db_route_handler,
@@ -1300,7 +1299,9 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         if data_age_days and data_age_days > 2:
             logger.warning(f"[SCORES] Stock scores data is {data_age_days} days stale, triggering RDS refresh...")
             try:
+                import json
                 import os
+
                 import boto3
 
                 # Invoke the Lambda async loader executor to run the loader with RDS access
@@ -1328,7 +1329,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                     password=os.getenv("DB_PASSWORD_FRESH", os.getenv("DB_PASSWORD")),
                     database=os.getenv("DB_NAME", "stocks"),
                     port=int(os.getenv("DB_PORT_FRESH", "5432")),
-                    connect_timeout=5
+                    connect_timeout=5,
                 )
                 fallback_cur = fallback_conn.cursor(cursor_factory=DictCursor)
                 logger.info("[SCORES] Using fallback fresh data source")
@@ -1385,18 +1386,20 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             score_dict = safe_json_serialize(safe_dict_convert(row))
 
             # If growth_score is NULL but we have other scores, compute a synthetic growth_score
-            if score_dict.get('growth_score') is None:
-                composite = score_dict.get('composite_score', 0) or 0
-                momentum = score_dict.get('momentum_score', 0) or 0
-                quality = score_dict.get('quality_score', 0) or 0
-                value = score_dict.get('value_score', 0) or 0
+            if score_dict.get("growth_score") is None:
+                composite = score_dict.get("composite_score", 0) or 0
+                momentum = score_dict.get("momentum_score", 0) or 0
+                quality = score_dict.get("quality_score", 0) or 0
+                value = score_dict.get("value_score", 0) or 0
 
                 # Compute synthetic growth_score from other metrics
                 # Growth = weighted average of upside-oriented metrics
                 if composite > 0:
-                    synthetic_growth = (momentum * 0.4 + quality * 0.3 + value * 0.2 + composite * 0.1)
-                    score_dict['growth_score'] = round(min(100, max(0, synthetic_growth)), 2)
-                    logger.debug(f"[SCORES] {score_dict.get('symbol')}: Computed synthetic growth_score={score_dict['growth_score']}")
+                    synthetic_growth = momentum * 0.4 + quality * 0.3 + value * 0.2 + composite * 0.1
+                    score_dict["growth_score"] = round(min(100, max(0, synthetic_growth)), 2)
+                    logger.debug(
+                        f"[SCORES] {score_dict.get('symbol')}: Computed synthetic growth_score={score_dict['growth_score']}"
+                    )
 
             top_scores.append(score_dict)
 
