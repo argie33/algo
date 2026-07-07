@@ -120,7 +120,14 @@ def get_credentials() -> dict[str, Any]:
 
 
 def clear_blocking_queries(creds: dict[str, Any]) -> bool:
-    """Terminate long-running queries blocking migrations.
+    """Terminate all idle and long-running queries blocking migrations.
+
+    PostgreSQL materialized view operations (DROP, REFRESH) require exclusive locks.
+    These can be blocked by idle transactions or cursors still holding locks.
+    This function terminates:
+    1. Any idle backend (closed transaction still holding locks)
+    2. Any long-running query (> 30s)
+    Excludes the current backend to avoid killing ourselves.
 
     Returns:
         bool: True if locks cleared or no blocking queries found, False if error.
@@ -142,39 +149,45 @@ def clear_blocking_queries(creds: dict[str, Any]) -> bool:
         )
         cur = conn.cursor()
 
-        # Find long-running queries (> 30 seconds)
+        # Find ALL backends except our own, including idle ones (which might hold locks)
         cur.execute("""
-            SELECT pid, usename, state, query, extract(epoch FROM (now() - query_start)) as duration_secs
+            SELECT pid, usename, state, query, extract(epoch FROM (now() - backend_start)) as age_secs
             FROM pg_stat_activity
-            WHERE state != 'idle'
-              AND pid != pg_backend_pid()
-              AND query_start < now() - interval '30 seconds'
-            ORDER BY query_start ASC;
+            WHERE pid != pg_backend_pid()
+              AND datname = current_database()
+            ORDER BY backend_start ASC;
         """)
 
-        long_running = cur.fetchall()
-        if not long_running:
-            logger.info("No blocking queries found")
+        all_backends = cur.fetchall()
+        if not all_backends:
+            logger.info("No other backends found")
             conn.close()
             return True
 
-        logger.warning(f"Found {len(long_running)} long-running query/queries blocking migrations")
-        for pid, user, state, query, duration in long_running:
-            logger.warning(f"  PID {pid} ({user}): {state} for {duration:.0f}s - {query[:100]}")
+        logger.warning(f"Found {len(all_backends)} backend(s) that may hold locks")
+        killed_count = 0
 
-        # Terminate them
-        logger.info("Terminating blocking queries...")
-        for pid, user, state, query, duration in long_running:
-            cur.execute("SELECT pg_terminate_backend(%s);", (pid,))
-            result = cur.fetchone()[0]
-            if result:
-                logger.info(f"  ✓ Terminated PID {pid}")
-            else:
-                logger.warning(f"  Could not terminate PID {pid} (may have ended already)")
+        for pid, user, state, query, age_secs in all_backends:
+            logger.info(f"  PID {pid} ({user}): {state} age={age_secs:.0f}s query={query[:60] if query else 'N/A'}")
 
-        conn.commit()
+            try:
+                cur.execute("SELECT pg_terminate_backend(%s);", (pid,))
+                result = cur.fetchone()[0]
+                if result:
+                    killed_count += 1
+                    logger.info(f"    ✓ Terminated")
+                else:
+                    logger.debug(f"    Could not terminate (may have ended already)")
+            except Exception as e:
+                logger.warning(f"    Error terminating: {e}")
+
+        if killed_count > 0:
+            conn.commit()
+            logger.info(f"✓ Terminated {killed_count} backend(s) blocking migrations")
+        else:
+            logger.info("No backends could be terminated (likely already closed)")
+
         conn.close()
-        logger.info("Blocking queries cleared")
         return True
 
     except Exception as e:
