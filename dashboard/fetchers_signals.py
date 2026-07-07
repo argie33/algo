@@ -15,11 +15,50 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_signals(c: None) -> dict[str, Any]:
-    """Fetch dashboard signals from API. Gracefully degrade on transient 503 errors."""
+    """Fetch dashboard signals from API. Gracefully degrade on transient 503 errors.
+
+    Dashboard optimization: Signals API can be slow (10+ seconds). Use 5-second timeout
+    so dashboard doesn't hang on loading screen. Signals are non-critical enrichment.
+    """
     from dashboard.fetcher_validator import FetcherValidator
+    import threading
 
     try:
-        data = api_call(get_endpoint_path("sig"))
+        # Fetch signals with 5-second timeout using thread (cross-platform compatible)
+        data_container = [None]
+        error_container = [None]
+
+        def fetch_with_timeout():
+            try:
+                data_container[0] = api_call(get_endpoint_path("sig"))
+            except Exception as e:
+                error_container[0] = e
+
+        thread = threading.Thread(target=fetch_with_timeout, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+
+        if thread.is_alive():
+            # Timeout - return empty signals
+            logger.warning("Signals API timeout (5s limit) - returning empty signals")
+            record_data_quality_issue("sig", "timeout", "dashboard_timeout")
+            return {
+                "n": 0,
+                "total": 0,
+                "buy_sigs": [],
+                "near": [],
+                "top_a": [],
+                "trend": [],
+                "grades": {},
+                "data_unavailable": True,
+                "reason": "Signals service slow - dashboard will render without signals",
+                "unavailability_type": "dashboard_timeout",
+            }
+
+        if error_container[0]:
+            raise error_container[0]
+
+        data = data_container[0]
 
         # Check for API error (fail-fast pattern: check error first)
         is_error, error_msg = FetcherValidator.check_api_error(data)

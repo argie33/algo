@@ -24,8 +24,8 @@ def main() -> int:
     try:
         client = boto3.client('secretsmanager', region_name='us-east-1')
         secret = json.loads(client.get_secret_value(SecretId='algo/alpaca')['SecretString'])
-        os.environ['APCA_API_KEY_ID'] = secret['api_key']
-        os.environ['APCA_API_SECRET_KEY'] = secret['api_secret']
+        os.environ['APCA_API_KEY_ID'] = secret['APCA_API_KEY_ID']
+        os.environ['APCA_API_SECRET_KEY'] = secret['APCA_API_SECRET_KEY']
         print("✓ Credentials loaded from AWS Secrets Manager")
     except Exception as e:
         print(f"✗ Failed to load credentials: {e}")

@@ -375,6 +375,9 @@ class CredentialManager:
         the call fails hard rather than using potentially-rotated credentials. This prevents
         trades from executing with invalid API keys after credential rotation.
 
+        Uses ONLY standard Alpaca field names (APCA_API_KEY_ID / APCA_API_SECRET_KEY) — no fallback
+        logic for non-standard field names. This ensures consistency across all credential sources.
+
         Supports per-user credential isolation for multi-tenant trading.
 
         Args:
@@ -383,9 +386,12 @@ class CredentialManager:
 
         Checks in order:
         1. User-specific secret: algo/alpaca/{user_id} (if user_id provided)
-        2. ALGO_SECRETS_ARN env var → JSON blob (APCA_API_KEY_ID / APCA_API_SECRET_KEY fields)
+        2. Shared secret: algo/alpaca (Terraform-managed in Secrets Manager)
         3. Environment variables APCA_API_KEY_ID and APCA_API_SECRET_KEY
-        4. Fail hard if no fresh credentials available (no legacy/secondary sources)
+        4. Fail hard if no fresh credentials available
+
+        Returns:
+            dict with 'key' and 'secret' fields (parsed from APCA_API_KEY_ID and APCA_API_SECRET_KEY)
 
         Raises ValueError if credentials not found or if Secrets Manager is unreachable.
         """
@@ -438,63 +444,34 @@ class CredentialManager:
                 # Re-raise ValueError so it triggers the fail-hard logic below
                 raise
 
-        # Step 2: Try ALGO_SECRETS_ARN (Terraform-managed secret: algo-algo-secrets-dev)
-        # LIVE MODE EXCEPTION: ALGO_SECRETS_ARN always contains PAPER keys (hardcoded in deploy
-        # workflow as ALPACA_API_KEY_ID). For live trading, skip this source and fall through to
-        # algo/alpaca which is updated by update-credentials.yml -f trading_mode=live.
-        algo_secrets_arn = os.getenv("ALGO_SECRETS_ARN")
-        is_paper_mode = os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower() != "false"
-        if algo_secrets_arn and self._is_aws and is_paper_mode:
-            try:
-                client = self._get_secrets_client()
-                if client:
-                    response = client.get_secret_value(SecretId=algo_secrets_arn)
-                    secret_string = response.get("SecretString")
-                    if not secret_string:
-                        raise ValueError(f"ALGO_SECRETS_ARN '{algo_secrets_arn}' exists but contains no SecretString")
-                    creds = _json.loads(secret_string)
-                    key = creds.get("APCA_API_KEY_ID")
-                    secret = creds.get("APCA_API_SECRET_KEY")
-                    if key and secret:
-                        logger.info("[CREDENTIALS] Alpaca credentials loaded from ALGO_SECRETS_ARN (paper mode)")
-                        return {"key": key, "secret": secret}
-                    else:
-                        raise ValueError(
-                            f"ALGO_SECRETS_ARN '{algo_secrets_arn}' exists but missing APCA_API_KEY_ID or APCA_API_SECRET_KEY"
-                        )
-            except ValueError as e:
-                logger.warning(f"[CREDENTIALS] ALGO_SECRETS_ARN validation failed: {e}")
-            except (ClientError, BotoCoreError) as e:
-                logger.error(
-                    f"[CREDENTIALS] Could not fetch Alpaca credentials from configured secret: {_sanitize_error(e)}"
-                )
-        elif algo_secrets_arn and self._is_aws and not is_paper_mode:
-            logger.info(
-                "[CREDENTIALS] Live mode: skipping ALGO_SECRETS_ARN (contains paper keys), checking algo/alpaca"
-            )
-            # Step 2b (Live Mode): Try algo/alpaca secret for live credentials
+        # Step 2: Try algo/alpaca secret (Terraform-managed, stored with standard field names)
+        # Uses algo/alpaca from Secrets Manager (created by Terraform in secrets module)
+        if self._is_aws:
             try:
                 client = self._get_secrets_client()
                 if client:
                     response = client.get_secret_value(SecretId="algo/alpaca")
                     secret_string = response.get("SecretString")
                     if not secret_string:
-                        logger.warning("[CREDENTIALS] algo/alpaca secret exists but contains no SecretString")
+                        raise ValueError("[CREDENTIALS] algo/alpaca secret exists but contains no SecretString")
+                    creds = _json.loads(secret_string)
+                    key = creds.get("APCA_API_KEY_ID")
+                    secret = creds.get("APCA_API_SECRET_KEY")
+                    if key and secret:
+                        logger.info("[CREDENTIALS] Alpaca credentials loaded from algo/alpaca (Secrets Manager)")
+                        return {"key": key, "secret": secret}
                     else:
-                        creds = _json.loads(secret_string)
-                        key = creds.get("APCA_API_KEY_ID")
-                        secret = creds.get("APCA_API_SECRET_KEY")
-                        if key and secret:
-                            logger.info("[CREDENTIALS] Alpaca credentials loaded from algo/alpaca (live mode)")
-                            return {"key": key, "secret": secret}
-                        else:
-                            logger.warning(
-                                "[CREDENTIALS] algo/alpaca exists but missing APCA_API_KEY_ID or APCA_API_SECRET_KEY"
-                            )
+                        raise ValueError(
+                            f"[CREDENTIALS] algo/alpaca secret missing APCA_API_KEY_ID or APCA_API_SECRET_KEY. "
+                            f"Found fields: {list(creds.keys())}"
+                        )
+            except ValueError as e:
+                logger.debug(f"[CREDENTIALS] algo/alpaca validation: {e}")
+            except client.exceptions.ResourceNotFoundException:
+                logger.debug("[CREDENTIALS] algo/alpaca secret not found in Secrets Manager")
             except (ClientError, BotoCoreError) as e:
-                logger.warning(
-                    f"[CREDENTIALS] Could not fetch live credentials from algo/alpaca: {_sanitize_error(e)} "
-                    f"(falling through to environment variables)"
+                logger.debug(
+                    f"[CREDENTIALS] Could not fetch from algo/alpaca: {_sanitize_error(e)}"
                 )
 
         # Step 3: Try environment variables (APCA_API_KEY_ID / APCA_API_SECRET_KEY)
@@ -512,27 +489,19 @@ class CredentialManager:
                 f"APCA_API_SECRET_KEY={'set' if secret_env else 'not set'}"
             )
 
-        # FIX H-3: No credentials found from any fresh source
+        # No credentials found from any source. Fail hard.
         # CRITICAL: We DO NOT fall back to stale cached credentials or use legacy/secondary sources.
-        # Removed secondary sources:
-        # - Legacy 'algo/alpaca' JSON blob (Step 3 in previous version)
-        # - Legacy individual secrets 'alpaca/key' and 'alpaca/secret' (Step 4 in previous version)
-        #
         # If credentials were rotated and Secrets Manager becomes temporarily unavailable, using old
-        # cached credentials or legacy secrets will cause trade execution with invalid API keys, leading to
-        # 401 errors or failed trades with incorrect credentials.
-        #
+        # cached credentials will cause trade execution with invalid API keys (401 errors).
         # Instead, fail hard and let Lambda retry on the next invocation. This enforces that every
         # trade execution uses credentials fetched within the last 5 minutes (CREDENTIAL_CACHE_TTL_SECONDS).
         logger.error("[CREDENTIALS] Alpaca credentials NOT FOUND - trades cannot be executed!")
-        logger.error("[CREDENTIALS_H3_FIX] Stale credential fallback and legacy sources REMOVED (security risk)")
         raise ValueError(
             "Alpaca API credentials not found. Configure credentials via one of these sources:\n"
             "  1. User-specific secret: algo/alpaca/{user_id} (in AWS Secrets Manager)\n"
-            "  2. ALGO_SECRETS_ARN secret (paper trading mode via Terraform)\n"
+            "  2. Shared secret: algo/alpaca with fields APCA_API_KEY_ID and APCA_API_SECRET_KEY\n"
             "  3. Environment variables: APCA_API_KEY_ID and APCA_API_SECRET_KEY\n"
-            "Verify the appropriate source is configured and accessible. "
-            "Legacy secrets (algo/alpaca JSON blob, individual alpaca/key/alpaca/secret) are no longer supported."
+            "All sources must use standard field names (APCA_API_KEY_ID / APCA_API_SECRET_KEY)."
         )
 
     def get_smtp_credentials(self) -> dict[str, Any] | None:
