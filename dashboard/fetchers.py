@@ -239,35 +239,38 @@ def load_all() -> dict[str, Any]:
     batch_timeout = 300  # Increased from 200s to allow slow database queries to complete
 
     # Per-fetcher timeout limits to prevent one slow endpoint from blocking refresh
+    # DASHBOARD OPTIMIZATION: Aggressive timeouts for initial load so dashboard displays quickly
+    # Non-critical data degrades gracefully; critical data has 2-3s timeout for API calls
     fetcher_timeout_seconds = {
-        # Critical fetchers: 15 second timeout (must complete, increased from 8s for database queries)
-        "run": 15.0,
-        "cfg": 15.0,
-        "mkt": 15.0,
-        "port": 15.0,
-        "perf": 15.0,
-        "pos": 15.0,
-        "trades": 15.0,
-        "sig": 15.0,
-        "health": 15.0,
-        "cb": 15.0,
-        "risk": 15.0,  # CRITICAL: Risk metrics required for position sizing
-        "exp_factors": 15.0,  # CRITICAL: Market exposure factors required for trading decisions
-        # Optional fetchers: 5 second timeout (nice-to-have, increased from 3s)
-        "srank": 5.0,
-        "activity": 5.0,
-        "eco": 5.0,
-        "notifs": 5.0,
-        "sentiment": 5.0,
-        "econ_cal": 5.0,
-        "perf_anl": 5.0,
-        "sig_eval": 5.0,
-        "sec_rot": 5.0,
-        "algo_metrics": 5.0,
-        "irank": 5.0,
-        "audit": 5.0,
-        "exec_hist": 5.0,
-        "scores": 15.0,
+        # Critical fetchers: 3 second timeout (dashboard must display quickly)
+        # Fetchers use local database fallbacks on API timeout/auth errors
+        "run": 3.0,
+        "cfg": 3.0,
+        "mkt": 3.0,
+        "port": 3.0,
+        "perf": 3.0,
+        "pos": 3.0,
+        "trades": 3.0,
+        "sig": 3.0,
+        "health": 3.0,
+        "cb": 3.0,
+        "risk": 3.0,
+        "exp_factors": 3.0,
+        # Optional fetchers: 2 second timeout (nice-to-have)
+        "srank": 2.0,
+        "activity": 2.0,
+        "eco": 2.0,
+        "notifs": 2.0,
+        "sentiment": 2.0,
+        "econ_cal": 2.0,
+        "perf_anl": 2.0,
+        "sig_eval": 2.0,
+        "sec_rot": 2.0,
+        "algo_metrics": 2.0,
+        "irank": 2.0,
+        "audit": 2.0,
+        "exec_hist": 2.0,
+        "scores": 3.0,
     }
 
     # Categorize fetchers by priority to reduce concurrent RDS connections
@@ -376,8 +379,12 @@ def load_all() -> dict[str, Any]:
         )
 
     critical_start_time = time.monotonic()
+    # DASHBOARD OPTIMIZATION: Reduce batch timeout to 10s for critical fetchers
+    # This prevents dashboard from hanging when API endpoints require auth or are slow
+    # Fetchers degrade gracefully: return empty/error data instead of blocking
+    critical_batch_timeout = min(10, batch_timeout)  # Max 10 seconds for initial dashboard display
     critical_out = _execute_fetcher_batch(
-        critical_fetchers, 10, batch_timeout, one, fetcher_timeout_seconds, "critical"
+        critical_fetchers, 10, critical_batch_timeout, one, fetcher_timeout_seconds, "critical"
     )
 
     # Log critical fetcher failures loudly, but degrade per-panel rather than

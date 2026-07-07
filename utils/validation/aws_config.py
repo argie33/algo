@@ -59,29 +59,24 @@ class AWSProductionConfigValidator:
         return True
 
     def validate_alpaca_config(self) -> bool:
-        """Validate Alpaca credentials configured."""
-        api_key = os.getenv("APCA_API_KEY_ID")
-        if not api_key:
-            api_key = os.getenv("ALPACA_API_KEY")
-        if api_key:
-            api_key = api_key.strip()
-        api_secret = os.getenv("APCA_API_SECRET_KEY")
-        if not api_secret:
-            api_secret = os.getenv("ALPACA_API_SECRET")
-        if api_secret:
-            api_secret = api_secret.strip()
-        paper_trading = os.getenv("ALPACA_PAPER_TRADING", "true").lower() == "true"
+        """Validate Alpaca credentials configured using credential manager."""
+        try:
+            from config.credential_manager import get_credential_manager
 
-        if not api_key or not api_secret:
+            cred_mgr = get_credential_manager()
+            creds = cred_mgr.get_alpaca_credentials()
+            paper_trading = os.getenv("ALPACA_PAPER_TRADING", "true").lower() == "true"
+            mode = "PAPER" if paper_trading else "LIVE"
+            self.checks_passed.append(f"Alpaca configured: {mode} mode, credentials present")
+            return True
+        except ValueError:
+            # Credentials not found in any source
+            paper_trading = os.getenv("ALPACA_PAPER_TRADING", "true").lower() == "true"
             if paper_trading:
                 self.checks_warnings.append("Alpaca credentials not set - paper trading mode will fail silently")
             else:
                 self.checks_critical.append("Alpaca credentials missing in LIVE TRADING MODE - trades will fail")
             return False
-
-        mode = "PAPER" if paper_trading else "LIVE"
-        self.checks_passed.append(f"Alpaca configured: {mode} mode, credentials present")
-        return True
 
     def validate_circuit_breaker_thresholds(self) -> bool:
         """Validate circuit breaker thresholds are configured."""
