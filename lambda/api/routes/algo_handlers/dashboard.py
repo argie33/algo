@@ -1336,7 +1336,6 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         # GOVERNANCE: Use primary RDS only. No fallback sources.
         # If data is stale, return it with explicit staleness markers for dashboard visibility.
         cur_to_use = cur
-        use_fallback = False
         if data_age_days and data_age_days > 2:
             logger.warning(f"[SCORES] Stock scores stale ({data_age_days} days old). Dashboard will show staleness warning.")
 
