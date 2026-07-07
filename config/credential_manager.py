@@ -280,15 +280,11 @@ class CredentialManager:
                     raise ValueError(f"DB_SECRET_ARN '{secret_arn}' exists but contains no SecretString")
                 creds = _json.loads(secret_string)
 
-                # Extract host - use direct RDS endpoint, not proxy
-                # Proxy endpoint (algo-rds-proxy-dev.proxy-...) doesn't work reliably from Lambda VPC
-                # Fall back to direct RDS endpoint (algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com)
-                db_host = creds.get("host")  # Primary: from Secrets Manager
-                if db_host and "proxy" in db_host.lower():
-                    # If secret contains proxy endpoint, replace with direct endpoint
-                    db_host = "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com"
+                # Extract host - use RDS Proxy endpoint for connection pooling
+                # RDS Proxy provides connection multiplexing and is the preferred endpoint
+                db_host = creds.get("host")  # Primary: from Secrets Manager (contains RDS Proxy endpoint)
                 if not db_host:
-                    db_host = os.getenv("DB_HOST")  # Fallback: env var override
+                    db_host = os.getenv("DB_HOST")  # Fallback: env var override (for local dev)
                 if not db_host:
                     db_host = os.getenv("DB_ENDPOINT")  # Fallback: alternate env var
                 if not db_host:
