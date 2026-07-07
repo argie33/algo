@@ -7,7 +7,7 @@ import json as _json
 import logging
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
