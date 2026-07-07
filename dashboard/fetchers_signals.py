@@ -216,13 +216,43 @@ def fetch_scores(c: None) -> dict[str, Any]:
     On 503 errors (service unavailable), return empty scores list with explicit marker instead of
     failing the entire dashboard. This allows trading to continue with signals, just without score rankings.
 
-    FAIL-FAST ON OTHER ERRORS: Database errors, timeouts, and network issues are still fail-fast
-    since they indicate infrastructure problems that must be surfaced immediately.
+    DASHBOARD OPTIMIZATION: Scores API can be slow (7+ seconds). Return empty with marker after 3s
+    so dashboard doesn't hang on loading screen. Scores are non-critical enrichment.
     """
     from dashboard.fetcher_validator import FetcherValidator
+    import threading
 
     try:
-        top_data = api_call("/api/algo/scores", params={"limit": 50, "sortOrder": "desc", "offset": 0})
+        # Fetch scores with 3-second timeout (non-critical for dashboard responsiveness)
+        # Uses thread-based timeout for cross-platform compatibility
+        top_data = [None]  # Mutable container to store result from thread
+        error = [None]
+
+        def fetch_with_timeout():
+            try:
+                top_data[0] = api_call("/api/algo/scores", params={"limit": 50, "sortOrder": "desc", "offset": 0})
+            except Exception as e:
+                error[0] = e
+
+        thread = threading.Thread(target=fetch_with_timeout, daemon=True)
+        thread.start()
+        thread.join(timeout=3)  # Wait max 3 seconds
+
+        if thread.is_alive():
+            # Timeout occurred - scores took too long
+            logger.warning("Scores API timeout (3s dashboard limit) - displaying without scores")
+            record_data_quality_issue("scores", "timeout", "dashboard_timeout")
+            return {
+                "top": [],
+                "data_unavailable": True,
+                "reason": "Scores service slow - dashboard will display without score rankings",
+                "unavailability_type": "dashboard_timeout_for_responsiveness",
+            }
+
+        if error[0]:
+            raise error[0]
+
+        top_data = top_data[0]
 
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
