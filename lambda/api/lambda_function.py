@@ -285,10 +285,16 @@ def _apply_critical_migrations() -> tuple[bool, str]:
 
 
 # Execute migrations on cold start
+# CRITICAL FIX: Skip migrations at Lambda startup to avoid VPC connection timeout
+# (migrations are applied separately via manual database scripts or loaders,
+#  not at every Lambda invocation, which causes VPC cold-start delays)
 try:
-    success, msg = _apply_critical_migrations()
-    if not success:
-        logger.info(f"[STARTUP] Migrations could not be applied: {msg}")
+    # Disabled: Database connections at Lambda startup cause VPC ENI attachment delays
+    # that exceed API Gateway timeout. Migrations are applied via separate infrastructure.
+    # success, msg = _apply_critical_migrations()
+    # if not success:
+    #     logger.info(f"[STARTUP] Migrations could not be applied: {msg}")
+    logger.info("[STARTUP] Database migrations skipped - applied via separate infrastructure")
 except Exception as e:
     logger.warning(f"[STARTUP] Unexpected error during migration: {e}")
 
