@@ -36,8 +36,14 @@ class OrchestratorScheduler:
         self.lambda_client = boto3.client('lambda', region_name='us-east-1')
         self.run_count = 0
 
-    def invoke_orchestrator(self, run_identifier: str = "scheduled"):
-        """Invoke orchestrator Lambda with proper parameters."""
+    def invoke_orchestrator(self, run_identifier: str = "scheduled", max_retries: int = 3):
+        """Invoke orchestrator Lambda with proper parameters and exponential backoff retry.
+
+        Handles Lambda rate limiting with exponential backoff:
+        - Attempt 1: immediate
+        - Attempt 2: wait 5s
+        - Attempt 3: wait 10s
+        """
         self.run_count += 1
 
         payload = {
@@ -51,26 +57,42 @@ class OrchestratorScheduler:
 
         logger.info(f"Invoking orchestrator (run #{self.run_count}): {run_identifier} mode={self.execution_mode}")
 
-        try:
-            response = self.lambda_client.invoke(
-                FunctionName='algo-algo-dev',
-                InvocationType='RequestResponse',
-                Payload=json.dumps(payload)
-            )
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = self.lambda_client.invoke(
+                    FunctionName='algo-algo-dev',
+                    InvocationType='RequestResponse',
+                    Payload=json.dumps(payload)
+                )
 
-            if response['StatusCode'] == 200:
-                body = json.loads(response['Payload'].read())
-                status = body.get('status', 'unknown')
-                run_id = body.get('run_id', 'unknown')
-                logger.info(f"Orchestrator {status}: {run_id}")
-                return True
-            else:
-                logger.error(f"Lambda returned status {response['StatusCode']}")
-                return False
+                if response['StatusCode'] == 200:
+                    body = json.loads(response['Payload'].read())
+                    status = body.get('status', 'unknown')
+                    run_id = body.get('run_id', 'unknown')
+                    logger.info(f"Orchestrator {status}: {run_id}")
+                    return True
+                else:
+                    logger.error(f"Lambda returned status {response['StatusCode']}")
+                    return False
 
-        except Exception as e:
-            logger.error(f"Failed to invoke orchestrator: {e}")
-            return False
+            except Exception as e:
+                error_msg = str(e)
+                is_rate_limit = 'TooManyRequestsException' in error_msg or 'Rate Exceeded' in error_msg
+                is_timeout = 'Timeout' in error_msg or 'Read timed out' in error_msg
+
+                if (is_rate_limit or is_timeout) and attempt < max_retries:
+                    wait_time = (2 ** (attempt - 1)) * 5  # 5s, 10s, 20s
+                    logger.warning(
+                        f"[ATTEMPT {attempt}/{max_retries}] Lambda rate limited/timeout. "
+                        f"Waiting {wait_time}s before retry... ({error_msg[:100]})"
+                    )
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logger.error(f"Failed to invoke orchestrator after {attempt} attempts: {e}")
+                    return False
+
+        return False
 
     def schedule_jobs(self):
         """Set up recurring orchestrator executions."""
