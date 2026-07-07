@@ -234,8 +234,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     """Single session with live data loading."""
     import time as time_module
 
-    # Debug: write status to file
-    debug_file = "/tmp/dashboard_debug.log"
+    # Debug: write status to file (platform-independent temp directory)
+    import tempfile
+    debug_file = os.path.join(tempfile.gettempdir(), "dashboard_debug.log")
     def debug_log(msg: str) -> None:
         try:
             with open(debug_file, "a") as f:
