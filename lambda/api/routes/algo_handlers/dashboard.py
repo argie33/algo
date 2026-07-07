@@ -1296,39 +1296,23 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         # instead (same mechanism the orchestrator and the regular schedule both use) and
         # return the current (flagged-stale) data immediately.
         if data_age_days and data_age_days > 2:
-            logger.warning(f"[SCORES] Stock scores data is {data_age_days} days stale, triggering async refresh...")
+            logger.warning(f"[SCORES] Stock scores data is {data_age_days} days stale, triggering RDS refresh...")
             try:
                 import os
-
                 import boto3
 
-                # Directly invoke ECS task with RDS credentials
-                # CRITICAL: Use correct environment variable names for loader:
-                # - RDS_HOST (not DB_WRITE_HOST)
-                # - RDS_USER=algo_admin (not algoadmin)
-                # - RDS_PASSWORD
-                ecs_client = boto3.client("ecs", region_name=os.getenv("AWS_REGION", "us-east-1"))
-                ecs_client.run_task(
-                    cluster="algo-cluster",
-                    taskDefinition="algo-stock_scores-loader:latest",
-                    launchType="EC2",
-                    overrides={
-                        "containerOverrides": [
-                            {
-                                "name": "algo-stock_scores-loader",
-                                "environment": [
-                                    {"name": "RDS_HOST", "value": "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com"},
-                                    {"name": "RDS_USER", "value": "algo_admin"},
-                                    {"name": "RDS_PASSWORD", "value": os.getenv("RDS_PASSWORD", "stocks")},
-                                ],
-                            }
-                        ]
-                    },
+                # Invoke the Lambda async loader executor to run the loader with RDS access
+                # This bypasses the VPC isolation issue by using Lambda's own execution environment
+                lambda_client = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
+                lambda_client.invoke(
+                    FunctionName="algo-loader-executor",
+                    InvocationType="Event",
+                    Payload=json.dumps({"loader_name": "stock_scores", "target": "rds"}),
                 )
-                logger.info("[SCORES] Started ECS stock_scores loader task with RDS credentials")
+                logger.info("[SCORES] Async RDS refresh invoked via Lambda")
             except Exception as refresh_err:
-                logger.error(f"[SCORES] Could not start loader task: {refresh_err}")
-                # Continue with stale data rather than failing the request over it
+                logger.error(f"[SCORES] Could not trigger async refresh: {refresh_err}")
+                # Continue with stale data rather than failing the request
 
         cur.execute(
             """
