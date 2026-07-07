@@ -9,20 +9,40 @@
 -- All INSERT statements have been verified to NOT include these columns.
 -- These columns either store NULL or are never queried. Safe to remove.
 
--- Drop dead columns from filter_rejection_log
-ALTER TABLE filter_rejection_log DROP COLUMN IF EXISTS swing_score_min_reason;
+-- Drop dead columns from filter_rejection_log (only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'filter_rejection_log') THEN
+        ALTER TABLE filter_rejection_log DROP COLUMN IF EXISTS swing_score_min_reason;
+    END IF;
+END $$;
 
--- Drop dead columns from qualified_trades
-ALTER TABLE qualified_trades DROP COLUMN IF EXISTS swing_score;
-ALTER TABLE qualified_trades DROP COLUMN IF EXISTS swing_grade;
+-- Drop dead columns from qualified_trades (only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'qualified_trades') THEN
+        ALTER TABLE qualified_trades DROP COLUMN IF EXISTS swing_score;
+        ALTER TABLE qualified_trades DROP COLUMN IF EXISTS swing_grade;
+    END IF;
+END $$;
 
--- Drop dead columns from signal_trade_performance
-ALTER TABLE signal_trade_performance DROP COLUMN IF EXISTS swing_score;
-ALTER TABLE signal_trade_performance DROP COLUMN IF EXISTS swing_grade;
+-- Drop dead columns from signal_trade_performance (only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'signal_trade_performance') THEN
+        ALTER TABLE signal_trade_performance DROP COLUMN IF EXISTS swing_score;
+        ALTER TABLE signal_trade_performance DROP COLUMN IF EXISTS swing_grade;
+    END IF;
+END $$;
 
--- Drop dead config columns from market_exposure_tiers
-ALTER TABLE market_exposure_tiers DROP COLUMN IF EXISTS min_swing_score;
-ALTER TABLE market_exposure_tiers DROP COLUMN IF EXISTS min_swing_grade;
+-- Drop dead config columns from market_exposure_tiers (only if table exists)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'market_exposure_tiers') THEN
+        ALTER TABLE market_exposure_tiers DROP COLUMN IF EXISTS min_swing_score;
+        ALTER TABLE market_exposure_tiers DROP COLUMN IF EXISTS min_swing_grade;
+    END IF;
+END $$;
 
 -- Log this final cleanup
 INSERT INTO data_loader_status (table_name, status, last_updated)
