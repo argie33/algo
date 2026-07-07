@@ -42,7 +42,7 @@ class TradePreviewRequest(BaseModel):
     @classmethod
     def validate_symbol_field(cls, v: str) -> str:
         try:
-            return validate_symbol(v)
+            return cast(str, validate_symbol(v))
         except ValidationError as e:
             raise ValueError(str(e)) from None
 
@@ -69,7 +69,7 @@ class ContactSubmissionRequest(BaseModel):
     @classmethod
     def validate_email_field(cls, v: Any) -> str:
         try:
-            return validate_email(v)
+            return cast(str, validate_email(v))
         except ValidationError as e:
             raise ValueError(str(e)) from None
 
@@ -138,7 +138,7 @@ class PreTradeImpactRequest(BaseModel):
     @classmethod
     def validate_symbol_field(cls, v: str) -> str:
         try:
-            return validate_symbol(v)
+            return cast(str, validate_symbol(v))
         except ValidationError as e:
             raise ValueError(str(e)) from None
 
@@ -157,7 +157,7 @@ class ManualTradeRequest(BaseModel):
     @classmethod
     def validate_symbol_field(cls, v: str) -> str:
         try:
-            return validate_symbol(v)
+            return cast(str, validate_symbol(v))
         except ValidationError as e:
             raise ValueError(str(e)) from None
 
