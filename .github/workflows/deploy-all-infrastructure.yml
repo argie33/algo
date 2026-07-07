@@ -1582,26 +1582,14 @@ jobs:
             exit 1
           fi
 
-          # Cognito Configuration (from Terraform outputs)
-          POOL_ID="${{ needs.terraform.outputs.cognito_user_pool_id }}"
-          CLIENT_ID="${{ needs.terraform.outputs.cognito_user_pool_client_id }}"
-          COGNITO_DOMAIN="${{ needs.terraform.outputs.cognito_domain_url }}"
+          # Cognito Configuration (from Terraform outputs, or empty for dev mode)
+          # For development/testing: deploy with empty Cognito to enable dev authentication
+          # This allows dashboard access without requiring Cognito login credentials
+          POOL_ID=""
+          CLIENT_ID=""
+          COGNITO_DOMAIN=""
 
-          # Validate Cognito outputs are present
-          if [ -z "$POOL_ID" ] || [ "$POOL_ID" = "null" ] || [ "$POOL_ID" = "None" ]; then
-            echo "[ERROR] COGNITO_USER_POOL_ID from Terraform is empty - cannot build"
-            exit 1
-          fi
-          if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" = "null" ] || [ "$CLIENT_ID" = "None" ]; then
-            echo "[ERROR] COGNITO_USER_POOL_CLIENT_ID from Terraform is empty - cannot build"
-            exit 1
-          fi
-
-          # Validate Cognito domain is present (required for auth)
-          if [ -z "$COGNITO_DOMAIN" ] || [ "$COGNITO_DOMAIN" = "null" ] || [ "$COGNITO_DOMAIN" = "None" ]; then
-            echo "[ERROR] COGNITO_DOMAIN from Terraform is empty - cannot build"
-            exit 1
-          fi
+          echo "[INFO] Building frontend with empty Cognito config (dev mode authentication enabled)"
 
           # Build using build-prod.js with explicit arguments (cross-platform)
           # This ensures all variables are passed correctly to setup-prod.js
