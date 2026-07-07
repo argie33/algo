@@ -1,12 +1,52 @@
 # Session 38: Dashboard Shows No Data in AWS Mode — Root Cause & Fixes
 
-**Date**: 2026-07-07  
-**Status**: CRITICAL FIX IDENTIFIED & PARTIALLY IMPLEMENTED  
+**Date**: 2026-07-07
+**Status**: SUPERSEDED — see correction below
 **Impact**: Dashboard showing no data in AWS mode; AWS RDS stale (126+ hours old)
 
 ---
 
-## EXECUTIVE SUMMARY
+## CORRECTION (2026-07-07, later same session)
+
+The "EventBridge Scheduler blocked by IAM" diagnosis below was based on running
+`terraform apply` locally as the `algo-developer` IAM user (which does lack
+`scheduler:*`/`s3:GetBucketPolicy`/`ec2:DescribeVpcAttribute`). It did not hold for the
+actual deploy path: `Deploy All Infrastructure (Terraform)` runs under the
+`algo-svc-github-actions-dev` role via GitHub Actions, which already has the permissions
+needed to create `aws_scheduler_schedule` resources. That pipeline's Terraform Apply was
+failing for an unrelated reason: `aws_lambda_provisioned_concurrency_config.api` referenced
+a `"LIVE"` Lambda alias qualifier that no `aws_lambda_alias` resource ever created, so
+every apply failed with "couldn't find resource" after ~2 minutes of retries and never
+reached a green state. Fixed by adding `aws_lambda_alias.api_live` in
+`terraform/modules/services/main.tf`. Once that landed, `Deploy All Infrastructure`
+completed successfully end-to-end and the EventBridge Scheduler rules (`algo-algo-schedule-*`)
+are live — confirmed via `AWS/Lambda` `Invocations` CloudWatch metrics showing the
+orchestrator firing every few minutes.
+
+With the scheduler confirmed live, the actual reason AWS RDS stayed stale and no trades
+landed after Jun 16 was a **second, independent bug**: every orchestrator invocation calls
+`Orchestrator._apply_pending_migrations()` at startup, which unconditionally ran
+`DROP MATERIALIZED VIEW algo_positions_with_risk CASCADE` + a full rebuild + `REFRESH
+MATERIALIZED VIEW` — the *same* migration already applied once, idempotently, by the
+`migrations/versions/083_fix_positions_view_sector_enrichment.sql` file during the
+"Run Database Migrations via Lambda" deploy step. Because the scheduler fires the
+orchestrator every 5 minutes (plus 4x named runs plus prewarms), many invocations
+overlapped and all contended for the same `ACCESS EXCLUSIVE` lock on that view, and every
+single invocation timed out at exactly the 300s Lambda timeout (`CloudWatch Logs`: `Status:
+timeout`, `Max Memory Used: 132 MB` — i.e. stuck waiting on a lock, not doing real work).
+Fixed by deleting `_apply_pending_migrations()` from `algo/orchestration/orchestrator.py`
+entirely — the migration is already applied once via the proper migration pipeline and has
+no business re-running in the orchestrator's hot path on every invocation.
+
+**The `scripts/sync_local_to_aws_rds.py` script and `lambda/sync-data-to-rds` function
+proposed below have been deleted.** They would have copied a developer's local paper-trading
+simulation data into AWS RDS and presented it as if it came from real orchestrator/Alpaca
+activity — this violates `steering/GOVERNANCE.md`'s fail-fast/no-fallback data-quality rules,
+and is unnecessary now that the actual orchestrator runs successfully in AWS.
+
+---
+
+## EXECUTIVE SUMMARY (ORIGINAL — root cause below was incomplete, see correction above)
 
 The dashboard shows "no data" in AWS mode because **AWS RDS database is 126+ hours stale**. This is caused by **EventBridge Scheduler not being deployed due to IAM permission issues**. Loaders and orchestrator have no automatic trigger in AWS, so data never syncs.
 
