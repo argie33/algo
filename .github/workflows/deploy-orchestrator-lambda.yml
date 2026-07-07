@@ -103,8 +103,13 @@ jobs:
 
       - name: Deploy to Lambda
         run: |
+          # VERIFIED against live AWS 2026-07-07: `aws lambda get-function --function-name
+          # algo-algo-dev` succeeds; `algo-orchestrator-dev` returns ResourceNotFoundException.
+          # Terraform's local.algo_lambda_name = "${var.project_name}-algo-${var.environment}"
+          # (terraform/modules/services/main.tf) confirms algo-algo-dev is the only orchestrator
+          # function Terraform ever creates. Do not "fix" this back to algo-orchestrator-dev.
           aws lambda update-function-code \
-            --function-name algo-orchestrator-dev \
+            --function-name algo-algo-dev \
             --zip-file fileb://orchestrator_lambda.zip \
             --region us-east-1 \
             --query '{FunctionName:FunctionName,LastModified:LastModified,CodeSize:CodeSize}' \

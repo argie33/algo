@@ -231,120 +231,94 @@ def render_dashboard(
 
 
 def run_once(compact: bool, data_source: str = "AWS") -> None:
-    """Single session with live data loading."""
-    import time as time_module
-
-    # Debug: write status to file (platform-independent temp directory)
-    import tempfile
-    debug_file = os.path.join(tempfile.gettempdir(), "dashboard_debug.log")
-    def debug_log(msg: str) -> None:
-        try:
-            with open(debug_file, "a") as f:
-                f.write(f"{time_module.time()}: {msg}\n")
-        except:
-            pass
-
-    debug_log("RUN_ONCE: Function called")
-
-    state = LoadState()
-    done = threading.Event()
-    bg_thread = None
+    """Single run - load data once and display. Uses same reliable pattern as run_watch()."""
+    state = WatchState()
+    recovery = RenderRecovery()
+    render_state = _RenderState(compact, data_source)
     controller = WatchModeController()
 
-    def bg() -> None:
-        t0 = time.monotonic()
-        debug_log("BG_START: Background load thread started")
-
-        # Force dashboard to proceed after 5 seconds with whatever data is available
-        # This prevents dashboard from hanging on slow/auth-required API endpoints
-        def timeout_callback() -> None:
-            debug_log(f"TIMEOUT: 5s reached, setting done flag. result={bool(state.result)}")
-            logger.warning("[DASHBOARD] Data load timeout (5s) - rendering with available data")
-            if not done.is_set():
-                state.result = state.result or {}  # Use whatever data loaded, or empty dict
-                done.set()  # FORCE the render loop to proceed immediately
-                debug_log(f"TIMEOUT: done.set() called")
-
-        timer = threading.Timer(5.0, timeout_callback)
-        timer.daemon = True
-        timer.start()
-        debug_log("TIMER: 5-second timer started")
-
+    def load_data() -> None:
+        """Load data with 5-second timeout."""
         try:
-            debug_log("LOAD_START: Calling load_all()")
-            state.result = load_all()
-            debug_log(f"LOAD_COMPLETE: load_all() returned {len(state.result)} keys")
+            state.loading = True
+            state.error = None
+            t0 = time.monotonic()
+
+            result = [None]
+            error = [None]
+            def load_with_timeout():
+                try:
+                    result[0] = load_all()
+                except Exception as e:
+                    error[0] = e
+
+            load_thread = threading.Thread(target=load_with_timeout, daemon=True)
+            load_thread.start()
+            load_thread.join(timeout=5.0)
+
+            if error[0]:
+                raise error[0]
+            if result[0] is not None:
+                state.result = result[0]
+            else:
+                logger.warning("load_all() returned None (timeout)")
+                state.result = {}
+
             state.elapsed = time.monotonic() - t0
+            state.last_load = time.monotonic()
+            state.loading = False
         except Exception as e:
-            debug_log(f"LOAD_ERROR: {type(e).__name__}: {e}")
-            logger.error(f"Background load error: {type(e).__name__}: {e}")
-            state.result = {}
-            state.elapsed = time.monotonic() - t0
-        finally:
-            debug_log(f"BG_FINALLY: Cancelling timer, setting done. Elapsed={state.elapsed:.2f}s")
-            timer.cancel()
-            done.set()
+            logger.error(f"Data load error: {type(e).__name__}: {e}", exc_info=True)
+            state.loading = False
+            state.error = f"{type(e).__name__}: {e}"
 
-    try:
-        bg_thread = threading.Thread(target=bg, daemon=False)
-        bg_thread.start()
+    load_data_thread = threading.Thread(target=load_data, daemon=False)
+    load_data_thread.start()
 
-        frame = 0
-        recovery = RenderRecovery()
-        render_state = _RenderState(compact, data_source)
-        debug_log("RENDER: Starting live render loop")
-        with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
-            try:
-                first_render = True
-                while True:
-                    key = _keypress()
-                    if key == "q":
-                        break
-                    controller.handle_keypress(key)
-                    frame = (frame + 1) % 1_000_001
+    with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
+        try:
+            while True:
+                key = _keypress()
+                if key == "q":
+                    break
+                controller.handle_keypress(key)
 
-                    if not done.is_set():
-                        if first_render:
-                            debug_log(f"RENDER: Waiting for load (done={done.is_set()})")
-                            first_render = False
-                        live.update(loading_layout(frame, data_source=data_source))
-                    else:
-                        debug_log(f"RENDER_DATA: done flag set, rendering with data")
-                        with render_state._lock:
-                            render_state.elapsed = state.elapsed
-                            render_state.frame = frame
-                            render_state.view_mode = controller.get_view_mode()
+                state.frame = (state.frame + 1) % 1_000_001
+                current_frame = state.frame
+                current_result = state.result
+                current_error = state.error
+                is_loading = state.loading
+                current_last_load = state.last_load
+                current_elapsed = state.elapsed
+
+                if current_result is None:
+                    if current_error:
                         try:
-                            if state.result is None:
-                                debug_log(f"RENDER_DATA: state.result is None, using empty dict")
-                                logger.warning("[DASHBOARD] State result is None, using empty dict")
-                                state.result = {}
-
-                            debug_log(f"RENDER_DATA: Calling render_with_recovery with keys={list(state.result.keys())}")
-                            logger.debug(f"[DASHBOARD] Rendering with state: {list(state.result.keys())}")
-                            layout, _ = recovery.render_with_recovery(state.result, render_state)
-                            debug_log(f"RENDER_DATA: render_with_recovery succeeded")
-                            live.update(layout)
-                            logger.debug("[DASHBOARD] Successfully rendered dashboard")
+                            live.update(render_error_panel(RuntimeError(current_error)))
                         except Exception as e:
-                            logger.error(f"[DASHBOARD] Render failed: {type(e).__name__}: {e}", exc_info=True)
-                            try:
-                                error_panel = render_error_panel(e, recovery.get_recovery_status())
-                                live.update(error_panel)
-                            except Exception as panel_error:
-                                logger.error(
-                                    f"[DASHBOARD] Failed to render error panel: {type(panel_error).__name__}: {panel_error}",
-                                    exc_info=True
-                                )
-                    time.sleep(0.25)
-            except KeyboardInterrupt:
-                pass
+                            logger.error(f"Failed to render error panel: {type(e).__name__}: {e}")
+                    else:
+                        live.update(loading_layout(current_frame, data_source=data_source))
+                else:
+                    with render_state._lock:
+                        render_state.elapsed = current_elapsed
+                        render_state.frame = current_frame
+                        render_state.view_mode = controller.get_view_mode()
+                    try:
+                        layout, _ = recovery.render_with_recovery(current_result, render_state)
+                        live.update(layout)
+                    except Exception as e:
+                        logger.error(f"Render failed: {type(e).__name__}: {e}", exc_info=True)
+                        try:
+                            live.update(render_error_panel(e, recovery.get_recovery_status()))
+                        except Exception as panel_error:
+                            logger.error(f"Error panel render failed: {type(panel_error).__name__}: {panel_error}")
+
+                time.sleep(0.25)
+        except KeyboardInterrupt:
+            pass
     finally:
-        if bg_thread:
-            done.set()
-            bg_thread.join(timeout=60)
-            if bg_thread.is_alive():
-                logger.error("Background thread abandoned after 60s timeout")
+        load_data_thread.join(timeout=60)
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
