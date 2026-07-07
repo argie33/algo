@@ -59,17 +59,22 @@ class OrchestratorScheduler:
 
         for attempt in range(1, max_retries + 1):
             try:
+                # Use Event (async) invocation instead of RequestResponse (sync)
+                # Async invocation doesn't hit rate limits as hard - returns immediately
+                # Orchestrator runs in background and logs results to database
                 response = self.lambda_client.invoke(
                     FunctionName='algo-algo-dev',
-                    InvocationType='RequestResponse',
+                    InvocationType='Event',  # Changed from RequestResponse to Event
                     Payload=json.dumps(payload)
                 )
 
-                if response['StatusCode'] == 200:
-                    body = json.loads(response['Payload'].read())
-                    status = body.get('status', 'unknown')
-                    run_id = body.get('run_id', 'unknown')
-                    logger.info(f"Orchestrator {status}: {run_id}")
+                if response['StatusCode'] == 202:
+                    # Event invocation returns 202 Accepted
+                    logger.info(f"Orchestrator queued successfully (async invocation)")
+                    return True
+                elif response['StatusCode'] == 200:
+                    # Shouldn't happen with Event invocation, but handle it anyway
+                    logger.info(f"Orchestrator invoked (sync response)")
                     return True
                 else:
                     logger.error(f"Lambda returned status {response['StatusCode']}")
