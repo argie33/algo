@@ -208,12 +208,12 @@ variable "api_lambda_memory" {
 }
 
 variable "api_lambda_timeout" {
-  description = "Timeout for API Lambda function (seconds). MUST be < 29s (API Gateway hard limit). RDS cold-start + VPC can take 15-25s, so use 25s max."
+  description = "Timeout for API Lambda function (seconds). VPC cold-start can take 15-40s. Set higher than worst-case cold start time."
   type        = number
-  default     = 25
+  default     = 60
   validation {
-    condition     = var.api_lambda_timeout >= 1 && var.api_lambda_timeout <= 25
-    error_message = "Timeout must be between 1 and 25 seconds (API Gateway hard limit is 29s)"
+    condition     = var.api_lambda_timeout >= 1 && var.api_lambda_timeout <= 900
+    error_message = "Timeout must be between 1 and 900 seconds"
   }
 }
 
