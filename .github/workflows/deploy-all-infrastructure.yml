@@ -1825,9 +1825,14 @@ jobs:
             if [ ! -z "$VPC_ID" ] && [ ! -z "$PRIVATE_SUBNETS" ] && [ ! -z "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
               CONFIG_ARGS="$CONFIG_ARGS --vpc-config SubnetIds=$PRIVATE_SUBNETS,SecurityGroupIds=$RDS_SG"
             fi
-            echo "[INFO] Updating Lambda config (layer + VPC + environment)"
+            echo "[INFO] Updating Lambda config (layer + VPC + environment + timeout)"
+            # 91 migrations in migrations/versions/ have never successfully applied before
+            # (every earlier bug in this pipeline blocked them); the first real run needs
+            # more than the original 300s. Confirmed live 2026-07-07: exactly 300000ms,
+            # Status: timeout, after getting past every prior bug in this chain.
             aws lambda update-function-configuration \
               --function-name "$LAMBDA_NAME" \
+              --timeout 900 \
               $CONFIG_ARGS \
               --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}" \
               --region $AWS_REGION || echo "[WARN] Could not update Lambda config"
@@ -1856,7 +1861,7 @@ jobs:
                 --role "$ROLE_ARN" \
                 --handler lambda_function.lambda_handler \
                 --zip-file fileb://migration_lambda.zip \
-                --timeout 300 \
+                --timeout 900 \
                 --memory-size 512 \
                 $LAYER_ARGS \
                 --region $AWS_REGION \
@@ -1869,7 +1874,7 @@ jobs:
                 --role "$ROLE_ARN" \
                 --handler lambda_function.lambda_handler \
                 --zip-file fileb://migration_lambda.zip \
-                --timeout 300 \
+                --timeout 900 \
                 --memory-size 512 \
                 $LAYER_ARGS \
                 --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
@@ -1906,10 +1911,15 @@ jobs:
 
           echo "=== Invoking Migration Lambda: $LAMBDA_NAME ==="
 
-          # Invoke Lambda and capture response
+          # Invoke Lambda and capture response. --cli-read-timeout must exceed the Lambda's
+          # own 900s function timeout, or the CLI gives up and reports a client-side error
+          # while the Lambda keeps running server-side regardless. Confirmed live
+          # 2026-07-07: the CLI errored out (exit 255) after ~3 minutes while the Lambda's
+          # own CloudWatch logs showed it was still running toward its (then 300s) timeout.
           RESPONSE=$(aws lambda invoke \
             --function-name "$LAMBDA_NAME" \
             --region $AWS_REGION \
+            --cli-read-timeout 920 \
             --log-type Tail \
             --output json \
             /tmp/migration_response.json 2>&1)

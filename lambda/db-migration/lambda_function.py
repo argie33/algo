@@ -187,11 +187,11 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
                 input=creds_json,
                 capture_output=True,
                 text=True,
-                timeout=300,  # 5 minute timeout
+                timeout=850,  # leave ~50s of the Lambda's 900s timeout for overhead
                 env=subprocess_env,
             )
         except subprocess.TimeoutExpired:
-            error_msg = "Migration timeout (exceeded 5 minutes)"
+            error_msg = "Migration timeout (exceeded 850s)"
             logger.error(f"[CRITICAL] {error_msg}")
             return {
                 "success": False,
