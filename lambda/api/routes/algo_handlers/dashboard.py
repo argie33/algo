@@ -36,8 +36,10 @@ from utils.validation import (
     format_decimal_string,
 )
 
-# Response cache: positions don't change frequently, cache for 60 seconds
-_positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 60}
+# Response caches for expensive queries - to avoid API Gateway timeout (30s limit)
+_positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 300}
+_scores_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 300}
+_signals_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 300}
 
 logger = logging.getLogger(__name__)
 
