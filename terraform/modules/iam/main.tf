@@ -1148,6 +1148,24 @@ data "aws_iam_policy_document" "lambda_algo" {
       "arn:aws:iam::${var.aws_account_id}:role/${var.project_name}-ecs-task-${var.environment}"
     ]
   }
+
+  # Phase 1 failsafe retry (algo/orchestrator/phase1_failsafe_retry.py) invokes this
+  # Lambda to retrigger stale/incomplete loaders (e.g. stock_scores). Missing this
+  # statement made every retry attempt fail with AccessDeniedException, so stock_scores
+  # (and growth_score within it) never got recomputed once it fell behind upstream
+  # metrics — confirmed via live CloudWatch logs 2026-07-07.
+  statement {
+    sid    = "InvokeTriggerLoaders"
+    effect = "Allow"
+
+    actions = [
+      "lambda:InvokeFunction"
+    ]
+
+    resources = [
+      "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-trigger-loaders"
+    ]
+  }
 }
 
 # ============================================================
