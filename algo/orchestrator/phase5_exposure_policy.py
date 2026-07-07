@@ -73,14 +73,23 @@ def run(
 
         if not actions:
             logger.info("  No exposure-policy actions")
-            tier_display = constraints["tier_name"] if constraints else "no_entry_constraint"
+            # CRITICAL FIX: Never return None constraints. Apply conservative CAUTION defaults if missing.
+            # Returning None causes Phase 8 to halt all trading, creating a complete system failure.
             if not constraints:
-                logger.info("  [PHASE 5] No entry constraints defined (all tiers open)")
+                logger.warning("[PHASE 5] No entry constraints from policy — applying CAUTION defaults to keep trading enabled")
+                constraints = {
+                    "tier_name": "CAUTION",
+                    "description": "Conservative entry constraints (system fallback)",
+                    "max_new_positions_today": 2,
+                    "halt_new_entries": False,
+                    "min_composite_score": 60,
+                    "risk_multiplier": 0.5,
+                }
             log_phase_result_fn(
                 5,
                 "exposure_policy",
                 "success",
-                f"tier={tier_display}, no actions",
+                f"tier={constraints['tier_name']}, no actions",
             )
             return PhaseResult(
                 5,
@@ -115,9 +124,18 @@ def run(
             r_str = f"{r_mult:+.2f}" if r_mult is not None else "N/A"
             logger.info(f"    {a['symbol']:6s} -> {a['action'].upper():15s} R={r_str}  {a['reason']}")
 
+        # CRITICAL FIX: Never return None constraints. Apply conservative CAUTION defaults if missing.
         if constraints is None:
-            logger.warning("[PHASE 5] Exposure actions computed without entry constraints (all tiers open)")
-            tier_name = "no_entry_constraint"
+            logger.warning("[PHASE 5] Exposure actions computed without entry constraints — applying CAUTION defaults")
+            constraints = {
+                "tier_name": "CAUTION",
+                "description": "Conservative entry constraints (system fallback)",
+                "max_new_positions_today": 2,
+                "halt_new_entries": False,
+                "min_composite_score": 60,
+                "risk_multiplier": 0.5,
+            }
+            tier_name = "CAUTION (fallback)"
         else:
             tier_name = constraints["tier_name"]
         # Validate counts dict has required keys before logging
