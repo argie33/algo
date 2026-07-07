@@ -921,9 +921,12 @@ def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | Non
         # Cognito access tokens use `client_id` claim (not `aud`).
         # ID tokens use `aud` = client_id. Skip PyJWT audience validation
         # and check whichever claim is present to support both token types.
+        rsa_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data))
+        # Type: from_jwk() returns RSAPublicKey | RSAPrivateKey, but jwt.decode() expects RSAPublicKey
+        # Cognito JWK is always a public key, safe to cast
         payload = jwt.decode(
             token,
-            jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_data)),
+            rsa_key,  # type: ignore[arg-type]
             algorithms=["RS256"],
             issuer=f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}",
             options={"verify_exp": True, "verify_aud": False},
