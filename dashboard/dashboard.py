@@ -193,7 +193,6 @@ def render_dashboard(
             Layout(name="r1", ratio=2),
             Layout(name="r2", ratio=2),
             Layout(name="r3", ratio=2),
-            Layout(name="scores", ratio=2),
             Layout(name="pos", ratio=3),
         )
         outer["auth_error"].update(auth_lost_panel)
@@ -204,7 +203,6 @@ def render_dashboard(
             Layout(name="r1", ratio=2),
             Layout(name="r2", ratio=2),
             Layout(name="r3", ratio=2),
-            Layout(name="scores", ratio=2),
             Layout(name="pos", ratio=3),
         )
         outer["errors"].update(error_panel)
@@ -214,7 +212,6 @@ def render_dashboard(
             Layout(name="r1", ratio=2),
             Layout(name="r2", ratio=2),
             Layout(name="r3", ratio=2),
-            Layout(name="scores", ratio=2),
             Layout(name="pos", ratio=3),
         )
 
