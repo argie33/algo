@@ -471,6 +471,83 @@ CREATE TABLE IF NOT EXISTS loader_status (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- ============================================================================
+-- TRADING TABLES (Core system - CRITICAL for all functionality)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS algo_trades (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL,
+    entry_date TIMESTAMP NOT NULL,
+    entry_price DECIMAL(12, 4) NOT NULL,
+    quantity INTEGER NOT NULL,
+    entry_reason VARCHAR(255),
+    entry_signal_score DECIMAL(5, 2),
+    exit_date TIMESTAMP,
+    exit_price DECIMAL(12, 4),
+    exit_reason VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'open',
+    unrealized_pnl DECIMAL(18, 4),
+    realized_pnl DECIMAL(18, 4),
+    avg_entry_price DECIMAL(12, 4),
+    current_price DECIMAL(12, 4),
+    position_value DECIMAL(18, 4),
+    stop_loss_price DECIMAL(12, 4),
+    target_1_price DECIMAL(12, 4),
+    target_2_price DECIMAL(12, 4),
+    target_3_price DECIMAL(12, 4),
+    sector VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_symbol_status ON algo_trades(symbol, status);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_entry_date ON algo_trades(entry_date DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_trades_created_at ON algo_trades(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS algo_positions (
+    id SERIAL PRIMARY KEY,
+    symbol VARCHAR(20) NOT NULL UNIQUE,
+    entry_date TIMESTAMP NOT NULL,
+    entry_price DECIMAL(12, 4) NOT NULL,
+    quantity INTEGER NOT NULL,
+    avg_entry_price DECIMAL(12, 4),
+    current_price DECIMAL(12, 4),
+    position_value DECIMAL(18, 4),
+    unrealized_pnl DECIMAL(18, 4),
+    unrealized_pnl_pct DECIMAL(6, 2),
+    status VARCHAR(50) DEFAULT 'open',
+    stop_loss_price DECIMAL(12, 4),
+    target_1_price DECIMAL(12, 4),
+    target_2_price DECIMAL(12, 4),
+    target_3_price DECIMAL(12, 4),
+    sector VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_symbol ON algo_positions(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_status ON algo_positions(status);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_updated_at ON algo_positions(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
+    id SERIAL PRIMARY KEY,
+    run_id VARCHAR(100),
+    portfolio_date DATE,
+    total_portfolio_value DECIMAL(18, 2),
+    total_cash DECIMAL(18, 2),
+    total_invested DECIMAL(18, 2),
+    total_unrealized_pnl DECIMAL(18, 2),
+    total_realized_pnl DECIMAL(18, 2),
+    total_return_pct DECIMAL(8, 4),
+    num_open_positions INTEGER,
+    num_winning_positions INTEGER,
+    num_losing_positions INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_run_id ON algo_portfolio_snapshots(run_id);
+CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_date ON algo_portfolio_snapshots(portfolio_date DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_created_at ON algo_portfolio_snapshots(created_at DESC);
+
 INSERT INTO algo_config (key, value, data_type, is_critical)
 SELECT 'system_initialized', 'true', 'boolean', TRUE
 WHERE NOT EXISTS (SELECT 1 FROM algo_config WHERE key = 'system_initialized');
