@@ -210,7 +210,7 @@ variable "api_lambda_memory" {
 variable "api_lambda_timeout" {
   description = "Timeout for API Lambda function (seconds). VPC cold-start can take 15-40s. Set higher than worst-case cold start time."
   type        = number
-  default     = 60
+  default     = 120
   validation {
     condition     = var.api_lambda_timeout >= 1 && var.api_lambda_timeout <= 900
     error_message = "Timeout must be between 1 and 900 seconds"
