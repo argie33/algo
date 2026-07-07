@@ -465,6 +465,11 @@ jobs:
           cp -r $GITHUB_WORKSPACE/algo $PKG_DIR/
           cp -r $GITHUB_WORKSPACE/config $PKG_DIR/
           cp -r $GITHUB_WORKSPACE/utils $PKG_DIR/
+          # loaders/ is required by algo/orchestrator/phase1_failsafe_retry.py (imports
+          # loaders.load_stock_scores) and Phase 9's circuit breaker metrics step. Missing
+          # here caused "No module named 'loaders'" failures on every orchestrator run.
+          # Confirmed live via CloudWatch logs 2026-07-07.
+          cp -r $GITHUB_WORKSPACE/loaders $PKG_DIR/
 
           # Remove pycache and build artifacts
           find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
@@ -1407,6 +1412,10 @@ jobs:
           cp -r config $PKG_DIR/
           cp -r utils $PKG_DIR/
           cp -r monitoring $PKG_DIR/
+          # loaders/ required by algo/orchestrator/phase1_failsafe_retry.py and Phase 9's
+          # circuit breaker metrics step -- see matching comment on the other packaging
+          # block earlier in this file for full context.
+          cp -r loaders $PKG_DIR/
 
           # Remove pycache
           find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

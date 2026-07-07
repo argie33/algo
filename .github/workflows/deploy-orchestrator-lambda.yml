@@ -77,6 +77,12 @@ jobs:
           cp -r config $PKG_DIR/
           cp -r utils $PKG_DIR/
           cp -r monitoring $PKG_DIR/
+          # loaders/ is required by algo/orchestrator/phase1_failsafe_retry.py (imports
+          # loaders.load_stock_scores) and Phase 9's circuit breaker metrics step. Missing
+          # here caused "No module named 'loaders'" failures on every orchestrator run,
+          # cascading into Phase 3 being skipped and Phase 6 getting blocked on its
+          # dependency chain. Confirmed live via CloudWatch logs 2026-07-07.
+          cp -r loaders $PKG_DIR/
 
           find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
           find $PKG_DIR -type f -name "*.pyc" -delete
