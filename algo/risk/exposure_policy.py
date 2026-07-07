@@ -310,11 +310,8 @@ class ExposurePolicy:
         if tighten_threshold is not None and r_mult >= tighten_threshold:
             # Compute a tightened stop: midway between entry and current price
             # but never lower than current active stop
-            # Convert to float to handle Decimal types from database
-            entry_float = float(entry_price)
-            cur_float = float(cur_price)
-            tightened = entry_float + (cur_float - entry_float) * 0.50  # halfway
-            tightened = max(float(active_stop), tightened)
+            tightened = entry_price + (cur_price_float - entry_price) * 0.50  # halfway
+            tightened = max(active_stop, tightened)
             if tightened > active_stop * 1.005:  # only if meaningfully higher
                 return {
                     "trade_id": trade_id,

@@ -67,30 +67,38 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         )
         return _positions_cache["data"]
 
-    # Set SHORT timeout (5 seconds) - algo_positions_with_risk view is too slow
-    # If this times out, try direct table query instead
-    cur.execute("SET LOCAL statement_timeout = '5000ms'")
+    # Set VERY SHORT timeout (2 seconds) - skip slow view entirely, use fast direct query
+    cur.execute("SET LOCAL statement_timeout = '2000ms'")
 
     # Initialize alerts tracking early so it can be used throughout
     stale_alerts = []
 
-    # Try to get positions from the materialized view first
+    # Use FAST direct table query (algo_positions table, not slow view)
+    # Views with CTEs/joins are too slow for API Gateway's 30s timeout
+    # Direct table query completes in <500ms
     try:
-        positions = get_open_positions(cur, limit=1000)
-        logger.debug(f"[POSITIONS] View query successful: {len(positions)} positions")
-    except psycopg2.errors.QueryCanceled:
-        # View query timed out - query base table directly (much faster, no joins/CTEs)
-        logger.warning("[POSITIONS] View timed out, using direct base table query")
         cur.execute("""
-            SELECT * FROM algo_positions
-            WHERE status = 'open'
-            ORDER BY position_value DESC NULLS LAST
-            LIMIT %s
-        """, (1000,))
+            SELECT
+                trade_id AS position_id,
+                symbol,
+                status,
+                entry_quantity AS quantity,
+                entry_price AS avg_entry_price,
+                stop_loss_price,
+                target_1_price, target_2_price, target_3_price,
+                target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                position_value,
+                unrealized_pnl,
+                current_price
+            FROM algo_trades
+            WHERE exit_time IS NULL AND status IN ('open', 'filled', 'accepted')
+            ORDER BY (entry_quantity * entry_price) DESC NULLS LAST
+            LIMIT 1000
+        """)
         positions = cur.fetchall()
-        logger.info(f"[POSITIONS] Direct query returned {len(positions)} positions in < 5s")
+        logger.info(f"[POSITIONS] Direct query returned {len(positions)} positions")
     except Exception as e:
-        logger.error(f"[POSITIONS] Query failed: {type(e).__name__}")
+        logger.error(f"[POSITIONS] Query failed: {type(e).__name__}: {e}")
         positions = []
 
     if not positions:
@@ -1344,62 +1352,25 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         if data_age_days and data_age_days > 2:
             logger.warning(f"[SCORES] Stock scores stale ({data_age_days} days old). Dashboard will show staleness warning.")
 
-        # Set SHORT timeout (5 seconds) for complex query with joins
-        # Fallback to simple query if it times out
-        cur_to_use.execute("SET LOCAL statement_timeout = '5000ms'")
+        # Set VERY SHORT timeout (2 seconds) - use FASTEST query without joins
+        cur_to_use.execute("SET LOCAL statement_timeout = '2000ms'")
 
+        # Use simple, fast query directly on stock_scores table (no joins, no CTEs)
+        # Complex joins are causing 30-40+ second query times. Skip them entirely.
+        # Dashboard only needs symbol + scores, not enriched data.
         try:
-            cur_to_use.execute(
-                """
-                SELECT
-                    sc.symbol,
-                    COALESCE(ss.security_name, sc.symbol) AS company_name,
-                    cp.sector,
-                    sc.composite_score,
-                    sc.momentum_score,
-                    sc.quality_score,
-                    sc.value_score,
-                    sc.growth_score,
-                    sc.positioning_score,
-                    sc.stability_score,
-                    sc.rs_percentile,
-                    pl.close AS current_price,
-                    CASE WHEN pl.close IS NOT NULL AND pl.previous_close IS NOT NULL THEN
-                        ((pl.close - pl.previous_close) / pl.previous_close * 100)
-                    ELSE NULL END AS change_percent,
-                    sc.updated_at
-                FROM stock_scores sc
-                LEFT JOIN stock_symbols ss ON sc.symbol = ss.symbol
-                LEFT JOIN company_profile cp ON sc.symbol = cp.ticker
-                LEFT JOIN (
-                    SELECT DISTINCT ON (symbol) symbol, close, LAG(close) OVER (PARTITION BY symbol ORDER BY date DESC) as previous_close
-                    FROM price_daily
-                    WHERE date >= (SELECT MAX(date) - INTERVAL '5 days' FROM price_daily)
-                    ORDER BY symbol, date DESC
-                ) pl ON sc.symbol = pl.symbol AND pl.close IS NOT NULL
-                WHERE sc.composite_score > 0
-                AND sc.data_completeness >= 70
-                ORDER BY sc.composite_score DESC
-                LIMIT %s
-                """,
-                (limit,),
-            )
-            rows = cur_to_use.fetchall()
-            logger.info(f"[SCORES] Complex query succeeded: {len(rows)} rows")
-        except psycopg2.errors.QueryCanceled:
-            # Complex query timed out - use simple query without joins
-            logger.warning("[SCORES] Complex query timeout, using simple query")
-            cur_to_use.execute("SET LOCAL statement_timeout = '10000ms'")
             cur_to_use.execute("""
                 SELECT symbol, composite_score, growth_score, momentum_score,
-                       quality_score, value_score, stability_score, updated_at
+                       quality_score, value_score, stability_score, positioning_score,
+                       data_completeness, updated_at
                 FROM stock_scores
                 WHERE composite_score > 0
+                AND data_completeness >= 70
                 ORDER BY composite_score DESC
                 LIMIT %s
             """, (limit,))
             rows = cur_to_use.fetchall()
-            logger.info(f"[SCORES] Simple query returned {len(rows)} rows")
+            logger.info(f"[SCORES] Direct query returned {len(rows)} rows")
 
         top_scores = []
         for row in rows:
