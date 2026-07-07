@@ -240,14 +240,15 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     def bg() -> None:
         t0 = time.monotonic()
 
-        # Force dashboard to proceed after 30 seconds even if load_all() hangs
+        # Force dashboard to proceed after 5 seconds with whatever data is available
+        # This prevents dashboard from hanging on slow/auth-required API endpoints
         def timeout_callback() -> None:
-            logger.warning("[DASHBOARD] Data load timeout (30s) - rendering with empty dashboard")
+            logger.warning("[DASHBOARD] Data load timeout (5s) - rendering with available data")
             if not done.is_set():
-                state.result = {}  # Ensure we have empty data
-                done.set()  # FORCE the render loop to proceed
+                state.result = state.result or {}  # Use whatever data loaded, or empty dict
+                done.set()  # FORCE the render loop to proceed immediately
 
-        timer = threading.Timer(30.0, timeout_callback)
+        timer = threading.Timer(5.0, timeout_callback)
         timer.daemon = True
         timer.start()
 
@@ -332,7 +333,28 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             state.loading = True
             state.error = None
             t0 = time.monotonic()
-            state.result = load_all()
+
+            # Load all data with 5-second timeout so dashboard renders quickly
+            # with whatever data loads in that time
+            result = [None]
+            error = [None]
+            def load_with_timeout():
+                try:
+                    result[0] = load_all()
+                except Exception as e:
+                    error[0] = e
+
+            load_thread = threading.Thread(target=load_with_timeout, daemon=True)
+            load_thread.start()
+            load_thread.join(timeout=5.0)
+
+            if error[0]:
+                raise error[0]
+            if result[0] is not None:
+                state.result = result[0]
+            else:
+                state.result = {}  # Empty dict if timeout
+
             state.elapsed = time.monotonic() - t0
             state.last_load = time.monotonic()
             state.loading = False
