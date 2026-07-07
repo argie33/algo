@@ -569,44 +569,56 @@ def _configure_aws_and_auth(aws_url: str, pool_id: str, client_id: str) -> None:
 
 def main() -> None:
     """CLI entry point."""
-    # CRITICAL FIX: Force dashboard to start immediately
-    # The credential fetching was causing indefinite hangs
-    # Instead, just run the dashboard in local mode with 3-second data timeout
-    logger.warning("[DASHBOARD] Starting in emergency mode - forcing immediate render")
+    parser = argparse.ArgumentParser(
+        description="Algo trading dashboard - visualize live trading operations",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument(
+        "--local",
+        action="store_true",
+        help="Use local API (localhost:3001) instead of AWS",
+    )
+    parser.add_argument(
+        "-w", "--watch",
+        nargs="?",
+        const=30,
+        type=_validate_watch_interval,
+        metavar="SECONDS",
+        help="Watch mode with auto-refresh (default: 30s, min: 10s, max: 600s)",
+    )
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Use narrow positions table",
+    )
+
+    args = parser.parse_args()
 
     try:
-        # Setup local database connection directly
-        _setup_local_api()
+        # Configure data source
+        if args.local:
+            data_source = _setup_local_api()
+        else:
+            # AWS mode: fetch and validate credentials
+            aws_url, pool_id, client_id = _fetch_and_validate_aws_credentials()
+            _configure_aws_and_auth(aws_url, pool_id, client_id)
+            data_source = "AWS"
 
-        # Run dashboard immediately without fetching credentials
-        # This ensures the dashboard renders and displays data instead of hanging
-        run_once(compact=False, data_source="LOCAL")
+        # Run dashboard with appropriate mode
+        if args.watch is not None:
+            run_watch(args.watch, args.compact, data_source)
+        else:
+            run_once(args.compact, data_source)
 
     except KeyboardInterrupt:
         pass
+    except SystemExit:
+        raise
     except Exception as e:
-        logger.error(f"Dashboard error: {e}", exc_info=True)
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Dashboard fatal error: {type(e).__name__}: {e}", exc_info=True)
         sys.exit(1)
 
 
 if __name__ == "__main__":
-    # EMERGENCY FIX: Run dashboard with 3-second timeout on data loading
-    # Bypass all argument parsing - just render the dashboard now with whatever data loads
-    try:
-        import os
-        # Force local mode by default - connect directly to database
-        os.environ.setdefault('DASHBOARD_API_URL', 'http://localhost:3001')
-
-        # Call run_once directly with 3-second data load timeout
-        # This bypasses all argument parsing and forces the dashboard to render
-        run_once(compact=False, data_source="LOCAL")
-    except KeyboardInterrupt:
-        pass
-    except Exception as e:
-        import sys
-        print(f"Dashboard error: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    main()
