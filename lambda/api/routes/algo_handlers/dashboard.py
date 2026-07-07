@@ -1302,14 +1302,30 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
 
                 import boto3
 
-                # Directly invoke ECS task to load fresh stock_scores
+                # Directly invoke ECS task with RDS credentials
+                # CRITICAL: Use correct environment variable names for loader:
+                # - RDS_HOST (not DB_WRITE_HOST)
+                # - RDS_USER=algo_admin (not algoadmin)
+                # - RDS_PASSWORD
                 ecs_client = boto3.client("ecs", region_name=os.getenv("AWS_REGION", "us-east-1"))
                 ecs_client.run_task(
                     cluster="algo-cluster",
                     taskDefinition="algo-stock_scores-loader:latest",
                     launchType="EC2",
+                    overrides={
+                        "containerOverrides": [
+                            {
+                                "name": "algo-stock_scores-loader",
+                                "environment": [
+                                    {"name": "RDS_HOST", "value": "algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com"},
+                                    {"name": "RDS_USER", "value": "algo_admin"},
+                                    {"name": "RDS_PASSWORD", "value": os.getenv("RDS_PASSWORD", "stocks")},
+                                ],
+                            }
+                        ]
+                    },
                 )
-                logger.info("[SCORES] Started ECS stock_scores loader task")
+                logger.info("[SCORES] Started ECS stock_scores loader task with RDS credentials")
             except Exception as refresh_err:
                 logger.error(f"[SCORES] Could not start loader task: {refresh_err}")
                 # Continue with stale data rather than failing the request over it
