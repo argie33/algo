@@ -17,7 +17,18 @@ import os
 import sys
 from pathlib import Path
 
-import psycopg2
+# When run inside the db-migration Lambda, psycopg2 comes from the shared
+# algo-psycopg2-layer-dev layer at /opt/python/lib/python3.12/site-packages. Lambda's
+# runtime bootstrap adds that path to sys.path for its own process, but this script is
+# invoked as a subprocess (lambda_function.py's run_migrations()) and setting PYTHONPATH
+# on that subprocess did not resolve ModuleNotFoundError in practice -- confirmed live
+# 2026-07-07. Adding the path directly here is unambiguous regardless of how sys.path
+# was (or wasn't) inherited. No-op outside Lambda since the path doesn't exist.
+_LAMBDA_LAYER_SITE_PACKAGES = "/opt/python/lib/python3.12/site-packages"
+if os.path.isdir(_LAMBDA_LAYER_SITE_PACKAGES) and _LAMBDA_LAYER_SITE_PACKAGES not in sys.path:
+    sys.path.insert(0, _LAMBDA_LAYER_SITE_PACKAGES)
+
+import psycopg2  # noqa: E402
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
