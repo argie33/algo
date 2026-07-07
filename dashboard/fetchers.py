@@ -202,16 +202,22 @@ def _execute_fetcher_batch(
                         out[k] = {"_error": timeout_msg}
             if critical_missing:
                 missing_str = "; ".join(f"{k}: {msg}" for k, msg in critical_missing)
-                raise RuntimeError(
+                logger.error(
                     f"[DASHBOARD CRITICAL] Critical fetcher(s) timed out: {missing_str}. "
-                    f"Cannot render dashboard without this data."
-                ) from None
+                    f"Dashboard will render with degraded data."
+                )
+                for k, timeout_msg in critical_missing:
+                    out[k] = {"_error": timeout_msg}
 
     return out
 
 
 def load_all() -> dict[str, Any]:
     """Load all fetcher data with priority-based execution to prevent RDS connection exhaustion.
+
+    FALLBACK MODE: If API endpoints are unreachable, fetchers will use direct database queries
+    as a fallback. This ensures the dashboard can display data even if Lambda functions aren't
+    responding. Critical for development and debugging scenarios.
 
     FIXES APPLIED:
     - Issue #1: Removed duplicate api_call() stub
@@ -383,9 +389,9 @@ def load_all() -> dict[str, Any]:
     # DASHBOARD OPTIMIZATION: Reduce batch timeout to 10s for critical fetchers
     # This prevents dashboard from hanging when API endpoints require auth or are slow
     # Fetchers degrade gracefully: return empty/error data instead of blocking
-    critical_batch_timeout = min(30, batch_timeout)  # Extended to 30s for slow VPC Lambda responses
+    critical_batch_timeout = min(15, batch_timeout)  # 15s for critical fetchers; graceful degradation if timeout
     critical_out = _execute_fetcher_batch(
-        critical_fetchers, 30, critical_batch_timeout, one, fetcher_timeout_seconds, "critical"
+        critical_fetchers, 15, critical_batch_timeout, one, fetcher_timeout_seconds, "critical"
     )
 
     # Log critical fetcher failures loudly, but degrade per-panel rather than
