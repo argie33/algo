@@ -187,35 +187,34 @@ resource "aws_lambda_function" "api" {
 # pointing to one. No "LIVE" qualifier exists on a Lambda function unless an alias with that
 # exact name is created; the config below previously pointed at a nonexistent alias, so every
 # terraform apply failed with "couldn't find resource" after retrying for ~2 minutes.
-# deploy-api-lambda.yml (out-of-band code deploys) publishes a new version and repoints this
-# alias after each deploy, so ignore_changes keeps Terraform from fighting that update.
-# CRITICAL FIX 2026-07-07: When Lambda function is replaced, the old alias must be destroyed
-# before creating a new one with the same name. Otherwise we get 409 ResourceConflictException.
-# Solution: Create the alias with explicit depends_on so it's created/destroyed with the function,
-# and use depends_on in provisioned concurrency to force ordering.
-resource "aws_lambda_alias" "api_live" {
-  count            = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
-  name             = "LIVE"
-  description      = "Provisioned-concurrency target; version pointer updated by deploy-api-lambda.yml"
-  function_name    = aws_lambda_function.api.function_name
-  function_version = aws_lambda_function.api.version
+# CRITICAL FIX 2026-07-07: Lambda alias management removed from Terraform.
+# Problem: Alias "LIVE" already exists in AWS but isn't in Terraform state. Every apply
+# tries to CREATE it, causing 409 ResourceConflictException. Terraform state is out of sync
+# with AWS reality, and there's no clean way to import it in the workflow.
+#
+# Solution: Let deploy-api-lambda.yml handle alias management (it already does):
+# 1. GitHub Actions publishes a new version when code changes
+# 2. GitHub Actions updates the LIVE alias to point to the new version
+# 3. Terraform creates provisioned concurrency pointing to the alias
+#
+# Provisioned concurrency can reference the alias directly by name (Terraform data source)
+# instead of creating the alias resource.
 
-  # Ensure alias is destroyed/recreated when Lambda function is replaced
-  depends_on = [aws_lambda_function.api]
-
-  lifecycle {
-    ignore_changes = [function_version]
-  }
+data "aws_lambda_alias" "api_live" {
+  count             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
+  name              = "LIVE"
+  function_name     = aws_lambda_function.api.function_name
+  depends_on        = [aws_lambda_function.api]
 }
 
 resource "aws_lambda_provisioned_concurrency_config" "api" {
   # Only create if: provisioned concurrency is enabled
   count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.api.function_name
-  qualifier                         = aws_lambda_alias.api_live[0].name
+  qualifier                         = "LIVE"  # Reference the alias by name directly
   provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
 
-  depends_on = [aws_lambda_alias.api_live]
+  depends_on = [aws_lambda_function.api]
 }
 
 # ============================================================
