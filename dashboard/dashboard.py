@@ -386,13 +386,14 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             if result[0] is not None:
                 state.result = result[0]
             else:
+                logger.warning("load_all() returned None (timeout)")
                 state.result = {}  # Empty dict if timeout
 
             state.elapsed = time.monotonic() - t0
             state.last_load = time.monotonic()
             state.loading = False
         except Exception as e:
-            logger.error(f"Reload thread error: {type(e).__name__}: {e}")
+            logger.error(f"Reload thread error: {type(e).__name__}: {e}", exc_info=True)
             state.loading = False
             state.error = f"{type(e).__name__}: {e}"
 
