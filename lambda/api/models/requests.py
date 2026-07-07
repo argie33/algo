@@ -8,20 +8,12 @@ from typing import Any, cast
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-# Import security validators - handle both test (sys.path based) and Lambda (package based) contexts
-try:
-    from ..security_validators import (
-        ValidationError,
-        validate_email,
-        validate_symbol,
-    )
-except (ImportError, ValueError):
-    # Fallback for test context where lambda/api is added to sys.path
-    from security_validators import (  # type: ignore[no-redef]
-        ValidationError,
-        validate_email,
-        validate_symbol,
-    )
+# Import security validators (package import works in Lambda context)
+from security_validators import (
+    ValidationError,
+    validate_email,
+    validate_symbol,
+)
 
 logger = logging.getLogger(__name__)
 

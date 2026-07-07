@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseResultValidator:
@@ -118,6 +121,19 @@ class DatabaseResultValidator:
         if not isinstance(data, list) or len(data) == 0:
             return None
         return data[0]
+
+    @staticmethod
+    def validate_rows_not_empty(data: list[dict[str, Any]] | None, context: str = "") -> bool:
+        """Verify rows list is not None or empty.
+
+        Args:
+            data: List of database results
+            context: Description for logging (e.g., "prices batch query")
+
+        Returns:
+            True if data exists and has rows, False otherwise
+        """
+        return isinstance(data, list) and len(data) > 0
 
 
 class APIResponseValidator:
@@ -299,3 +315,100 @@ def assert_safe_column(column_name: str) -> str:
         raise ValueError(f"Column name contains unsafe characters: {column_name}")
 
     return column_name
+
+
+class DynamoDBValidator:
+    """Utility class for validating DynamoDB API responses."""
+
+    @staticmethod
+    def validate_get_item_response(response: Any) -> dict[str, Any]:
+        """Validate DynamoDB get_item response.
+
+        Args:
+            response: DynamoDB get_item response
+
+        Returns:
+            Dict with 'valid' (bool), 'errors' (list), and 'item' (dict or None)
+        """
+        if not isinstance(response, dict):
+            return {"valid": False, "errors": ["Response is not a dict"], "item": None}
+
+        errors: list[str] = []
+
+        # Check for HTTP errors
+        if response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 200:
+            status_code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+            errors.append(f"HTTP status {status_code}")
+
+        item = response.get("Item")
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+            "item": item,
+        }
+
+    @staticmethod
+    def validate_put_item_response(response: Any) -> dict[str, Any]:
+        """Validate DynamoDB put_item response.
+
+        Args:
+            response: DynamoDB put_item response
+
+        Returns:
+            Dict with 'valid' (bool) and 'errors' (list)
+        """
+        if not isinstance(response, dict):
+            return {"valid": False, "errors": ["Response is not a dict"]}
+
+        errors: list[str] = []
+
+        # Check for HTTP errors
+        if response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 200:
+            status_code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+            errors.append(f"HTTP status {status_code}")
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+        }
+
+    @staticmethod
+    def validate_update_item_response(response: Any) -> dict[str, Any]:
+        """Validate DynamoDB update_item response.
+
+        Args:
+            response: DynamoDB update_item response
+
+        Returns:
+            Dict with 'valid' (bool) and 'errors' (list)
+        """
+        if not isinstance(response, dict):
+            return {"valid": False, "errors": ["Response is not a dict"]}
+
+        errors: list[str] = []
+
+        # Check for HTTP errors
+        if response.get("ResponseMetadata", {}).get("HTTPStatusCode") != 200:
+            status_code = response.get("ResponseMetadata", {}).get("HTTPStatusCode")
+            errors.append(f"HTTP status {status_code}")
+
+        return {
+            "valid": len(errors) == 0,
+            "errors": errors,
+        }
+
+    @staticmethod
+    def log_validation_errors(errors: list[str], context: str = "") -> None:
+        """Log validation errors.
+
+        Args:
+            errors: List of error messages
+            context: Context description for logging
+        """
+        if not errors:
+            return
+
+        context_str = f" ({context})" if context else ""
+        for error in errors:
+            logger.error(f"DynamoDB validation error{context_str}: {error}")

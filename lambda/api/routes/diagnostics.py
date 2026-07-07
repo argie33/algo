@@ -9,7 +9,8 @@ from psycopg2.extensions import cursor
 from routes.utils import db_route_handler, json_response
 
 
-@db_route_handler("check data sync health")  # type: ignore[untyped-decorator]
+@db_route_handler("check data sync health")
+
 def _check_data_sync_health(cur: cursor) -> Any:
     """Check if position data sources are synchronized.
 

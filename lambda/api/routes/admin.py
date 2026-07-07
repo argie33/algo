@@ -148,7 +148,8 @@ def handle(
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get loader status")  # type: ignore[untyped-decorator]
+@db_route_handler("get loader status")
+
 def _get_loader_status(cur: cursor) -> Any:
     """Get status of all data loaders from data_loader_status table.
 
@@ -228,7 +229,8 @@ def _get_loader_status(cur: cursor) -> Any:
     return response
 
 
-@db_route_handler("get system health")  # type: ignore[untyped-decorator]
+@db_route_handler("get system health")
+
 def _get_system_health(cur: cursor) -> Any:
     """Get overall system health status."""
     health_data: dict[str, Any] = {"status": "healthy", "components": {}}
@@ -329,7 +331,8 @@ def _get_system_health(cur: cursor) -> Any:
     return json_response(200, health_data)
 
 
-@db_route_handler("get database stats")  # type: ignore[untyped-decorator]
+@db_route_handler("get database stats")
+
 def _get_database_stats(cur: cursor) -> Any:
     """Get database statistics (schema-safe version - no table name exposure)."""
     stats = {}
@@ -374,7 +377,8 @@ def _get_database_stats(cur: cursor) -> Any:
     return json_response(200, stats)
 
 
-@db_route_handler("get data quality")  # type: ignore[untyped-decorator]
+@db_route_handler("get data quality")
+
 def _get_data_quality(cur: cursor) -> Any:
     """Get data quality metrics."""
     quality: dict[str, Any] = {

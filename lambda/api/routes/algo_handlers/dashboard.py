@@ -42,8 +42,10 @@ _signals_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_sec
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("fetch algo positions")  # type: ignore[untyped-decorator]
-@validate_api_response("pos")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo positions")
+
+@validate_api_response("pos")
+
 def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa: C901
     """Get current open positions with computed fields.
 
@@ -379,8 +381,10 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     return cached_response
 
 
-@db_route_handler("fetch algo status")  # type: ignore[untyped-decorator]
-@validate_api_response("run")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo status")
+
+@validate_api_response("run")
+
 def _get_algo_status(cur: cursor) -> Any:
     """Get latest algo execution status plus latest portfolio snapshot.
 
@@ -483,8 +487,10 @@ def _get_algo_status(cur: cursor) -> Any:
     )
 
 
-@db_route_handler("fetch algo trades")  # type: ignore[untyped-decorator]
-@validate_api_response("trades")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo trades")
+
+@validate_api_response("trades")
+
 def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None) -> Any:
     """Get recent trades with all fields for frontend.
 
@@ -540,8 +546,10 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
     return json_response(200, sanitized)
 
 
-@db_route_handler("fetch circuit breakers")  # type: ignore[untyped-decorator]
-@validate_api_response("cb")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch circuit breakers")
+
+@validate_api_response("cb")
+
 def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
     """Get real-time circuit breaker state with current values vs thresholds."""
     try:
@@ -1158,8 +1166,10 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch dashboard signals")  # type: ignore[untyped-decorator]
-@validate_api_response("sig")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch dashboard signals")
+
+@validate_api_response("sig")
+
 def _get_dashboard_signals(cur: cursor) -> Any:
     """Get dashboard-specific signal data with aggregations for the Ops Terminal.
 
@@ -1280,8 +1290,10 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch dashboard scores")  # type: ignore[untyped-decorator]
-@validate_api_response("scores")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch dashboard scores")
+
+@validate_api_response("scores")
+
 def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
     """Get top stock scores with composite and component scores for dashboard."""
     try:
@@ -1327,7 +1339,8 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch equity curve")
+
 def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
     """Get equity curve for last N days."""
     try:

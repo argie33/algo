@@ -1789,11 +1789,16 @@ jobs:
             fi
           else
             echo "[INFO] Creating temporary Lambda: $LAMBDA_NAME"
-            # Use the existing Lambda execution role that already has VPC/DB/Secrets Manager permissions
-            ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-svc-lambda-execution-dev"
+            # algo-svc-lambda-execution-dev does not exist / has no lambda.amazonaws.com trust
+            # relationship ("The role defined for the function cannot be assumed by Lambda",
+            # confirmed live 2026-07-07). Use algo-lambda-algo-dev instead -- it's the orchestrator's
+            # actual Terraform-managed role (terraform/modules/iam/main.tf aws_iam_role.lambda_algo),
+            # already has a working lambda.amazonaws.com trust policy, VPC access, and Secrets Manager
+            # read on algo-db-credentials-dev.
+            ROLE_ARN="arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/algo-lambda-algo-dev"
 
             # Create Lambda with existing execution role
-            # The role algo-svc-lambda-execution-dev already has:
+            # The role algo-lambda-algo-dev already has:
             # - VPC access (ENI management)
             # - RDS Secrets Manager read permissions
             # - CloudWatch Logs permissions

@@ -249,6 +249,12 @@ def handle(  # noqa: C901
                     "service_unavailable",
                     f"Analyst sentiment data unavailable for {symbol} — no coverage in analyst_sentiment_analysis table",
                 )
+            if latest is None:
+                return error_response(
+                    503,
+                    "no_data",
+                    f"No analyst sentiment data available for {symbol}",
+                )
             # Use latest row for metrics summary
             total_val = latest.get("analyst_count")
             bull_val = latest.get("bullish_count")
@@ -278,6 +284,8 @@ def handle(  # noqa: C901
                     "lastUpdated": None,
                 }
 
+            # After above checks, all values are guaranteed not None
+            assert total_val is not None and bull_val is not None and bear_val is not None and neut_val is not None
             try:
                 total = int(total_val)
                 bull = int(bull_val)
@@ -389,6 +397,18 @@ def handle(  # noqa: C901
                         "priceTargets": [],
                     },
                 )
+            if latest is None:
+                return json_response(
+                    200,
+                    {
+                        "data_unavailable": True,
+                        "reason": "No analyst sentiment data available",
+                        "sentiment": None,
+                        "priceTargets": [],
+                    },
+                )
+            # After above check, latest is guaranteed to be dict
+            assert isinstance(latest, dict)
             total_val = latest.get("analyst_count")
             bull_val = latest.get("bullish_count")
             bear_val = latest.get("bearish_count")
@@ -417,6 +437,8 @@ def handle(  # noqa: C901
                     "lastUpdated": None,
                 }
 
+            # After above checks, all values are guaranteed not None
+            assert total_val is not None and bull_val is not None and bear_val is not None and neut_val is not None
             try:
                 total = int(total_val)
                 bull = int(bull_val)

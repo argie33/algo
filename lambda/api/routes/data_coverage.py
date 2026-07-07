@@ -55,8 +55,8 @@ def get_price_coverage(cur: cursor) -> Any:
             timeout_sec=10,
         )
 
-        row = DatabaseResultValidator.safe_get_first_row(rows, "price coverage")
-        if isinstance(row, dict) and row.get("data_unavailable"):
+        row = DatabaseResultValidator.safe_get_first_row(rows)
+        if row is None:
             return error_response(503, "no_data", "Price data not yet available")
 
         total_symbols = row["total_symbols"]

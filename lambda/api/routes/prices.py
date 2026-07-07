@@ -313,6 +313,7 @@ def handle(  # noqa: C901
         elif len(parts) >= 4 and parts[3] == "batch-history":
             # HIGH-007 FIX: Remove redundant OR fallback — extract_param already uses default=""
             symbols_raw = extract_param(params, "symbols", required=False, default="")
+            assert isinstance(symbols_raw, str), f"Expected str, got {type(symbols_raw).__name__}"
             symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]
             if not symbols:
                 return error_response(400, "bad_request", "symbols parameter required")
@@ -355,14 +356,15 @@ def handle(  # noqa: C901
             # FAIL-FAST: Extract symbol with safe validation in batch processing
             found_symbols = set()
             for row in rows:
-                sym = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
-                if sym is None:
+                sym_raw = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
+                if sym_raw is None:
                     raise RuntimeError(
                         "BUG: safe_get_str with strict=True returned None. "
                         "This indicates data corruption or validation bypass."
                     )
-                result3[sym].append(safe_json_serialize(dict(row)))
-                found_symbols.add(sym)
+                # After above check, sym_raw is narrowed to str
+                result3[sym_raw].append(safe_json_serialize(dict(row)))
+                found_symbols.add(sym_raw)
 
             missing = [s for s in symbols if s not in found_symbols]
             if missing:
@@ -382,13 +384,14 @@ def handle(  # noqa: C901
                 if etf_rows:
                     for row in etf_rows:
                         # FAIL-FAST: Extract symbol with safe validation in ETF batch processing
-                        sym = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
-                        if sym is None:
+                        sym_raw = DatabaseResultValidator.safe_get_str(row, "symbol", strict=True)
+                        if sym_raw is None:
                             raise RuntimeError(
                                 "BUG: safe_get_str with strict=True returned None. "
                                 "This indicates data corruption or validation bypass."
                             )
-                        result3[sym].append(safe_json_serialize(dict(row)))
+                        # After above check, sym_raw is narrowed to str
+                        result3[sym_raw].append(safe_json_serialize(dict(row)))
 
             batch_result = {"symbols": result3, "limit": limit}
             is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", batch_result)
