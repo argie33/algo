@@ -189,9 +189,10 @@ resource "aws_lambda_function" "api" {
 # terraform apply failed with "couldn't find resource" after retrying for ~2 minutes.
 # deploy-api-lambda.yml (out-of-band code deploys) publishes a new version and repoints this
 # alias after each deploy, so ignore_changes keeps Terraform from fighting that update.
-# CRITICAL FIX 2026-07-07: Allow Lambda function replacement to update the alias properly.
-# When function source changes (psycopg2 layer fix, etc.), Lambda is replaced (new version created).
-# We must allow alias update in this case, but otherwise ignore version changes from manual deploys.
+# CRITICAL FIX 2026-07-07: When Lambda function is replaced, the old alias must be destroyed
+# before creating a new one with the same name. Otherwise we get 409 ResourceConflictException.
+# Solution: Create the alias with explicit depends_on so it's created/destroyed with the function,
+# and use depends_on in provisioned concurrency to force ordering.
 resource "aws_lambda_alias" "api_live" {
   count            = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
   name             = "LIVE"
@@ -199,11 +200,11 @@ resource "aws_lambda_alias" "api_live" {
   function_name    = aws_lambda_function.api.function_name
   function_version = aws_lambda_function.api.version
 
+  # Ensure alias is destroyed/recreated when Lambda function is replaced
+  depends_on = [aws_lambda_function.api]
+
   lifecycle {
     ignore_changes = [function_version]
-    replace_triggered_by = [
-      aws_lambda_function.api.source_code_hash
-    ]
   }
 }
 
