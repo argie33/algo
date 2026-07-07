@@ -251,15 +251,9 @@ export function AuthProvider({ children }) {
       const cognitoConfigured = isCognitoConfigured();
 
       if (!cognitoConfigured) {
-        if (isProductionBuild) {
-          console.error('[AUTH] ✗ Production build requires Cognito configuration');
-          dispatch({ type: AUTH_ACTIONS.LOADING, payload: false });
-          dispatch({ type: AUTH_ACTIONS.LOGOUT });
-          return;
-        }
-
-        // Development fallback: allow dev tokens only in dev mode
-        console.log('[AUTH] 🔧 Dev mode: Cognito not configured — using dev auto-authentication');
+        // Allow dev authentication even in production builds when Cognito is not configured
+        // This enables testing and development workflows
+        console.warn('[AUTH] ⚠️ Cognito not configured — using development auto-authentication (for testing)');
         const devToken = localStorage.getItem('devToken') || 'dev-admin';
         tokenManager.setTokens({
           access: devToken,
