@@ -66,7 +66,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         )
         return _positions_cache["data"]
 
-    cur.execute("SET LOCAL statement_timeout = '10000ms'")
+    cur.execute("SET LOCAL statement_timeout = '30000ms'")
 
     # Initialize alerts tracking early so it can be used throughout
     stale_alerts = []
