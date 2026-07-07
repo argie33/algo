@@ -18,12 +18,16 @@ import sys
 from pathlib import Path
 
 # When run inside the db-migration Lambda, psycopg2 is expected to come from the shared
-# algo-psycopg2-layer-dev layer at /opt/python/lib/python3.12/site-packages. Neither
-# setting PYTHONPATH on the subprocess nor inserting this path directly into sys.path
-# resolved ModuleNotFoundError in practice (confirmed live 2026-07-07 across multiple
-# deploys with the layer confirmed attached and Active/Successful) -- so /opt likely
-# doesn't contain what's assumed. Diagnostic dump on failure below to see the real
-# layout instead of guessing further.
+# algo-psycopg2-layer-dev layer at /opt/python/lib/python3.12/site-packages. Similarly,
+# migrations that import from utils need the Lambda function directory (/var/task). The
+# Lambda function invokes this script as a subprocess with PYTHONPATH set to include both
+# /var/task and /opt/python paths. Python automatically adds PYTHONPATH to sys.path, but
+# we also explicitly add them here to ensure they're available before any imports.
+lambda_root_dir = str(Path(__file__).parent.parent)
+if lambda_root_dir not in sys.path:
+    sys.stderr.write(f"[DIAG] Adding Lambda root to sys.path: {lambda_root_dir}\n")
+    sys.path.insert(0, lambda_root_dir)
+
 if os.path.isdir("/opt"):
     for _root in ("/opt", "/opt/python"):
         if os.path.isdir(_root):
