@@ -67,26 +67,19 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         )
         return _positions_cache["data"]
 
-    # Set VERY SHORT timeout (2 seconds) - skip slow view entirely, use fast direct query
-    cur.execute("SET LOCAL statement_timeout = '2000ms'")
+    # Use 25-second timeout (safe before API Gateway 30s limit)
+    # This allows slow queries to complete rather than timeout
+    cur.execute("SET LOCAL statement_timeout = '25000ms'")
 
     # Initialize alerts tracking early so it can be used throughout
     stale_alerts = []
 
-    # Use FAST direct table query (algo_positions base table, not slow materialized view)
-    # Views with CTEs/joins are too slow for API Gateway's 30s timeout
-    # Direct table query completes in <500ms
+    # Query algo_positions base table directly instead of complex materialized view
     try:
-        cur.execute("""
-            SELECT * FROM algo_positions
-            WHERE status = 'open'
-            ORDER BY position_value DESC NULLS LAST
-            LIMIT 1000
-        """)
-        positions = cur.fetchall()
-        logger.info(f"[POSITIONS] Direct algo_positions query returned {len(positions)} positions")
+        positions = get_open_positions(cur, limit=1000)
+        logger.info(f"[POSITIONS] get_open_positions returned {len(positions)} positions")
     except Exception as e:
-        logger.error(f"[POSITIONS] Query failed: {type(e).__name__}: {e}")
+        logger.error(f"[POSITIONS] Query failed: {type(e).__name__}: {str(e)[:100]}")
         positions = []
 
     if not positions:
@@ -1288,8 +1281,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
     """Get top stock scores with composite and component scores for dashboard."""
     try:
-        # Fast direct query - no joins, no CTEs (they cause 30-40s timeouts)
-        cur.execute("SET LOCAL statement_timeout = '2000ms'")
+        # Allow 25 seconds for query to complete (safe before API Gateway limit)
+        cur.execute("SET LOCAL statement_timeout = '25000ms'")
         cur.execute("""
             SELECT symbol, composite_score, growth_score, momentum_score,
                    quality_score, value_score, stability_score, positioning_score,
