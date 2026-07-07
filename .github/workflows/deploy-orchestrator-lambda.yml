@@ -104,7 +104,7 @@ jobs:
       - name: Deploy to Lambda
         run: |
           aws lambda update-function-code \
-            --function-name algo-algo-dev \
+            --function-name algo-orchestrator-dev \
             --zip-file fileb://orchestrator_lambda.zip \
             --region us-east-1 \
             --query '{FunctionName:FunctionName,LastModified:LastModified,CodeSize:CodeSize}' \
