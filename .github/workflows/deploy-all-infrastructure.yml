@@ -1749,6 +1749,17 @@ jobs:
             echo "[OK] db-init Lambda invoked" || \
             echo "[WARN] db-init Lambda unavailable - proceeding with migrations"
 
+      - name: Verify Terraform State Availability
+        working-directory: terraform
+        run: |
+          echo "=== Terraform State Diagnostics ==="
+          if terraform state list 2>/dev/null | grep -q "aws_vpc"; then
+            echo "[OK] Terraform state is available and contains VPC resources"
+            terraform output -json 2>/dev/null | jq 'keys' || echo "[WARN] Could not list terraform outputs"
+          else
+            echo "[WARN] Terraform state unavailable or empty — AWS CLI fallbacks will be used"
+          fi
+
       - name: Build and Invoke db-migration Lambda
         run: |
           set -e
@@ -1795,7 +1806,17 @@ jobs:
           # actually needed the fix. Attempting update-function-code directly and only
           # creating on a genuine "not found" avoids that race entirely.
           VPC_ID=$(cd terraform && terraform output -raw vpc_id 2>/dev/null || echo "")
-          PRIVATE_SUBNETS=$(cd terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r '.[]' | tr '\n' ',' | sed 's/,$//')
+          if [ -z "$VPC_ID" ]; then
+            # Fallback: Query AWS directly if terraform output fails
+            VPC_ID=$(aws ec2 describe-vpcs --filters "Name=tag:Name,Values=algo-vpc" "Name=tag:ManagedBy,Values=Terraform" --query 'Vpcs[0].VpcId' --output text --region $AWS_REGION 2>/dev/null || echo "")
+          fi
+
+          PRIVATE_SUBNETS=$(cd terraform && terraform output -json private_subnet_ids 2>/dev/null | jq -r '.[]' 2>/dev/null | tr '\n' ',' | sed 's/,$//')
+          if [ -z "$PRIVATE_SUBNETS" ]; then
+            # Fallback: Query AWS directly if terraform output fails
+            PRIVATE_SUBNETS=$(aws ec2 describe-subnets --filters "Name=vpc-id,Values=${VPC_ID}" "Name=tag:Type,Values=Private" --query 'Subnets[*].SubnetId' --output text --region $AWS_REGION 2>/dev/null | tr ' ' ',' | sed 's/,$//')
+          fi
+
           RDS_SG=$(cd terraform && terraform output -raw rds_security_group_id 2>/dev/null || aws ec2 describe-security-groups --filters "Name=tag:Name,Values=algo-rds-sg" --query 'SecurityGroups[0].GroupId' --output text --region $AWS_REGION 2>/dev/null || echo "")
           DB_SECRET_ARN=$(aws secretsmanager list-secrets --region $AWS_REGION --query "SecretList[?Name=='algo-db-credentials-dev'].ARN" --output text 2>/dev/null || echo "")
           # requirements.txt lists psycopg2-binary, but this Lambda's own package (built by
@@ -1816,15 +1837,21 @@ jobs:
             echo "[INFO] Updated existing Lambda: $LAMBDA_NAME"
             aws lambda wait function-updated --function-name "$LAMBDA_NAME" --region $AWS_REGION
 
+            if [ -z "$VPC_ID" ] || [ -z "$PRIVATE_SUBNETS" ] || [ -z "$RDS_SG" ] || [ "$RDS_SG" = "None" ]; then
+              echo "[ERROR] Cannot update db-migration Lambda - VPC config incomplete:"
+              echo "  VPC_ID: '${VPC_ID:-EMPTY}'"
+              echo "  PRIVATE_SUBNETS: '${PRIVATE_SUBNETS:-EMPTY}'"
+              echo "  RDS_SG: '${RDS_SG:-EMPTY}'"
+              exit 1
+            fi
+
+            CONFIG_ARGS=""
             if [ ! -z "$PSYCOPG2_LAYER_ARN" ]; then
               CONFIG_ARGS="--layers $PSYCOPG2_LAYER_ARN"
             else
               echo "[WARN] Could not resolve psycopg2 layer ARN; migrations will fail on import"
-              CONFIG_ARGS=""
             fi
-            if [ ! -z "$VPC_ID" ] && [ ! -z "$PRIVATE_SUBNETS" ] && [ ! -z "$RDS_SG" ] && [ "$RDS_SG" != "None" ]; then
-              CONFIG_ARGS="$CONFIG_ARGS --vpc-config SubnetIds=$PRIVATE_SUBNETS,SecurityGroupIds=$RDS_SG"
-            fi
+            CONFIG_ARGS="$CONFIG_ARGS --vpc-config SubnetIds=$PRIVATE_SUBNETS,SecurityGroupIds=$RDS_SG"
             echo "[INFO] Updating Lambda config (layer + VPC + environment + timeout)"
             # 91 migrations in migrations/versions/ have never successfully applied before
             # (every earlier bug in this pipeline blocked them); the first real run needs
@@ -1854,33 +1881,27 @@ jobs:
             fi
 
             if [ -z "$VPC_ID" ] || [ -z "$PRIVATE_SUBNETS" ] || [ -z "$RDS_SG" ] || [ "$RDS_SG" = "None" ]; then
-              echo "[WARN] VPC config incomplete (VPC=$VPC_ID, Subnets=$PRIVATE_SUBNETS, SG=$RDS_SG), creating Lambda without VPC access (will fail)"
-              aws lambda create-function \
-                --function-name "$LAMBDA_NAME" \
-                --runtime python3.12 \
-                --role "$ROLE_ARN" \
-                --handler lambda_function.lambda_handler \
-                --zip-file fileb://migration_lambda.zip \
-                --timeout 900 \
-                --memory-size 512 \
-                $LAYER_ARGS \
-                --region $AWS_REGION \
-                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
-            else
-              echo "[INFO] Creating Lambda with VPC access: Subnets=$PRIVATE_SUBNETS, SG=$RDS_SG"
-              aws lambda create-function \
-                --function-name "$LAMBDA_NAME" \
-                --runtime python3.12 \
-                --role "$ROLE_ARN" \
-                --handler lambda_function.lambda_handler \
-                --zip-file fileb://migration_lambda.zip \
-                --timeout 900 \
-                --memory-size 512 \
-                $LAYER_ARGS \
-                --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
-                --region $AWS_REGION \
-                --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
+              echo "[ERROR] VPC config incomplete:"
+              echo "  VPC_ID: '${VPC_ID:-EMPTY}'"
+              echo "  PRIVATE_SUBNETS: '${PRIVATE_SUBNETS:-EMPTY}'"
+              echo "  RDS_SG: '${RDS_SG:-EMPTY}'"
+              echo "[ERROR] Cannot create db-migration Lambda without VPC access to RDS"
+              exit 1
             fi
+
+            echo "[INFO] Creating Lambda with VPC access: Subnets=$PRIVATE_SUBNETS, SG=$RDS_SG"
+            aws lambda create-function \
+              --function-name "$LAMBDA_NAME" \
+              --runtime python3.12 \
+              --role "$ROLE_ARN" \
+              --handler lambda_function.lambda_handler \
+              --zip-file fileb://migration_lambda.zip \
+              --timeout 900 \
+              --memory-size 512 \
+              $LAYER_ARGS \
+              --vpc-config SubnetIds="$PRIVATE_SUBNETS",SecurityGroupIds="$RDS_SG" \
+              --region $AWS_REGION \
+              --environment "Variables={DB_NAME=algo,DB_SECRET_ARN=${DB_SECRET_ARN}}"
             # function-active only waits for State=Active, which can flip before the layer
             # and VPC config finish provisioning (LastUpdateStatus stays InProgress longer,
             # especially with VPC ENIs). Confirmed live 2026-07-07: invoking right after
