@@ -1383,6 +1383,15 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         ) as e:
             code, error_type, message = handle_db_error(e, "fetch dashboard scores")
             return error_response(code, error_type, message)
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch dashboard scores")
+        return error_response(code, error_type, message)
 
 
 @db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
