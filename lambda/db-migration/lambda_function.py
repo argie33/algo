@@ -146,7 +146,16 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
 
         # Run migrations/run.py with credentials from stdin
         # This avoids passing sensitive data as environment variables
-        migration_script = Path(__file__).parent.parent.parent / "migrations" / "run.py"
+        #
+        # NOTE: .parent.parent.parent assumed the local repo layout (lambda/db-migration/
+        # lambda_function.py, three levels above a repo-root migrations/ dir). The deployed
+        # Lambda package flattens this: deploy-all-infrastructure.yml copies
+        # lambda_function.py to the package root and migrations/versions/ + migrations/run.py
+        # to a sibling migrations/ directory, so migrations/run.py sits one level below
+        # lambda_function.py's own directory, not three. Confirmed live 2026-07-07: every
+        # invocation failed with "Migration script not found: /migrations/run.py" (resolved
+        # from filesystem root, not /var/task).
+        migration_script = Path(__file__).parent / "migrations" / "run.py"
 
         if not migration_script.exists():
             return {

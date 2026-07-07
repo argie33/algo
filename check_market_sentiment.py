@@ -8,7 +8,7 @@ try:
     conn = psycopg2.connect(
         host=os.environ.get('DB_HOST', 'localhost'),
         user=os.environ.get('DB_USER', 'algo'),
-        password=os.environ.get('DB_PASSWORD', 'algo'),
+        password=os.environ.get('DB_PASSWORD'),
         database=os.environ.get('DB_NAME', 'algo'),
         connect_timeout=5
     )

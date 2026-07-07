@@ -140,7 +140,7 @@ def get_db_connection() -> psycopg2.extensions.connection:
             host=os.environ.get('DB_HOST', 'localhost'),
             database=os.environ.get('DB_NAME', 'stocks'),
             user=os.environ.get('DB_USER', 'postgres'),
-            password=os.environ.get('DB_PASSWORD', ''),
+            password=os.environ['DB_PASSWORD'],
             port=int(os.environ.get('DB_PORT', 5432)),
             connect_timeout=10
         )
