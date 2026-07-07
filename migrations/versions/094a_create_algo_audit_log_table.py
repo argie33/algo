@@ -20,10 +20,14 @@ DESCRIPTION = "Create algo_audit_log table for trading activity audit trail"
 def up():
     """Create algo_audit_log table with all required columns."""
     with DatabaseContext("write") as cur:
+        # First drop the table if it exists to ensure clean schema
+        # (If prior migration failed partway, table might exist in incomplete state)
+        cur.execute("DROP TABLE IF EXISTS algo_audit_log CASCADE;")
+
         # Create main audit log table
         # Tracks all trading actions, circuit breaker state changes, position reconciliation, etc.
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS algo_audit_log (
+            CREATE TABLE algo_audit_log (
                 id SERIAL PRIMARY KEY,
                 action_type VARCHAR(100) NOT NULL,
                 symbol VARCHAR(20),
@@ -34,7 +38,7 @@ def up():
                 error_message TEXT,
                 severity VARCHAR(50),
                 created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-                -- Columns added by migration 095 (added here to avoid ALTER TABLE failure)
+                -- Columns for extended audit trail (migration 095 expects these)
                 operation_type VARCHAR(50),
                 entity_type VARCHAR(50),
                 entity_id VARCHAR(100),
