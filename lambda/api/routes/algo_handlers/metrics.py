@@ -65,7 +65,6 @@ def _ensure_portfolio_fields(data: dict[str, Any]) -> Any:
 
 
 @db_route_handler("get algo metrics")
-
 def _get_algo_metrics(cur: cursor) -> Any:
     """Get daily algo metrics (total actions, entries, exits). Fail-fast if unavailable."""
     try:
@@ -139,9 +138,7 @@ def _get_algo_metrics(cur: cursor) -> Any:
 
 
 @db_route_handler("calculate performance")
-
 @validate_api_response("perf")
-
 def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     """Get comprehensive algo performance metrics from pre-computed daily snapshot.
 
@@ -568,9 +565,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
 
 
 @db_route_handler("get algo portfolio")
-
 @validate_api_response("port")
-
 def _get_algo_portfolio(cur: cursor) -> Any:
     """Get latest portfolio snapshot data with structured unrealized PnL breakdown.
 
@@ -729,9 +724,7 @@ def _get_algo_portfolio(cur: cursor) -> Any:
 
 
 @db_route_handler("get daily return histogram")
-
 @validate_api_response("perf")
-
 def _get_daily_return_histogram(cur: cursor) -> Any:
     """Return histogram of daily portfolio returns with stats."""
     cur.execute("""
@@ -785,9 +778,7 @@ def _get_daily_return_histogram(cur: cursor) -> Any:
 
 
 @db_route_handler("get holding period distribution")
-
 @validate_api_response("perf")
-
 def _get_holding_period_distribution(cur: cursor) -> Any:
     """Return distribution of position holding periods in days."""
     cur.execute("""
@@ -846,9 +837,7 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
 
 
 @db_route_handler("get performance analytics")
-
 @validate_api_response("perf_anl")
-
 def _get_performance_analytics(cur: cursor) -> Any:
     """Get performance analytics data from algo_performance_metrics. Fail-fast if unavailable."""
     try:
@@ -1004,9 +993,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
 
 
 @db_route_handler("get performance metrics endpoint")
-
 @validate_api_response("perf")
-
 def _get_performance_metrics_endpoint(cur: cursor) -> Any:
     """Return latest performance metrics. Gracefully degrade if table is empty."""
     try:
@@ -1064,9 +1051,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
 
 
 @db_route_handler("get portfolio summary")
-
 @validate_api_response("port")
-
 def _get_portfolio_summary(cur: cursor) -> Any:
     """Return portfolio summary with current value and allocation."""
     cur.execute("""
@@ -1125,9 +1110,7 @@ def _get_portfolio_summary(cur: cursor) -> Any:
 
 
 @db_route_handler("get risk metrics")
-
 @validate_api_response("risk")
-
 def _get_risk_metrics(cur: cursor) -> Any:
     """Get portfolio risk metrics. Fail-fast if unavailable."""
     try:
@@ -1191,9 +1174,7 @@ def _get_risk_metrics(cur: cursor) -> Any:
 
 
 @db_route_handler("get stage distribution")
-
 @validate_api_response("perf")
-
 def _get_stage_distribution(cur: cursor) -> Any:
     """Return distribution of positions by Weinstein stage."""
     cur.execute("""
@@ -1226,9 +1207,7 @@ def _get_stage_distribution(cur: cursor) -> Any:
 
 
 @db_route_handler("get trade distribution")
-
 @validate_api_response("perf")
-
 def _get_trade_distribution(cur: cursor) -> Any:
     """Return distribution of trade outcomes by R-multiple."""
     cur.execute("""

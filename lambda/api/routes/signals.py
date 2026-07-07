@@ -111,7 +111,6 @@ def handle(
 
 
 @db_route_handler("fetch stock signals")
-
 def _get_signals_stocks(
     cur: cursor, limit: int = 500, timeframe: str = "daily", symbol_filter: str | None = None
 ) -> Any:
@@ -241,7 +240,6 @@ def _get_signals_stocks(
 
 
 @db_route_handler("fetch ETF signals")
-
 def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
     """Get ETF market-regime signals from price_daily + trend_template_data.
 

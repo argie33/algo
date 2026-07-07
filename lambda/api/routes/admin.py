@@ -149,7 +149,6 @@ def handle(
 
 
 @db_route_handler("get loader status")
-
 def _get_loader_status(cur: cursor) -> Any:
     """Get status of all data loaders from data_loader_status table.
 
@@ -230,7 +229,6 @@ def _get_loader_status(cur: cursor) -> Any:
 
 
 @db_route_handler("get system health")
-
 def _get_system_health(cur: cursor) -> Any:
     """Get overall system health status."""
     health_data: dict[str, Any] = {"status": "healthy", "components": {}}
@@ -332,7 +330,6 @@ def _get_system_health(cur: cursor) -> Any:
 
 
 @db_route_handler("get database stats")
-
 def _get_database_stats(cur: cursor) -> Any:
     """Get database statistics (schema-safe version - no table name exposure)."""
     stats = {}
@@ -378,7 +375,6 @@ def _get_database_stats(cur: cursor) -> Any:
 
 
 @db_route_handler("get data quality")
-
 def _get_data_quality(cur: cursor) -> Any:
     """Get data quality metrics."""
     quality: dict[str, Any] = {

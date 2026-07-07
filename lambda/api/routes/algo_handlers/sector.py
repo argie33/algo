@@ -29,9 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get algo evaluate")
-
 @validate_api_response("sig_eval")
-
 def _get_algo_evaluate(cur: cursor) -> Any:
     """Get comprehensive signal evaluation with candidate analysis and constraints.
 
@@ -49,9 +47,7 @@ def _get_algo_evaluate(cur: cursor) -> Any:
 
 
 @db_route_handler("get sector breadth")
-
 @validate_api_response("srank")
-
 def _get_sector_breadth(cur: cursor) -> Any:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
@@ -132,9 +128,7 @@ def _get_sector_breadth(cur: cursor) -> Any:
 
 
 @db_route_handler("get sector position warnings")
-
 @validate_api_response("pos")
-
 def _get_sector_position_warnings(cur: cursor) -> Any:
     """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
 
@@ -202,9 +196,7 @@ def _get_sector_position_warnings(cur: cursor) -> Any:
 
 
 @db_route_handler("get sector rotation")
-
 @validate_api_response("sec_rot")
-
 def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
     """Get sector rotation data: defensive vs cyclical relative strength."""
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -302,9 +294,7 @@ def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
 
 
 @db_route_handler("get sector stage2")
-
 @validate_api_response("srank")
-
 def _get_sector_stage2(cur: cursor) -> Any:
     """Get percentage of stocks in Stage 2 by sector."""
     try:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 import psycopg2.errors

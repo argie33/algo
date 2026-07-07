@@ -35,9 +35,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("get algo audit log")
-
 @validate_api_response("audit")
-
 def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_type: str | None = None) -> Any:
     """Return algo audit log entries with pagination."""
     if action_type:
@@ -90,9 +88,7 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
 
 
 @db_route_handler("get last run")
-
 @validate_api_response("run")
-
 def _get_last_run(cur: cursor) -> Any:
     """Get the most recent orchestrator run with halt reason."""
     cur.execute("""
@@ -163,9 +159,7 @@ def _get_last_run(cur: cursor) -> Any:
 
 
 @db_route_handler("fetch notifications")
-
 @validate_api_response("notifs")
-
 def _get_notifications(
     cur: cursor, params: dict[str, Any] | None = None, jwt_claims: dict[str, Any] | None = None
 ) -> Any:
@@ -243,9 +237,7 @@ def _get_notifications(
 
 
 @db_route_handler("get patrol log")
-
 @validate_api_response("health")
-
 def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     """Get data patrol findings with pagination."""
     cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
@@ -266,7 +258,6 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
 
 
 @db_route_handler("trigger data patrol")
-
 def _trigger_data_patrol() -> Any:
     """Trigger async data patrol ECS task."""
     try:

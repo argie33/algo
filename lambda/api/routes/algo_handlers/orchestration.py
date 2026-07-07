@@ -24,9 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 @db_route_handler("fetch orchestrator execution details")
-
 @validate_api_response("run")
-
 def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> Any:
     """Return full details of a specific orchestrator run."""
     cur.execute(
@@ -54,9 +52,7 @@ def _get_orchestrator_execution_details(cur: cursor, run_id: str) -> Any:
 
 
 @db_route_handler("fetch orchestrator execution failed")
-
 @validate_api_response("run")
-
 def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> Any:
     """Return failed/halted orchestrator runs."""
     cur.execute(
@@ -74,9 +70,7 @@ def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> Any:
 
 
 @db_route_handler("fetch orchestrator execution patterns")
-
 @validate_api_response("run")
-
 def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> Any:
     """Analyze halt patterns - which phases halt most often."""
     cur.execute(
@@ -107,9 +101,7 @@ def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> Any:
 
 
 @db_route_handler("fetch orchestrator execution recent")
-
 @validate_api_response("exec_hist")
-
 def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 50) -> Any:
     """Return recent orchestrator execution runs."""
     try:
@@ -153,9 +145,7 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
 
 
 @db_route_handler("fetch orchestrator execution stats")
-
 @validate_api_response("run")
-
 def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> Any:
     """Return execution statistics."""
     cur.execute(
