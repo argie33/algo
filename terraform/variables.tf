@@ -399,7 +399,7 @@ variable "api_lambda_memory" {
 variable "api_lambda_timeout" {
   description = "Timeout for API Lambda"
   type        = number
-  default     = 30
+  default     = 120
 }
 
 variable "api_lambda_ephemeral_storage" {
@@ -417,7 +417,7 @@ variable "api_lambda_reserved_concurrency" {
 variable "api_lambda_provisioned_concurrency" {
   description = "Provisioned concurrency for API Lambda (pre-warmed instances to avoid VPC cold starts). Cost: ~$12/month per unit. Set to 0 to disable."
   type        = number
-  default     = 0
+  default     = 1
 }
 
 variable "algo_lambda_memory" {
