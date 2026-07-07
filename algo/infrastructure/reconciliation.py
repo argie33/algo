@@ -165,7 +165,8 @@ class DailyReconciliation:
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
                         total_cash = EXCLUDED.total_cash,
                         total_equity = EXCLUDED.total_equity,
-                        position_count = EXCLUDED.position_count
+                        position_count = EXCLUDED.position_count,
+                        updated_at = NOW()
                         """,
                         snapshot_params,
                     )
@@ -713,7 +714,8 @@ class DailyReconciliation:
                         cumulative_return_pct = EXCLUDED.cumulative_return_pct,
                         max_drawdown_pct = EXCLUDED.max_drawdown_pct,
                         sharpe_ratio = EXCLUDED.sharpe_ratio,
-                        market_health_status = EXCLUDED.market_health_status
+                        market_health_status = EXCLUDED.market_health_status,
+                        updated_at = NOW()
                 """,
                         (
                             reconcile_date,

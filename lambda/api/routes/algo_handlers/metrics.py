@@ -578,7 +578,7 @@ def _get_algo_portfolio(cur: cursor) -> Any:
                    unrealized_pnl_total, position_count, daily_return_pct, unrealized_pnl_pct,
                    cumulative_return_pct, max_drawdown_pct, largest_position_pct,
                    unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count,
-                   unrealized_pnl_source, created_at
+                   unrealized_pnl_source, created_at, updated_at
             FROM algo_portfolio_snapshots
             ORDER BY snapshot_date DESC
             LIMIT 1
@@ -629,9 +629,15 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         breakeven_count_val = data.get("unrealized_pnl_breakeven_count")
         breakeven_count = int(breakeven_count_val) if breakeven_count_val is not None else 0
 
-        # Calculate data_age_seconds from created_at timestamp (REQUIRED, no fallback)
-        # CRITICAL: snapshot_date is a DATE column (midnight), created_at is TIMESTAMP (actual freshness)
-        # Must use created_at; fallback to snapshot_date made data appear stale
+        # Calculate data_age_seconds from updated_at timestamp (REQUIRED, no fallback)
+        # CRITICAL: snapshot_date is a DATE column (midnight); created_at only reflects the
+        # FIRST insert for that date and never changes on subsequent ON CONFLICT DO UPDATEs
+        # within the same trading day, so using it made every same-day re-run after the first
+        # appear increasingly stale even though the row's values were current. updated_at is
+        # explicitly bumped (`updated_at = NOW()`) on every upsert in
+        # algo/infrastructure/reconciliation.py and algo/orchestrator/phase9_reconciliation.py,
+        # so it actually reflects the last write. Confirmed live 2026-07-07: portfolio panel
+        # reported 53796s stale immediately after a fresh Phase 9 write.
         # Use database's NOW() to avoid timezone mismatch with Python datetime
         try:
             cur.execute("SELECT NOW() at time zone 'UTC'")
@@ -645,18 +651,19 @@ def _get_algo_portfolio(cur: cursor) -> Any:
 
         from datetime import datetime
 
-        # MUST have created_at in query result - query includes it explicitly
-        created_at = data.get("created_at")
-        if not created_at:
-            logger.error("CRITICAL: created_at missing from portfolio snapshot query result")
-            return error_response(503, "incomplete_data", "Portfolio snapshot missing created_at timestamp")
+        # Prefer updated_at (bumped on every write); fall back to created_at for rows written
+        # before updated_at existed or before this fix, so old snapshots don't hard-fail.
+        last_write_at = data.get("updated_at") or data.get("created_at")
+        if not last_write_at:
+            logger.error("CRITICAL: updated_at/created_at missing from portfolio snapshot query result")
+            return error_response(503, "incomplete_data", "Portfolio snapshot missing updated_at/created_at timestamp")
 
-        # Calculate age using database time - both now and created_at are in same timezone context
-        if isinstance(created_at, datetime) and isinstance(now_utc_db, datetime):
-            data_age_seconds = int((now_utc_db - created_at).total_seconds())
+        # Calculate age using database time - both now and last_write_at are in same timezone context
+        if isinstance(last_write_at, datetime) and isinstance(now_utc_db, datetime):
+            data_age_seconds = int((now_utc_db - last_write_at).total_seconds())
         else:
             logger.error(
-                f"CRITICAL: Time mismatch - now_utc_db={type(now_utc_db).__name__}, created_at={type(created_at).__name__}"
+                f"CRITICAL: Time mismatch - now_utc_db={type(now_utc_db).__name__}, last_write_at={type(last_write_at).__name__}"
             )
             return error_response(503, "data_corruption", "Cannot calculate portfolio age - type mismatch")
 
