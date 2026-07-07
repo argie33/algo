@@ -186,7 +186,23 @@ class MigrationRunner:
         self.cursor = None
 
     def connect(self):
-        """Establish database connection."""
+        """Establish database connection.
+
+        Sets an explicit lock_timeout on the session. The RDS parameter group sets
+        statement_timeout=900000ms (15min) cluster-wide (terraform/modules/database/main.tf)
+        but nothing bounds how long a DDL statement (ALTER TABLE, CREATE INDEX, etc.) waits
+        to *acquire* its lock before it even starts executing -- statement_timeout's clock
+        only starts once the statement begins running. Confirmed live 2026-07-07: three
+        consecutive db-migration Lambda invocations each hung for ~850s (the subprocess
+        wrapper's own kill timeout, always firing 50s before the 900s statement_timeout
+        could) with zero indication of what was blocked -- consistent with a migration
+        stuck waiting on a lock held by another long-lived connection (orchestrator,
+        leaked idle-in-transaction session, etc.) rather than a slow-but-progressing query.
+        A short lock_timeout makes that failure mode fail fast with an actionable Postgres
+        error ("could not obtain lock ... due to lock timeout") instead of silently hanging
+        for minutes. connect_timeout guards against a similarly silent hang during the
+        initial TCP/SSL handshake if the DB is unreachable.
+        """
         try:
             self.conn = psycopg2.connect(
                 host=DB_HOST,
@@ -195,8 +211,11 @@ class MigrationRunner:
                 password=DB_PASSWORD,
                 database=DB_NAME,
                 sslmode=DB_SSL,
+                connect_timeout=10,
             )
             self.cursor = self.conn.cursor()
+            self.cursor.execute("SET lock_timeout = '30s'")
+            self.conn.commit()
             logger.info(f"Connected to {DB_NAME} at {DB_HOST}:{DB_PORT}")
         except psycopg2.Error as e:
             logger.error(f"Failed to connect to database: {e}")
