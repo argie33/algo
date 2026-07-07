@@ -349,8 +349,7 @@ class HaltFlagManager:
                         return False
 
                 logger.debug(
-                    f"[PROACTIVE_CLEAR] Halt is from today ({trigger_date}). "
-                    f"Leaving it active — Phase 1 will evaluate."
+                    f"[PROACTIVE_CLEAR] Halt is from today ({trigger_date}). Leaving it active — Phase 1 will evaluate."
                 )
                 return False
 

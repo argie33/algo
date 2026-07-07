@@ -123,18 +123,17 @@ class TestEndToEndTradingWorkflow:
 
         # Test all 4 endpoints return valid data
         with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
-            with patch("routes.algo_handlers.dashboard.get_open_positions", return_value=mock_db.positions):
-                # Positions endpoint
-                positions = _get_algo_positions(cursor)
-                assert positions["statusCode"] == 200
-                assert len(positions["data"]["items"]) > 0
-                assert positions["data"]["items"][0]["symbol"] == "AAPL"
+            # Positions endpoint
+            positions = _get_algo_positions(cursor)
+            assert positions["statusCode"] == 200
+            assert len(positions["data"]["items"]) > 0
+            assert positions["data"]["items"][0]["symbol"] == "AAPL"
 
-                # Trades endpoint
-                trades = _get_algo_trades(cursor)
-                assert trades["statusCode"] == 200
-                assert len(trades["data"]["items"]) > 0
-                assert trades["data"]["items"][0]["symbol"] == "AAPL"
+            # Trades endpoint
+            trades = _get_algo_trades(cursor)
+            assert trades["statusCode"] == 200
+            assert len(trades["data"]["items"]) > 0
+            assert trades["data"]["items"][0]["symbol"] == "AAPL"
 
         print("✓ Dashboard successfully fetches position and trade data")
 
@@ -190,20 +189,19 @@ class TestEndToEndTradingWorkflow:
         from routes.algo_handlers.dashboard import _get_algo_positions
 
         with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
-            with patch("routes.algo_handlers.dashboard.get_open_positions", return_value=mock_db.positions):
-                # Step 3: API returns data to dashboard
-                response = _get_algo_positions(cursor)
+            # Step 3: API returns data to dashboard
+            response = _get_algo_positions(cursor)
 
-                # Step 4: Dashboard receives and displays data
-                assert response["statusCode"] == 200
-                assert "items" in response["data"]
-                assert len(response["data"]["items"]) > 0
+            # Step 4: Dashboard receives and displays data
+            assert response["statusCode"] == 200
+            assert "items" in response["data"]
+            assert len(response["data"]["items"]) > 0
 
-                # Verify data integrity through entire flow
-                dashboard_position = response["data"]["items"][0]
-                assert dashboard_position["symbol"] == "AAPL"
-                assert dashboard_position["position_value"] == 10000
-                assert dashboard_position["current_price"] == 155.0
+            # Verify data integrity through entire flow
+            dashboard_position = response["data"]["items"][0]
+            assert dashboard_position["symbol"] == "AAPL"
+            assert dashboard_position["position_value"] == 10000
+            assert dashboard_position["current_price"] == 155.0
 
         print("✓ Data flows correctly: loaders → DB → API → dashboard")
 

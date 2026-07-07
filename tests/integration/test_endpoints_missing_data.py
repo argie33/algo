@@ -83,23 +83,21 @@ class TestEndpointsMissingData:
         cursor.fetchone = Mock(return_value=None)
         cursor.description = None
 
-        # Mock get_open_positions to return empty list
-        with patch("routes.algo_handlers.dashboard.get_open_positions", return_value=[]):
-            with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
-                from routes.algo_handlers.dashboard import _get_algo_positions
+        with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
+            from routes.algo_handlers.dashboard import _get_algo_positions
 
-                result = _get_algo_positions(cursor)
+            result = _get_algo_positions(cursor)
 
-                # Should return 200 even with no data
-                assert result.get("statusCode") == 200, (
-                    f"Positions should return 200 with empty data, got {result.get('statusCode')}"
-                )
-                assert isinstance(result.get("data", {}).get("items"), list), (
-                    "Positions should return empty items array"
-                )
-                assert len(result.get("data", {}).get("items", [])) == 0, (
-                    "Positions should return empty array when no positions"
-                )
+            # Should return 200 even with no data
+            assert result.get("statusCode") == 200, (
+                f"Positions should return 200 with empty data, got {result.get('statusCode')}"
+            )
+            assert isinstance(result.get("data", {}).get("items"), list), (
+                "Positions should return empty items array"
+            )
+            assert len(result.get("data", {}).get("items", [])) == 0, (
+                "Positions should return empty array when no positions"
+            )
 
     def test_empty_data_trades_returns_success(self):
         """Trades endpoint should return 200 with empty array when no trades exist."""

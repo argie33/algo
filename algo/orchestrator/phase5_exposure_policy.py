@@ -76,7 +76,9 @@ def run(
             # CRITICAL FIX: Never return None constraints. Apply conservative CAUTION defaults if missing.
             # Returning None causes Phase 8 to halt all trading, creating a complete system failure.
             if not constraints:
-                logger.warning("[PHASE 5] No entry constraints from policy — applying CAUTION defaults to keep trading enabled")
+                logger.warning(
+                    "[PHASE 5] No entry constraints from policy — applying CAUTION defaults to keep trading enabled"
+                )
                 constraints = {
                     "tier_name": "CAUTION",
                     "description": "Conservative entry constraints (system fallback)",

@@ -154,11 +154,9 @@ class TestDashboardAPIVerification:
         cursor.description = None
 
         with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
-            with patch("routes.algo_handlers.dashboard.get_open_positions") as mock_get:
-                mock_get.return_value = cursor.fetchall.return_value
-                response = _get_algo_positions(cursor)
+            response = _get_algo_positions(cursor)
 
-                assert response["statusCode"] == 200, "Dashboard positions endpoint should work"
+            assert response["statusCode"] == 200, "Dashboard positions endpoint should work"
 
     def test_scores_endpoint_sorting_by_growth_score(self):
         """Verify /api/scores endpoint supports sorting by growth_score."""
