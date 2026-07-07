@@ -1138,9 +1138,7 @@ class Orchestrator:
         # Skip lock check in dry-run mode (no actual trades), paper trading (dev/test), or explicit env var
         is_paper_trading = self.config.get("execution_mode") == "paper"
         skip_lock_check = (
-            self.dry_run
-            or is_paper_trading
-            or os.getenv("SKIP_ORCHESTRATOR_LOCK", "").lower() in ("true", "1", "yes")
+            self.dry_run or is_paper_trading or os.getenv("SKIP_ORCHESTRATOR_LOCK", "").lower() in ("true", "1", "yes")
         )
 
         if not skip_lock_check:
