@@ -345,9 +345,32 @@ class MigrationRunner:
                 if not hasattr(migration_module, "up"):
                     raise AttributeError(f"Migration {version} has no up() function")
 
-                logger.info(f"Running Python migration: {version}")
-                migration_module.up()
-                logger.debug(f"Completed Python migration: {version}")
+                # Set environment variables for Python migrations that need to connect
+                # to the database (they read these with os.getenv())
+                old_env = {}
+                env_vars = {
+                    "DB_HOST": DB_HOST,
+                    "DB_PORT": str(DB_PORT),
+                    "DB_USER": DB_USER,
+                    "DB_PASSWORD": DB_PASSWORD,
+                    "DB_NAME": DB_NAME,
+                    "DB_SSL": DB_SSL,
+                }
+                for key, value in env_vars.items():
+                    old_env[key] = os.getenv(key)
+                    os.environ[key] = value
+
+                try:
+                    logger.info(f"Running Python migration: {version}")
+                    migration_module.up()
+                    logger.debug(f"Completed Python migration: {version}")
+                finally:
+                    # Restore original environment
+                    for key, value in old_env.items():
+                        if value is None:
+                            os.environ.pop(key, None)
+                        else:
+                            os.environ[key] = value
 
             else:
                 raise ValueError(f"Unknown migration file type: {mig_path.suffix}")
