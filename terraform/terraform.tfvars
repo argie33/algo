@@ -61,8 +61,14 @@ data_patrol_timeout_ms              = 30000
 alpaca_paper_trading                = true # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 120  # FIXED: Increased from 25s→60s→120s for VPC Lambda cold starts (15-40s). VPC ENI attachment takes 15-40s, so Lambda must respond within 120s to avoid API Gateway timeout cascade. Provisioned concurrency (=1) below keeps Lambda warm to eliminate cold start delays.
 api_lambda_reserved_concurrency     = 100  # CRITICAL FIX: Increased from 25 to prevent 429 rate limiting. Dashboard needs reliable API access for concurrent panel loads. Concurrency bottleneck confirmed via TooManyRequestsException errors.
-api_lambda_provisioned_concurrency  = 0    # NOTE: Provisioned concurrency and LIVE alias already exist in AWS and are managed by deploy-api-lambda.yml workflow. Setting to 0 prevents terraform from trying to recreate the LIVE alias which causes ResourceConflictException. The existing provisioned concurrency remains active.
-# api_lambda_provisioned_concurrency  = 1    # DISABLED: Alias 'LIVE' already exists in AWS (created by prior deployments). Terraform will fail if it tries to create it again. Let GitHub Actions workflow manage this via deploy-api-lambda.yml
+api_lambda_provisioned_concurrency  = 1    # RE-ENABLED 2026-07-07: was set to 0 by an earlier commit (eb4e28ae9) to dodge a
+# "LIVE alias already exists" ResourceConflictException -- but that was a premature workaround written before the real
+# root cause (terraform/modules/services/main.tf's provisioned-concurrency config pointing at a "LIVE" alias with no
+# aws_lambda_alias resource ever creating it) was found and fixed by adding aws_lambda_alias.api_live. Verified live:
+# the LIVE alias currently in AWS carries that resource's exact description text, so Terraform's state already tracks
+# it from a prior successful apply this session. Leaving this at 0 would make the next apply see count drop from 1
+# (in state) to 0 (per this var) and DESTROY the alias + provisioned concurrency -- reintroducing the 20-30s VPC
+# cold-start problem this was added to fix in the first place.
 algo_lambda_timeout                 = 300  # OPTIMIZED: Reduced from 600 to 300s (5 min max). Prevents masking slow/failing loaders. Orchestrator typically completes in 2-3 min.
 algo_lambda_ephemeral_storage       = 512  # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0    # Orchestrator runs on schedule, cold start is acceptable

@@ -291,17 +291,25 @@ jobs:
 
       - name: Build psycopg2 Lambda layer
         run: |
-          # Build psycopg2-binary layer so the db-init Lambda can connect to PostgreSQL.
+          # Build psycopg2-binary layer so the db-migration Lambda can connect to PostgreSQL.
           # Must run before Terraform so the zip is available for filebase64sha256().
-          # setup-python@v5 above ensures python3.12 is available and matches Lambda runtime.
+          # CRITICAL: Use --platform manylinux2014_x86_64 to ensure the compiled .so is compatible
+          # with Lambda runtime. Without it, pip builds for the local system (e.g., glibc mismatch)
+          # and psycopg2 import fails in Lambda with "ModuleNotFoundError: No module named 'psycopg2'".
+          # Confirmed blocker 2026-07-07: migrations failed every run due to missing _psycopg.so.
           LAYER_DIR=/tmp/psycopg2-layer
           mkdir -p $LAYER_DIR/python
           python3.12 -m pip install psycopg2-binary \
+            --platform manylinux2014_x86_64 \
+            --implementation cp \
+            --python-version 3.12 \
+            --only-binary=:all: \
+            --upgrade \
             -t $LAYER_DIR/python \
             --no-cache-dir --quiet
           cd $LAYER_DIR && zip -r $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip . -q
           echo "psycopg2 layer: $(du -sh $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | cut -f1)"
-          unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" || echo "WARNING: _psycopg .so not found in layer"
+          unzip -l $GITHUB_WORKSPACE/terraform/modules/database/python-psycopg2-layer.zip | grep "_psycopg" && echo "OK: _psycopg .so found" || echo "[CRITICAL] _psycopg .so NOT found - migrations will fail!"
 
       - name: Build numpy/scipy Lambda layer
         run: |

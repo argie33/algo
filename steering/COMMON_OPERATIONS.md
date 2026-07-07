@@ -351,10 +351,10 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 | Issue | Guide |
 |-------|-------|
 | Database/AWS setup | [DATABASE_AND_ENVIRONMENTS.md](DATABASE_AND_ENVIRONMENTS.md) |
-| Data flow problems | [FACTOR_SCORES_DATA_FLOW.md](FACTOR_SCORES_DATA_FLOW.md) |
+| Data flow & loader issues | [DATA_LOADERS.md](DATA_LOADERS.md) |
 | Code quality | [LINT_POLICY.md](LINT_POLICY.md) |
 | Architecture questions | [GOVERNANCE.md](GOVERNANCE.md) |
-| Loader issues | [DATA_LOADERS.md](DATA_LOADERS.md) |
+| Configuration & monitoring | [OPERATIONS.md](OPERATIONS.md) |
 | Deployment | [OPERATIONS.md](OPERATIONS.md) |
 
 ---

@@ -173,14 +173,15 @@ Required:
 
 ## Factor Scores & Metric Loaders
 
-**For troubleshooting factor score issues** (NULL scores, incomplete metrics, timing issues):
-See `steering/FACTOR_SCORES_DATA_FLOW.md` — Contains decision trees, verification queries, and root cause analysis.
+**Troubleshooting factor score issues** (NULL scores, incomplete metrics, timing):
 
-**Key points:**
+Key points:
 - Metric loaders need ≥70% coverage to trigger stock_scores computation
-- Max parallelism with AWS: 3-4 (avoid rate limiting from yfinance)
-- Orchestrator timeout: 25 min (sufficient for all metric loaders + stock_scores)
+- Max parallelism: 3-4 tasks (avoid yfinance rate limiting)
+- Orchestrator timeout: 25 min (sufficient for all loaders + stock_scores)
 - Check `data_loader_status` table to monitor completion
+
+For full loader details, see `steering/DATA_LOADERS.md`.
 
 ---
 

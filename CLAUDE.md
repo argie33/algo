@@ -13,69 +13,33 @@
 | **Troubleshooting** | `steering/COMMON_OPERATIONS.md` |
 | **Database setup** | `steering/DATABASE_AND_ENVIRONMENTS.md` |
 
-## AWS Cost Optimizations (2026-07-03)
+## AWS Cost Optimizations
 
-✅ **COMPLETE:** 7 phases, $209-211/month savings (73% reduction for dev)
-- Phase 1-3: RDS Proxy ($150), VPC Endpoints ($43), Performance Insights ($6) — Pre-existing
-- Phase 4: CloudWatch alarms 82→25 critical only ($6.70) — Commit 4a80fb4ca
-- Phase 5: Lambda reserved concurrency 50→25 ($0.40) — Commit 4a80fb4ca
-- Phase 6: Data quality monitors gated to prod ($3) — Commit 4a80fb4ca
-- Phase 7: CloudFront disabled for dev ($0.50-2) — Commit 863f80794
+7-phase cost reduction complete: $209-211/month savings (73% reduction for dev).
+- Phases 1-3: RDS Proxy, VPC Endpoints, Performance Insights (pre-existing)
+- Phases 4-7: CloudWatch alarms, Lambda concurrency, data quality gates, CloudFront disable
 
-**Deploy:** `cd terraform && terraform apply -lock=false`
-**Verify:** `aws cloudwatch describe-alarms --query "MetricAlarms|length(@)"` → should show ~25
-**Rollback:** `git revert --no-edit 863f80794 4a80fb4ca && terraform apply -lock=false`
-
-**See also:**
-- `steering/AWS_DEPLOYMENT_CHECKLIST.md` — Step-by-step deployment (if created)
-- `steering/AWS_OPERATIONAL_PROCEDURES.md` — Daily/weekly/monthly ops (if created)
-- `steering/AWS_COST_REFERENCE.md` — Quick commands and verification (if created)
-- `terraform/terraform.tfvars.next-optimizations` — Phase 7+ opportunities
+Deploy: `cd terraform && terraform apply -lock=false`
 
 ## Orchestrator Execution
 
-**Production scheduling is EventBridge Scheduler** (`terraform/modules/services/2x-daily-orchestrator.tf`), targeting Lambda `algo-algo-dev` directly (`lambda:InvokeFunction` via `aws_iam_role.eventbridge_scheduler`, which is unaffected by the `algo-developer` read-only IAM gaps below). Verified 2026-07-07: CloudWatch `Invocations` metric shows non-zero daily invocations continuously since 2026-06-07 — the schedule reliably fires on its own. Do NOT reintroduce a persistent local/manual scheduler loop as a "workaround" — a prior session's guidance to do exactly that led to 16 orphaned `orchestrator_scheduler.py` processes accumulating across sessions (found and killed 2026-07-07), which is itself a plausible contributor to the Lambda rate-limiting symptom seen repeatedly. `scripts/orchestrator_scheduler.py` now refuses to run a second copy (file lock), but it should only be used for a one-off manual/emergency trigger (`--once`), never left running in the background.
+**Production:** EventBridge Scheduler runs 2x daily via `terraform/modules/services/2x-daily-orchestrator.tf`
 
-**For a one-off manual trigger (testing/emergency only):**
-```bash
-python3 scripts/orchestrator_scheduler.py --once --mode paper
-```
-
-### Manual Trigger (For Testing)
+**One-off trigger (testing/emergency only):**
 ```bash
 python3 scripts/trigger_orchestrator.py --run morning --mode paper
 ```
 
-### Direct AWS Lambda Invocation (Raw)
-```bash
-aws lambda invoke \
-  --function-name algo-algo-dev \
-  --payload '{"source":"eventbridge-scheduler","run_identifier":"morning","execution_mode":"paper","dry_run":false}' \
-  /tmp/response.json \
-  --region us-east-1
-```
-
-**IAM gap (real, but narrower than previously documented here):**
-- `algo-developer`'s `SchedulerReadOnly`/`EC2ReadOnly`/`S3ReadOnly` policies (`terraform/modules/iam/main.tf`) only grant read actions (`Get*`/`List*`/`Describe*`), not `scheduler:UpdateSchedule`, `s3:GetBucketPolicy`/`PutBucketPolicy`, or `ec2:DescribeVpcAttribute`. This blocks a human running `terraform apply -lock=false` locally under `algo-developer` creds from creating/updating schedules.
-- It does **not** block the schedules from running: GitHub Actions applies via a separate OIDC role (`aws_iam_role.github_actions`) with full `scheduler:*`/`s3:*`/`ec2:Describe*`, and schedule execution uses yet another role (`aws_iam_role.eventbridge_scheduler`) with only `lambda:InvokeFunction`. Both are already correctly permissioned — this is why the schedules have been firing daily in production despite `algo-developer` being read-only.
-- Known bug: the ARN pattern in `SchedulerReadOnly`'s resource scope is `schedule/algo*` but real EventBridge Scheduler ARNs are `schedule/<group>/<name>` (e.g. `schedule/default/algo-algo-schedule-morning-dev`), so even the read-only grant 403s in practice. Fix: change to `schedule/*/algo*`.
-
-**VERIFICATION**:
+**Check orchestrator status:**
 ```sql
--- Check if orchestrator is running (execute after starting scheduler)
 SELECT COUNT(*) as runs_last_hour, MAX(started_at) as latest
 FROM algo_orchestrator_runs
 WHERE started_at > NOW() - INTERVAL '1 hour';
 
--- Check fresh portfolio snapshots
-SELECT MAX(created_at) as latest_snapshot
-FROM algo_portfolio_snapshots;
-
--- Check recent trades
-SELECT COUNT(*) as recent_trades, MAX(created_at) as latest
-FROM algo_trades
-WHERE created_at > NOW() - INTERVAL '24 hours';
+SELECT MAX(created_at) as latest_snapshot FROM algo_portfolio_snapshots;
 ```
+
+See `steering/OPERATIONS.md` for IAM and scheduler details.
 
 ## Instant Fixes
 
@@ -91,9 +55,9 @@ WHERE created_at > NOW() - INTERVAL '24 hours';
 
 ## Non-Negotiable Rules
 
-- ✅ Type safety: `mypy strict` enforced (pre-commit blocks all type errors)
-- ✅ Code cleanliness: No `.env`, `pdb`, or `print()` in library code (pre-commit blocks)
-- ✅ Data integrity: Explicit `data_unavailable` flags (no silent fallbacks)
-- ✅ Safety: Circuit breakers enforce risk limits (see GOVERNANCE.md)
+- Type safety: `mypy strict` enforced (pre-commit blocks all type errors)
+- Code cleanliness: No `.env`, `pdb`, or `print()` in library code (pre-commit blocks)
+- Data integrity: Explicit `data_unavailable` flags (no silent fallbacks)
+- Safety: Circuit breakers enforce risk limits (see GOVERNANCE.md)
 
 **All other rules, examples, and context:** See the steering docs above. This file stays thin.

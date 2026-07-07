@@ -213,31 +213,21 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> Any:
         )
 
     try:
-        # Try with phone column first (migration 007 adds it; falls back gracefully if not yet applied)
-        try:
-            cur.execute(
-                """
-                INSERT INTO contact_submissions (name, email, subject, message, phone, submitted_at)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """,
-                (
-                    name,
-                    email,
-                    subject,
-                    message,
-                    phone if phone else None,
-                    datetime.now(timezone.utc),
-                ),
-            )
-        except psycopg2.errors.UndefinedColumn:
-            cur.connection.rollback()
-            cur.execute(
-                """
-                INSERT INTO contact_submissions (name, email, subject, message, submitted_at)
-                VALUES (%s, %s, %s, %s, %s)
-            """,
-                (name, email, subject, message, datetime.now(timezone.utc)),
-            )
+        # Schema requires phone column from migration 007. No fallback to old schema - fail-fast if missing.
+        cur.execute(
+            """
+            INSERT INTO contact_submissions (name, email, subject, message, phone, submitted_at)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        """,
+            (
+                name,
+                email,
+                subject,
+                message,
+                phone if phone else None,
+                datetime.now(timezone.utc),
+            ),
+        )
         logger.info(f"Contact form submission from ...@{email.split('@')[-1]}")
         return json_response(
             200,
