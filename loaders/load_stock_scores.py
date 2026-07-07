@@ -123,8 +123,9 @@ class StockScoresLoader(OptimalLoader):
 
                     if total_count == 0:
                         raise RuntimeError(
-                            f"[STOCK_SCORES] Pre-flight validation failed: {table_name} is empty. "
-                            f"Upstream metric loader may not have run yet. "
+                            f"[STOCK_SCORES] Pre-flight validation failed: {table_name} is EMPTY. "
+                            f"ROOT CAUSE: Upstream metric loader may not have run yet. "
+                            f"ACTION: Check {table_name} loader step function execution logs. "
                             f"Cannot compute stock scores without metric data."
                         )
 
@@ -132,12 +133,20 @@ class StockScoresLoader(OptimalLoader):
                     coverage = available_count / total_count if total_count > 0 else 0
 
                     if coverage < min_coverage:
+                        # Get sample unavailable symbols for debugging
+                        cur.execute(
+                            f"SELECT symbol, COUNT(*) FROM {table_name} WHERE data_unavailable = true GROUP BY symbol LIMIT 5"
+                        )
+                        unavail_sample = cur.fetchall()
+                        unavail_sample_str = ", ".join([s[0] for s in unavail_sample]) if unavail_sample else "(none)"
+
                         raise RuntimeError(
-                            f"[STOCK_SCORES] Pre-flight validation failed: {table_name} only {coverage:.1%} coverage "
-                            f"({available_count}/{total_count} stocks with real data). "
-                            f"Requires minimum {min_coverage:.0%} coverage. "
-                            f"Upstream metric loader may have timed out or failed. "
-                            f"Check step function logs and metric loader CloudWatch logs."
+                            f"[STOCK_SCORES] Pre-flight validation failed: {table_name} coverage insufficient. "
+                            f"ROOT CAUSE: Only {coverage:.1%} coverage ({available_count}/{total_count} stocks with real data). "
+                            f"Required: {min_coverage:.0%}. "
+                            f"Sample unavailable symbols: {unavail_sample_str}. "
+                            f"ACTION: Check upstream {table_name} loader for timeouts/failures in CloudWatch logs. "
+                            f"Typical causes: SEC API limits (quality/growth), yfinance throttling (value/positioning), price history gaps (stability)."
                         )
 
                 for table_name in optional_sec_metric_tables:
@@ -1072,8 +1081,12 @@ class StockScoresLoader(OptimalLoader):
         Dependent on upstream annual_income_statement availability.
         """
         if not metrics or metrics.get("data_unavailable"):
-            logger.debug(f"[STOCK_SCORES] Growth metrics unavailable for {symbol}")
-            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for growth_score({symbol})")
+            reason = metrics.get("reason") if metrics else "metrics_is_none"
+            logger.warning(
+                f"[STOCK_SCORES] Growth metrics unavailable for {symbol}: {reason}. "
+                f"ROOT CAUSE: Check upstream growth_metrics loader (depends on annual_income_statement from SEC filings). "
+                f"Some stocks may lack recent annual filings (IPOs, private equity, international)."
+            )
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_metrics_data"}
 
         weighted_sum = 0.0
@@ -1119,12 +1132,16 @@ class StockScoresLoader(OptimalLoader):
             total_weight += 0.05
 
         if total_weight > 0:
-            return weighted_sum / total_weight
-        logger.debug(f"[STOCK_SCORES] No growth metrics found to score for {symbol}")
-        logger.debug(
-            f"[STOCK_SCORES] Returning data_unavailable marker for growth_score({symbol}) - no scoreable fields"
+            computed_score = weighted_sum / total_weight
+            logger.debug(f"[STOCK_SCORES] {symbol} growth_score computed: {computed_score:.2f}")
+            return computed_score
+
+        logger.warning(
+            f"[STOCK_SCORES] {symbol} growth_score computation FAILED: all fields are None. "
+            f"ROOT CAUSE: growth_metrics row exists but all 6 fields are NULL. "
+            f"ACTION: Check growth_metrics loader — SEC data fetch may be returning empty results."
         )
-        return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_scores_computed"}
+        return {"symbol": symbol, "data_unavailable": True, "reason": "all_growth_fields_null"}
 
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.

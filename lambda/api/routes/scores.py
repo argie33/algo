@@ -271,6 +271,22 @@ def _get_stock_scores(
         for row in scores:
             d = dict(row)
 
+            # CRITICAL FIX: Explicit data_unavailable flags for each metric
+            # If a score metric is marked unavailable, include it as None (not synthetic value)
+            # Dashboard will see explicit unavailability markers
+            if d.get("_growth_data_unavailable"):
+                d["growth_score"] = None
+            if d.get("_positioning_data_unavailable"):
+                d["positioning_score"] = None
+            if d.get("_stability_data_unavailable"):
+                d["stability_score"] = None
+            if d.get("_financial_data_unavailable"):
+                # Ensure quality/value metrics are None if financial data is unavailable
+                if d.get("quality_score") is None:
+                    d["quality_score"] = None
+                if d.get("value_score") is None:
+                    d["value_score"] = None
+
             # Note: We include scores even if current prices are missing
             # Scores are computed from other factors; current price is optional for display
             items.append(d)
