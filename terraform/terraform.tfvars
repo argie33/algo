@@ -31,7 +31,7 @@ api_cors_allowed_origins = [
 # Afternoon (1:00 PM ET): Mid-day rebalance, catch missed opportunities [enabled]
 # Pre-close (3:00 PM ET): FINAL execution before 4 PM ET market close, SLA finish by 3:15 PM ET [enabled]
 # Evening (5:30 PM ET): AFTER CLOSE - signal prep for next day only, no trading [managed separately]
-algo_schedule_enabled         = true
+algo_schedule_enabled         = false                         # FIXED 2026-07-07: Disable 5:30 PM evening run (conflicts with metrics pipeline timing - metrics don't complete until ~7 PM). Keep 9:30 AM, 1:00 PM, 3:00 PM runs (all before metrics deadline)
 algo_schedule_expression      = "cron(30 17 ? * MON-FRI *)" # 5:30 PM ET (signal prep, not trading)
 enable_premarket_orchestrator = false                       # Disabled: not during market hours
 enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM ET market open
