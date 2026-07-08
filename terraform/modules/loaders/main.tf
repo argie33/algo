@@ -402,6 +402,34 @@ locals {
       description = "Compute sector rankings from stock scores - EOD pipeline (depends on stock_scores)"
       schedule    = "cron(45 21 ? * MON-FRI *)" # 4:45 PM ET (after industry_ranking)
     }
+
+    # Signal generation and analytics: 5:00 PM ET (after all data loaded ~4:50 PM)
+    "buy_sell_daily" = {
+      description = "Generate BUY/SELL signals from technical+fundamental analysis - CRITICAL for trading"
+      schedule    = "cron(0 22 ? * MON-FRI *)" # 5:00 PM ET (after sector_ranking)
+    }
+    "algo_metrics_daily" = {
+      description = "Compute daily algo performance metrics - CRITICAL for dashboard/reports"
+      schedule    = "cron(5 22 ? * MON-FRI *)" # 5:05 PM ET (after buy_sell_daily)
+    }
+
+    # Supporting data: 5:10 PM ET and later
+    "earnings_calendar" = {
+      description = "Load earnings calendar - needed for earnings blackout logic"
+      schedule    = "cron(10 22 ? * MON-FRI *)" # 5:10 PM ET
+    }
+    "company_profile" = {
+      description = "Load company profile (sector, industry) - needed for position tracking"
+      schedule    = "cron(15 22 ? * MON-FRI *)" # 5:15 PM ET
+    }
+    "analyst_sentiment" = {
+      description = "Load analyst sentiment scores - dashboard data"
+      schedule    = "cron(20 22 ? * MON-FRI *)" # 5:20 PM ET
+    }
+    "yfinance_snapshot" = {
+      description = "Cache yfinance snapshots for quick metric calculations"
+      schedule    = "cron(25 22 ? * MON-FRI *)" # 5:25 PM ET
+    }
   }
 }
 
