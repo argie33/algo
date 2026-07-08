@@ -391,6 +391,9 @@ def run(  # noqa: C901
                         fresh_result = cur.fetchone()
                         if fresh_result and fresh_result[0]:
                             new_max_date = fresh_result[0]
+                            # Ensure date comparison works (convert datetime to date if needed)
+                            if isinstance(new_max_date, dt):
+                                new_max_date = new_max_date.date()
                             if new_max_date >= last_trading_day:
                                 logger.warning("[PHASE 1] Price data now fresh after emergency load - proceeding")
                                 # Data is now fresh, continue to next check
