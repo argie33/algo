@@ -10,11 +10,12 @@ Result: Eliminates 5000 redundant yfinance API calls per run.
 
 import logging
 import sys
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,9 @@ class CompanyProfileLoader(OptimalLoader):
         Returns:
             list[dict]: Either company profile data or data_unavailable marker
         """
+        # Get current timestamp in Eastern timezone for created_at watermark
+        now_utc = datetime.now(EASTERN_TZ)
+
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
@@ -59,6 +63,7 @@ class CompanyProfileLoader(OptimalLoader):
                     "symbol": symbol,
                     "data_unavailable": True,
                     "reason": "yfinance_snapshot_missing",
+                    "created_at": now_utc,
                 }
             ]
 
@@ -71,6 +76,7 @@ class CompanyProfileLoader(OptimalLoader):
                     "symbol": symbol,
                     "data_unavailable": True,
                     "reason": f"yfinance_snapshot_unavailable:{reason}",
+                    "created_at": now_utc,
                 }
             ]
 
@@ -101,6 +107,7 @@ class CompanyProfileLoader(OptimalLoader):
                     "symbol": symbol,
                     "data_unavailable": True,
                     "reason": f"missing_fields:{','.join(missing_fields)}",
+                    "created_at": now_utc,
                 }
             ]
 
@@ -122,6 +129,7 @@ class CompanyProfileLoader(OptimalLoader):
                 "country": row["country"],
                 "market_cap": (int(row["market_cap"]) if row["market_cap"] and row["market_cap"] > 0 else None),
                 "data_unavailable": False,
+                "created_at": now_utc,
             }
         ]
 
