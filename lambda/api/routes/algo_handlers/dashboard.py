@@ -1189,7 +1189,11 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             return json_response(200, sig_response)
 
         total_n = int(sig["n"])
-        signal_date = str(sig["d"]) if sig["d"] is not None else None  # Convert date to string for JSON
+        # Convert date to ISO format string for JSON serialization
+        if sig["d"] is not None:
+            signal_date = sig["d"].isoformat() if hasattr(sig["d"], 'isoformat') else str(sig["d"])
+        else:
+            signal_date = None
 
         # Top BUY signals ranked by stock_scores composite_score (single source of truth for quality)
         # buy_sell_daily provides breakout timing; stock_scores provides quality ranking
@@ -1227,7 +1231,13 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             FROM ranked_signals
             ORDER BY signal_quality_score DESC NULLS LAST
             LIMIT 30""")
-        buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+        buy_sigs_rows = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+        # Ensure all date fields in buy_sigs are ISO strings, not date objects
+        buy_sigs = []
+        for item in buy_sigs_rows:
+            if isinstance(item, dict) and 'date' in item and hasattr(item['date'], 'isoformat'):
+                item['date'] = item['date'].isoformat()
+            buy_sigs.append(item)
 
         # Grade distribution based on composite_score ranking
         cur.execute("""
@@ -1328,7 +1338,13 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             GROUP BY date
             ORDER BY date DESC
             LIMIT 7""")
-        trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+        trend_rows = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+        # Ensure all date fields in trend are ISO strings, not date objects
+        trend = []
+        for item in trend_rows:
+            if isinstance(item, dict) and 'date' in item and hasattr(item['date'], 'isoformat'):
+                item['date'] = item['date'].isoformat()
+            trend.append(item)
 
         freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
 
