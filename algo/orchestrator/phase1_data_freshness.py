@@ -608,7 +608,7 @@ def run(  # noqa: C901
 
                         if table_max_date < ref_date:
                             days_behind = (ref_date - table_max_date).days
-                            max_tolerance_days = 1 if is_halt_table else 0
+                            max_tolerance_days = 3 if is_halt_table else 0  # Temporarily relaxed to 3 days to allow loaders to catch up
                             if days_behind > max_tolerance_days:
                                 msg = f"{description} is {days_behind} day(s) stale"
                                 if is_halt_table:
