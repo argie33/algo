@@ -688,6 +688,7 @@ resource "aws_lambda_function" "algo" {
   runtime       = "python3.12"
   timeout       = var.algo_lambda_timeout
   memory_size   = var.algo_lambda_memory
+  publish       = var.algo_lambda_provisioned_concurrency > 0 # Publish versions only when PC is enabled
 
   # NOTE: This does NOT keep the Lambda "warm" (that's provisioned concurrency, not
   # reserved concurrency). Reserved concurrency only caps max simultaneous invocations.
@@ -777,6 +778,16 @@ resource "aws_lambda_function" "algo" {
   tags = merge(var.common_tags, {
     Name = local.algo_lambda_name
   })
+}
+
+# Provisioned concurrency for Orchestrator Lambda (keep instances warm for scheduled runs)
+resource "aws_lambda_provisioned_concurrency_config" "algo" {
+  count                             = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
+  function_name                     = aws_lambda_function.algo.function_name
+  provisioned_concurrent_executions = var.algo_lambda_provisioned_concurrency
+  qualifier                         = aws_lambda_function.algo.version
+
+  depends_on = [aws_lambda_function.algo]
 }
 
 # ============================================================

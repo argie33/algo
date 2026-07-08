@@ -257,6 +257,16 @@ variable "api_lambda_provisioned_concurrency" {
   }
 }
 
+variable "algo_lambda_provisioned_concurrency" {
+  description = "Provisioned concurrent executions for Orchestrator Lambda (pre-warmed instances to avoid cold starts). Cost: ~$12/month per unit. Set to 0 to disable."
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.algo_lambda_provisioned_concurrency >= 0 && var.algo_lambda_provisioned_concurrency <= 100
+    error_message = "Provisioned concurrency must be between 0 and 100"
+  }
+}
+
 # ============================================================
 # API Gateway Configuration
 # ============================================================
