@@ -726,34 +726,36 @@ def run(  # noqa: C901
                         f"[PHASE 1] Emergency metric loader exception: {type(emergency_e).__name__}: {str(emergency_e)[:100]}"
                     )
 
-                # Allow stale data in dry-run mode for development/testing
-                if dry_run:
-                    logger.warning(
-                        f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) — BYPASSED FOR DRY-RUN: {'; '.join(halt_stale)}"
-                    )
-                    logger.warning(
-                        "[PHASE 1] Continuing with stale data for dry-run testing. "
-                        "In production, this would halt trading."
-                    )
-                else:
-                    logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
-                    log_phase_result_fn(
-                        1,
-                        "signal_tables_stale",
-                        "halt",
-                        f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
-                    )
-                    from algo.reporting.notifications import notify_signal_staleness
+                # Only halt if halt_stale still has items (may have been cleared by emergency loader)
+                if halt_stale:
+                    # Allow stale data in dry-run mode for development/testing
+                    if dry_run:
+                        logger.warning(
+                            f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) — BYPASSED FOR DRY-RUN: {'; '.join(halt_stale)}"
+                        )
+                        logger.warning(
+                            "[PHASE 1] Continuing with stale data for dry-run testing. "
+                            "In production, this would halt trading."
+                        )
+                    else:
+                        logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
+                        log_phase_result_fn(
+                            1,
+                            "signal_tables_stale",
+                            "halt",
+                            f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
+                        )
+                        from algo.reporting.notifications import notify_signal_staleness
 
-                    notify_signal_staleness(halt_stale)
-                    return PhaseResult(
-                        1,
-                        "signal_tables_stale",
-                        "halted",
-                        {},
-                        True,
-                        f"Critical pipeline tables stale/missing: {halt_stale[0]}",
-                    )
+                        notify_signal_staleness(halt_stale)
+                        return PhaseResult(
+                            1,
+                            "signal_tables_stale",
+                            "halted",
+                            {},
+                            True,
+                            f"Critical pipeline tables stale/missing: {halt_stale[0]}",
+                        )
 
             elapsed = time.time() - phase_start
             phase1_end_et = dt.now(ZoneInfo("America/New_York"))
