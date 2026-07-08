@@ -332,18 +332,23 @@ class StockScoresLoader(OptimalLoader):
             # Cap at 99.99 to fit in NUMERIC(4,2) database column
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # FIXED 2026-07-11: Allow scoring with 1+ metrics for stocks without SEC data
-            # Reason: Metric loaders intentionally exclude ETFs/non-standard securities (SEC data unavailable)
-            # but these ARE valid trading candidates. Allow scoring from available metrics (momentum, value, stability)
-            # instead of silently excluding them. Traders get visibility into score completeness via data_completeness field.
-            min_required_metrics = 1
+            # CRITICAL: Enforce minimum 3/6 metrics per GOVERNANCE.md
+            # Stock scores require sufficient metric diversity to prevent single-metric bias
+            # (e.g., pure value or momentum without growth/quality check).
+            # With fewer than 3 metrics, position sizing becomes unreliable:
+            # - 1 metric: may favor one factor (value or momentum) over balanced approach
+            # - 2 metrics: missing critical risk factor (stability) or growth validation
+            # - 3+ metrics: balanced evaluation across multiple dimensions
+            min_required_metrics = 3
 
             if data_count < min_required_metrics:
                 raise RuntimeError(
-                    f"[STOCK_SCORES] {symbol}: insufficient metrics for scoring ({data_count}/{min_required_metrics} required, "
-                    f"{data_completeness:.0f}% complete). "
-                    f"Upstream metric loaders (quality, growth, value, positioning, stability, momentum) must have sufficient coverage. "
-                    f"Cannot compute score with incomplete data — failing fast to prevent poor position sizing decisions."
+                    f"[STOCK_SCORES] {symbol}: CRITICAL - insufficient metrics for scoring. "
+                    f"Got {data_count}/6 metrics (need minimum {min_required_metrics}). "
+                    f"With fewer than {min_required_metrics} metrics, position sizing decisions are unreliable. "
+                    f"Score computation requires: growth (IPO/SEC), quality (SEC), value, positioning (yfinance), "
+                    f"stability (technical), momentum (price). Upstream loaders must populate sufficient data. "
+                    f"Failing fast to prevent single-metric-biased trading positions."
                 )
 
             # CHANGED 2026-07-01: Removed hard rejection for missing positioning data.
