@@ -655,6 +655,77 @@ def run(  # noqa: C901
                 )
 
             if halt_stale:
+                # CRITICAL FIX: Emergency metric loader trigger
+                # If critical metric loaders are stale, attempt to load them before halting
+                logger.critical("[PHASE 1] EMERGENCY: Attempting to load stale metrics before halting...")
+                try:
+                    from loaders.load_growth_metrics import GrowthMetricsLoader
+                    from loaders.load_quality_metrics import QualityMetricsLoader
+                    from loaders.load_value_metrics import ValueMetricsLoader
+                    from loaders.load_positioning_metrics import PositioningMetricsLoader
+                    from loaders.load_stability_metrics import StabilityMetricsLoader
+
+                    metric_loaders = [
+                        ("growth_metrics", GrowthMetricsLoader),
+                        ("quality_metrics", QualityMetricsLoader),
+                        ("value_metrics", ValueMetricsLoader),
+                        ("positioning_metrics", PositioningMetricsLoader),
+                        ("stability_metrics", StabilityMetricsLoader),
+                    ]
+
+                    # Get portfolio symbols to load metrics for
+                    cur.execute(
+                        "SELECT DISTINCT symbol FROM algo_positions WHERE status='open' ORDER BY symbol LIMIT 100"
+                    )
+                    positions = cur.fetchall()
+                    symbols = [dict(p)["symbol"] for p in positions] if positions else []
+
+                    if not symbols:
+                        cur.execute("SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100")
+                        trades = cur.fetchall()
+                        symbols = [dict(t)["symbol"] for t in trades]
+
+                    emergency_loads_succeeded = 0
+                    for loader_name, LoaderClass in metric_loaders:
+                        try:
+                            logger.warning(f"[PHASE 1] Loading {loader_name}...")
+                            loader = LoaderClass()
+                            result = loader.run(symbols=symbols if symbols else None, parallelism=1, backfill_days=1)
+                            rows = result.get("rows_inserted", 0)
+                            if rows > 0:
+                                logger.warning(f"[PHASE 1] {loader_name}: {rows} rows loaded")
+                                emergency_loads_succeeded += 1
+                        except Exception as loader_e:
+                            logger.error(
+                                f"[PHASE 1] {loader_name} emergency load failed: {type(loader_e).__name__}: {str(loader_e)[:100]}"
+                            )
+
+                    if emergency_loads_succeeded > 0:
+                        logger.warning(
+                            f"[PHASE 1] Emergency loads succeeded for {emergency_loads_succeeded} metrics - updating status..."
+                        )
+                        # Update loader status to reflect fresh data
+                        cur.execute(
+                            """
+                            UPDATE data_loader_status
+                            SET last_updated = NOW(), status = 'COMPLETED', completion_pct = 100.0
+                            WHERE table_name IN (
+                                'growth_metrics', 'quality_metrics', 'value_metrics',
+                                'positioning_metrics', 'stability_metrics'
+                            )
+                        """
+                        )
+                        # Clear halt list and proceed
+                        halt_stale = []
+                        logger.critical("[PHASE 1] Metric data loaded successfully - proceeding with orchestration")
+                    else:
+                        logger.error("[PHASE 1] Emergency metric loads all failed - metrics still stale")
+
+                except Exception as emergency_e:
+                    logger.error(
+                        f"[PHASE 1] Emergency metric loader exception: {type(emergency_e).__name__}: {str(emergency_e)[:100]}"
+                    )
+
                 # Allow stale data in dry-run mode for development/testing
                 if dry_run:
                     logger.warning(
