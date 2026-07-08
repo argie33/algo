@@ -1154,116 +1154,211 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 @db_route_handler("fetch dashboard signals")
 @validate_api_response("sig")
 def _get_dashboard_signals(cur: cursor) -> Any:
-    """Get dashboard-specific signal data with aggregations for the Ops Terminal.
+    """Get dashboard-specific signal data from fresh buy_sell_daily source.
 
-    Returns: BUY signals with quality scores, grade distribution (A-D by score),
-    near-miss signals, top A-grade stocks, and signal trend.
+    Queries buy_sell_daily (source of truth for trading signals) instead of
+    algo_signals (unmaintained cache). Returns top BUY signals ranked by composite score,
+    grade distribution, near-miss signals, and 7-day trend.
     """
     try:
         cur.execute("SET LOCAL statement_timeout = '20000ms'")
 
-        # Use algo_signals for current active signals (swing_trader_scores table was removed)
+        # FIX: Query fresh buy_sell_daily BUY signals, not stale algo_signals cache
+        # buy_sell_daily is continuously updated by EOD loaders; algo_signals is unmaintained
         cur.execute("""
-                SELECT COUNT(*) AS n, MAX(signal_date) AS d FROM algo_signals
-                WHERE signal_active = TRUE""")
+            SELECT COUNT(*) AS n, MAX(date) AS d
+            FROM buy_sell_daily
+            WHERE signal_type = 'BUY' AND date >= CURRENT_DATE - 7""")
         sig = cur.fetchone()
         if sig is None or sig.get("n") is None or sig.get("n") == 0:
-            # No active signals - return 200 OK with empty data (not 503 error)
-            # This allows dashboard to render without signals rather than showing unavailable
-            return json_response(
-                200,
-                {
-                    "n": 0,
-                    "total": 0,
-                    "buy_sigs": [],
-                    "near": [],
-                    "top_a": [],
-                    "trend": [],
-                    "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0},
-                    "date": str(sig["d"]) if sig and sig.get("d") else None,
-                },
-            )
-        total_n = int(sig["n"])
+            # No BUY signals in last 7 days - return empty but valid response
+            logger.warning("[DASHBOARD SIGNALS] No BUY signals found in buy_sell_daily (last 7 days)")
+            sig_response = {
+                "n": 0,
+                "total": 0,
+                "date": None,
+                "buy_sigs": [],
+                "near": [],
+                "top_a": [],
+                "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0},
+                "trend": [],
+                "data_freshness": check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1),
+            }
+            ensure_valid_response("sig", sig_response)
+            return json_response(200, sig_response)
 
-        # Top active signals with signal quality score, sector, and entry/risk details
+        total_n = int(sig["n"])
+        signal_date = sig["d"]
+
+        # Top BUY signals ranked by stock_scores composite_score (single source of truth for quality)
+        # buy_sell_daily provides breakout timing; stock_scores provides quality ranking
         cur.execute("""
-                SELECT s.symbol, s.entry_stage AS stage_number, s.signal_quality_score,
-                       s.signal_quality_score AS entry_quality_score, p.close,
-                       s.raw_signal AS reason,
-                       cp.sector,
-                       s.entry_price AS buylevel,
-                       (s.entry_price * 0.95) AS stoplevel
-                FROM algo_signals s
-                LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+            WITH latest_scores AS (
+                SELECT DISTINCT ON (symbol) symbol, composite_score, quality_score
+                FROM stock_scores
+                WHERE composite_score IS NOT NULL
+                ORDER BY symbol, updated_at DESC
+            ),
+            ranked_signals AS (
+                SELECT DISTINCT ON (bsd.symbol)
+                    bsd.symbol,
+                    bsd.stage_number,
+                    COALESCE(ls.composite_score, 50.0) AS signal_quality_score,
+                    COALESCE(ls.quality_score, 50.0) AS entry_quality_score,
+                    p.close,
+                    bsd.reason,
+                    cp.sector,
+                    bsd.buylevel,
+                    bsd.stoplevel,
+                    bsd.date
+                FROM buy_sell_daily bsd
+                LEFT JOIN latest_scores ls ON ls.symbol = bsd.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                 LEFT JOIN LATERAL (
-                    SELECT close FROM price_daily WHERE symbol = s.symbol ORDER BY date DESC LIMIT 1
-                ) p ON true
-                WHERE s.signal_active = TRUE
-                ORDER BY s.signal_quality_score DESC
-                LIMIT 30""")
+                    SELECT close FROM price_daily
+                    WHERE symbol = bsd.symbol ORDER BY date DESC LIMIT 1
+                ) p ON TRUE
+                WHERE bsd.signal_type = 'BUY' AND bsd.date >= CURRENT_DATE - 7
+                ORDER BY bsd.symbol, bsd.date DESC
+            )
+            SELECT symbol, stage_number, signal_quality_score, entry_quality_score,
+                   close, reason, sector, buylevel, stoplevel, date
+            FROM ranked_signals
+            ORDER BY signal_quality_score DESC NULLS LAST
+            LIMIT 30""")
         buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-        # Grade distribution (A/B/C/D by signal quality score)
+        # Grade distribution based on composite_score ranking
         cur.execute("""
-                SELECT COUNT(*) FILTER (WHERE signal_quality_score >= 80) AS a,
-                       COUNT(*) FILTER (WHERE signal_quality_score >= 60 AND signal_quality_score < 80) AS b,
-                       COUNT(*) FILTER (WHERE signal_quality_score >= 40 AND signal_quality_score < 60) AS c,
-                       COUNT(*) FILTER (WHERE signal_quality_score < 40) AS d,
-                       COUNT(*) AS total
-                FROM algo_signals
-                WHERE signal_active = TRUE""")
+            WITH latest_scores AS (
+                SELECT DISTINCT ON (symbol) symbol, composite_score
+                FROM stock_scores
+                WHERE composite_score IS NOT NULL
+                ORDER BY symbol, updated_at DESC
+            ),
+            ranked_signals AS (
+                SELECT DISTINCT ON (bsd.symbol)
+                    COALESCE(ls.composite_score, 50.0) AS score
+                FROM buy_sell_daily bsd
+                LEFT JOIN latest_scores ls ON ls.symbol = bsd.symbol
+                WHERE bsd.signal_type = 'BUY' AND bsd.date >= CURRENT_DATE - 7
+                ORDER BY bsd.symbol, bsd.date DESC
+            )
+            SELECT COUNT(*) FILTER (WHERE score >= 80) AS a,
+                   COUNT(*) FILTER (WHERE score >= 60 AND score < 80) AS b,
+                   COUNT(*) FILTER (WHERE score >= 40 AND score < 60) AS c,
+                   COUNT(*) FILTER (WHERE score < 40) AS d,
+                   COUNT(*) AS total
+            FROM ranked_signals""")
         grades_r = cur.fetchone()
-        grades = safe_dict_convert(grades_r) if grades_r else {}
+        grades = safe_dict_convert(grades_r) if grades_r else {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
 
-        # Near-misses: signals close to top threshold (55-69 range)
+        # Near-misses: signals in 55-69 composite score range
         cur.execute("""
-                SELECT s.symbol, s.signal_quality_score AS score, cp.sector
-                FROM algo_signals s
-                LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-                WHERE s.signal_active = TRUE
-                  AND s.signal_quality_score BETWEEN 55 AND 69
-                ORDER BY s.signal_quality_score DESC LIMIT 15""")
+            WITH latest_scores AS (
+                SELECT DISTINCT ON (symbol) symbol, composite_score
+                FROM stock_scores
+                WHERE composite_score IS NOT NULL
+                ORDER BY symbol, updated_at DESC
+            ),
+            ranked_signals AS (
+                SELECT DISTINCT ON (bsd.symbol)
+                    bsd.symbol,
+                    COALESCE(ls.composite_score, 50.0) AS score,
+                    cp.sector
+                FROM buy_sell_daily bsd
+                LEFT JOIN latest_scores ls ON ls.symbol = bsd.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
+                WHERE bsd.signal_type = 'BUY' AND bsd.date >= CURRENT_DATE - 7
+                ORDER BY bsd.symbol, bsd.date DESC
+            )
+            SELECT symbol, score, sector
+            FROM ranked_signals
+            WHERE score BETWEEN 55 AND 69
+            ORDER BY score DESC
+            LIMIT 15""")
         near = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-        # Top A-grade stocks by name (radar display - score >= 80)
+        # Top A-grade stocks (score >= 80)
         cur.execute("""
-                SELECT s.symbol, s.signal_quality_score AS score
-                FROM algo_signals s
-                WHERE s.signal_active = TRUE
-                  AND s.signal_quality_score >= 80
-                ORDER BY s.signal_quality_score DESC LIMIT 20""")
+            WITH latest_scores AS (
+                SELECT DISTINCT ON (symbol) symbol, composite_score
+                FROM stock_scores
+                WHERE composite_score IS NOT NULL
+                ORDER BY symbol, updated_at DESC
+            ),
+            ranked_signals AS (
+                SELECT DISTINCT ON (bsd.symbol)
+                    bsd.symbol,
+                    COALESCE(ls.composite_score, 50.0) AS score
+                FROM buy_sell_daily bsd
+                LEFT JOIN latest_scores ls ON ls.symbol = bsd.symbol
+                WHERE bsd.signal_type = 'BUY' AND bsd.date >= CURRENT_DATE - 7
+                ORDER BY bsd.symbol, bsd.date DESC
+            )
+            SELECT symbol, score
+            FROM ranked_signals
+            WHERE score >= 80
+            ORDER BY score DESC
+            LIMIT 20""")
         top_a = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-        # Signal count trend: last 7 days from algo_signals
+        # Signal count trend: last 7 days
         cur.execute("""
-                SELECT signal_date AS date,
-                       COUNT(*) FILTER (WHERE signal_quality_score >= 60) AS buy_n,
-                       COUNT(*) AS total_n
-                FROM algo_signals
-                WHERE signal_date >= CURRENT_DATE - 7 AND signal_active = TRUE
-                GROUP BY signal_date ORDER BY signal_date DESC LIMIT 7""")
+            WITH latest_scores AS (
+                SELECT DISTINCT ON (symbol) symbol, composite_score
+                FROM stock_scores
+                WHERE composite_score IS NOT NULL
+                ORDER BY symbol, updated_at DESC
+            ),
+            daily_signals AS (
+                SELECT DISTINCT ON (bsd.date, bsd.symbol)
+                    bsd.date,
+                    COALESCE(ls.composite_score, 50.0) AS score
+                FROM buy_sell_daily bsd
+                LEFT JOIN latest_scores ls ON ls.symbol = bsd.symbol
+                WHERE bsd.signal_type = 'BUY' AND bsd.date >= CURRENT_DATE - 7
+                ORDER BY bsd.date DESC, bsd.symbol
+            )
+            SELECT date,
+                   COUNT(*) FILTER (WHERE score >= 60) AS buy_n,
+                   COUNT(*) AS total_n
+            FROM daily_signals
+            GROUP BY date
+            ORDER BY date DESC
+            LIMIT 7""")
         trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-        freshness = check_data_freshness(cur, "algo_signals", "signal_date", warning_days=1)
+        freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
 
-        # Count qualifying active signals (quality_score >= 70)
+        # Count qualifying signals (composite_score >= 70)
         cur.execute("""
-                SELECT COUNT(*) AS n
-                FROM algo_signals
-                WHERE signal_active = TRUE
-                  AND signal_quality_score >= 70""")
+            WITH latest_scores AS (
+                SELECT DISTINCT ON (symbol) symbol, composite_score
+                FROM stock_scores
+                WHERE composite_score IS NOT NULL
+                ORDER BY symbol, updated_at DESC
+            ),
+            ranked_signals AS (
+                SELECT DISTINCT ON (bsd.symbol)
+                    COALESCE(ls.composite_score, 50.0) AS score
+                FROM buy_sell_daily bsd
+                LEFT JOIN latest_scores ls ON ls.symbol = bsd.symbol
+                WHERE bsd.signal_type = 'BUY' AND bsd.date >= CURRENT_DATE - 7
+                ORDER BY bsd.symbol, bsd.date DESC
+            )
+            SELECT COUNT(*) AS n FROM ranked_signals WHERE score >= 70""")
         count_row = cur.fetchone()
-        # Fail-fast: COUNT(*) always returns a row. If count_row is None, query failed (data unavailable).
-        # Do not convert to 0 (silent fallback).
         if count_row is None or "n" not in count_row:
             logger.warning("[DASHBOARD] Count query for qualifying signals failed - data unavailable")
             qualifying_buy_count = None
         else:
             qualifying_buy_count = int(count_row["n"]) if count_row["n"] is not None else 0
+
         sig_response = {
             "n": qualifying_buy_count,
             "total": total_n,
-            "date": str(sig["d"]) if sig and sig.get("d") else None,
+            "date": signal_date,
             "buy_sigs": buy_sigs[:15] if buy_sigs else [],
             "near": near[:8] if near else [],
             "top_a": top_a[:20] if top_a else [],
