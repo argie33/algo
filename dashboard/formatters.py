@@ -133,6 +133,7 @@ def next_run_str() -> str:
         result = f"[yellow]{result}[/yellow] (offline schedule)"
     except Exception as e:
         logger.warning(f"Hardcoded schedule calculation failed: {e}. Using minimal fallback.")
+        result = "[yellow]Schedule unavailable[/yellow]"
     _schedule_cache["result"] = result
     _schedule_cache["timestamp"] = now
     return result
