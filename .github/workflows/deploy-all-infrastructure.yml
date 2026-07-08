@@ -69,6 +69,7 @@ jobs:
             # Manual workflow_dispatch: allow (requires explicit approval from GitHub user)
             echo "⚠️  Manual deployment triggered (CI check bypassed for workflow_dispatch)"
           fi
+          exit 0
 
   #
   # STEP 0 -- Bootstrap Terraform Backend (S3 + DynamoDB)
