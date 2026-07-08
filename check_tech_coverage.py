@@ -23,6 +23,8 @@ with DatabaseContext('read') as cur:
         WHERE date >= %s AND date <= %s
     """, (target_date - timedelta(days=lookback_window), target_date))
     result = cur.fetchone()
+    if not result:
+        raise RuntimeError("technical_data_daily query returned no rows")
     tech_coverage = result[0]
     tech_max_date = result[1]
     print(f"2. Tech coverage within {lookback_window} days of {target_date}: {tech_coverage} symbols (max date: {tech_max_date})")

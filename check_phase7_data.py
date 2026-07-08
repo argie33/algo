@@ -160,7 +160,10 @@ with DatabaseContext('read') as cur:
               AND date >= %s
               AND date <= %s
         """, (lookback_date, run_date))
-        step1 = cur.fetchone()[0]
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("buy_sell_daily count query returned no rows")
+        step1 = result[0]
         print(f"   After buy_sell_daily filter: {step1}")
 
         # Step 2: After DISTINCT ON (symbol)
@@ -171,7 +174,10 @@ with DatabaseContext('read') as cur:
               AND date >= %s
               AND date <= %s
         """, (lookback_date, run_date))
-        step2 = cur.fetchone()[0]
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("buy_sell_daily distinct symbols query returned no rows")
+        step2 = result[0]
         print(f"   Unique symbols: {step2}")
 
         # Step 3: After stock_scores join
@@ -188,7 +194,10 @@ with DatabaseContext('read') as cur:
             LEFT JOIN stock_scores ss ON ss.symbol = bsd.symbol
             WHERE ss.symbol IS NOT NULL
         """, (lookback_date, run_date))
-        step3 = cur.fetchone()[0]
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("stock_scores join query returned no rows")
+        step3 = result[0]
         print(f"   After stock_scores join (has scores): {step3}")
 
         # Step 4: Check score threshold

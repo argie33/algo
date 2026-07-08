@@ -485,7 +485,10 @@ class CircuitBreaker:
             "SELECT COUNT(*) FROM algo_positions WHERE status = %s AND current_stop_price IS NULL",
             (PositionStatus.OPEN.value,),
         )
-        missing_stops_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("Circuit breaker total_risk check: algo_positions query returned no rows")
+        missing_stops_count = result[0]
         if missing_stops_count > 0:
             logger.critical(
                 f"[TOTAL_RISK_CHECK] {missing_stops_count} open positions have NULL current_stop_price. "

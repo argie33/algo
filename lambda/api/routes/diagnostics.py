@@ -46,19 +46,28 @@ def _check_data_sync_health(cur: cursor) -> Any:
         WHERE status IN ('open', 'filled', 'active', 'partially_filled')
         AND exit_date IS NULL
     """)
-    trade_count = cur.fetchone()[0]
+    result = cur.fetchone()
+    if not result:
+        raise RuntimeError("algo_trades count query returned no rows")
+    trade_count = result[0]
 
     # Count open positions in algo_positions (Alpaca-synced)
     cur.execute("""
         SELECT COUNT(*) FROM algo_positions WHERE status = 'open'
     """)
-    position_count = cur.fetchone()[0]
+    result = cur.fetchone()
+    if not result:
+        raise RuntimeError("algo_positions count query returned no rows")
+    position_count = result[0]
 
     # Count in materialized view (dashboard shows this)
     cur.execute("""
         SELECT COUNT(*) FROM algo_positions_with_risk WHERE status = 'open'
     """)
-    view_count = cur.fetchone()[0]
+    result = cur.fetchone()
+    if not result:
+        raise RuntimeError("algo_positions_with_risk count query returned no rows")
+    view_count = result[0]
 
     # Check for quantity mismatches (duplicate positions)
     cur.execute("""
