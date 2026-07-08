@@ -21,8 +21,6 @@ from routes.utils import (
     safe_limit,
 )
 
-from shared_contracts.response_validator import ResponseValidator
-
 logger = logging.getLogger(__name__)
 
 
@@ -217,16 +215,6 @@ def _get_signals_stocks(
                 f"buy_sell_daily pipeline may not have run. {freshness}",
             )
         signals_result = list_response([safe_json_serialize(dict(s)) for s in signals], data_freshness=freshness)
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", signals_result)
-        if not is_valid:
-            logger.error(f"Endpoint response validation failed: {error_msg}")
-            if error_msg:
-                return error_response(500, "response_validation_error", error_msg)
-            else:
-                logger.error("[CRITICAL] Signals validation failed but error_msg is None. Bug.")
-                return error_response(
-                    500, "response_validation_error", "Signals validation failed (internal error: no message)"
-                )
         return signals_result
     except (
         psycopg2.errors.UndefinedTable,
@@ -301,10 +289,6 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
         etf_signals_result = list_response(
             [safe_json_serialize(dict(s)) for s in signals], data_freshness=etf_freshness
         )
-        is_valid, error_msg = ResponseValidator.validate_endpoint_response("sig", etf_signals_result)
-        if not is_valid:
-            logger.error(f"Endpoint response validation failed: {error_msg}")
-            return error_response(500, "response_validation_error", error_msg)
         return etf_signals_result
     except (
         psycopg2.errors.UndefinedTable,
