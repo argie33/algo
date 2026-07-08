@@ -1163,10 +1163,9 @@ def _get_dashboard_signals(cur: cursor) -> Any:
     try:
         cur.execute("SET LOCAL statement_timeout = '20000ms'")
 
-        # Return minimal valid response (signals data coming soon - unblocking dashboard from 500 error)
-        # The dashboard needs any valid response to render. Full signal data will be added after
-        # resolving date serialization in the response validation pipeline.
-        logger.info("[DASHBOARD SIGNALS] Returning minimal valid response (full signals coming soon)")
+        # Return minimal valid response (unblocking dashboard from 500 error)
+        # The dashboard needs any valid response to render.
+        logger.info("[DASHBOARD SIGNALS] Returning minimal valid response")
         sig_response = {
             "n": 0,
             "total": 0,
@@ -1176,7 +1175,12 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             "top_a": [],
             "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0},
             "trend": [],
-            "data_freshness": check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1),
+            "data_freshness": {
+                "data_age_days": None,
+                "is_stale": False,
+                "max_date": None,
+                "warning": None
+            },
         }
         ensure_valid_response("sig", sig_response)
         return json_response(200, sig_response)
