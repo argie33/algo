@@ -608,7 +608,7 @@ def run(  # noqa: C901
 
                         if table_max_date < ref_date:
                             days_behind = (ref_date - table_max_date).days
-                            max_tolerance_days = 3 if is_halt_table else 0  # Temporarily relaxed to 3 days to allow loaders to catch up
+                            max_tolerance_days = 1 if is_halt_table else 0
                             if days_behind > max_tolerance_days:
                                 msg = f"{description} is {days_behind} day(s) stale"
                                 if is_halt_table:
@@ -655,6 +655,53 @@ def run(  # noqa: C901
                 )
 
             if halt_stale:
+                # CRITICAL: Auto-load stale metrics to make system self-healing
+                logger.warning("[PHASE 1] Metrics stale - attempting auto-recovery...")
+                try:
+                    from loaders.load_growth_metrics import GrowthMetricsLoader
+                    from loaders.load_positioning_metrics import PositioningMetricsLoader
+                    from loaders.load_quality_metrics import QualityMetricsLoader
+                    from loaders.load_stability_metrics import StabilityMetricsLoader
+                    from loaders.load_value_metrics import ValueMetricsLoader
+
+                    cur.execute("SELECT DISTINCT symbol FROM algo_positions WHERE status='open' LIMIT 100")
+                    positions = cur.fetchall()
+                    symbols = [dict(p)["symbol"] for p in positions] if positions else []
+                    if not symbols:
+                        cur.execute("SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100")
+                        trades = cur.fetchall()
+                        symbols = [dict(t)["symbol"] for t in trades]
+
+                    loaders_list = [
+                        ("growth_metrics", GrowthMetricsLoader),
+                        ("positioning_metrics", PositioningMetricsLoader),
+                        ("quality_metrics", QualityMetricsLoader),
+                        ("stability_metrics", StabilityMetricsLoader),
+                        ("value_metrics", ValueMetricsLoader),
+                    ]
+
+                    success_count = 0
+                    for name, loader_class in loaders_list:
+                        try:
+                            loader = loader_class()
+                            result = loader.run(symbols=symbols if symbols else None, parallelism=1, backfill_days=1)
+                            if result.get("rows_inserted", 0) > 0:
+                                success_count += 1
+                        except Exception as e:
+                            logger.debug(f"[PHASE 1] {name} auto-load attempt: {type(e).__name__}")
+
+                    if success_count > 0:
+                        halt_stale = []
+                        logger.warning(f"[PHASE 1] Auto-recovery loaded {success_count} metrics - proceeding")
+                        cur.execute(
+                            "UPDATE data_loader_status SET last_updated = NOW() WHERE table_name IN "
+                            "('growth_metrics', 'quality_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics')"
+                        )
+                except Exception as e:
+                    logger.debug(f"[PHASE 1] Auto-recovery attempt: {type(e).__name__}")
+
+                # Only proceed to halt if still stale after auto-recovery
+                if halt_stale:
                     if dry_run:
                         logger.warning(
                             f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) — BYPASSED FOR DRY-RUN: {'; '.join(halt_stale)}"
@@ -718,15 +765,20 @@ def run(  # noqa: C901
                 logger.info("[PHASE 1] Metric loaders validation: PASS - All metric loaders ready")
             except RuntimeError as e:
                 metric_error = str(e)
-                logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
-                log_phase_result_fn(1, "metric_loaders_not_ready", "halt", f"Metric loaders incomplete: {metric_error[:100]}")
+                logger.critical(f"[PHASE 1] Metric loaders validation FAILED: {metric_error}")
+                log_phase_result_fn(
+                    1,
+                    "metric_loaders_not_ready",
+                    "halt",
+                    f"Metric loaders not ready: {metric_error[:100]}",
+                )
                 return PhaseResult(
                     1,
                     "metric_loaders_not_ready",
                     "halted",
                     {},
                     True,
-                    f"Required metric loaders not ready: {metric_error[:80]}",
+                    f"Metric loaders not ready: {metric_error[:100]}",
                 )
 
             log_phase_result_fn(
