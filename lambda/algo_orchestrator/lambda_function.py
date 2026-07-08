@@ -194,14 +194,78 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 )
                 dry_run = True
 
-        # FIXED Issue #12: Parse execution_mode from event (EventBridge Scheduler passes it)
-        execution_mode = event.get("execution_mode", os.getenv("ORCHESTRATOR_EXECUTION_MODE", "auto")).strip().lower()
-        if execution_mode not in ("auto", "paper", "live"):
-            logger.critical(f"Invalid execution_mode: {execution_mode}")
-            raise ValueError(
-                f"[CONFIG] Invalid execution_mode {execution_mode} (must be 'auto', 'paper', or 'live'). "
-                "Halting to prevent trading in unknown mode."
+        # ISSUE #5 FIX: Explicit execution mode validation and enforcement
+        # Execution mode determines whether trades are paper (test) or live (real money)
+        # This MUST be explicit and validated at entry point, never using unsafe defaults
+        env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
+        if not env_execution_mode:
+            logger.critical(
+                "[EXECUTION_MODE_MISSING] ORCHESTRATOR_EXECUTION_MODE environment variable is not set. "
+                "This is a CRITICAL configuration error - Lambda cannot determine trading mode. "
+                "Set ORCHESTRATOR_EXECUTION_MODE in Lambda environment variables to 'paper' or 'live'."
             )
+            raise ValueError(
+                "[CONFIG] ORCHESTRATOR_EXECUTION_MODE environment variable is required and must be set to 'paper' or 'live'. "
+                "Refusing to proceed without explicit execution mode configuration."
+            )
+
+        # Event can override environment variable for manual invocations, but MUST be validated
+        event_execution_mode = event.get("execution_mode", "").strip().lower()
+        if event_execution_mode:
+            if event_execution_mode not in ("paper", "live"):
+                logger.critical(f"[EXECUTION_MODE_INVALID] Event specifies invalid execution_mode: {event_execution_mode}")
+                raise ValueError(
+                    f"[CONFIG] Event execution_mode '{event_execution_mode}' is invalid (must be 'paper' or 'live'). "
+                    "Halting to prevent trading in unknown mode."
+                )
+            execution_mode = event_execution_mode
+            logger.info(f"[EXECUTION_MODE] Using event override: {execution_mode}")
+        else:
+            execution_mode = env_execution_mode
+            logger.info(f"[EXECUTION_MODE] Using environment variable: {execution_mode}")
+
+        if execution_mode not in ("paper", "live"):
+            logger.critical(f"[EXECUTION_MODE_VALIDATION_FAILED] Final execution_mode invalid: {execution_mode}")
+            raise ValueError(
+                f"[CONFIG] Execution mode validation failed - final mode '{execution_mode}' is invalid. "
+                "This should never happen if environment variable is set correctly."
+            )
+
+        # ISSUE #2 FIX: Explicit DynamoDB halt flag check at Lambda entry point
+        # Fail-fast before orchestrator initialization if emergency halt flag is set
+        # This ensures no trades occur when halt flag is active, regardless of orchestrator logic
+        if not dry_run:
+            try:
+                import boto3
+                dynamodb = boto3.resource("dynamodb")
+                table = dynamodb.Table(os.environ.get("HALT_FLAG_TABLE", "algo_orchestrator_state"))
+                response = table.get_item(Key={"key": "orchestrator_halt"})
+
+                if "Item" in response:
+                    item = response["Item"]
+                    if item.get("halt_flag") is True:
+                        halt_reason = item.get("reason", "Emergency halt flag set in DynamoDB")
+                        logger.critical(f"[HALT_FLAG_DETECTED] Trading halted: {halt_reason}")
+                        return {
+                            "statusCode": 503,
+                            "body": json.dumps({
+                                "status": "halted",
+                                "message": f"Trading halted by emergency halt flag: {halt_reason}",
+                                "source": source,
+                                "halt_timestamp": item.get("triggered_at"),
+                            }),
+                        }
+            except Exception as halt_err:
+                logger.critical(f"[HALT_CHECK_FAILED] Could not verify halt flag in DynamoDB: {halt_err}")
+                # Fail-closed: if we can't verify halt status, assume halt for safety
+                return {
+                    "statusCode": 503,
+                    "body": json.dumps({
+                        "status": "halted",
+                        "message": f"Could not verify halt status - assuming halt for safety: {halt_err!s}",
+                        "source": source,
+                    }),
+                }
 
         # F-02: Check Secrets Manager for intraday circuit breaker halt flag.
         # Set by algo-circuit-breaker Lambda when portfolio drawdown exceeds threshold.

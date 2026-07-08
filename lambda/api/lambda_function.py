@@ -270,10 +270,42 @@ def _apply_critical_migrations() -> tuple[bool, str]:
         # NOTE: R-metrics columns (expectancy, avg_win_r, avg_loss_r) are created by lambda/db-init/lambda_function.py
         # DO NOT duplicate column creation here. The db-init Lambda is authoritative for schema initialization.
 
+        # ISSUE #7 FIX: Explicit validation that data_unavailable columns actually exist
+        # After creating columns, verify they're present in the schema before continuing
+        logger.info("[STARTUP] Validating that data_unavailable columns were created correctly...")
+        critical_columns_to_validate = [
+            ("quality_metrics", "data_unavailable"),
+            ("growth_metrics", "data_unavailable"),
+            ("value_metrics", "data_unavailable"),
+            ("positioning_metrics", "data_unavailable"),
+            ("stability_metrics", "data_unavailable"),
+            ("market_health_daily", "put_call_ratio_data_unavailable"),
+        ]
+
+        missing_columns = []
+        for table, column in critical_columns_to_validate:
+            try:
+                cur.execute(
+                    f"SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s",
+                    (table, column),
+                )
+                if not cur.fetchone():
+                    missing_columns.append(f"{table}.{column}")
+            except Exception as val_err:
+                logger.warning(f"[STARTUP] Could not validate {table}.{column}: {val_err}")
+                missing_columns.append(f"{table}.{column} (validation failed)")
+
+        if missing_columns:
+            logger.critical(f"[STARTUP CRITICAL] Required columns missing after migration: {', '.join(missing_columns)}")
+            raise RuntimeError(
+                f"[STARTUP] Data unavailable columns not created: {', '.join(missing_columns)}. "
+                f"Metric loaders require these columns to mark data unavailability."
+            )
+
         cur.close()
         conn.close()
-        logger.info("[STARTUP] Critical schema migrations completed")
-        return True, "Migrations applied"
+        logger.info("[STARTUP] Critical schema migrations completed and validated")
+        return True, "Migrations applied and validated"
 
     except ImportError:
         logger.warning("[STARTUP] psycopg2 not available - migrations skipped")
