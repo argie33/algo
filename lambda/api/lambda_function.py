@@ -286,7 +286,7 @@ def _apply_critical_migrations() -> tuple[bool, str]:
         for table, column in critical_columns_to_validate:
             try:
                 cur.execute(
-                    f"SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s",
+                    "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s",
                     (table, column),
                 )
                 if not cur.fetchone():
