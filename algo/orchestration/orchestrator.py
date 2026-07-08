@@ -1114,28 +1114,7 @@ class Orchestrator:
             raise RuntimeError("[PHASE 9] phase_9_reconcile() did not set _phase9_result")
         return self._phase9_result
 
-    # ---------- Main entrypoint ----------
-
-    def run(self) -> dict[str, Any]:
-        self.run_start = time.time()
-        logger.info(f"\n{'#' * 70}")
-        logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
-        logger.info(f"#   run_id: {self.run_id}")
-        logger.info(f"#   START TIME: {datetime.now(timezone.utc).isoformat()}")
-        logger.info(f"{'#' * 70}")
-
-        # CRITICAL FIX: Don't skip trading phases on non-trading days.
-        # The circuit breaker (Phase 2) will halt if market is closed.
-        # Skipping phases 4-8 prevents signal generation and entry execution entirely.
-        # This caused 18+ days of zero trades. Let phases run; circuit breaker handles halt logic.
-        # if not is_trading_day:
-        #     status = MarketCalendar.market_status(datetime.combine(self.run_date, datetime.min.time()))
-        #     logger.info(f"\nMarket closed: {status['reason']}")
-        #     logger.info("Skipping trading phases. Circuit breaker will halt if needed.\n")
-
-        # Concurrency lock — prevent two orchestrators running at once
-        # which would risk duplicate trades or double-counting circuit breakers
-        # Skip lock check in dry-run mode (no actual trades), paper trading (dev/test), or explicit env var
+    def _handle_concurrency_lock(self) -> dict[str, Any] | None:
         is_paper_trading = self.config.get("execution_mode") == "paper"
         skip_lock_check = (
             self.dry_run or is_paper_trading or os.getenv("SKIP_ORCHESTRATOR_LOCK", "").lower() in ("true", "1", "yes")
@@ -1145,11 +1124,9 @@ class Orchestrator:
             lock_acquired = self._acquire_run_lock()
             if not lock_acquired:
                 if self.lock_manager.is_available:
-                    # DynamoDB is available but lock couldn't be acquired (another instance running)
                     logger.error("\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
                     return {"success": False, "error": "Lock acquisition failed"}
                 else:
-                    # DynamoDB unavailable — FAIL CLOSED to prevent concurrent executions
                     logger.critical(
                         "\nABORT: DynamoDB lock unavailable. Cannot verify single orchestrator instance. "
                         "Failing closed to prevent concurrent trades and duplicate order execution."
@@ -1166,6 +1143,21 @@ class Orchestrator:
             else:
                 reason = "SKIP_ORCHESTRATOR_LOCK environment variable"
             logger.info(f"[LOCK-SKIP] Skipping distributed lock check ({reason})")
+        return None
+
+    # ---------- Main entrypoint ----------
+
+    def run(self) -> dict[str, Any]:
+        self.run_start = time.time()
+        logger.info(f"\n{'#' * 70}")
+        logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
+        logger.info(f"#   run_id: {self.run_id}")
+        logger.info(f"#   START TIME: {datetime.now(timezone.utc).isoformat()}")
+        logger.info(f"{'#' * 70}")
+
+        lock_result = self._handle_concurrency_lock()
+        if lock_result is not None:
+            return lock_result
 
         try:
             logger.info(f"\n{'=' * 70}")
