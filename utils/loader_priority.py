@@ -35,17 +35,18 @@ LOADER_PRIORITY_MAP: dict[str, LoaderPriority] = {
     "market_health_daily": LoaderPriority.PHASE_1_CRITICAL,  # Market regime gating
     "market_exposure_daily": LoaderPriority.PHASE_1_CRITICAL,  # Position sizing
     "earnings_calendar": LoaderPriority.PHASE_1_CRITICAL,  # Blackout window gating
+    "growth_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
+    "quality_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
+    "value_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
+    "positioning_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
+    "stability_metrics": LoaderPriority.PHASE_1_CRITICAL,  # FIXED 2026-07-07: Required for stock scoring (Phase 1 now validates)
     # ===== PHASE 1 OPTIONAL (medium priority, nice-to-have enrichment) =====
     # These should finish by Phase 1 but won't block if slow
     "trend_template_data": LoaderPriority.PHASE_1_OPTIONAL,
     "sector_ranking": LoaderPriority.PHASE_1_OPTIONAL,
     # ===== BACKGROUND (low priority, can run anytime) =====
     # These don't block trading; dashboard shows graceful degradation if missing
-    "growth_metrics": LoaderPriority.BACKGROUND,
-    "value_metrics": LoaderPriority.BACKGROUND,
-    "positioning_metrics": LoaderPriority.BACKGROUND,
     "analyst_sentiment_analysis": LoaderPriority.BACKGROUND,
-    "stability_metrics": LoaderPriority.BACKGROUND,
     "economic_metrics_daily": LoaderPriority.BACKGROUND,
     "aaii_sentiment": LoaderPriority.BACKGROUND,
     "fear_greed_index": LoaderPriority.BACKGROUND,
