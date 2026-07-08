@@ -82,7 +82,10 @@ class PositioningMetricsLoader(OptimalLoader):
                 logger.info(f"[POSITIONING_METRICS] No snapshot for {symbol} — yfinance_snapshot loader not yet run?")
                 return [self._unavailable_record(symbol, "No yfinance_snapshot record")]
 
-            # Validate freshness: snapshot should be from today or yesterday max
+            # Validate freshness: snapshot should be relatively recent
+            # yfinance_snapshot data updates periodically, not necessarily daily.
+            # Use 7-day tolerance instead of 24-hour since yfinance only updates when fundamentals change.
+            # Per GOVERNANCE: stale but usable data is better than no data.
             if row.get("updated_at"):
                 # Ensure both datetimes are timezone-aware for safe subtraction
                 updated_at = row["updated_at"]
@@ -90,13 +93,14 @@ class PositioningMetricsLoader(OptimalLoader):
                     # Database returned naive datetime — make it UTC-aware
                     updated_at = updated_at.replace(tzinfo=timezone.utc)
                 snapshot_age = datetime.now(timezone.utc) - updated_at
-                if snapshot_age > timedelta(hours=24):
+                max_age_hours = 168  # 7 days - yfinance fundamentals update sporadically, not daily
+                if snapshot_age > timedelta(hours=max_age_hours):
                     logger.warning(
-                        f"[POSITIONING_METRICS] {symbol} snapshot data is stale ({snapshot_age.total_seconds() / 3600:.1f}h old)"
+                        f"[POSITIONING_METRICS] {symbol} snapshot data is very stale ({snapshot_age.total_seconds() / 3600:.1f}h old)"
                     )
                     return [
                         self._unavailable_record(
-                            symbol, f"Stale snapshot data ({snapshot_age.total_seconds() / 3600:.0f}h old)"
+                            symbol, f"Very stale snapshot data ({snapshot_age.total_seconds() / 3600:.0f}h old)"
                         )
                     ]
 
