@@ -1592,11 +1592,12 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       # Override LOADER_INTERVALS to "1d" so only daily prices are loaded (~15 min vs 6+ hours).
       # The full 1d/1wk/1mo load runs in the EOD pipeline at 4:05pm ET.
       # parallelism=1 (serial to prevent yfinance 429 rate limit errors); actual runtime 60-90 min with 5000+ symbols
-      # Timeout increased from 75min to 2h to provide sufficient buffer (first attempt was hitting exactly 75min timeout)
+      # Timeout: 4 hours (14400s). Morning pipeline runs 2:00-9:30 AM (450 min available).
+      # 90min loader + 60min for technicals + 60min buffer = 210min needed; 240min timeout is safe.
       MorningPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 7200
+        TimeoutSeconds = 14400
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"

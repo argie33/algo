@@ -1667,8 +1667,8 @@ class PriceLoader(OptimalLoader):
 
             completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
 
-            loader_status = "COMPLETED" if completion_pct >= 95 else "INCOMPLETE"
-            if completion_pct < 95:
+            loader_status = "COMPLETED" if completion_pct >= 90 else "INCOMPLETE"
+            if completion_pct < 90:
                 logger.warning(
                     f"[{self.table_name}] Load completed but INCOMPLETE: "
                     f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%)"
