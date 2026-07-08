@@ -78,7 +78,6 @@ jobs:
   # STEP 0 -- Bootstrap Terraform Backend (S3 + DynamoDB)
   #
   bootstrap-backend:
-    needs: validate-ci
     name: "0. Bootstrap Terraform Backend / Create S3 State Bucket & DynamoDB Lock Table"
     runs-on: ubuntu-latest
     permissions:
