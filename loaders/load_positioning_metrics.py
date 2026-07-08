@@ -84,7 +84,12 @@ class PositioningMetricsLoader(OptimalLoader):
 
             # Validate freshness: snapshot should be from today or yesterday max
             if row.get("updated_at"):
-                snapshot_age = datetime.now(timezone.utc) - row["updated_at"]
+                # Ensure both datetimes are timezone-aware for safe subtraction
+                updated_at = row["updated_at"]
+                if updated_at.tzinfo is None:
+                    # Database returned naive datetime — make it UTC-aware
+                    updated_at = updated_at.replace(tzinfo=timezone.utc)
+                snapshot_age = datetime.now(timezone.utc) - updated_at
                 if snapshot_age > timedelta(hours=24):
                     logger.warning(
                         f"[POSITIONING_METRICS] {symbol} snapshot data is stale ({snapshot_age.total_seconds() / 3600:.1f}h old)"
