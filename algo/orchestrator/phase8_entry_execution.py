@@ -379,15 +379,22 @@ def run(
         return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # Validate that exposure_constraints has all fields needed for position sizing
-
-    required_fields = ["tier_name", "risk_multiplier", "max_new_positions_today"]
+    # CRITICAL: All required fields must be present; no silent defaults allowed
+    required_fields = [
+        "tier_name",
+        "risk_multiplier",
+        "max_new_positions_today",
+        "halt_new_entries",
+        "max_concentration_pct",  # Added by Phase 5 fallback
+    ]
 
     missing_fields = [f for f in required_fields if f not in exposure_constraints]
 
     if missing_fields:
         msg = (
             f"[PHASE 8 CRITICAL] exposure_constraints missing required fields: {missing_fields}. "
-            "Cannot size positions without complete constraints."
+            "Cannot size positions without complete constraints. "
+            "Phase 5 (Exposure Policy) must provide complete constraint data."
         )
 
         logger.critical(msg)
