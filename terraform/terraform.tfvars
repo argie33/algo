@@ -23,20 +23,22 @@ api_cors_allowed_origins = [
   "http://localhost:5173",
   "http://localhost:3000"
 ]
-# ORCHESTRATOR SCHEDULE: 3 runs during market hours
-# Goal: Keep signals computed overnight, execute multiple times to catch opportunities + meet 4 PM ET close SLA
-# All runs use signals from previous night's EOD computation (no intraday signal recalc yet)
+# ORCHESTRATOR SCHEDULE: 2X DAILY (TESTING PHASE)
+# Goal: Minimize execution until system is fully verified and stable
+# Current configuration: Morning (9:30 AM ET) + Evening (5:30 PM ET)
+# Testing phase: No afternoon/pre-close runs (reduce costs and operational complexity)
+#
 # Pre-market (4:30 AM ET): DISABLED - not during market hours
-# Morning (9:30 AM ET): PRIMARY execution at market open [enabled]
-# Afternoon (1:00 PM ET): Mid-day rebalance, catch missed opportunities [enabled]
-# Pre-close (3:00 PM ET): FINAL execution before 4 PM ET market close, SLA finish by 3:15 PM ET [enabled]
-# Evening (5:30 PM ET): AFTER CLOSE - signal prep for next day only, no trading [managed separately]
-algo_schedule_enabled         = false                         # FIXED 2026-07-07: Disable 5:30 PM evening run (conflicts with metrics pipeline timing - metrics don't complete until ~7 PM). Keep 9:30 AM, 1:00 PM, 3:00 PM runs (all before metrics deadline)
-algo_schedule_expression      = "cron(30 17 ? * MON-FRI *)" # 5:30 PM ET (signal prep, not trading)
+# Morning (9:30 AM ET): PRIMARY execution at market open [ENABLED]
+# Afternoon (1:00 PM ET): Mid-day rebalance [DISABLED for testing]
+# Pre-close (3:00 PM ET): Before market close [DISABLED for testing]
+# Evening (5:30 PM ET): After close - signal prep for next day [ENABLED]
+algo_schedule_enabled         = true                         # Enable 5:30 PM evening run (after loaders, for next day prep)
+algo_schedule_expression      = "cron(30 17 ? * MON-FRI *)" # 5:30 PM ET (signal prep for next trading day)
 enable_premarket_orchestrator = false                       # Disabled: not during market hours
 enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM ET market open
-enable_afternoon_orchestrator = true                        # 1:00 PM ET mid-day rebalance
-enable_preclose_orchestrator  = true                        # FINAL: 3:00 PM ET last trades before close
+enable_afternoon_orchestrator = false                       # DISABLED for testing: 1:00 PM ET mid-day rebalance
+enable_preclose_orchestrator  = false                       # DISABLED for testing: 3:00 PM ET last trades before close
 cognito_enabled               = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
 cognito_test_user_email       = "argeropolos@gmail.com"     # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
 cognito_custom_email_enabled  = false                       # OPTIMIZED: Disabled in dev (Lambda not needed for dev testing). Cost: saves $0.50/month
