@@ -493,7 +493,7 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
     """
     try:
         # Use psycopg2.sql for safe SQL composition
-        filters = [psycopg2.sql.SQL("s.date >= CURRENT_DATE - INTERVAL '14 days'")]
+        filters = [psycopg2.sql.SQL("s.created_at::date >= CURRENT_DATE - INTERVAL '14 days'")]
         query_params: list[Any] = []
         if min_score is not None:
             filters.append(psycopg2.sql.SQL("s.composite_score >= %s"))
@@ -505,7 +505,7 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         query_params.append(limit)
         query = psycopg2.sql.SQL("""
                 SELECT
-                    s.symbol, s.date, s.composite_score,
+                    s.symbol, s.created_at::date AS date, s.composite_score,
                     CASE
                         WHEN s.composite_score >= 85 THEN 'A+'
                         WHEN s.composite_score >= 75 THEN 'A'
@@ -526,9 +526,9 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
                     jsonb_build_object('weinstein_stage', t.weinstein_stage, 'trend_template_score', t.minervini_trend_score, 'stage_substage', 'Stage ' || COALESCE(t.weinstein_stage::text, '')) AS details
                 FROM stock_scores s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-                LEFT JOIN trend_template_data t ON s.symbol = t.symbol AND s.date = t.date
+                LEFT JOIN trend_template_data t ON s.symbol = t.symbol AND s.created_at::date = t.date
                 WHERE {where_clause}
-                ORDER BY s.date DESC, s.composite_score DESC
+                ORDER BY s.created_at DESC, s.composite_score DESC
                 LIMIT %s
             """).format(where_clause=where_clause)
         cur.execute(query, query_params)
@@ -553,16 +553,16 @@ def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
         cur.execute(
             """
-                SELECT date AS eval_date,
+                SELECT created_at::date AS eval_date,
                     COUNT(CASE WHEN composite_score >= 85 THEN 1 END) AS grade_aplus,
                     COUNT(CASE WHEN composite_score >= 75 THEN 1 END) AS grade_a,
                     COUNT(CASE WHEN composite_score >= 50 THEN 1 END) AS pass_count,
                     COUNT(*) AS total_candidates,
                     ROUND(AVG(composite_score)::NUMERIC, 1) AS avg_score
                 FROM stock_scores
-                WHERE date >= %s AND data_unavailable = FALSE
-                GROUP BY date
-                ORDER BY date ASC
+                WHERE created_at::date >= %s AND data_unavailable = FALSE
+                GROUP BY created_at::date
+                ORDER BY created_at::date ASC
             """,
             (cutoff_date,),
         )
