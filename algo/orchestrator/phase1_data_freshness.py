@@ -371,7 +371,18 @@ def run(  # noqa: C901
 
                     logger.info("[PHASE 1] Starting emergency price loader...")
                     loader = PriceLoader()
-                    result = loader.run(symbols=None, parallelism=1, backfill_days=1)
+                    # Get portfolio symbols to load prices for
+                    cur.execute("SELECT DISTINCT symbol FROM algo_positions WHERE status='open' ORDER BY symbol LIMIT 100")
+                    positions = cur.fetchall()
+                    symbols = [dict(p)["symbol"] for p in positions] if positions else []
+                    if not symbols:
+                        # If no open positions, load top portfolio symbols
+                        cur.execute(
+                            "SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100"
+                        )
+                        trades = cur.fetchall()
+                        symbols = [dict(t)["symbol"] for t in trades]
+                    result = loader.run(symbols=symbols, parallelism=1, backfill_days=1)
 
                     if result.get("rows_inserted", 0) > 0:
                         logger.warning(f"[PHASE 1] Emergency loader succeeded: {result['rows_inserted']} rows inserted")
