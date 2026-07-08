@@ -116,7 +116,18 @@ class BuySignalGenerator:
                     # Optional enrichment failed; log and continue with None value
                     logger.debug(f"[SIGNAL_GENERATION] {symbol} [{row.get('date')}]: {e!s}")
                     avg_vol_50d = None
-                market_stage = self._determine_market_stage(close, sma_50, sma_200)
+                market_stage_result = self._determine_market_stage(close, sma_50, sma_200)
+
+                # Handle market_stage result: could be string, dict (data unavailable), or None
+                market_stage = None
+                market_stage_unavailable = False
+                if isinstance(market_stage_result, dict) and market_stage_result.get("data_unavailable"):
+                    # Data unavailable marker: mark signal as incomplete, store reason separately
+                    market_stage_unavailable = True
+                    market_stage = None
+                elif isinstance(market_stage_result, str):
+                    market_stage = market_stage_result
+                # else: market_stage remains None
 
                 # Phase 4: Calculate entry/exit levels
                 entry_exit = self._calculate_entry_exit_levels(signal_type, close, buylevel, stoplevel)
