@@ -289,6 +289,11 @@ def run(  # noqa: C901
                 log_phase_result_fn(1, "price_data", "halt", "price_daily table is empty")
                 return PhaseResult(1, "price_data", "halted", {}, True, "price_daily table is empty")
 
+            # CRITICAL FIX: Ensure max_date is a date object, not datetime
+            # PostgreSQL date columns can return datetime.datetime from some drivers
+            if isinstance(max_date, dt):
+                max_date = max_date.date()
+
             # CRITICAL: Verify stock_symbols table is pre-loaded (required for ALL loaders)
             cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
             symbol_count_row = cur.fetchone()
@@ -317,26 +322,33 @@ def run(  # noqa: C901
             # Market hours: 9:30 AM - 4:00 PM ET.
             # If orchestrator runs DURING market hours (before 16:00 ET), expect previous trading day's data.
             # If orchestrator runs AFTER market close (16:00+ ET), expect same-day data.
+
+            # CRITICAL: Ensure run_date is a date object, not datetime (can come from various sources)
+            if isinstance(run_date, dt):
+                run_date_obj = run_date.date()
+            else:
+                run_date_obj = run_date
+
             if pipeline_context == "MORNING" or pipeline_context == "INTRADAY":
                 # During market hours: expect the *previous* trading day's data (today's not closed yet)
-                prev_date = run_date - td(days=1)
+                prev_date = run_date_obj - td(days=1)
                 if MarketCalendar.is_trading_day(prev_date):
                     last_trading_day = prev_date
                 else:
                     # Find the most recent trading day before today
                     last_trading_day = prev_date
-                    while last_trading_day > run_date - td(days=10):
+                    while last_trading_day > run_date_obj - td(days=10):
                         if MarketCalendar.is_trading_day(last_trading_day):
                             break
                         last_trading_day -= td(days=1)
             else:
                 # After market close (EOD context): expect same-day data if it's a trading day
-                if MarketCalendar.is_trading_day(run_date):
-                    last_trading_day = run_date
+                if MarketCalendar.is_trading_day(run_date_obj):
+                    last_trading_day = run_date_obj
                 else:
                     # Weekend/holiday: find most recent trading day
-                    last_trading_day = run_date - td(days=1)
-                    while last_trading_day > run_date - td(days=10):
+                    last_trading_day = run_date_obj - td(days=1)
+                    while last_trading_day > run_date_obj - td(days=10):
                         if MarketCalendar.is_trading_day(last_trading_day):
                             break
                         last_trading_day -= td(days=1)
