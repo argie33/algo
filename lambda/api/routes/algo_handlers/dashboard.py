@@ -1195,7 +1195,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             # Top active signals with quality scores
             cur.execute("""
                 SELECT s.symbol, ss.composite_score AS signal_quality_score,
-                       cp.sector, s.price_at_signal AS entry_price, s.date AS signal_date
+                       cp.sector, s.entry_price, s.date AS signal_date
                 FROM buy_sell_daily s
                 LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
