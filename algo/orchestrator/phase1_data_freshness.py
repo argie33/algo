@@ -666,11 +666,11 @@ def run(  # noqa: C901
 
                     cur.execute("SELECT DISTINCT symbol FROM algo_positions WHERE status='open' LIMIT 100")
                     positions = cur.fetchall()
-                    symbols: list[str] = [dict(p)["symbol"] for p in positions] if positions else []
-                    if not symbols:
+                    recovery_symbols: list[str] = [dict(p)["symbol"] for p in positions] if positions else []
+                    if not recovery_symbols:
                         cur.execute("SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100")
                         trades = cur.fetchall()
-                        symbols = [dict(t)["symbol"] for t in trades] if trades else []
+                        recovery_symbols = [dict(t)["symbol"] for t in trades] if trades else []
 
                     loaders_list = [
                         ("growth_metrics", GrowthMetricsLoader),
@@ -685,7 +685,7 @@ def run(  # noqa: C901
                         try:
                             loader = loader_class()
                             # Pass empty list instead of None if no symbols available
-                            result = loader.run(symbols=symbols, parallelism=1, backfill_days=1)
+                            result = loader.run(symbols=recovery_symbols, parallelism=1, backfill_days=1)
                             if result.get("rows_inserted", 0) > 0:
                                 success_count += 1
                         except Exception as e:
