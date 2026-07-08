@@ -372,14 +372,14 @@ def run(  # noqa: C901
                     logger.info("[PHASE 1] Starting emergency price loader...")
                     loader = PriceLoader()
                     # Get portfolio symbols to load prices for
-                    cur.execute("SELECT DISTINCT symbol FROM algo_positions WHERE status='open' ORDER BY symbol LIMIT 100")
+                    cur.execute(
+                        "SELECT DISTINCT symbol FROM algo_positions WHERE status='open' ORDER BY symbol LIMIT 100"
+                    )
                     positions = cur.fetchall()
                     symbols = [dict(p)["symbol"] for p in positions] if positions else []
                     if not symbols:
                         # If no open positions, load top portfolio symbols
-                        cur.execute(
-                            "SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100"
-                        )
+                        cur.execute("SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100")
                         trades = cur.fetchall()
                         symbols = [dict(t)["symbol"] for t in trades]
                     result = loader.run(symbols=symbols, parallelism=1, backfill_days=1)
@@ -655,80 +655,80 @@ def run(  # noqa: C901
                 )
 
             if halt_stale:
-                    # CRITICAL: Auto-load stale metrics to make system self-healing
-                    logger.warning("[PHASE 1] Metrics stale - attempting auto-recovery...")
-                    try:
-                        from loaders.load_growth_metrics import GrowthMetricsLoader
-                        from loaders.load_positioning_metrics import PositioningMetricsLoader
-                        from loaders.load_quality_metrics import QualityMetricsLoader
-                        from loaders.load_stability_metrics import StabilityMetricsLoader
-                        from loaders.load_value_metrics import ValueMetricsLoader
+                # CRITICAL: Auto-load stale metrics to make system self-healing
+                logger.warning("[PHASE 1] Metrics stale - attempting auto-recovery...")
+                try:
+                    from loaders.load_growth_metrics import GrowthMetricsLoader
+                    from loaders.load_positioning_metrics import PositioningMetricsLoader
+                    from loaders.load_quality_metrics import QualityMetricsLoader
+                    from loaders.load_stability_metrics import StabilityMetricsLoader
+                    from loaders.load_value_metrics import ValueMetricsLoader
 
-                        cur.execute("SELECT DISTINCT symbol FROM algo_positions WHERE status='open' LIMIT 100")
-                        positions = cur.fetchall()
-                        symbols = [dict(p)["symbol"] for p in positions] if positions else []
-                        if not symbols:
-                            cur.execute("SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100")
-                            trades = cur.fetchall()
-                            symbols = [dict(t)["symbol"] for t in trades]
+                    cur.execute("SELECT DISTINCT symbol FROM algo_positions WHERE status='open' LIMIT 100")
+                    positions = cur.fetchall()
+                    symbols = [dict(p)["symbol"] for p in positions] if positions else []
+                    if not symbols:
+                        cur.execute("SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100")
+                        trades = cur.fetchall()
+                        symbols = [dict(t)["symbol"] for t in trades]
 
-                        loaders_list = [
-                            ("growth_metrics", GrowthMetricsLoader),
-                            ("positioning_metrics", PositioningMetricsLoader),
-                            ("quality_metrics", QualityMetricsLoader),
-                            ("stability_metrics", StabilityMetricsLoader),
-                            ("value_metrics", ValueMetricsLoader),
-                        ]
+                    loaders_list = [
+                        ("growth_metrics", GrowthMetricsLoader),
+                        ("positioning_metrics", PositioningMetricsLoader),
+                        ("quality_metrics", QualityMetricsLoader),
+                        ("stability_metrics", StabilityMetricsLoader),
+                        ("value_metrics", ValueMetricsLoader),
+                    ]
 
-                        success_count = 0
-                        for name, loader_class in loaders_list:
-                            try:
-                                loader = loader_class()
-                                result = loader.run(symbols=symbols if symbols else None, parallelism=1, backfill_days=1)
-                                if result.get("rows_inserted", 0) > 0:
-                                    success_count += 1
-                            except Exception as e:
-                                logger.debug(f"[PHASE 1] {name} auto-load attempt: {type(e).__name__}")
+                    success_count = 0
+                    for name, loader_class in loaders_list:
+                        try:
+                            loader = loader_class()
+                            result = loader.run(symbols=symbols if symbols else None, parallelism=1, backfill_days=1)
+                            if result.get("rows_inserted", 0) > 0:
+                                success_count += 1
+                        except Exception as e:
+                            logger.debug(f"[PHASE 1] {name} auto-load attempt: {type(e).__name__}")
 
-                        if success_count > 0:
-                            halt_stale = []
-                            logger.warning(f"[PHASE 1] Auto-recovery loaded {success_count} metrics - proceeding")
-                            cur.execute(
-                                "UPDATE data_loader_status SET last_updated = NOW() WHERE table_name IN "
-                                "('growth_metrics', 'quality_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics')"
-                            )
-                    except Exception as e:
-                        logger.debug(f"[PHASE 1] Auto-recovery attempt: {type(e).__name__}")
+                    if success_count > 0:
+                        halt_stale = []
+                        logger.warning(f"[PHASE 1] Auto-recovery loaded {success_count} metrics - proceeding")
+                        cur.execute(
+                            "UPDATE data_loader_status SET last_updated = NOW() WHERE table_name IN "
+                            "('growth_metrics', 'quality_metrics', 'value_metrics', 'positioning_metrics', 'stability_metrics')"
+                        )
+                except Exception as e:
+                    logger.debug(f"[PHASE 1] Auto-recovery attempt: {type(e).__name__}")
 
-                    # Only proceed to halt if still stale after auto-recovery
-                    if halt_stale:
-                        if dry_run:
-                            logger.warning(
-                                f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) — BYPASSED FOR DRY-RUN: {'; '.join(halt_stale)}"
-                            )
-                            logger.warning(
-                                "[PHASE 1] Continuing with stale data for dry-run testing. "
-                                "In production, this would halt trading."
-                            )
-                        else:
-                            logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
-                            log_phase_result_fn(
-                                1,
-                                "signal_tables_stale",
-                                "halt",
-                                f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
-                            )
-                            from algo.reporting.notifications import notify_signal_staleness
+                # Only proceed to halt if still stale after auto-recovery
+                if halt_stale:
+                    if dry_run:
+                        logger.warning(
+                            f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) — BYPASSED FOR DRY-RUN: {'; '.join(halt_stale)}"
+                        )
+                        logger.warning(
+                            "[PHASE 1] Continuing with stale data for dry-run testing. "
+                            "In production, this would halt trading."
+                        )
+                    else:
+                        logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
+                        log_phase_result_fn(
+                            1,
+                            "signal_tables_stale",
+                            "halt",
+                            f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
+                        )
+                        from algo.reporting.notifications import notify_signal_staleness
 
-                            notify_signal_staleness(halt_stale)
-                            return PhaseResult(
-                                1,
-                                "signal_tables_stale",
-                                "halted",
-                                {},
-                                True,
-                                f"Critical pipeline tables stale/missing: {halt_stale[0]}",
-                            )
+                        notify_signal_staleness(halt_stale)
+                        return PhaseResult(
+                            1,
+                            "signal_tables_stale",
+                            "halted",
+                            {},
+                            True,
+                            f"Critical pipeline tables stale/missing: {halt_stale[0]}",
+                        )
 
             elapsed = time.time() - phase_start
             phase1_end_et = dt.now(ZoneInfo("America/New_York"))
