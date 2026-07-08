@@ -223,9 +223,9 @@ variable "db_deletion_protection" {
 }
 
 variable "enable_rds_proxy" {
-  description = "Enable RDS Proxy for connection pooling (temporarily disabled due to resource configuration errors)"
+  description = "Enable RDS Proxy for connection pooling - required for production to prevent connection exhaustion"
   type        = bool
-  default     = false
+  default     = true
 }
 
 variable "rds_log_retention_days" {

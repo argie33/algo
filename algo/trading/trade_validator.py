@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any
 
+from utils.infrastructure import EASTERN_TZ
 from utils.trading import PositionStatus, TradeStatus
 
 if TYPE_CHECKING:
@@ -90,13 +91,15 @@ class TradeValidator:
         stop_loss_price = Decimal(str(stop_loss_price))
 
         # Dates MUST be provided or explicitly None for default to current date
+        # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
+        # Market hours are 9:30 AM - 4:00 PM ET, not UTC
         if signal_date is None:
-            signal_date = datetime.now(timezone.utc).date()
+            signal_date = datetime.now(EASTERN_TZ).date()
         elif not isinstance(signal_date, (_date, type(None))):
             raise ValueError(f"signal_date must be a date or None, got {type(signal_date).__name__}: {signal_date!r}")
 
         if entry_date is None:
-            entry_date = datetime.now(timezone.utc).date()
+            entry_date = datetime.now(EASTERN_TZ).date()
         elif not isinstance(entry_date, (_date, type(None))):
             raise ValueError(f"entry_date must be a date or None, got {type(entry_date).__name__}: {entry_date!r}")
 

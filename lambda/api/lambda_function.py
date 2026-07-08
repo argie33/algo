@@ -131,8 +131,7 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             (
                 "market_sentiment",
                 """
-                DROP TABLE IF EXISTS market_sentiment CASCADE;
-                CREATE TABLE market_sentiment (
+                CREATE TABLE IF NOT EXISTS market_sentiment (
                     id SERIAL PRIMARY KEY,
                     date DATE NOT NULL UNIQUE,
                     fear_greed_index DECIMAL(8, 4),

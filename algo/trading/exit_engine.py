@@ -11,6 +11,7 @@ import requests
 
 from algo.infrastructure import get_alpaca_timeout
 from algo.infrastructure.market_calendar import MarketCalendar
+from utils.infrastructure import EASTERN_TZ
 from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
@@ -471,7 +472,9 @@ class ExitEngine:
         """Check all open positions for exit conditions and execute."""
 
         if not current_date:
-            current_date = datetime.now(timezone.utc).date()
+            # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
+            # Market hours are 9:30 AM - 4:00 PM ET, not UTC
+            current_date = datetime.now(EASTERN_TZ).date()
 
         if TradePerformanceAuditor is None:
             logger.critical(

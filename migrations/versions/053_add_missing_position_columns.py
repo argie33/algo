@@ -354,6 +354,7 @@ def down():
             LEFT JOIN latest_trades lt ON ap.symbol = lt.symbol
             LEFT JOIN latest_technical lt_tech ON ap.symbol = lt_tech.symbol
             WHERE ap.quantity > 0 AND ap.status NOT IN ('archived', 'deleted')
+            ORDER BY ap.position_value DESC NULLS LAST, ap.symbol ASC
         """)
 
         cur.execute("""

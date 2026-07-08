@@ -8,9 +8,11 @@ Used throughout trade execution (entry, exit, sizing, validation, monitoring).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
+
+from utils.infrastructure import EASTERN_TZ
 
 
 @dataclass
@@ -90,14 +92,14 @@ class TradeContext:
             self.shares = Decimal(str(self.shares))
 
         if self.signal_date is None:
-            from datetime import datetime, timezone
-
-            self.signal_date = datetime.now(timezone.utc).date()
+            # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
+            # Market hours are 9:30 AM - 4:00 PM ET, not UTC
+            self.signal_date = datetime.now(EASTERN_TZ).date()
 
         if self.entry_date is None:
-            from datetime import datetime, timezone
-
-            self.entry_date = datetime.now(timezone.utc).date()
+            # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
+            # Market hours are 9:30 AM - 4:00 PM ET, not UTC
+            self.entry_date = datetime.now(EASTERN_TZ).date()
 
     @classmethod
     def from_params(
