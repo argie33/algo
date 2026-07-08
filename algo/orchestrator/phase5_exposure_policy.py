@@ -84,8 +84,10 @@ def run(
                     "description": "Conservative entry constraints (system fallback)",
                     "max_new_positions_today": 2,
                     "halt_new_entries": False,
+                    "halt_reason": None,  # Not halting, so no halt reason needed
                     "min_composite_score": 60,
                     "risk_multiplier": 0.5,
+                    "max_concentration_pct": 12.0,  # Default concentration limit
                 }
             log_phase_result_fn(
                 5,
@@ -133,6 +135,8 @@ def run(
                 "tier_name": "CAUTION",
                 "description": "Conservative entry constraints (system fallback)",
                 "max_new_positions_today": 2,
+                "halt_new_entries": False,
+                "halt_reason": None,  # Not halting, so no halt reason needed
                 "halt_new_entries": False,
                 "min_composite_score": 60,
                 "risk_multiplier": 0.5,

@@ -1180,6 +1180,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                     "top_a": [],
                     "trend": [],
                     "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0},
+                    "date": sig["d"] if sig and sig.get("d") else None,
                 },
             )
         total_n = int(sig["n"])
