@@ -1165,11 +1165,30 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 
         # FIX: Query fresh buy_sell_daily BUY signals, not stale algo_signals cache
         # buy_sell_daily is continuously updated by EOD loaders; algo_signals is unmaintained
+
+        # DEBUG: Check if table exists
+        cur.execute("SELECT COUNT(*) FROM information_schema.tables WHERE table_name = 'buy_sell_daily'")
+        table_exists = cur.fetchone()[0] > 0
+        logger.warning(f"[SIGNALS DEBUG] buy_sell_daily table exists: {table_exists}")
+
+        # DEBUG: Check CURRENT_DATE
+        cur.execute("SELECT CURRENT_DATE, CURRENT_DATE - 7")
+        current_dt = cur.fetchone()
+        logger.warning(f"[SIGNALS DEBUG] CURRENT_DATE={current_dt[0]}, lookback={current_dt[1]}")
+
+        # DEBUG: Check data availability
+        cur.execute("SELECT COUNT(*) FROM buy_sell_daily WHERE signal_type = 'BUY'")
+        total_buy = cur.fetchone()[0]
+        logger.warning(f"[SIGNALS DEBUG] Total BUY signals in buy_sell_daily: {total_buy}")
+
+        # Main query
         cur.execute("""
             SELECT COUNT(*) AS n, MAX(date) AS d
             FROM buy_sell_daily
             WHERE signal_type = 'BUY' AND date >= CURRENT_DATE - 7""")
         sig = cur.fetchone()
+        logger.warning(f"[SIGNALS DEBUG] Query result: sig={sig}")
+
         if sig is None or sig.get("n") is None or sig.get("n") == 0:
             # No BUY signals in last 7 days - return empty but valid response
             logger.warning("[DASHBOARD SIGNALS] No BUY signals found in buy_sell_daily (last 7 days)")
