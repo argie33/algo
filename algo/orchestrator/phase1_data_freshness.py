@@ -659,10 +659,10 @@ def run(  # noqa: C901
                     logger.warning("[PHASE 1] Metrics stale - attempting auto-recovery...")
                     try:
                         from loaders.load_growth_metrics import GrowthMetricsLoader
-                        from loaders.load_quality_metrics import QualityMetricsLoader
-                        from loaders.load_value_metrics import ValueMetricsLoader
                         from loaders.load_positioning_metrics import PositioningMetricsLoader
+                        from loaders.load_quality_metrics import QualityMetricsLoader
                         from loaders.load_stability_metrics import StabilityMetricsLoader
+                        from loaders.load_value_metrics import ValueMetricsLoader
 
                         cur.execute("SELECT DISTINCT symbol FROM algo_positions WHERE status='open' LIMIT 100")
                         positions = cur.fetchall()
@@ -674,16 +674,16 @@ def run(  # noqa: C901
 
                         loaders_list = [
                             ("growth_metrics", GrowthMetricsLoader),
-                            ("quality_metrics", QualityMetricsLoader),
-                            ("value_metrics", ValueMetricsLoader),
                             ("positioning_metrics", PositioningMetricsLoader),
+                            ("quality_metrics", QualityMetricsLoader),
                             ("stability_metrics", StabilityMetricsLoader),
+                            ("value_metrics", ValueMetricsLoader),
                         ]
 
                         success_count = 0
-                        for name, LoaderClass in loaders_list:
+                        for name, loader_class in loaders_list:
                             try:
-                                loader = LoaderClass()
+                                loader = loader_class()
                                 result = loader.run(symbols=symbols if symbols else None, parallelism=1, backfill_days=1)
                                 if result.get("rows_inserted", 0) > 0:
                                     success_count += 1
