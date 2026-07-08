@@ -295,6 +295,7 @@ locals {
 
     "market_constituents"         = "load_market_constituents.py"
     "market_health_daily"         = "load_market_health_daily.py"
+    "market_sentiment"            = "load_market_sentiment.py"
     "sector_ranking"              = "load_sector_ranking.py"
     "industry_ranking"            = "load_industry_ranking.py"
     "algo_metrics_daily"          = "load_algo_metrics_daily.py"
@@ -350,6 +351,10 @@ locals {
     "market_exposure_daily" = {
       description = "Compute market exposure factors - EOD pipeline"
       schedule    = "cron(10 21 ? * MON-FRI *)" # 4:10 PM ET (after market_health)
+    }
+    "market_sentiment" = {
+      description = "Compute market sentiment (fear/greed index from VIX) - EOD pipeline"
+      schedule    = "cron(12 21 ? * MON-FRI *)" # 4:12 PM ET (after market_exposure_daily)
     }
     "dxy_index" = {
       description = "Load DXY/USD economic indicator - EOD pipeline"
@@ -429,6 +434,7 @@ locals {
 
     "market_constituents"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily"         = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    "market_sentiment"            = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     "sector_ranking"              = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "algo_metrics_daily"          = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
