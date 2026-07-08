@@ -137,7 +137,6 @@ def run(
                 "max_new_positions_today": 2,
                 "halt_new_entries": False,
                 "halt_reason": None,  # Not halting, so no halt reason needed
-                "halt_new_entries": False,
                 "min_composite_score": 60,
                 "risk_multiplier": 0.5,
             }

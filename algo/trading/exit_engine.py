@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, cast
 
@@ -11,13 +11,13 @@ import requests
 
 from algo.infrastructure import get_alpaca_timeout
 from algo.infrastructure.market_calendar import MarketCalendar
-from utils.infrastructure import EASTERN_TZ
 from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
 from algo.trading.exceptions import DatabaseError, ExchangeAPIError
 from config.api_endpoints import get_alpaca_data_url
 from config.credential_manager import get_alpaca_credentials
 from utils.db import DatabaseContext
+from utils.infrastructure import EASTERN_TZ
 from utils.trading import PositionStatus, TradeStatus
 
 if TYPE_CHECKING:

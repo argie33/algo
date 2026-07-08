@@ -51,7 +51,6 @@ from typing import Any
 
 import psycopg2
 
-from algo.infrastructure import get_config
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from utils.db.context import DatabaseContext
