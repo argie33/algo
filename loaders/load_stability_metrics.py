@@ -304,13 +304,14 @@ class StabilityMetricsLoader(OptimalLoader):
                 "data_unavailable"
             )
             if volatility_30d_unavailable:
-                # MEDIUM FIX: Explicit type check eliminates ambiguous boolean logic per GOVERNANCE.md
-                # Once we know it's an unavailable marker dict, safely extract reason
+                # CRITICAL: If we detected unavailability, result MUST be dict
                 if not isinstance(volatility_30d_result, dict):
-                    logger.error("[STABILITY_METRICS] BUG: volatility_30d_unavailable=True but result is not dict")
-                    reason_30d = "corrupted_marker"
-                else:
-                    reason_30d = volatility_30d_result.get("reason", "missing_reason_field")
+                    raise RuntimeError(
+                        "[STABILITY_METRICS CRITICAL] Logic error: volatility_30d_unavailable=True "
+                        "but result is not dict. This indicates corrupted data or invalid state. "
+                        "Cannot proceed with inconsistent data structure."
+                    )
+                reason_30d = volatility_30d_result.get("reason", "missing_reason_field")
                 unavailability_reasons.append(f"vol_30d: {reason_30d}")
 
             # Check 60d volatility availability
@@ -318,30 +319,36 @@ class StabilityMetricsLoader(OptimalLoader):
                 "data_unavailable"
             )
             if volatility_60d_unavailable:
-                # MEDIUM FIX: Explicit type check eliminates ambiguous boolean logic
+                # CRITICAL: If we detected unavailability, result MUST be dict
                 if not isinstance(volatility_60d_result, dict):
-                    logger.error("[STABILITY_METRICS] BUG: volatility_60d_unavailable=True but result is not dict")
-                    reason_60d = "corrupted_marker"
-                else:
-                    reason_60d = volatility_60d_result.get("reason", "missing_reason_field")
+                    raise RuntimeError(
+                        "[STABILITY_METRICS CRITICAL] Logic error: volatility_60d_unavailable=True "
+                        "but result is not dict. This indicates corrupted data or invalid state. "
+                        "Cannot proceed with inconsistent data structure."
+                    )
+                reason_60d = volatility_60d_result.get("reason", "missing_reason_field")
                 unavailability_reasons.append(f"vol_60d: {reason_60d}")
 
             if volatility_252d_unavailable:
-                # MEDIUM FIX: Explicit type check eliminates ambiguous boolean logic
+                # CRITICAL: If we detected unavailability, result MUST be dict
                 if not isinstance(volatility_252d_result, dict):
-                    logger.error("[STABILITY_METRICS] BUG: volatility_252d_unavailable=True but result is not dict")
-                    reason_252d = "corrupted_marker"
-                else:
-                    reason_252d = volatility_252d_result.get("reason", "missing_reason_field")
+                    raise RuntimeError(
+                        "[STABILITY_METRICS CRITICAL] Logic error: volatility_252d_unavailable=True "
+                        "but result is not dict. This indicates corrupted data or invalid state. "
+                        "Cannot proceed with inconsistent data structure."
+                    )
+                reason_252d = volatility_252d_result.get("reason", "missing_reason_field")
                 unavailability_reasons.append(f"vol_252d: {reason_252d}")
 
             if beta_unavailable:
-                # MEDIUM FIX: Explicit type check eliminates ambiguous boolean logic
+                # CRITICAL: If we detected unavailability, result MUST be dict
                 if not isinstance(beta_result, dict):
-                    logger.error("[STABILITY_METRICS] BUG: beta_unavailable=True but result is not dict")
-                    reason_beta = "corrupted_marker"
-                else:
-                    reason_beta = beta_result.get("reason", "missing_reason_field")
+                    raise RuntimeError(
+                        "[STABILITY_METRICS CRITICAL] Logic error: beta_unavailable=True "
+                        "but result is not dict. This indicates corrupted data or invalid state. "
+                        "Cannot proceed with inconsistent data structure."
+                    )
+                reason_beta = beta_result.get("reason", "missing_reason_field")
                 unavailability_reasons.append(f"beta: {reason_beta}")
 
             # FAIL-FAST: Missing ANY component makes all stability metrics unavailable

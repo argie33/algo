@@ -307,7 +307,10 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             # FAIL-FAST: Extract series_id with safe validation
             sid = DatabaseResultValidator.safe_get_str(row, "series_id", strict=True)
             if sid is None:
-                raise RuntimeError("BUG: series_id extraction failed with strict=True")
+                raise RuntimeError(
+                    "[ECONOMIC DATA CRITICAL] series_id extraction returned None despite strict=True. "
+                    "Indicates data corruption or validation failure. Cannot proceed without valid series_id."
+                )
             if sid not in history_by_series:
                 history_by_series[sid] = []
             # FAIL-FAST: Extract date and value with validation
@@ -535,7 +538,10 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
             # FAIL-FAST: Extract series_id, date, value with safe validation
             sid = DatabaseResultValidator.safe_get_str(row, "series_id", strict=True)
             if sid is None:
-                raise RuntimeError("BUG: series_id extraction failed with strict=True")
+                raise RuntimeError(
+                    "[ECONOMIC DATA CRITICAL] series_id extraction returned None despite strict=True. "
+                    "Indicates data corruption or validation failure. Cannot proceed without valid series_id."
+                )
             date_val = DatabaseResultValidator.safe_get_str(row, "date", strict=True)
             value_val = DatabaseResultValidator.safe_get_float(row, "value", default=None)
             if sid not in history_by_series:

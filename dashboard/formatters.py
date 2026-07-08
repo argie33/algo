@@ -247,8 +247,13 @@ def _next_run_hardcoded() -> str:
         schedule = None
 
     if not schedule:
-        # Safety fallback if config is empty or failed to load
-        schedule = [{"hour": 2, "minute": 0}, {"hour": 9, "minute": 30}]
+        # CRITICAL: Cannot proceed with hardcoded fallback times
+        # Dashboard must show live schedule or fail gracefully
+        raise RuntimeError(
+            "Orchestrator schedule unavailable from configuration. "
+            "Cannot display next run time without live configuration. "
+            "Check database connection and algo_config table."
+        )
 
     # Find next scheduled run
     if wd < 5:
