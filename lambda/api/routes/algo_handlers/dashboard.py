@@ -1180,7 +1180,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                     "top_a": [],
                     "trend": [],
                     "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0},
-                    "date": sig["d"] if sig and sig.get("d") else None,
+                    "date": str(sig["d"]) if sig and sig.get("d") else None,
                 },
             )
         total_n = int(sig["n"])
@@ -1263,7 +1263,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         sig_response = {
             "n": qualifying_buy_count,
             "total": total_n,
-            "date": sig["d"] if sig else None,
+            "date": str(sig["d"]) if sig and sig.get("d") else None,
             "buy_sigs": buy_sigs[:15] if buy_sigs else [],
             "near": near[:8] if near else [],
             "top_a": top_a[:20] if top_a else [],

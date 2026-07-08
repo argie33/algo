@@ -103,9 +103,9 @@ def _get_sentiment(cur: cursor) -> Any:
             "date": data.get("date"),
             "fear_greed_index": float(fear_greed),
             "sentiment_score": float(sentiment_score) if sentiment_score is not None else None,
-            "bullish_pct": data.get("bullish_pct"),
-            "bearish_pct": data.get("bearish_pct"),
-            "neutral_pct": data.get("neutral_pct"),
+            "bullish_pct": float(data.get("bullish_pct")) if data.get("bullish_pct") is not None else None,
+            "bearish_pct": float(data.get("bearish_pct")) if data.get("bearish_pct") is not None else None,
+            "neutral_pct": float(data.get("neutral_pct")) if data.get("neutral_pct") is not None else None,
             "data_freshness": freshness,
         }
     )
