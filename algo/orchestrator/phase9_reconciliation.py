@@ -109,6 +109,11 @@ def _validate_pnl_step(
     pnl_validation_status = "warn"
     pnl_validation_summary = "N/A"
     try:
+        if recon.broker is None:
+            logger.warning("[PHASE 9 P&L] Paper mode: broker unavailable, skipping P&L validation")
+            pnl_validation_status = "warn"
+            pnl_validation_summary = "Paper mode - no broker account"
+            return pnl_validation_status, pnl_validation_summary
         account_data = recon.broker.fetch_account()
         if account_data and result.get("success"):
             # FALLBACK SEQUENCE (explicit, fail-fast if all missing):

@@ -277,36 +277,14 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Cause = "stock_prices_daily failed after retries. Pipeline halted to prevent trading on stale data. Check CloudWatch logs for details."
       }
 
-      # ── Step 2: Market health + trend template (parallel enrichment) ─
+      # ── Step 2: Trend template (parallel enrichment) ─
       # REFACTORED: Removed technical_data_daily (90 min) — orchestrator Phase 5 computes signals on-the-fly.
+      # FIXED: Moved market_health_daily to run AFTER technical_data_daily (Step 8b) to ensure breadth_data dependencies complete.
       # FIXED: Moved market_exposure_daily to run AFTER sector_ranking (Step 8c) to ensure all dependencies complete.
-      # Previously was in parallel enrichment with 600s timeout → failed because trend_template takes 5400s.
+      # Now only trend_template runs in parallel for maximum speed.
       ParallelEnrichment = {
         Type = "Parallel"
         Branches = [
-          {
-            StartAt = "MarketHealthDaily"
-            States = {
-              MarketHealthDaily = {
-                Type           = "Task"
-                Resource       = "arn:aws:states:::ecs:runTask.sync"
-                TimeoutSeconds = 1200
-                Parameters = {
-                  Cluster              = var.ecs_cluster_arn
-                  LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["market_health_daily"]
-                  NetworkConfiguration = local.network_config
-                }
-                Retry = [{
-                  ErrorEquals     = ["States.ALL"]
-                  IntervalSeconds = 60
-                  MaxAttempts     = 2
-                  BackoffRate     = 2.0
-                }]
-                End = true
-              }
-            }
-          },
           {
             StartAt = "TrendTemplate"
             States = {
@@ -449,7 +427,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogTechDataFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "BuySellDaily"
+        Next = "MarketHealthDaily"
       }
 
       LogTechDataFailure = {
@@ -481,6 +459,59 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Type  = "Fail"
         Error = "CRITICAL_LOADER_FAILURE"
         Cause = "technical_data_daily failed after retries. Pipeline halted because buy_sell_daily requires fresh technical indicators. Check CloudWatch logs for details."
+      }
+
+      # ── Step 8b: Market Health Daily (depends on technical_data_daily) ──────────────
+      # FIXED: Moved from ParallelEnrichment to sequential execution after TechnicalDataDaily.
+      # market_health_daily._merge_breadth_data() requires technical_data_daily to be fresh.
+      # Previously ran in parallel, causing "stale technical_data_daily" errors.
+      # Now runs after technical_data_daily completes successfully.
+      # Timeout: 1200s (20 minutes) for full data fetch.
+      MarketHealthDaily = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1200
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["market_health_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogMarketHealthFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "BuySellDaily"
+      }
+
+      LogMarketHealthFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "market_health_daily"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "BuySellDaily"
+          ResultPath  = "$.logError"
+        }]
+        Next = "BuySellDaily"
       }
 
       # ── Step 8c: Buy/Sell Daily Signals (depends on prices + scores + technical data) ──────────────
