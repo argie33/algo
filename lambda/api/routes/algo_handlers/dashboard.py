@@ -1163,25 +1163,127 @@ def _get_dashboard_signals(cur: cursor) -> Any:
     try:
         cur.execute("SET LOCAL statement_timeout = '20000ms'")
 
-        # Return minimal valid response (unblocking dashboard from 500 error)
-        # The dashboard needs any valid response to render.
-        logger.info("[DASHBOARD SIGNALS] Returning minimal valid response")
-        sig_response = {
-            "n": 0,
-            "total": 0,
-            "date": None,
-            "buy_sigs": [],
-            "near": [],
-            "top_a": [],
-            "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0},
-            "trend": [],
-            "data_freshness": {
-                "data_age_days": None,
-                "is_stale": False,
-                "max_date": None,
-                "warning": None
-            },
-        }
+        # Fetch active signals from buy_sell_daily (source of truth for trading signals)
+        cur.execute("""
+            SELECT COUNT(*) AS n, MAX(date) AS d
+            FROM buy_sell_daily
+            WHERE signal_type = 'BUY' AND date >= CURRENT_DATE - 7
+        """)
+        sig = cur.fetchone()
+        if sig is None or sig.get("n") is None or sig.get("n") == 0:
+            # No signals available - return empty response instead of error
+            logger.info("[DASHBOARD SIGNALS] No active signals found in last 7 days")
+            sig_response = {
+                "n": 0,
+                "total": 0,
+                "date": None,
+                "buy_sigs": [],
+                "near": [],
+                "top_a": [],
+                "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0},
+                "trend": [],
+                "data_freshness": {
+                    "data_age_days": None,
+                    "is_stale": False,
+                    "max_date": None,
+                    "warning": None
+                },
+            }
+        else:
+            total_n = int(sig["n"])
+
+            # Top active signals with quality scores
+            cur.execute("""
+                SELECT s.symbol, ss.composite_score AS signal_quality_score,
+                       cp.sector, s.price_at_signal AS entry_price, s.date AS signal_date
+                FROM buy_sell_daily s
+                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
+                ORDER BY COALESCE(ss.composite_score, 0) DESC NULLS LAST
+                LIMIT 30
+            """)
+            buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+
+            # Grade distribution (A/B/C/D by signal quality score from stock_scores)
+            cur.execute("""
+                SELECT
+                    COUNT(*) FILTER (WHERE ss.composite_score >= 80) AS a,
+                    COUNT(*) FILTER (WHERE ss.composite_score >= 60 AND ss.composite_score < 80) AS b,
+                    COUNT(*) FILTER (WHERE ss.composite_score >= 40 AND ss.composite_score < 60) AS c,
+                    COUNT(*) FILTER (WHERE ss.composite_score < 40 OR ss.composite_score IS NULL) AS d,
+                    COUNT(*) AS total
+                FROM buy_sell_daily s
+                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
+                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
+            """)
+            grades_r = cur.fetchone()
+            grades = safe_dict_convert(grades_r) if grades_r else {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
+
+            # Near-misses: signals with decent scores (55-69 range)
+            cur.execute("""
+                SELECT s.symbol, ss.composite_score AS score, cp.sector
+                FROM buy_sell_daily s
+                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
+                LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
+                  AND ss.composite_score BETWEEN 55 AND 69
+                ORDER BY ss.composite_score DESC NULLS LAST
+                LIMIT 15
+            """)
+            near = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+
+            # Top A-grade signals (score >= 80)
+            cur.execute("""
+                SELECT s.symbol, ss.composite_score AS score
+                FROM buy_sell_daily s
+                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
+                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
+                  AND ss.composite_score >= 80
+                ORDER BY ss.composite_score DESC NULLS LAST
+                LIMIT 20
+            """)
+            top_a = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+
+            # Signal count trend: last 7 days
+            cur.execute("""
+                SELECT s.date,
+                       COUNT(*) FILTER (WHERE ss.composite_score >= 60 OR ss.composite_score IS NULL) AS buy_n,
+                       COUNT(*) AS total_n
+                FROM buy_sell_daily s
+                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
+                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
+                GROUP BY s.date
+                ORDER BY s.date DESC
+                LIMIT 7
+            """)
+            trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+
+            # Count qualifying high-quality signals (score >= 70)
+            cur.execute("""
+                SELECT COUNT(*) AS n
+                FROM buy_sell_daily s
+                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
+                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
+                  AND ss.composite_score >= 70
+            """)
+            count_row = cur.fetchone()
+            qualifying_buy_count = int(count_row["n"]) if count_row and count_row.get("n") else 0
+
+            freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
+
+            sig_response = {
+                "n": qualifying_buy_count,
+                "total": total_n,
+                "date": sig["d"] if sig else None,
+                "buy_sigs": buy_sigs[:15] if buy_sigs else [],
+                "near": near[:8] if near else [],
+                "top_a": top_a[:20] if top_a else [],
+                "grades": grades,
+                "trend": trend,
+                "data_freshness": freshness,
+            }
+
         ensure_valid_response("sig", sig_response)
         return json_response(200, sig_response)
     except (
