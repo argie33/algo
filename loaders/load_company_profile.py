@@ -27,6 +27,7 @@ class CompanyProfileLoader(OptimalLoader):
     table_name = "company_profile"
     primary_key = ("ticker",)
     watermark_field = "created_at"
+    max_fail_rate = 60.0  # Optional enrichment: tolerate up to 60% missing (yfinance gaps for micro-caps, delisted)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Read company profile from yfinance_snapshot table.

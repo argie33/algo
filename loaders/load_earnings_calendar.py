@@ -23,6 +23,7 @@ class EarningsCalendarLoader(OptimalLoader):
     table_name = "earnings_calendar"
     primary_key = ("symbol",)
     watermark_field = "updated_at"
+    max_fail_rate = 100.0  # Optional enrichment: yfinance_snapshot may not have earnings dates for any symbols
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Read next earnings date from yfinance_snapshot table.
@@ -51,6 +52,7 @@ class EarningsCalendarLoader(OptimalLoader):
             return [
                 {
                     "symbol": symbol,
+                    "earnings_date": date.today(),
                     "data_unavailable": True,
                     "reason": "yfinance_snapshot_missing",
                     "updated_at": date.today().isoformat(),
@@ -64,6 +66,7 @@ class EarningsCalendarLoader(OptimalLoader):
             return [
                 {
                     "symbol": symbol,
+                    "earnings_date": date.today(),
                     "data_unavailable": True,
                     "reason": f"yfinance_snapshot_unavailable:{reason}",
                     "updated_at": date.today().isoformat(),
@@ -77,6 +80,7 @@ class EarningsCalendarLoader(OptimalLoader):
             return [
                 {
                     "symbol": symbol,
+                    "earnings_date": date.today(),
                     "data_unavailable": True,
                     "reason": "no_earnings_date_available",
                     "updated_at": date.today().isoformat(),
