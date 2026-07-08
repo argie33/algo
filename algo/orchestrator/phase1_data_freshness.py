@@ -362,25 +362,53 @@ def run(  # noqa: C901
 
                 days_stale = (last_trading_day - max_date).days
                 logger.critical(f"[PHASE 1] Price data stale: {max_date} vs expected {last_trading_day}")
+                logger.warning("[PHASE 1] Attempting emergency price loader trigger...")
 
-                # CONSISTENCY: Categorize staleness as DATA_STALE so operators know it's a timing issue, not a loader failure
-                error = PhaseError(
-                    category=ErrorCategory.DATA_STALE,
-                    message=f"Price data is {days_stale} day(s) stale (latest: {max_date}, expected: {last_trading_day})",
-                    root_cause="Check that price_daily loader has completed for today. Check data_loader_status and CloudWatch logs.",
-                    recoverable=False,
-                    log_level="critical",
-                )
-                log_phase_error(1, error, log_phase_result_fn)
+                # CRITICAL FIX: Try to load fresh prices before halting
+                # This handles the case where the scheduled morning pipeline failed
+                try:
+                    from loaders.load_prices import PriceLoader
 
-                return PhaseResult(
-                    1,
-                    "price_staleness",
-                    "halted",
-                    {},
-                    True,
-                    f"Price data too old: {max_date} vs {last_trading_day}",
-                )
+                    logger.info("[PHASE 1] Starting emergency price loader...")
+                    loader = PriceLoader()
+                    result = loader.run(symbols=None, parallelism=1, backfill_days=1)
+
+                    if result.get("rows_inserted", 0) > 0:
+                        logger.warning(f"[PHASE 1] Emergency loader succeeded: {result['rows_inserted']} rows inserted")
+                        # Re-check price freshness after emergency load
+                        cur.execute("SELECT MAX(date) FROM price_daily")
+                        fresh_result = cur.fetchone()
+                        if fresh_result and fresh_result[0]:
+                            new_max_date = fresh_result[0]
+                            if new_max_date >= last_trading_day:
+                                logger.warning("[PHASE 1] Price data now fresh after emergency load - proceeding")
+                                # Data is now fresh, continue to next check
+                            else:
+                                raise RuntimeError(f"Emergency loader inserted data but still stale: {new_max_date}")
+                        else:
+                            raise RuntimeError("Emergency loader reported success but no data found")
+                    else:
+                        raise RuntimeError(f"Emergency loader returned no data: {result}")
+                except Exception as e:
+                    logger.error(f"[PHASE 1] Emergency price loader failed: {type(e).__name__}: {e}")
+                    # Fall back to halt if emergency load fails
+                    error = PhaseError(
+                        category=ErrorCategory.DATA_STALE,
+                        message=f"Price data is {days_stale} day(s) stale (latest: {max_date}, expected: {last_trading_day}). Emergency price loader also failed.",
+                        root_cause="Scheduled morning pipeline failed AND emergency price loader failed. Check price_daily loader, yfinance access, and network connectivity.",
+                        recoverable=False,
+                        log_level="critical",
+                    )
+                    log_phase_error(1, error, log_phase_result_fn)
+
+                    return PhaseResult(
+                        1,
+                        "price_staleness",
+                        "halted",
+                        {},
+                        True,
+                        f"Price data too old: {max_date} vs {last_trading_day} (emergency load failed)",
+                    )
 
             # Verify price coverage - accept symbols with recent data (past 2 trading days)
             # This handles asynchronous data loading where different symbols update on different dates
