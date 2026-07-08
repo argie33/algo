@@ -1147,6 +1147,162 @@ class Orchestrator:
 
     # ---------- Main entrypoint ----------
 
+    def _run_preflight_checks(self) -> dict[str, Any] | None:
+        """Run preflight checks. Returns early-exit response if checks fail, else None."""
+        logger.info(f"\n{'=' * 70}")
+        logger.info("PRE-FLIGHT CHECKS (before Phase 1)")
+        logger.info(f"{'=' * 70}")
+        logger.info("[CRITICAL] Running critical data checks...")
+        try:
+            logger.debug("[PREFLIGHT] Opening database context (timeout=10s)")
+            with DatabaseContext("read", timeout=10) as cur:
+                logger.debug("[PREFLIGHT] Validating required tables")
+                if not self._validate_required_tables(cur):
+                    logger.error("[HALT] Required tables missing — cannot proceed")
+                    return self._final_report()
+                logger.info("[OK] All pre-flight checks passed")
+        except TimeoutError as e:
+            logger.error(f"  [HALT] Pre-flight database timeout (pool exhausted?): {e}")
+            report = self._final_report()
+            report["skipped"] = True
+            report["reason"] = "database_timeout"
+            return report
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.error(
+                f"  [HALT] Pre-flight check failed: {type(e).__name__}: {e}",
+                exc_info=True,
+            )
+            report = self._final_report()
+            if "connection" in str(e).lower() or "database" in str(e).lower() or "pool" in str(e).lower():
+                report["skipped"] = True
+                report["reason"] = "database_unavailable"
+            return report
+
+        logger.info("\n[CHECK] Database connectivity...")
+        if not self.db_monitor.check_db_connectivity():
+            logger.error("[DB_ERROR] Database connectivity check FAILED")
+            logger.error("Check CloudWatch alarms for database availability. Returning skipped status.")
+            report = self._final_report()
+            report["skipped"] = True
+            report["reason"] = "database_unavailable"
+            return report
+        logger.info("[OK] Database connectivity check passed")
+
+        logger.info("\n[CHECK] Monitoring RDS connection pool...")
+        self.db_monitor.check_connection_pool_health()
+
+        logger.info("\n[CHECK] Validating startup configuration...")
+        self._validate_startup_configuration()
+
+        logger.info("\n[CHECK] Killing long-running analytics loaders...")
+        self._kill_long_running_loaders()
+
+        logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
+        self.db_monitor.health_check_diagnostics()
+
+        logger.info("\n[LOADER CHECK] Verifying critical loaders have run recently...")
+        try:
+            self._check_loader_health()
+        except RuntimeError as e:
+            logger.error(
+                f"[LOADER HEALTH CHECK] {e}. Proceeding to Phase 1 which will re-evaluate. "
+                f"If loaders remain stale, Phase 1 will halt."
+            )
+
+        return None
+
+    def _wait_for_loaders_before_execution(self) -> None:
+        """Wait for critical loaders to complete before executor runs."""
+        logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
+        try:
+            loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=300)
+        except RuntimeError as e:
+            logger.error(
+                f"[PROACTIVE LOADER WAIT] {e}. Proceeding to Phase 1 anyway. "
+                f"Manual intervention may be needed if loaders don't recover."
+            )
+            loaders_ready = False
+
+        if loaders_ready:
+            logger.info("[OK] All critical loaders completed before Phase 1")
+        else:
+            logger.warning(
+                "[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness."
+            )
+
+    def _execute_phases(self) -> dict[str, Any]:
+        """Execute the 9-phase orchestration sequence and return executor result."""
+        logger.info("\n[DEADLOCK PREVENTION] Checking if halt flag needs proactive clear...")
+        self.halt_manager.proactive_clear_stale_halt()
+
+        self.executor = self._setup_executor(skip_phases=None)
+        with TimeBlock("orchestrator_executor"):
+            executor_result = self.executor.run()
+
+        executor_phases = executor_result.get("results", {})
+        for phase_num, phase_result in executor_phases.items():
+            summary = phase_result.data.get("summary", "") if phase_result.data else ""
+            if phase_result.status == "error" and phase_result.error and not summary:
+                summary = phase_result.error
+            self.phase_results[phase_num] = {
+                "phase": phase_num,
+                "name": phase_result.phase_name,
+                "status": phase_result.status,
+                "summary": summary,
+            }
+            self.execution_tracker.log_phase_result(
+                phase_num,
+                phase_result.phase_name,
+                phase_result.status,
+                phase_result.data.get("summary", ""),
+            )
+
+        return executor_result
+
+    def _handle_executor_result(self, executor_result: dict[str, Any]) -> dict[str, Any] | None:
+        """Validate and handle executor result. Returns None if execution succeeded, else early-exit response."""
+        if "success" not in executor_result:
+            raise RuntimeError(
+                f"Executor result missing 'success' field. "
+                f"Available keys: {list(executor_result.keys())}. "
+                f"Cannot determine if execution succeeded."
+            )
+
+        if not executor_result["success"]:
+            error_phase = executor_result.get("error_phase")
+            if error_phase is None:
+                raise ValueError(
+                    f"[EXECUTOR] Execution failed but missing required 'error_phase' field. "
+                    f"Cannot identify which phase halted. Result: {executor_result}"
+                )
+            logger.critical(f"[EXECUTOR] Phase sequence halted at Phase {error_phase}")
+            return self._final_report()
+
+        return None
+
+    def _emit_performance_metrics(self, total_elapsed: float) -> None:
+        """Emit orchestrator performance metrics to CloudWatch."""
+        log_metrics_summary()
+        logger.info(f"\n[TOTAL] Orchestrator run completed in {total_elapsed:.2f}s")
+        logger.info(f"[END TIME] {datetime.now(timezone.utc).isoformat()}")
+
+        try:
+            from algo.reporting import MetricsPublisher
+
+            with MetricsPublisher() as metrics:
+                metrics.put_loader_duration("orchestrator_run", total_elapsed)
+                run_hour = datetime.now(EASTERN_TZ).hour
+                if run_hour < 10:
+                    metrics.add_metric(
+                        "morning_prep_pipeline_seconds",
+                        total_elapsed,
+                        unit="Seconds",
+                    )
+                else:
+                    metrics.add_metric("eod_pipeline_seconds", total_elapsed, unit="Seconds")
+        except (ValueError, ZeroDivisionError, TypeError) as e:
+            logger.debug(f"Could not emit pipeline timing metrics: {e}")
+
     def run(self) -> dict[str, Any]:
         self.run_start = time.time()
         logger.info(f"\n{'#' * 70}")
@@ -1160,179 +1316,18 @@ class Orchestrator:
             return lock_result
 
         try:
-            logger.info(f"\n{'=' * 70}")
-            logger.info("PRE-FLIGHT CHECKS (before Phase 1)")
-            logger.info(f"{'=' * 70}")
-            logger.info("[CRITICAL] Running critical data checks...")
-            try:
-                logger.debug("[PREFLIGHT] Opening database context (timeout=10s)")
-                with DatabaseContext("read", timeout=10) as cur:
-                    # Validate required tables exist (schema check only).
-                    # Data freshness and patrol are handled by Phase 1 with proper
-                    # halt/observe-only distinctions and fresh patrol execution.
-                    logger.debug("[PREFLIGHT] Validating required tables")
-                    if not self._validate_required_tables(cur):
-                        logger.error("[HALT] Required tables missing — cannot proceed")
-                        return self._final_report()
+            preflight_result = self._run_preflight_checks()
+            if preflight_result is not None:
+                return preflight_result
 
-                    logger.info("[OK] All pre-flight checks passed")
-            except TimeoutError as e:
-                logger.error(f"  [HALT] Pre-flight database timeout (pool exhausted?): {e}")
-                report = self._final_report()
-                report["skipped"] = True
-                report["reason"] = "database_timeout"
-                return report
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.error(
-                    f"  [HALT] Pre-flight check failed: {type(e).__name__}: {e}",
-                    exc_info=True,
-                )
-                # Return skipped=True when DB is unreachable so test verification
-                # treats this as a transient skip, not a code bug (phases={})
-                report = self._final_report()
-                if "connection" in str(e).lower() or "database" in str(e).lower() or "pool" in str(e).lower():
-                    report["skipped"] = True
-                    report["reason"] = "database_unavailable"
-                return report
+            self._wait_for_loaders_before_execution()
+            executor_result = self._execute_phases()
+            early_exit = self._handle_executor_result(executor_result)
+            if early_exit is not None:
+                return early_exit
 
-            logger.info("\n[CHECK] Database connectivity...")
-            if not self.db_monitor.check_db_connectivity():
-                logger.error("[DB_ERROR] Database connectivity check FAILED")
-                logger.error("Check CloudWatch alarms for database availability. Returning skipped status.")
-                report = self._final_report()
-                report["skipped"] = True
-                report["reason"] = "database_unavailable"
-                return report
-            else:
-                logger.info("[OK] Database connectivity check passed")
-
-            logger.info("\n[CHECK] Monitoring RDS connection pool...")
-            self.db_monitor.check_connection_pool_health()
-
-            logger.info("\n[CHECK] Validating startup configuration...")
-            self._validate_startup_configuration()
-
-            logger.info("\n[CHECK] Killing long-running analytics loaders...")
-            self._kill_long_running_loaders()
-
-            logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
-            self.db_monitor.health_check_diagnostics()
-
-            logger.info("\n[LOADER CHECK] Verifying critical loaders have run recently...")
-            try:
-                self._check_loader_health()
-            except RuntimeError as e:
-                logger.error(
-                    f"[LOADER HEALTH CHECK] {e}. Proceeding to Phase 1 which will re-evaluate. "
-                    f"If loaders remain stale, Phase 1 will halt."
-                )
-
-            # CRITICAL FIX: Don't skip trading phases on non-trading days.
-            # Circuit breaker will halt if market is closed.
-            # Skipping phases 4-8 prevented ALL signal generation and trading for 18+ days.
-            skip_phases = None
-            # Disabled: if not is_trading_day:
-            #     logger.info(
-            #         "Non-trading day: skipping broker sync (phase 4) and trading phases (5-8), will run data checks (1-3) + metrics (9)"
-            #     )
-            #     skip_phases = [
-            #         4,
-            #         5,
-            #         6,
-            #         7,
-            #         8,
-            #     ]  # Skip broker reconciliation, position adjustments, signal gen, entry/exit execution
-
-            logger.info("\n[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...")
-            try:
-                loaders_ready = self._wait_for_critical_loaders_proactive(max_wait_seconds=300)
-            except RuntimeError as e:
-                logger.error(
-                    f"[PROACTIVE LOADER WAIT] {e}. Proceeding to Phase 1 anyway. "
-                    f"Manual intervention may be needed if loaders don't recover."
-                )
-                loaders_ready = False
-            if loaders_ready:
-                logger.info("[OK] All critical loaders completed before Phase 1")
-            else:
-                logger.warning(
-                    "[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness."
-                )
-
-            logger.info("\n[DEADLOCK PREVENTION] Checking if halt flag needs proactive clear...")
-            self.halt_manager.proactive_clear_stale_halt()
-
-            self.executor = self._setup_executor(skip_phases=skip_phases)
-            with TimeBlock("orchestrator_executor"):
-                executor_result = self.executor.run()
-
-            # CRITICAL FIX: Transfer executor's phase results to orchestrator's phase_results
-            # The executor stores results in its own dictionary, but orchestrator needs them
-            # in self.phase_results for final reporting and execution tracking
-            executor_phases = executor_result.get("results", {})
-            for phase_num, phase_result in executor_phases.items():
-                # For error phases, use the error message as the summary if available
-                summary = phase_result.data.get("summary", "") if phase_result.data else ""
-                if phase_result.status == "error" and phase_result.error and not summary:
-                    summary = phase_result.error
-                self.phase_results[phase_num] = {
-                    "phase": phase_num,
-                    "name": phase_result.phase_name,
-                    "status": phase_result.status,
-                    "summary": summary,
-                }
-                # Also log each phase to the execution tracker for orchestrator_execution_log
-                self.execution_tracker.log_phase_result(
-                    phase_num,
-                    phase_result.phase_name,
-                    phase_result.status,
-                    phase_result.data.get("summary", ""),
-                )
-
-            # Validate executor result structure
-            if "success" not in executor_result:
-                raise RuntimeError(
-                    f"Executor result missing 'success' field. "
-                    f"Available keys: {list(executor_result.keys())}. "
-                    f"Cannot determine if execution succeeded."
-                )
-
-            if not executor_result["success"]:
-                # CRITICAL: Validate error_phase field exists when success=False (fail-fast if missing)
-                error_phase = executor_result.get("error_phase")
-                if error_phase is None:
-                    raise ValueError(
-                        f"[EXECUTOR] Execution failed but missing required 'error_phase' field. "
-                        f"Cannot identify which phase halted. Result: {executor_result}"
-                    )
-                logger.critical(f"[EXECUTOR] Phase sequence halted at Phase {error_phase}")
-                return self._final_report()
-
-            # Log performance metrics and total time
-            log_metrics_summary()
             total_elapsed = time.time() - self.run_start
-            logger.info(f"\n[TOTAL] Orchestrator run completed in {total_elapsed:.2f}s")
-            logger.info(f"[END TIME] {datetime.now(timezone.utc).isoformat()}")
-
-            # Emit pipeline timing to CloudWatch for monitoring
-            try:
-                from algo.reporting import MetricsPublisher
-
-                with MetricsPublisher() as metrics:
-                    metrics.put_loader_duration("orchestrator_run", total_elapsed)
-                    # Determine pipeline context (morning prep vs EOD based on run time)
-                    run_hour = datetime.now(EASTERN_TZ).hour
-                    if run_hour < 10:  # Before 10 AM = morning prep
-                        metrics.add_metric(
-                            "morning_prep_pipeline_seconds",
-                            total_elapsed,
-                            unit="Seconds",
-                        )
-                    else:  # After 10 AM = EOD pipeline
-                        metrics.add_metric("eod_pipeline_seconds", total_elapsed, unit="Seconds")
-            except (ValueError, ZeroDivisionError, TypeError) as e:
-                logger.debug(f"Could not emit pipeline timing metrics: {e}")
-
+            self._emit_performance_metrics(total_elapsed)
             return self._final_report()
         finally:
             self._release_run_lock()
