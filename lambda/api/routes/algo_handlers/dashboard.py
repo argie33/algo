@@ -1232,11 +1232,13 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             ORDER BY signal_quality_score DESC NULLS LAST
             LIMIT 30""")
         buy_sigs_rows = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
-        # Ensure all date fields in buy_sigs are ISO strings, not date objects
+        # Ensure all date fields in buy_sigs are ISO strings
         buy_sigs = []
         for item in buy_sigs_rows:
-            if isinstance(item, dict) and 'date' in item and hasattr(item['date'], 'isoformat'):
-                item['date'] = item['date'].isoformat()
+            if item is not None and isinstance(item, dict) and 'date' in item:
+                val = item.get('date')
+                if val is not None and hasattr(val, 'isoformat'):
+                    item['date'] = val.isoformat()
             buy_sigs.append(item)
 
         # Grade distribution based on composite_score ranking
@@ -1339,11 +1341,13 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             ORDER BY date DESC
             LIMIT 7""")
         trend_rows = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
-        # Ensure all date fields in trend are ISO strings, not date objects
+        # Ensure all date fields in trend are ISO strings
         trend = []
         for item in trend_rows:
-            if isinstance(item, dict) and 'date' in item and hasattr(item['date'], 'isoformat'):
-                item['date'] = item['date'].isoformat()
+            if item is not None and isinstance(item, dict) and 'date' in item:
+                val = item.get('date')
+                if val is not None and hasattr(val, 'isoformat'):
+                    item['date'] = val.isoformat()
             trend.append(item)
 
         freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
