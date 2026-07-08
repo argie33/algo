@@ -1388,6 +1388,20 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             "data_freshness": freshness,
         }
 
+        # Final pass: convert ANY remaining date objects to strings (defensive)
+        from datetime import date, datetime
+        def convert_dates_recursive(obj):
+            if isinstance(obj, dict):
+                return {k: convert_dates_recursive(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [convert_dates_recursive(item) for item in obj]
+            elif isinstance(obj, (date, datetime)):
+                return obj.isoformat()
+            else:
+                return obj
+
+        sig_response = convert_dates_recursive(sig_response)
+
         # Validate signals response matches contract schema
         ensure_valid_response("sig", sig_response)
 
