@@ -592,6 +592,10 @@ def run(  # noqa: C901
                     try:
                         table_max_date = max_dates.get(table_name)
 
+                        # CRITICAL FIX: Ensure datetime to date conversion for all table max dates
+                        if table_max_date is not None and isinstance(table_max_date, dt):
+                            table_max_date = table_max_date.date()
+
                         if table_max_date is None:
                             msg = f"{description} is empty"
                             if is_halt_table:
