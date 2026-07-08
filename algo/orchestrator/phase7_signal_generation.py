@@ -685,7 +685,7 @@ def run(  # noqa: C901
     phase_start = time.time()
     logger.info("[PHASE 7] Starting signal generation")
 
-    min_close_quality = float(get_config().get("min_close_quality_pct")) / 100.0
+    min_close_quality = float(config["min_close_quality_pct"]) / 100.0
 
     # ISSUE #8 FIX: Guard rails — check critical dependencies BEFORE signal generation
     # Fails fast if ANY dependency is unavailable, preventing silent degradation

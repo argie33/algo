@@ -171,14 +171,15 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Set Alpaca keys for trading mode
+      - name: Validate Alpaca credentials configured
         run: |
-          if grep -q "alpaca_paper_trading *= *false" terraform.tfvars; then
-            echo "Trading mode: LIVE -- using live keys"
-            echo "TF_VAR_alpaca_api_key_id=${{ secrets.ALPACA_API_KEY }}" >> $GITHUB_ENV
-            echo "TF_VAR_alpaca_api_secret_key=${{ secrets.ALPACA_SECRET_KEY }}" >> $GITHUB_ENV
+          if [ -z "${{ secrets.ALPACA_API_KEY_ID }}" ] || [ -z "${{ secrets.ALPACA_API_SECRET_KEY }}" ]; then
+            echo "[ERROR] GitHub Secrets missing: ALPACA_API_KEY_ID or ALPACA_API_SECRET_KEY not configured"
+            echo "[ERROR] Without these secrets, Terraform will create AWS Secrets Manager with empty values"
+            echo "[ERROR] Set GitHub Secrets before running this workflow"
+            exit 1
           else
-            echo "Trading mode: PAPER -- using paper keys"
+            echo "[OK] Alpaca credentials found in GitHub Secrets"
           fi
 
       - name: Discover CloudFront domain for CORS configuration
