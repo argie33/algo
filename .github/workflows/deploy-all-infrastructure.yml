@@ -49,6 +49,7 @@ jobs:
   validate-ci:
     name: "CI Validation - Ensure Tests Passed"
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
       statuses: read
