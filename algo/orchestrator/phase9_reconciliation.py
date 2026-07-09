@@ -751,7 +751,7 @@ def run(  # noqa: C901
 
                             # FIX: Use configurable initial capital instead of hardcoded value
                             # Prevents silent trading on incorrect portfolio state in paper mode
-                            initial_capital = self.config.get("initial_capital_paper_trading")
+                            initial_capital = config.get("initial_capital_paper_trading")
                             if not initial_capital:
                                 raise RuntimeError(
                                     "[PHASE 9] CRITICAL: initial_capital_paper_trading not configured. "

@@ -57,10 +57,25 @@ def run_loader(
             default=get_default_parallelism(loader_class.table_name),
             help="Number of parallel workers (default: per-loader config).",
         )
+        # Validate BACKFILL_DAYS env var before using it
+        backfill_default = None
+        backfill_env = os.environ.get("BACKFILL_DAYS")
+        if backfill_env:
+            try:
+                backfill_default = int(backfill_env)
+                if backfill_default < 0:
+                    raise ValueError("BACKFILL_DAYS must be >= 0")
+            except ValueError as e:
+                raise ValueError(
+                    f"[LOADER] BACKFILL_DAYS env var '{backfill_env}' is invalid: {e}. "
+                    f"Must be a non-negative integer (e.g., 7 to backfill 7 days, 0 for no backfill). "
+                    f"Set via container environment or --backfill-days command line argument."
+                ) from e
+
         parser.add_argument(
             "--backfill-days",
             type=int,
-            default=int(os.environ["BACKFILL_DAYS"]) if os.environ.get("BACKFILL_DAYS") else None,
+            default=backfill_default,
             help="Refetch last N days instead of using watermark (for recovery/validation). "
             "Falls back to the BACKFILL_DAYS env var (set this when triggering via ECS RunTask "
             "container overrides, since environment variables can be overridden per-invocation "

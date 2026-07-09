@@ -1081,7 +1081,8 @@ class Orchestrator:
     def _executor_phase_6(self, executor: Any = None, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 6: Exit Execution.
 
-        PHASE DEPENDENCY FIX: Fetches validated data from Phase 3 and 5.
+        PHASE DEPENDENCY FIX: Phase 6 has always_run=True, so it must execute even if Phase 3/5 fail.
+        Falls back to database reads if phase data unavailable.
         """
         if not executor:
             raise RuntimeError(
@@ -1089,8 +1090,30 @@ class Orchestrator:
                 "This should never happen - check phase_executor.py initialization."
             )
 
-        position_recs = executor.get_phase_data_required(3, "recommendations")
-        exposure_actions = executor.get_phase_data_required(5, "actions")
+        from algo.orchestrator.phase_data_contract import MissingPhaseDataError
+
+        position_recs = []
+        exposure_actions = []
+
+        # Try to get Phase 3 data (position recommendations)
+        try:
+            position_recs = executor.get_phase_data_required(3, "recommendations")
+        except MissingPhaseDataError as e:
+            logger.warning(
+                f"[PHASE 6] Phase 3 data unavailable: {e}. "
+                f"Phase 6 (always_run) continuing with empty position_recs. "
+                f"Exits will proceed based on database state only."
+            )
+
+        # Try to get Phase 5 data (exposure actions)
+        try:
+            exposure_actions = executor.get_phase_data_required(5, "actions")
+        except MissingPhaseDataError as e:
+            logger.warning(
+                f"[PHASE 6] Phase 5 data unavailable: {e}. "
+                f"Phase 6 (always_run) continuing with empty exposure_actions. "
+                f"Exits will proceed with position-monitor-only logic."
+            )
 
         result = run_phase6(
             self.config,

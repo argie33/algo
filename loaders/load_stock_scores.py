@@ -98,11 +98,18 @@ class StockScoresLoader(OptimalLoader):
 
                 for table_name, min_coverage in required_metric_tables.items():
                     # Check if data_unavailable column exists (migration 102 may not have been applied yet)
+                    # RACE CONDITION FIX: Use single query to get both counts atomically
+                    # This prevents stale row counts when concurrent pipelines are inserting
                     try:
-                        # COUNT real data only (data_unavailable = false OR IS NULL)
-                        # NULL values also count as real data (some loaders don't set the flag)
+                        # Get both available and total counts in one query for consistency
+                        # COUNT FILTER is atomic and prevents row count changes between queries
                         cur.execute(
-                            f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL"
+                            f"""
+                            SELECT
+                                COUNT(*) FILTER (WHERE data_unavailable = false OR data_unavailable IS NULL) as available_count,
+                                COUNT(*) as total_count
+                            FROM {table_name}
+                            """
                         )
                     except psycopg2.ProgrammingError:
                         # Column doesn't exist; assume all rows are available (no data_unavailable markers yet)
@@ -110,16 +117,11 @@ class StockScoresLoader(OptimalLoader):
                             f"[STOCK_SCORES CRITICAL] {table_name} missing data_unavailable column; schema mismatch detected. "
                             f"Migration {table_name} may not have been applied yet."
                         )
-                        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+                        cur.execute(f"SELECT COUNT(*) as available_count, COUNT(*) as total_count FROM {table_name}")
 
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
-
-                    # Total rows including both real data and unavailable markers
-                    # Denominator = available + unavailable (excludes data_unavailable IS NULL case)
-                    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-                    row = cur.fetchone()
-                    total_count = row[0] if row else 0
+                    total_count = row[1] if row else 0
 
                     if total_count == 0:
                         raise RuntimeError(
@@ -150,9 +152,27 @@ class StockScoresLoader(OptimalLoader):
                         )
 
                 for table_name in optional_sec_metric_tables:
-                    cur.execute(f"SELECT COUNT(*) FROM {table_name}")
+                    # RACE CONDITION FIX: Use single query to get both counts atomically
+                    try:
+                        cur.execute(
+                            f"""
+                            SELECT
+                                COUNT(*) FILTER (WHERE data_unavailable = false OR data_unavailable IS NULL) as available_count,
+                                COUNT(*) as total_count
+                            FROM {table_name}
+                            """
+                        )
+                    except psycopg2.ProgrammingError:
+                        # Column doesn't exist; assume all rows are available
+                        logger.critical(
+                            f"[STOCK_SCORES CRITICAL] {table_name} missing data_unavailable column; schema mismatch detected. "
+                            f"Migration for {table_name} may not have been applied yet."
+                        )
+                        cur.execute(f"SELECT COUNT(*) as available_count, COUNT(*) as total_count FROM {table_name}")
+
                     row = cur.fetchone()
-                    total_count = row[0] if row else 0
+                    available_count = row[0] if row else 0
+                    total_count = row[1] if row else 0
 
                     if total_count == 0:
                         raise RuntimeError(
@@ -161,20 +181,6 @@ class StockScoresLoader(OptimalLoader):
                             f"Cannot compute stock scores without metric data."
                         )
 
-                    try:
-                        cur.execute(
-                            f"SELECT COUNT(*) FROM {table_name} WHERE data_unavailable = false OR data_unavailable IS NULL"
-                        )
-                    except psycopg2.ProgrammingError:
-                        # Column doesn't exist; assume all rows with values are real data
-                        logger.critical(
-                            f"[STOCK_SCORES CRITICAL] {table_name} missing data_unavailable column; schema mismatch detected. "
-                            f"Migration for {table_name} may not have been applied yet."
-                        )
-                        cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-
-                    row = cur.fetchone()
-                    available_count = row[0] if row else 0
                     coverage = available_count / total_count if total_count > 0 else 0
 
                     # CRITICAL FIX 2026-07-05: Allow 0% coverage for optional_sec metrics if the loader ran
