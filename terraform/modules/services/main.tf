@@ -4,6 +4,54 @@
 
 data "aws_caller_identity" "current" {}
 
+# ============================================================
+# Secrets Management - SMTP Credentials
+# ============================================================
+
+# FIXED: Store SMTP credentials in AWS Secrets Manager instead of Lambda env vars
+# Lambda environment variables are visible to anyone with lambda:GetFunction permission
+# This security fix ensures credentials are fetched at runtime by Lambda execution role
+resource "aws_secretsmanager_secret" "algo_smtp" {
+  name                    = "${var.project_name}-algo-smtp-${var.environment}"
+  description             = "SMTP credentials for algo trading system email alerts"
+  recovery_window_in_days = 7
+
+  tags = var.common_tags
+}
+
+# Populate secret with SMTP password (passed via Terraform variable)
+# NOTE: Assumes var.alert_smtp_password is set via terraform.tfvars or -var flag
+resource "aws_secretsmanager_secret_version" "algo_smtp" {
+  secret_id = aws_secretsmanager_secret.algo_smtp.id
+  secret_string = jsonencode({
+    password = var.alert_smtp_password
+    username = var.alert_smtp_user
+    host     = var.alert_smtp_host
+    port     = var.alert_smtp_port
+  })
+}
+
+# Allow orchestrator Lambda to read SMTP secret from Secrets Manager
+# This fixes the security issue of having SMTP password in Lambda environment variables
+resource "aws_iam_role_policy" "algo_lambda_read_smtp_secret" {
+  name   = "${var.project_name}-algo-lambda-read-smtp-secret-${var.environment}"
+  # Assume the algo Lambda role name follows the convention:  extract from the provided ARN
+  role   = element(split("/", var.algo_lambda_role_arn), length(split("/", var.algo_lambda_role_arn)) - 1)
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue",
+          "secretsmanager:DescribeSecret"
+        ]
+        Resource = aws_secretsmanager_secret.algo_smtp.arn
+      }
+    ]
+  })
+}
+
 locals {
   api_lambda_name  = "${var.project_name}-api-${var.environment}"
   algo_lambda_name = "${var.project_name}-algo-${var.environment}"
@@ -763,7 +811,10 @@ resource "aws_lambda_function" "algo" {
       ALERT_SMTP_HOST     = var.alert_smtp_host
       ALERT_SMTP_PORT     = tostring(var.alert_smtp_port)
       ALERT_SMTP_USER     = var.alert_smtp_user
-      ALERT_SMTP_PASSWORD = var.alert_smtp_password
+      # FIXED: SMTP password now loaded from AWS Secrets Manager at runtime (not Lambda env vars)
+      # Lambda env vars are visible to anyone with lambda:GetFunction permission
+      # Credentials fetched from Secrets Manager via Lambda execution role at startup
+      ALERT_SMTP_SECRET_ARN = aws_secretsmanager_secret.algo_smtp.arn
       ALERT_SMTP_FROM     = var.alert_smtp_from
       # ECS/Fargate configuration for failsafe loader trigger (Phase 1 stale data recovery)
       ECS_CLUSTER_ARN     = var.ecs_cluster_arn
