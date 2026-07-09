@@ -418,7 +418,7 @@ class WeightOptimizer:
             # Compute optimal
             try:
                 optimal = self.optimize(report_date)
-            except RuntimeError as e:
+            except (RuntimeError, ValueError) as e:
                 logger.warning(f"Optimization failed on {report_date}: {e}, keeping current weights")
                 return {
                     "old_weights": current,

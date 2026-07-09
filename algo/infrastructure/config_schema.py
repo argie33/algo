@@ -189,7 +189,7 @@ VALIDATION_SCHEMA = {
     "enable_backtesting": ("bool", None, None, False, None),
     "verbose_logging": ("bool", None, None, False, None),
     # Network Configuration
-    "api_request_timeout_seconds": ("int", 1, 300, False, 5),
+    "api_request_timeout_seconds": ("int", 1, 300, False, 15),  # Increased from 5 to handle Alpaca slow endpoints
     "db_connection_timeout_seconds": ("int", 1, 300, False, 15),
     # Failsafe Configuration
     "failsafe_ecs_timeout_sec": ("int", 30, 600, False, 180),
