@@ -25,11 +25,15 @@ class EnvironmentValidator:
         # AWS (always required)
         "AWS_REGION": "AWS region for Lambda/RDS/Secrets Manager",
 
-        # Execution Mode (ORCHESTRATOR_EXECUTION_MODE is the standard Lambda env var name)
+        # Execution Mode (optional if EXECUTION_MODE set, defaults to paper if neither set)
         # NOTE: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) only required for live trading
         # For paper trading, credentials can be loaded from AWS Secrets Manager at runtime
-        "ORCHESTRATOR_EXECUTION_MODE": "paper or live (trading mode)",
-        "ORCHESTRATOR_DRY_RUN": "true/false (dry run mode)",
+    }
+
+    # Optional variables with sensible defaults
+    OPTIONAL_WITH_DEFAULTS = {
+        "ORCHESTRATOR_EXECUTION_MODE": ("paper", "Execution mode: paper or live (default: paper)"),
+        "ORCHESTRATOR_DRY_RUN": ("false", "Dry run mode: true or false (default: false)"),
     }
 
     # Alternative variable names (accepted if primary not set)
@@ -68,6 +72,21 @@ class EnvironmentValidator:
                         # Alternative found, continue without error
                         continue
                 missing.append(f"{var_name}: {description}")
+
+        # Check optional variables with defaults - no missing errors if defaults exist
+        for var_name, (default_val, description) in cls.OPTIONAL_WITH_DEFAULTS.items():
+            value = os.getenv(var_name)
+            if not value or value.strip() == "":
+                # Check for alternative names if primary not set
+                if var_name in cls.ALTERNATIVE_VARS:
+                    alt_name, alt_desc = cls.ALTERNATIVE_VARS[var_name]
+                    alt_value = os.getenv(alt_name)
+                    if alt_value and alt_value.strip() != "":
+                        # Alternative found, use it instead of default
+                        os.environ[var_name] = alt_value
+                        continue
+                # Use default
+                os.environ[var_name] = default_val
 
         return len(missing) == 0, missing
 
