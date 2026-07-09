@@ -658,46 +658,33 @@ function PortfolioDashboardPage() {
         />
       )}
 
-      {/* Top KPI strip */}
-      {isPrimaryLoading ? (
-        <div className="grid grid-4">
-          <SkeletonKpi />
-          <SkeletonKpi />
+      {/* FIXED #9: Separate KPI panels by data source to prevent race conditions
+          Position metrics (Portfolio Value, Unrealized P&L) load independently from
+          Performance metrics (Total Return). This prevents showing stale/mixed data
+          when one query loads before another. */}
+
+      {/* Position-based KPIs - show immediately when positions load */}
+      {posLoading ? (
+        <div className="grid grid-2">
           <SkeletonKpi />
           <SkeletonKpi />
         </div>
-      ) : (perfError && !hasCachedPerf) || posError ? (
+      ) : posError ? (
         <div className="card card-danger">
           <div className="card-body">
-            <div
-              style={{
-                display: "flex",
-                gap: "var(--space-2)",
-                alignItems: "center",
-              }}
-            >
+            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
               <AlertTriangle size={20} style={{ color: "var(--danger)" }} />
               <div>
-                <div style={{ fontWeight: "var(--w-semibold)" }}>
-                  Critical Data Unavailable
-                </div>
-                <div
-                  style={{
-                    fontSize: "var(--t-sm)",
-                    color: "var(--muted)",
-                    marginTop: "var(--space-1)",
-                  }}
-                >
-                  {perfError && !hasCachedPerf
-                    ? perfError
-                    : posError}
+                <div style={{ fontWeight: "var(--w-semibold)" }}>Positions Unavailable</div>
+                <div style={{ fontSize: "var(--t-sm)", color: "var(--muted)", marginTop: "var(--space-1)" }}>
+                  {posError?.message || "Failed to load positions"}
                 </div>
               </div>
             </div>
           </div>
         </div>
       ) : (
-        <div className="grid grid-4">
+        <div className="grid grid-2">
           <Kpi
             label="Portfolio Value"
             value={fmtMoneyShort(totalValue)}
@@ -720,6 +707,33 @@ function PortfolioDashboardPage() {
             icon={Activity}
             tone={unrealizedPnl >= 0 ? "up" : "down"}
           />
+        </div>
+      )}
+
+      {/* Performance + Market KPIs - show with their own loading/error state */}
+      {marketsLoading || perfLoading ? (
+        <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
+          <SkeletonKpi />
+          <SkeletonKpi />
+        </div>
+      ) : (perfError && !hasCachedPerf) || marketsError ? (
+        <div className="card card-danger" style={{ marginTop: "var(--space-4)" }}>
+          <div className="card-body">
+            <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+              <AlertTriangle size={20} style={{ color: "var(--danger)" }} />
+              <div>
+                <div style={{ fontWeight: "var(--w-semibold)" }}>
+                  {perfError && !hasCachedPerf ? "Performance Metrics" : "Market Data"} Unavailable
+                </div>
+                <div style={{ fontSize: "var(--t-sm)", color: "var(--muted)", marginTop: "var(--space-1)" }}>
+                  {perfError && !hasCachedPerf ? perfError?.message || "Failed to load performance" : marketsError?.message || "Failed to load markets"}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
           <Kpi
             label="Total Return"
             value={<Pnl value={perf?.total_return_pct} suffix="%" />}
