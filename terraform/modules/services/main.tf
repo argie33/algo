@@ -1360,27 +1360,8 @@ resource "aws_iam_role_policy" "api_token_blocklist" {
 # The Lambda handler returns 200 immediately on warmup events
 # without opening a DB connection.
 
-resource "aws_cloudwatch_event_rule" "api_lambda_warmup" {
-  name                = "${var.project_name}-api-warmup-${var.environment}"
-  description         = "Keep API Lambda warm every 4 min to avoid VPC cold-start 502s"
-  schedule_expression = "rate(4 minutes)"
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-api-warmup"
-  })
-}
-
-resource "aws_cloudwatch_event_target" "api_lambda_warmup" {
-  rule      = aws_cloudwatch_event_rule.api_lambda_warmup.name
-  target_id = "APILambdaWarmup"
-  arn       = aws_lambda_function.api.arn
-  input     = jsonencode({ source = "warmup", keep_alive = true })
-}
-
-resource "aws_lambda_permission" "api_lambda_warmup" {
-  statement_id  = "AllowWarmupEventBridge"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.api.function_name
-  principal     = "events.amazonaws.com"
-  source_arn    = aws_cloudwatch_event_rule.api_lambda_warmup.arn
-}
+# REMOVED: API Lambda Warmup EventBridge Rule
+# Rationale: Provisioned concurrency (1 unit) already keeps Lambda warm.
+# This redundant warmup rule cost ~$1-2/month in EventBridge invocations.
+# Provisioned concurrency handles warmup automatically.
+# Removed 2026-07-08 cost optimization pass.
