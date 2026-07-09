@@ -531,21 +531,33 @@ CREATE INDEX IF NOT EXISTS idx_algo_positions_updated_at ON algo_positions(updat
 CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
     id SERIAL PRIMARY KEY,
     run_id VARCHAR(100),
-    portfolio_date DATE,
+    snapshot_date DATE UNIQUE NOT NULL,
     total_portfolio_value DECIMAL(18, 2),
     total_cash DECIMAL(18, 2),
-    total_invested DECIMAL(18, 2),
-    total_unrealized_pnl DECIMAL(18, 2),
-    total_realized_pnl DECIMAL(18, 2),
-    total_return_pct DECIMAL(8, 4),
-    num_open_positions INTEGER,
-    num_winning_positions INTEGER,
-    num_losing_positions INTEGER,
+    total_equity DECIMAL(18, 2),
+    position_count INTEGER,
+    largest_position_pct DECIMAL(8, 4),
+    average_position_size_pct DECIMAL(8, 4),
+    concentration_risk_pct DECIMAL(8, 4),
+    realized_pnl_today DECIMAL(18, 2),
+    unrealized_pnl_total DECIMAL(18, 2),
+    unrealized_pnl_pct DECIMAL(8, 4),
+    unrealized_pnl_winning_count INTEGER,
+    unrealized_pnl_losing_count INTEGER,
+    unrealized_pnl_breakeven_count INTEGER,
+    unrealized_pnl_source VARCHAR(100),
+    win_count_today INTEGER,
+    loss_count_today INTEGER,
+    daily_return_pct DECIMAL(8, 4),
+    cumulative_return_pct DECIMAL(8, 4),
+    max_drawdown_pct DECIMAL(8, 4),
+    sharpe_ratio DECIMAL(8, 4),
+    market_health_status VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_run_id ON algo_portfolio_snapshots(run_id);
-CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_date ON algo_portfolio_snapshots(portfolio_date DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_date ON algo_portfolio_snapshots(snapshot_date DESC);
 CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_created_at ON algo_portfolio_snapshots(created_at DESC);
 
 -- ============================================================================
