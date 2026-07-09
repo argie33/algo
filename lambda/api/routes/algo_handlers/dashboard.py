@@ -1203,7 +1203,13 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 ORDER BY COALESCE(ss.composite_score, 0) DESC NULLS LAST
                 LIMIT 30
             """)
-            buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+            buy_sigs_rows = cur.fetchall()
+            buy_sigs = []
+            for row in buy_sigs_rows:
+                row_dict = safe_json_serialize(safe_dict_convert(row))
+                if row_dict.get("signal_date"):
+                    row_dict["signal_date"] = str(row_dict["signal_date"])
+                buy_sigs.append(row_dict)
 
             # Grade distribution (A/B/C/D by signal quality score from stock_scores)
             cur.execute("""
@@ -1257,7 +1263,13 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 ORDER BY s.date DESC
                 LIMIT 7
             """)
-            trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+            trend_rows = cur.fetchall()
+            trend = []
+            for row in trend_rows:
+                row_dict = safe_json_serialize(safe_dict_convert(row))
+                if row_dict.get("date"):
+                    row_dict["date"] = str(row_dict["date"])
+                trend.append(row_dict)
 
             # Count qualifying high-quality signals (score >= 70)
             cur.execute("""
@@ -1275,7 +1287,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             sig_response = {
                 "n": qualifying_buy_count,
                 "total": total_n,
-                "date": sig["d"] if sig else None,
+                "date": str(sig["d"]) if sig and sig.get("d") else None,
                 "buy_sigs": buy_sigs[:15] if buy_sigs else [],
                 "near": near[:8] if near else [],
                 "top_a": top_a[:20] if top_a else [],
