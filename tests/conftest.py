@@ -19,6 +19,8 @@ os.environ["DB_PASSWORD"] = "test_password"
 os.environ["ALPACA_API_KEY"] = "PK_TEST"
 os.environ["ALPACA_SECRET_KEY"] = "sk_test"
 os.environ["AWS_REGION"] = "us-east-1"
+os.environ["ORCHESTRATOR_EXECUTION_MODE"] = "paper"
+os.environ["ORCHESTRATOR_DRY_RUN"] = "true"
 
 
 def _create_mock_cursor():

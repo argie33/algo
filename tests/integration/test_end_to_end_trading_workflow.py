@@ -135,7 +135,7 @@ class TestEndToEndTradingWorkflow:
             assert len(trades["data"]["items"]) > 0
             assert trades["data"]["items"][0]["symbol"] == "AAPL"
 
-        print("✓ Dashboard successfully fetches position and trade data")
+        print("[OK] Dashboard successfully fetches position and trade data")
 
     def test_orchestrator_can_execute_all_phases(self, mock_db):
         """Verify orchestrator can execute all 9 phases."""
@@ -159,10 +159,10 @@ class TestEndToEndTradingWorkflow:
                 elif hasattr(p, "phase_name"):
                     phase_names.append(str(p.phase_name))
 
-            print(f"✓ Orchestrator has all {len(phases)} phases configured")
+            print(f"[OK] Orchestrator has all {len(phases)} phases configured")
         except Exception as e:
             # Phase registry structure may vary, but system must be importable
-            print(f"✓ Orchestrator phases framework exists: {type(e).__name__}")
+            print(f"[OK] Orchestrator phases framework exists: {type(e).__name__}")
 
     def test_alpaca_integration_points(self, mock_db):
         """Verify system has proper Alpaca integration points."""
@@ -172,7 +172,7 @@ class TestEndToEndTradingWorkflow:
 
             # The client should exist and be importable
             assert AlpacaClient is not None
-            print("✓ Alpaca client integration point exists")
+            print("[OK] Alpaca client integration point exists")
         except ImportError:
             # Try alternative paths
             assert True, "Alpaca integration exists in system"
@@ -203,7 +203,7 @@ class TestEndToEndTradingWorkflow:
             assert dashboard_position["position_value"] == 10000
             assert dashboard_position["current_price"] == 155.0
 
-        print("✓ Data flows correctly: loaders → DB → API → dashboard")
+        print("[OK] Data flows correctly: loaders → DB → API → dashboard")
 
     def test_trading_safety_gates_active(self, mock_db):
         """Verify circuit breakers and safety gates are active."""
@@ -214,7 +214,7 @@ class TestEndToEndTradingWorkflow:
         assert "is_halted" in mock_db.circuit_breaker_state, "Circuit breaker halt state must be tracked"
         assert "active_breakers" in mock_db.circuit_breaker_state, "Active breaker list must be tracked"
 
-        print("✓ All trading safety gates configured and active")
+        print("[OK] All trading safety gates configured and active")
 
     def test_paper_trading_mode_enabled(self, mock_db):
         """Verify paper trading mode is enabled by default."""
@@ -222,7 +222,7 @@ class TestEndToEndTradingWorkflow:
         assert mock_db.config.get("alpaca_paper_trading") == "true", "Paper trading must be enabled by default"
         assert mock_db.config.get("execution_mode") == "paper", "Execution mode must be paper by default"
 
-        print("✓ Paper trading mode enabled and configured correctly")
+        print("[OK] Paper trading mode enabled and configured correctly")
 
     def test_authentication_flow(self):
         """Verify authentication checks are in place."""
@@ -239,7 +239,7 @@ class TestEndToEndTradingWorkflow:
         # Missing claims should be denied
         assert check_admin_access(None) is False
 
-        print("✓ Authentication flow verified and working")
+        print("[OK] Authentication flow verified and working")
 
     def test_github_actions_deployment_workflow_exists(self):
         """Verify GitHub Actions workflows are properly configured."""
@@ -258,7 +258,7 @@ class TestEndToEndTradingWorkflow:
             assert "lambda" in content.lower(), "Must include Lambda deployment"
             assert "python" in content.lower(), "Must include Python dependency management"
 
-        print("✓ GitHub Actions deployment workflows properly configured")
+        print("[OK] GitHub Actions deployment workflows properly configured")
 
     def test_database_schema_migration_exists(self):
         """Verify database migration scripts exist."""
@@ -268,7 +268,7 @@ class TestEndToEndTradingWorkflow:
         migration_scripts = list(scripts_dir.glob("*migration*")) + list(scripts_dir.glob("*database*"))
         assert len(migration_scripts) > 0, "Database migration scripts must exist"
 
-        print("✓ Database migration scripts available")
+        print("[OK] Database migration scripts available")
 
     def test_orchestrator_entry_point_wired(self):
         """Verify orchestrator Lambda entry point is properly wired."""
@@ -284,8 +284,6 @@ class TestEndToEndTradingWorkflow:
             config.override = Mock()
             orch = Orchestrator(config=config, dry_run=True)
             assert orch is not None
-
-            print("✓ Orchestrator entry point properly wired")
         except Exception as e:
             pytest.fail(f"Orchestrator entry point error: {e}")
 
@@ -311,7 +309,7 @@ class TestEndToEndTradingWorkflow:
             # Expected in some cases - just verify handler is callable
             assert callable(algo_handle)
 
-        print("✓ API router wired to all endpoints")
+        print("[OK] API router wired to all endpoints")
 
     def test_system_startup_validation(self):
         """Verify system startup validation is in place."""
@@ -331,9 +329,9 @@ class TestEndToEndTradingWorkflow:
             assert config.get("alpaca_paper_trading") is not None
             assert config.get("execution_mode") is not None
 
-            print("✓ System startup validation enabled")
+            print("[OK] System startup validation enabled")
         except Exception as e:
-            print(f"⚠ Config validation check: {e}")
+            print(f"[WARN] Config validation check: {e}")
 
 
 if __name__ == "__main__":
