@@ -15,21 +15,19 @@ class EnvironmentValidator:
 
     # Required environment variables for orchestrator execution
     REQUIRED_VARS = {
-        # Database
+        # Database (always required)
         "DB_HOST": "PostgreSQL host",
         "DB_PORT": "PostgreSQL port",
         "DB_NAME": "PostgreSQL database name",
         "DB_USER": "PostgreSQL username",
         "DB_PASSWORD": "PostgreSQL password",
 
-        # AWS
+        # AWS (always required)
         "AWS_REGION": "AWS region for Lambda/RDS/Secrets Manager",
 
-        # Alpaca (Paper Trading)
-        "APCA_API_KEY_ID": "Alpaca API key for paper trading",
-        "APCA_API_SECRET_KEY": "Alpaca API secret for paper trading",
-
         # Execution Mode (ORCHESTRATOR_EXECUTION_MODE is the standard Lambda env var name)
+        # NOTE: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) only required for live trading
+        # For paper trading, credentials can be loaded from AWS Secrets Manager at runtime
         "ORCHESTRATOR_EXECUTION_MODE": "paper or live (trading mode)",
         "ORCHESTRATOR_DRY_RUN": "true/false (dry run mode)",
     }
@@ -72,6 +70,17 @@ class EnvironmentValidator:
                 missing.append(f"{var_name}: {description}")
 
         return len(missing) == 0, missing
+
+    @classmethod
+    def has_alpaca_credentials(cls) -> bool:
+        """Check if Alpaca credentials are available (from environment or to be loaded from Secrets Manager).
+
+        Returns:
+            True if both APCA_API_KEY_ID and APCA_API_SECRET_KEY are set in environment
+        """
+        api_key = os.getenv("APCA_API_KEY_ID", "").strip()
+        api_secret = os.getenv("APCA_API_SECRET_KEY", "").strip()
+        return bool(api_key) and bool(api_secret)
 
     @classmethod
     def validate_optional(cls) -> Dict[str, str]:
@@ -129,6 +138,8 @@ class EnvironmentValidator:
             error_msg += "2. AWS Lambda: set in environment variables or AWS Secrets Manager\n"
             error_msg += "3. Docker: pass via -e flag or .env file\n"
             error_msg += "4. GitHub Actions: add to secrets or workflow env\n"
+            error_msg += "\nNOTE: Alpaca credentials can be loaded from AWS Secrets Manager at runtime;\n"
+            error_msg += "they only need to be in the environment for paper trading if not using Secrets Manager.\n"
 
             raise OrchestrationError(
                 ErrorCode.ENV_VAR_MISSING,

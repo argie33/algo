@@ -95,14 +95,14 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         }
     """
 
-    # PHASE 3 FIX: Validate environment variables FIRST
+    # CRITICAL: Load Alpaca credentials from AWS Secrets Manager FIRST
+    # Must happen BEFORE environment validation, so credentials are available
+    _load_alpaca_credentials_from_secrets()
+
+    # PHASE 3 FIX: Validate environment variables
     # This catches missing config before trying to initialize anything
     from algo.config.environment_validation import EnvironmentValidator
     EnvironmentValidator.require_valid_or_halt("lambda_handler")
-
-    # Load Alpaca credentials from AWS Secrets Manager into environment
-    # CRITICAL: Must happen BEFORE orchestrator initialization
-    _load_alpaca_credentials_from_secrets()
 
     # Reset config singleton on invocation to load fresh DB config
     from algo.infrastructure import reset_config
@@ -429,7 +429,8 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # (orchestrator.__init__ will pick it up from ORCHESTRATOR_EXECUTION_MODE)
         # Always write to env to override any Terraform-set residual value (e.g. "paper")
         os.environ["ORCHESTRATOR_EXECUTION_MODE"] = execution_mode
-        logger.info(f"ORCHESTRATOR_EXECUTION_MODE set to {execution_mode} from event")
+        os.environ["ORCHESTRATOR_DRY_RUN"] = "true" if dry_run else "false"
+        logger.info(f"ORCHESTRATOR_EXECUTION_MODE={execution_mode}, ORCHESTRATOR_DRY_RUN={dry_run}")
 
         # Ensure sector_ranking schema is correct (has 'date' column, not 'date_recorded')
         # This is a failsafe for when migrations don't run properly

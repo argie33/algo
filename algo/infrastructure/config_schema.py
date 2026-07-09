@@ -273,4 +273,38 @@ VALIDATION_SCHEMA = {
     "stale_order_auto_cancel_minutes": ("int", 0, 1440, False, None),
     # Data Patrol Coverage Error Threshold
     "patrol_coverage_error_threshold_pct": ("float", 0.0, 100.0, False, None),
+    # Alpaca Configuration
+    "alpaca_base_url": ("string", None, None, False, "https://paper-api.alpaca.markets"),
+    "alpaca_api_key_id": ("string", None, None, False, None),
+    "alpaca_api_secret_key": ("string", None, None, False, None),
+    "alpaca_api_base_url": ("string", None, None, False, "https://paper-api.alpaca.markets"),
+    # yfinance Timeout Configuration
+    "yfinance_market_close_timeout_eod_sec": ("int", 1, 600, False, 30),
+    "yfinance_market_close_timeout_morning_sec": ("int", 1, 600, False, 30),
+    # Signal and Score Thresholds
+    "signal_score_threshold": ("int", 1, 100, False, 60),
+    "swing_score_threshold": ("int", 1, 100, False, 55),
+    "data_completeness_threshold": ("float", 0.0, 1.0, False, 0.70),
+    # Data Coverage Thresholds
+    "buy_sell_daily_coverage_threshold": ("float", 0.0, 1.0, False, 0.70),
+    "technical_data_coverage_threshold": ("float", 0.0, 1.0, False, 0.70),
+    "price_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 70.0),
+    "technical_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 70.0),
+    "buy_sell_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 70.0),
+    # Orchestrator Control
+    "orchestrator_halt_enabled": ("bool", None, None, False, True),
+    # Grade Override Configuration
+    "grade_override_enabled": ("bool", None, None, False, False),
+    "grade_override_max_duration_minutes": ("int", 1, 10000, False, 60),
+    # Swing Score Weights
+    "swing_weight_setup": ("float", 0.0, 1.0, False, 0.15),
+    "swing_weight_trend": ("float", 0.0, 1.0, False, 0.25),
+    "swing_weight_momentum": ("float", 0.0, 1.0, False, 0.20),
+    "swing_weight_volume": ("float", 0.0, 1.0, False, 0.15),
+    "swing_weight_fundamentals": ("float", 0.0, 1.0, False, 0.10),
+    "swing_weight_sector": ("float", 0.0, 1.0, False, 0.10),
+    "swing_weight_multi_timeframe": ("float", 0.0, 1.0, False, 0.05),
+    # Corporate Action Configuration
+    "patrol_corporate_action_lookback_days": ("int", 1, 365, False, 30),
+    "patrol_corporate_action_drop_ratio": ("float", 0.0, 1.0, False, 0.10),
 }
