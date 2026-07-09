@@ -13,6 +13,8 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
+
 logger = logging.getLogger(__name__)
 
 
@@ -211,14 +213,15 @@ class MarketFactorCalculator:
         Momentum is a 10pt factor. Missing historical data is a data error, not a skip condition.
         """
         try:
+            interval_365d = get_interval_sql("365d")
             cur.execute(
-                """
+                f"""
                 WITH d AS (
                     SELECT close, date FROM price_daily WHERE symbol = 'SPY' AND date <= %s
                     ORDER BY date DESC LIMIT 1
                 ),
                 y_ago AS (
-                    SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s::date - get_interval_sql('365d')
+                    SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s::date - {interval_365d}
                     ORDER BY date DESC LIMIT 1
                 )
                 SELECT d.close, y_ago.close FROM d, y_ago

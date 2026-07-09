@@ -8,6 +8,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from utils.db import assert_safe_column, assert_safe_table
 
 from ..base import BaseCheck, CheckResult
@@ -121,15 +122,16 @@ class SpecializedChecker(BaseCheck):
 
         # Check earnings coverage
         try:
-            cur.execute("""
+            interval_7d = get_interval_sql("7d")
+            cur.execute(f"""
                 SELECT
                     COUNT(DISTINCT e.symbol) AS est_syms,
                     COUNT(DISTINCT p.symbol) AS price_syms
                 FROM price_daily p
                 LEFT JOIN earnings_estimates e
                     ON e.symbol = p.symbol
-                   AND e.created_at >= CURRENT_DATE - get_interval_sql('7d')
-                WHERE p.date >= CURRENT_DATE - get_interval_sql('7d')
+                   AND e.created_at >= CURRENT_DATE - {interval_7d}
+                WHERE p.date >= CURRENT_DATE - {interval_7d}
             """)
             row = cur.fetchone()
             if row is None:
@@ -245,13 +247,14 @@ class SpecializedChecker(BaseCheck):
     def check_derived_metrics(self, cur: Any) -> None:
         """Check technical indicators for bounds violations."""
         try:
+            interval_7d = get_interval_sql("7d")
             # RSI bounds check (should be 0-100)
-            cur.execute("""
+            cur.execute(f"""
                 SELECT COUNT(*) FILTER (WHERE rsi < 0 OR rsi > 100) AS bad_rsi,
                        COUNT(*) FILTER (WHERE rsi IS NULL) AS null_rsi,
                        COUNT(*) AS total
                 FROM technical_data_daily
-                WHERE date >= CURRENT_DATE - get_interval_sql('7d')
+                WHERE date >= CURRENT_DATE - {interval_7d}
             """)
             row = cur.fetchone()
             if row is None:
@@ -280,11 +283,11 @@ class SpecializedChecker(BaseCheck):
                 )
 
             # NaN/Infinity check
-            cur.execute("""
+            cur.execute(f"""
                 SELECT COUNT(*) FILTER (WHERE atr = 'NaN' OR atr = 'Infinity' OR atr = '-Infinity') AS bad_atr,
                        COUNT(*) FILTER (WHERE rsi = 'NaN' OR rsi = 'Infinity') AS bad_rsi_nan
                 FROM technical_data_daily
-                WHERE date >= CURRENT_DATE - get_interval_sql('7d')
+                WHERE date >= CURRENT_DATE - {interval_7d}
             """)
             row = cur.fetchone()
             if row is None:

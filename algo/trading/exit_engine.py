@@ -10,6 +10,7 @@ import psycopg2
 import requests
 
 from algo.infrastructure import get_alpaca_timeout
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.infrastructure.market_calendar import MarketCalendar
 from algo.signals import SignalComputer
 from algo.trading import TradeExecutor
@@ -1373,8 +1374,9 @@ class ExitEngine:
     def _is_minervini_break(self, cur: Any, symbol: str, current_date: Any, cur_price: float) -> bool:
         """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
 
+        interval_50d = get_interval_sql("50d")
         cur.execute(
-            """
+            f"""
 
             SELECT td.sma_50, td.ema_21,
 
@@ -1384,7 +1386,7 @@ class ExitEngine:
 
                      WHERE p.symbol = td.symbol AND p.date <= td.date
 
-                       AND p.date >= td.date - get_interval_sql('50d')) AS avg_vol_50
+                       AND p.date >= td.date - {interval_50d}) AS avg_vol_50
 
             FROM technical_data_daily td
 
@@ -1436,8 +1438,9 @@ class ExitEngine:
     def _check_volume_spike(self, cur: Any, symbol: str, current_date: Any, volume_multiplier: float) -> bool:
         """Check if today's volume is >= volume_multiplier * average volume."""
 
+        interval_50d = get_interval_sql("50d")
         cur.execute(
-            """
+            f"""
 
             SELECT pd.volume,
 
@@ -1447,7 +1450,7 @@ class ExitEngine:
 
                       AND p.date <= pd.date
 
-                      AND p.date > pd.date - get_interval_sql('50d')) AS avg_vol_50
+                      AND p.date > pd.date - {interval_50d}) AS avg_vol_50
 
             FROM price_daily pd
 

@@ -69,6 +69,7 @@ import psycopg2
 from psycopg2 import sql as pgsql
 from psycopg2.extensions import cursor as PsycopgCursor  # noqa: N812
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ  # noqa: F401
@@ -833,15 +834,16 @@ class MarketExposure:
         is below its 30-week MA and no such day has occurred, the market has
         not confirmed an attempted recovery, so exposure is capped at 40%.
         """
+        interval_30d = get_interval_sql("30d")
         cur.execute(
-            """
+            f"""
             WITH d AS (
                 SELECT date, close, volume,
                        LAG(close) OVER (ORDER BY date) AS prev_close,
                        LAG(volume) OVER (ORDER BY date) AS prev_vol
                 FROM price_daily
                 WHERE symbol = 'SPY' AND date <= %s
-                  AND date >= %s::date - get_interval_sql('30d')
+                  AND date >= %s::date - {interval_30d}
             )
             SELECT 1 FROM d
             WHERE prev_close IS NOT NULL
@@ -984,15 +986,16 @@ class MarketExposure:
         """
         bool_col = "price_above_sma50" if ma_days == 50 else "price_above_sma200"
         col = pgsql.Identifier(bool_col)
+        interval_7d = get_interval_sql("7d")
         cur.execute(
-            pgsql.SQL("""
+            pgsql.SQL(f"""
             SELECT
-                COUNT(*) FILTER (WHERE {} = TRUE)  AS above,
-                COUNT(*) FILTER (WHERE {} IS NOT NULL) AS total
+                COUNT(*) FILTER (WHERE {{}} = TRUE)  AS above,
+                COUNT(*) FILTER (WHERE {{}} IS NOT NULL) AS total
             FROM (
-                SELECT DISTINCT ON (symbol) {}
+                SELECT DISTINCT ON (symbol) {{}}
                 FROM trend_template_data
-                WHERE date <= %s AND date >= %s::date - get_interval_sql('7d')
+                WHERE date <= %s AND date >= %s::date - {interval_7d}
                 ORDER BY symbol, date DESC
             ) latest
             """).format(col, col, col),

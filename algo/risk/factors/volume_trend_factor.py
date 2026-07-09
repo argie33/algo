@@ -4,6 +4,7 @@
 import logging
 from typing import Any
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.risk.market_factor_strategy import MarketFactorStrategy
 
 logger = logging.getLogger(__name__)
@@ -38,14 +39,15 @@ class VolumeTrendFactor(MarketFactorStrategy):
         Raises ValueError if volume data unavailable.
         """
         try:
+            interval_50d = get_interval_sql("50d")
             cur.execute(
-                """
+                f"""
                 SELECT
                     AVG(volume) FILTER (
                         WHERE date > %s::date - INTERVAL '10 days' AND date <= %s
                     ) as vol_10d_avg,
                     AVG(volume) FILTER (
-                        WHERE date > %s::date - get_interval_sql('50d') AND date <= %s
+                        WHERE date > %s::date - {interval_50d} AND date <= %s
                     ) as vol_50d_avg,
                     MAX(volume) FILTER (
                         WHERE date > %s::date - INTERVAL '10 days' AND date <= %s

@@ -6,6 +6,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.signals.filter_registry import FilterRegistry
 from algo.signals.signal_api import SignalAPI
 from utils.db import DatabaseContext
@@ -466,10 +467,11 @@ class AdvancedFilters:
 
         # Weekly alignment: if buy_sell_weekly also says BUY in last 30 days, bonus
         try:
+            interval_30d = get_interval_sql("30d")
             cur.execute(
-                """SELECT 1 FROM buy_sell_weekly
+                f"""SELECT 1 FROM buy_sell_weekly
                    WHERE symbol = %s AND signal_type = 'BUY'
-                     AND date >= %s::date - get_interval_sql('30d')
+                     AND date >= %s::date - {interval_30d}
                      AND date <= %s
                    LIMIT 1""",
                 (symbol, signal_date, signal_date),
@@ -540,13 +542,14 @@ class AdvancedFilters:
         Raises:
             ValueError: If price data is missing or invalid for the period
         """
+        interval_1d = get_interval_sql("1d")
         cur.execute(
-            """
+            f"""
             WITH bracket AS (
                 SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
                 FROM price_daily
                 WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - (%s * get_interval_sql('1d'))
+                  AND date >= %s::date - (%s * {interval_1d})
             )
             SELECT
                 (SELECT close FROM bracket WHERE rn = 1),
@@ -721,14 +724,15 @@ class AdvancedFilters:
         }
 
     def _analyst_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, int]:
+        interval_90d = get_interval_sql("90d")
         cur.execute(
-            """
+            f"""
             SELECT
                 COUNT(*) FILTER (WHERE LOWER(action) IN ('up','upgrade')),
                 COUNT(*) FILTER (WHERE LOWER(action) IN ('down','downgrade'))
             FROM analyst_upgrade_downgrade
             WHERE symbol = %s
-              AND action_date >= %s::date - get_interval_sql('90d')
+              AND action_date >= %s::date - {interval_90d}
               AND action_date <= %s
             """,
             (symbol, signal_date, signal_date),
@@ -763,14 +767,15 @@ class AdvancedFilters:
         return pts, net
 
     def _insider_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, float]:
+        interval_60d = get_interval_sql("60d")
         cur.execute(
-            """
+            f"""
             SELECT
                 COALESCE(SUM(CASE WHEN LOWER(transaction_type) LIKE '%%buy%%' THEN value END), 0),
                 COALESCE(SUM(CASE WHEN LOWER(transaction_type) LIKE '%%sale%%' OR LOWER(transaction_type) LIKE '%%sell%%' THEN value END), 0)
             FROM insider_transactions
             WHERE symbol = %s
-              AND transaction_date >= %s::date - get_interval_sql('60d')
+              AND transaction_date >= %s::date - {interval_60d}
               AND transaction_date <= %s
               AND value IS NOT NULL
             """,
@@ -858,11 +863,12 @@ class AdvancedFilters:
         Raises:
             ValueError: If price/volume data is missing for the period
         """
+        interval_50d = get_interval_sql("50d")
         cur.execute(
-            """
+            f"""
             SELECT AVG(close * volume) FROM price_daily
             WHERE symbol = %s AND date <= %s
-              AND date >= %s::date - get_interval_sql('50d')
+              AND date >= %s::date - {interval_50d}
               AND volume > 0
             """,
             (symbol, signal_date, signal_date),

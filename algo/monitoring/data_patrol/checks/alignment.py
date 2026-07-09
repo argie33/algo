@@ -6,6 +6,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from utils.db import assert_safe_table
 
 from ..base import BaseCheck, CheckResult
@@ -108,7 +109,8 @@ class AlignmentChecker(BaseCheck):
     def check_signal_data_alignment(self, cur: Any) -> None:
         """Every BUY/SELL signal must have matching price + technical data."""
         try:
-            cur.execute("""
+            interval_14d = get_interval_sql("14d")
+            cur.execute(f"""
                 SELECT COUNT(*) FILTER (WHERE signal_type IN ('BUY', 'SELL')) AS total_signals,
                        COUNT(*) FILTER (
                            WHERE signal_type IN ('BUY', 'SELL')
@@ -127,7 +129,7 @@ class AlignmentChecker(BaseCheck):
                              )
                        ) AS missing_tech
                 FROM buy_sell_daily
-                WHERE date >= CURRENT_DATE - get_interval_sql('14d')
+                WHERE date >= CURRENT_DATE - {interval_14d}
             """)
             row = cur.fetchone()
             if row is None:
@@ -169,7 +171,8 @@ class AlignmentChecker(BaseCheck):
     def check_trade_alignment(self, cur: Any) -> None:
         """Every filled trade must have price history on/after fill date."""
         try:
-            cur.execute("""
+            interval_60d = get_interval_sql("60d")
+            cur.execute(f"""
                 SELECT t.trade_id, t.symbol, t.created_at::date as fill_date, COUNT(p.date) as price_count
                 FROM algo_trades t
                 LEFT JOIN price_daily p
@@ -177,7 +180,7 @@ class AlignmentChecker(BaseCheck):
                    AND p.date >= t.created_at::date
                    AND p.date <= CURRENT_DATE
                 WHERE t.status IN ('open', 'pending')
-                  AND t.created_at >= CURRENT_DATE - get_interval_sql('60d')
+                  AND t.created_at >= CURRENT_DATE - {interval_60d}
                 GROUP BY t.trade_id, t.symbol, fill_date
                 HAVING COUNT(p.date) = 0
             """)

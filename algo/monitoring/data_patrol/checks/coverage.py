@@ -6,6 +6,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from utils.db import assert_safe_table, safe_select_count
 
 from ..base import BaseCheck, CheckResult
@@ -243,12 +244,13 @@ class CoverageChecker(BaseCheck):
     def check_signal_quality_ratio(self, cur: Any) -> None:
         """Check buy_sell_daily signal cleanness."""
         try:
-            cur.execute("""
+            interval_30d = get_interval_sql("30d")
+            cur.execute(f"""
                 SELECT
                     COUNT(*) FILTER (WHERE signal_type IN ('BUY', 'SELL')) AS clean,
                     COUNT(*) AS total
                 FROM buy_sell_daily
-                WHERE date >= CURRENT_DATE - get_interval_sql('30d')
+                WHERE date >= CURRENT_DATE - {interval_30d}
             """)
             row = cur.fetchone()
             if row and row[1] > 0:

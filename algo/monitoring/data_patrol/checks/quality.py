@@ -6,6 +6,8 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
+
 from ..base import BaseCheck, CheckResult
 from ..config import CRIT, ERROR, INFO, WARN
 
@@ -32,14 +34,15 @@ class QualityChecker(BaseCheck):
             # EXPLICIT THRESHOLD: price_daily NULL values should never exceed 5%
             # This is a fixed contract, not a configurable setting
             max_null_pct = 5
+            interval_30d = get_interval_sql("30d")
 
-            cur.execute("""
+            cur.execute(f"""
                 SELECT
                     SUM(CASE WHEN close IS NULL THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)) AS today_nulls,
                     COUNT(*) FILTER (WHERE date = (SELECT MAX(date) FROM price_daily)) AS today_total
                 FROM price_daily
-                WHERE date >= (SELECT MAX(date) FROM price_daily) - get_interval_sql('30d')
+                WHERE date >= (SELECT MAX(date) FROM price_daily) - {interval_30d}
             """)
             row = cur.fetchone()
             if row is None:
@@ -102,9 +105,10 @@ class QualityChecker(BaseCheck):
             today_zero_count = len(today_zero_symbols)
 
             # Symbols with zero OHLC yesterday
-            cur.execute("""
+            interval_1d = get_interval_sql("1d")
+            cur.execute(f"""
                 SELECT DISTINCT symbol FROM price_daily
-                WHERE date = (SELECT MAX(date) FROM price_daily) - get_interval_sql('1d')
+                WHERE date = (SELECT MAX(date) FROM price_daily) - {interval_1d}
                   AND (volume = 0 OR open = 0 OR close = 0)
                 ORDER BY symbol
             """)
@@ -257,13 +261,14 @@ class QualityChecker(BaseCheck):
             low_vol_threshold = vol_cfg["low_threshold"]
             high_vol_threshold = vol_cfg["high_threshold"]
             new_low_alert = vol_cfg["new_low_alert"]
+            interval_1d = get_interval_sql("1d")
 
             cur.execute(
-                """
+                f"""
                 SELECT
                     SUM(CASE WHEN volume < %s THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)
-                          AND symbol NOT IN (SELECT symbol FROM price_daily WHERE date = (SELECT MAX(date) FROM price_daily) - get_interval_sql('1d') AND volume < %s)
+                          AND symbol NOT IN (SELECT symbol FROM price_daily WHERE date = (SELECT MAX(date) FROM price_daily) - {interval_1d} AND volume < %s)
                     ) AS low_volume_new,
                     SUM(CASE WHEN volume > %s THEN 1 ELSE 0 END) FILTER (
                         WHERE date = (SELECT MAX(date) FROM price_daily)

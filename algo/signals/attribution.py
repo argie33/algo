@@ -21,6 +21,7 @@ try:
 except ImportError:
     stats = cast(Any, None)
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
@@ -201,10 +202,11 @@ class SignalAttributionEngine:
         """
         try:
             with DatabaseContext("read") as cur:
+                interval_1d = get_interval_sql("1d")
                 cur.execute(
-                    """
+                    f"""
                     SELECT report_date, ic_value FROM algo_component_attribution
-                    WHERE component = %s AND report_date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
+                    WHERE component = %s AND report_date >= CURRENT_DATE - (%s * {interval_1d})
                     ORDER BY report_date ASC
                     """,
                     (component, days),

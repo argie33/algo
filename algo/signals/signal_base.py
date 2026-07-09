@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
+
 
 class SignalBase(ABC):
     """Abstract base class for all signal types (momentum, patterns, options, swing)."""
@@ -44,13 +46,14 @@ class SignalBase(ABC):
         Raises:
             ValueError: If price data is missing or invalid for the period
         """
+        interval_1d = get_interval_sql("1d")
         cur.execute(
-            """
+            f"""
             WITH bracket AS (
                 SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
                 FROM price_daily
                 WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - (%s * get_interval_sql('1d'))
+                  AND date >= %s::date - (%s * {interval_1d})
             )
             SELECT
                 (SELECT close FROM bracket WHERE rn = 1),

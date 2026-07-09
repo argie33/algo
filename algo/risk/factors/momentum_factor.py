@@ -4,6 +4,7 @@
 import logging
 from typing import Any
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.risk.market_factor_strategy import MarketFactorStrategy
 
 logger = logging.getLogger(__name__)
@@ -50,11 +51,12 @@ class MomentumFactor(MarketFactorStrategy):
         current_price = float(current_row[0])
 
         # Get price from 12 months ago
-        cur.execute("""
+        interval_365d = get_interval_sql("365d")
+        cur.execute(f"""
             SELECT close FROM price_daily
             WHERE symbol='SPY'
-              AND date >= DATE(CURRENT_DATE - get_interval_sql('365d'))
-              AND date <= DATE(CURRENT_DATE - get_interval_sql('365d'))
+              AND date >= DATE(CURRENT_DATE - {interval_365d})
+              AND date <= DATE(CURRENT_DATE - {interval_365d})
             ORDER BY date DESC
             LIMIT 1
         """)

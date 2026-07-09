@@ -6,6 +6,7 @@ from typing import Any
 
 from psycopg2 import sql as pgsql
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.risk.market_factor_strategy import MarketFactorStrategy
 
 logger = logging.getLogger(__name__)
@@ -39,15 +40,16 @@ class Breadth50DMAFactor(MarketFactorStrategy):
         """
         col = pgsql.Identifier("price_above_sma50")
         try:
+            interval_7d = get_interval_sql("7d")
             cur.execute(
-                pgsql.SQL("""
+                pgsql.SQL(f"""
                 SELECT
-                    COUNT(*) FILTER (WHERE {} = TRUE)  AS above,
-                    COUNT(*) FILTER (WHERE {} IS NOT NULL) AS total
+                    COUNT(*) FILTER (WHERE {{}} = TRUE)  AS above,
+                    COUNT(*) FILTER (WHERE {{}} IS NOT NULL) AS total
                 FROM (
-                    SELECT DISTINCT ON (symbol) {}
+                    SELECT DISTINCT ON (symbol) {{}}
                     FROM trend_template_data
-                    WHERE date <= %s AND date >= %s::date - get_interval_sql('7d')
+                    WHERE date <= %s AND date >= %s::date - {interval_7d}
                     ORDER BY symbol, date DESC
                 ) latest
                 """).format(col, col, col),

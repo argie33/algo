@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from utils.validation.freshness_config import get_freshness_rule
 
 logger = logging.getLogger(__name__)
@@ -411,33 +412,37 @@ class DataPatrolConfig:
                 "Market exposure loader contract must be explicitly configured."
             )
 
+        # Compute intervals in Python before building SQL conditions
+        interval_14d = get_interval_sql("14d")
+        interval_1d = get_interval_sql("1d")
+
         return {
             "price_daily": {
-                "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
+                "condition": f"date >= CURRENT_DATE - {interval_14d}",
                 "min_rows": price_14d,
                 "severity": severity_error,
                 "description": "Daily price data should be ~5000 symbols x 14 days",
             },
             "technical_data_daily": {
-                "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
+                "condition": f"date >= CURRENT_DATE - {interval_14d}",
                 "min_rows": tech_14d,
                 "severity": severity_error,
                 "description": "Technical indicators should match price coverage",
             },
             "buy_sell_daily": {
-                "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
+                "condition": f"date >= CURRENT_DATE - {interval_14d}",
                 "min_rows": buysell_14d,
                 "severity": severity_error,
                 "description": "Pine signals should produce 50+ per day minimum",
             },
             "trend_template_data": {
-                "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
+                "condition": f"date >= CURRENT_DATE - {interval_14d}",
                 "min_rows": trend_14d,
                 "severity": severity_error,
                 "description": "Trend template covers 4900+ symbols x 14 days",
             },
             "market_exposure_daily": {
-                "condition": "date >= (SELECT MAX(date) - get_interval_sql('1d') FROM price_daily)",
+                "condition": f"date >= (SELECT MAX(date) - {interval_1d} FROM price_daily)",
                 "min_rows": mkt_exp,
                 "severity": severity_error,
                 "description": "Market regime indicators must match latest trading day in price_daily (within 1 day lag)",
