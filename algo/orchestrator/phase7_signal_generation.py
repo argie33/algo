@@ -327,8 +327,11 @@ def _get_candidates_from_stock_scores_fallback(
             close = float(r[6]) if r[6] is not None else None
 
             if close is None:
-                logger.warning(f"[PHASE 7 FALLBACK] {symbol}: missing close price, skipping")
-                continue
+                raise RuntimeError(
+                    f"[PHASE 7 FAIL-FAST] {symbol}: missing close price from price_daily. "
+                    f"This indicates the price_daily loader failed to complete or returned incomplete data. "
+                    f"Cannot generate valid signals without current prices. Halting phase."
+                )
 
             candidates.append(
                 {

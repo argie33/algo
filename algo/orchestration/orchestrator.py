@@ -872,7 +872,11 @@ class Orchestrator:
                     f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
                 )
         except (ValueError, KeyError, AttributeError) as e:
-            logger.warning(f"Failed to manage halt flag after Phase 1: {e}")
+            raise RuntimeError(
+                f"[CRITICAL] Halt flag management failed after Phase 1: {e}. "
+                f"Cannot proceed - halt flag is critical for trading safety. "
+                f"Check DynamoDB connectivity and orchestrator_locks table."
+            ) from e
 
         return not result.halted
 

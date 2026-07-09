@@ -254,15 +254,28 @@ class APIHandler(BaseHTTPRequestHandler):
             buy_sigs = []
             for s in signals:
                 if s.get("raw_signal") in ("breakout", "continuation"):
+                    symbol = s.get("symbol")
+                    entry_price = s.get("entry_price")
+                    quality_score = s.get("signal_quality_score")
+                    risk_score = s.get("risk_score")
+
+                    if entry_price is None:
+                        logger.error(f"[SIGNALS VALIDATION] Signal for {symbol} missing entry_price - cannot display")
+                        continue
+                    if quality_score is None:
+                        logger.error(f"[SIGNALS VALIDATION] Signal for {symbol} missing signal_quality_score - cannot display")
+                        continue
+                    if risk_score is None:
+                        logger.error(f"[SIGNALS VALIDATION] Signal for {symbol} missing risk_score - cannot display")
+                        continue
+
                     buy_sigs.append(
                         {
-                            "symbol": s.get("symbol"),
+                            "symbol": symbol,
                             "signal": s.get("raw_signal"),
-                            "entry_price": float(s.get("entry_price", 0)) if s.get("entry_price") else 0,
-                            "quality_score": int(s.get("signal_quality_score", 0))
-                            if s.get("signal_quality_score")
-                            else 0,
-                            "risk_score": float(s.get("risk_score", 0)) if s.get("risk_score") else 0,
+                            "entry_price": float(entry_price),
+                            "quality_score": int(quality_score),
+                            "risk_score": float(risk_score),
                         }
                     )
 
@@ -279,10 +292,14 @@ class APIHandler(BaseHTTPRequestHandler):
                 },
             }
         except Exception as e:
+            logger.error(f"[SIGNALS HANDLER ERROR] Failed to fetch signals: {e}", exc_info=True)
             response = {
-                "statusCode": 200,
+                "statusCode": 500,
+                "error": str(e),
                 "data": {"buy_sigs": [], "n": 0, "total": 0, "grades": {}, "near": [], "top_a": [], "trend": []},
             }
+            self._send_json(500, response)
+            return
         self._send_json(200, response)
 
     def _handle_data_status(self) -> None:
