@@ -795,10 +795,10 @@ def run(  # noqa: C901
                             )
                         log_phase_result_fn(9, "portfolio_snapshot", "success", "snapshot created from DB state")
                     except Exception as snapshot_err:
-                        logger.warning(f"[PHASE 9] Could not create portfolio snapshot: {snapshot_err}")
-                        log_phase_result_fn(
-                            9, "portfolio_snapshot", "warn", f"snapshot creation failed: {str(snapshot_err)[:60]}"
-                        )
+                        logger.error(f"[PHASE 9] CRITICAL: Could not create portfolio snapshot: {snapshot_err}")
+                        raise RuntimeError(
+                            f"[PHASE 9] Portfolio snapshot creation failed - orchestrator cannot proceed: {snapshot_err}"
+                        ) from snapshot_err
 
                     # Create snapshot from database state BEFORE returning
                     logger.info("[PHASE 9] Paper mode: Creating snapshot from database state")
@@ -862,7 +862,10 @@ def run(  # noqa: C901
                                 f"[PHASE 9] Paper mode snapshot created: positions={pos_count}, value=${current_value:.2f}"
                             )
                     except Exception as snap_err:
-                        logger.warning(f"[PHASE 9] Paper mode snapshot creation failed: {snap_err}", exc_info=True)
+                        logger.error(f"[PHASE 9] CRITICAL: Paper mode snapshot creation failed: {snap_err}", exc_info=True)
+                        raise RuntimeError(
+                            f"[PHASE 9] Portfolio snapshot creation failed in paper mode - orchestrator cannot proceed: {snap_err}"
+                        ) from snap_err
 
                     # Refresh materialized view
                     try:
