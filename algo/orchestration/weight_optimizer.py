@@ -331,7 +331,10 @@ class WeightOptimizer:
         regime: str,
         blend_alpha: float,
     ) -> None:
-        """Log weight changes to algo_weight_history."""
+        """Log weight changes to algo_weight_history.
+
+        Raises RuntimeError if logging fails so caller knows optimization needs retry.
+        """
         try:
             with DatabaseContext("write") as cur:
                 for comp in self.COMPONENTS:
@@ -356,7 +359,9 @@ class WeightOptimizer:
                             ),
                         )
         except (OSError, RuntimeError, ValueError) as e:
+            # FIX: Don't silent-fail on database errors - re-raise so caller knows
             logger.error(f"Failed to log weight changes: {e}")
+            raise RuntimeError(f"Weight optimization logging failed (weight changes NOT persisted): {e}") from e
 
 
 if __name__ == "__main__":

@@ -62,6 +62,14 @@ class AlpacaSyncManager:
         self._session.mount("http://", adapter)
         self._session.mount("https://", adapter)
 
+    def __del__(self) -> None:
+        """Ensure session is closed to release file descriptors."""
+        if hasattr(self, "_session"):
+            try:
+                self._session.close()
+            except Exception:
+                pass
+
     @property
     def alpaca_key(self) -> str | None:
         """Public accessor for Alpaca API key."""
@@ -131,7 +139,9 @@ class AlpacaSyncManager:
                 "APCA-API-SECRET-KEY": self._alpaca_secret,
                 "Accept": "application/json",
             }
-            response = requests.get(url, headers=headers, timeout=10)
+            # FIX: Use session for connection pooling + config timeout instead of hardcoded 10
+            timeout = self.config.get("api_request_timeout_seconds", 5)
+            response = self._session.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             alpaca_positions = response.json()
         except Exception as e:
