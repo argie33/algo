@@ -127,17 +127,13 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                     "portfolio_value": float(portfolio_value_val),
                     "buying_power": (float(buying_power_val) if buying_power_val is not None else None),
                 }
-            if is_paper_mode and resp.status_code in (401, 403):
-                logger.warning(
-                    f"[BROKER ADAPTER PAPER MODE] Alpaca {resp.status_code}, "
-                    f"but in paper mode - returning default account data"
+            if resp.status_code in (401, 403):
+                raise ValueError(
+                    f"CRITICAL: Alpaca /v2/account returned HTTP {resp.status_code} (Unauthorized). "
+                    f"This indicates authentication failure: either credentials are invalid, or the account is restricted. "
+                    f"Cannot proceed without valid broker authentication. "
+                    f"Paper mode does not bypass authentication - check API credentials in AWS Secrets Manager."
                 )
-                return {
-                    "cash": 100000.0,
-                    "equity": 100000.0,
-                    "portfolio_value": 100000.0,
-                    "buying_power": 100000.0,
-                }
             raise ValueError(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")
         except (
             requests.RequestException,
@@ -146,17 +142,14 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             KeyError,
             AttributeError,
         ) as e:
-            if is_paper_mode and ("401" in str(e) or "403" in str(e)):
-                logger.warning(
-                    f"[BROKER ADAPTER PAPER MODE] Alpaca error ({type(e).__name__}), "
-                    f"but in paper mode - returning default account data"
-                )
-                return {
-                    "cash": 100000.0,
-                    "equity": 100000.0,
-                    "portfolio_value": 100000.0,
-                    "buying_power": 100000.0,
-                }
+            if "401" in str(e) or "403" in str(e):
+                raise ValueError(
+                    f"CRITICAL: Alpaca API authentication failed ({type(e).__name__}). "
+                    f"Cannot determine account status without valid broker authentication. "
+                    f"Reconciliation requires either: (1) valid Alpaca credentials in AWS Secrets Manager, "
+                    f"or (2) explicit paper mode with valid account state in database. "
+                    f"Details: {str(e)[:200]}"
+                ) from e
             raise ValueError(f"Could not fetch Alpaca account: {e}") from e
 
     def sync_positions(self, cur: Any) -> dict[str, Any]:

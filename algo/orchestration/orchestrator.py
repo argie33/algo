@@ -567,7 +567,21 @@ class Orchestrator:
                 loaders_checked = set()
                 loader_status = {}
                 now_utc = datetime.now(timezone.utc)
-                stale_threshold = now_utc - timedelta(hours=4)
+                now_et = now_utc.astimezone(EASTERN_TZ)
+
+                # CRITICAL FIX: Staleness threshold is context-aware (not a fixed 4-hour window)
+                # - During market hours (9:30 AM - 4 PM ET): loaders stale if ran before market open
+                # - After market close (4 PM - 9:30 AM ET): loaders stale if didn't run in yesterday's EOD pipeline
+                # This prevents false "all loaders stale" alerts for overnight batch jobs
+                if 9 <= now_et.hour < 16:  # During market hours 9:30 AM - 3:59 PM ET
+                    # Require fresh data from today's morning pipeline or intraday updates
+                    # Morning loaders run at 2:15 AM, technical at 2:55 AM, metrics at 4:20 PM (yesterday)
+                    # So require within ~13 hours for this use case
+                    stale_threshold = now_utc - timedelta(hours=13)
+                else:
+                    # After market close: require data from yesterday's EOD pipeline (4-5:30 PM ET)
+                    # If it's before market open (9:30 AM), require yesterday's data (ran 16+ hours ago)
+                    stale_threshold = now_utc - timedelta(hours=36)
 
                 for table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count in cur.fetchall():
                     loaders_checked.add(table_name)
