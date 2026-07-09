@@ -9,7 +9,6 @@ provides utilities to:
 """
 
 import logging
-from collections.abc import Callable
 from typing import Any, TypeVar
 
 import psycopg2
