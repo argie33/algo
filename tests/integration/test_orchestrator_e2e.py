@@ -5,10 +5,11 @@ print("="*70)
 print("END-TO-END SYSTEM VERIFICATION TEST")
 print("="*70)
 
-# Set credentials
-os.environ['APCA_API_KEY_ID'] = 'PK_test7aba5efad8a43f8aafdf3e4cf40c1a2f'
-os.environ['APCA_API_SECRET_KEY'] = 'test_secret_key_for_paper_trading'
-os.environ['SKIP_ORCHESTRATOR_LOCK'] = 'true'  # Skip lock for testing
+# Use environment variables for credentials (prefer .env.test over hardcoded values)
+# This allows test credentials to be set per-environment without code changes
+os.environ['APCA_API_KEY_ID'] = os.getenv('TEST_APCA_API_KEY_ID', 'PK_test_placeholder')
+os.environ['APCA_API_SECRET_KEY'] = os.getenv('TEST_APCA_API_SECRET_KEY', 'test_placeholder')
+os.environ['SKIP_ORCHESTRATOR_LOCK'] = 'true'  # Skip lock in test mode only
 
 from algo.infrastructure import get_config
 from algo.orchestration.orchestrator import Orchestrator
