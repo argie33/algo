@@ -369,7 +369,7 @@ class DataPatrolConfig:
         Returns:
             {
                 "price_daily": {
-                    "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
+                    "condition": "date >= CURRENT_DATE - {interval_14d}",  # interval_14d = get_interval_sql('14d')
                     "min_rows": 40000,
                     "severity": "error",
                     "description": "Daily price data should be ~5000 symbols x 14 days",

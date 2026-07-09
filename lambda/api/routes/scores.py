@@ -135,6 +135,7 @@ def _get_stock_scores(
         # BEFORE the WHERE clause was applied, so a page of 50 rows still paid for thousands
         # of per-symbol index scans - this was the root cause of the endpoint's 7+ second
         # latency (and the dashboard's 3s client timeout hiding it as "no data").
+        interval_52w = get_interval_sql("52w")
         query = f"""
                 WITH max_price_date AS (
                     SELECT MAX(date) AS max_date FROM price_daily
@@ -244,7 +245,7 @@ def _get_stock_scores(
                     SELECT MAX(high) AS high_52w
                     FROM price_daily
                     WHERE symbol = fs.symbol
-                      AND date >= CURRENT_DATE - {get_interval_sql('52w')}
+                      AND date >= CURRENT_DATE - {interval_52w}
                 ) p52 ON true
                 ORDER BY fs.{sort_col} {sort_direction}
             """

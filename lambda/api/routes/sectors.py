@@ -99,6 +99,7 @@ def handle(  # noqa: C901
                 # Set timeout for trend query (10s for window function aggregations)
                 cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 # All camelCase aliases double-quoted so psycopg2 preserves case
+                interval_1d = get_interval_sql('1d')
                 cur.execute(
                     f"""
                         WITH sector_daily_avg AS (
@@ -107,7 +108,7 @@ def handle(  # noqa: C901
                                 AVG(pd.close) AS "avgPrice"
                             FROM price_daily pd
                             JOIN company_profile cp ON pd.symbol = cp.ticker
-                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * {get_interval_sql('1d')})
+                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * {interval_1d})
                             GROUP BY pd.date
                         ),
                         sector_with_ma AS (
@@ -176,8 +177,9 @@ def handle(  # noqa: C901
 
             # Set timeout for complex sector ranking query with multiple CTEs and joins
             cur.execute("SET LOCAL statement_timeout = '24000ms'")
+            interval_1d = get_interval_sql('1d')
             cur.execute(
-                """
+                f"""
                     WITH sp_exists AS (
                         SELECT EXISTS(SELECT 1 FROM sector_performance LIMIT 1) AS has_data
                     ),
@@ -193,7 +195,7 @@ def handle(  # noqa: C901
                     sector_perf_1d_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_1d
                         FROM sector_performance
-                        WHERE date <= CURRENT_DATE - {get_interval_sql('1d')}
+                        WHERE date <= CURRENT_DATE - {interval_1d}
                           AND (SELECT has_data FROM sp_exists)
                         ORDER BY sector, date DESC
                     ),

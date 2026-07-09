@@ -123,8 +123,9 @@ def handle(  # noqa: C901
                 code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
             try:
+                interval_52w = get_interval_sql('52w')
                 deep_value_query = (
-                    """
+                    f"""
                 WITH value_stocks AS (
                     SELECT DISTINCT symbol FROM value_metrics WHERE pe_ratio IS NOT NULL
                 ),
@@ -139,7 +140,7 @@ def handle(  # noqa: C901
                     SELECT pd.symbol, MAX(pd.high) AS high_52w, MIN(pd.low) AS low_52w
                     FROM price_daily pd
                     JOIN value_stocks vs ON pd.symbol = vs.symbol
-                    WHERE pd.date >= CURRENT_DATE - {get_interval_sql('52w')}
+                    WHERE pd.date >= CURRENT_DATE - {interval_52w}
                     GROUP BY pd.symbol
                 ),
                 sector_medians AS (
