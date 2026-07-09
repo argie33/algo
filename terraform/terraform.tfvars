@@ -62,7 +62,7 @@ data_patrol_enabled                 = true
 data_patrol_timeout_ms              = 30000
 alpaca_paper_trading                = true # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 40   # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
-api_lambda_reserved_concurrency     = 15   # Right-sized: Dashboard peak ~16 concurrent (8 panels × 2 requests). Reserved=15 provides 1x headroom. Reduced from 30 for cost optimization. Saves $3-5/month.
+api_lambda_reserved_concurrency     = 8    # Right-sized: Dashboard peak ~9 concurrent (8 panels × 2 requests). Reserved=8 provides 1x headroom. Reduced from 15 for cost optimization. Saves $1-2/month.
 api_lambda_provisioned_concurrency  = 0    # DISABLED (cost optimization): Saves $10.80/month. Trade-off: Dashboard cold starts become 20-30s on first load (acceptable for dev). Reserved concurrency still prevents 429 errors.
 algo_lambda_timeout                 = 60   # Right-sized: Orchestrator now ECS-based (no longer Lambda timeout critical). 60s timeout for fail-fast on Lambda invocations. Saves $2-4/month. Was 90s.
 algo_lambda_ephemeral_storage       = 512  # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
