@@ -62,7 +62,7 @@ class StockScoresLoader(OptimalLoader):
         self._validate_upstream_metrics_ready()
         return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
 
-    def _validate_upstream_metrics_ready(self) -> None:
+    def validate_upstream_metrics_ready(self) -> None:
         """Check that upstream metric tables have sufficient coverage.
 
         Raises RuntimeError if critical metric loaders haven't populated data yet.

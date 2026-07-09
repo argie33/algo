@@ -608,7 +608,7 @@ def run(  # noqa: C901
 
                         if table_max_date < ref_date:
                             days_behind = (ref_date - table_max_date).days
-                            max_tolerance_days = 3 if is_halt_table else 0  # Temporarily relaxed to 3 days to allow loaders to catch up
+                            max_tolerance_days = 1 if is_halt_table else 0
                             if days_behind > max_tolerance_days:
                                 msg = f"{description} is {days_behind} day(s) stale"
                                 if is_halt_table:
@@ -655,39 +655,29 @@ def run(  # noqa: C901
                 )
 
             if halt_stale:
-                    # TESTING FIX 2026-07-08: In paper trading mode (execution_mode != "live"),
-                    # warn about staleness but allow proceeding to unblock orchestrator verification.
-                    # This ensures trading logic can be tested even if data is slightly stale.
-                    # Production (execution_mode="live") still halts on staleness.
-                    is_paper_mode = config.get("execution_mode", "auto") != "live"
+                if dry_run:
+                    logger.warning(
+                        f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) — BYPASSED (dry_run only): {'; '.join(halt_stale)}"
+                    )
+                else:
+                    logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
+                    log_phase_result_fn(
+                        1,
+                        "signal_tables_stale",
+                        "halt",
+                        f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
+                    )
+                    from algo.reporting.notifications import notify_signal_staleness
 
-                    if dry_run or is_paper_mode:
-                        logger.warning(
-                            f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) — BYPASSED (dry_run={dry_run}, paper={is_paper_mode}): {'; '.join(halt_stale)}"
-                        )
-                        logger.warning(
-                            "[PHASE 1] Continuing with stale data for testing. "
-                            "Production (execution_mode=live) would halt trading."
-                        )
-                    else:
-                        logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
-                        log_phase_result_fn(
-                            1,
-                            "signal_tables_stale",
-                            "halt",
-                            f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
-                        )
-                        from algo.reporting.notifications import notify_signal_staleness
-
-                        notify_signal_staleness(halt_stale)
-                        return PhaseResult(
-                            1,
-                            "signal_tables_stale",
-                            "halted",
-                            {},
-                            True,
-                            f"Critical pipeline tables stale/missing: {halt_stale[0]}",
-                        )
+                    notify_signal_staleness(halt_stale)
+                    return PhaseResult(
+                        1,
+                        "signal_tables_stale",
+                        "halted",
+                        {},
+                        True,
+                        f"Critical pipeline tables stale/missing: {halt_stale[0]}",
+                    )
 
             elapsed = time.time() - phase_start
             phase1_end_et = dt.now(ZoneInfo("America/New_York"))
@@ -720,7 +710,7 @@ def run(  # noqa: C901
                 from loaders.load_stock_scores import StockScoresLoader
 
                 metric_validator = StockScoresLoader()
-                metric_validator._validate_upstream_metrics_ready()
+                metric_validator.validate_upstream_metrics_ready()
                 logger.info("[PHASE 1] Metric loaders validation: PASS - All metric loaders ready")
             except RuntimeError as e:
                 metric_error = str(e)

@@ -145,15 +145,15 @@ def _validate_pnl_step(
             pnl_validation_summary = pnl_check["message"]
 
             if pnl_check["status"] == "ok":
-                logger.info(f"[PHASE 7 P&L VALIDATION] {pnl_check['message']}")
+                logger.info(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
             elif pnl_check["status"] == "alert":
-                logger.warning(f"[PHASE 7 P&L VALIDATION] {pnl_check['message']}")
+                logger.warning(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
             else:  # critical
-                logger.critical(f"[PHASE 7 P&L VALIDATION] {pnl_check['message']}")
+                logger.critical(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
         else:
             pnl_validation_summary = "Skipped (reconciliation failed or no Broker data)"
     except Exception as e:
-        logger.error(f"[PHASE 7] P&L validation failed: {e}")
+        logger.error(f"[PHASE 9] P&L validation failed: {e}")
         pnl_validation_summary = f"error: {str(e)[:60]}"
     finally:
         log_phase_result_fn(9, "pnl_validation", pnl_validation_status, pnl_validation_summary)
@@ -181,12 +181,12 @@ def _audit_exit_prices_step(
                     raise ValueError(
                         f"Exit price audit status '{status}' but message missing. Keys: {list(stale_audit.keys())}"
                     )
-                logger.warning(f"[PHASE 7 AUDIT] Stale estimated prices detected: {msg}")
+                logger.warning(f"[PHASE 9 AUDIT] Stale estimated prices detected: {msg}")
                 log_phase_result_fn(9, "exit_reconciliation_audit", "warn", msg)
             else:
-                logger.info("[PHASE 7 AUDIT] All exit prices reconciled properly")
+                logger.info("[PHASE 9 AUDIT] All exit prices reconciled properly")
     except (psycopg2.DatabaseError, psycopg2.OperationalError, KeyError) as e:
-        logger.error(f"[PHASE 7] Exit price audit failed: {e}")
+        logger.error(f"[PHASE 9] Exit price audit failed: {e}")
 
 
 def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) -> int:
@@ -210,7 +210,7 @@ def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) 
     if trades_processed is None:
         raise ValueError("Signal trade performance: trades_processed count is missing")
     log_phase_result_fn(
-        7,
+        9,
         "signal_attribution",
         "success" if stpp_result.get("success") else "warn",
         f"{trades_processed} trades processed",
@@ -343,7 +343,7 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
             logger.critical("CRITICAL: Portfolio daily_pnl_pct missing from daily report.")
             raise ValueError("Daily report: daily_pnl_pct missing. Cannot report P&L.")
         log_phase_result_fn(
-            7,
+            9,
             "daily_report",
             "success",
             f"Portfolio ${current_val if isinstance(current_val, str) else f'{current_val:,.0f}'}, P&L {pnl_pct if isinstance(pnl_pct, str) else f'{pnl_pct:+.2f}%'}",

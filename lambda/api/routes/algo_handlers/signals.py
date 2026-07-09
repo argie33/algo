@@ -334,11 +334,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
 
         base_risk_pct = 0.0075
         position_dollars = portfolio_value * base_risk_pct
-        if entry_price <= 0:
-            return error_response(400, "invalid_entry_price", "Entry price must be positive")
         shares = int(position_dollars / entry_price)
-        if portfolio_value <= 0:
-            return error_response(503, "service_unavailable", "Portfolio value invalid")
         pct_of_portfolio = shares * entry_price / portfolio_value * 100
         total_risk_amount = (risk_amount * shares) if risk_amount else None
 
