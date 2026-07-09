@@ -196,9 +196,15 @@ class Orchestrator:
             else:
                 logger.info("[OK] All critical config keys present")
         except Exception as e:
+            # FIXED: Config validation IS critical - these errors must not be silently skipped
             if "CRITICAL" in str(e):
                 raise
-            logger.warning(f"[STARTUP] Config validation skipped (non-critical): {e}")
+            logger.error(f"[STARTUP] Config validation FAILED (CRITICAL): {e}")
+            raise RuntimeError(
+                f"[ORCHESTRATOR] Config validation failed - cannot proceed with trading. "
+                f"Error: {e}. Check: (1) Environment variables set, "
+                f"(2) AWS Secrets Manager accessible, (3) Config keys in database."
+            ) from e
 
         # 4. Validate database schema (required tables and views)
         try:
@@ -214,14 +220,27 @@ class Orchestrator:
                 )
                 row = cur.fetchone()
                 if not row or not row.get("view_exists"):
-                    logger.warning(
-                        "[STARTUP] algo_positions view not found. "
-                        "Portfolio monitoring disabled. Run migrations to create required database objects."
+                    logger.error(
+                        "[STARTUP] CRITICAL: algo_positions view NOT found. "
+                        "This view is required for portfolio monitoring. "
+                        "Run migrations to create required database objects."
+                    )
+                    raise RuntimeError(
+                        "[ORCHESTRATOR] Required database view 'algo_positions' not found. "
+                        "Run database migrations before starting orchestrator."
                     )
                 else:
                     logger.info("[OK] Database schema validation passed: algo_positions view exists")
+        except RuntimeError:
+            raise
         except Exception as e:
-            logger.warning(f"[STARTUP] Database schema validation skipped (non-critical): {e}")
+            # FIXED: Database schema validation IS critical - cannot proceed without it
+            logger.error(f"[STARTUP] Database schema validation FAILED (CRITICAL): {e}")
+            raise RuntimeError(
+                f"[ORCHESTRATOR] Cannot validate database schema: {e}. "
+                f"Check: (1) Database connection working, "
+                f"(2) Migrations have run, (3) Required views exist."
+            ) from e
 
     def _kill_long_running_loaders(self) -> None:  # noqa: C901
         """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
