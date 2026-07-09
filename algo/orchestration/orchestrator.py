@@ -214,28 +214,29 @@ class Orchestrator:
         # 4. Validate database schema (required tables and views)
         try:
             with DatabaseContext("read") as cur:
-                # Check algo_positions view exists (critical for portfolio monitoring)
+                # Check algo_positions table exists (critical for portfolio monitoring)
+                # Note: algo_positions is a BASE TABLE, not a view
                 cur.execute(
                     """
                     SELECT EXISTS (
-                        SELECT 1 FROM information_schema.views
-                        WHERE table_name = 'algo_positions'
-                    ) AS view_exists
+                        SELECT 1 FROM information_schema.tables
+                        WHERE table_name = 'algo_positions' AND table_schema = 'public'
+                    ) AS table_exists
                     """
                 )
                 row = cur.fetchone()
-                if not row or not row.get("view_exists"):
+                if not row or not row.get("table_exists"):
                     logger.error(
-                        "[STARTUP] CRITICAL: algo_positions view NOT found. "
-                        "This view is required for portfolio monitoring. "
+                        "[STARTUP] CRITICAL: algo_positions table NOT found. "
+                        "This table is required for portfolio monitoring. "
                         "Run migrations to create required database objects."
                     )
                     raise RuntimeError(
-                        "[ORCHESTRATOR] Required database view 'algo_positions' not found. "
+                        "[ORCHESTRATOR] Required database table 'algo_positions' not found. "
                         "Run database migrations before starting orchestrator."
                     )
                 else:
-                    logger.info("[OK] Database schema validation passed: algo_positions view exists")
+                    logger.info("[OK] Database schema validation passed: algo_positions table exists")
         except RuntimeError:
             raise
         except Exception as e:

@@ -65,7 +65,7 @@ def test_full_execution():
         # Step 4: Execute orchestrator (dry run)
         logger.info("\n[4/5] Executing orchestrator (dry run)...")
         try:
-            result = orchestrator.execute()
+            result = orchestrator.run()
             logger.info(f"✓ Orchestrator executed (dry_run={orchestrator.dry_run})")
             logger.info(f"  Run ID: {orchestrator.run_id}")
             logger.info(f"  Status: {result.get('status', 'unknown') if result else 'unknown'}")

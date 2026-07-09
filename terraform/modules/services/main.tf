@@ -732,6 +732,9 @@ resource "aws_lambda_function" "algo" {
       DB_USER       = var.rds_username
       DB_PASSWORD   = var.rds_password
       DB_SSL        = "require"
+      # AWS configuration
+      AWS_REGION    = var.aws_region
+      AWS_ACCOUNT_ID = data.aws_caller_identity.current.account_id
       # Orchestrator execution configuration (MATCHES what code expects)
       ORCHESTRATOR_EXECUTION_MODE = var.execution_mode
       ORCHESTRATOR_DRY_RUN        = tostring(var.orchestrator_dry_run)
