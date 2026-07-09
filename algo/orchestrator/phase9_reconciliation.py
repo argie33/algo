@@ -199,9 +199,21 @@ def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) 
         logger.info(f"Signal trade performance: {stpp_result.get('message', 'N/A')}")
         if stpp_result.get("ic_values"):
             logger.info(f"  IC values computed: {stpp_result['ic_values']}")
+    except ImportError as e:
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Signal trade performance requires scipy/numpy: {e}. "
+            f"Cannot validate signal attribution without these dependencies. "
+            f"Install: pip install scipy numpy"
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     except Exception as e:
-        logger.warning(f"Signal trade performance failed (numpy/scipy not available): {e}")
-        trades_processed = 0  # Fall back to 0 only if exception occurred
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Signal trade performance failed unexpectedly: {e}. "
+            f"Cannot proceed with trading when signal attribution is broken."
+        )
+        logger.critical(error_msg, exc_info=True)
+        raise RuntimeError(error_msg) from e
 
     if trades_processed is None:
         raise ValueError("Signal trade performance: trades_processed count is missing")
@@ -915,14 +927,21 @@ def run(  # noqa: C901
                 )
                 logger.info("[PHASE 9] Snapshot: INSERT executed, exiting DatabaseContext to trigger commit")
 
+                if result.get('positions') is None:
+                    raise RuntimeError(
+                        "[PHASE 9] CRITICAL: Reconciliation result missing 'positions' count. "
+                        "Cannot create snapshot without verified position count. "
+                        "Broker reconciliation data may be incomplete."
+                    )
+                pos_count = result['positions']
                 logger.info(
-                    f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={result.get('positions', 0)}"
+                    f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={pos_count}"
                 )
                 log_phase_result_fn(
                     9,
                     "portfolio_snapshot",
                     "success",
-                    f"snapshot created: ${current_value:.2f}, {result.get('positions', 0)} positions",
+                    f"snapshot created: ${current_value:.2f}, {pos_count} positions",
                 )
         except Exception as snapshot_err:
             logger.warning(f"[PHASE 9 SNAPSHOT] Failed to create snapshot: {snapshot_err}", exc_info=True)
@@ -1075,15 +1094,45 @@ def run(  # noqa: C901
                             "[PHASE 9] CRITICAL: initial_capital_paper_trading not configured. "
                             "Cannot reconcile paper mode without configured starting capital."
                         )
-                    # Override to success with defaults for paper mode
+                    # CRITICAL FIX: Never default positions and unrealized_pnl to 0
+                    # These MUST be fetched from database on reconciliation failure.
+                    # Defaulting to 0 masks data loss and could lead to corrupted position tracking.
+                    try:
+                        with DatabaseContext("read") as cur:
+                            cur.execute("""
+                                SELECT COUNT(*) as pos_count
+                                FROM algo_trades
+                                WHERE status = 'open'
+                            """)
+                            pos_row = cur.fetchone()
+                            pos_count = pos_row[0] if pos_row else None
+                            if pos_count is None:
+                                raise RuntimeError(
+                                    "[PHASE 9] CRITICAL: Cannot fetch position count from database. "
+                                    "Cannot proceed with paper mode reconciliation."
+                                )
+
+                            cur.execute("""
+                                SELECT SUM(unrealized_pnl_total) as total_pnl
+                                FROM algo_portfolio_snapshots
+                                ORDER BY created_at DESC LIMIT 1
+                            """)
+                            pnl_row = cur.fetchone()
+                            total_pnl = float(pnl_row[0]) if (pnl_row and pnl_row[0] is not None) else 0.0
+                    except Exception as db_err:
+                        raise RuntimeError(
+                            f"[PHASE 9] CRITICAL: Failed to fetch reconciliation data from database on auth failure: {db_err}. "
+                            "Cannot proceed safely without verified position data."
+                        ) from db_err
+
                     reconciliation_succeeded = True
                     phase_status = "ok"
                     result = {
                         "success": True,
                         "portfolio_value": float(initial_capital),
-                        "positions": 0,
-                        "unrealized_pnl": 0.0,
-                        "note": "Paper mode - broker auth failed, using database state",
+                        "positions": pos_count,
+                        "unrealized_pnl": total_pnl,
+                        "note": "Paper mode - broker auth failed, fetched from database",
                     }
                 else:
                     logger.critical(

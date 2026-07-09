@@ -2,6 +2,7 @@
 """Local API server for development - serves dashboard data."""
 
 import json
+import logging
 import os
 import sys
 from datetime import datetime, timedelta, timezone
@@ -10,6 +11,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import psycopg2.extras
+
+logger = logging.getLogger(__name__)
 
 # Setup paths and environment
 repo_root = Path(__file__).parent.parent
