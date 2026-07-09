@@ -1257,7 +1257,7 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
 
     # SECURITY FIX: Explicitly exclude protected health endpoints before prefix matching
     # /api/health/detailed and /api/health/pipeline require authentication
-    if path in ("/api/health/detailed", "/api/health/pipeline") or path.startswith("/api/health/detailed?") or path.startswith("/api/health/pipeline?"):
+    if path in ("/api/health/detailed", "/api/health/pipeline") or path.startswith(("/api/health/detailed?", "/api/health/pipeline?")):
         is_public = False
     else:
         # Check if path matches any public prefix
