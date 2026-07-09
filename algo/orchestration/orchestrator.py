@@ -643,24 +643,20 @@ class Orchestrator:
                     except Exception as alert_err:
                         logger.debug(f"[LOADER HEALTH] Could not send alert: {alert_err}")
 
-                    # PAPER MODE BYPASS: In paper trading, allow execution even with stale loaders
-                    # (testing/local development scenario where loaders may not be running)
-                    if self.config.get("execution_mode") in ("paper", "auto"):
-                        logger.warning(
-                            f"[LOADER HEALTH PAPER MODE] All loaders stale/missing, but in paper mode - "
-                            f"proceeding with orchestrator execution using available data. "
-                            f"Stale: {stale_loaders}. Missing: {missing_loaders}."
-                        )
-                        # Continue execution - Phase 1 will validate data quality
-                    else:
-                        # CRITICAL: Halt trading if all loaders stale/missing
-                        # Using stale data for trading decisions is unacceptable - stop here
-                        raise RuntimeError(
-                            f"[ORCHESTRATOR] CRITICAL HALT: All critical loaders are stale/missing. "
-                            f"Cannot proceed with trading using stale data. "
-                            f"Stale loaders: {stale_loaders}. Missing loaders: {missing_loaders}. "
-                            f"Fix loader infrastructure before resuming trading."
-                        )
+                    # FIXED: Remove paper mode bypass - data integrity is non-negotiable
+                    # Paper trading still requires fresh data to be trustworthy for testing
+                    # If loaders aren't running, fix the loader infrastructure, don't bypass validation
+                    raise RuntimeError(
+                        f"[ORCHESTRATOR] CRITICAL HALT: All critical loaders are stale/missing. "
+                        f"Cannot proceed with trading (live or paper) using stale data. "
+                        f"Paper mode does NOT bypass data validation - test data must be fresh too. "
+                        f"Stale loaders: {stale_loaders}. Missing loaders: {missing_loaders}. "
+                        f"Fix: (1) Verify EventBridge scheduler firing loader pipelines, "
+                        f"(2) Check ECS cluster has capacity to run loader tasks, "
+                        f"(3) Review CloudWatch logs for loader failures, "
+                        f"(4) Verify database connection pool has available connections, "
+                        f"(5) Check if loader infrastructure (S3, Alpaca, yfinance) is accessible."
+                    )
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError, TimeoutError) as e:
             logger.warning(f"[LOADER HEALTH] Could not check loader status: {e}")
