@@ -201,6 +201,24 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         )
         log_phase_error(3, error, log_phase_result_fn)
         traceback.print_exc()
+
+        # In paper trading mode, log the error but don't halt — allow phases 4-8 to continue
+        # This allows testing of trading logic even if position monitoring fails
+        if config.get("is_paper_trading", False):
+            logger.warning(
+                f"[PHASE 3 PAPER MODE] Position monitor failed but continuing paper trading: "
+                f"{type(e).__name__}: {e}"
+            )
+            return PhaseResult(
+                3,
+                "position_monitor",
+                "degraded",
+                {"recommendations": [], "count": 0},
+                False,  # halted=False allows downstream phases to execute in paper mode
+                str(e),
+            )
+
+        # In live trading, halt immediately if position monitoring fails (risk management)
         logger.critical(
             f"[PHASE 3 HALT] Position monitor crashed unexpectedly: {type(e).__name__}: {e}. "
             f"Cannot safely monitor open positions. Halting trading to prevent unmonitored position risks."
