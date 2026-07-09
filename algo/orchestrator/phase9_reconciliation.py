@@ -262,7 +262,7 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
         raise RuntimeError(error_msg) from e
 
     log_phase_result_fn(
-        7,
+        9,
         "ic_computation",
         "success" if attr_result else "warn",
         f"{len(attr_result)} components analyzed",
@@ -588,7 +588,7 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         logger.error(f"Weight optimization 'changes' is not a list: {type(changes)}. Defaulting to empty list.")
         changes = []
     log_phase_result_fn(
-        7,
+        9,
         "weight_optimization",
         "success" if opt_result.get("success") else "warn",
         f"{len(changes) if changes else 0} weight changes",
@@ -800,72 +800,7 @@ def run(  # noqa: C901
                             f"[PHASE 9] Portfolio snapshot creation failed - orchestrator cannot proceed: {snapshot_err}"
                         ) from snapshot_err
 
-                    # Create snapshot from database state BEFORE returning
-                    logger.info("[PHASE 9] Paper mode: Creating snapshot from database state")
-                    try:
-                        from decimal import Decimal
-
-                        logger.info("[PHASE 9] Paper mode: Starting snapshot creation in DatabaseContext")
-                        with DatabaseContext("write") as cur:
-                            logger.info("[PHASE 9] Paper mode: DatabaseContext opened, role=write")
-                            # Get previous value
-                            cur.execute(
-                                "SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date < %s ORDER BY snapshot_date DESC LIMIT 1",
-                                (run_date,),
-                            )
-                            prev_row = cur.fetchone()
-                            prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
-                            logger.info(f"[PHASE 9] Paper mode: Previous value={prev_value}")
-
-                            # Count actual positions and calculate portfolio value
-                            cur.execute(
-                                "SELECT COUNT(*) as open_count FROM algo_positions WHERE status = %s", ("open",)
-                            )
-                            pos_row = cur.fetchone()
-                            pos_count = pos_row[0] if pos_row else 0
-                            logger.info(f"[PHASE 9] Paper mode: Position count={pos_count}")
-
-                            cur.execute(
-                                "SELECT COALESCE(SUM(position_value), 0) as total, COALESCE(SUM(unrealized_pnl), 0) as pnl FROM algo_positions WHERE status = %s",
-                                ("open",),
-                            )
-                            pos_data = cur.fetchone()
-                            total_invested = Decimal(str(pos_data[0])) if pos_data else Decimal(0)
-                            unrealized_pnl = Decimal(str(pos_data[1])) if pos_data else Decimal(0)
-                            logger.info(f"[PHASE 9] Paper mode: Invested={total_invested}, Unrealized={unrealized_pnl}")
-
-                            current_value = Decimal("100000.00") + unrealized_pnl
-                            daily_return = (
-                                ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
-                            )
-                            logger.info(
-                                f"[PHASE 9] Paper mode: Current value={current_value}, Daily return={daily_return}%"
-                            )
-
-                            logger.info("[PHASE 9] Paper mode: Executing INSERT statement")
-                            cur.execute(
-                                """
-                                INSERT INTO algo_portfolio_snapshots (snapshot_date, total_portfolio_value, total_cash, position_count, daily_return_pct, created_at)
-                                VALUES (%s, %s, %s, %s, %s, NOW())
-                                ON CONFLICT (snapshot_date) DO UPDATE
-                                SET total_portfolio_value = EXCLUDED.total_portfolio_value,
-                                    total_cash = EXCLUDED.total_cash,
-                                    position_count = EXCLUDED.position_count,
-                                    daily_return_pct = EXCLUDED.daily_return_pct,
-                                    updated_at = NOW()
-                            """,
-                                (run_date, current_value, current_value - total_invested, pos_count, daily_return),
-                            )
-                            logger.info("[PHASE 9] Paper mode: INSERT complete, exiting DatabaseContext to commit")
-
-                            logger.info(
-                                f"[PHASE 9] Paper mode snapshot created: positions={pos_count}, value=${current_value:.2f}"
-                            )
-                    except Exception as snap_err:
-                        logger.error(f"[PHASE 9] CRITICAL: Paper mode snapshot creation failed: {snap_err}", exc_info=True)
-                        raise RuntimeError(
-                            f"[PHASE 9] Portfolio snapshot creation failed in paper mode - orchestrator cannot proceed: {snap_err}"
-                        ) from snap_err
+                    # Snapshot already created above; proceed to refresh view and return
 
                     # Refresh materialized view
                     try:
