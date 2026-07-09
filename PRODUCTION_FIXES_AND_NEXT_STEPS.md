@@ -28,36 +28,50 @@
 
 ## CRITICAL BLOCKING ISSUES REQUIRING FIXES
 
-### 1. **Orchestrator Scheduler Not Executing** (HIGHEST PRIORITY)
+### 1. **Orchestrator Scheduler Not Executing** (HIGHEST PRIORITY - INFRASTRUCTURE ISSUE)
 **Problem:** EventBridge scheduler not triggering 2x daily runs
 - Last orchestrator run: 5.8+ hours ago
 - Impact: Cascading failure (no trading, no signals)
 
-**Root Cause Investigation:**
+**Root Cause Identified:**
+Terraform deployment of EventBridge scheduler blocked by AWS credential issues:
+- `S3:GetBucketPolicy` permission denied on existing S3 buckets
+- `EC2:DescribeVpcAttribute` permission denied on existing VPC
+- This blocks ANY terraform apply until credentials are refreshed
+
+**Infrastructure Code Status:** ✅ CORRECT
+- EventBridge scheduler Terraform defined correctly in `terraform/modules/services/2x-daily-orchestrator.tf`
+- EventBridge scheduler IAM role properly configured with Lambda invoke permissions
+- Lambda permission resource defined at line 1249 in `terraform/modules/services/main.tf`
+- Role ARN passed correctly from root module
+
+**Fix Procedure (REQUIRED):**
+1. Refresh AWS credentials: `scripts/refresh-aws-credentials.ps1` (from CLAUDE.md)
+2. Deploy infrastructure: `cd terraform && terraform apply -lock=false`
+3. Verify orchestrator is executing: Run manual trigger to test
+   ```bash
+   python3 scripts/trigger_orchestrator.py --run morning --mode paper
+   ```
+
+**Diagnostics (after credentials fixed):**
 ```bash
-# Check if EventBridge rules exist and are ENABLED
-aws events list-rules --region us-east-1 | grep "algo-schedule"
+# Verify EventBridge rules deployed and enabled
+aws events describe-rule --name algo-schedule-morning-dev --region us-east-1 | jq '.State'
 
-# Verify algo Lambda has permission from EventBridge Scheduler
-aws lambda get-policy --function-name algo-algo-dev --region us-east-1 | jq '.Policy'
+# Check Lambda execution logs
+aws logs tail /aws/lambda/algo-algo-dev --since 1h --region us-east-1
 
-# Check recent Lambda invocation attempts
-aws logs tail /aws/lambda/algo-orchestrator --since 1h --region us-east-1
+# Verify Lambda has eventbridge-scheduler permission
+aws lambda get-policy --function-name algo-algo-dev --region us-east-1 2>/dev/null | jq '.Policy'
 ```
 
-**Verification Commands:**
+**Database Check (pre-fix):**
 ```sql
--- Check if orchestrator is actually running
-SELECT COUNT(*), MAX(started_at) FROM algo_orchestrator_runs 
-WHERE started_at > NOW() - INTERVAL '1 hour';
--- Expected: rows should appear every ~5 hours (2x daily)
+SELECT COUNT(*) as runs_last_24h, MAX(started_at) as latest 
+FROM algo_orchestrator_runs 
+WHERE started_at > NOW() - INTERVAL '24 hours';
+-- Expected AFTER fix: multiple runs (2x daily), current: stale (5.8h+ old)
 ```
-
-**Fix Procedure:**
-1. Verify `eventbridge_scheduler_role_arn` is passed from root module correctly
-2. Ensure role has `lambda:InvokeFunction` permission on algo Lambda
-3. Check EventBridge rule state: `aws events describe-rule --name algo-schedule-morning-dev`
-4. If disabled, enable: `aws events enable-rule --name algo-schedule-morning-dev`
 
 ### 2. **API Caching Bug - Signals Endpoint Stale** (HIGH PRIORITY)
 **Problem:** `/api/signals` returns 14-day-old data despite fresh database
