@@ -783,6 +783,7 @@ def run(  # noqa: C901
                                     total_cash = EXCLUDED.total_cash,
                                     position_count = EXCLUDED.position_count,
                                     daily_return_pct = EXCLUDED.daily_return_pct,
+                                    created_at = NOW(),
                                     updated_at = NOW()
                             """,
                                 (
@@ -881,6 +882,7 @@ def run(  # noqa: C901
                         total_cash = EXCLUDED.total_cash,
                         position_count = EXCLUDED.position_count,
                         daily_return_pct = EXCLUDED.daily_return_pct,
+                        created_at = NOW(),
                         updated_at = NOW()
                 """,
                     (
