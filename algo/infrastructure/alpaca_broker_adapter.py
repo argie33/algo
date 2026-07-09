@@ -6,6 +6,8 @@ import time
 from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
 from algo.infrastructure.broker_adapter import BrokerAdapter
@@ -25,6 +27,27 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         self.config = config
         self.alpaca_sync = AlpacaSyncManager(config)
 
+        # FIX: Create persistent session with connection pooling to prevent socket exhaustion
+        # This addresses Alpaca API timeout issues from file descriptor leaks
+        self._session = requests.Session()
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[429, 500, 502, 503, 504],
+            allowed_methods=["GET", "POST", "PUT", "DELETE"]
+        )
+        adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=10)
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
+
+    def __del__(self) -> None:
+        """Ensure session is closed to release file descriptors."""
+        if hasattr(self, "_session"):
+            try:
+                self._session.close()
+            except Exception:
+                pass
+
     def _request_with_retry(
         self,
         method: str,
@@ -35,12 +58,15 @@ class AlpacaBrokerAdapter(BrokerAdapter):
     ) -> requests.Response:
         """Execute HTTP request with exponential backoff retry on timeout.
 
+        Uses persistent session with connection pooling to prevent socket exhaustion.
+        Implements exponential backoff (1s, 2s, 4s) for transient failures.
+
         Args:
             method: HTTP method ('get', 'post', etc.)
             url: URL to request
-            max_retries: Maximum number of retry attempts
-            initial_backoff: Starting backoff in seconds
-            **kwargs: Additional arguments to pass to requests method
+            max_retries: Maximum number of retry attempts (default: 3)
+            initial_backoff: Starting backoff in seconds (default: 1.0)
+            **kwargs: Additional arguments to pass to session method
 
         Returns:
             Response object on success
@@ -53,7 +79,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
 
         for attempt in range(max_retries):
             try:
-                req_method = getattr(requests, method.lower())
+                # Use session method (connection pooling enabled) instead of bare requests
+                req_method = getattr(self._session, method.lower())
                 return req_method(url, **kwargs)
             except (requests.Timeout, requests.ConnectionError) as e:
                 last_error = e

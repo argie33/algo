@@ -8,6 +8,7 @@ Uses file-based persistent caching with live SEC API refresh.
 import json
 import logging
 import random
+import socket
 import time
 from pathlib import Path
 from typing import cast
@@ -18,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 TICKER_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_TIMEOUT = 10.0
+
+# Ensure socket timeout is configured globally
+socket.setdefaulttimeout(30)
 
 
 class TickerCache:

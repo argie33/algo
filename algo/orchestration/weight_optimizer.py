@@ -57,16 +57,63 @@ class WeightOptimizer:
     }
 
     def __init__(self, config: Any) -> None:
+        """Initialize WeightOptimizer with config dependency.
+
+        Args:
+            config: AlgoConfig instance for reading/writing weights
+
+        Raises:
+            ValueError: If config is None or invalid
+        """
         if config is None:
             raise ValueError("WeightOptimizer requires explicit config parameter (dependency injection)")
+        if not hasattr(config, "get") or not hasattr(config, "set"):
+            raise ValueError("config must have get() and set() methods (AlgoConfig interface)")
         self.config = config
 
+        # Validate class configuration
+        if not self.COMPONENTS:
+            raise ValueError("COMPONENTS list is empty, class is misconfigured")
+        if self.MIN_WEIGHT < 0 or self.MAX_WEIGHT < 0:
+            raise ValueError(f"MIN_WEIGHT ({self.MIN_WEIGHT}) and MAX_WEIGHT ({self.MAX_WEIGHT}) must be non-negative")
+        if self.MIN_WEIGHT > self.MAX_WEIGHT:
+            raise ValueError(
+                f"MIN_WEIGHT ({self.MIN_WEIGHT}) cannot exceed MAX_WEIGHT ({self.MAX_WEIGHT})"
+            )
+        if self.MIN_TRADES <= 0:
+            raise ValueError(f"MIN_TRADES must be positive, got {self.MIN_TRADES}")
+        if len(self.COMPONENT_KEYS) != len(self.COMPONENTS):
+            raise ValueError(
+                f"COMPONENT_KEYS ({len(self.COMPONENT_KEYS)} items) "
+                f"and COMPONENTS ({len(self.COMPONENTS)} items) must have same length"
+            )
+
     def get_current_weights(self) -> dict[str, int]:
-        """Fetch current weights from algo_config."""
+        """Fetch current weights from algo_config.
+
+        Raises:
+            ValueError: If any weight is invalid or missing
+        """
         weights = {}
         for component, key in self.COMPONENT_KEYS.items():
             val = self.config.get(key)  # uses AlgoConfig DEFAULTS as fallback, avoids mismatch warning
-            weights[component] = int(val) if val is not None else 0
+            if val is None:
+                raise ValueError(f"Weight config key '{key}' for component '{component}' returned None")
+            try:
+                w = int(val)
+                if not (0 <= w <= 100):
+                    raise ValueError(
+                        f"Component '{component}' weight {w}% is out of valid range [0, 100]"
+                    )
+                weights[component] = w
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"Cannot convert weight for component '{component}': {val}") from e
+
+        # Validate all components are present
+        if len(weights) != len(self.COMPONENTS):
+            missing = set(self.COMPONENTS) - set(weights.keys())
+            raise ValueError(f"Missing weights for components: {missing}")
+
         return weights
 
     def optimize(self, report_date: _date, lookback_trades: int = 40) -> dict[str, int] | None:
@@ -87,6 +134,12 @@ class WeightOptimizer:
             {component: weight (int 0-100)} or None if insufficient data
         """
         try:
+            # Validate inputs
+            if not isinstance(report_date, _date):
+                raise ValueError(f"report_date must be a date object, got {type(report_date)}")
+            if lookback_trades <= 0:
+                raise ValueError(f"lookback_trades must be positive, got {lookback_trades}")
+
             # Get IC values
             attribution = SignalAttributionEngine()
             ic_values = attribution.compute_ic(report_date, lookback_trades)
@@ -94,6 +147,14 @@ class WeightOptimizer:
             # Validate IC data structure
             if not ic_values:
                 raise ValueError("No IC values computed for weight optimization")
+
+            # Validate all required components are present
+            missing_components = [c for c in self.COMPONENTS if c not in ic_values]
+            if missing_components:
+                raise ValueError(
+                    f"Missing IC data for components: {missing_components}. "
+                    "Cannot optimize weights without complete IC attribution data."
+                )
 
             # Extract and validate sample size from first component
             first_comp_data = ic_values.get(self.COMPONENTS[0])
@@ -118,23 +179,38 @@ class WeightOptimizer:
                         f"Missing IC data for {comp} component. "
                         "Cannot optimize weights without complete IC attribution data."
                     )
-                ic = comp_data["ic_value"]
-                ic_list.append(float(ic))
+                try:
+                    ic = float(comp_data["ic_value"])
+                    if not (-1e10 < ic < 1e10):  # Detect NaN, inf, extreme values
+                        raise ValueError(f"IC value for {comp} is out of valid range: {ic}")
+                    ic_list.append(ic)
+                except (ValueError, TypeError) as e:
+                    raise ValueError(f"Invalid IC value for {comp}: {comp_data['ic_value']}") from e
+
+            # Validate we have IC data
+            if not ic_list:
+                raise ValueError("No valid IC values extracted for any component")
 
             ic_array = np.array(ic_list)
 
             # Normalize to [0, 1] (shift negatives up)
-            if ic_array.min() < 0:
-                ic_array = ic_array - ic_array.min()
+            ic_min = ic_array.min()
+            if ic_min < 0:
+                ic_array = ic_array - ic_min
+
             ic_max = ic_array.max()
-            if ic_max > 0:
-                ic_array = ic_array / ic_max
-            else:
-                # All ICs are zero/negative, use equal weights
+            if ic_max <= 0:
+                # All ICs are zero or became zero after shift, use equal weights
+                logger.warning(f"All IC values <= 0 on {report_date}, using equal weights")
                 return self._equal_weights()
+
+            # Normalize to [0, 1]
+            ic_array = ic_array / ic_max
 
             # Optimize weights
             optimal = self._solve_weights(ic_array)
+            if optimal is None:
+                raise ValueError("Weight optimization solver returned None")
             logger.info(f"Optimal weights on {report_date}: {optimal}")
             return optimal
 
@@ -151,7 +227,27 @@ class WeightOptimizer:
         Returns: {component: weight}
         """
         try:
+            # Input validation
+            if ic_array is None:
+                raise ValueError("ic_array cannot be None")
+            if len(ic_array) == 0:
+                raise ValueError("ic_array is empty, cannot optimize weights")
+            if len(ic_array) != len(self.COMPONENTS):
+                raise ValueError(
+                    f"ic_array length ({len(ic_array)}) must match COMPONENTS length ({len(self.COMPONENTS)})"
+                )
+
+            # Validate ic_array contains valid numbers
+            if np.any(np.isnan(ic_array)):
+                raise ValueError("ic_array contains NaN values")
+            if np.any(np.isinf(ic_array)):
+                raise ValueError("ic_array contains infinite values")
+
             n = len(self.COMPONENTS)
+
+            # Special case: single component (should not happen, but handle gracefully)
+            if n == 1:
+                return {self.COMPONENTS[0]: 100}
 
             def objective(w: Any) -> Any:
                 return -np.dot(w, ic_array)  # Negative because we minimize
@@ -159,11 +255,19 @@ class WeightOptimizer:
             # Constraints
             constraints = {"type": "eq", "fun": lambda w: np.sum(w) - 100}
 
-            # Bounds
+            # Bounds - validate that constraints are satisfiable
+            total_min = self.MIN_WEIGHT * n
+            total_max = self.MAX_WEIGHT * n
+            if total_min > 100 or total_max < 100:
+                raise ValueError(
+                    f"Constraints unsatisfiable: MIN_WEIGHT={self.MIN_WEIGHT}, MAX_WEIGHT={self.MAX_WEIGHT}, "
+                    f"n_components={n}. Total min={total_min}, total max={total_max}, target=100"
+                )
+
             bounds = [(self.MIN_WEIGHT, self.MAX_WEIGHT) for _ in range(n)]
 
             # Initial guess (equal weights)
-            x0 = np.full(n, 100 / n)
+            x0 = np.full(n, 100.0 / n)
 
             result = minimize(objective, x0, method="SLSQP", bounds=bounds, constraints=constraints)
 
@@ -174,23 +278,50 @@ class WeightOptimizer:
 
             # Round to integers while maintaining sum=100
             weights_float = result.x
+            if weights_float is None or len(weights_float) != n:
+                raise ValueError("Solver returned invalid weights array")
+
             weights_int = np.round(weights_float).astype(int)
 
             # Clamp to bounds first, then fix sum so the final sum is always 100
             weights_int = np.clip(weights_int, self.MIN_WEIGHT, self.MAX_WEIGHT)
 
             # Fix sum if rounding/clamping caused drift — adjust an unclamped weight
-            delta = 100 - weights_int.sum()
+            delta = 100 - int(weights_int.sum())
             if delta != 0:
+                # Find weights that can be adjusted (not at bounds)
                 not_at_bounds = [
-                    i for i in range(len(weights_int)) if self.MIN_WEIGHT < weights_int[i] < self.MAX_WEIGHT
+                    i for i in range(len(weights_int))
+                    if self.MIN_WEIGHT < weights_int[i] < self.MAX_WEIGHT
                 ]
-                idx = (
-                    not_at_bounds[int(np.argmax(weights_float[not_at_bounds]))]
-                    if not_at_bounds
-                    else int(np.argmax(weights_float))
-                )
+
+                if not_at_bounds:
+                    # Adjust the one with highest original weight among non-bound weights
+                    idx = not_at_bounds[int(np.argmax(weights_float[not_at_bounds]))]
+                else:
+                    # All at bounds, adjust the one with highest original weight
+                    # Check if adjustment is valid
+                    idx = int(np.argmax(weights_float))
+                    new_val = weights_int[idx] + delta
+                    if not (self.MIN_WEIGHT <= new_val <= self.MAX_WEIGHT):
+                        # Can't make valid adjustment at bounds, try all positions
+                        for i in range(len(weights_int)):
+                            new_val = weights_int[i] + delta
+                            if self.MIN_WEIGHT <= new_val <= self.MAX_WEIGHT:
+                                idx = i
+                                break
+                        else:
+                            # Last resort: adjust largest weight component
+                            idx = int(np.argmax(weights_int))
+
                 weights_int[idx] += delta
+
+            # Final validation
+            final_sum = int(weights_int.sum())
+            if final_sum != 100:
+                raise ValueError(
+                    f"Final weights sum to {final_sum}, not 100. weights={weights_int}"
+                )
 
             result_dict = {comp: int(w) for comp, w in zip(self.COMPONENTS, weights_int, strict=False)}
             return result_dict
@@ -199,12 +330,39 @@ class WeightOptimizer:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _equal_weights(self) -> dict[str, int]:
-        """Return equal weights (7 components -> ~14.3% each)."""
-        base = 100 // len(self.COMPONENTS)
-        remainder = 100 % len(self.COMPONENTS)
+        """Return equal weights (7 components -> ~14.3% each).
+
+        Raises:
+            ValueError: If COMPONENTS is empty or misconfigured
+        """
+        if not self.COMPONENTS:
+            raise ValueError("COMPONENTS list is empty, cannot create equal weights")
+
+        n = len(self.COMPONENTS)
+        base = 100 // n
+        remainder = 100 % n
+
+        # Validate that equal weights respect MIN/MAX constraints
+        if base < self.MIN_WEIGHT and n > 1:
+            raise ValueError(
+                f"Cannot create equal weights: base weight {base}% < MIN_WEIGHT {self.MIN_WEIGHT}% "
+                f"with {n} components"
+            )
+
         weights = {}
         for i, comp in enumerate(self.COMPONENTS):
-            weights[comp] = base + (1 if i < remainder else 0)
+            w = base + (1 if i < remainder else 0)
+            # Clamp to bounds
+            w = max(self.MIN_WEIGHT, min(self.MAX_WEIGHT, w))
+            weights[comp] = w
+
+        # Validate final sum
+        total = sum(weights.values())
+        if total != 100:
+            # Adjust largest component to fix sum
+            largest = max(weights.items(), key=lambda item: item[1])[0]
+            weights[largest] += (100 - total)
+
         return weights
 
     def apply(
@@ -239,46 +397,105 @@ class WeightOptimizer:
             }
         """
         try:
+            # Input validation
+            if not isinstance(report_date, _date):
+                raise ValueError(f"report_date must be a date object, got {type(report_date)}")
+            if not isinstance(regime, str):
+                raise ValueError(f"regime must be a string, got {type(regime)}")
+            if not isinstance(dry_run, bool):
+                raise ValueError(f"dry_run must be a bool, got {type(dry_run)}")
+
+            # Validate regime before processing
+            if regime not in self.BLEND_FACTORS:
+                raise ValueError(
+                    f"Unknown market regime '{regime}' has no defined blending factor. "
+                    f"Valid regimes: {list(self.BLEND_FACTORS.keys())}"
+                )
+
+            # Get current weights (validates config)
+            current = self.get_current_weights()
+
             # Compute optimal
-            optimal = self.optimize(report_date)
-            if not optimal:
-                logger.warning(f"Optimization failed on {report_date}, keeping current weights")
+            try:
+                optimal = self.optimize(report_date)
+            except RuntimeError as e:
+                logger.warning(f"Optimization failed on {report_date}: {e}, keeping current weights")
                 return {
-                    "old_weights": self.get_current_weights(),
-                    "new_weights": self.get_current_weights(),
+                    "old_weights": current,
+                    "new_weights": current,
                     "optimal_weights": None,
-                    "ic_values": {},
+                    "changes": [],
+                    "blending_factor": 0,
+                    "reason": "optimization_failed",
+                    "error": str(e),
+                    "success": True,
+                }
+
+            if not optimal:
+                logger.warning(f"Optimization returned None on {report_date}, keeping current weights")
+                return {
+                    "old_weights": current,
+                    "new_weights": current,
+                    "optimal_weights": None,
                     "changes": [],
                     "blending_factor": 0,
                     "reason": "insufficient_data",
                     "success": True,
                 }
 
-            # Get current weights
-            current = self.get_current_weights()
-
-            # Get blend factor from regime (fail-fast if regime unknown)
-            if regime not in self.BLEND_FACTORS:
+            # Validate optimal weights structure
+            if not isinstance(optimal, dict):
+                raise ValueError(f"optimal weights must be dict, got {type(optimal)}")
+            if len(optimal) != len(self.COMPONENTS):
                 raise ValueError(
-                    f"Unknown market regime '{regime}' has no defined blending factor. "
-                    f"Valid regimes: {list(self.BLEND_FACTORS.keys())}"
+                    f"optimal weights dict has {len(optimal)} components, expected {len(self.COMPONENTS)}"
                 )
+
             blend_alpha = self.BLEND_FACTORS[regime]
+            if not (0 <= blend_alpha <= 1):
+                raise ValueError(f"blend_alpha must be in [0, 1], got {blend_alpha}")
 
             # Blend
             blended = {}
             for comp in self.COMPONENTS:
+                if comp not in current:
+                    raise ValueError(f"Component '{comp}' missing from current weights")
+                if comp not in optimal:
+                    raise ValueError(f"Component '{comp}' missing from optimal weights")
+
                 old_w = float(current[comp])
                 opt_w = float(optimal[comp])
+
+                # Validate weight values
+                if not (0 <= old_w <= 100):
+                    raise ValueError(f"Current weight for '{comp}' out of range: {old_w}")
+                if not (0 <= opt_w <= 100):
+                    raise ValueError(f"Optimal weight for '{comp}' out of range: {opt_w}")
+
                 new_w = (1 - blend_alpha) * old_w + blend_alpha * opt_w
-                blended[comp] = round(new_w)
+                blended[comp] = max(0, min(100, round(new_w)))  # Clamp to [0, 100]
 
             # Fix sum to 100
-            delta = 100 - sum(blended.values())
+            current_sum = sum(blended.values())
+            delta = 100 - current_sum
             if delta != 0:
-                # Adjust largest component
+                # Adjust largest component (most stable)
+                if not blended:
+                    raise ValueError("blended weights dict is empty after blending")
                 largest_comp = max(blended.items(), key=lambda item: item[1])[0]
-                blended[largest_comp] += delta
+                new_val = blended[largest_comp] + delta
+                if not (0 <= new_val <= 100):
+                    raise ValueError(
+                        f"Cannot fix sum: adjusting '{largest_comp}' to {new_val} exceeds bounds [0, 100]"
+                    )
+                blended[largest_comp] = new_val
+
+            # Final validation
+            final_sum = sum(blended.values())
+            if final_sum != 100:
+                raise ValueError(
+                    f"Final blended weights sum to {final_sum}, expected 100. weights={blended}"
+                )
 
             # Track changes as dicts (consumed by phase7 as change['component'] etc.)
             changes = []
@@ -316,9 +533,13 @@ class WeightOptimizer:
 
         except (RuntimeError, ValueError, TypeError) as e:
             logger.error(f"Weight application failed: {e}")
+            try:
+                current = self.get_current_weights()
+            except (RuntimeError, ValueError, TypeError):
+                current = {}
             return {
-                "old_weights": self.get_current_weights(),
-                "new_weights": self.get_current_weights(),
+                "old_weights": current,
+                "new_weights": current,
                 "error": str(e),
                 "success": False,
             }
@@ -334,12 +555,58 @@ class WeightOptimizer:
         """Log weight changes to algo_weight_history.
 
         Raises RuntimeError if logging fails so caller knows optimization needs retry.
+
+        Args:
+            report_date: Date of optimization
+            old_weights: Previous weights {component: weight}
+            new_weights: New weights {component: weight}
+            regime: Market regime
+            blend_alpha: Blending factor used
+
+        Raises:
+            ValueError: If input validation fails
+            RuntimeError: If database operations fail
         """
         try:
+            # Input validation
+            if not isinstance(report_date, _date):
+                raise ValueError(f"report_date must be a date, got {type(report_date)}")
+            if not isinstance(old_weights, dict) or not old_weights:
+                raise ValueError("old_weights must be a non-empty dict")
+            if not isinstance(new_weights, dict) or not new_weights:
+                raise ValueError("new_weights must be a non-empty dict")
+            if not isinstance(regime, str):
+                raise ValueError(f"regime must be a string, got {type(regime)}")
+            if not (0 <= blend_alpha <= 1):
+                raise ValueError(f"blend_alpha must be in [0, 1], got {blend_alpha}")
+
+            # Validate keys match
+            old_keys = set(old_weights.keys())
+            new_keys = set(new_weights.keys())
+            if old_keys != new_keys:
+                raise ValueError(
+                    f"old_weights and new_weights have different keys. "
+                    f"Missing in new: {old_keys - new_keys}, extra in new: {new_keys - old_keys}"
+                )
+
             with DatabaseContext("write") as cur:
                 for comp in self.COMPONENTS:
+                    if comp not in old_weights or comp not in new_weights:
+                        raise ValueError(f"Component '{comp}' missing from weights dicts")
+
                     old_w = old_weights[comp]
                     new_w = new_weights[comp]
+
+                    # Validate weight values
+                    if not isinstance(old_w, int) or not (0 <= old_w <= 100):
+                        raise ValueError(
+                            f"Invalid old weight for '{comp}': {old_w} (must be int in [0, 100])"
+                        )
+                    if not isinstance(new_w, int) or not (0 <= new_w <= 100):
+                        raise ValueError(
+                            f"Invalid new weight for '{comp}': {new_w} (must be int in [0, 100])"
+                        )
+
                     if old_w != new_w:
                         cur.execute(
                             """
@@ -358,10 +625,15 @@ class WeightOptimizer:
                                 regime,
                             ),
                         )
-        except (OSError, RuntimeError, ValueError) as e:
+        except ValueError as e:
+            logger.error(f"Invalid input to _log_changes: {e}")
+            raise ValueError(f"Weight optimization logging input validation failed: {e}") from e
+        except (OSError, RuntimeError) as e:
             # FIX: Don't silent-fail on database errors - re-raise so caller knows
-            logger.error(f"Failed to log weight changes: {e}")
-            raise RuntimeError(f"Weight optimization logging failed (weight changes NOT persisted): {e}") from e
+            logger.error(f"Failed to log weight changes to database: {e}")
+            raise RuntimeError(
+                f"Weight optimization logging failed (weight changes NOT persisted): {e}"
+            ) from e
 
 
 if __name__ == "__main__":

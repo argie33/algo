@@ -8,9 +8,11 @@ Run:
     python3 load_income_statement.py [--symbols AAPL,MSFT] [--parallelism 2]
 """
 
+import socket
 import sys
 
 from loaders.loader_helper import setup_imports
+from loaders.timeout_config import configure_socket_timeout
 
 setup_imports()
 
@@ -23,6 +25,9 @@ from loaders.runner import run_loader  # noqa: E402
 from loaders.sec_edgar_statement_loader import SecEdgarStatementLoader  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 def main() -> int:

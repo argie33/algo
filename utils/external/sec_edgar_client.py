@@ -8,6 +8,7 @@ Uses TickerCache for ticker-to-CIK conversion.
 import logging
 import os
 import random
+import socket
 import threading
 import time
 from typing import Any, cast
@@ -18,6 +19,9 @@ from utils.external import sec_statements
 from utils.external.sec_ticker_cache import TickerCache
 
 logger = logging.getLogger(__name__)
+
+# Ensure socket timeout is configured globally
+socket.setdefaulttimeout(30)
 
 EDGAR_BASE = os.getenv("EDGAR_BASE_URL", "https://data.sec.gov")
 TICKER_URL = os.getenv("SEC_TICKER_URL", "https://www.sec.gov/files/company_tickers.json")
@@ -55,13 +59,20 @@ class SecEdgarClient:
         self,
         user_agent: str | None = None,
         cache_ttl: int = 86400,
-        timeout: float = 10.0,
+        timeout: float | None = None,
     ):
         self.user_agent = user_agent or DEFAULT_USER_AGENT
         if "@" not in self.user_agent:
             logger.warning(
                 "SEC requires User-Agent with contact email. Set SEC_USER_AGENT env var: 'AppName admin@example.com'"
             )
+        # Use config-based timeout or fall back to default
+        if timeout is None:
+            timeout_env = os.getenv("API_REQUEST_TIMEOUT_SECONDS", "10")
+            try:
+                timeout = float(timeout_env)
+            except (ValueError, AttributeError):
+                timeout = 10.0
         self.timeout = timeout
         # Rate limiter: SEC allows 10 req/sec. With many parallel ECS tasks,
         # we need to be conservative. Using 2 req/sec per task limits total impact.

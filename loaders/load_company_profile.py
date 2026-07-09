@@ -9,16 +9,21 @@ Result: Eliminates 5000 redundant yfinance API calls per run.
 """
 
 import logging
+import socket
 import sys
 from datetime import date, datetime
 from typing import Any
 
 from loaders.runner import run_loader
+from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 class CompanyProfileLoader(OptimalLoader):

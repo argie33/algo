@@ -2,16 +2,21 @@
 """Algo Daily Metrics Loader - Portfolio stats and execution summary (Market-wide compute)."""
 
 import logging
+import socket
 import sys
 from datetime import date, datetime, timezone
 from typing import Any
 
 from loaders.runner import run_loader
+from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 class AlgoMetricsDailyLoader(OptimalLoader):

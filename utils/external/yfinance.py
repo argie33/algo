@@ -11,6 +11,7 @@ IP bans from overwhelming other tasks, this wrapper:
 """
 
 import logging
+import socket
 import threading
 import time
 from typing import Any
@@ -22,6 +23,9 @@ from requests.adapters import HTTPAdapter
 from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 
 logger = logging.getLogger(__name__)
+
+# Ensure socket timeout is configured globally to prevent indefinite hangs
+socket.setdefaulttimeout(30)
 
 
 class TimeoutHTTPAdapter(HTTPAdapter):  # type: ignore

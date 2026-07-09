@@ -3,13 +3,18 @@
 
 import logging
 import os
+import socket
 from datetime import date
 from typing import Any, cast
 
+from loaders.timeout_config import configure_socket_timeout, get_http_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 class SecEdgarStatementLoader(OptimalLoader):

@@ -22,9 +22,11 @@ Or directly:
 """
 
 import os
+import socket
 import sys
 
 from loaders.loader_helper import setup_imports
+from loaders.timeout_config import configure_socket_timeout
 
 setup_imports()
 
@@ -38,6 +40,9 @@ from loaders.sec_edgar_statement_loader import SecEdgarStatementLoader  # noqa: 
 from utils.db.context import DatabaseContext  # noqa: E402
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:

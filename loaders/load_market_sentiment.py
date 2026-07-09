@@ -29,24 +29,65 @@ def compute_market_sentiment() -> None:
             (today,),
         )
         row = cur.fetchone()
-        vix = float(row["vix_level"]) if row and row["vix_level"] else 20.0
+
+        # CRITICAL DATA QUALITY GATE: Fail-fast if VIX data missing
+        # Do NOT silently fallback to 20.0 — this corrupts risk controls (investors think VIX is known when it's not)
+        if not row or row["vix_level"] is None:
+            logger.error(
+                f"[CRITICAL] VIX data missing for {today} — cannot compute market sentiment. "
+                "Risk assessment requires current VIX level. Aborting market sentiment update."
+            )
+            # Upsert data_unavailable flag instead of computing with fallback
+            cur.execute(
+                """
+                INSERT INTO market_sentiment (
+                    date, fear_greed_index, sentiment_score, bullish_pct, bearish_pct, neutral_pct,
+                    data_unavailable, data_unavailable_reason
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (date) DO UPDATE SET
+                    fear_greed_index = EXCLUDED.fear_greed_index,
+                    sentiment_score = EXCLUDED.sentiment_score,
+                    bullish_pct = EXCLUDED.bullish_pct,
+                    bearish_pct = EXCLUDED.bearish_pct,
+                    neutral_pct = EXCLUDED.neutral_pct,
+                    data_unavailable = EXCLUDED.data_unavailable,
+                    data_unavailable_reason = EXCLUDED.data_unavailable_reason
+            """,
+                (
+                    today,
+                    None,  # No fear_greed index available
+                    None,  # No sentiment score
+                    None,
+                    None,
+                    None,
+                    True,  # Mark as unavailable
+                    "vix_data_missing",  # Explicit reason for data unavailability
+                ),
+            )
+            logger.info(f"Market sentiment marked data_unavailable for {today}: vix_data_missing")
+            return
+
+        vix = float(row["vix_level"])
 
         # Map VIX to fear/greed index: VIX 10-50 → fear/greed 80-20
         # VIX 10 = greed (80), VIX 50 = fear (20), VIX 20 = neutral (50)
         fear_greed = max(10, min(90, 100 - (vix * 2)))
 
-        # Upsert into market_sentiment
+        # Upsert into market_sentiment with data quality flags
         cur.execute(
             """
             INSERT INTO market_sentiment (
-                date, fear_greed_index, sentiment_score, bullish_pct, bearish_pct, neutral_pct
-            ) VALUES (%s, %s, %s, %s, %s, %s)
+                date, fear_greed_index, sentiment_score, bullish_pct, bearish_pct, neutral_pct,
+                data_unavailable, data_unavailable_reason
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (date) DO UPDATE SET
                 fear_greed_index = EXCLUDED.fear_greed_index,
                 sentiment_score = EXCLUDED.sentiment_score,
                 bullish_pct = EXCLUDED.bullish_pct,
                 bearish_pct = EXCLUDED.bearish_pct,
-                neutral_pct = EXCLUDED.neutral_pct
+                neutral_pct = EXCLUDED.neutral_pct,
+                data_unavailable = EXCLUDED.data_unavailable,
+                data_unavailable_reason = EXCLUDED.data_unavailable_reason
         """,
             (
                 today,
@@ -55,6 +96,8 @@ def compute_market_sentiment() -> None:
                 Decimal("33.33"),
                 Decimal("33.33"),
                 Decimal("33.34"),
+                False,  # Data is available
+                None,  # No unavailability reason
             ),
         )
 

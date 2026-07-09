@@ -2,6 +2,7 @@
 """Fetch actual ICE DXY (US Dollar Index) from Yahoo Finance."""
 
 import sys
+import socket
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -11,10 +12,14 @@ sys.path.insert(0, project_root)
 
 import logging  # noqa: E402
 
+from loaders.timeout_config import configure_socket_timeout, get_http_timeout  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
@@ -36,7 +41,21 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
         end_date = date.today()
         start_date = end_date - timedelta(days=365)
 
-        dxy = yf.download("DX-Y.NYB", start=start_date, end=end_date, progress=False)
+        # Get HTTP timeout (connect, read) from config or default (10, 20) seconds
+        http_timeout = get_http_timeout()
+
+        # yfinance.download() uses requests internally, so set socket timeout
+        # Wrap in try-except to catch socket timeout and Timeout exceptions
+        try:
+            dxy = yf.download(
+                "DX-Y.NYB",
+                start=start_date,
+                end=end_date,
+                progress=False,
+                timeout=http_timeout[1],  # yfinance's timeout parameter
+            )
+        except (socket.timeout, TimeoutError) as e:
+            raise RuntimeError(f"[DXY] Yahoo Finance fetch timed out: {e}") from e
 
         if dxy is None or len(dxy) == 0:
             logger.warning("[DXY] Yahoo Finance returned no data for DX-Y.NYB ticker.")

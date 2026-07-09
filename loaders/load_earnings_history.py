@@ -6,15 +6,20 @@ from yfinance_snapshot table instead of making direct yfinance API calls.
 """
 
 import logging
+import socket
 import sys
 from datetime import date
 from typing import Any
 
 from loaders.runner import run_loader
+from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 class EarningsHistoryLoader(OptimalLoader):

@@ -2,18 +2,23 @@
 """Industry Ranking Loader - Rank industries by composite stock scores."""
 
 import logging
+import socket
 import sys
 from datetime import date
 from typing import Any
 
 from loaders.loader_helper import setup_imports
 from loaders.runner import run_loader
+from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 
 setup_imports()
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 class IndustryRankingLoader(OptimalLoader):

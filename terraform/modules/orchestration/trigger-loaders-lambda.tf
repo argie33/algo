@@ -4,13 +4,15 @@
 # Invokes ECS loader tasks with correct environment overrides
 # (LOADER_CHUNK_SIZE=100, LOADER_TIMEOUT_SEC=600)
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_lambda_function" "trigger_loaders" {
   filename         = "${path.module}/trigger-loaders.zip"
   function_name    = "${var.project_name}-trigger-loaders"
   role             = aws_iam_role.trigger_loaders.arn
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
-  timeout          = 60
+  timeout          = 300
   source_code_hash = filebase64sha256("${path.module}/trigger-loaders.zip")
 
   environment {
@@ -103,4 +105,13 @@ resource "aws_cloudwatch_log_group" "trigger_loaders" {
   tags = {
     Environment = var.environment
   }
+}
+
+# Lambda permission allowing EventBridge Scheduler to invoke trigger-loaders
+resource "aws_lambda_permission" "trigger_loaders_eventbridge_scheduler" {
+  statement_id  = "AllowEventBridgeSchedulerInvoke"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.trigger_loaders.function_name
+  principal     = "scheduler.amazonaws.com"
+  source_arn    = "arn:aws:scheduler:${var.aws_region}:${data.aws_caller_identity.current.account_id}:schedule/*/*"
 }

@@ -31,6 +31,7 @@ Time: ~2-5 seconds (vectorized computation, minimal DB load)
 from __future__ import annotations
 
 import logging
+import socket
 import sys
 from datetime import date
 from typing import Any
@@ -38,9 +39,14 @@ from typing import Any
 import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor  # noqa: N812
 
+from loaders.timeout_config import configure_socket_timeout
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason: str) -> None:

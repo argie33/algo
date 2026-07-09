@@ -439,9 +439,23 @@ def _get_algo_status(cur: cursor) -> Any:
             logger.error("[CRITICAL] Portfolio snapshot missing position_count (required field)")
             raise RuntimeError("Portfolio snapshot missing critical field: position_count")
 
-        pv = float(pv_raw)
-        tc_float = float(tc_raw)
-        pc = int(pc_raw)
+        # CRITICAL FIX: Wrap type conversions in try-except for graceful error handling
+        # Malformed data (e.g., string where float expected) should not cause 503 errors
+        try:
+            pv = float(pv_raw)
+            tc_float = float(tc_raw)
+            pc = int(pc_raw)
+        except (ValueError, TypeError) as e:
+            logger.error(
+                f"[CRITICAL] Portfolio data type conversion failed: {type(e).__name__}: {e} "
+                f"(pv_raw={pv_raw!r}, tc_raw={tc_raw!r}, pc_raw={pc_raw!r}). "
+                "Returning error response instead of 503."
+            )
+            return error_response(
+                400,
+                "data_type_conversion_error",
+                f"Portfolio data malformed: unable to convert financial values to correct types. {e}",
+            )
 
         unrealized_pnl = float(unrealized_pnl_raw) if unrealized_pnl_raw is not None else 0.0
         unrealized_pnl_pct = None
@@ -472,7 +486,15 @@ def _get_algo_status(cur: cursor) -> Any:
         code, error_type, message = handle_db_error(e, "fetch portfolio snapshot")
         return error_response(code, error_type, message)
 
-    freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
+    # CRITICAL FIX: Check freshness for BOTH algo_audit_log AND algo_portfolio_snapshots
+    # Root cause of "portfolio stale" errors: only audit_log was checked, allowing 24h-old portfolio data
+    audit_freshness = check_data_freshness(cur, "algo_audit_log", "created_at", warning_days=1)
+    portfolio_freshness = check_data_freshness(cur, "algo_portfolio_snapshots", "snapshot_date", warning_days=1)
+
+    # Use portfolio freshness as the primary freshness indicator (data_freshness returned to frontend)
+    # Include both checks in response so frontend can detect stale portfolio data
+    combined_freshness = portfolio_freshness.copy() if portfolio_freshness else {}
+    combined_freshness["audit_log_freshness"] = audit_freshness
 
     # Map audit status to success boolean for API contract
     # Status can be: "success", "halted", "error", or other phase-specific statuses
@@ -488,7 +510,7 @@ def _get_algo_status(cur: cursor) -> Any:
             "status": row["status"],
             "message": row["message"],
             "portfolio": portfolio,
-            "data_freshness": freshness,
+            "data_freshness": combined_freshness,
         },
     )
 

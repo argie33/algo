@@ -14,14 +14,19 @@ This base class eliminates ~200 lines of duplication across:
 """
 
 import logging
+import socket
 from abc import abstractmethod
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
+from loaders.timeout_config import configure_socket_timeout
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 class SecFinancialsLoader(OptimalLoader):

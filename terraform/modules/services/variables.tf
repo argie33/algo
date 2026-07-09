@@ -397,12 +397,12 @@ variable "algo_lambda_memory" {
 }
 
 variable "algo_lambda_timeout" {
-  description = "Timeout for algo Lambda function (seconds)"
+  description = "Timeout for algo Lambda function (seconds). Actual execution time: 11-15 minutes (660-900 seconds)."
   type        = number
-  default     = 300
+  default     = 1200
   validation {
-    condition     = var.algo_lambda_timeout >= 60 && var.algo_lambda_timeout <= 900
-    error_message = "Timeout must be between 60 and 900 seconds"
+    condition     = var.algo_lambda_timeout >= 60 && var.algo_lambda_timeout <= 1200
+    error_message = "Timeout must be between 60 and 1200 seconds"
   }
 }
 

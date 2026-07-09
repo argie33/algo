@@ -42,6 +42,64 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
+def _persist_signals_to_database(
+    qualified_trades: list[dict[str, Any]], run_date: _date, dry_run: bool
+) -> None:
+    """Persist Phase 7 generated signals to algo_signals table for dashboard display.
+
+    CRITICAL FIX: Signals were being generated but never saved, causing:
+    - Dashboard to show no signals
+    - Historical signal count stuck at 3 (from prior run)
+    - No signal audit trail
+
+    This insertion makes signals visible to:
+    - Dashboard signal panel
+    - Signal quality analysis
+    - Historical backtesting reports
+    """
+    if not qualified_trades:
+        return
+
+    try:
+        with DatabaseContext("write") as cur:
+            for signal_data in qualified_trades:
+                # Extract required fields from Phase 7 signal data
+                symbol = signal_data.get("symbol")
+                if not symbol:
+                    logger.warning("[PERSIST SIGNALS] Skipping signal with no symbol")
+                    continue
+
+                # Safely extract optional fields with defaults
+                entry_price = float(signal_data.get("entry_price", 0.0))
+                signal_quality_score = float(signal_data.get("composite_score", signal_data.get("signal_quality_score", 0.0)))
+                risk_score = float(signal_data.get("risk_score", 0.0))
+
+                cur.execute("""
+                    INSERT INTO algo_signals (
+                        signal_date, symbol, source_table, source_timeframe,
+                        entry_price, entry_stage, signal_active,
+                        signal_quality_score, risk_score, created_at, updated_at
+                    ) VALUES (
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                    )
+                """, (
+                    run_date,
+                    symbol,
+                    "phase7_signal_generation",
+                    "daily",
+                    entry_price,
+                    "entry",
+                    True,
+                    signal_quality_score,
+                    risk_score,
+                ))
+
+        logger.info(f"[PERSIST SIGNALS] Inserted {len(qualified_trades)} signals for {run_date}")
+    except psycopg2.DatabaseError as e:
+        logger.error(f"[PERSIST SIGNALS] Database error: {e}", exc_info=True)
+        raise
+
+
 def _batch_fetch_technical_data(
     symbols_with_precomputed: dict[str, dict[str, Any]], run_date: _date, period: int = 14
 ) -> dict[str, dict[str, float | None]]:
@@ -283,6 +341,16 @@ def run(
         log_phase_result_fn(8, "entry_execution", "success", "No qualified signals")
 
         return PhaseResult(8, "entry_execution", "ok", {"entered": 0}, False, "No signals to execute")
+
+    # CRITICAL: Persist signals to database (previously missing - this caused zero signals in dashboard)
+    # This is the essential link between Phase 7 signal generation and dashboard display
+    try:
+        _persist_signals_to_database(qualified_trades, run_date, dry_run)
+        logger.info(f"[PHASE 8] Persisted {len(qualified_trades)} signals to database")
+    except Exception as e:
+        logger.error(f"[PHASE 8] Failed to persist signals: {e}", exc_info=True)
+        # Non-blocking - continue execution even if signal persistence fails
+        # (trades will still execute, just signals won't be visible on dashboard)
 
     # Halt flag check before any trades
 

@@ -7,6 +7,7 @@ Requires: annual_income_statement populated.
 """
 
 import logging
+import socket
 import sys
 from datetime import date
 from typing import Any
@@ -15,8 +16,12 @@ import psycopg2
 
 from loaders.runner import run_loader
 from loaders.sec_financials_loader import SecFinancialsLoader
+from loaders.timeout_config import configure_socket_timeout
 
 logger = logging.getLogger(__name__)
+
+# Configure socket timeout to prevent indefinite hangs
+configure_socket_timeout(30)
 
 
 class GrowthMetricsLoader(SecFinancialsLoader):
