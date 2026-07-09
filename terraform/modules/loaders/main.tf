@@ -296,24 +296,27 @@ locals {
     "market_constituents"         = "load_market_constituents.py"
     "market_health_daily"         = "load_market_health_daily.py"
     "market_sentiment"            = "load_market_sentiment.py"
-    "sector_ranking"              = "load_sector_ranking.py"
-    "industry_ranking"            = "load_industry_ranking.py"
+    # Consolidated market rankings loader (replaces 2 separate loaders)
+    "sector_ranking"              = "load_market_rankings.py"
+    "industry_ranking"            = "load_market_rankings.py"
     "algo_metrics_daily"          = "load_algo_metrics_daily.py"
     "buy_sell_daily"              = "load_buy_sell_daily.py"
     "earnings_history"            = "load_earnings_history.py"
     "earnings_calendar"           = "load_earnings_calendar.py"
     "company_profile"             = "load_company_profile.py"
-    "analyst_sentiment"           = "load_analyst_sentiment_analysis.py"
-    "analyst_upgrades_downgrades" = "load_analyst_upgrade_downgrade.py"
+    # Consolidated analyst loader (replaces 2 separate loaders)
+    "analyst_sentiment"           = "load_analyst_analysis.py"
+    "analyst_upgrades_downgrades" = "load_analyst_analysis.py"
 
-    "financials_annual_income"      = "load_income_statement.py"
-    "financials_annual_balance"     = "load_balance_sheet.py"
-    "financials_annual_cashflow"    = "load_cash_flow.py"
-    "financials_quarterly_income"   = "load_income_statement.py"
-    "financials_quarterly_balance"  = "load_balance_sheet.py"
-    "financials_quarterly_cashflow" = "load_cash_flow.py"
-    "financials_ttm_income"         = "load_income_statement.py"
-    "financials_ttm_cashflow"       = "load_cash_flow.py"
+    # Consolidated financial statements loader (replaces 8 separate loaders)
+    "financials_annual_income"      = "load_financial_statements.py"
+    "financials_annual_balance"     = "load_financial_statements.py"
+    "financials_annual_cashflow"    = "load_financial_statements.py"
+    "financials_quarterly_income"   = "load_financial_statements.py"
+    "financials_quarterly_balance"  = "load_financial_statements.py"
+    "financials_quarterly_cashflow" = "load_financial_statements.py"
+    "financials_ttm_income"         = "load_financial_statements.py"
+    "financials_ttm_cashflow"       = "load_financial_statements.py"
 
     "compute_performance_metrics" = "compute_performance_metrics.py"
   }
@@ -683,7 +686,7 @@ resource "aws_ecs_task_definition" "loader" {
             value = "stock,etf"
           }
         ] : [],
-        # Financial loaders: determine period from task name
+        # Financial loaders: determine period and statement type from task name
         strcontains(each.key, "annual") ? [
           {
             name  = "LOADER_PERIOD"
@@ -698,6 +701,23 @@ resource "aws_ecs_task_definition" "loader" {
           {
             name  = "LOADER_PERIOD"
             value = "quarterly"
+          }
+        ] : [],
+        # Financial loaders: determine statement type from task name
+        strcontains(each.key, "income") ? [
+          {
+            name  = "LOADER_STATEMENT_TYPE"
+            value = "income"
+          }
+          ] : strcontains(each.key, "balance") ? [
+          {
+            name  = "LOADER_STATEMENT_TYPE"
+            value = "balance"
+          }
+          ] : strcontains(each.key, "cashflow") ? [
+          {
+            name  = "LOADER_STATEMENT_TYPE"
+            value = "cashflow"
           }
         ] : []
       )
