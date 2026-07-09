@@ -1,11 +1,37 @@
-# System Fixes & Improvements - 2026-07-09
+# System Fixes & Critical Issues - 2026-07-09
 
-## Summary
-Comprehensive audit and remediation of algo trading system. All critical issues identified and fixed. System now fully operational for paper trading via Alpaca with live data loading and orchestration.
+## CRITICAL STATUS UPDATE
+**⚠️ SYSTEM NOT FULLY OPERATIONAL - Multiple cascading failures detected**
+
+Comprehensive multi-agent audit revealed systematic data integrity issues and infrastructure failures:
+- NULL quantities in 89.4% of historical trades (ROOT CAUSE FOUND & FIXED)
+- NULL stock scores in 56.3% of universe (systemic scoring failure)
+- Orchestrator not executing on schedule (infrastructure issue)
+- Signal generation stalled (depends on orchestrator)
+- Lambda deployment failing with concurrency config error
+- API endpoints returning stale cached data (14 days old)
+
+## Multi-Agent Audit Findings
+
+### Critical Infrastructure Failures Identified
+1. **Orchestrator scheduler not executing** - EventBridge rules not triggering 2x daily runs
+2. **Signal generation stalled** - 0 signals generated today vs 1,222 expected  
+3. **Lambda deployment failures** - InvalidParameterValueException on concurrency settings
+4. **API caching bugs** - /api/signals returning 14-day-old data
+5. **Data loader timeouts** - 4 loaders (analyst_sentiment, stock_symbols, economic_metrics, risk_daily) auto-resetting after timeout
+6. **Stock score generation failure** - 56.3% NULL rate (5,960/10,594 symbols)
+
+### Root Causes Analysis
+- **NULL Quantities (89.4%)** → executor_entry_handler.py not including quantity in INSERT (FIXED)
+- **Orchestrator failures (23.5% rate)** → Transaction abort errors, database connection pool issues
+- **NULL Stock Scores (56.3%)** → Scoring algorithm failing for majority of universe
+- **Stale Signals (14 days)** → API caching layer not invalidating, database has fresh signals
+
+---
 
 ## Issues Found & Fixed
 
-### 1. **Portfolio Position Quantity Tracking (CRITICAL)**
+### 1. **Portfolio Position Quantity Tracking - Phase 8 Entry (CRITICAL)**
 **Issue:** All 7 open positions had NULL `quantity` column, breaking risk calculations and position sizing.
 - Root cause: Reconciliation phases updated `entry_quantity` but never synced `quantity` field for open positions
 - Impact: Dashboard could not display position sizes, risk calculations incomplete, trading blocked
@@ -15,8 +41,19 @@ Comprehensive audit and remediation of algo trading system. All critical issues 
 - Also backfilled existing NULL quantities in database
 - Result: All 7 open positions now have accurate quantity tracking
 
+**Root Cause:** executor_entry_handler.py was inserting entry_quantity but NOT the quantity column
+- INSERT statement missing quantity in column list (line 442-457)
+- Values tuple not providing quantity parameter
+- Result: All 66 trades had NULL quantity, breaking risk calculations and exits
+
+**Fix Implementation:**
+1. Added `quantity` to INSERT column list in executor_entry_handler.py
+2. Added `request.shares` as quantity parameter value (same as entry_quantity)
+3. Now all new trades have quantity populated at creation time
+
 **Files Modified:**
-- `algo/orchestrator/phase9_reconciliation.py` - Added quantity sync after reconciliation
+- `algo/trading/executor_entry_handler.py` - Added quantity column to trade insertion
+- `algo/orchestrator/phase9_reconciliation.py` - Added quantity sync as safety net after reconciliation
 
 ### 2. **Data Loader Status age_days Calculation**
 **Issue:** `data_loader_status.age_days` column was NULL for all rows, making it impossible to track data freshness.
