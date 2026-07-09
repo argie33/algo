@@ -490,14 +490,16 @@ class DailyReconciliation:
                 # Our DB position_value sum may lag - Broker is the ground truth for drawdown math.
                 from decimal import Decimal
 
-                # CRITICAL FIX: In paper mode, calculate cash as portfolio_value - position_value
-                # instead of using hardcoded initial capital
-                if cash is None:
-                    # Paper mode: Alpaca doesn't return cash, so compute it
+                # CRITICAL FIX: In paper mode, ALWAYS compute cash as portfolio_value - position_value
+                # Alpaca returns cash = $100k (initial capital) but doesn't update it as positions change
+                # Real remaining cash = portfolio - positions
+                if execution_mode == "paper":
+                    # Paper mode: Compute actual remaining cash from portfolio and positions
                     cash_computed = pv - total_position_value
                     logger.info(f"[PAPER MODE] Computed cash: ${pv:,.2f} (portfolio) - ${total_position_value:,.2f} (positions) = ${cash_computed:,.2f}")
                     cash_dec = Decimal(str(cash_computed))
                 else:
+                    # Live mode: Use actual cash from broker
                     cash_dec = Decimal(str(cash))
                 alpaca_portfolio_value_dec = Decimal(str(pv))
                 if alpaca_portfolio_value_dec <= 0:
