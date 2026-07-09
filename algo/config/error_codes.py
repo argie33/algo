@@ -4,6 +4,7 @@ PHASE 3: Ensures all errors are properly classified and can be handled consisten
 """
 
 from enum import Enum
+from typing import Any, Dict, Optional
 
 
 class ErrorCode(Enum):
@@ -115,7 +116,7 @@ def get_severity(error_code: ErrorCode) -> ErrorSeverity:
 class OrchestrationError(Exception):
     """Base class for orchestration errors with standardized codes."""
 
-    def __init__(self, error_code: ErrorCode, message: str, details: dict | None = None):
+    def __init__(self, error_code: ErrorCode, message: str, details: Optional[Dict[str, Any]] = None):
         self.error_code = error_code
         self.message = message
         self.details = details or {}
@@ -125,7 +126,7 @@ class OrchestrationError(Exception):
             f"[{error_code.value}] {message}"
         )
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> Dict[str, Any]:
         """Convert error to dictionary for logging/alerting."""
         return {
             "error_code": self.error_code.value,
