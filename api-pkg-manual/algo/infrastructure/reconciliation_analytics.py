@@ -81,16 +81,39 @@ class ReconciliationAnalytics:
             """)
             row = cur.fetchone()
             if row and row[3] >= 5:  # Need at least 5 trades
-                win_rate = float(row[0]) if row[0] else 0.0
-                avg_win = float(row[1]) if row[1] else 0.0
-                avg_loss = float(row[2]) if row[2] else 0.0
+                # CRITICAL: Do NOT default NULL values to 0.0 - these are distinct from "metric is 0"
+                win_rate = float(row[0])
+                avg_win = float(row[1]) if row[1] is not None else None
+                avg_loss = float(row[2]) if row[2] is not None else None
 
-                if win_rate > 0 and avg_loss > 0:
-                    expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
-                    kelly_fraction = (win_rate - ((1 - win_rate) * avg_loss / avg_win)) / 1.0 if avg_win > 0 else 0
-                else:
-                    expectancy = 0.0
-                    kelly_fraction = 0.0
+                if win_rate is None:
+                    raise ValueError(
+                        "[TRADE ANALYTICS] Win rate is NULL - cannot compute expectancy. "
+                        "This indicates insufficient closed trades or data quality issue. "
+                        "Check: algo_trades table has closed trades with profit_loss_dollars populated."
+                    )
+
+                if avg_win is None or avg_loss is None:
+                    raise ValueError(
+                        f"[TRADE ANALYTICS] Trade metrics incomplete: avg_win={avg_win}, avg_loss={avg_loss}. "
+                        "Cannot calculate expectancy without valid average win/loss sizes. "
+                        "Check: closed trades have profit_loss_pct populated."
+                    )
+
+                if avg_loss <= 0:
+                    raise ValueError(
+                        f"[TRADE ANALYTICS] Average loss is {avg_loss} (expected > 0). "
+                        f"This indicates data quality issue (all winners or no losers). "
+                        f"Profit factor undefined. Check trade data."
+                    )
+
+                expectancy = (win_rate * avg_win) - ((1 - win_rate) * avg_loss)
+                if avg_win <= 0:
+                    raise ValueError(
+                        f"[TRADE ANALYTICS] Average win is {avg_win} (expected > 0). "
+                        f"Cannot calculate Kelly fraction. Check winning trade data."
+                    )
+                kelly_fraction = (win_rate - ((1 - win_rate) * avg_loss / avg_win)) / 1.0
 
                 alert = None
                 if expectancy < 0:
@@ -162,11 +185,26 @@ class ReconciliationAnalytics:
             row = cur.fetchone()
 
             if row and row[9] and row[9] > 0:  # total_closed > 0
-                wins = int(row[0]) if row[0] else 0
-                losses = int(row[1]) if row[1] else 0
-                gross_profit = float(row[2]) if row[2] else 0.0
-                gross_loss = float(row[3]) if row[3] else 0.0
+                # CRITICAL: Do NOT silently convert NULL to 0 - these must be explicit data
+                wins = int(row[0]) if row[0] is not None else None
+                losses = int(row[1]) if row[1] is not None else None
+                gross_profit = float(row[2]) if row[2] is not None else None
+                gross_loss = float(row[3]) if row[3] is not None else None
                 total_closed = int(row[9])
+
+                if wins is None or losses is None:
+                    raise ValueError(
+                        f"[TRADE ANALYTICS] Trade count incomplete: wins={wins}, losses={losses}. "
+                        "Cannot compute closed trade metrics without valid win/loss counts. "
+                        "Check: algo_trades table has status='closed' or 'exited' with profit_loss_dollars populated."
+                    )
+
+                if gross_profit is None or gross_loss is None:
+                    raise ValueError(
+                        f"[TRADE ANALYTICS] Trade P&L incomplete: gross_profit={gross_profit}, gross_loss={gross_loss}. "
+                        "Cannot compute profit factor without valid P&L data. "
+                        "Check: closed trades have profit_loss_dollars populated."
+                    )
 
                 # CRITICAL: Do NOT return 0.0 for win_rate/profit_factor as metrics
                 # 0% win rate (all losers) ≠ "no trades" (data unavailable).
@@ -184,19 +222,27 @@ class ReconciliationAnalytics:
                     )
                 profit_factor = gross_profit / gross_loss
 
+                # Optional metrics (MAE/MFE, R-multiple) may be NULL if not calculated
+                # For display purposes, default to 0.0 only for visualization/supplementary metrics
+                avg_r_multiple = float(row[4]) if row[4] is not None else 0.0
+                best_trade_pct = float(row[5]) if row[5] is not None else 0.0
+                worst_trade_pct = float(row[6]) if row[6] is not None else 0.0
+                best_mae = float(row[7]) if row[7] is not None else 0.0
+                best_mfe = float(row[8]) if row[8] is not None else 0.0
+
                 result.update(
                     {
                         "win_count": wins,
                         "loss_count": losses,
                         "win_rate": win_rate,
                         "profit_factor": profit_factor,
-                        "avg_r_multiple": float(row[4]) if row[4] else 0.0,
-                        "best_trade_pct": float(row[5]) if row[5] else 0.0,
-                        "worst_trade_pct": float(row[6]) if row[6] else 0.0,
-                        "best_mae": float(row[7]) if row[7] else 0.0,
-                        "best_mfe": float(row[8]) if row[8] else 0.0,
+                        "avg_r_multiple": avg_r_multiple,
+                        "best_trade_pct": best_trade_pct,
+                        "worst_trade_pct": worst_trade_pct,
+                        "best_mae": best_mae,
+                        "best_mfe": best_mfe,
                         "reason": f"Closed trades: {wins}W {losses}L (win rate {win_rate * 100:.1f}%), "
-                        f"Profit factor {profit_factor:.2f}x, Avg R-multiple {float(row[4]) if row[4] else 0.0:.2f}",
+                        f"Profit factor {profit_factor:.2f}x, Avg R-multiple {avg_r_multiple:.2f}",
                     }
                 )
             else:

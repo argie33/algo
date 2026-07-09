@@ -98,11 +98,29 @@ class DailyReconciliation:
                     WHERE status IN ('open', 'paper_open')
                 """)
                 pnl_row = cur.fetchone()
-                total_unrealized_pnl = float(pnl_row["total_pnl"]) if pnl_row else 0.00
-                total_invested = float(pnl_row["total_invested"]) if pnl_row else 0.00
+                if pnl_row is None:
+                    raise RuntimeError(
+                        "[CRITICAL] Paper mode reconciliation query returned no rows. "
+                        "Cannot calculate portfolio state without database access. "
+                        "Check: (1) database connectivity, (2) algo_positions table exists, (3) table has data"
+                    )
+                total_unrealized_pnl = float(pnl_row["total_pnl"])
+                total_invested = float(pnl_row["total_invested"])
 
                 # Portfolio value = base capital + unrealized P&L
-                portfolio_value = 100000.00 + total_unrealized_pnl
+                initial_capital = self.config.get("initial_capital_paper_trading")
+                if initial_capital is None:
+                    raise ValueError(
+                        "[CRITICAL] Paper mode reconciliation requires 'initial_capital_paper_trading' in config. "
+                        "Cannot hardcode $100k - must use explicit config value. "
+                        "Add to config: initial_capital_paper_trading=<amount>"
+                    )
+                if not isinstance(initial_capital, (int, float)) or initial_capital <= 0:
+                    raise ValueError(
+                        f"[CRITICAL] initial_capital_paper_trading must be positive number, got {initial_capital}. "
+                        "Configuration must be valid. Check config values."
+                    )
+                portfolio_value = float(initial_capital) + total_unrealized_pnl
 
                 logger.info(
                     f"[RECONCILIATION PAPER MODE] Found {open_position_count} open positions, portfolio value: ${portfolio_value:.2f}"
@@ -118,10 +136,25 @@ class DailyReconciliation:
                 )
                 with DatabaseContext("write") as cur:
                     logger.info("[RECONCILIATION] Paper mode: DatabaseContext opened, role=write")
+                    # CRITICAL: Calculate cash from initial capital - invested amount (never hardcoded)
+                    cash_remaining = float(initial_capital) - total_invested
+
+                    # CRITICAL: Portfolio value must be positive for valid reconciliation
+                    if portfolio_value <= 0:
+                        raise ValueError(
+                            f"[CRITICAL] Portfolio value is ${portfolio_value:.2f}. "
+                            f"Cannot create snapshot with zero or negative portfolio. "
+                            f"Check: (1) initial_capital_paper_trading is positive, "
+                            f"(2) position values in database are correct"
+                        )
+
+                    # CRITICAL: P&L percentage calculation requires valid portfolio value
+                    unrealized_pnl_pct = (total_unrealized_pnl / float(initial_capital)) * 100
+
                     snapshot_params = (
                         reconcile_date,
                         portfolio_value,
-                        100000.00 - total_invested,
+                        cash_remaining,
                         portfolio_value,
                         open_position_count,
                         0.0,
@@ -129,7 +162,7 @@ class DailyReconciliation:
                         0.0,
                         0.0,
                         total_unrealized_pnl,
-                        (total_unrealized_pnl / 100000.0 * 100) if portfolio_value > 0 else 0.0,
+                        unrealized_pnl_pct,
                         0,
                         0,
                         0,

@@ -181,6 +181,7 @@ VALIDATION_SCHEMA = {
     # Execution Mode
     "execution_mode": ("string", None, None, False, None),
     "alpaca_paper_trading": ("bool", None, None, False, None),
+    "initial_capital_paper_trading": ("float", 1000.0, 10000000.0, False, 100000.0),
     "max_trades_per_day": ("int", 1, 100, False, 5),
     "default_portfolio_value": ("float", 1000.0, 10000000.0, False, 100000.0),
     # Feature Flags
