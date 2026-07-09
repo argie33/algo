@@ -748,7 +748,17 @@ def run(  # noqa: C901
                             """)
                             invested_row = cur.fetchone()
                             total_invested = Decimal(str(invested_row[0])) if invested_row else Decimal(0)
-                            total_value = Decimal("100000.00")  # Base paper trading capital
+
+                            # FIX: Use configurable initial capital instead of hardcoded value
+                            # Prevents silent trading on incorrect portfolio state in paper mode
+                            initial_capital = self.config.get("initial_capital_paper_trading")
+                            if not initial_capital:
+                                raise RuntimeError(
+                                    "[PHASE 9] CRITICAL: initial_capital_paper_trading not configured. "
+                                    "Cannot reconcile paper trading portfolio without configured starting capital. "
+                                    "Set in algo_config table or fail explicitly rather than using hardcoded fallback."
+                                )
+                            total_value = Decimal(str(initial_capital))
                             total_cash = total_value - total_invested
 
                             # Calculate daily return vs previous day
@@ -762,7 +772,7 @@ def run(  # noqa: C901
                                 (run_date,),
                             )
                             prev_row = cur.fetchone()
-                            prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
+                            prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal(str(initial_capital))
                             daily_return_pct = (
                                 ((total_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
                             )
@@ -1058,12 +1068,19 @@ def run(  # noqa: C901
                         "[PHASE 9] Paper mode: Broker authentication failed (401) - expected without real credentials. "
                         "Using database portfolio state instead of broker sync."
                     )
+                    # FIX: Use configurable initial capital instead of hardcoded value
+                    initial_capital = config.get("initial_capital_paper_trading")
+                    if not initial_capital:
+                        raise RuntimeError(
+                            "[PHASE 9] CRITICAL: initial_capital_paper_trading not configured. "
+                            "Cannot reconcile paper mode without configured starting capital."
+                        )
                     # Override to success with defaults for paper mode
                     reconciliation_succeeded = True
                     phase_status = "ok"
                     result = {
                         "success": True,
-                        "portfolio_value": 100000.0,
+                        "portfolio_value": float(initial_capital),
                         "positions": 0,
                         "unrealized_pnl": 0.0,
                         "note": "Paper mode - broker auth failed, using database state",

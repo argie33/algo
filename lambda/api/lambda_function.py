@@ -1185,15 +1185,15 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/market",  # Market breadth, distribution (aggregate only - no strategy)
         "/api/algo/markets",  # Market regime data (public market conditions)
         "/api/algo/scores",  # Stock scores (needed for dashboard signals panel - growth/composite scores)
-        "/api/algo/positions",  # Positions (dashboard - dev mode without auth)
-        "/api/algo/portfolio",  # Portfolio (dashboard - dev mode without auth)
-        "/api/algo/trades",  # Trades (dashboard - dev mode without auth)
         "/api/algo/swing-scores",  # Swing trader scores (used by TradingSignals page for all users)
-        "/api/algo/swing-scores-history",  # Swing scores historical data (dashboard panel)
         "/api/algo/sector-rotation",  # Sector rotation analysis (public market analysis)
         "/api/algo/sector-breadth",  # Sector breadth analysis (public market data)
         "/api/algo/sector-stage2",  # Stage 2 sector stocks (public market analysis)
-        "/api/algo/dashboard-signals",  # Dashboard signals (used by ops terminal in local dev)
+        # SECURITY FIX: Protected endpoints removed from public list (require JWT authentication)
+        # REMOVED: /api/algo/positions - sensitive trading data
+        # REMOVED: /api/algo/portfolio - sensitive account data
+        # REMOVED: /api/algo/trades - sensitive trade history
+        # REMOVED: /api/algo/dashboard-signals - sensitive strategy signals
         # NOTE: A previous "dev-only" block used to list /api/algo/portfolio, positions,
         # trades, performance, config, circuit-breakers, etc. here as public, with comments
         # claiming they were "needed for dashboard in dev mode". That was never true for this
