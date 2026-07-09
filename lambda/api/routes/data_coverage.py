@@ -39,9 +39,10 @@ logger = logging.getLogger(__name__)
 def get_price_coverage(cur: cursor) -> Any:
     """Get price_daily coverage metrics."""
     try:
+        interval_7d = get_interval_sql('7d')
         rows = execute_with_timeout(
             cur,
-            """
+            f"""
             SELECT
                 COUNT(DISTINCT symbol) as total_symbols,
                 (SELECT COUNT(DISTINCT symbol) FROM stock_symbols WHERE is_sp500 = TRUE) as sp500_total,
@@ -50,7 +51,7 @@ def get_price_coverage(cur: cursor) -> Any:
                 COUNT(CASE WHEN volume = 0 OR volume IS NULL THEN 1 END) as zero_volume_rows,
                 COUNT(CASE WHEN close <= 0 THEN 1 END) as invalid_price_rows
             FROM price_daily
-            WHERE date > NOW() - get_interval_sql('7d')
+            WHERE date > NOW() - {interval_7d}
         """,
             timeout_sec=10,
         )
@@ -112,7 +113,8 @@ def get_technical_coverage(cur: cursor) -> Any:
     """Get technical_data_daily coverage and completeness."""
     try:
         cur.execute("SET LOCAL statement_timeout = '20s'")
-        cur.execute("""
+        interval_7d = get_interval_sql('7d')
+        cur.execute(f"""
             SELECT
                 COUNT(DISTINCT symbol) as symbols,
                 MAX(date) as latest_date,
@@ -122,7 +124,7 @@ def get_technical_coverage(cur: cursor) -> Any:
                 COUNT(CASE WHEN atr IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as atr_coverage,
                 COUNT(CASE WHEN rsi IS NULL OR ema_12 IS NULL OR atr IS NULL THEN 1 END) as incomplete_rows
             FROM technical_data_daily
-            WHERE date > NOW() - get_interval_sql('7d')
+            WHERE date > NOW() - {interval_7d}
         """)
 
         row = cur.fetchone()
@@ -174,12 +176,13 @@ def get_market_data_coverage(cur: cursor) -> Any:
     """Get market_health_daily and other market data coverage."""
     try:
         # Market health
-        cur.execute("""
+        interval_7d = get_interval_sql('7d')
+        cur.execute(f"""
             SELECT
                 MAX(date) as latest_date,
                 COUNT(*) as rows
             FROM market_health_daily
-            WHERE date > NOW() - get_interval_sql('7d')
+            WHERE date > NOW() - {interval_7d}
         """)
 
         mh_row = cur.fetchone()
@@ -187,10 +190,11 @@ def get_market_data_coverage(cur: cursor) -> Any:
         mh_rows = mh_row["rows"] if mh_row else 0
 
         # Economic data (FRED) — uses series_id not symbol
-        cur.execute("""
+        interval_30d = get_interval_sql('30d')
+        cur.execute(f"""
             SELECT MAX(date) as latest_date, COUNT(DISTINCT series_id) as indicators
             FROM economic_data
-            WHERE date > NOW() - get_interval_sql('30d')
+            WHERE date > NOW() - {interval_30d}
         """)
 
         econ_row = cur.fetchone()
@@ -227,14 +231,15 @@ def get_loader_health(cur: cursor) -> Any:
     """Get recent loader execution health from patrol log or direct table freshness checks."""
     try:
         # Try to get patrol data first
-        cur.execute("""
+        interval_7d = get_interval_sql('7d')
+        cur.execute(f"""
             SELECT
                 table_name,
                 status,
                 last_updated,
                 row_count
             FROM data_loader_status
-            WHERE last_updated > NOW() - get_interval_sql('7d')
+            WHERE last_updated > NOW() - {interval_7d}
             ORDER BY table_name
         """)
 

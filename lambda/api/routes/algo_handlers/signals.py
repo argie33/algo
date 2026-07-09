@@ -489,7 +489,8 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
     """
     try:
         # Use psycopg2.sql for safe SQL composition
-        filters = [psycopg2.sql.SQL("s.created_at::date >= CURRENT_DATE - get_interval_sql('14d')")]
+        interval_14d = get_interval_sql('14d')
+        filters = [psycopg2.sql.SQL(f"s.created_at::date >= CURRENT_DATE - {interval_14d}")]
         query_params: list[Any] = []
         if min_score is not None:
             filters.append(psycopg2.sql.SQL("s.composite_score >= %s"))

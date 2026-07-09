@@ -12,6 +12,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
@@ -42,7 +43,8 @@ def _get_data_quality(cur: cursor) -> Any:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
         # Get patrol log entries from last 24 hours
-        cur.execute("""
+        interval_24h = get_interval_sql('24h')
+        cur.execute(f"""
                 SELECT
                     target_table AS table_name,
                     severity,
@@ -51,7 +53,7 @@ def _get_data_quality(cur: cursor) -> Any:
                     created_at,
                     ROW_NUMBER() OVER (PARTITION BY target_table ORDER BY created_at DESC) as rn
                 FROM data_patrol_log
-                WHERE created_at >= CURRENT_TIMESTAMP - get_interval_sql('24h')
+                WHERE created_at >= CURRENT_TIMESTAMP - {interval_24h}
             """)
         patrol_rows = cur.fetchall()
 

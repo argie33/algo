@@ -787,12 +787,12 @@ class EntryHandler:
             cur.execute(
                 """
                 INSERT INTO algo_positions (
-                    position_id, symbol, quantity, avg_entry_price,
-                    current_price, position_value, status,
+                    position_id, symbol, quantity, avg_entry_price, entry_price,
+                    current_price, position_value, status, entry_date,
                     trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
                     created_at
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s,
                     %s, %s, %s, 0, CURRENT_TIMESTAMP
                 )
                 """,
@@ -802,8 +802,10 @@ class EntryHandler:
                     actual_shares,
                     executed_price,
                     executed_price,
+                    executed_price,
                     position_value,
                     position_status,
+                    entry_date,
                     [trade_id],
                     stop_loss_price,
                     stop_loss_price,

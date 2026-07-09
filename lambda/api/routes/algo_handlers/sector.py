@@ -10,6 +10,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     db_route_handler,
@@ -57,19 +58,20 @@ def _get_sector_breadth(cur: cursor) -> Any:
         # SAVEPOINT isolation: a timeout here must not abort the outer transaction
         # and break subsequent API requests in the same Lambda.
         cur.execute("SAVEPOINT sector_breadth_check")
-        cur.execute("""
+        interval_7d = get_interval_sql('7d')
+        cur.execute(f"""
                 WITH latest_tech AS (
                     SELECT DISTINCT ON (td.symbol)
                         td.symbol, td.sma_50, td.sma_200
                     FROM technical_data_daily td
-                    WHERE td.date >= CURRENT_DATE - get_interval_sql('7d')
+                    WHERE td.date >= CURRENT_DATE - {interval_7d}
                     ORDER BY td.symbol, td.date DESC
                 ),
                 latest_price AS (
                     SELECT DISTINCT ON (pd.symbol)
                         pd.symbol, pd.close
                     FROM price_daily pd
-                    WHERE pd.date >= CURRENT_DATE - get_interval_sql('7d')
+                    WHERE pd.date >= CURRENT_DATE - {interval_7d}
                       AND pd.symbol NOT LIKE '^%'
                     ORDER BY pd.symbol, pd.date DESC
                 ),
