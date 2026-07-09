@@ -711,6 +711,12 @@ class AlgoConfig:
         # Execution Mode
         "execution_mode": ("auto", "string", "paper|dry|review|auto", "Execution Mode"),
         "alpaca_paper_trading": ("true", "bool", "Use Alpaca paper account", "Execution Mode"),
+        "initial_capital_paper_trading": (
+            "100000.0",
+            "float",
+            "Initial capital for paper trading mode (portfolio value base)",
+            "Execution Mode",
+        ),
         "max_trades_per_day": ("5", "int", "Max new trades per day", "Execution Mode"),
         "default_portfolio_value": (
             "100000.0",

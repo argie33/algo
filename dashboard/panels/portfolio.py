@@ -124,7 +124,7 @@ def _calculate_adjusted_win_rate(
         logger.debug("[PORTFOLIO] No trades yet - win rate is undefined")
         return None, closed_wins, closed_losses + losing_open
 
-    adjusted_wr = (closed_wins / total_trades) * 100 if total_trades > 0 else 0.0
+    adjusted_wr = (closed_wins / total_trades) * 100
     return adjusted_wr, closed_wins, closed_losses + losing_open
 
 
