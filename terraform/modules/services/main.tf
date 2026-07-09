@@ -764,6 +764,9 @@ resource "aws_lambda_function" "algo" {
       ECS_CLUSTER_ARN     = var.ecs_cluster_arn
       ECS_SUBNETS         = join(",", var.private_subnet_ids)
       ECS_SECURITY_GROUPS = var.ecs_tasks_sg_id
+      # Testing phase: Accept stale portfolio data (until EventBridge schedulers deployed)
+      # Dashboard will display data even if Phase 9 hasn't run recently
+      ALLOW_STALE_PORTFOLIO_DATA = "true"
     }
   }
 
