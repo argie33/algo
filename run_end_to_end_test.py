@@ -50,11 +50,13 @@ def run_orchestrator_test():
         # Check database
         with DatabaseContext("read", timeout=10) as cur:
             cur.execute("SELECT COUNT(*) as cnt FROM algo_portfolio_snapshots WHERE snapshot_date = %s", (date.today(),))
-            snapshots = cur.fetchone()['cnt'] if cur.fetchone() else 0
+            result = cur.fetchone()
+            snapshots = result['cnt'] if result else 0
             logger.info(f"\nPortfolio snapshots today: {snapshots}")
 
             cur.execute("SELECT COUNT(*) as cnt FROM algo_positions WHERE status = 'open'")
-            positions = cur.fetchone()['cnt'] if cur.fetchone() else 0
+            result = cur.fetchone()
+            positions = result['cnt'] if result else 0
             logger.info(f"Open positions: {positions}")
 
         return result.get('success', False)
