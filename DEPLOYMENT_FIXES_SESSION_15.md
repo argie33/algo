@@ -24,23 +24,42 @@
 - Made ORCHESTRATOR_DRY_RUN optional with default "false"
 - Result: Paper mode works seamlessly without extra environment setup
 
-### 3. ✅ TRIGGERED: All Data Pipelines (Workaround for Scheduler Issue)
+### 3. ✅ TRIGGERED: Data Pipelines (Workaround for Scheduler Issue)
 
 **Issue:** EventBridge Scheduler rules exist but have timezone offset (6 hours behind). Pipelines ran at wrong times, leaving data stale.
 
-**Workaround Applied:**
-- Created `scripts/trigger_data_pipelines.py` to manually trigger Step Functions
-- Manually triggered all 5 pipelines at 16:26 UTC (11:26 AM ET)
-- Data will be fresh within 30-45 minutes
+**⚠️ CRITICAL LESSON LEARNED:**
+Do NOT trigger all 5 pipelines simultaneously (as initially done). This causes:
+- Parallel yfinance API requests → rate limit failures
+- RDS connection pool exhaustion
+- ECS resource contention
+- EventBridge schedule staggering exists for good reason
 
-**Usage:**
+**Proper Workaround:**
+- Created `scripts/trigger_data_pipelines_sequential.py` for correct sequential execution
+- Triggers pipelines in priority order with 5+ minute delays between starts
+- Default order: EOD (critical) → Computed Metrics → Financial → Reference
+
+**Usage (CORRECT):**
 ```bash
-# Trigger all pipelines
-python3 scripts/trigger_data_pipelines.py --pipeline all
+# Proper sequential execution with delays
+python3 scripts/trigger_data_pipelines_sequential.py --order eod computed_metrics financial reference --wait 5
 
-# Trigger specific pipeline
-python3 scripts/trigger_data_pipelines.py --pipeline eod
+# Or use custom order
+python3 scripts/trigger_data_pipelines_sequential.py --order eod reference --wait 3
 ```
+
+**Usage (DO NOT DO):**
+```bash
+# WRONG - Do not mass trigger
+python3 scripts/trigger_data_pipelines.py --pipeline all  # This causes issues!
+```
+
+**Current Status (Session 15):**
+- All 5 pipelines triggered simultaneously (mistake made)
+- Currently monitoring for failures/rate limits
+- EOD pipeline showing no errors so far
+- Will force sequential re-run if any failures occur
 
 ## Remaining Deployment Issues
 
