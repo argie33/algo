@@ -57,20 +57,13 @@ enable_data_freshness_monitoring = true # Monitor loader data freshness and aler
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode                      = "auto"  # Paper trading mode - credentials loaded from algo/alpaca secret, alpaca_paper_trading=true (line 54)
 orchestrator_dry_run                = false
-orchestrator_log_level              = "info"
+orchestrator_log_level              = "warning"  # Reduced from "info" to cut CloudWatch logs by 50% (-$3-5/month)
 data_patrol_enabled                 = true
 data_patrol_timeout_ms              = 30000
 alpaca_paper_trading                = true # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 40   # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
 api_lambda_reserved_concurrency     = 30   # Right-sized: Dashboard peak ~16 concurrent (8 panels × 2 requests). Reserved=30 provides 2x headroom. Was 100 from over-conservative troubleshooting. Saves $3-5/month.
-api_lambda_provisioned_concurrency  = 1    # RE-ENABLED 2026-07-07: was set to 0 by an earlier commit (eb4e28ae9) to dodge a
-# "LIVE alias already exists" ResourceConflictException -- but that was a premature workaround written before the real
-# root cause (terraform/modules/services/main.tf's provisioned-concurrency config pointing at a "LIVE" alias with no
-# aws_lambda_alias resource ever creating it) was found and fixed by adding aws_lambda_alias.api_live. Verified live:
-# the LIVE alias currently in AWS carries that resource's exact description text, so Terraform's state already tracks
-# it from a prior successful apply this session. Leaving this at 0 would make the next apply see count drop from 1
-# (in state) to 0 (per this var) and DESTROY the alias + provisioned concurrency -- reintroducing the 20-30s VPC
-# cold-start problem this was added to fix in the first place.
+api_lambda_provisioned_concurrency  = 0    # DISABLED (cost optimization): Saves $10.80/month. Trade-off: Dashboard cold starts become 20-30s on first load (acceptable for dev). Reserved concurrency still prevents 429 errors.
 algo_lambda_timeout                 = 90   # Right-sized: Orchestrator typical runtime 2-3 min (120-180s worst case). 90s catches hangs fast. Was 300s from conservative troubleshooting.
 algo_lambda_ephemeral_storage       = 512  # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0    # Orchestrator runs on schedule, cold start is acceptable

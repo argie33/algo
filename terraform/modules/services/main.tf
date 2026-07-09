@@ -207,15 +207,11 @@ data "aws_lambda_alias" "api_live" {
   depends_on        = [aws_lambda_function.api]
 }
 
-resource "aws_lambda_provisioned_concurrency_config" "api" {
-  # Only create if: provisioned concurrency is enabled
-  count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
-  function_name                     = aws_lambda_function.api.function_name
-  qualifier                         = "LIVE"  # Reference the alias by name directly
-  provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
-
-  depends_on = [aws_lambda_function.api]
-}
+# REMOVED: API Lambda provisioned concurrency (cost optimization)
+# Was: $10.80/month for 1 pre-warmed instance
+# Trade-off: Cold starts become 20-30s on first load (acceptable for dev)
+# Reserved concurrency (30 units) still prevents 429 errors; provisioned concurrency just eliminates cold start delay
+# Can re-enable if dashboard UX becomes unacceptable
 
 # ============================================================
 # API Gateway HTTP API
