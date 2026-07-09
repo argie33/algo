@@ -61,6 +61,15 @@ class OrchestratorConfig:
     # Enable data freshness validation (Phase 1 sanity check)
     ENABLE_DATA_FRESHNESS_CHECK = os.getenv("ORCH_ENABLE_DATA_FRESHNESS_CHECK", "true").lower() == "true"
 
+    # Enable environment validation (check required env vars at startup)
+    ENABLE_ENV_VALIDATION = os.getenv("ORCH_ENABLE_ENV_VALIDATION", "true").lower() == "true"
+
+    # Lambda timeout (seconds) - orchestrator must complete before this
+    LAMBDA_TIMEOUT_SECONDS = int(os.getenv("LAMBDA_TIMEOUT", "900"))
+
+    # Lambda memory (MB) - affects CPU allocation
+    LAMBDA_MEMORY_MB = int(os.getenv("LAMBDA_MEMORY", "3008"))
+
     @classmethod
     def validate(cls) -> tuple[bool, list[str]]:
         """Validate configuration values are in acceptable ranges.
