@@ -220,7 +220,14 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
 # - Weekly: walk-forward backtest validation (Fridays)
 # ============================================================
 
+# Weight optimization scheduler is DISABLED until the weight_optimization_task_definition_arn
+# is properly passed from the root module. This prevents scheduler errors when the task definition doesn't exist.
+# To enable: (1) Add weight_optimization_task_definition_arn output to loaders module
+# (2) Pass it from main.tf to services module as weight_optimization_task_definition_arn
+# (3) Change count = var.weight_optimization_task_definition_arn != null ? 1 : 0
 resource "aws_scheduler_schedule" "weight_optimization" {
+  count = 0 # DISABLED: variable not passed from root module - see comment above
+
   name                         = "${var.project_name}-weight-optimization-${var.environment}"
   description                  = "Daily weight optimization: 6:00 PM ET (after orchestrator, continuous improvement loop)"
   schedule_expression          = "cron(0 18 ? * MON-FRI *)" # 6:00 PM ET (America/New_York auto-handles EST/EDT)
