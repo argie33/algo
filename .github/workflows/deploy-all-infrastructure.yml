@@ -714,45 +714,49 @@ jobs:
           echo ""
           echo "Importing existing Secrets Manager secrets..."
 
-          # Try to import algo/alpaca secret
-          if aws secretsmanager describe-secret --secret-id "algo/alpaca" --region us-east-1 >/dev/null 2>&1; then
-            echo "Importing algo/alpaca secret..."
-            ALPACA_ARN=$(aws secretsmanager describe-secret --secret-id "algo/alpaca" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
-            if [ -n "$ALPACA_ARN" ]; then
-              terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.alpaca_api_keys" "$ALPACA_ARN" 2>&1 | grep -E "Import|Error|Successfully" || true
+          # Import secret if it exists in AWS but not in Terraform state
+          import_secret_if_missing() {
+            local tf_resource=$1
+            local aws_secret_id=$2
+            if terraform state list | grep -qF "$tf_resource"; then
+              echo " SKIP: $tf_resource already in state"
+            elif aws secretsmanager describe-secret --secret-id "$aws_secret_id" --region us-east-1 >/dev/null 2>&1; then
+              echo "-> IMPORT: $tf_resource (from AWS secret: $aws_secret_id)"
+              SECRET_ARN=$(aws secretsmanager describe-secret --secret-id "$aws_secret_id" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
+              if [ -n "$SECRET_ARN" ]; then
+                terraform import -var-file=terraform.tfvars "$tf_resource" "$SECRET_ARN" 2>&1 | grep -E "Import|Error|Successfully" || echo "Import attempt completed (check state)"
+              else
+                echo "   [WARN] Could not get ARN for $aws_secret_id"
+              fi
+            else
+              echo " SKIP: Secret $aws_secret_id does not exist in AWS yet"
             fi
-          fi
+          }
 
-          # Try to import algo/fred secret
-          if aws secretsmanager describe-secret --secret-id "algo/fred" --region us-east-1 >/dev/null 2>&1; then
-            echo "Importing algo/fred secret..."
-            FRED_ARN=$(aws secretsmanager describe-secret --secret-id "algo/fred" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
-            if [ -n "$FRED_ARN" ]; then
-              terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.fred_api_key" "$FRED_ARN" 2>&1 | grep -E "Import|Error|Successfully" || true
-            fi
-          fi
-
-          # Try to import RDS credentials secret (uses Terraform naming: ${project}-db-credentials-${environment})
-          SECRET_ID="${PROJECT_NAME}-db-credentials-${ENVIRONMENT}"
-          if aws secretsmanager describe-secret --secret-id "$SECRET_ID" --region us-east-1 >/dev/null 2>&1; then
-            echo "Importing RDS credentials secret: $SECRET_ID..."
-            DB_ARN=$(aws secretsmanager describe-secret --secret-id "$SECRET_ID" --region us-east-1 --query 'ARN' --output text 2>/dev/null || echo "")
-            if [ -n "$DB_ARN" ]; then
-              terraform import -var-file=terraform.tfvars "module.database.aws_secretsmanager_secret.rds_credentials" "$DB_ARN" 2>&1 | grep -E "Import|Error|Successfully" || true
-            fi
-          fi
+          # Try to import secrets
+          import_secret_if_missing "module.database.aws_secretsmanager_secret.alpaca_api_keys" "algo/alpaca"
+          import_secret_if_missing "module.database.aws_secretsmanager_secret.fred_api_key" "algo/fred"
+          import_secret_if_missing "module.database.aws_secretsmanager_secret.rds_credentials" "${PROJECT_NAME}-db-credentials-${ENVIRONMENT}"
 
           # Note: Cognito admin group is managed by a post-Terraform workflow step
           # (not by Terraform resources) to avoid IAM propagation race conditions.
           # See "Setup Cognito Admin Group" step below.
 
-      - name: Remove Orphaned Pipeline Lambda From State
+      - name: Remove Orphaned Resources From State
+        working-directory: terraform
         run: |
-          # loader_failure_handler was defined in both module.pipeline and module.services.
-          # module.pipeline now delegates to var.loader_failure_handler_arn (module.services owns it).
-          # Remove pipeline's orphaned state entries BEFORE plan so apply doesn't try to destroy the Lambda.
-          terraform state rm "module.pipeline.aws_lambda_function.loader_failure_handler" 2>/dev/null || true
-          terraform state rm "module.pipeline.aws_iam_role.loader_failure_handler" 2>/dev/null || true
+          # Remove orphaned state entries that conflict with current configuration
+          # loader_failure_handler was defined in both module.pipeline and module.services
+          # module.pipeline now delegates to var.loader_failure_handler_arn (module.services owns it)
+          echo "Cleaning up orphaned state entries..."
+          terraform state rm "module.pipeline.aws_lambda_function.loader_failure_handler" 2>/dev/null || echo "  (not in state)"
+          terraform state rm "module.pipeline.aws_iam_role.loader_failure_handler" 2>/dev/null || echo "  (not in state)"
+
+          # Remove frontend CloudFront if it conflicts with current S3-based frontend
+          terraform state rm "module.services.aws_s3_bucket_policy.frontend_cloudfront[0]" 2>/dev/null || echo "  (not in state)"
+          terraform state rm "module.services.aws_cloudfront_distribution.frontend[0]" 2>/dev/null || echo "  (not in state)"
+
+          echo "State cleanup completed"
           terraform state rm "module.pipeline.aws_iam_role_policy_attachment.loader_failure_handler_logs" 2>/dev/null || true
           terraform state rm "module.pipeline.aws_iam_role_policy.loader_failure_handler_cloudwatch" 2>/dev/null || true
           echo "[OK] Orphaned pipeline loader_failure_handler state entries removed"
