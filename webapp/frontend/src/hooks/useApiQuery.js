@@ -200,6 +200,35 @@ export const useApiQuery = (
           result = freshData;
         }
 
+        // FIXED: Validate array item schemas for array endpoints
+        // Endpoints like /api/algo/positions return arrays that need validation
+        if (Array.isArray(result) && endpointSchema?.type === "array") {
+          const itemRequiredFields = getItemRequiredFields(actualCacheKey);
+          if (itemRequiredFields && itemRequiredFields.length > 0) {
+            const itemValidation = validateArrayItems(
+              result,
+              itemRequiredFields,
+              `${actualCacheKey} items`,
+              { requireNonEmpty: endpointSchema?.requireNonEmptyList || false }
+            );
+
+            if (!itemValidation.valid) {
+              // Filter out malformed items, keep valid ones
+              if (itemValidation.invalidItems.length > 0 && result.length > 0) {
+                console.warn(`[useApiQuery] ${itemValidation.errors[0]}`, {
+                  endpoint: actualCacheKey,
+                  invalidItemCount: itemValidation.invalidItems.length,
+                  totalItems: result.length,
+                });
+                // Remove invalid items
+                result = result.filter((_, idx) =>
+                  !itemValidation.invalidItems.some((iv) => iv.index === idx)
+                );
+              }
+            }
+          }
+        }
+
         // Format decimal fields for financial precision
         const formattedResult = formatDecimalFields(result, actualCacheKey);
 
