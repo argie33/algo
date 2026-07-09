@@ -34,6 +34,7 @@ from algo.orchestrator.phase9_reconciliation import run as run_phase9
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
 from algo.reporting import AlertManager
+from algo.config.environment_validation import EnvironmentValidator
 from monitoring.metrics_context import (
     TimeBlock,
     log_metrics_summary,
@@ -68,6 +69,10 @@ class Orchestrator:
         verbose: bool = True,
         run_id: str | None = None,
     ) -> None:
+        # PHASE 3 FIX: Validate environment variables FIRST, before any other initialization
+        # This prevents silent failures from missing credentials or configuration
+        EnvironmentValidator.require_valid_or_halt("orchestrator")
+
         if config is None:
             raise ValueError(
                 "Orchestrator requires explicit config parameter (dependency injection). "

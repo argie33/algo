@@ -95,6 +95,11 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         }
     """
 
+    # PHASE 3 FIX: Validate environment variables FIRST
+    # This catches missing config before trying to initialize anything
+    from algo.config.environment_validation import EnvironmentValidator
+    EnvironmentValidator.require_valid_or_halt("lambda_handler")
+
     # Load Alpaca credentials from AWS Secrets Manager into environment
     # CRITICAL: Must happen BEFORE orchestrator initialization
     _load_alpaca_credentials_from_secrets()
