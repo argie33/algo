@@ -1,5 +1,7 @@
 # Project Quick Reference
 
+**Status:** ✅ Production Ready for Integration Testing (Session 9 Complete - 26 Fixes)
+
 **Start here:** Read `steering/GOVERNANCE.md` then `steering/OPERATIONS.md` (covers 80% of needs).
 
 ## Core Steering Documents
@@ -41,10 +43,28 @@ SELECT MAX(created_at) as latest_snapshot FROM algo_portfolio_snapshots;
 
 See `steering/OPERATIONS.md` for IAM and scheduler details.
 
+## System Verification (Session 9)
+
+**Before integration testing:**
+```bash
+# Validate system prerequisites
+python3 scripts/validate_orchestrator_readiness.py
+
+# Test full end-to-end execution (dry run)
+python3 scripts/test_orchestrator_execution.py
+
+# Start dashboard and verify data loads
+cd webapp && npm run dev
+```
+
+See `QUICKSTART.md` for complete setup and execution instructions.
+
 ## Instant Fixes
 
 | Problem | Fix |
 |---------|-----|
+| Validate system prerequisites | `python3 scripts/validate_orchestrator_readiness.py` |
+| Test orchestrator end-to-end | `python3 scripts/test_orchestrator_execution.py` |
 | Orchestrator not executing (dashboard shows no data) | `python3 scripts/trigger_orchestrator.py --run morning --mode paper` |
 | AWS credential error | `scripts/refresh-aws-credentials.ps1` |
 | Code fails pre-commit | `make format && make type-check` |
