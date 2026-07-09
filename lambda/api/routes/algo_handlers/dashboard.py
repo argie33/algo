@@ -57,10 +57,18 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # OPTIMIZATION: Cache positions response for 60 seconds (positions don't update that frequently)
     # This reduces database load during dashboard refreshes
     current_time = time.time()
-    if (
+    cache_is_valid = (
         _positions_cache["data"] is not None
+        and _positions_cache["timestamp"] > 0  # Ensure timestamp was actually set
         and (current_time - _positions_cache["timestamp"]) < _positions_cache["cache_ttl_seconds"]
-    ):
+    )
+
+    # FIX: Secondary validation - ensure timestamp is not in future (clock skew guard)
+    if cache_is_valid and _positions_cache["timestamp"] > current_time:
+        logger.warning("[POSITIONS] Cache timestamp in future, skipping cache (possible clock skew)")
+        cache_is_valid = False
+
+    if cache_is_valid:
         logger.info(
             f"[POSITIONS] Returning cached response (age: {int(current_time - _positions_cache['timestamp'])}s)"
         )
@@ -562,14 +570,14 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
     response_data = {
         "items": items,
         "pagination": {"total": len(items), "limit": limit, "offset": 0},
-        "data_freshness": freshness,
     }
     sanitized = APIResponseValidator.sanitize_response(response_data)
 
     # Validate trades response matches contract schema
     ensure_valid_response("trades", sanitized)
 
-    return json_response(200, sanitized)
+    # FIX: Pass freshness separately to json_response so it's included in response
+    return json_response(200, sanitized, data_freshness=freshness)
 
 
 @db_route_handler("fetch circuit breakers")
@@ -1142,16 +1150,24 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 
         # Enrich all breakers with data staleness information
         # CRITICAL: Include computed_at age and staleness flag for frontend to detect stale VIX/market_stage
+        # FIX: Add data_unavailable flag when data_age_seconds is null (computation failed)
         for breaker in breakers:
             # Add staleness metadata to each breaker
             breaker["data_age_seconds"] = data_age_seconds
             breaker["data_stale"] = data_stale
-            if data_stale:
+
+            # Add explicit data_unavailable flag when age couldn't be computed
+            if data_age_seconds is None:
+                breaker["data_unavailable"] = True
+                breaker["staleness_warning"] = "Circuit breaker computation date unavailable - cannot assess data age"
+            elif data_stale:
+                breaker["data_unavailable"] = False
                 breaker["staleness_warning"] = (
                     f"Data is {data_age_seconds}s old (>{3600}s threshold). "
                     "Consider this breaker unreliable for trading decisions."
                 )
             else:
+                breaker["data_unavailable"] = False
                 breaker["staleness_warning"] = None
 
             # Format decimal values for consistent API response

@@ -45,6 +45,9 @@ def get_dev_claims(token: str | None) -> dict[str, Any] | None:
 
     Returns None if not in dev mode (this will be the case in production Lambda).
 
+    SECURITY FIX: Dev tokens now include exp claim (24-hour expiration)
+    to prevent indefinite token validity if leaked.
+
     Args:
         token: Optional bearer token (can be 'dev-user', 'dev-admin', etc.)
 
@@ -65,15 +68,22 @@ def get_dev_claims(token: str | None) -> dict[str, Any] | None:
     valid_roles = {"admin", "user", "trader"}
     groups = [role] if role in valid_roles else ["user"]
 
+    # SECURITY FIX: Add exp claim (24 hours from now, in seconds since epoch)
+    import time
+    now = int(time.time())
+    expiration = now + (24 * 60 * 60)  # 24-hour expiration
+
     claims = {
         "sub": f"dev-{role}",
         "cognito:groups": groups,
         "email": f"dev-{role}@localhost",
         "aud": "dev-client",
         "token_use": "id",
+        "exp": expiration,  # Expiration in 24 hours
+        "iat": now,  # Issued at timestamp
     }
 
-    logger.info(f"[DEV_AUTH] Generated dev claims for token: {token[:10]}..., groups: {groups}")
+    logger.info(f"[DEV_AUTH] Generated dev claims for token: {token[:10]}..., groups: {groups}, expires at {expiration}")
     return claims
 
 
@@ -82,6 +92,8 @@ def validate_dev_token(
 ) -> tuple[bool, dict[str, Any] | None, str | None]:
     """
     Validate a development token (only works in local dev mode).
+
+    SECURITY FIX: Now validates expiration claim to prevent indefinite token validity.
 
     Returns:
         (is_valid: bool, claims: dict or None, error: str or None)
@@ -102,5 +114,12 @@ def validate_dev_token(
     claims = get_dev_claims(token)
     if not claims:
         return (False, None, "Failed to generate dev claims")
+
+    # SECURITY FIX: Validate expiration claim
+    if "exp" in claims:
+        import time
+        now = int(time.time())
+        if now > claims["exp"]:
+            return (False, None, f"Dev token expired (exp={claims['exp']}, now={now})")
 
     return (True, claims, None)

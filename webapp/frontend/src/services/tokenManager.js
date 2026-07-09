@@ -146,12 +146,52 @@ export const tokenManager = {
   },
 
   /**
-   * Check if we have a valid access token
+   * Check if we have a valid, non-expired access token
+   * FIXED: Now decodes JWT and checks exp claim against current time
    * @returns {boolean}
    */
   hasValidToken() {
     const token = this.getToken("access");
-    return !!token && token.length > 0;
+    if (!token || token.length === 0) {
+      return false;
+    }
+
+    // Decode JWT and check expiration
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) {
+        console.warn("[TokenManager] Token format invalid (not a JWT)");
+        return false;
+      }
+
+      // Decode the payload (second part) - add padding if needed
+      let payload = parts[1];
+      const padding = 4 - (payload.length % 4);
+      if (padding < 4) {
+        payload += "=".repeat(padding);
+      }
+
+      const decoded = JSON.parse(atob(payload));
+
+      // Check expiration claim (exp is in seconds since epoch)
+      if (decoded.exp) {
+        const nowInSeconds = Math.floor(Date.now() / 1000);
+        if (nowInSeconds > decoded.exp) {
+          console.warn(
+            `[TokenManager] Token expired at ${new Date(decoded.exp * 1000).toISOString()}`
+          );
+          return false;
+        }
+      }
+
+      return true;
+    } catch (err) {
+      console.error("[TokenManager] Failed to validate token expiration:", {
+        message: err?.message,
+        tokenLength: token?.length,
+      });
+      return false;
+    }
   },
 
   /**
