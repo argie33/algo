@@ -124,7 +124,11 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
           }),
           total: 0,
         };
-      byMonth[key].total += pt.daily_return_pct || 0;
+      if (pt.daily_return_pct != null) {
+        byMonth[key].total += pt.daily_return_pct;
+      } else {
+        console.warn(`[PerformanceTab] Missing daily_return_pct for date ${pt.snapshot_date}`);
+      }
     });
     return Object.values(byMonth).slice(-12);
   }, [equityCurve]);
@@ -364,8 +368,8 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
             />
             <PerfCard
               label="Profit Factor"
-              value={p.profit_factor || "∞"}
-              color={numColor((p.profit_factor || 0) - 1)}
+              value={p.profit_factor != null ? p.profit_factor : "—"}
+              color={p.profit_factor != null ? numColor(p.profit_factor - 1) : "var(--muted)"}
               hint="gross win / gross loss"
             />
             <PerfCard
@@ -387,8 +391,8 @@ export default function PerformanceTab({ performance, equityCurve = [] }) {
             />
             <PerfCard
               label="Total P&L"
-              value={`$${(p.total_pnl_dollars || 0).toLocaleString()}`}
-              color={numColor(p.total_pnl_dollars)}
+              value={p.total_pnl_dollars != null ? `$${p.total_pnl_dollars.toLocaleString()}` : "—"}
+              color={p.total_pnl_dollars != null ? numColor(p.total_pnl_dollars) : "var(--muted)"}
             />
           </div>
 

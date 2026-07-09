@@ -355,8 +355,12 @@ function PortfolioDashboardPage() {
 
     positionsList.forEach(pos => {
       if (!pos || typeof pos !== 'object') return;
+      if (pos.position_value == null || pos.position_value <= 0) {
+        console.warn(`[SectorAllocation] Position with missing/invalid value:`, pos);
+        return;
+      }
       const sector = pos.sector || 'Other';
-      const value = pos.position_value || 0;
+      const value = pos.position_value;
 
       sectorMap[sector] = (sectorMap[sector] || 0) + value;
       totalValue += value;
@@ -869,8 +873,12 @@ function PortfolioDashboardPage() {
             sub={
               perf?.win_rate_pct_adjusted !== undefined &&
               perf.win_rate_pct_adjusted !== perf.win_rate_pct
-                ? `${perf?.win_rate_pct || 0}% (closed) · ${perf?.win_rate_pct_adjusted || 0}% true`
-                : `${perf?.win_rate_pct || 0}% win rate`
+                ? perf?.win_rate_pct != null && perf?.win_rate_pct_adjusted != null
+                  ? `${perf.win_rate_pct}% (closed) · ${perf.win_rate_pct_adjusted}% true`
+                  : "Data unavailable"
+                : perf?.win_rate_pct != null
+                  ? `${perf.win_rate_pct}% win rate`
+                  : "—"
             }
             icon={Zap}
             tone={
@@ -1085,7 +1093,7 @@ function PortfolioDashboardPage() {
                   label="Best Streak"
                   value={
                     <span className="mono tnum up">
-                      <SafeMetricValue value={perf?.best_win_streak} formatter="number" fallback="0" />W
+                      <SafeMetricValue value={perf?.best_win_streak} formatter="number" fallback="—" />W
                     </span>
                   }
                 />
@@ -1093,7 +1101,7 @@ function PortfolioDashboardPage() {
                   label="Worst Streak"
                   value={
                     <span className="mono tnum down">
-                      <SafeMetricValue value={perf?.worst_loss_streak} formatter="number" fallback="0" />L
+                      <SafeMetricValue value={perf?.worst_loss_streak} formatter="number" fallback="—" />L
                     </span>
                   }
                 />
@@ -1162,7 +1170,7 @@ function PortfolioDashboardPage() {
                             className="mono tnum"
                             style={{ color: "var(--amber)" }}
                           >
-                            <SafeMetricValue value={perf?.win_rate_pct_adjusted} formatter="number" fallback="0" />%
+                            <SafeMetricValue value={perf?.win_rate_pct_adjusted} formatter="number" fallback="—" />%
                           </span>
                         }
                       />
@@ -1170,7 +1178,7 @@ function PortfolioDashboardPage() {
                         label="Open Losses"
                         value={
                           <span className="mono tnum down">
-                            <SafeMetricValue value={perf?.open_losses_count} formatter="number" fallback="0" />
+                            <SafeMetricValue value={perf?.open_losses_count} formatter="number" fallback="—" />
                           </span>
                         }
                       />
@@ -1529,8 +1537,23 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
           style={{ gap: "var(--space-3)" }}
         >
           {breakers.map((b) => {
-            const current = toSafeNumber(b.current, 0);
-            const threshold = toSafeNumber(b.threshold, 1);
+            if (b.current == null || b.threshold == null) {
+              console.error(`[CircuitBreaker] Incomplete circuit breaker data: ${b.name}`, b);
+              return (
+                <div key={b.name} style={{ padding: "var(--space-2)", color: "var(--error)" }}>
+                  {b.name}: Data unavailable
+                </div>
+              );
+            }
+            const current = toSafeNumber(b.current, null);
+            const threshold = toSafeNumber(b.threshold, null);
+            if (current == null || threshold == null) {
+              return (
+                <div key={b.name} style={{ padding: "var(--space-2)", color: "var(--error)" }}>
+                  {b.name}: Invalid data type
+                </div>
+              );
+            }
             const utilPct = Math.min(
               100,
               Math.round(safePercentage(current, threshold, 0))
@@ -1616,12 +1639,22 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
 function EquityCurve({ series, loading }) {
   const data = useMemo(() => {
     if (!series || series.length === 0) return [];
-    return series
-      .map((s) => ({
-        date: String(safeGet(s, "snapshot_date", "")).slice(5, 10),
-        value: toSafeNumber(safeGet(s, "total_portfolio_value"), 0),
-      }))
-      .filter((d) => d.value > 0);
+    const withValue = series.filter((s) => {
+      const val = safeGet(s, "total_portfolio_value");
+      if (val == null) {
+        console.warn(`[EquityCurve] Missing total_portfolio_value for ${safeGet(s, "snapshot_date")}`);
+        return false;
+      }
+      return true;
+    });
+    if (withValue.length === 0) {
+      console.error("[EquityCurve] All snapshots missing portfolio value data");
+      return [];
+    }
+    return withValue.map((s) => ({
+      date: String(safeGet(s, "snapshot_date", "")).slice(5, 10),
+      value: Number(safeGet(s, "total_portfolio_value")),
+    }));
   }, [series]);
 
   return (
@@ -2539,7 +2572,7 @@ function PositionHealthTable({ positions, loading, onSelect }) {
       <div className="card-head">
         <div>
           <div className="card-title">
-            Position Health (<SafeMetricValue value={posArray.length} formatter="number" fallback="0" />)
+            Position Health (<SafeMetricValue value={posArray.length} formatter="number" fallback="—" />)
           </div>
           <div className="card-sub">
             Days held · R · stop/target distance · trend posture · sector
