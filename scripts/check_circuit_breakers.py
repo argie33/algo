@@ -70,7 +70,7 @@ try:
         cur.execute("""
             SELECT
                 (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1) as current_value,
-                (SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date <= CURRENT_DATE - INTERVAL '7 days' ORDER BY snapshot_date DESC LIMIT 1) as week_ago_value
+                (SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date <= CURRENT_DATE - get_interval_sql('7d') ORDER BY snapshot_date DESC LIMIT 1) as week_ago_value
         """)
         row = cur.fetchone()
         if row:
@@ -135,7 +135,7 @@ try:
                 MAX(created_at) as latest
             FROM algo_audit_log
             WHERE action_type = 'circuit_breaker_halt'
-              AND created_at >= CURRENT_TIMESTAMP - INTERVAL '7 days'
+              AND created_at >= CURRENT_TIMESTAMP - get_interval_sql('7d')
             GROUP BY details
             ORDER BY count DESC
         """)
@@ -200,7 +200,7 @@ try:
             FROM algo_audit_log
             WHERE action_type = 'circuit_breaker_halt'
               AND details::text ILIKE '%stale%'
-              AND created_at >= CURRENT_TIMESTAMP - INTERVAL '1 day'
+              AND created_at >= CURRENT_TIMESTAMP - get_interval_sql('1d')
         """)
         stale_row = cur.fetchone()
         if stale_row:

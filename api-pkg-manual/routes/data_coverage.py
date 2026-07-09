@@ -50,7 +50,7 @@ def get_price_coverage(cur: cursor) -> Any:
                 COUNT(CASE WHEN volume = 0 OR volume IS NULL THEN 1 END) as zero_volume_rows,
                 COUNT(CASE WHEN close <= 0 THEN 1 END) as invalid_price_rows
             FROM price_daily
-            WHERE date > NOW() - INTERVAL '7 days'
+            WHERE date > NOW() - get_interval_sql('7d')
         """,
             timeout_sec=10,
         )
@@ -122,7 +122,7 @@ def get_technical_coverage(cur: cursor) -> Any:
                 COUNT(CASE WHEN atr IS NOT NULL THEN 1 END)::FLOAT / COUNT(*) as atr_coverage,
                 COUNT(CASE WHEN rsi IS NULL OR ema_12 IS NULL OR atr IS NULL THEN 1 END) as incomplete_rows
             FROM technical_data_daily
-            WHERE date > NOW() - INTERVAL '7 days'
+            WHERE date > NOW() - get_interval_sql('7d')
         """)
 
         row = cur.fetchone()
@@ -179,7 +179,7 @@ def get_market_data_coverage(cur: cursor) -> Any:
                 MAX(date) as latest_date,
                 COUNT(*) as rows
             FROM market_health_daily
-            WHERE date > NOW() - INTERVAL '7 days'
+            WHERE date > NOW() - get_interval_sql('7d')
         """)
 
         mh_row = cur.fetchone()
@@ -190,7 +190,7 @@ def get_market_data_coverage(cur: cursor) -> Any:
         cur.execute("""
             SELECT MAX(date) as latest_date, COUNT(DISTINCT series_id) as indicators
             FROM economic_data
-            WHERE date > NOW() - INTERVAL '30 days'
+            WHERE date > NOW() - get_interval_sql('30d')
         """)
 
         econ_row = cur.fetchone()
@@ -234,7 +234,7 @@ def get_loader_health(cur: cursor) -> Any:
                 last_updated,
                 row_count
             FROM data_loader_status
-            WHERE last_updated > NOW() - INTERVAL '7 days'
+            WHERE last_updated > NOW() - get_interval_sql('7d')
             ORDER BY table_name
         """)
 

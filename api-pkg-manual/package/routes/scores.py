@@ -243,7 +243,7 @@ def _get_stock_scores(
                     SELECT MAX(high) AS high_52w
                     FROM price_daily
                     WHERE symbol = fs.symbol
-                      AND date >= CURRENT_DATE - INTERVAL '52 weeks'
+                      AND date >= CURRENT_DATE - get_interval_sql('52w')
                 ) p52 ON true
                 ORDER BY fs.{sort_col} {sort_direction}
             """

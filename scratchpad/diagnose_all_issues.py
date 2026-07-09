@@ -43,7 +43,7 @@ with db as cur:
     print('\n=== SIGNAL GENERATION STATUS ===')
     cur.execute('''
         SELECT COUNT(*) as count FROM daily_signals
-        WHERE signal_date >= CURRENT_DATE - INTERVAL '7 days'
+        WHERE signal_date >= CURRENT_DATE - get_interval_sql('7d')
     ''')
     row = cur.fetchone()
     print(f'Signals generated in past 7 days: {row["count"]}')
@@ -52,7 +52,7 @@ with db as cur:
     print('\n=== ALGO_SIGNALS TABLE ===')
     cur.execute('''
         SELECT COUNT(*) as count FROM algo_signals
-        WHERE generated_at >= CURRENT_DATE - INTERVAL '7 days'
+        WHERE generated_at >= CURRENT_DATE - get_interval_sql('7d')
     ''')
     row = cur.fetchone()
     print(f'Signals in algo_signals (past 7 days): {row["count"]}')

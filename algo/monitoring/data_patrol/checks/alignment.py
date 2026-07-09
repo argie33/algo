@@ -127,7 +127,7 @@ class AlignmentChecker(BaseCheck):
                              )
                        ) AS missing_tech
                 FROM buy_sell_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '14 days'
+                WHERE date >= CURRENT_DATE - get_interval_sql('14d')
             """)
             row = cur.fetchone()
             if row is None:
@@ -177,7 +177,7 @@ class AlignmentChecker(BaseCheck):
                    AND p.date >= t.created_at::date
                    AND p.date <= CURRENT_DATE
                 WHERE t.status IN ('open', 'pending')
-                  AND t.created_at >= CURRENT_DATE - INTERVAL '60 days'
+                  AND t.created_at >= CURRENT_DATE - get_interval_sql('60d')
                 GROUP BY t.trade_id, t.symbol, fill_date
                 HAVING COUNT(p.date) = 0
             """)

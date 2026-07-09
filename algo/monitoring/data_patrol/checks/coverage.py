@@ -248,7 +248,7 @@ class CoverageChecker(BaseCheck):
                     COUNT(*) FILTER (WHERE signal_type IN ('BUY', 'SELL')) AS clean,
                     COUNT(*) AS total
                 FROM buy_sell_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '30 days'
+                WHERE date >= CURRENT_DATE - get_interval_sql('30d')
             """)
             row = cur.fetchone()
             if row and row[1] > 0:

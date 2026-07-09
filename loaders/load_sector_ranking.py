@@ -69,7 +69,7 @@ class SectorRankingLoader(OptimalLoader):
                         FROM sector_ranking
                         WHERE date = (
                             SELECT date FROM sector_ranking
-                            WHERE date <= CURRENT_DATE - INTERVAL '7 days'
+                            WHERE date <= CURRENT_DATE - get_interval_sql('7d')
                             ORDER BY date DESC LIMIT 1
                         )
                     ),

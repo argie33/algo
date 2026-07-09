@@ -1384,7 +1384,7 @@ class ExitEngine:
 
                      WHERE p.symbol = td.symbol AND p.date <= td.date
 
-                       AND p.date >= td.date - INTERVAL '50 days') AS avg_vol_50
+                       AND p.date >= td.date - get_interval_sql('50d')) AS avg_vol_50
 
             FROM technical_data_daily td
 
@@ -1447,7 +1447,7 @@ class ExitEngine:
 
                       AND p.date <= pd.date
 
-                      AND p.date > pd.date - INTERVAL '50 days') AS avg_vol_50
+                      AND p.date > pd.date - get_interval_sql('50d')) AS avg_vol_50
 
             FROM price_daily pd
 

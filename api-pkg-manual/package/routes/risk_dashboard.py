@@ -163,7 +163,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
                     MAX(cascade_multiplier) as max_cascade,
                     AVG(position_size_pct) as avg_position_size_pct
                 FROM algo_position_sizing_audit
-                WHERE created_at >= NOW() - INTERVAL '30 days'
+                WHERE created_at >= NOW() - get_interval_sql('30d')
             """,
                 timeout_sec=8,
             )
@@ -190,7 +190,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
                 """
                 SELECT exit_rule, COUNT(*) as count
                 FROM algo_exit_rules_distribution
-                WHERE created_at >= NOW() - INTERVAL '30 days'
+                WHERE created_at >= NOW() - get_interval_sql('30d')
                 GROUP BY exit_rule
                 ORDER BY count DESC
                 LIMIT 5
@@ -378,7 +378,7 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
                    base_shares, final_shares, position_size_pct,
                    cascade_multiplier, reasons_json, created_at
             FROM algo_position_sizing_audit
-            WHERE created_at >= NOW() - INTERVAL '1 day' * %s
+            WHERE created_at >= NOW() - get_interval_sql('1d') * %s
             ORDER BY created_at DESC
             LIMIT 100
         """,
@@ -448,7 +448,7 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
             SELECT symbol, signal_date, entry_price, stop_loss_price,
                    distance_pct, stop_method, stop_reasoning, candidates_json, created_at
             FROM algo_stop_loss_audit
-            WHERE created_at >= NOW() - INTERVAL '1 day' * %s
+            WHERE created_at >= NOW() - get_interval_sql('1d') * %s
             ORDER BY created_at DESC
             LIMIT 100
         """,
@@ -516,7 +516,7 @@ def _get_exit_rules_distribution(cur: cursor, days: int) -> Any:
                    COUNT(CASE WHEN pnl_dollars > 0 THEN 1 END) as winning_count,
                    COUNT(CASE WHEN pnl_dollars < 0 THEN 1 END) as losing_count
             FROM algo_exit_rules_distribution
-            WHERE created_at >= NOW() - INTERVAL '1 day' * %s
+            WHERE created_at >= NOW() - get_interval_sql('1d') * %s
             GROUP BY exit_rule
             ORDER BY count DESC
         """,

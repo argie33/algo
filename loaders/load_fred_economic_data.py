@@ -18,6 +18,7 @@ from typing import Any
 
 import requests
 
+from algo.infrastructure.config import get_config
 from config.api_endpoints import get_fred_url
 from loaders.runner import run_loader
 from utils.infrastructure.circuit_breaker import DataImportance
@@ -170,9 +171,9 @@ class FredEconomicDataLoader(OptimalLoader):
 
             logger.info(f"Fetching {series_id} from FRED ({start_date} to {end_date})...")
 
-            # Extreme exponential backoff for rate limiting: up to 5 retries with very long waits
+            # Extreme exponential backoff for rate limiting: up to N retries with very long waits
             # FRED blocks key for minutes after hitting rate limit - need long resets
-            max_retries = 5
+            max_retries = get_config().get('retry_count_fred_api')
             base_delay = 10.0  # Start with 10s, double on each retry (10s, 20s, 40s, 80s, 160s)
 
             for attempt in range(max_retries):

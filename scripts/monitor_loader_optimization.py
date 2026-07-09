@@ -41,7 +41,7 @@ def monitor_loader_health():
                 'analyst_sentiment_analysis', 'analyst_upgrade_downgrade',
                 'financials_annual_income', 'financials_annual_balance'
             )
-            AND last_updated > NOW() - INTERVAL '7 days'
+            AND last_updated > NOW() - get_interval_sql('7d')
             ORDER BY last_updated DESC
         """)
 
@@ -90,7 +90,7 @@ def monitor_loader_health():
         cur.execute("""
             SELECT run_id, run_date, started_at, completed_at, overall_status, execution_time_seconds
             FROM algo_orchestrator_runs
-            WHERE started_at > NOW() - INTERVAL '1 day'
+            WHERE started_at > NOW() - get_interval_sql('1d')
             ORDER BY started_at DESC
             LIMIT 5
         """)

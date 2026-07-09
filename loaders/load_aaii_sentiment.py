@@ -21,6 +21,7 @@ try:
 except ImportError:
     HAS_PLAYWRIGHT = False
 
+from algo.infrastructure.config import get_config
 from config.api_endpoints import get_aaii_sentiment_url
 from loaders.runner import run_loader
 from utils.infrastructure.url_validator import validate_url
@@ -252,7 +253,8 @@ class AAIISentimentLoader(OptimalLoader):
         }
 
         # Try regular request first (in case protection is relaxed), then hybrid approach
-        for attempt in range(1, 3):
+        max_retries = get_config().get('retry_count_aaii_sentiment')
+        for attempt in range(1, max_retries + 1):
             try:
                 if attempt == 1:
                     logger.info("Download attempt 1/2: Regular HTTP request")

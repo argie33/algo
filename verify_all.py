@@ -27,7 +27,7 @@ try:
         MAX(completed_at) as latest_completion,
         COUNT(*) as total_runs_last_24h
     FROM algo_orchestrator_runs
-    WHERE started_at > NOW() - INTERVAL '24 hours'
+    WHERE started_at > NOW() - get_interval_sql('24h')
     """)
     result = cur.fetchone()
     if result and result[0]:
@@ -92,7 +92,7 @@ try:
         COUNT(DISTINCT symbol) as symbols_with_data,
         NOW() - MAX(date) as age
     FROM price_daily
-    WHERE date > NOW() - INTERVAL '30 days'
+    WHERE date > NOW() - get_interval_sql('30d')
     """)
     result = cur.fetchone()
     if result and result[0]:
@@ -118,7 +118,7 @@ try:
         COUNT(DISTINCT symbol) as symbols_with_data,
         NOW() - MAX(date) as age
     FROM technical_data_daily
-    WHERE date > NOW() - INTERVAL '30 days'
+    WHERE date > NOW() - get_interval_sql('30d')
     """)
     result = cur.fetchone()
     if result and result[0]:
@@ -174,7 +174,7 @@ try:
         SUM(CASE WHEN signal_type = 'SELL' THEN 1 ELSE 0 END) as sell_signals,
         NOW() - MAX(date) as age
     FROM buy_sell_daily
-    WHERE date > NOW() - INTERVAL '30 days'
+    WHERE date > NOW() - get_interval_sql('30d')
     """)
     result = cur.fetchone()
     if result and result[0]:
@@ -228,7 +228,7 @@ try:
         SUM(CASE WHEN profit_loss_dollars < 0 THEN 1 ELSE 0 END) as losing_trades,
         ROUND(SUM(profit_loss_dollars)::numeric, 2) as total_pnl
     FROM algo_trades
-    WHERE trade_date > NOW()::date - INTERVAL '30 days'
+    WHERE trade_date > NOW()::date - get_interval_sql('30d')
     """)
     result = cur.fetchone()
     if result and result[0] and result[0] > 0:
@@ -303,7 +303,7 @@ try:
         execution_mode,
         COUNT(*) as count
     FROM algo_trades
-    WHERE trade_date > NOW()::date - INTERVAL '7 days'
+    WHERE trade_date > NOW()::date - get_interval_sql('7d')
     GROUP BY execution_mode
     """)
     results = cur.fetchall()
@@ -324,7 +324,7 @@ try:
         COUNT(CASE WHEN total_cash IS NOT NULL THEN 1 END) as has_cash,
         COUNT(*) as total_rows
     FROM algo_portfolio_snapshots
-    WHERE snapshot_date > NOW() - INTERVAL '1 day'
+    WHERE snapshot_date > NOW() - get_interval_sql('1d')
     """)
     result = cur.fetchone()
     if result and result[2] > 0:
@@ -368,7 +368,7 @@ try:
         COUNT(*) as total,
         COUNT(CASE WHEN composite_score IS NOT NULL THEN 1 END) as has_score
     FROM stock_scores
-    WHERE updated_at > NOW() - INTERVAL '1 day'
+    WHERE updated_at > NOW() - get_interval_sql('1d')
     """)
     result = cur.fetchone()
     if result and result[0] > 0:

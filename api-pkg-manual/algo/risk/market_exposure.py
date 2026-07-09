@@ -841,7 +841,7 @@ class MarketExposure:
                        LAG(volume) OVER (ORDER BY date) AS prev_vol
                 FROM price_daily
                 WHERE symbol = 'SPY' AND date <= %s
-                  AND date >= %s::date - INTERVAL '30 days'
+                  AND date >= %s::date - get_interval_sql('30d')
             )
             SELECT 1 FROM d
             WHERE prev_close IS NOT NULL
@@ -992,7 +992,7 @@ class MarketExposure:
             FROM (
                 SELECT DISTINCT ON (symbol) {}
                 FROM trend_template_data
-                WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
+                WHERE date <= %s AND date >= %s::date - get_interval_sql('7d')
                 ORDER BY symbol, date DESC
             ) latest
             """).format(col, col, col),

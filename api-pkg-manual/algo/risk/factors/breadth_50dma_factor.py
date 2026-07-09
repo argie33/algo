@@ -47,7 +47,7 @@ class Breadth50DMAFactor(MarketFactorStrategy):
                 FROM (
                     SELECT DISTINCT ON (symbol) {}
                     FROM trend_template_data
-                    WHERE date <= %s AND date >= %s::date - INTERVAL '7 days'
+                    WHERE date <= %s AND date >= %s::date - get_interval_sql('7d')
                     ORDER BY symbol, date DESC
                 ) latest
                 """).format(col, col, col),

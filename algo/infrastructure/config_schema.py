@@ -317,4 +317,20 @@ VALIDATION_SCHEMA = {
     "lookback_ranking_short": ("int", 5, 14, False, 7),  # 1-week rankings
     "lookback_ranking_medium": ("int", 20, 35, False, 28),  # 4-week rankings
     "lookback_ranking_long": ("int", 70, 100, False, 84),  # 12-week rankings
+    # SQL Query INTERVAL Configuration (replaces 80+ hardcoded INTERVAL values)
+    # These control how far back SQL queries look for historical data
+    "sql_interval_1d_days": ("int", 1, 30, False, 1),  # 1 day lookback
+    "sql_interval_7d_days": ("int", 7, 30, False, 7),  # 7 days lookback
+    "sql_interval_14d_days": ("int", 14, 30, False, 14),  # 14 days lookback
+    "sql_interval_24h_days": ("float", 0.5, 2.0, False, 1.0),  # 24 hours (in days)
+    "sql_interval_30d_days": ("int", 30, 100, False, 30),  # 30 days lookback
+    "sql_interval_50d_days": ("int", 50, 100, False, 50),  # 50 days lookback
+    "sql_interval_60d_days": ("int", 60, 100, False, 60),  # 60 days lookback
+    "sql_interval_90d_days": ("int", 90, 180, False, 90),  # 90 days lookback
+    "sql_interval_365d_days": ("int", 365, 400, False, 365),  # 365 days lookback (1 year)
+    "sql_interval_52w_days": ("int", 350, 380, False, 364),  # 52 weeks (~364 days)
+    # Retry Configuration (replaces 3 hardcoded retry counts)
+    "retry_count_fred_api": ("int", 1, 10, False, 5),  # FRED API rate-limit retries
+    "retry_count_aaii_sentiment": ("int", 1, 10, False, 2),  # AAII sentiment fetch retries
+    "retry_count_db_migration": ("int", 1, 10, False, 3),  # Database migration cleanup retries
 }

@@ -141,7 +141,7 @@ class LivePerformance:
                             END AS r_multiple
                         FROM algo_trades
                         WHERE status = 'closed'
-                          AND exit_date >= CURRENT_DATE - INTERVAL '365 days'
+                          AND exit_date >= CURRENT_DATE - get_interval_sql('365d')
                         ORDER BY exit_date DESC NULLS LAST
                         LIMIT %s
                     ) closed_trades

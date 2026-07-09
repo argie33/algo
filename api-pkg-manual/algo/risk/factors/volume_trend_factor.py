@@ -45,7 +45,7 @@ class VolumeTrendFactor(MarketFactorStrategy):
                         WHERE date > %s::date - INTERVAL '10 days' AND date <= %s
                     ) as vol_10d_avg,
                     AVG(volume) FILTER (
-                        WHERE date > %s::date - INTERVAL '50 days' AND date <= %s
+                        WHERE date > %s::date - get_interval_sql('50d') AND date <= %s
                     ) as vol_50d_avg,
                     MAX(volume) FILTER (
                         WHERE date > %s::date - INTERVAL '10 days' AND date <= %s

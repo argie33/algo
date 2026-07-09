@@ -62,14 +62,14 @@ def _get_sector_breadth(cur: cursor) -> Any:
                     SELECT DISTINCT ON (td.symbol)
                         td.symbol, td.sma_50, td.sma_200
                     FROM technical_data_daily td
-                    WHERE td.date >= CURRENT_DATE - INTERVAL '7 days'
+                    WHERE td.date >= CURRENT_DATE - get_interval_sql('7d')
                     ORDER BY td.symbol, td.date DESC
                 ),
                 latest_price AS (
                     SELECT DISTINCT ON (pd.symbol)
                         pd.symbol, pd.close
                     FROM price_daily pd
-                    WHERE pd.date >= CURRENT_DATE - INTERVAL '7 days'
+                    WHERE pd.date >= CURRENT_DATE - get_interval_sql('7d')
                       AND pd.symbol NOT LIKE '^%'
                     ORDER BY pd.symbol, pd.date DESC
                 ),

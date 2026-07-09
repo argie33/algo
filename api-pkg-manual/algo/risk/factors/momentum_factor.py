@@ -53,8 +53,8 @@ class MomentumFactor(MarketFactorStrategy):
         cur.execute("""
             SELECT close FROM price_daily
             WHERE symbol='SPY'
-              AND date >= DATE(CURRENT_DATE - INTERVAL '365 days')
-              AND date <= DATE(CURRENT_DATE - INTERVAL '365 days')
+              AND date >= DATE(CURRENT_DATE - get_interval_sql('365d'))
+              AND date <= DATE(CURRENT_DATE - get_interval_sql('365d'))
             ORDER BY date DESC
             LIMIT 1
         """)

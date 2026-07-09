@@ -368,7 +368,7 @@ class DataPatrolConfig:
         Returns:
             {
                 "price_daily": {
-                    "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
+                    "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
                     "min_rows": 40000,
                     "severity": "error",
                     "description": "Daily price data should be ~5000 symbols x 14 days",
@@ -413,31 +413,31 @@ class DataPatrolConfig:
 
         return {
             "price_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
+                "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
                 "min_rows": price_14d,
                 "severity": severity_error,
                 "description": "Daily price data should be ~5000 symbols x 14 days",
             },
             "technical_data_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
+                "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
                 "min_rows": tech_14d,
                 "severity": severity_error,
                 "description": "Technical indicators should match price coverage",
             },
             "buy_sell_daily": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
+                "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
                 "min_rows": buysell_14d,
                 "severity": severity_error,
                 "description": "Pine signals should produce 50+ per day minimum",
             },
             "trend_template_data": {
-                "condition": "date >= CURRENT_DATE - INTERVAL '14 days'",
+                "condition": "date >= CURRENT_DATE - get_interval_sql('14d')",
                 "min_rows": trend_14d,
                 "severity": severity_error,
                 "description": "Trend template covers 4900+ symbols x 14 days",
             },
             "market_exposure_daily": {
-                "condition": "date >= (SELECT MAX(date) - INTERVAL '1 day' FROM price_daily)",
+                "condition": "date >= (SELECT MAX(date) - get_interval_sql('1d') FROM price_daily)",
                 "min_rows": mkt_exp,
                 "severity": severity_error,
                 "description": "Market regime indicators must match latest trading day in price_daily (within 1 day lag)",

@@ -157,7 +157,7 @@ def check_data_completeness():
                    SUM(CASE WHEN composite_score IS NULL THEN 1 ELSE 0 END) as missing_composite,
                    SUM(CASE WHEN composite_score > 0 THEN 1 ELSE 0 END) as tradeable
             FROM stock_scores
-            WHERE updated_at > NOW() - INTERVAL '1 day'
+            WHERE updated_at > NOW() - get_interval_sql('1d')
         """)
         total, missing, tradeable = cur.fetchone()
 

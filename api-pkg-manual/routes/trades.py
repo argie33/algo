@@ -58,7 +58,7 @@ def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any]:
         cur.execute(
             """
             SELECT response_data, created_at FROM api_idempotency_cache
-            WHERE request_signature = %s AND created_at > NOW() - INTERVAL '24 hours'
+            WHERE request_signature = %s AND created_at > NOW() - get_interval_sql('24h')
             LIMIT 1
             """,
             (signature,),

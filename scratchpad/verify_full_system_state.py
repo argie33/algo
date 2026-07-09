@@ -12,7 +12,7 @@ with db as cur:
     cur.execute('''
         SELECT COUNT(*) as count, MAX(generated_at) as latest
         FROM algo_signals
-        WHERE generated_at >= CURRENT_DATE - INTERVAL '1 day'
+        WHERE generated_at >= CURRENT_DATE - get_interval_sql('1d')
     ''')
     row = cur.fetchone()
     print(f"   Signals generated today: {row['count']}")
@@ -22,7 +22,7 @@ with db as cur:
     print("\n2. BUY SIGNALS:")
     cur.execute('''
         SELECT COUNT(*) as buy_count FROM algo_signals
-        WHERE signal_type = 'BUY' AND generated_at >= CURRENT_DATE - INTERVAL '1 day'
+        WHERE signal_type = 'BUY' AND generated_at >= CURRENT_DATE - get_interval_sql('1d')
     ''')
     row = cur.fetchone()
     print(f"   Buy signals today: {row['buy_count']}")

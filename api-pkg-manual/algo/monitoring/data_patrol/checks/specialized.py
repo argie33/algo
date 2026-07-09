@@ -128,8 +128,8 @@ class SpecializedChecker(BaseCheck):
                 FROM price_daily p
                 LEFT JOIN earnings_estimates e
                     ON e.symbol = p.symbol
-                   AND e.created_at >= CURRENT_DATE - INTERVAL '7 days'
-                WHERE p.date >= CURRENT_DATE - INTERVAL '7 days'
+                   AND e.created_at >= CURRENT_DATE - get_interval_sql('7d')
+                WHERE p.date >= CURRENT_DATE - get_interval_sql('7d')
             """)
             row = cur.fetchone()
             if row is None:
@@ -251,7 +251,7 @@ class SpecializedChecker(BaseCheck):
                        COUNT(*) FILTER (WHERE rsi IS NULL) AS null_rsi,
                        COUNT(*) AS total
                 FROM technical_data_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE date >= CURRENT_DATE - get_interval_sql('7d')
             """)
             row = cur.fetchone()
             if row is None:
@@ -284,7 +284,7 @@ class SpecializedChecker(BaseCheck):
                 SELECT COUNT(*) FILTER (WHERE atr = 'NaN' OR atr = 'Infinity' OR atr = '-Infinity') AS bad_atr,
                        COUNT(*) FILTER (WHERE rsi = 'NaN' OR rsi = 'Infinity') AS bad_rsi_nan
                 FROM technical_data_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE date >= CURRENT_DATE - get_interval_sql('7d')
             """)
             row = cur.fetchone()
             if row is None:

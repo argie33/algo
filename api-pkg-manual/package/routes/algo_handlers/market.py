@@ -51,7 +51,7 @@ def _get_data_quality(cur: cursor) -> Any:
                     created_at,
                     ROW_NUMBER() OVER (PARTITION BY target_table ORDER BY created_at DESC) as rn
                 FROM data_patrol_log
-                WHERE created_at >= CURRENT_TIMESTAMP - INTERVAL '24 hours'
+                WHERE created_at >= CURRENT_TIMESTAMP - get_interval_sql('24h')
             """)
         patrol_rows = cur.fetchall()
 

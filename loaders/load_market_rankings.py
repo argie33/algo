@@ -111,7 +111,7 @@ class MarketRankingsLoader(OptimalLoader):
                     rank_1w AS (
                         SELECT sector_name, sector_rank AS rank_1w
                         FROM sector_ranking
-                        WHERE date = %s - INTERVAL '7 days'
+                        WHERE date = %s - get_interval_sql('7d')
                     ),
                     rank_4w AS (
                         SELECT sector_name, sector_rank AS rank_4w
@@ -121,7 +121,7 @@ class MarketRankingsLoader(OptimalLoader):
                     rank_52w AS (
                         SELECT sector_name, sector_rank AS rank_52w
                         FROM sector_ranking
-                        WHERE date = %s - INTERVAL '364 days'
+                        WHERE date = %s - get_interval_sql('52w')
                     )
                 SELECT
                     %s AS date,
@@ -198,7 +198,7 @@ class MarketRankingsLoader(OptimalLoader):
                     rank_1w AS (
                         SELECT industry, industry_rank AS rank_1w
                         FROM industry_ranking
-                        WHERE date_recorded = %s::date - INTERVAL '7 days'
+                        WHERE date_recorded = %s::date - get_interval_sql('7d')
                     ),
                     rank_4w AS (
                         SELECT industry, industry_rank AS rank_4w
@@ -208,7 +208,7 @@ class MarketRankingsLoader(OptimalLoader):
                     rank_52w AS (
                         SELECT industry, industry_rank AS rank_52w
                         FROM industry_ranking
-                        WHERE date_recorded = %s::date - INTERVAL '364 days'
+                        WHERE date_recorded = %s::date - get_interval_sql('52w')
                     )
                     SELECT
                         %s::date AS date_recorded,

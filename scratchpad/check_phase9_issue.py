@@ -46,7 +46,7 @@ with db as cur:
     cur.execute('''
         SELECT run_id, phase_results, summary
         FROM orchestrator_execution_log
-        WHERE overall_status = 'error' AND started_at >= CURRENT_DATE - INTERVAL '1 day'
+        WHERE overall_status = 'error' AND started_at >= CURRENT_DATE - get_interval_sql('1d')
         LIMIT 1
     ''')
     row = cur.fetchone()

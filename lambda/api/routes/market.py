@@ -1451,7 +1451,7 @@ def _get_markets(cur: cursor) -> Any:
         SELECT symbol, date, close
         FROM price_daily
         WHERE symbol = ANY(%s)
-              AND date >= CURRENT_DATE - INTERVAL '90 days'
+              AND date >= CURRENT_DATE - get_interval_sql('90d')
         ORDER BY symbol, date DESC
     """,
         (index_symbols,),

@@ -46,7 +46,7 @@ def verify_orchestrator_executing() -> tuple[bool, str]:
             # Check execution log from last 24 hours
             cur.execute("""
                 SELECT COUNT(*), MAX(started_at) FROM orchestrator_execution_log
-                WHERE started_at > NOW() - INTERVAL '24 hours'
+                WHERE started_at > NOW() - get_interval_sql('24h')
             """)
             count, latest = cur.fetchone()
 

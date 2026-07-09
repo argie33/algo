@@ -200,7 +200,7 @@ def handle(  # noqa: C901
                            ss.composite_score
                     FROM analyst_sentiment_analysis asa
                     LEFT JOIN stock_scores ss ON ss.symbol = asa.symbol
-                    WHERE asa.date >= CURRENT_DATE - INTERVAL '30 days'
+                    WHERE asa.date >= CURRENT_DATE - get_interval_sql('30d')
                     ORDER BY asa.date DESC, asa.upside_downside_percent DESC NULLS LAST
                     LIMIT 2000
                 """,

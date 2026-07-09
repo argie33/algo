@@ -38,7 +38,7 @@ def audit_orchestrator_runs():
             MAX(started_at) as latest_run,
             MIN(started_at) as earliest_run
         FROM algo_orchestrator_runs
-        WHERE started_at > NOW() - INTERVAL '24 hours'
+        WHERE started_at > NOW() - get_interval_sql('24h')
         """)
         result_24h = cur.fetchone()
 
@@ -212,7 +212,7 @@ def audit_portfolio_status():
             COUNT(CASE WHEN status = 'closed' THEN 1 END) as closed,
             MAX(entry_date) as latest_trade
         FROM algo_trades
-        WHERE entry_date > NOW() - INTERVAL '7 days'
+        WHERE entry_date > NOW() - get_interval_sql('7d')
         """)
         recent_trades = cur.fetchone()
 
@@ -316,7 +316,7 @@ def audit_stock_scores():
             MIN(updated_at) as oldest_update,
             AVG(CAST(composite_score AS FLOAT)) as avg_composite_score
         FROM stock_scores
-        WHERE updated_at > NOW() - INTERVAL '7 days'
+        WHERE updated_at > NOW() - get_interval_sql('7d')
         """)
         score_stats = cur.fetchone()
 
@@ -340,7 +340,7 @@ def audit_stock_scores():
             DATE(updated_at) as update_date,
             COUNT(*) as symbol_count
         FROM stock_scores
-        WHERE updated_at > NOW() - INTERVAL '7 days'
+        WHERE updated_at > NOW() - get_interval_sql('7d')
         GROUP BY DATE(updated_at)
         ORDER BY update_date DESC
         LIMIT 7
@@ -402,7 +402,7 @@ def audit_market_data():
             MIN(CAST(market_exposure_pct AS FLOAT)) as min_exposure,
             MAX(exposure_tier) as latest_tier
         FROM market_exposure_daily
-        WHERE date > CURRENT_DATE - INTERVAL '7 days'
+        WHERE date > CURRENT_DATE - get_interval_sql('7d')
         """)
         market_data = cur.fetchone()
 

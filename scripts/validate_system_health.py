@@ -61,7 +61,7 @@ def validate_data_freshness():
             # Check orchestrator runs in last 24h
             cur.execute("""
                 SELECT COUNT(*) FROM algo_orchestrator_runs
-                WHERE started_at > NOW() - INTERVAL '24 hours'
+                WHERE started_at > NOW() - get_interval_sql('24h')
                 AND overall_status = 'success'
             """)
             success_runs = cur.fetchone()[0]

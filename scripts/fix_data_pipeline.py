@@ -300,7 +300,7 @@ def re_enable_suspended_loaders() -> None:
             SELECT DISTINCT loader_name, MAX(execution_date) as last_date, COUNT(*) as fail_count
             FROM data_loader_status
             WHERE status IN ('SUSPENDED', 'FAILED')
-                AND execution_date >= CURRENT_DATE - INTERVAL '7 days'
+                AND execution_date >= CURRENT_DATE - get_interval_sql('7d')
             GROUP BY loader_name
             ORDER BY fail_count DESC, last_date DESC
         """)

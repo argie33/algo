@@ -59,7 +59,7 @@ def handle(  # noqa: C901
                         FROM price_daily pd
                         JOIN company_profile cp ON pd.symbol = cp.ticker
                         WHERE cp.sector IN ({placeholders})
-                          AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                          AND pd.date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
                         GROUP BY cp.sector, pd.date
                         ORDER BY cp.sector, pd.date ASC
                     """,
@@ -105,7 +105,7 @@ def handle(  # noqa: C901
                                 AVG(pd.close) AS "avgPrice"
                             FROM price_daily pd
                             JOIN company_profile cp ON pd.symbol = cp.ticker
-                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
                             GROUP BY pd.date
                         ),
                         sector_with_ma AS (
@@ -155,7 +155,7 @@ def handle(  # noqa: C901
                     """
                         SELECT date, sector, return_pct
                         FROM sector_performance
-                        WHERE sector = %s AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                        WHERE sector = %s AND date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
                         ORDER BY date DESC
                     """,
                     (sector_name, days),
@@ -190,7 +190,7 @@ def handle(  # noqa: C901
                     sector_perf_1d_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_1d
                         FROM sector_performance
-                        WHERE date <= CURRENT_DATE - INTERVAL '1 day'
+                        WHERE date <= CURRENT_DATE - get_interval_sql('1d')
                           AND (SELECT has_data FROM sp_exists)
                         ORDER BY sector, date DESC
                     ),
@@ -407,7 +407,7 @@ def handle(  # noqa: C901
                 """
                     SELECT date, sector, return_pct, relative_strength
                     FROM sector_performance
-                    WHERE sector = %s AND date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    WHERE sector = %s AND date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
                     ORDER BY date DESC
                 """,
                 (sector_name, days),

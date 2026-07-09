@@ -138,7 +138,7 @@ def handle(  # noqa: C901
                     SELECT pd.symbol, MAX(pd.high) AS high_52w, MIN(pd.low) AS low_52w
                     FROM price_daily pd
                     JOIN value_stocks vs ON pd.symbol = vs.symbol
-                    WHERE pd.date >= CURRENT_DATE - INTERVAL '52 weeks'
+                    WHERE pd.date >= CURRENT_DATE - get_interval_sql('52w')
                     GROUP BY pd.symbol
                 ),
                 sector_medians AS (

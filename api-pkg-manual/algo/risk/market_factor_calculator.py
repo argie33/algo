@@ -218,7 +218,7 @@ class MarketFactorCalculator:
                     ORDER BY date DESC LIMIT 1
                 ),
                 y_ago AS (
-                    SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s::date - INTERVAL '365 days'
+                    SELECT close FROM price_daily WHERE symbol = 'SPY' AND date <= %s::date - get_interval_sql('365d')
                     ORDER BY date DESC LIMIT 1
                 )
                 SELECT d.close, y_ago.close FROM d, y_ago

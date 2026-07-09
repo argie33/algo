@@ -469,7 +469,7 @@ class AdvancedFilters:
             cur.execute(
                 """SELECT 1 FROM buy_sell_weekly
                    WHERE symbol = %s AND signal_type = 'BUY'
-                     AND date >= %s::date - INTERVAL '30 days'
+                     AND date >= %s::date - get_interval_sql('30d')
                      AND date <= %s
                    LIMIT 1""",
                 (symbol, signal_date, signal_date),
@@ -546,7 +546,7 @@ class AdvancedFilters:
                 SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
                 FROM price_daily
                 WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - (%s * INTERVAL '1 day')
+                  AND date >= %s::date - (%s * get_interval_sql('1d'))
             )
             SELECT
                 (SELECT close FROM bracket WHERE rn = 1),
@@ -728,7 +728,7 @@ class AdvancedFilters:
                 COUNT(*) FILTER (WHERE LOWER(action) IN ('down','downgrade'))
             FROM analyst_upgrade_downgrade
             WHERE symbol = %s
-              AND action_date >= %s::date - INTERVAL '90 days'
+              AND action_date >= %s::date - get_interval_sql('90d')
               AND action_date <= %s
             """,
             (symbol, signal_date, signal_date),
@@ -770,7 +770,7 @@ class AdvancedFilters:
                 COALESCE(SUM(CASE WHEN LOWER(transaction_type) LIKE '%%sale%%' OR LOWER(transaction_type) LIKE '%%sell%%' THEN value END), 0)
             FROM insider_transactions
             WHERE symbol = %s
-              AND transaction_date >= %s::date - INTERVAL '60 days'
+              AND transaction_date >= %s::date - get_interval_sql('60d')
               AND transaction_date <= %s
               AND value IS NOT NULL
             """,
@@ -862,7 +862,7 @@ class AdvancedFilters:
             """
             SELECT AVG(close * volume) FROM price_daily
             WHERE symbol = %s AND date <= %s
-              AND date >= %s::date - INTERVAL '50 days'
+              AND date >= %s::date - get_interval_sql('50d')
               AND volume > 0
             """,
             (symbol, signal_date, signal_date),

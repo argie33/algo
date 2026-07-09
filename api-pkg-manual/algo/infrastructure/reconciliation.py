@@ -1269,7 +1269,7 @@ class DailyReconciliation:
         )
         cur.execute(
             "SELECT COUNT(DISTINCT symbol) FROM alpaca_import_failures "
-            "WHERE resolved = FALSE AND failed_at > NOW() - INTERVAL '1 day'"
+            "WHERE resolved = FALSE AND failed_at > NOW() - get_interval_sql('1d')"
         )
         failure_row = cur.fetchone()
         if failure_row is None:
@@ -1292,7 +1292,7 @@ class DailyReconciliation:
                 ) from alert_e
         try:
             cur.execute(
-                "DELETE FROM alpaca_import_failures WHERE resolved = TRUE AND resolved_at < NOW() - INTERVAL '7 days'"
+                "DELETE FROM alpaca_import_failures WHERE resolved = TRUE AND resolved_at < NOW() - get_interval_sql('7d')"
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             # CRITICAL: If cleanup fails, database may grow unbounded with stale failure records

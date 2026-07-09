@@ -146,7 +146,7 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> Any:
             where_clauses.append("event_date <= %s")
             query_params.append(end_date)
         else:
-            where_clauses.append("event_date >= CURRENT_DATE - INTERVAL '90 days'")
+            where_clauses.append("event_date >= CURRENT_DATE - get_interval_sql('90d')")
 
         where_sql = " AND ".join(where_clauses)
 

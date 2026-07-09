@@ -117,7 +117,7 @@ class PriceSanityChecker(BaseCheck):
                        (close - prev) / NULLIF(prev, 0) * 100 AS pct_change
                 FROM d
                 WHERE prev IS NOT NULL
-                  AND date = prev_date + INTERVAL '1 day'
+                  AND date = prev_date + get_interval_sql('1d')
                   AND (close - prev) / NULLIF(prev, 0) < {drop_ratio}
                 ORDER BY pct_change ASC
                 LIMIT 50
@@ -161,7 +161,7 @@ class PriceSanityChecker(BaseCheck):
                     SELECT date, LAG(date) OVER (ORDER BY date) AS prev
                     FROM price_daily
                     WHERE symbol = 'SPY'
-                      AND date >= CURRENT_DATE - INTERVAL '60 days'
+                      AND date >= CURRENT_DATE - get_interval_sql('60d')
                 )
                 SELECT date, prev, (date - prev) AS gap_days
                 FROM d

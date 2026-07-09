@@ -198,7 +198,7 @@ def _get_signals_stocks(
             FROM buy_sell_daily b
             LEFT JOIN trend_template_data t ON t.symbol = b.symbol AND t.date = b.date
             LEFT JOIN company_profile cp ON cp.ticker = b.symbol
-            WHERE b.date >= CURRENT_DATE - INTERVAL '90 days'
+            WHERE b.date >= CURRENT_DATE - get_interval_sql('90d')
             {symbol_clause}
             ORDER BY b.date DESC, b.signal DESC, b.entry_quality_score DESC
             LIMIT %s
@@ -268,7 +268,7 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
             INNER JOIN trend_template_data tt ON tt.symbol = pd.symbol AND tt.date = pd.date
             LEFT JOIN company_profile cp ON cp.ticker = pd.symbol
             WHERE pd.symbol = ANY(%s)
-            AND pd.date >= CURRENT_DATE - INTERVAL '90 days'
+            AND pd.date >= CURRENT_DATE - get_interval_sql('90d')
             ORDER BY pd.date DESC, pd.symbol
             LIMIT %s
             """,

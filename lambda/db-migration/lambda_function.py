@@ -22,6 +22,13 @@ logger.setLevel(logging.INFO)
 # Add project root to path for importing config module
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+# Import config for database migration retry settings
+try:
+    from algo.infrastructure.config import get_config
+except ImportError:
+    # Fallback if config not available in Lambda (use defaults)
+    get_config = lambda: type('Config', (), {'get': lambda self, k: {'retry_count_db_migration': 3}.get(k, 3)})()
+
 
 def get_credentials() -> dict[str, Any]:
     """Get DB credentials from Secrets Manager via credential_manager.
@@ -211,7 +218,8 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
     # Clear blocking queries before running migrations (multiple retries with increasing waits)
     import time
 
-    for attempt in range(1, 4):
+    max_retries = get_config().get('retry_count_db_migration')
+    for attempt in range(1, max_retries + 1):
         if not clear_blocking_queries(creds):
             logger.warning(f"Failed to clear blocking queries on attempt {attempt}")
         if attempt < 3:

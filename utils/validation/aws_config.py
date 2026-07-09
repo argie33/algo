@@ -163,7 +163,7 @@ class AWSProductionConfigValidator:
                 # Check that data_loader_status table exists and has recent entries
                 cur.execute("""
                     SELECT COUNT(*) FROM data_loader_status
-                    WHERE last_updated > NOW() - INTERVAL '1 day'
+                    WHERE last_updated > NOW() - get_interval_sql('1d')
                 """)
                 row = cur.fetchone()
                 if row is None or len(row) < 1:

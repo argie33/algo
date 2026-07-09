@@ -108,7 +108,7 @@ with db as cur:
         cur.execute('''
             SELECT DATE(entry_date) as date, COUNT(*) as count
             FROM algo_trades
-            WHERE entry_date >= CURRENT_DATE - INTERVAL '7 days'
+            WHERE entry_date >= CURRENT_DATE - get_interval_sql('7d')
             GROUP BY DATE(entry_date)
             ORDER BY date DESC
         ''')

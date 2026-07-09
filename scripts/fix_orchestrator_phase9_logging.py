@@ -148,7 +148,7 @@ def show_recent_phase9_logs() -> bool:
                     created_at
                 FROM algo_audit_log
                 WHERE action_type LIKE 'phase_9_%'
-                AND created_at > NOW() - INTERVAL '24 hours'
+                AND created_at > NOW() - get_interval_sql('24h')
                 ORDER BY created_at DESC
                 LIMIT 20
                 """
@@ -196,7 +196,7 @@ def show_orchestrator_execution_summary() -> bool:
                     SUM(CASE WHEN overall_status = 'error' THEN 1 ELSE 0 END) as error_count,
                     SUM(CASE WHEN overall_status = 'halted' THEN 1 ELSE 0 END) as halted_count
                 FROM orchestrator_execution_log
-                WHERE run_date >= CURRENT_DATE - INTERVAL '7 days'
+                WHERE run_date >= CURRENT_DATE - get_interval_sql('7d')
                 GROUP BY DATE(run_date)
                 ORDER BY run_date DESC
                 """

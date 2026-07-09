@@ -58,7 +58,7 @@ class IndustryRankingLoader(OptimalLoader):
                         FROM industry_ranking
                         WHERE date_recorded = (
                             SELECT date_recorded FROM industry_ranking
-                            WHERE date_recorded <= CURRENT_DATE - INTERVAL '7 days'
+                            WHERE date_recorded <= CURRENT_DATE - get_interval_sql('7d')
                             ORDER BY date_recorded DESC LIMIT 1
                         )
                     ),

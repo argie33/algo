@@ -48,7 +48,7 @@ def main():
                    value_score, growth_score, positioning_score, stability_score,
                    rs_percentile, data_completeness, updated_at
             FROM stock_scores
-            WHERE updated_at >= NOW() - INTERVAL '1 day'
+            WHERE updated_at >= NOW() - get_interval_sql('1d')
             AND growth_score IS NOT NULL
             ORDER BY composite_score DESC
         """)
@@ -112,7 +112,7 @@ def main():
         rds_cur.execute("""
             SELECT COUNT(*) as cnt, MAX(updated_at) as latest
             FROM stock_scores
-            WHERE growth_score IS NOT NULL AND updated_at >= NOW() - INTERVAL '1 day'
+            WHERE growth_score IS NOT NULL AND updated_at >= NOW() - get_interval_sql('1d')
         """)
 
         result = rds_cur.fetchone()

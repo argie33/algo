@@ -349,7 +349,7 @@ class TradeValidator:
             """
             SELECT COUNT(*) FROM algo_trades
             WHERE symbol = %s AND status IN (%s, %s)
-              AND created_at >= CURRENT_TIMESTAMP - INTERVAL '30 days'
+              AND created_at >= CURRENT_TIMESTAMP - get_interval_sql('30d')
             """,
             (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
         )
@@ -380,7 +380,7 @@ class TradeValidator:
             SELECT trade_id, exit_date, exit_reason, profit_loss_pct, reentry_count
             FROM algo_trades
             WHERE symbol = %s AND status = %s
-              AND exit_date >= CURRENT_DATE - INTERVAL '30 days'
+              AND exit_date >= CURRENT_DATE - get_interval_sql('30d')
             ORDER BY exit_date DESC NULLS LAST, id DESC
             LIMIT 1
             """,

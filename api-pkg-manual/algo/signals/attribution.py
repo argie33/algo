@@ -204,7 +204,7 @@ class SignalAttributionEngine:
                 cur.execute(
                     """
                     SELECT report_date, ic_value FROM algo_component_attribution
-                    WHERE component = %s AND report_date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                    WHERE component = %s AND report_date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
                     ORDER BY report_date ASC
                     """,
                     (component, days),

@@ -301,7 +301,7 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
                 FROM price_daily pd
                 JOIN company_profile cp ON pd.symbol = cp.ticker
                 WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
-                  AND pd.date >= CURRENT_DATE - (%s * INTERVAL '1 day')
+                  AND pd.date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
                   AND pd.close > 0
                 GROUP BY DATE(pd.date)
                 ORDER BY DATE(pd.date) ASC
