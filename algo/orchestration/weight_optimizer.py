@@ -251,6 +251,7 @@ class WeightOptimizer:
                     "changes": [],
                     "blending_factor": 0,
                     "reason": "insufficient_data",
+                    "success": True,
                 }
 
             # Get current weights
@@ -310,6 +311,7 @@ class WeightOptimizer:
                 "blending_factor": blend_alpha,
                 "regime": regime,
                 "dry_run": dry_run,
+                "success": True,
             }
 
         except (RuntimeError, ValueError, TypeError) as e:
@@ -318,6 +320,7 @@ class WeightOptimizer:
                 "old_weights": self.get_current_weights(),
                 "new_weights": self.get_current_weights(),
                 "error": str(e),
+                "success": False,
             }
 
     def _log_changes(

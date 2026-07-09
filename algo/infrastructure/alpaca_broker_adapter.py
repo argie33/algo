@@ -2,6 +2,7 @@
 """Alpaca broker adapter - implementation of BrokerAdapter for Alpaca broker."""
 
 import logging
+import time
 from typing import Any
 
 import requests
@@ -23,6 +24,50 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         """Initialize Alpaca adapter with configuration."""
         self.config = config
         self.alpaca_sync = AlpacaSyncManager(config)
+
+    def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        max_retries: int = 3,
+        initial_backoff: float = 1.0,
+        **kwargs: Any
+    ) -> requests.Response:
+        """Execute HTTP request with exponential backoff retry on timeout.
+
+        Args:
+            method: HTTP method ('get', 'post', etc.)
+            url: URL to request
+            max_retries: Maximum number of retry attempts
+            initial_backoff: Starting backoff in seconds
+            **kwargs: Additional arguments to pass to requests method
+
+        Returns:
+            Response object on success
+
+        Raises:
+            ValueError: If all retries exhausted or request fails
+        """
+        backoff = initial_backoff
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                req_method = getattr(requests, method.lower())
+                return req_method(url, **kwargs)
+            except (requests.Timeout, requests.ConnectionError) as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    logger.warning(
+                        f"Alpaca API request timeout (attempt {attempt + 1}/{max_retries}), "
+                        f"retrying in {backoff}s: {e}"
+                    )
+                    time.sleep(backoff)
+                    backoff *= 2
+                else:
+                    logger.error(f"Alpaca API request failed after {max_retries} retries: {e}")
+
+        raise ValueError(f"Alpaca API request failed after {max_retries} retries: {last_error}") from last_error
 
     @property
     def alpaca_key(self) -> str | None:
@@ -77,7 +122,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         is_paper_mode = "paper" in (self.alpaca_sync.alpaca_base_url or "").lower()
 
         try:
-            resp = requests.get(
+            resp = self._request_with_retry(
+                "get",
                 f"{self.alpaca_sync.alpaca_base_url}/v2/account",
                 headers={
                     "APCA-API-KEY-ID": self.alpaca_sync.alpaca_key,
@@ -174,7 +220,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             )
 
         try:
-            resp = requests.get(
+            resp = self._request_with_retry(
+                "get",
                 f"{self.alpaca_sync.alpaca_base_url}/v2/account/portfolio/history",
                 params={"period": "all"},
                 headers={
@@ -225,7 +272,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             if since:
                 params["after"] = since.isoformat() if hasattr(since, "isoformat") else str(since)
 
-            resp = requests.get(
+            resp = self._request_with_retry(
+                "get",
                 url,
                 params=params,
                 headers={

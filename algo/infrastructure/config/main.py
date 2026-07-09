@@ -1891,6 +1891,10 @@ class AlgoConfig:
                         f"Critical configuration parameter {key!r} not found in database. "
                         f"This value is required for system safety. Set via config.set() to configure."
                     )
+            # If no value in database and no override default provided, use DEFAULTS dict
+            if default is None and key in self.DEFAULTS:
+                default_value, default_type = self.DEFAULTS[key][:2]
+                return self._parse_value(default_value, default_type)
             return default
 
         # FIXED Issue #8: Validate type safety at retrieval time

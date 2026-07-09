@@ -598,7 +598,7 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
     log_phase_result_fn(
         9,
         "weight_optimization",
-        "success" if opt_result.get("success") else "warn",
+        "success" if opt_result.get("success", False) else "warn",
         f"{len(changes) if changes else 0} weight changes",
     )
     return opt_result

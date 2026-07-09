@@ -10,6 +10,8 @@ import os
 from typing import Any
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from algo.trading.executor_strategies import create_execution_mode_strategy
 from config.credential_manager import get_credential_manager
@@ -53,6 +55,13 @@ class AlpacaSyncManager:
         configured_url = os.getenv("APCA_API_BASE_URL")
         self._alpaca_base_url = strategy.resolve_base_url(configured_url)
 
+        # FIX: Create persistent session with connection pooling to prevent socket exhaustion
+        self._session = requests.Session()
+        retry_strategy = Retry(total=3, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
+        adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=10)
+        self._session.mount("http://", adapter)
+        self._session.mount("https://", adapter)
+
     @property
     def alpaca_key(self) -> str | None:
         """Public accessor for Alpaca API key."""
@@ -75,8 +84,6 @@ class AlpacaSyncManager:
         """
         from typing import cast
 
-        import requests
-
         try:
             url = f"{self._alpaca_base_url}/v2/account"
             headers = {
@@ -84,7 +91,9 @@ class AlpacaSyncManager:
                 "APCA-API-SECRET-KEY": self._alpaca_secret,
                 "Accept": "application/json",
             }
-            response = requests.get(url, headers=headers, timeout=10)
+            # FIX: Use session for connection pooling + config timeout instead of hardcoded 10
+            timeout = self.config.get("api_request_timeout_seconds", 5)
+            response = self._session.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             return cast(dict[str, Any], response.json())
         except (requests.RequestException, ValueError) as e:
