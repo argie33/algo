@@ -93,12 +93,14 @@ def test_full_execution():
 
             # Check positions are tracked
             cur.execute("SELECT COUNT(*) as count FROM algo_positions")
-            count = cur.fetchone()['count'] if cur.fetchone() else 0
+            result = cur.fetchone()
+            count = result['count'] if result else 0
             logger.info(f"  Positions tracked: {count}")
 
             # Check trades are recorded
             cur.execute("SELECT COUNT(*) as count FROM algo_trades")
-            count = cur.fetchone()['count'] if cur.fetchone() else 0
+            result = cur.fetchone()
+            count = result['count'] if result else 0
             logger.info(f"  Trades recorded: {count}")
 
         logger.info("\n" + "=" * 70)

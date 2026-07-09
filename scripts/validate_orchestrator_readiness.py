@@ -27,10 +27,8 @@ def validate_environment():
         "DB_USER": "PostgreSQL user",
         "DB_PASSWORD": "PostgreSQL password",
         "AWS_REGION": "AWS region",
-        "AWS_ACCOUNT_ID": "AWS account ID",
-        "APCA_API_KEY_ID": "Alpaca API key",
-        "APCA_API_SECRET_KEY": "Alpaca API secret",
-        "EXECUTION_MODE": "Execution mode (paper/live)",
+        "ORCHESTRATOR_EXECUTION_MODE": "Execution mode (paper/live)",
+        "ORCHESTRATOR_DRY_RUN": "Dry run mode (true/false)",
     }
 
     missing = []
