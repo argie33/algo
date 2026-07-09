@@ -59,12 +59,12 @@ execution_mode                      = "auto"  # Paper trading mode - credentials
 orchestrator_dry_run                = false
 orchestrator_log_level              = "warning"  # Reduced from "info" to cut CloudWatch logs by 50% (-$3-5/month)
 data_patrol_enabled                 = true
-data_patrol_timeout_ms              = 30000
+data_patrol_timeout_ms              = 60000 # FIXED: 30s too short for full data quality scan. Increased to 60s to prevent early timeout during slow DB queries.
 alpaca_paper_trading                = true # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 40   # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
 api_lambda_reserved_concurrency     = 8    # Right-sized: Dashboard peak ~9 concurrent (8 panels × 2 requests). Reserved=8 provides 1x headroom. Reduced from 15 for cost optimization. Saves $1-2/month.
 api_lambda_provisioned_concurrency  = 0    # DISABLED (cost optimization): Saves $10.80/month. Trade-off: Dashboard cold starts become 20-30s on first load (acceptable for dev). Reserved concurrency still prevents 429 errors.
-algo_lambda_timeout                 = 60   # Right-sized: Orchestrator now ECS-based (no longer Lambda timeout critical). 60s timeout for fail-fast on Lambda invocations. Saves $2-4/month. Was 90s.
+algo_lambda_timeout                 = 1200 # CRITICAL: Must cover ECS orchestrator runtime (11-15min) + buffer. 60s would timeout while ECS task still runs (orphaned task). 1200s = 20min safety margin.
 algo_lambda_ephemeral_storage       = 512  # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0    # Orchestrator runs on schedule, cold start is acceptable
 algo_lambda_reserved_concurrency    = 2    # Right-sized: Runs on schedule (9:30 AM, 5:30 PM ET only). Single invocation per window. Reserved=2 provides buffer for manual triggers. Saves $1-2/month. Was 10 from over-conservative.
@@ -117,12 +117,17 @@ sns_alert_email     = "argeropolos@gmail.com" # SNS email subscription for infra
 alert_email_address = "argeropolos@gmail.com" # Email for circuit breaker alerts (SNS topic subscription)
 alert_email_to      = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
 alert_webhook_url   = ""                      # Leave blank (using email alerts)
-# SMTP configuration for email alerts (set all)
-alert_smtp_host     = ""  # SMTP hostname for Gmail
-alert_smtp_port     = 587 # SMTP port (587 for TLS, 465 for SSL)
-alert_smtp_user     = ""  # Gmail account for sending alerts
-alert_smtp_password = ""  # SMTP password (use GitHub Secrets ALERT_SMTP_PASSWORD in CI/CD)
-alert_smtp_from     = ""  # From email address for alerts
+# SMTP configuration for email alerts (REQUIRED for production)
+# For dev: Leave blank (email alerts will not send). OK for testing.
+# For production: Configure via GitHub Actions secrets (more secure than hardcoded)
+# Setup: 1) Enable 2FA in Gmail. 2) Generate app-specific password at myaccount.google.com/apppasswords
+#        3) Set GitHub Actions secrets: ALERT_SMTP_USER, ALERT_SMTP_PASSWORD
+#        4) Terraform reads from environment: $env:TF_VAR_alert_smtp_host, etc.
+alert_smtp_host     = ""  # smtp.gmail.com (for Gmail)
+alert_smtp_port     = 587 # 587 for TLS; 465 for SSL
+alert_smtp_user     = ""  # Gmail account (set via TF_VAR_alert_smtp_user env var)
+alert_smtp_password = ""  # App-specific password (set via TF_VAR_alert_smtp_password env var)
+alert_smtp_from     = ""  # From address (typically same as alert_smtp_user)
 
 # ============================================================
 # COST OPTIMIZATION: Storage & Database
