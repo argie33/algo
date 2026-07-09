@@ -191,7 +191,8 @@ const extractNestedValue = (obj, path, defaultValue = {}) => {
   return val ?? defaultValue;
 };
 
-const hasError = (data) => data?._error != null;
+// FIXED: Removed hasError - errors are returned as separate error object from useApiQuery
+// not embedded in data as _error field
 const isCached = (data) => data?._fromCache === true;
 
 const CachedDataBadge = () => (
@@ -343,7 +344,30 @@ function PortfolioDashboardPage() {
   const positionsList = extractArray(positions);
   const tradesList = extractArray(trades);
   const equityCurve = extractArray(equityItems);
-  const sectorAllocation = extractArray(positions, "sector_allocation");
+
+  // FIXED: Compute sector allocation from positions array, not extract nested field
+  // Aggregates by sector from each position's sector field
+  const sectorAllocation = useMemo(() => {
+    if (!Array.isArray(positionsList) || positionsList.length === 0) return [];
+
+    const sectorMap = {};
+    let totalValue = 0;
+
+    positionsList.forEach(pos => {
+      if (!pos || typeof pos !== 'object') return;
+      const sector = pos.sector || 'Other';
+      const value = pos.position_value || 0;
+
+      sectorMap[sector] = (sectorMap[sector] || 0) + value;
+      totalValue += value;
+    });
+
+    return Object.entries(sectorMap).map(([sector, value]) => ({
+      sector,
+      value,
+      percentage: totalValue > 0 ? (value / totalValue * 100).toFixed(1) : 0,
+    }));
+  }, [positionsList]);
 
   // Filter out phantom data (positions/trades that are too old)
   const safePositionsList =
@@ -398,13 +422,8 @@ function PortfolioDashboardPage() {
   const hasCachedTrades = isCached(trades);
   const hasCachedEquity = isCached(equityItems);
 
-  const perfDataError = hasError(perf) ? perf._error : null;
-  const tradesDataError = hasError(trades) ? trades._error : null;
-  const posDataError = hasError(positions) ? positions._error : null;
-  const marketsDataError = hasError(markets) ? markets._error : null;
-  const equityDataError = hasError(equityItems) ? equityItems._error : null;
-  const statusDataError = hasError(status) ? status._error : null;
-
+  // FIXED: Remove _error checking from data objects (doesn't exist)
+  // useApiQuery returns errors as separate 'error' property, not embedded in data
   // Check for stale portfolio data
   const portfolioDataFreshness = status?.data_freshness;
   const isPortfolioStale = portfolioDataFreshness?.is_stale === true;
@@ -413,15 +432,12 @@ function PortfolioDashboardPage() {
   // Show error banner for individual errors, but don't block entire dashboard (graceful degradation)
   // Only show errors that don't have cached fallback data
   const criticalErrors = [
-    statusError || statusDataError,
-    posError || posDataError,
-    (perfError && !hasCachedPerf ? perfError : null) ||
-      (perfDataError && !hasCachedPerf ? perfDataError : null),
-    (tradesError && !hasCachedTrades ? tradesError : null) ||
-      (tradesDataError && !hasCachedTrades ? tradesDataError : null),
-    marketsError || marketsDataError,
-    (equityError && !hasCachedEquity ? equityError : null) ||
-      (equityDataError && !hasCachedEquity ? equityDataError : null),
+    statusError,
+    posError,
+    perfError && !hasCachedPerf ? perfError : null,
+    tradesError && !hasCachedTrades ? tradesError : null,
+    marketsError,
+    equityError && !hasCachedEquity ? equityError : null,
     breakersError,
     histogramError,
     distError,
@@ -430,38 +446,32 @@ function PortfolioDashboardPage() {
   ];
   const hasAnyError = criticalErrors.some((err) => err);
   const errorList = [];
-  if (statusError || statusDataError)
+  if (statusError)
     errorList.push({
       section: "Status",
-      error: statusError || statusDataError,
+      error: statusError,
     });
-  if (posError || posDataError)
-    errorList.push({ section: "Positions", error: posError || posDataError });
-  if ((perfError && !hasCachedPerf) || (perfDataError && !hasCachedPerf))
+  if (posError || posError)
+    errorList.push({ section: "Positions", error: posError || posError });
+  if (perfError && !hasCachedPerf)
     errorList.push({
       section: "Performance",
-      error: perfError || perfDataError,
+      error: perfError,
     });
-  if (
-    (tradesError && !hasCachedTrades) ||
-    (tradesDataError && !hasCachedTrades)
-  )
+  if (tradesError && !hasCachedTrades)
     errorList.push({
       section: "Recent Trades",
-      error: tradesError || tradesDataError,
+      error: tradesError,
     });
-  if (marketsError || marketsDataError)
+  if (marketsError)
     errorList.push({
       section: "Markets",
-      error: marketsError || marketsDataError,
+      error: marketsError,
     });
-  if (
-    (equityError && !hasCachedEquity) ||
-    (equityDataError && !hasCachedEquity)
-  )
+  if (equityError && !hasCachedEquity)
     errorList.push({
       section: "Equity Curve",
-      error: equityError || equityDataError,
+      error: equityError,
     });
   if (breakersError)
     errorList.push({ section: "Circuit Breakers", error: breakersError });
@@ -640,7 +650,7 @@ function PortfolioDashboardPage() {
           <SkeletonKpi />
           <SkeletonKpi />
         </div>
-      ) : (perfDataError && !hasCachedPerf) || posDataError ? (
+      ) : (perfError && !hasCachedPerf) || posError ? (
         <div className="card card-danger">
           <div className="card-body">
             <div
@@ -662,9 +672,9 @@ function PortfolioDashboardPage() {
                     marginTop: "var(--space-1)",
                   }}
                 >
-                  {perfDataError && !hasCachedPerf
-                    ? perfDataError
-                    : posDataError}
+                  {perfError && !hasCachedPerf
+                    ? perfError
+                    : posError}
                 </div>
               </div>
             </div>
@@ -741,7 +751,7 @@ function PortfolioDashboardPage() {
           <SkeletonKpi />
           <SkeletonKpi />
         </div>
-      ) : perfDataError && !hasCachedPerf ? (
+      ) : perfError && !hasCachedPerf ? (
         <div
           className="card card-danger"
           style={{ marginTop: "var(--space-4)" }}
@@ -766,7 +776,7 @@ function PortfolioDashboardPage() {
                     marginTop: "var(--space-1)",
                   }}
                 >
-                  {perfDataError}
+                  {perfError}
                 </div>
               </div>
             </div>
@@ -848,7 +858,7 @@ function PortfolioDashboardPage() {
       />
 
       {/* Equity curve + Drawdown chart */}
-      {equityDataError && !hasCachedEquity ? (
+      {equityError && !hasCachedEquity ? (
         <div
           className="card card-danger"
           style={{ marginTop: "var(--space-4)" }}
@@ -873,7 +883,7 @@ function PortfolioDashboardPage() {
                     marginTop: "var(--space-1)",
                   }}
                 >
-                  {equityDataError}
+                  {equityError}
                 </div>
               </div>
             </div>
@@ -927,7 +937,7 @@ function PortfolioDashboardPage() {
             positions={safePositionsList}
             totalValue={totalValue}
             loading={isPrimaryLoading}
-            error={posError || posDataError}
+            error={posError || posError}
             onSelect={(s) => navigate(`/app/stock/${encodeURIComponent(s)}`)}
           />
         </ErrorBoundary>
@@ -935,7 +945,7 @@ function PortfolioDashboardPage() {
           <SectorConcentration
             sector_allocation={sectorAllocation}
             loading={isPrimaryLoading}
-            error={posError || posDataError}
+            error={posError || posError}
           />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -957,7 +967,7 @@ function PortfolioDashboardPage() {
       </ErrorBoundary>
 
       {/* Trade-level metrics + holding-period histogram */}
-      {perfDataError && !hasCachedPerf ? (
+      {perfError && !hasCachedPerf ? (
         <div
           className="card card-danger"
           style={{ marginTop: "var(--space-4)" }}
@@ -982,7 +992,7 @@ function PortfolioDashboardPage() {
                     marginTop: "var(--space-1)",
                   }}
                 >
-                  {perfDataError}
+                  {perfError}
                 </div>
               </div>
             </div>
@@ -1156,7 +1166,7 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Recent trades */}
-      {tradesDataError && !hasCachedTrades ? (
+      {tradesError && !hasCachedTrades ? (
         <div
           className="card card-danger"
           style={{ marginTop: "var(--space-4)" }}
@@ -1181,7 +1191,7 @@ function PortfolioDashboardPage() {
                     marginTop: "var(--space-1)",
                   }}
                 >
-                  {tradesDataError}
+                  {tradesError}
                 </div>
               </div>
             </div>
@@ -1275,7 +1285,7 @@ function PortfolioDashboardPage() {
       )}
 
       {/* Market context */}
-      {marketsDataError ? (
+      {marketsError ? (
         <div
           className="card card-danger"
           style={{ marginTop: "var(--space-4)" }}
@@ -1308,7 +1318,7 @@ function PortfolioDashboardPage() {
                     marginTop: "var(--space-1)",
                   }}
                 >
-                  {marketsDataError}
+                  {marketsError}
                 </div>
               </div>
             </div>
@@ -1397,12 +1407,10 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
     breakers = data.breakers;
   }
 
-  const dataError = data && typeof data === "object" ? data._error : null;
+  // FIXED: Remove _error check from data (errors come via queryError parameter)
   const error =
     queryError?.responseData?.message ||
-    queryError?.responseData?._error ||
-    queryError?.message ||
-    dataError;
+    queryError?.message;
 
   if (loading) {
     return <SkeletonCircuitBreaker />;
