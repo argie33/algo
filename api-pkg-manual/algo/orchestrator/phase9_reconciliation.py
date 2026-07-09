@@ -903,6 +903,24 @@ def run(  # noqa: C901
 
             with DatabaseContext("write") as cur:
                 logger.info("[PHASE 9] Snapshot: Database connection established")
+
+                # CRITICAL: Validate required reconciliation data before snapshot
+                if "portfolio_value" not in result or result["portfolio_value"] is None:
+                    raise ValueError(
+                        "[PHASE 9 CRITICAL] Reconciliation succeeded but portfolio_value missing. "
+                        "Cannot create snapshot with hardcoded $100k fallback as that masks data integrity issues."
+                    )
+                if "positions" not in result or result["positions"] is None:
+                    raise ValueError(
+                        "[PHASE 9 CRITICAL] Reconciliation succeeded but positions missing. "
+                        "Cannot create snapshot without verified position count."
+                    )
+                if "unrealized_pnl" not in result or result["unrealized_pnl"] is None:
+                    raise ValueError(
+                        "[PHASE 9 CRITICAL] Reconciliation succeeded but unrealized_pnl missing. "
+                        "Cannot calculate cash without valid unrealized P&L."
+                    )
+
                 # Get previous portfolio value for daily return calculation
                 cur.execute(
                     """
@@ -914,16 +932,30 @@ def run(  # noqa: C901
                     (run_date,),
                 )
                 prev_row = cur.fetchone()
-                prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
+
+                current_value = Decimal(str(result["portfolio_value"]))
+                if prev_row and prev_row[0]:
+                    prev_value = Decimal(prev_row[0])
+                else:
+                    # First snapshot - use current value as baseline
+                    prev_value = current_value
                 logger.info(f"[PHASE 9] Snapshot: Previous value={prev_value}")
 
-                current_value = Decimal(str(result.get("portfolio_value", 100000.00)))
-                daily_return_pct = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+                # CRITICAL: Do NOT default daily return to 0 when prev_value ≤ 0
+                # 0% return ≠ "data missing". If prev_value is invalid, that's a data integrity issue.
+                if prev_value <= 0:
+                    raise ValueError(
+                        f"[PHASE 9 CRITICAL] Cannot calculate daily return: previous portfolio value is {prev_value} (expected > 0). "
+                        f"This indicates: (1) First portfolio snapshot with corrupted value, or "
+                        f"(2) Data integrity issue in algo_portfolio_snapshots. "
+                        f"Check database state."
+                    )
+                daily_return_pct = (current_value - prev_value) / prev_value * 100
                 logger.info(f"[PHASE 9] Snapshot: Current value={current_value}, return={daily_return_pct}%")
 
-                # Create snapshot with actual reconciliation data
-                pos_count = result.get("positions", 0)
-                unrealized = Decimal(str(result.get("unrealized_pnl", 0)))
+                # Create snapshot with actual reconciliation data (validated above)
+                pos_count = result["positions"]
+                unrealized = Decimal(str(result["unrealized_pnl"]))
                 cash = current_value - unrealized
 
                 logger.info(f"[PHASE 9] Snapshot: Executing INSERT with position_count={pos_count}, cash={cash}")

@@ -149,42 +149,32 @@ class AnnualBalanceSheetLoader(SecEdgarStatementLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch balance sheet data with exception handling.
 
-        On fetch errors, returns data_unavailable marker row instead of raising exception.
+        Re-raises fetch errors to maintain fail-fast semantics.
+        Caller (load_incremental) is responsible for handling fetch failures per-symbol.
         """
         try:
             return super().fetch_incremental(symbol, since)
         except Exception as e:
-            logger.error(f"[BALANCE_SHEET] Exception fetching for {symbol}: {type(e).__name__}: {e}")
-            return [
-                {
-                    "symbol": symbol,
-                    "fiscal_year": 0,
-                    "data_unavailable": True,
-                    "reason": f"fetch_error_{type(e).__name__}",
-                }
-            ]
+            logger.error(f"[BALANCE_SHEET] Failed to fetch balance sheet for {symbol}: {type(e).__name__}: {e}")
+            raise RuntimeError(
+                f"[BALANCE_SHEET] Cannot fetch balance sheet for {symbol}: {type(e).__name__}: {str(e)[:200]}"
+            ) from e
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform to schema format with exception handling and data_unavailable markers.
 
         - Adds data_unavailable=FALSE and reason=NULL to successful fetches
         - Preserves data_unavailable/reason from marker rows returned by fetch_incremental
-        - On transform errors, returns data_unavailable marker row
+        - Re-raises transform errors to maintain fail-fast semantics
         """
         try:
             transformed = super().transform(rows)
         except Exception as e:
-            logger.error(f"[BALANCE_SHEET] Exception transforming data: {type(e).__name__}: {e}")
-            # Extract symbol from first row if available
+            logger.error(f"[BALANCE_SHEET] Failed to transform balance sheet data: {type(e).__name__}: {e}")
             symbol = rows[0].get("symbol", "unknown") if rows else "unknown"
-            return [
-                {
-                    "symbol": symbol,
-                    "fiscal_year": 0,
-                    "data_unavailable": True,
-                    "reason": f"transform_error_{type(e).__name__}",
-                }
-            ]
+            raise RuntimeError(
+                f"[BALANCE_SHEET] Cannot transform balance sheet data for {symbol}: {type(e).__name__}: {str(e)[:200]}"
+            ) from e
 
         # Build map of input rows by key to preserve data_unavailable/reason from marker rows
         input_map: dict[tuple[Any, ...], dict[str, Any]] = {}

@@ -897,7 +897,16 @@ def run(  # noqa: C901
                 else:
                     prev_value = Decimal(prev_row[0])
 
-                daily_return_pct = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
+                # CRITICAL: Do NOT default daily return to 0 when prev_value ≤ 0
+                # 0% return ≠ "data missing". If prev_value is invalid, that's a data integrity issue.
+                if prev_value <= 0:
+                    raise ValueError(
+                        f"[PHASE 9 CRITICAL] Cannot calculate daily return: previous portfolio value is {prev_value} (expected > 0). "
+                        f"This indicates: (1) First portfolio snapshot with corrupted value, or "
+                        f"(2) Data integrity issue in algo_portfolio_snapshots. "
+                        f"Check database state."
+                    )
+                daily_return_pct = (current_value - prev_value) / prev_value * 100
                 logger.info(f"[PHASE 9] Snapshot: Previous={prev_value}, Current={current_value}, Daily return={daily_return_pct}%")
 
                 cash = current_value - unrealized

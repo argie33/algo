@@ -168,8 +168,21 @@ class ReconciliationAnalytics:
                 gross_loss = float(row[3]) if row[3] else 0.0
                 total_closed = int(row[9])
 
-                win_rate = wins / total_closed if total_closed > 0 else 0.0
-                profit_factor = gross_profit / gross_loss if gross_loss > 0 else 0.0
+                # CRITICAL: Do NOT return 0.0 for win_rate/profit_factor as metrics
+                # 0% win rate (all losers) ≠ "no trades" (data unavailable).
+                # Explicitly validate data before returning metrics.
+                if total_closed <= 0:
+                    raise ValueError(f"Expected total_closed > 0 but got {total_closed}")
+                win_rate = wins / total_closed
+
+                if gross_loss <= 0:
+                    # Profit factor undefined when gross_loss ≤ 0 (no losing trades or all breakeven)
+                    # This is a data quality issue, not a metric to return as 0.0 (which means "no profit")
+                    raise ValueError(
+                        f"Cannot calculate profit_factor: gross_loss is {gross_loss} (expected > 0). "
+                        f"Closed trades: {wins}W {losses}L. This suggests a data quality issue."
+                    )
+                profit_factor = gross_profit / gross_loss
 
                 result.update(
                     {

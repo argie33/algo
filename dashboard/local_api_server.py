@@ -111,14 +111,26 @@ class APIHandler(BaseHTTPRequestHandler):
                 sector_allocation[sector] += val
 
             total_value = sum(sector_allocation.values())
-            sector_list = [
-                {
-                    "sector": s,
-                    "allocation_pct": round((v / total_value) * 100, 1) if total_value > 0 else 0,
-                    "is_overweight": (v / total_value) * 100 > 30 if total_value > 0 else False,
-                }
-                for s, v in sorted(sector_allocation.items(), key=lambda x: x[1], reverse=True)
-            ]
+            # CRITICAL: If portfolio has no value, we cannot calculate allocation percentages
+            # This indicates either (1) portfolio is empty (zero positions), or (2) all positions have $0 value
+            # In either case, returning 0% allocation is misleading - should signal data unavailability
+            if total_value <= 0:
+                logger.error(
+                    "[CRITICAL] Cannot calculate sector allocation: total portfolio value is $0 or negative. "
+                    "This indicates: (1) Portfolio has no open positions, or (2) Data integrity issue (position values $0). "
+                    "Check algo_positions table."
+                )
+                # Return empty sector allocation when portfolio is empty
+                sector_list = []
+            else:
+                sector_list = [
+                    {
+                        "sector": s,
+                        "allocation_pct": round((v / total_value) * 100, 1),
+                        "is_overweight": (v / total_value) * 100 > 30,
+                    }
+                    for s, v in sorted(sector_allocation.items(), key=lambda x: x[1], reverse=True)
+                ]
 
             response = {
                 "statusCode": 200,

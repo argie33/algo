@@ -174,9 +174,19 @@ class PhaseRegistry:
 
         Returns:
             List of required predecessor phase numbers (empty if no deps)
+
+        Raises:
+            ValueError: If phase_num not found in registry (indicates registration issue, not empty deps)
         """
         phase = cls.get_phase(phase_num)
-        return phase.dependencies if phase else []
+        if phase is None:
+            raise ValueError(
+                f"Phase {phase_num} not registered in PhaseRegistry. "
+                f"Available phases: {[p.phase_num for p in cls.PHASES]}. "
+                f"Check: (1) Is phase defined in PHASES list? (2) Is phase_num correct? "
+                f"(3) Was orchestrator initialization completed?"
+            )
+        return phase.dependencies
 
     @classmethod
     def get_phase_name(cls, phase_num: int | str) -> str:
