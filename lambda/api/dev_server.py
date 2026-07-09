@@ -24,6 +24,12 @@ if "LOCAL_MODE" not in os.environ:
     os.environ["LOCAL_MODE"] = "true"
     print("[DEV_SERVER] AUTO: Setting LOCAL_MODE=true for local development", flush=True)
 
+# For dev_server: Allow stale portfolio data during testing phase
+# (orchestrator schedules not yet deployed via GitHub Actions)
+if "ALLOW_STALE_PORTFOLIO_DATA" not in os.environ:
+    os.environ["ALLOW_STALE_PORTFOLIO_DATA"] = "true"
+    print("[DEV_SERVER] AUTO: Setting ALLOW_STALE_PORTFOLIO_DATA=true for testing phase", flush=True)
+
 
 # Load database credentials from AWS Secrets Manager (real AWS data) or environment variables
 def _load_db_credentials() -> dict[str, Any]:
