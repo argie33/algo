@@ -589,13 +589,17 @@ def _get_algo_portfolio(cur: cursor) -> Any:
         # algo/infrastructure/reconciliation.py and algo/orchestrator/phase9_reconciliation.py,
         # so it actually reflects the last write. Confirmed live 2026-07-07: portfolio panel
         # reported 53796s stale immediately after a fresh Phase 9 write.
-        # Use database's NOW() to avoid timezone mismatch with Python datetime
+        # Get database time in the database's configured timezone to match snapshot timestamps
+        # CRITICAL FIX: Snapshots are stored as TIMESTAMP WITHOUT TIME ZONE in the database's local timezone (America/Chicago = CT).
+        # We must compare against NOW() in the same timezone. Using UTC creates false staleness due to timezone offset.
+        # Note: America/Chicago is Central Time (CT), which is 1 hour behind ET. This is handled correctly by the database
+        # returning NOW() in its configured timezone, and the dashboard fetcher accounting for market hours in ET separately.
         try:
-            cur.execute("SELECT NOW() at time zone 'UTC'")
+            cur.execute("SELECT NOW()")  # Returns time in database's configured timezone (America/Chicago)
             now_row = cur.fetchone()
             if not now_row:
                 raise ValueError("Database NOW() returned empty")
-            now_utc_db = now_row[0]
+            now_db = now_row[0]
         except Exception as e:
             logger.error(f"CRITICAL: Cannot get database NOW(): {e}")
             return error_response(503, "database_error", "Cannot get current database time")
@@ -609,20 +613,21 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             logger.error("CRITICAL: updated_at/created_at missing from portfolio snapshot query result")
             return error_response(503, "incomplete_data", "Portfolio snapshot missing updated_at/created_at timestamp")
 
-        # Calculate age using database time. updated_at and created_at can have different
-        # underlying column types (created_at predates migration 006's plain TIMESTAMP
-        # updated_at column and may be TIMESTAMPTZ), so psycopg2 can return one as
-        # timezone-aware and the other naive -- normalize both to naive UTC before
-        # subtracting to avoid "can't subtract offset-naive and offset-aware datetimes".
-        if isinstance(last_write_at, datetime) and isinstance(now_utc_db, datetime):
+        # Calculate age using database's local timezone. Both timestamps are naive (TIMESTAMP WITHOUT TIME ZONE)
+        # stored in the database's configured timezone. Subtract them directly.
+        if isinstance(last_write_at, datetime) and isinstance(now_db, datetime):
+            # Both are naive datetime objects in the database's local timezone (America/Chicago)
+            # Remove any timezone info that psycopg2 might have added and compare directly
             if last_write_at.tzinfo is not None:
-                last_write_at = last_write_at.astimezone(timezone.utc).replace(tzinfo=None)
-            if now_utc_db.tzinfo is not None:
-                now_utc_db = now_utc_db.astimezone(timezone.utc).replace(tzinfo=None)
-            data_age_seconds = int((now_utc_db - last_write_at).total_seconds())
+                # If somehow timezone-aware, strip it (shouldn't happen with TIMESTAMP WITHOUT TIME ZONE)
+                last_write_at = last_write_at.replace(tzinfo=None)
+            if now_db.tzinfo is not None:
+                # Strip timezone info to get naive comparison
+                now_db = now_db.replace(tzinfo=None)
+            data_age_seconds = int((now_db - last_write_at).total_seconds())
         else:
             logger.error(
-                f"CRITICAL: Time mismatch - now_utc_db={type(now_utc_db).__name__}, last_write_at={type(last_write_at).__name__}"
+                f"CRITICAL: Time mismatch - now_db={type(now_db).__name__}, last_write_at={type(last_write_at).__name__}"
             )
             return error_response(503, "data_corruption", "Cannot calculate portfolio age - type mismatch")
 
