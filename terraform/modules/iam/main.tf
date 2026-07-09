@@ -1458,12 +1458,17 @@ data "aws_iam_policy_document" "developer" {
     actions = [
       "logs:CreateLogStream",
       "logs:CreateLogGroup",
-      "logs:PutLogEvents"
+      "logs:PutLogEvents",
+      "logs:GetLogEvents",
+      "logs:FilterLogEvents",
+      "logs:DescribeLogStreams",
+      "logs:DescribeLogGroups"
     ]
 
     resources = [
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/${var.project_name}-*",
-      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/ecs/*"
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/ecs/*",
+      "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:*"
     ]
   }
 
@@ -1571,6 +1576,43 @@ data "aws_iam_policy_document" "developer" {
 
     resources = [
       "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:${var.project_name}-*"
+    ]
+  }
+
+  # DynamoDB (for orchestrator lock inspection during troubleshooting)
+  # FIXED: Added missing permissions for production incident response
+  statement {
+    sid    = "DynamoDBInspect"
+    effect = "Allow"
+
+    actions = [
+      "dynamodb:GetItem",
+      "dynamodb:Query",
+      "dynamodb:Scan",
+      "dynamodb:DescribeTable",
+      "dynamodb:ListTables"
+    ]
+
+    resources = [
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-orchestrator-locks-*",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-locks-*"
+    ]
+  }
+
+  # EventBridge (inspect scheduler rules and state)
+  # FIXED: Added missing permissions for verifying EventBridge configuration
+  statement {
+    sid    = "EventBridgeInspect"
+    effect = "Allow"
+
+    actions = [
+      "events:DescribeRule",
+      "events:ListRules",
+      "events:ListTargetsByRule"
+    ]
+
+    resources = [
+      "arn:aws:events:${var.aws_region}:${var.aws_account_id}:rule/${var.project_name}-*"
     ]
   }
 
