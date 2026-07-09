@@ -387,7 +387,7 @@ class PositionMonitor:
                 try:
                     sp_name = f"sp_pos_{i}"
                     cur.execute(f"SAVEPOINT {sp_name}")
-                    self._persist_review(rec, cur)
+                    self._persist_review(rec, cur, i)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                     logger.error(f"Failed to persist review for {rec['symbol']}: {e}")
                     cur.execute(f"ROLLBACK TO {sp_name}")
@@ -1066,13 +1066,13 @@ class PositionMonitor:
             raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest
 
-    def _persist_review(self, rec: dict[str, Any], cur: Any) -> None:
+    def _persist_review(self, rec: dict[str, Any], cur: Any, position_index: int) -> None:
         """Update algo_positions with current price/PnL and log a monitoring audit row (atomic).
 
         Uses savepoint to ensure both position update and audit log succeed together.
         If audit log fails, both are rolled back.
         """
-        sp_name = f"sp_persist_review_{rec['position_id'].replace('-', '_')}"
+        sp_name = f"sp_persist_review_{position_index}"
         cur.execute(f"SAVEPOINT {sp_name}")
         try:
             if "current_price" not in rec or rec["current_price"] is None:
