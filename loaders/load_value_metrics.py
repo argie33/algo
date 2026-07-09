@@ -78,9 +78,20 @@ class ValueMetricsLoader(OptimalLoader):
                 logger.info(f"[VALUE_METRICS] No snapshot for {symbol} — yfinance_snapshot loader not yet run?")
                 return [self._unavailable_record(symbol, "No yfinance_snapshot record")]
 
-            if not row.get("data_available"):
+            # Tuple columns: pe_ratio (0), pb_ratio (1), ps_ratio (2), peg_ratio (3),
+            # dividend_yield (4), fcf_yield (5), market_cap (6), data_available (7), unavailable_reason (8)
+            pe_ratio = row[0]
+            pb_ratio = row[1]
+            ps_ratio = row[2]
+            peg_ratio = row[3]
+            dividend_yield = row[4]
+            fcf_yield = row[5]
+            market_cap = row[6]
+            data_available = row[7]
+            unavailable_reason = row[8]
+
+            if not data_available:
                 # CRITICAL: Validate unavailable_reason field exists (fail-fast if missing)
-                unavailable_reason = row.get("unavailable_reason")
                 if unavailable_reason is None:
                     raise ValueError(
                         f"[VALUE_METRICS] {symbol} marked data_available=False but missing required 'unavailable_reason' field. "
@@ -93,20 +104,20 @@ class ValueMetricsLoader(OptimalLoader):
                 {
                     "symbol": symbol,
                     "date": date.today(),
-                    "market_cap": row["market_cap"],
-                    "market_cap_unavailable_reason": None if row["market_cap"] else "missing_from_snapshot",
-                    "pe_ratio": row["pe_ratio"],
-                    "pe_ratio_unavailable_reason": None if row["pe_ratio"] else "missing_from_snapshot",
-                    "pb_ratio": row["pb_ratio"],
-                    "pb_ratio_unavailable_reason": None if row["pb_ratio"] else "missing_from_snapshot",
-                    "ps_ratio": row["ps_ratio"],
-                    "ps_ratio_unavailable_reason": None if row["ps_ratio"] else "missing_from_snapshot",
-                    "peg_ratio": row["peg_ratio"],
-                    "peg_ratio_unavailable_reason": None if row["peg_ratio"] else "missing_from_snapshot",
-                    "dividend_yield": row["dividend_yield"],
-                    "dividend_yield_unavailable_reason": None if row["dividend_yield"] else "missing_from_snapshot",
-                    "fcf_yield": row["fcf_yield"],
-                    "fcf_yield_unavailable_reason": None if row["fcf_yield"] else "missing_from_snapshot",
+                    "market_cap": market_cap,
+                    "market_cap_unavailable_reason": None if market_cap else "missing_from_snapshot",
+                    "pe_ratio": pe_ratio,
+                    "pe_ratio_unavailable_reason": None if pe_ratio else "missing_from_snapshot",
+                    "pb_ratio": pb_ratio,
+                    "pb_ratio_unavailable_reason": None if pb_ratio else "missing_from_snapshot",
+                    "ps_ratio": ps_ratio,
+                    "ps_ratio_unavailable_reason": None if ps_ratio else "missing_from_snapshot",
+                    "peg_ratio": peg_ratio,
+                    "peg_ratio_unavailable_reason": None if peg_ratio else "missing_from_snapshot",
+                    "dividend_yield": dividend_yield,
+                    "dividend_yield_unavailable_reason": None if dividend_yield else "missing_from_snapshot",
+                    "fcf_yield": fcf_yield,
+                    "fcf_yield_unavailable_reason": None if fcf_yield else "missing_from_snapshot",
                     "held_percent_insiders": None,
                     "held_percent_insiders_unavailable_reason": "moved_to_positioning_metrics",
                     "held_percent_institutions": None,

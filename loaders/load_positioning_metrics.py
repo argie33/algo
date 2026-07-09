@@ -82,13 +82,21 @@ class PositioningMetricsLoader(OptimalLoader):
                 logger.info(f"[POSITIONING_METRICS] No snapshot for {symbol} — yfinance_snapshot loader not yet run?")
                 return [self._unavailable_record(symbol, "No yfinance_snapshot record")]
 
+            # Tuple columns: held_percent_insiders (0), held_percent_institutions (1), short_interest (2),
+            # data_available (3), unavailable_reason (4), updated_at (5)
+            held_percent_insiders = row[0]
+            held_percent_institutions = row[1]
+            short_interest = row[2]
+            data_available = row[3]
+            unavailable_reason = row[4]
+            updated_at = row[5]
+
             # Validate freshness: snapshot should be relatively recent
             # yfinance_snapshot data updates periodically, not necessarily daily.
             # Use 7-day tolerance instead of 24-hour since yfinance only updates when fundamentals change.
             # Per GOVERNANCE: stale but usable data is better than no data.
-            if row.get("updated_at"):
+            if updated_at:
                 # Ensure both datetimes are timezone-aware for safe subtraction
-                updated_at = row["updated_at"]
                 if updated_at.tzinfo is None:
                     # Database returned naive datetime — make it UTC-aware
                     updated_at = updated_at.replace(tzinfo=timezone.utc)
@@ -104,9 +112,8 @@ class PositioningMetricsLoader(OptimalLoader):
                         )
                     ]
 
-            if not row.get("data_available"):
+            if not data_available:
                 # CRITICAL: Validate unavailable_reason field exists (fail-fast if missing)
-                unavailable_reason = row.get("unavailable_reason")
                 if unavailable_reason is None:
                     raise ValueError(
                         f"[POSITIONING_METRICS] {symbol} marked data_available=False but missing required 'unavailable_reason' field. "
@@ -116,9 +123,9 @@ class PositioningMetricsLoader(OptimalLoader):
                 return [self._unavailable_record(symbol, unavailable_reason)]
 
             # Extract positioning metrics from snapshot
-            insider_ownership = row["held_percent_insiders"]
-            institutional_ownership = row["held_percent_institutions"]
-            short_interest_percent = row["short_interest"]
+            insider_ownership = held_percent_insiders
+            institutional_ownership = held_percent_institutions
+            short_interest_percent = short_interest
 
             if (
                 institutional_ownership is not None
