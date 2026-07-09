@@ -185,7 +185,7 @@ class PriceFetcher:
 
         now_utc = datetime.now().astimezone()
         now_et = now_utc.astimezone(EASTERN_TZ)
-        end = now_et.date() + timedelta(days=1)
+        end = now_et.date()  # Fetch only through today, not tomorrow
 
         if since is None:
             start = end - timedelta(days=101)
@@ -213,12 +213,11 @@ class PriceFetcher:
         now_utc = datetime.now().astimezone()
         now_et = now_utc.astimezone(EASTERN_TZ)
 
+        end = now_et.date()  # Always fetch through today's date only
         if is_eod_pipeline:
-            end = now_et.date()
-            logger.info(f"[EOD_CONTEXT] Fetching data ending at {end} (yesterday's complete data for EOD)")
+            logger.info(f"[EOD_CONTEXT] Fetching data ending at {end} (today's data for EOD)")
         else:
-            end = now_et.date() + timedelta(days=1)
-            logger.debug(f"[INTRADAY_CONTEXT] Fetching data ending at {end} (including today)")
+            logger.debug(f"[INTRADAY_CONTEXT] Fetching data ending at {end} (today's data)")
 
         start = end - timedelta(days=101) if since is None else since
 

@@ -75,8 +75,16 @@ def test_positions_api():
         try:
             from dashboard import api_data_layer
             api_data_layer._response_cache.clear()
-        except:
+        except ImportError:
+            # api_data_layer module may not be available in test environment
             pass
+        except AttributeError:
+            # _response_cache may not exist in this version
+            pass
+        except Exception as e:
+            # Log any other errors but continue
+            import logging
+            logging.warning(f"Could not clear API cache: {type(e).__name__}: {e}")
 
         from dashboard.api_data_layer import api_call
 

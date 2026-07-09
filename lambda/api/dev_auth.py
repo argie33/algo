@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -69,7 +70,6 @@ def get_dev_claims(token: str | None) -> dict[str, Any] | None:
     groups = [role] if role in valid_roles else ["user"]
 
     # SECURITY FIX: Add exp claim (24 hours from now, in seconds since epoch)
-    import time
     now = int(time.time())
     expiration = now + (24 * 60 * 60)  # 24-hour expiration
 
@@ -117,7 +117,6 @@ def validate_dev_token(
 
     # SECURITY FIX: Validate expiration claim
     if "exp" in claims:
-        import time
         now = int(time.time())
         if now > claims["exp"]:
             return (False, None, f"Dev token expired (exp={claims['exp']}, now={now})")

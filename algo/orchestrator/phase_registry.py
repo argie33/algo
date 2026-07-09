@@ -20,15 +20,30 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PhaseRegistryEntry:
-    """Declarative phase metadata.
+    """Declarative phase metadata with data contracts.
+
+    This class defines how a phase executes in the orchestrator, including its
+    dependencies, halt behavior, and function signature.
 
     Fields:
         phase_num: Unique phase identifier (1-9 typically)
         phase_name: Human-readable phase name for logs/reports
         dependencies: List of phase numbers this phase depends on (empty = no deps)
-        execute_fn: Callable that executes the phase, receives executor via **kwargs
+        execute_fn: Callable that executes the phase
+            - Signature: execute_fn(**kwargs) -> PhaseResult
+            - kwargs: executor (PhaseExecutor instance) passed by orchestrator
+            - Returns: PhaseResult with status, summary, and result data
+            - Contract: Must set PhaseResult.result['output_key'] with phase outputs
         skip_if_halted: If True, skip this phase if halt flag is set
         always_run: If True, always run this phase regardless of halt status
+
+    Data Contract Specification:
+        Input: PhaseExecutor instance with database access and configuration
+        Output: PhaseResult(status, summary, result={...})
+            - status: 'success', 'warning', 'error', or 'skipped'
+            - summary: Human-readable operation summary
+            - result: dict with phase-specific output data (see phase definitions below)
+        Exceptions: RuntimeError, ValueError on critical failures; logged and caught
     """
 
     phase_num: int | str
@@ -51,7 +66,12 @@ class PhaseRegistry:
 
     # Phase definitions in execution order
     # Each entry declares: ID, name, dependencies, executor function, halt behavior
+    # Data Contract: Input = database context, Output = PhaseResult with result={...}
     PHASES = [
+        # Phase 1: DATA FRESHNESS CHECK
+        # Input: Database with data_loader_status table
+        # Output: result={'staleness_report': {...}} with table freshness status
+        # Contract: All critical tables (buy_sell_daily, market_exposure_daily, etc.) must have data within SLA
         PhaseRegistryEntry(
             phase_num=1,
             phase_name="DATA FRESHNESS CHECK",
@@ -59,6 +79,10 @@ class PhaseRegistry:
             execute_fn=None,  # Will be set by orchestrator
             skip_if_halted=False,
         ),
+        # Phase 2: CIRCUIT BREAKERS
+        # Input: Market exposure data from Phase 1
+        # Output: result={'halt_flag': bool, 'halt_reason': str} if circuit breaker triggered
+        # Contract: May set halt_flag=True to stop entry execution if risk threshold exceeded
         PhaseRegistryEntry(
             phase_num=2,
             phase_name="CIRCUIT BREAKERS",
@@ -66,6 +90,10 @@ class PhaseRegistry:
             execute_fn=None,
             skip_if_halted=False,
         ),
+        # Phase 3: POSITION MONITOR
+        # Input: Alpaca positions API data
+        # Output: result={'positions': list, 'position_count': int, 'pnl_data': dict}
+        # Contract: Syncs broker positions with local database, detects fills and partial fills
         PhaseRegistryEntry(
             phase_num=3,
             phase_name="POSITION MONITOR",
@@ -73,6 +101,10 @@ class PhaseRegistry:
             execute_fn=None,
             skip_if_halted=True,
         ),
+        # Phase 4: RECONCILIATION
+        # Input: Database positions from Phase 3, Alpaca position history
+        # Output: result={'reconciliation_report': dict} with sync status
+        # Contract: Verifies position state consistency between database and broker
         PhaseRegistryEntry(
             phase_num=4,
             phase_name="RECONCILIATION",
@@ -80,6 +112,10 @@ class PhaseRegistry:
             execute_fn=None,
             skip_if_halted=True,
         ),
+        # Phase 5: EXPOSURE POLICY ACTIONS
+        # Input: Reconciliation results from Phase 4
+        # Output: result={'exposure_actions': list} with exits to enforce limits
+        # Contract: Generates forced exits if sector/stock exposure exceeds policy thresholds
         PhaseRegistryEntry(
             phase_num=5,
             phase_name="EXPOSURE POLICY ACTIONS",
@@ -87,6 +123,11 @@ class PhaseRegistry:
             execute_fn=None,
             skip_if_halted=True,
         ),
+        # Phase 6: EXIT EXECUTION
+        # Input: Positions from Phase 3, exposure actions from Phase 5
+        # Output: result={'exit_orders': list, 'exit_count': int} with executed orders
+        # Contract: CRITICAL - Always runs regardless of halt (risk reduction must execute)
+        # This allows position closure during market emergencies even when entries are blocked
         PhaseRegistryEntry(
             phase_num=6,
             phase_name="EXIT EXECUTION",
@@ -95,6 +136,10 @@ class PhaseRegistry:
             skip_if_halted=False,  # CRITICAL: Exits ALWAYS run even when circuit breaker halts entries (risk management)
             always_run=True,  # Exits must execute to close positions during market emergencies
         ),
+        # Phase 7: SIGNAL GENERATION & RANKING
+        # Input: Market data, technical indicators, portfolio state from Phase 5
+        # Output: result={'signals': list, 'qualified_trades': list} with ranked entry signals
+        # Contract: Generates buy signals ranked by score; output per ranking criteria
         PhaseRegistryEntry(
             phase_num=7,
             phase_name="SIGNAL GENERATION & RANKING",
@@ -102,6 +147,10 @@ class PhaseRegistry:
             execute_fn=None,
             skip_if_halted=True,
         ),
+        # Phase 8: ENTRY EXECUTION
+        # Input: Qualified signals from Phase 7, exposure policy from Phase 5
+        # Output: result={'entry_orders': list, 'entry_count': int} with executed orders
+        # Contract: Executes entry orders respecting position sizing and exposure limits
         PhaseRegistryEntry(
             phase_num=8,
             phase_name="ENTRY EXECUTION",
@@ -109,6 +158,10 @@ class PhaseRegistry:
             execute_fn=None,
             skip_if_halted=True,
         ),
+        # Phase 9: RECONCILIATION & SNAPSHOT
+        # Input: Trade orders from Phases 6 and 8, portfolio state
+        # Output: result={'snapshot': {...}, 'metrics': {...}} with daily reconciliation
+        # Contract: Creates portfolio_snapshots record with complete daily state; persists for analytics
         PhaseRegistryEntry(
             phase_num=9,
             phase_name="RECONCILIATION & SNAPSHOT",

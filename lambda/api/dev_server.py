@@ -166,22 +166,47 @@ import lambda_function  # noqa: E402
 
 importlib.reload(lambda_function)  # Force fresh reload in case module was cached
 
-log_file = os.path.join(os.environ.get("TEMP", "/tmp"), "dev_server.log")
+# Validate and create log file directory
+log_dir = os.environ.get("TEMP", "/tmp")
+if not os.path.isdir(log_dir):
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except (OSError, PermissionError) as e:
+        # Fall back to current directory if TEMP directory doesn't work
+        log_dir = "."
+        print(f"Warning: Cannot use {os.environ.get('TEMP', '/tmp')} for logs: {e}", flush=True)
+
+log_file = os.path.join(log_dir, "dev_server.log")
+
+# Verify log file path is writable before configuring logging
+try:
+    os.makedirs(os.path.dirname(log_file) or ".", exist_ok=True)
+except (OSError, PermissionError) as e:
+    print(f"Error: Cannot create log directory for {log_file}: {e}", flush=True)
+    log_file = None
+
+log_handlers = [logging.StreamHandler()]
+if log_file:
+    try:
+        log_handlers.append(logging.FileHandler(log_file, mode="w"))
+    except (OSError, IOError, PermissionError) as e:
+        print(f"Warning: Cannot create log file {log_file}: {e}. Using console logging only.", flush=True)
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler(), logging.FileHandler(log_file, mode="w")],
+    handlers=log_handlers,
 )
 logger = logging.getLogger(__name__)
 
 # Also write a marker to show the script started
-try:
-    with open(log_file, "a") as f:
-        f.write("[DEV_SERVER_INIT] Script started\n")
-        f.flush()
-except OSError:
-    pass
+if log_file:
+    try:
+        with open(log_file, "a") as f:
+            f.write("[DEV_SERVER_INIT] Script started\n")
+            f.flush()
+    except (OSError, IOError, PermissionError) as e:
+        logger.warning(f"[DEV_SERVER] Could not write to log file {log_file}: {e}")
 
 
 class APIHandler(BaseHTTPRequestHandler):
@@ -191,12 +216,13 @@ class APIHandler(BaseHTTPRequestHandler):
         msg = f"[HTTP] GET {self.path}"
         print(msg, flush=True)
         logger.info(f"[HTTP_GET] {self.path}")
-        try:
-            with open(log_file, "a") as f:
-                f.write(f"{msg}\n")
-                f.flush()
-        except OSError:
-            pass
+        if log_file:
+            try:
+                with open(log_file, "a") as f:
+                    f.write(f"{msg}\n")
+                    f.flush()
+            except (OSError, IOError, PermissionError) as e:
+                logger.debug(f"Could not write to log file: {e}")
         self._handle_request("GET")
 
     def do_POST(self) -> None:

@@ -150,8 +150,12 @@ try:
                             reason = data['halt_reasons'][0] if data['halt_reasons'] else 'Unknown'
                             print(f"  ({count:3d}x) {reason}")
                             print(f"        Latest: {latest}")
-                    except:
-                        pass
+                    except json.JSONDecodeError as e:
+                        logging.debug(f"Could not parse halt reason details JSON: {e}")
+                    except (TypeError, KeyError, IndexError) as e:
+                        logging.debug(f"Halt reason data structure invalid: {e}")
+                    except Exception as e:
+                        logging.warning(f"Unexpected error parsing halt reason: {type(e).__name__}: {e}")
 
         print("\n6. RECENT FALSE POSITIVE ANALYSIS")
         print("-" * 80)

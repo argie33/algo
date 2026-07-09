@@ -64,7 +64,7 @@ alpaca_paper_trading                = true  # Paper trading enabled (using live 
 api_lambda_timeout                  = 40    # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
 api_lambda_reserved_concurrency     = 8     # Right-sized: Dashboard peak ~9 concurrent (8 panels × 2 requests). Reserved=8 provides 1x headroom. Reduced from 15 for cost optimization. Saves $1-2/month.
 api_lambda_provisioned_concurrency  = 0     # DISABLED (cost optimization): Saves $10.80/month. Trade-off: Dashboard cold starts become 20-30s on first load (acceptable for dev). Reserved concurrency still prevents 429 errors.
-algo_lambda_timeout                 = 1200  # CRITICAL: Must cover ECS orchestrator runtime (11-15min) + buffer. 60s would timeout while ECS task still runs (orphaned task). 1200s = 20min safety margin.
+algo_lambda_timeout                 = 900  # AWS Lambda max timeout. ECS runs async (Lambda returns immediately after invoking task). 900s = 15min for dashboard feedback if needed later.
 algo_lambda_ephemeral_storage       = 512   # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0     # Orchestrator runs on schedule, cold start is acceptable
 algo_lambda_reserved_concurrency    = 2     # Right-sized: Runs on schedule (9:30 AM, 5:30 PM ET only). Single invocation per window. Reserved=2 provides buffer for manual triggers. Saves $1-2/month. Was 10 from over-conservative.

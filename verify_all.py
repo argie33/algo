@@ -78,8 +78,12 @@ try:
                     phase_status = phase.get('status', 'unknown')
                     phase_icon = "[OK]" if phase_status == "ok" else "[ERROR]" if phase_status == "failed" else "[WARN]" if phase_status == "degraded" else "[-]" if phase_status == "skipped" else "[?]"
                     print(f"   {phase_icon} Phase {phase_num}: {phase_name} ({phase_status})")
-            except:
-                pass
+            except json.JSONDecodeError as e:
+                print(f"   [ERROR] Failed to parse phase results JSON: {e}")
+            except (TypeError, KeyError, AttributeError) as e:
+                print(f"   [ERROR] Phase results data structure invalid: {e}")
+            except Exception as e:
+                print(f"   [ERROR] Unexpected error parsing phase results: {type(e).__name__}: {e}")
     else:
         print("  No execution log found")
 

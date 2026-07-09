@@ -276,7 +276,10 @@ class CredentialManager:
                 secret_string = response.get("SecretString")
                 if not secret_string:
                     raise ValueError(f"DB_SECRET_ARN '{secret_arn}' exists but contains no SecretString")
-                creds = _json.loads(secret_string)
+                try:
+                    creds = _json.loads(secret_string)
+                except _json.JSONDecodeError as e:
+                    raise ValueError(f"Database secret contains invalid JSON: {e}") from e
 
                 # Extract host - use RDS Proxy endpoint for connection pooling
                 # RDS Proxy provides connection multiplexing and is the preferred endpoint
@@ -408,7 +411,10 @@ class CredentialManager:
                         secret_string = response.get("SecretString")
                         if not secret_string:
                             raise ValueError(f"User secret '{user_secret_id}' exists but contains no SecretString")
-                        creds = _json.loads(secret_string)
+                        try:
+                            creds = _json.loads(secret_string)
+                        except _json.JSONDecodeError as e:
+                            raise ValueError(f"User secret contains invalid JSON: {e}") from e
                         # CRITICAL: Validate credential fields — must use standard Alpaca field names
                         # No fallback logic: one standard format only
                         key = creds.get("APCA_API_KEY_ID")
@@ -453,7 +459,10 @@ class CredentialManager:
                     secret_string = response.get("SecretString")
                     if not secret_string:
                         raise ValueError("[CREDENTIALS] algo/alpaca secret exists but contains no SecretString")
-                    creds = _json.loads(secret_string)
+                    try:
+                        creds = _json.loads(secret_string)
+                    except _json.JSONDecodeError as e:
+                        raise ValueError(f"[CREDENTIALS] algo/alpaca secret contains invalid JSON: {e}") from e
                     key = creds.get("APCA_API_KEY_ID")
                     secret = creds.get("APCA_API_SECRET_KEY")
                     if key and secret:

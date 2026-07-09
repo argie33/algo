@@ -51,9 +51,8 @@ jobs:
   bootstrap-backend:
     name: "0. Bootstrap Terraform Backend / Create S3 State Bucket & DynamoDB Lock Table"
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
-      contents: read
+    # Note: Inherits permissions from workflow-level definition (id-token: write, contents: read)
+    # Explicit job-level permissions override workflow-level - only include if different
     outputs:
       github_actions_role_arn: ${{ steps.bootstrap.outputs.role_arn }}
     steps:
@@ -89,7 +88,7 @@ jobs:
           try:
             s3.head_bucket(Bucket=backend_bucket)
             print(f"[OK] S3 bucket exists: {backend_bucket}")
-          except:
+          except s3.exceptions.NoSuchBucket:
             try:
               s3.create_bucket(Bucket=backend_bucket)
               s3.put_bucket_versioning(
@@ -107,12 +106,14 @@ jobs:
               print(f"[OK] Created S3 bucket: {backend_bucket}")
             except Exception as e:
               print(f"[ERROR] Could not create bucket: {e}")
+          except Exception as e:
+            print(f"[ERROR] S3 bucket check failed: {type(e).__name__}: {e}")
 
           # Create DynamoDB lock table
           try:
             dynamodb.describe_table(TableName='terraform-locks')
             print("[OK] DynamoDB table exists: terraform-locks")
-          except:
+          except dynamodb.exceptions.ResourceNotFoundException:
             try:
               dynamodb.create_table(
                 TableName='terraform-locks',
@@ -123,6 +124,8 @@ jobs:
               print("[OK] Created DynamoDB table: terraform-locks")
             except Exception as e:
               print(f"[ERROR] Could not create table: {e}")
+          except Exception as e:
+            print(f"[ERROR] DynamoDB table check failed: {type(e).__name__}: {e}")
           EOF
 
       - name: Verify Backend Resources
