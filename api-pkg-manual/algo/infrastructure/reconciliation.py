@@ -814,6 +814,7 @@ class DailyReconciliation:
                 "portfolio_value": float(total_equity_dec),
                 "positions": len(positions),
                 "unrealized_pnl": float(unrealized_pnl),
+                "position_value": float(total_position_value),
             }
 
         except (

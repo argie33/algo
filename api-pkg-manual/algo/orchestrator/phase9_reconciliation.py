@@ -956,8 +956,12 @@ def run(  # noqa: C901
                 # Create snapshot with actual reconciliation data (validated above)
                 pos_count = result["positions"]
                 unrealized = Decimal(str(result["unrealized_pnl"]))
-                cash = current_value - unrealized
+                if "position_value" not in result:
+                    raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'position_value'. Cannot calculate cash. Cannot create snapshot.")
+                position_value = Decimal(str(result["position_value"]))
+                cash = current_value - position_value
 
+                logger.info(f"[PHASE 9] Snapshot: Cash calculation: ${current_value:,.2f} (portfolio) - ${position_value:,.2f} (positions) = ${cash:,.2f}")
                 logger.info(f"[PHASE 9] Snapshot: Executing INSERT with position_count={pos_count}, cash={cash}")
                 cur.execute(
                     """
