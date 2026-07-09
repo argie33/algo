@@ -184,13 +184,22 @@ def audit_portfolio_status():
 
     total_value = 0
     for pos in open_positions:
-        price = pos['exit_price'] or pos['entry_price'] or 0
-        value = float(pos['quantity'] or 0) * float(price or 0)
+        # Fail-fast if critical price data missing
+        if pos['entry_price'] is None:
+            print(f"  [ERROR] {pos['symbol']:6} | Missing entry_price - cannot calculate position value")
+            continue
+        if pos['quantity'] is None or pos['quantity'] == 0:
+            print(f"  [ERROR] {pos['symbol']:6} | Missing or zero quantity - invalid position")
+            continue
+
+        price = pos['exit_price'] if pos['exit_price'] is not None else pos['entry_price']
+        quantity = float(pos['quantity'])
+        value = quantity * float(price)
         total_value += value
         pnl = pos['profit_loss_dollars']
         pnl_icon = "+" if pnl and pnl > 0 else "-" if pnl and pnl < 0 else "="
-        pnl_pct = pos['profit_loss_pct'] or 0
-        print(f"  {pos['symbol']:6} | Qty: {pos['quantity']:7.0f} | Value: ${value:10.2f} | P&L: {pnl_icon} {pnl_pct:6.2f}%")
+        pnl_pct = pos['profit_loss_pct'] if pos['profit_loss_pct'] is not None else 0.0
+        print(f"  {pos['symbol']:6} | Qty: {quantity:7.0f} | Value: ${value:10.2f} | P&L: {pnl_icon} {pnl_pct:6.2f}%")
 
     print(f"\nTotal Portfolio Value: ${total_value:.2f}")
 

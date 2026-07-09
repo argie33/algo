@@ -171,12 +171,34 @@ class PositionSizer:
                     if row and row[0] is not None:
                         logger.debug(f"[POSITION_SIZER] Paper mode: using portfolio snapshot value {row[0]}")
                         return Decimal(str(row[0]))
-                # No snapshot - return default
-                logger.warning("[POSITION_SIZER] No portfolio snapshot found. Using default paper trading balance.")
-                return Decimal("100000.00")
+                # No snapshot - use configured initial capital
+                initial_capital = self.config.get("initial_capital_paper_trading")
+                if not initial_capital:
+                    raise RuntimeError(
+                        "[POSITION_SIZER] CRITICAL: No portfolio snapshot available and "
+                        "initial_capital_paper_trading not configured. "
+                        "Set initial_capital_paper_trading in algo_config table."
+                    )
+                logger.warning(
+                    f"[POSITION_SIZER] No portfolio snapshot found. "
+                    f"Using configured initial_capital_paper_trading=${initial_capital:.2f}"
+                )
+                return Decimal(str(initial_capital))
+            except RuntimeError:
+                raise
             except Exception as db_err:
-                logger.warning(f"[POSITION_SIZER] Paper mode portfolio lookup failed: {db_err}. Using default value.")
-                return Decimal("100000.00")
+                initial_capital = self.config.get("initial_capital_paper_trading")
+                if not initial_capital:
+                    raise RuntimeError(
+                        f"[POSITION_SIZER] CRITICAL: Paper mode portfolio lookup failed ({db_err}) and "
+                        "initial_capital_paper_trading not configured. "
+                        "Set initial_capital_paper_trading in algo_config table."
+                    ) from db_err
+                logger.warning(
+                    f"[POSITION_SIZER] Paper mode portfolio lookup failed: {db_err}. "
+                    f"Using configured initial_capital_paper_trading=${initial_capital:.2f}"
+                )
+                return Decimal(str(initial_capital))
 
         # Live mode: attempt Alpaca API call
         key = None

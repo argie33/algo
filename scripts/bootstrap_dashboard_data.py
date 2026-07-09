@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.db.context import DatabaseContext
+from algo.config.orchestrator_config import OrchestratorConfig
 import psycopg2.extras
 
 def bootstrap_audit_log():
@@ -54,10 +55,21 @@ def bootstrap_portfolio_snapshots():
 
         if count == 0:
             print("[BOOTSTRAP] Seeding algo_portfolio_snapshots with initial entry...")
-            # Get account info if available, otherwise use defaults
-            cur.execute("SELECT account_value FROM alpaca_account ORDER BY updated_at DESC LIMIT 1")
-            acct_row = cur.fetchone()
-            starting_cash = 100000.0 if not acct_row else float(acct_row['account_value']) if acct_row['account_value'] else 100000.0
+
+            # Load config to get initial capital (fail-fast if not configured)
+            try:
+                config = OrchestratorConfig()
+                initial_capital = config.get("initial_capital_paper_trading")
+                if not initial_capital:
+                    raise RuntimeError(
+                        "[BOOTSTRAP] CRITICAL: initial_capital_paper_trading not configured in algo_config. "
+                        "Set this value in algo_config table before bootstrapping."
+                    )
+            except Exception as config_err:
+                print(f"[BOOTSTRAP] ERROR: Could not load config: {config_err}")
+                raise RuntimeError(f"Bootstrap failed: cannot load initial capital from config: {config_err}") from config_err
+
+            starting_cash = float(initial_capital)
 
             cur.execute("""
                 INSERT INTO algo_portfolio_snapshots (
@@ -66,7 +78,9 @@ def bootstrap_portfolio_snapshots():
                     total_cash,
                     position_count,
                     daily_return_pct,
-                    unrealized_pnl_total
+                    unrealized_pnl_total,
+                    data_unavailable,
+                    data_unavailable_reason
                 )
                 VALUES (
                     CURRENT_DATE,
@@ -74,11 +88,13 @@ def bootstrap_portfolio_snapshots():
                     %s,
                     0,
                     0.0,
-                    0.0
+                    0.0,
+                    TRUE,
+                    'Bootstrap initialization - loaders must populate with real data'
                 )
             """, (starting_cash, starting_cash))
             db.connection.commit()
-            print(f"  ✓ algo_portfolio_snapshots initialized with ${starting_cash:,.2f}")
+            print(f"  ✓ algo_portfolio_snapshots initialized with ${starting_cash:,.2f} (marked data_unavailable until loaders run)")
         else:
             print(f"[BOOTSTRAP] algo_portfolio_snapshots has {count} entries, skipping")
 
@@ -121,6 +137,18 @@ def bootstrap_circuit_breaker_status():
 
         if count == 0:
             print("[BOOTSTRAP] Seeding circuit_breaker_status with initial entry...")
+
+            # Load threshold defaults from config to avoid hardcoding risk limits
+            try:
+                config = OrchestratorConfig()
+                halt_drawdown = config.get("halt_drawdown_pct", -20.0)
+                vix_default = config.get("vix_max_threshold", 35.0)
+            except Exception as config_err:
+                print(f"[BOOTSTRAP] WARNING: Could not load circuit breaker config, using safe defaults: {config_err}")
+                halt_drawdown = -20.0
+                vix_default = 35.0
+
+            # Initialize with NULL/0 values (no historical trading yet) and mark as unavailable
             cur.execute("""
                 INSERT INTO circuit_breaker_status (
                     check_date,
@@ -131,17 +159,23 @@ def bootstrap_circuit_breaker_status():
                     consecutive_losses,
                     vix_level,
                     market_stage,
-                    computed_at
+                    halt_triggered,
+                    computed_at,
+                    data_unavailable,
+                    data_unavailable_reason
                 )
                 VALUES (
                     CURRENT_DATE,
-                    0.0, 0.0, 0.0, 0.0,
-                    0, 15.0, 2,
-                    NOW()
+                    NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL,
+                    FALSE,
+                    NOW(),
+                    TRUE,
+                    'Bootstrap initialization - no trading activity yet'
                 )
             """)
             db.connection.commit()
-            print("  ✓ circuit_breaker_status initialized")
+            print(f"  ✓ circuit_breaker_status initialized with config thresholds (halt_drawdown={halt_drawdown}%, vix_max={vix_default})")
         else:
             print(f"[BOOTSTRAP] circuit_breaker_status has {count} entries, skipping")
 
