@@ -120,10 +120,8 @@ class BuySignalGenerator:
 
                 # Handle market_stage result: could be string, dict (data unavailable), or None
                 market_stage = None
-                market_stage_unavailable = False
                 if isinstance(market_stage_result, dict) and market_stage_result.get("data_unavailable"):
-                    # Data unavailable marker: mark signal as incomplete, store reason separately
-                    market_stage_unavailable = True
+                    # Data unavailable marker: leave market_stage as None
                     market_stage = None
                 elif isinstance(market_stage_result, str):
                     market_stage = market_stage_result

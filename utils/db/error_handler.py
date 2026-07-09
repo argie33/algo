@@ -9,7 +9,8 @@ provides utilities to:
 """
 
 import logging
-from typing import Any, Callable, TypeVar
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 import psycopg2
 
@@ -66,7 +67,7 @@ def safe_query(
             try:
                 # Explicitly rollback to clear abort state
                 cursor.connection.rollback()
-                logger.info(f"[TRANSACTION_ABORT] Rollback successful, abort state cleared")
+                logger.info("[TRANSACTION_ABORT] Rollback successful, abort state cleared")
             except Exception as rollback_err:
                 logger.error(
                     f"[TRANSACTION_ABORT] Failed to rollback: {rollback_err}. "
