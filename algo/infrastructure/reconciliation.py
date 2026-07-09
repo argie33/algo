@@ -297,6 +297,9 @@ class DailyReconciliation:
             logger.info(f"DAILY RECONCILIATION - {reconcile_date}")
             logger.info(f"{'=' * 70}\n")
 
+            # Get execution mode from config for cash calculation logic
+            execution_mode = self.config.get("execution_mode", "paper")
+
             # 1. Fetch broker account (required - no fallback to stale DB data)
             account_data = self._fetch_account()
             if not account_data:
