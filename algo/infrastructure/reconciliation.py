@@ -1267,9 +1267,12 @@ class DailyReconciliation:
             f"[RECONCILIATION] Retry import: {retried} succeeded, {skipped_count} skipped. "
             f"Skips: {skip_reasons[:10]}"  # First 10 skip reasons
         )
+        from algo.infrastructure.config.sql_intervals import get_interval_sql
+
+        interval_1d = get_interval_sql("1d")
         cur.execute(
-            "SELECT COUNT(DISTINCT symbol) FROM alpaca_import_failures "
-            "WHERE resolved = FALSE AND failed_at > NOW() - get_interval_sql('1d')"
+            f"SELECT COUNT(DISTINCT symbol) FROM alpaca_import_failures "
+            f"WHERE resolved = FALSE AND failed_at > NOW() - {interval_1d}"
         )
         failure_row = cur.fetchone()
         if failure_row is None:
@@ -1291,8 +1294,11 @@ class DailyReconciliation:
                     f"position detection. Cannot proceed without alert system. Check notification service."
                 ) from alert_e
         try:
+            from algo.infrastructure.config.sql_intervals import get_interval_sql
+
+            interval_7d = get_interval_sql("7d")
             cur.execute(
-                "DELETE FROM alpaca_import_failures WHERE resolved = TRUE AND resolved_at < NOW() - get_interval_sql('7d')"
+                f"DELETE FROM alpaca_import_failures WHERE resolved = TRUE AND resolved_at < NOW() - {interval_7d}"
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             # CRITICAL: If cleanup fails, database may grow unbounded with stale failure records

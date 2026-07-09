@@ -345,11 +345,14 @@ class TradeValidator:
         Raises:
             RuntimeError: If database query returns no result (data integrity failure).
         """
+        from algo.infrastructure.config.sql_intervals import get_interval_sql
+
+        interval_sql = get_interval_sql("30d")
         cur.execute(
-            """
+            f"""
             SELECT COUNT(*) FROM algo_trades
             WHERE symbol = %s AND status IN (%s, %s)
-              AND created_at >= CURRENT_TIMESTAMP - get_interval_sql('30d')
+              AND created_at >= CURRENT_TIMESTAMP - {interval_sql}
             """,
             (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
         )
@@ -374,13 +377,16 @@ class TradeValidator:
         Returns:
             (valid: bool, error_message: str|None, reentry_count: int for database)
         """
+        from algo.infrastructure.config.sql_intervals import get_interval_sql
+
+        interval_sql = get_interval_sql("30d")
         # Find most recent CLOSED trade in the last 30 days
         cur.execute(
-            """
+            f"""
             SELECT trade_id, exit_date, exit_reason, profit_loss_pct, reentry_count
             FROM algo_trades
             WHERE symbol = %s AND status = %s
-              AND exit_date >= CURRENT_DATE - get_interval_sql('30d')
+              AND exit_date >= CURRENT_DATE - {interval_sql}
             ORDER BY exit_date DESC NULLS LAST, id DESC
             LIMIT 1
             """,

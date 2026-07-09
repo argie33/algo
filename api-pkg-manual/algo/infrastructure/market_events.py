@@ -37,9 +37,34 @@ class MarketEventHandler:
     def __init__(self, config: Any) -> None:
         self.config = config
         self.alpaca_base_url = get_alpaca_base_url()
-        cm = get_credential_manager()
-        creds = cm.get_alpaca_credentials()
-        # CRITICAL: Fail fast if credentials missing (no defaults)
+
+        # In paper mode, market event checks (halts, circuit breakers) still require Alpaca API
+        # because we need real market data to validate positions and detect halts.
+        # However, we can use paper trading credentials instead of live trading credentials.
+        # If credentials are not available, fail gracefully for paper mode operations.
+        execution_mode = config.get("execution_mode", "paper")
+
+        try:
+            cm = get_credential_manager()
+            creds = cm.get_alpaca_credentials()
+        except ValueError as e:
+            # In paper mode, credential failure is degraded but may be tolerable for some operations.
+            # However, market halt checks REQUIRE credentials to call Alpaca API.
+            if execution_mode == "paper":
+                logger.warning(
+                    f"[MARKET_EVENTS] Paper mode: Alpaca credentials not available. "
+                    f"Market halt checks will not be performed. Position updates will still work from database. "
+                    f"Error: {e}"
+                )
+                # Set dummy credentials so methods don't crash, but they'll fail on API calls
+                self.alpaca_key = None
+                self.alpaca_secret = None
+                return
+            else:
+                # Live mode requires real credentials
+                raise
+
+        # CRITICAL: Fail fast if credentials missing (no defaults) in live mode
         if "key" not in creds:
             raise ValueError("[MARKET_EVENTS] Alpaca API key missing from credentials")
         if "secret" not in creds:
@@ -55,6 +80,11 @@ class MarketEventHandler:
             None: if symbol is tradable and not halted (normal trading state)
 
         """
+        # In paper mode, if credentials unavailable, skip halt check and assume tradable
+        if self.alpaca_key is None or self.alpaca_secret is None:
+            logger.debug(f"[HALT_CHECK] Paper mode: credentials unavailable, assuming {symbol} is tradable")
+            return {"halted": False, "symbol": symbol, "paper_mode": True}
+
         try:
             url = f"{self.alpaca_base_url}/v2/assets/{symbol}"
             headers = {

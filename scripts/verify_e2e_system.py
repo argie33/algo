@@ -66,7 +66,9 @@ with DatabaseContext('read') as cur:
         FROM algo_trades
     """)
     row = cur.fetchone()
-    total, open_pos, recent = row[0], row[1], row[2]
+    total = row[0] if row else 0
+    open_pos = row[1] if row and row[1] is not None else 0
+    recent = row[2] if row and row[2] is not None else 0
 
     print("RESULT:")
     print(f"  Total trades all time: {total}")

@@ -115,9 +115,13 @@ class LivePerformance:
             ValueError: If no closed trades found. Win rate is critical metric — cannot use default.
         """
         try:
+            from algo.infrastructure.config import get_config
+            from algo.infrastructure.config.sql_intervals import get_interval_sql
+
+            interval_sql = get_interval_sql("365d")
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    """
+                    f"""
                     SELECT
                         COUNT(*) as total,
                         SUM(CASE WHEN r_multiple > 0 THEN 1 ELSE 0 END) as win_count,
@@ -141,7 +145,7 @@ class LivePerformance:
                             END AS r_multiple
                         FROM algo_trades
                         WHERE status = 'closed'
-                          AND exit_date >= CURRENT_DATE - get_interval_sql('365d')
+                          AND exit_date >= CURRENT_DATE - {interval_sql}
                         ORDER BY exit_date DESC NULLS LAST
                         LIMIT %s
                     ) closed_trades

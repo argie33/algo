@@ -746,9 +746,9 @@ class PositionMonitor:
         """
         cur.execute(
             """
-            SELECT pd.close, td.atr, td.sma_50, td.ema_12
+            SELECT pd.close, td.atr, td.sma_50, td.sma_200
             FROM price_daily pd
-            LEFT JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
+            INNER JOIN technical_data_daily td ON pd.symbol = td.symbol AND pd.date = td.date
             WHERE pd.symbol = %s AND pd.date <= %s
             ORDER BY pd.date DESC LIMIT 1
             """,
@@ -1042,13 +1042,16 @@ class PositionMonitor:
         Raises:
             ValueError: If price data is missing or invalid for the period
         """
+        from algo.infrastructure.config.sql_intervals import get_interval_sql
+
+        interval_1d = get_interval_sql("1d")
         cur.execute(
-            """
+            f"""
             WITH bracket AS (
                 SELECT close, ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
                 FROM price_daily
                 WHERE symbol = %s AND date <= %s
-                  AND date >= %s::date - (%s * get_interval_sql('1d'))
+                  AND date >= %s::date - (%s * {interval_1d})
             )
             SELECT
                 (SELECT close FROM bracket WHERE rn = 1),
