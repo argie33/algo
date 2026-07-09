@@ -441,7 +441,7 @@ class EntryHandler:
             """
             INSERT INTO algo_trades (
                 trade_id, idempotency_key, symbol, signal_date, trade_date,
-                entry_time, entry_price, entry_quantity, entry_reason,
+                entry_time, entry_price, entry_quantity, quantity, entry_reason,
                 stop_loss_price, stop_loss_method,
                 target_1_price, target_1_r_multiple,
                 target_2_price, target_2_r_multiple,
@@ -456,7 +456,7 @@ class EntryHandler:
                 reentry_count, prior_trade_id, rejection_reason,
                 created_at
             ) VALUES (
-                %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s,
+                %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s,
                 %s, %s,
                 %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s,
@@ -478,6 +478,7 @@ class EntryHandler:
                 request.entry_date,
                 request.executed_price,
                 request.shares,
+                request.shares,  # CRITICAL FIX: Add quantity = entry_quantity for all new trades
                 request.entry_reason,
                 request.stop_loss_price,
                 request.stop_method or "minervini_break_or_swing_low",
