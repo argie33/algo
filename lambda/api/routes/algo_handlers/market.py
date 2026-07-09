@@ -12,7 +12,6 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
-from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
@@ -29,6 +28,7 @@ from routes.utils import (
     validate_api_response,
 )
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import format_decimal_string, get_optional_field
 

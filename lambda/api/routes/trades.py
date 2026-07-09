@@ -13,7 +13,6 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
-from algo.infrastructure.config.sql_intervals import get_interval_sql
 from auth_utils import check_admin_access
 from models.requests import ManualTradeRequest
 from psycopg2.extensions import cursor
@@ -32,6 +31,7 @@ from routes.utils import (
     safe_offset,
 )
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
 from utils.data_queries import count_trades_by_status, get_trades_by_status
 

@@ -16,7 +16,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
-from algo.infrastructure.config.sql_intervals import get_interval_sql
 from auth_utils import check_admin_access
 from psycopg2.extensions import cursor
 from routes.utils import (
@@ -28,6 +27,8 @@ from routes.utils import (
     list_response,
     safe_limit,
 )
+
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 
 logger = logging.getLogger(__name__)
 

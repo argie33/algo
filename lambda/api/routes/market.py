@@ -10,7 +10,6 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
-from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -24,6 +23,7 @@ from routes.utils import (
     safe_json_serialize,
 )
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
 from utils.validation import safe_float
 

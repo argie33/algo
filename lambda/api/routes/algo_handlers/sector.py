@@ -10,7 +10,6 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
-from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     db_route_handler,
@@ -24,6 +23,7 @@ from routes.utils import (
     validate_api_response,
 )
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
 
 logger = logging.getLogger(__name__)
