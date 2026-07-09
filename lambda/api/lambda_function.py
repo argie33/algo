@@ -887,6 +887,17 @@ def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | Non
     if not token:
         return (False, None, "No token provided")
 
+    # CRITICAL: Check for dev tokens FIRST before JWT validation
+    # Dev mode is only active in local development (not Lambda, no Cognito configured)
+    from dev_auth import validate_dev_token
+    is_dev_valid, dev_claims, dev_error = validate_dev_token(token)
+    if is_dev_valid:
+        return (True, dev_claims, None)
+    elif dev_error and "Dev mode not enabled" not in dev_error:
+        # Token looks like dev token but mode is disabled - reject it
+        return (False, None, dev_error)
+    # If dev mode not enabled, continue with JWT validation
+
     if len(token) < 50:
         return (False, None, "Token too short")
     if token.count(".") != 2:

@@ -9,6 +9,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -146,7 +147,8 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> Any:
             where_clauses.append("event_date <= %s")
             query_params.append(end_date)
         else:
-            where_clauses.append("event_date >= CURRENT_DATE - get_interval_sql('90d')")
+            interval_90d = get_interval_sql("90d")
+            where_clauses.append(f"event_date >= CURRENT_DATE - {interval_90d}")
 
         where_sql = " AND ".join(where_clauses)
 

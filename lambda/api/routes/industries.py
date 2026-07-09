@@ -9,6 +9,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -291,8 +292,9 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
         return error_response(400, "parameter_error", f"Invalid parameters: {str(e)[:100]}")
 
     try:
+        interval_1d = get_interval_sql("1d")
         cur.execute(
-            """
+            f"""
             WITH prices AS (
                 SELECT
                     DATE(pd.date)                        AS date,
@@ -301,7 +303,7 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
                 FROM price_daily pd
                 JOIN company_profile cp ON pd.symbol = cp.ticker
                 WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
-                  AND pd.date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
+                  AND pd.date >= CURRENT_DATE - (%s * {interval_1d})
                   AND pd.close > 0
                 GROUP BY DATE(pd.date)
                 ORDER BY DATE(pd.date) ASC

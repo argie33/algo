@@ -10,6 +10,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -1446,12 +1447,13 @@ def _get_markets(cur: cursor) -> Any:
     )
     latest = cur.fetchall()
 
+    interval_90d = get_interval_sql("90d")
     cur.execute(
-        """
+        f"""
         SELECT symbol, date, close
         FROM price_daily
         WHERE symbol = ANY(%s)
-              AND date >= CURRENT_DATE - get_interval_sql('90d')
+              AND date >= CURRENT_DATE - {interval_90d}
         ORDER BY symbol, date DESC
     """,
         (index_symbols,),

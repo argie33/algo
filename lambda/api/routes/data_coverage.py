@@ -22,6 +22,7 @@ from typing import Any
 import psycopg2
 import psycopg2.errors
 import psycopg2.extras
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     error_response,

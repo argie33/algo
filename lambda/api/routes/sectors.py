@@ -9,6 +9,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -53,13 +54,14 @@ def handle(  # noqa: C901
 
             if sectors:
                 placeholders = ",".join(["%s"] * len(sectors))
+                interval_1d = get_interval_sql("1d")
                 cur.execute(
                     f"""
                         SELECT cp.sector, pd.date, AVG(pd.close) AS "avgPrice"
                         FROM price_daily pd
                         JOIN company_profile cp ON pd.symbol = cp.ticker
                         WHERE cp.sector IN ({placeholders})
-                          AND pd.date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
+                          AND pd.date >= CURRENT_DATE - (%s * {interval_1d})
                         GROUP BY cp.sector, pd.date
                         ORDER BY cp.sector, pd.date ASC
                     """,
@@ -98,14 +100,14 @@ def handle(  # noqa: C901
                 cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 # All camelCase aliases double-quoted so psycopg2 preserves case
                 cur.execute(
-                    """
+                    f"""
                         WITH sector_daily_avg AS (
                             SELECT
                                 pd.date,
                                 AVG(pd.close) AS "avgPrice"
                             FROM price_daily pd
                             JOIN company_profile cp ON pd.symbol = cp.ticker
-                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
+                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * {get_interval_sql('1d')})
                             GROUP BY pd.date
                         ),
                         sector_with_ma AS (
@@ -151,11 +153,12 @@ def handle(  # noqa: C901
             else:
                 days = safe_days(extract_param(params, "days"), max_val=365, default=90)
                 cur.execute("SET LOCAL statement_timeout = '5000ms'")
+                interval_1d_perf = get_interval_sql("1d")
                 cur.execute(
-                    """
+                    f"""
                         SELECT date, sector, return_pct
                         FROM sector_performance
-                        WHERE sector = %s AND date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
+                        WHERE sector = %s AND date >= CURRENT_DATE - (%s * {interval_1d_perf})
                         ORDER BY date DESC
                     """,
                     (sector_name, days),
@@ -190,7 +193,7 @@ def handle(  # noqa: C901
                     sector_perf_1d_prior AS (
                         SELECT DISTINCT ON (sector) sector, return_pct AS prior_1d
                         FROM sector_performance
-                        WHERE date <= CURRENT_DATE - get_interval_sql('1d')
+                        WHERE date <= CURRENT_DATE - {get_interval_sql('1d')}
                           AND (SELECT has_data FROM sp_exists)
                         ORDER BY sector, date DESC
                     ),
@@ -403,11 +406,12 @@ def handle(  # noqa: C901
             if not sector_name:
                 return error_response(400, "bad_request", "Sector name required")
             cur.execute("SET LOCAL statement_timeout = '10000ms'")
+            interval_1d_trend = get_interval_sql("1d")
             cur.execute(
-                """
+                f"""
                     SELECT date, sector, return_pct, relative_strength
                     FROM sector_performance
-                    WHERE sector = %s AND date >= CURRENT_DATE - (%s * get_interval_sql('1d'))
+                    WHERE sector = %s AND date >= CURRENT_DATE - (%s * {interval_1d_trend})
                     ORDER BY date DESC
                 """,
                 (sector_name, days),

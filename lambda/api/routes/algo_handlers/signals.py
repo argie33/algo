@@ -10,6 +10,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from models.requests import PreTradeImpactRequest, TradePreviewRequest
 from psycopg2.extensions import cursor
 from pydantic import ValidationError

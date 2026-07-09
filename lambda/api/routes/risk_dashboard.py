@@ -16,6 +16,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from auth_utils import check_admin_access
 from psycopg2.extensions import cursor
 from routes.utils import (
@@ -153,9 +154,10 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
 
         # Position sizing statistics
         try:
+            interval_30d = get_interval_sql("30d")
             rows = execute_with_timeout(
                 cur,
-                """
+                f"""
                 SELECT
                     COUNT(*) as total_trades,
                     AVG(cascade_multiplier) as avg_cascade,
@@ -163,7 +165,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
                     MAX(cascade_multiplier) as max_cascade,
                     AVG(position_size_pct) as avg_position_size_pct
                 FROM algo_position_sizing_audit
-                WHERE created_at >= NOW() - get_interval_sql('30d')
+                WHERE created_at >= NOW() - {interval_30d}
             """,
                 timeout_sec=8,
             )
@@ -185,12 +187,13 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
 
         # Exit rules distribution (top 5)
         try:
+            interval_30d_exit = get_interval_sql("30d")
             exit_rows = execute_with_timeout(
                 cur,
-                """
+                f"""
                 SELECT exit_rule, COUNT(*) as count
                 FROM algo_exit_rules_distribution
-                WHERE created_at >= NOW() - get_interval_sql('30d')
+                WHERE created_at >= NOW() - {interval_30d_exit}
                 GROUP BY exit_rule
                 ORDER BY count DESC
                 LIMIT 5
@@ -371,14 +374,15 @@ def _get_exposure_tier_info(cur: cursor) -> Any:
 def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
     """GET /api/algo/risk-dashboard/position-sizing-audit?days=30"""
     try:
+        interval_1d = get_interval_sql("1d")
         audit_rows = execute_with_timeout(
             cur,
-            """
+            f"""
             SELECT symbol, signal_date, entry_price, stop_loss_price,
                    base_shares, final_shares, position_size_pct,
                    cascade_multiplier, reasons_json, created_at
             FROM algo_position_sizing_audit
-            WHERE created_at >= NOW() - get_interval_sql('1d') * %s
+            WHERE created_at >= NOW() - {interval_1d} * %s
             ORDER BY created_at DESC
             LIMIT 100
         """,
@@ -443,12 +447,13 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
 def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
     """GET /api/algo/risk-dashboard/stop-loss-audit?days=30"""
     try:
+        interval_1d_stop = get_interval_sql("1d")
         cur.execute(
-            """
+            f"""
             SELECT symbol, signal_date, entry_price, stop_loss_price,
                    distance_pct, stop_method, stop_reasoning, candidates_json, created_at
             FROM algo_stop_loss_audit
-            WHERE created_at >= NOW() - get_interval_sql('1d') * %s
+            WHERE created_at >= NOW() - {interval_1d_stop} * %s
             ORDER BY created_at DESC
             LIMIT 100
         """,
@@ -508,15 +513,16 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
 def _get_exit_rules_distribution(cur: cursor, days: int) -> Any:
     """GET /api/algo/risk-dashboard/exit-rules?days=30"""
     try:
+        interval_1d_exit = get_interval_sql("1d")
         cur.execute(
-            """
+            f"""
             SELECT exit_rule, COUNT(*) as count,
                    AVG(pnl_pct) as avg_pnl_pct,
                    AVG(r_multiple) as avg_r_multiple,
                    COUNT(CASE WHEN pnl_dollars > 0 THEN 1 END) as winning_count,
                    COUNT(CASE WHEN pnl_dollars < 0 THEN 1 END) as losing_count
             FROM algo_exit_rules_distribution
-            WHERE created_at >= NOW() - get_interval_sql('1d') * %s
+            WHERE created_at >= NOW() - {interval_1d_exit} * %s
             GROUP BY exit_rule
             ORDER BY count DESC
         """,

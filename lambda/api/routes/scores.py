@@ -9,6 +9,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -243,7 +244,7 @@ def _get_stock_scores(
                     SELECT MAX(high) AS high_52w
                     FROM price_daily
                     WHERE symbol = fs.symbol
-                      AND date >= CURRENT_DATE - get_interval_sql('52w')
+                      AND date >= CURRENT_DATE - {get_interval_sql('52w')}
                 ) p52 ON true
                 ORDER BY fs.{sort_col} {sort_direction}
             """
