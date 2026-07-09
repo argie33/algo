@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 sys.path.insert(0, '.')
 
 from utils.db.context import DatabaseContext
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 
 
 def validate_database():
@@ -59,9 +60,10 @@ def validate_data_freshness():
     try:
         with DatabaseContext("read") as cur:
             # Check orchestrator runs in last 24h
-            cur.execute("""
+            interval = get_interval_sql('24h')
+            cur.execute(f"""
                 SELECT COUNT(*) FROM algo_orchestrator_runs
-                WHERE started_at > NOW() - get_interval_sql('24h')
+                WHERE started_at > NOW() - {interval}
                 AND overall_status = 'success'
             """)
             success_runs = cur.fetchone()[0]
