@@ -141,14 +141,28 @@ class AnalystAnalysisLoader(OptimalLoader):
                 }
             ]
 
+        if analysts_overweight is None or analysts_hold is None or analysts_underweight is None:
+            logger.warning(
+                f"[ANALYST_ANALYSIS] {symbol}: Missing analyst rating breakdown "
+                f"(overweight={analysts_overweight}, hold={analysts_hold}, underweight={analysts_underweight}). "
+                f"Cannot distinguish missing data from zero counts. Marking unavailable."
+            )
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "incomplete_analyst_ratings_breakdown",
+                }
+            ]
+
         return [
             {
                 "symbol": symbol,
                 "recommendation_key": recommendation_key,
                 "number_of_analysts": number_of_analysts,
-                "analysts_overweight": analysts_overweight or 0,
-                "analysts_hold": analysts_hold or 0,
-                "analysts_underweight": analysts_underweight or 0,
+                "analysts_overweight": int(analysts_overweight),
+                "analysts_hold": int(analysts_hold),
+                "analysts_underweight": int(analysts_underweight),
                 "data_unavailable": False,
                 "reason": None,
             }

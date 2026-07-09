@@ -410,7 +410,7 @@ def _get_algo_status(cur: cursor) -> Any:
             "status": "ready",
         }
 
-    # Try to get portfolio snapshot; use defaults if missing
+    # Fetch and validate portfolio snapshot: FAIL-FAST if critical data missing
     try:
         cur.execute("""
                 SELECT total_portfolio_value, total_cash, daily_return_pct,
@@ -423,20 +423,37 @@ def _get_algo_status(cur: cursor) -> Any:
             logger.error("Portfolio snapshot unavailable: algo_portfolio_snapshots table is empty")
             raise RuntimeError("Portfolio snapshot data unavailable - table is empty")
 
-        pv = float(snap.get("total_portfolio_value") or 0.0)
-        unrealized_pnl = float(snap.get("unrealized_pnl_total") or 0.0)
+        pv_raw = snap.get("total_portfolio_value")
+        tc_raw = snap.get("total_cash")
+        pc_raw = snap.get("position_count")
+        unrealized_pnl_raw = snap.get("unrealized_pnl_total")
+        daily_return_raw = snap.get("daily_return_pct")
+
+        if pv_raw is None:
+            logger.error("[CRITICAL] Portfolio snapshot missing total_portfolio_value (required financial field)")
+            raise RuntimeError("Portfolio snapshot missing critical field: total_portfolio_value")
+        if tc_raw is None:
+            logger.error("[CRITICAL] Portfolio snapshot missing total_cash (required financial field)")
+            raise RuntimeError("Portfolio snapshot missing critical field: total_cash")
+        if pc_raw is None:
+            logger.error("[CRITICAL] Portfolio snapshot missing position_count (required field)")
+            raise RuntimeError("Portfolio snapshot missing critical field: position_count")
+
+        pv = float(pv_raw)
+        tc_float = float(tc_raw)
+        pc = int(pc_raw)
+
+        unrealized_pnl = float(unrealized_pnl_raw) if unrealized_pnl_raw is not None else 0.0
         unrealized_pnl_pct = None
-        if pv is not None and pv > 0 and unrealized_pnl is not None:
+        if pv > 0 and unrealized_pnl is not None:
             unrealized_pnl_pct = unrealized_pnl / pv * 100
-        tc = snap.get("total_cash") or 0.0
-        tc_float = float(tc)
 
         portfolio = {
             "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
             "total_cash": format_decimal_string(tc_float, precision=2),
-            "position_count": int(snap.get("position_count") or 0),
+            "position_count": pc,
             "daily_return_pct": format_decimal_string(
-                float(snap.get("daily_return_pct") or 0.0), precision=2, allow_none=True
+                float(daily_return_raw) if daily_return_raw is not None else None, precision=2, allow_none=True
             ),
             "unrealized_pnl_pct": format_decimal_string(
                 unrealized_pnl_pct,

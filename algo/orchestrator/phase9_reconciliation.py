@@ -34,8 +34,6 @@ def _run_reconciliation_step(
 
     recon = DailyReconciliation(config)
 
-    # PAPER MODE GRACEFUL DEGRADATION: If Alpaca API fails (401, 403, timeout) in paper mode,
-    # continue with database state instead of crashing orchestrator
     try:
         result = recon.run_daily_reconciliation(run_date, dry_run=dry_run)
     except Exception as e:
@@ -44,18 +42,16 @@ def _run_reconciliation_step(
         is_paper_mode = config.get("execution_mode") in ("paper", "auto")
 
         if is_alpaca_auth_error and is_paper_mode:
-            logger.warning(
-                f"[PHASE 9 PAPER MODE] Alpaca API error ({type(e).__name__}), "
-                f"but in paper mode - using database state for reconciliation"
+            logger.error(
+                f"[PHASE 9 PAPER MODE] Alpaca API error ({type(e).__name__}): {e}. "
+                f"Paper mode reconciliation requires either: "
+                f"(1) Alpaca credentials in AWS Secrets Manager (algo/alpaca secret), or "
+                f"(2) database state that's in sync. Cannot proceed with hardcoded defaults ($100k) as that masks data issues."
             )
-            # Return paper mode reconciliation result (success with database state)
-            result = {
-                "success": True,
-                "portfolio_value": 100000.00,
-                "positions": 0,
-                "unrealized_pnl": 0.00,
-                "note": "Paper mode - database state only",
-            }
+            raise RuntimeError(
+                f"[PHASE 9] Paper mode reconciliation failed: {type(e).__name__}: {str(e)[:200]}. "
+                f"Check Alpaca credentials in AWS Secrets Manager or database sync state."
+            ) from e
         else:
             raise
 
@@ -73,14 +69,14 @@ def _run_reconciliation_step(
         required_keys = ["portfolio_value", "positions", "unrealized_pnl"]
         missing_keys = [k for k in required_keys if k not in result or result[k] is None]
         if missing_keys:
-            # Paper mode with no broker: provide sensible defaults instead of failing
-            if config.get("execution_mode") in ("paper", "auto"):
-                logger.warning(f"[PHASE 9] Paper mode: broker unavailable, using defaults for {missing_keys}")
-                result["portfolio_value"] = result.get("portfolio_value", 100000.00)
-                result["positions"] = result.get("positions", 0)
-                result["unrealized_pnl"] = result.get("unrealized_pnl", 0.00)
-            else:
-                raise ValueError(f"Reconciliation succeeded but missing critical data: {missing_keys}")
+            logger.error(
+                f"[PHASE 9 CRITICAL] Reconciliation reported success but missing critical data: {missing_keys}. "
+                f"Result keys available: {list(result.keys())}. "
+                f"Cannot proceed with hardcoded defaults as that masks data sync issues. "
+                f"Check: (1) DailyReconciliation implementation, (2) Alpaca API connectivity, "
+                f"(3) algo_portfolio_snapshots table state"
+            )
+            raise ValueError(f"Reconciliation succeeded but missing critical data: {missing_keys}")
 
         summary = (
             f"Portfolio ${result['portfolio_value']:,.2f}, "

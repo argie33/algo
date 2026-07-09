@@ -93,34 +93,19 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         data_age = port.get("data_age_seconds")
         max_age_with_grace = max_age_seconds + grace_period_seconds
 
-        # WARN: Data exceeds maximum acceptable age
-        # TEMPORARY FIX (testing phase): Accept stale data with warning instead of hard fail
-        # Root cause: Orchestrator schedules not deployed (EventBridge schedulers need terraform apply via GH Actions)
-        # Once orchestrator schedules are deployed, Phase 9 will run on schedule and data will be fresh
+        # FAIL-FAST: Portfolio data staleness is critical for trading
+        # Accepting stale data silently is unacceptable for a finance app
+        # If data is stale, Phase 9 failed or is not running (check EventBridge deployment and logs)
         if data_age is not None and data_age > max_age_with_grace:
-            import os
-            allow_stale_data = os.getenv("ALLOW_STALE_PORTFOLIO_DATA", "false").lower() == "true"
-
-            error_msg = f"Data is stale ({data_age}s old, max {max_age_with_grace}s including grace period)"
-
-            if allow_stale_data:
-                # TESTING MODE: Accept stale data and proceed (with warning)
-                logger.warning(
-                    f"[ALLOW_STALE_DATA] Accepting stale portfolio data in testing mode. "
-                    f"Age: {data_age}s (limit: {max_age_with_grace}s). "
-                    f"Cause: Orchestrator Phase 9 not running (EventBridge schedules not deployed). "
-                    f"Fix: Deploy via 'Deploy All Infrastructure' GitHub Actions workflow."
-                )
-                record_data_quality_issue(
-                    "portfolio", "freshness", "stale_data_allowed",
-                    f"Stale data accepted in testing mode. {error_msg}. EventBridge deployment needed."
-                )
-                # Continue processing instead of failing
-            else:
-                # NORMAL MODE: Fail on stale data
-                logger.error(error_msg)
-                record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg or "stale data")
-                return FetcherValidator.build_error_response(error_msg)
+            error_msg = (
+                f"Portfolio data is stale ({data_age}s old, max {max_age_with_grace}s including grace period). "
+                f"Phase 9 orchestration may not be running or may have failed. "
+                f"Check: (1) EventBridge scheduler deployed? (2) Phase 9 logs in AWS CloudWatch? "
+                f"(3) database table algo_portfolio_snapshots has recent updates?"
+            )
+            logger.error(f"[FAIL_FAST] {error_msg}")
+            record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg)
+            return FetcherValidator.build_error_response(error_msg)
 
         # WARN: Data is older than 24 hours but still within acceptable range
         # This flag indicates portfolio data hasn't been updated in a while (non-trading day gap)
