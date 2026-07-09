@@ -270,40 +270,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     }),
                 }
 
-        # F-02: Check Secrets Manager for intraday circuit breaker halt flag.
-        # Set by algo-circuit-breaker Lambda when portfolio drawdown exceeds threshold.
-        # Fail-closed: if Secrets Manager is unavailable, halt trading to prevent catastrophic loss.
-        if not dry_run:
-            try:
-                import json as _json
-
-                from config.credential_manager import get_secret
-
-                secret_str = get_secret("algo/orchestrator", default="{}")
-                orch_state = _json.loads(secret_str)
-                # CRITICAL FIX: Explicit check for orchestrator_dry_run field
-                dry_run_flag = orch_state.get("orchestrator_dry_run")
-                if dry_run_flag is not None and dry_run_flag in (True, "true", "1"):
-                    logger.warning(
-                        "[F-02] Circuit breaker halted trading — orchestrator_dry_run=true in Secrets Manager"
-                    )
-                    dry_run = True
-                elif dry_run_flag is not None and dry_run_flag not in (False, "false", "0", None):
-                    logger.warning(f"[F-02] Unexpected orchestrator_dry_run value: {dry_run_flag}, treating as False")
-            except (json.JSONDecodeError, ValueError) as _cb_err:
-                logger.error(
-                    f"[F-02] CRITICAL: Could not check circuit breaker state: {_cb_err} — halting trading for safety"
-                )
-                return {
-                    "statusCode": 500,
-                    "body": json.dumps(
-                        {
-                            "status": "error",
-                            "message": f"Circuit breaker state verification failed: {_cb_err!s}. Halting trading to prevent catastrophic loss.",
-                            "source": source,
-                        }
-                    ),
-                }
+        # CONSOLIDATED: Single halt flag system using DynamoDB (managed by orchestrator.py)
+        # Removed redundant Secrets Manager halt check - orchestrator.py already handles circuit breaker
+        # state via DynamoDB algo_orchestrator_state table. This prevents dual-system confusion.
 
         logger.info(
             f"Orchestrator invoked: source={source}, is_test={is_test}, dry_run={dry_run}, execution_mode={execution_mode}, run_identifier={run_identifier}"

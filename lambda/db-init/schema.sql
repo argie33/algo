@@ -471,6 +471,70 @@ CREATE TABLE IF NOT EXISTS loader_status (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- CRITICAL: Code references data_loader_status (fix for naming mismatch)
+CREATE TABLE IF NOT EXISTS data_loader_status (
+    id SERIAL PRIMARY KEY,
+    table_name VARCHAR(100) NOT NULL,
+    last_run TIMESTAMP WITH TIME ZONE,
+    completion_pct NUMERIC(5, 2),
+    records_loaded INTEGER,
+    records_failed INTEGER,
+    error_message TEXT,
+    is_complete BOOLEAN DEFAULT FALSE,
+    is_stale BOOLEAN DEFAULT FALSE,
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(table_name)
+);
+CREATE INDEX IF NOT EXISTS idx_data_loader_status_table ON data_loader_status(table_name);
+CREATE INDEX IF NOT EXISTS idx_data_loader_status_updated ON data_loader_status(last_updated DESC);
+
+-- Orchestrator run history (distinct from orchestrator_execution_log)
+CREATE TABLE IF NOT EXISTS algo_orchestrator_runs (
+    run_id VARCHAR(255) PRIMARY KEY,
+    run_date DATE NOT NULL,
+    overall_status VARCHAR(50),
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    execution_time_seconds NUMERIC(10, 2),
+    halt_reason VARCHAR(500),
+    phase_results JSONB,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_algo_orchestrator_runs_date ON algo_orchestrator_runs(run_date DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_orchestrator_runs_status ON algo_orchestrator_runs(overall_status);
+
+-- S&P 500 universe (critical for position tracking)
+CREATE TABLE IF NOT EXISTS stock_symbols (
+    symbol VARCHAR(20) PRIMARY KEY,
+    company_name VARCHAR(255),
+    sector VARCHAR(100),
+    industry VARCHAR(100),
+    market_cap_millions DECIMAL(15, 2),
+    is_active BOOLEAN DEFAULT TRUE,
+    added_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_sector ON stock_symbols(sector);
+CREATE INDEX IF NOT EXISTS idx_stock_symbols_active ON stock_symbols(is_active);
+
+-- Company fundamental data for sector/industry lookups
+CREATE TABLE IF NOT EXISTS company_profile (
+    symbol VARCHAR(20) PRIMARY KEY REFERENCES stock_symbols(symbol) ON DELETE CASCADE,
+    company_name VARCHAR(255),
+    sector VARCHAR(100),
+    industry VARCHAR(100),
+    market_cap DECIMAL(18, 2),
+    employees INTEGER,
+    headquarters VARCHAR(255),
+    website VARCHAR(255),
+    description TEXT,
+    ceo VARCHAR(255),
+    exchange VARCHAR(20),
+    ipo_date DATE,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_company_profile_sector ON company_profile(sector);
+
 -- ============================================================================
 -- TRADING TABLES (Core system - CRITICAL for all functionality)
 -- ============================================================================
@@ -559,6 +623,56 @@ CREATE TABLE IF NOT EXISTS algo_portfolio_snapshots (
 CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_run_id ON algo_portfolio_snapshots(run_id);
 CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_date ON algo_portfolio_snapshots(snapshot_date DESC);
 CREATE INDEX IF NOT EXISTS idx_algo_portfolio_snapshots_created_at ON algo_portfolio_snapshots(created_at DESC);
+
+-- ============================================================================
+-- MATERIALIZED VIEWS (Risk-enhanced position data for Phase 9 reconciliation)
+-- ============================================================================
+
+CREATE MATERIALIZED VIEW IF NOT EXISTS algo_positions_with_risk AS
+SELECT
+    ap.id,
+    ap.symbol,
+    ap.entry_date,
+    ap.entry_price,
+    ap.quantity,
+    ap.avg_entry_price,
+    ap.current_price,
+    ap.position_value,
+    ap.unrealized_pnl,
+    ap.unrealized_pnl_pct,
+    ap.status,
+    ap.stop_loss_price,
+    ap.target_1_price,
+    ap.target_2_price,
+    ap.target_3_price,
+    ap.sector,
+    ap.created_at,
+    ap.updated_at,
+    -- Risk calculations
+    CASE
+        WHEN ap.entry_price > 0 THEN ((ap.current_price - ap.entry_price) / ap.entry_price * 100)
+        ELSE NULL
+    END as risk_pct,
+    CASE
+        WHEN ap.stop_loss_price > 0 AND ap.entry_price > 0 THEN ((ap.entry_price - ap.stop_loss_price) / ap.entry_price * 100)
+        ELSE NULL
+    END as stop_loss_distance_pct,
+    CASE
+        WHEN ap.target_1_price > 0 THEN ((ap.target_1_price - ap.entry_price) / ap.entry_price * 100)
+        ELSE NULL
+    END as target_1_distance_pct,
+    -- Stability metrics (if available)
+    sm.beta,
+    sm.volatility_30d,
+    -- Quality metrics (if available)
+    qm.quality_score
+FROM algo_positions ap
+LEFT JOIN stability_metrics sm ON ap.symbol = sm.symbol
+LEFT JOIN quality_metrics qm ON ap.symbol = qm.symbol
+WHERE ap.status = 'open';
+
+CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_symbol ON algo_positions_with_risk(symbol);
+CREATE INDEX IF NOT EXISTS idx_algo_positions_with_risk_status ON algo_positions_with_risk(status);
 
 -- ============================================================================
 -- DATA PATROL TABLE (Data quality monitoring and phase 1 validation)

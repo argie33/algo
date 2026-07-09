@@ -618,9 +618,10 @@ class Orchestrator:
 
                 # ESCALATION: If all critical loaders are stale/missing, this is a systemic issue
                 # (likely EventBridge failure or loader infrastructure down)
+                # FIXED: Detect hung loaders (partial completion 1-94%), not just 0% or missing
                 all_loaders_checked = dict(loader_status)
                 all_stale_or_missing = len(all_loaders_checked) > 0 and all(
-                    status["is_stale"] or status["completion_pct"] is None or status["completion_pct"] == 0
+                    status["is_stale"] or status["completion_pct"] is None or (status.get("is_complete") is False)
                     for status in all_loaders_checked.values()
                 )
 
@@ -1053,12 +1054,14 @@ class Orchestrator:
 
         PHASE DEPENDENCY FIX: Fetches validated data from Phase 3 and 5.
         """
-        if executor:
-            position_recs = executor.get_phase_data_required(3, "recommendations")
-            exposure_actions = executor.get_phase_data_required(5, "actions")
-        else:
-            position_recs = []
-            exposure_actions = []
+        if not executor:
+            raise RuntimeError(
+                "[PHASE 6] CRITICAL: Executor is None. Phase 6 requires validated data from Phases 3 and 5. "
+                "This should never happen - check phase_executor.py initialization."
+            )
+
+        position_recs = executor.get_phase_data_required(3, "recommendations")
+        exposure_actions = executor.get_phase_data_required(5, "actions")
 
         result = run_phase6(
             self.config,
@@ -1077,7 +1080,14 @@ class Orchestrator:
 
         PHASE DEPENDENCY FIX: Fetches validated data from Phase 5.
         """
-        exposure_constraints = executor.get_phase_data_required(5, "constraints") if executor else None
+        if not executor:
+            raise RuntimeError(
+                "[PHASE 7] CRITICAL: Executor is None. Phase 7 requires exposure constraints from Phase 5. "
+                "Cannot execute signal generation without validated market exposure constraints. "
+                "This should never happen - check phase_executor.py initialization."
+            )
+
+        exposure_constraints = executor.get_phase_data_required(5, "constraints")
 
         result = run_phase7(
             self.run_date,
