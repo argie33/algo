@@ -1178,8 +1178,10 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
     PUBLIC_PREFIXES = {  # noqa: N806
         # DEBUG: Added equity-curve and histogram endpoints
         "/api/health",  # Basic health check (no auth required for uptime monitoring)
-        # /api/health/detailed and /api/health/pipeline intentionally require authentication
+        "/api/health/cognito",  # Cognito client ID check (public for frontend config)
+        # SECURITY FIX: /api/health/detailed and /api/health/pipeline require authentication
         # (they expose DB table names, loader names, row counts, freshness ages).
+        # These are handled specially in the auth check below.
         "/api/market",  # Market breadth, distribution (aggregate only - no strategy)
         "/api/algo/markets",  # Market regime data (public market conditions)
         "/api/algo/scores",  # Stock scores (needed for dashboard signals panel - growth/composite scores)
@@ -1242,18 +1244,23 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
     # /api/admin - administrative functions
     # /api/settings - user-specific settings
 
-    # Check if path matches any public prefix
-    # Match: exact route or /path/subpath (strict matching to prevent auth bypass)
-    def matches_prefix(p: str, prefix: str) -> bool:
-        if p == prefix:
-            return True
-        if p.startswith(prefix + "/"):
-            return True
-        if p.startswith(prefix + "?"):
-            return True
-        return False
+    # SECURITY FIX: Explicitly exclude protected health endpoints before prefix matching
+    # /api/health/detailed and /api/health/pipeline require authentication
+    if path in ("/api/health/detailed", "/api/health/pipeline") or path.startswith("/api/health/detailed?") or path.startswith("/api/health/pipeline?"):
+        is_public = False
+    else:
+        # Check if path matches any public prefix
+        # Match: exact route or /path/subpath (strict matching to prevent auth bypass)
+        def matches_prefix(p: str, prefix: str) -> bool:
+            if p == prefix:
+                return True
+            if p.startswith(prefix + "/"):
+                return True
+            if p.startswith(prefix + "?"):
+                return True
+            return False
 
-    is_public = any(matches_prefix(path, prefix) for prefix in PUBLIC_PREFIXES)
+        is_public = any(matches_prefix(path, prefix) for prefix in PUBLIC_PREFIXES)
     logger.info(
         f"[AUTH_CHECK] path={path}, is_public={is_public}, in_prefixes={'/api/algo/equity-curve' in PUBLIC_PREFIXES}"
     )

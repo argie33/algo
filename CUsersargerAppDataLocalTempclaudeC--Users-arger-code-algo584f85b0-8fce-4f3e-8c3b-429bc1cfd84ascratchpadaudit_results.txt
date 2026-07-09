@@ -1,0 +1,123 @@
+# DATA LOADER CONSOLIDATION AUDIT
+
+## Consolidation Status
+
+CONSOLIDATED LOADERS (3 total):
+1. load_market_rankings.py
+   - Consolidates: sector_ranking + industry_ranking (2→1)
+   - Status: ✓ IMPLEMENTED
+   - Methods: _load_sector_rankings(), _load_industry_rankings()
+
+2. load_analyst_analysis.py
+   - Consolidates: analyst_sentiment_analysis + analyst_upgrade_downgrade (2→1)
+   - Status: ✓ IMPLEMENTED
+   - Dependencies: yfinance_snapshot
+
+3. load_financial_statements.py
+   - Consolidates: income_statement + balance_sheet + cash_flow (8→1)
+   - Status: ✓ IMPLEMENTED
+   - Pattern: Environment variables (LOADER_STATEMENT_TYPE, LOADER_PERIOD)
+
+DEPRECATED LOADERS (Still exist but should be orphaned):
+- load_sector_ranking.py (DEPRECATED)
+- load_industry_ranking.py (DEPRECATED)
+- load_analyst_sentiment_analysis.py (DEPRECATED)
+- load_analyst_upgrade_downgrade.py (DEPRECATED)
+- load_income_statement.py (DEPRECATED)
+- load_balance_sheet.py (DEPRECATED)
+- load_cash_flow.py (DEPRECATED)
+
+CORE LOADERS (Operating as individual, not consolidated):
+- load_prices.py ✓
+- load_technical_data_daily.py ✓
+- load_quality_metrics.py ✓
+- load_growth_metrics.py ✓
+- load_value_metrics.py ✓
+- load_positioning_metrics.py ✓
+- load_stability_metrics.py ✓
+- load_stock_scores.py ✓
+- load_market_exposure_daily.py ✓
+
+## ECS Fargate Execution
+
+TERRAFORM CONFIGURATION: ✓ CORRECT
+- File: terraform/modules/loaders/main.tf
+- All loaders defined in ECS task definitions
+- Fargate launch type: ✓ CONFIGURED
+- Network mode: awsvpc ✓
+- Task role/execution role: ✓ CONFIGURED
+- Health checks: ✓ IMPLEMENTED (CMD-SHELL check every 30s)
+- Resource allocation: ✓ OPTIMIZED (Phase 8 right-sizing applied)
+
+CONSOLIDATED LOADERS TERRAFORM MAPPING:
+✓ sector_ranking → load_market_rankings.py
+✓ industry_ranking → load_market_rankings.py
+✓ analyst_sentiment → load_analyst_analysis.py
+✓ analyst_upgrades_downgrades → load_analyst_analysis.py
+✓ financials_annual_income → load_financial_statements.py
+✓ financials_annual_balance → load_financial_statements.py
+✓ financials_quarterly_income → load_financial_statements.py
+✓ financials_quarterly_balance → load_financial_statements.py
+✓ financials_ttm_income → load_financial_statements.py
+✓ financials_ttm_cashflow → load_financial_statements.py
+
+## Error Handling
+
+✓ All core loaders have proper try/except blocks
+✓ Data unavailable markers: Implemented in loaders
+✓ Fallback mechanisms: Explicit failures (no silent degradation)
+✓ Logging: Structured error logging with correlation IDs
+✓ Database resilience: Proper error handling for DB failures
+
+## Execution Blockers
+
+ISSUE 1: Old Loader Module References in Phase 1 Failsafe
+  Location: api-pkg/algo/orchestrator/phase1_failsafe_retry.py (line 392)
+  Problem: Still references old loader modules:
+    - "sector_ranking": "loaders.load_sector_ranking" (SHOULD BE: loaders.load_market_rankings)
+  Blocker: If loader retry triggered during Phase 1, will fail on module import
+  Also in: lambda-deploy/ copies (lines not yet synchronized)
+  Severity: MEDIUM (Only triggered if loader fails and Phase 1 failsafe activates)
+
+ISSUE 2: Deprecated Loader Files Not Removed
+  Files: 7 old loader files still in codebase
+    - load_sector_ranking.py
+    - load_industry_ranking.py  
+    - load_analyst_sentiment_analysis.py
+    - load_analyst_upgrade_downgrade.py
+    - load_income_statement.py
+    - load_balance_sheet.py
+    - load_cash_flow.py
+  Impact: Code clutter, potential confusion, test files still import them
+  Severity: LOW (Not executed by terraform/orchestrator, but tests may fail)
+
+ISSUE 3: Test File Outdated References
+  Location: tests/test_fallback_fixes.py
+  Problem: Imports from deprecated loader:
+    - from loaders.load_industry_ranking import IndustryRankingLoader
+  Impact: Tests will fail if executed
+  Severity: LOW (Tests not in CI/CD, but should be fixed)
+
+## Monitoring & Cost Optimization
+
+✓ Monitoring script created: scripts/monitor_loader_optimization.py
+✓ Phase 7 consolidation: 11 tasks → 3 tasks ($165-190/month savings)
+✓ Phase 8 right-sizing: ECS CPU/memory reduced ($38-68/month savings)
+✓ EventBridge scheduler: Properly configured for all loaders
+✓ DynamoDB config table: Loader parallelism management enabled
+✓ Circuit breakers: Implemented in OptimalLoader base class
+✓ Data freshness validation: Fail-fast pattern enabled
+
+## Deployment Readiness
+
+✓ Terraform applies: terraform/modules/loaders/main.tf up-to-date
+✓ ECS task definitions: All loaders configured
+✓ CloudWatch logging: Log groups auto-created
+✓ IAM permissions: EventBridge + ECS task roles configured
+✓ Secret management: DB credentials + API keys in Secrets Manager
+✓ Environment variables: All loaders receive required config
+
+Status: PARTIALLY READY FOR DEPLOYMENT
+- Consolidation complete at code level
+- Terraform deployment ready
+- Execution blockers must be fixed before Phase 1 failsafe activates

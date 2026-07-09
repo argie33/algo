@@ -12,7 +12,7 @@ project_name = "algo"
 # GitHub Actions workflow sets this to the CloudFront domain at deployment time
 frontend_origin = "http://localhost:3000" # Default for local dev; overridden by TF_VAR_frontend_origin in CI
 # Frontend deployment
-cloudfront_enabled = true # ENABLED: Dashboard now publicly accessible via CloudFront CDN
+cloudfront_enabled = false # OPTIMIZED for dev: Dashboard served directly from S3 (no CloudFront cost). Re-enable for production. Saves ~$5-10/month.
 # API Gateway CORS configuration - Dynamically set from deployment environment
 # The CloudFront domain is discovered at deployment time and passed via TF_VAR_api_cors_allowed_origins
 # environment variable. This avoids hardcoding and ensures CORS always works with the current domain.

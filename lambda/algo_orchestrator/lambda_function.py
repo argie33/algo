@@ -155,15 +155,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # Parse run_identifier from EventBridge Scheduler to determine run purpose
         # Issue #15: dry_run should be explicit; default based on run_identifier only if not specified
         run_identifier = event.get("run_identifier")
-        if not run_identifier:
-            raise ValueError(
-                "[CRITICAL] Missing 'run_identifier' in orchestration event. "
-                "Cannot execute trading algorithm without traceability identifier. "
-                f"Event keys: {list(event.keys())}"
-            )
+        dry_run_raw = event.get("dry_run")
 
         # Determine dry_run: explicit event value takes priority over run_identifier defaults
-        dry_run_raw = event.get("dry_run")
         if dry_run_raw is not None:
             # Explicit value provided — use it; run_identifier optional (used for logging only)
             dry_run = bool(dry_run_raw)
@@ -177,6 +171,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     "statusCode": 400,
                     "body": json.dumps({"error": "run_identifier required (or set dry_run explicitly)"}),
                 }
+            # Validate run_identifier for traceability
+            if not isinstance(run_identifier, str) or not run_identifier.strip():
+                raise ValueError(
+                    "[CRITICAL] Invalid 'run_identifier' in orchestration event. "
+                    "Must be a non-empty string for traceability. "
+                    f"Got: {run_identifier!r}"
+                )
             # Map run_identifier to dry_run mode:
             # Live-trading runs execute real orders (paper or live per execution_mode)
             # Dry-run/monitor runs generate signals for review but do not submit orders
@@ -210,12 +211,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             )
 
         # Event can override environment variable for manual invocations, but MUST be validated
+        # FIXED: Allow "auto" mode like orchestrator does (in addition to paper/live)
         event_execution_mode = event.get("execution_mode", "").strip().lower()
         if event_execution_mode:
-            if event_execution_mode not in ("paper", "live"):
+            if event_execution_mode not in ("paper", "live", "auto"):
                 logger.critical(f"[EXECUTION_MODE_INVALID] Event specifies invalid execution_mode: {event_execution_mode}")
                 raise ValueError(
-                    f"[CONFIG] Event execution_mode '{event_execution_mode}' is invalid (must be 'paper' or 'live'). "
+                    f"[CONFIG] Event execution_mode '{event_execution_mode}' is invalid (must be 'paper', 'live', or 'auto'). "
                     "Halting to prevent trading in unknown mode."
                 )
             execution_mode = event_execution_mode
@@ -224,7 +226,8 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             execution_mode = env_execution_mode
             logger.info(f"[EXECUTION_MODE] Using environment variable: {execution_mode}")
 
-        if execution_mode not in ("paper", "live"):
+        # FIXED: Allow "auto" mode like orchestrator does
+        if execution_mode not in ("paper", "live", "auto"):
             logger.critical(f"[EXECUTION_MODE_VALIDATION_FAILED] Final execution_mode invalid: {execution_mode}")
             raise ValueError(
                 f"[CONFIG] Execution mode validation failed - final mode '{execution_mode}' is invalid. "
