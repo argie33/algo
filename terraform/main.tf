@@ -69,22 +69,21 @@ resource "random_password" "jwt_secret" {
   }
 }
 
-module "secrets" {
-  source = "./modules/secrets"
-
-  alpaca_api_key    = var.alpaca_api_key_id
-  alpaca_api_secret = var.alpaca_api_secret_key
-  fred_api_key      = var.fred_api_key
-  db_host           = module.database.rds_proxy_address
-  db_port           = local.db_port
-  db_name           = var.rds_db_name
-  db_user           = var.rds_username
-  db_password       = module.database.rds_password
-  jwt_secret        = sensitive(var.jwt_secret != "" ? var.jwt_secret : random_password.jwt_secret[0].result)
-  common_tags       = local.common_tags
-
-  depends_on = [module.database]
-}
+# REMOVED: Dead code cleanup (2026-07-08)
+# module "secrets" was creating 5 unused secrets:
+# - algo/alpaca (not referenced anywhere)
+# - algo/fred (not referenced anywhere)
+# - algo/database (not referenced anywhere)
+# - algo/jwt (not referenced anywhere)
+# - algo/orchestrator (not referenced anywhere)
+#
+# System uses module.database secrets exclusively:
+# - database.algo_secrets_arn (Alpaca API keys)
+# - database.rds_credentials_secret_arn (RDS)
+# - database.email_config_secret_arn (SMTP)
+#
+# Cost savings: $2.00/month ($0.40 × 5 secrets)
+# Code cleanup: Removes unused module and terraform references
 
 # FIXED F-07: Staging environment isolation
 # Create separate database module for staging to prevent data corruption on production RDS
