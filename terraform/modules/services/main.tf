@@ -730,7 +730,9 @@ resource "aws_lambda_function" "algo" {
       DB_PORT       = "5432"
       DB_NAME       = var.rds_database_name
       DB_USER       = var.rds_username
-      DB_PASSWORD   = var.rds_password
+      # SECURITY FIX: Do NOT pass DB_PASSWORD in environment variables
+      # Password must be fetched from AWS Secrets Manager at runtime via credential_manager
+      # Passing passwords in env vars violates AWS security best practices
       DB_SSL        = "require"
       # AWS configuration
       AWS_REGION    = var.aws_region
@@ -767,9 +769,10 @@ resource "aws_lambda_function" "algo" {
       ECS_CLUSTER_ARN     = var.ecs_cluster_arn
       ECS_SUBNETS         = join(",", var.private_subnet_ids)
       ECS_SECURITY_GROUPS = var.ecs_tasks_sg_id
-      # Testing phase: Accept stale portfolio data (until EventBridge schedulers deployed)
-      # Dashboard will display data even if Phase 9 hasn't run recently
-      ALLOW_STALE_PORTFOLIO_DATA = "true"
+      # CRITICAL FIX: Explicitly reject stale portfolio data
+      # System must FAIL when data is stale, not silently trade on corrupted state
+      # Per GOVERNANCE.md: Data integrity is non-negotiable
+      ALLOW_STALE_PORTFOLIO_DATA = "false"
     }
   }
 
