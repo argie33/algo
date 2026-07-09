@@ -1367,6 +1367,27 @@ if not IMPORT_ERROR:
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """Handle API Gateway v2 (HTTP API) requests by routing to extracted handler modules."""
+    # STRUCTURED LOGGING: Log incoming event schema for validation and audit trail
+    # This helps debugging event format issues and tracks which event types are being processed
+    event_source = event.get("source")  # EventBridge: "eventbridge-scheduler", "warmup", etc.
+    event_type = (
+        "eventbridge" if event_source else "api-gateway"
+    )  # Determine if EventBridge or API Gateway request
+    request_context = event.get("requestContext", {})
+    http_context = request_context.get("http", {})
+    event_schema = {
+        "type": event_type,
+        "has_rawPath": "rawPath" in event,
+        "has_path": "path" in event,
+        "has_requestContext": "requestContext" in event,
+        "has_httpMethod": "httpMethod" in event,
+        "has_body": "body" in event,
+        "has_headers": "headers" in event,
+        "event_source": event_source,
+        "top_level_keys": list(event.keys())[:10],  # First 10 keys for schema introspection
+    }
+    logger.debug(f"[LAMBDA_INPUT_SCHEMA] Event structure: {event_schema}")
+
     # GOVERNANCE FIX: Explicit path extraction (supports both HTTP API and REST API event formats)
     # HTTP API v2: uses "rawPath"; REST API v1: uses "path"
     path = event.get("rawPath")
@@ -1378,7 +1399,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             f"Event keys: {list(event.keys())}. Using 'UNKNOWN' for logging."
         )
         path = "UNKNOWN"
-    logger.info(f"[LAMBDA_START] Handling {event.get('httpMethod', 'GET')} {path}")
+    logger.info(
+        f"[LAMBDA_START] Handling {event.get('httpMethod', http_context.get('method', 'GET'))} {path} "
+        f"(event_type={event_type})"
+    )
 
     # Credential cache uses 5-minute TTL to balance freshness with API costs
     # Expired entries are automatically skipped; clearing cache is optional for rotation speed.

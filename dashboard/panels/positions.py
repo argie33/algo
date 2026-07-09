@@ -260,7 +260,8 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             Text(f"{dist:.1f}%" if dist is not None else "--", style=dc),
         ]
         if not compact:
-            swg_s = float(swg) if swg is not None else None
+            # Use safe_float to handle invalid numeric values gracefully
+            swg_s = safe_float(swg, default=None, field_name=f"{symbol}.minervini_trend_score")
             swg_c = (
                 G if (swg_s is not None and swg_s >= 80) else (Y if (swg_s is not None and swg_s >= 60) else "white")
             )
@@ -321,10 +322,15 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         # Validate required coverage fields exist
         if "total_count" not in coverage or "valid_count" not in coverage or "filtered_count" not in coverage:
             logger.error(f"[POSITIONS] Coverage data missing required fields. Got: {coverage}")
-            return error_panel(
-                "Position Coverage",
-                "Data integrity error: coverage metrics missing required fields",
-                border_color="red",
+            # Create error marker object for error panel rendering
+            error_data = {
+                "_error": "Coverage metrics missing required fields (total_count, valid_count, filtered_count)",
+            }
+            return Panel(
+                Text("Coverage data integrity error - missing required fields", style="red"),
+                title="[bold red]POSITIONS COVERAGE ERROR[/]",
+                border_style="red",
+                padding=(0, 1),
             )
         total = coverage["total_count"]
         valid = coverage["valid_count"]

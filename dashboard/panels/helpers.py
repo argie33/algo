@@ -270,9 +270,10 @@ def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta")
         if not error_msg:
             logger.error(
                 f"Data source '{data_name}' has error marker but missing _error field. "
-                f"Cannot render error details. Data type: {type(data).__name__}"
+                f"Cannot render error details. Data type: {type(data).__name__}. "
+                f"Check that the data layer properly sets the _error field alongside the error marker."
             )
-            error_msg = f"[{data_name}] Error occurred but details are missing"
+            error_msg = f"[{data_name}] {title} fetch failed - no error details available"
         return Panel(
             Text.from_markup(f"[{R}]{data_name}[/] fetch failed:\n[dim]{error_msg}[/]"),
             title=f"[bold]{title}[/]",

@@ -55,7 +55,23 @@ CREDENTIAL_CACHE_TTL_SECONDS = 300
 
 
 class CredentialManager:
-    """Centralized credential fetcher with caching and TTL-based expiration."""
+    """Centralized credential fetcher with caching and TTL-based expiration.
+
+    Config schema (all from environment variables, validated at retrieval):
+    - DB_SECRET_ARN: str, optional - AWS Secrets Manager ARN for database credentials (production)
+    - DB_HOST: str, required - Database hostname/endpoint
+    - DB_PORT: int, default 5432 - Database port
+    - DB_NAME: str, required - Database name
+    - DB_USER: str, required - Database username
+    - DB_PASSWORD: str, required - Database password (fetched from env or Secrets Manager)
+    - AWS_REGION: str, required - AWS region for Secrets Manager access
+    - ALPACA_API_KEY_ID: str, required (live mode only) - Alpaca API key
+    - ALPACA_API_SECRET_KEY: str, required (live mode only) - Alpaca secret key
+    - APCA_API_BASE_URL: str, default https://paper-api.alpaca.markets - Alpaca endpoint
+
+    GOVERNANCE: All credentials must be explicitly validated. No silent defaults for security-critical values.
+    Missing credentials raise ValueError with context about which credential and where to set it.
+    """
 
     def __init__(self) -> None:
         self._cache: dict[str, tuple[Any, float]] = {}  # key -> (value, timestamp)
@@ -679,6 +695,29 @@ def get_db_config() -> dict[str, Any]:
 
     Replaces credential_helper.get_db_config() after consolidation.
     Returns host, port, user, password, database.
+
+    Schema (all fields required, no defaults):
+    {
+        'host': str - Database hostname/endpoint (RDS endpoint or RDS Proxy)
+        'port': int - Database port (typically 5432 for PostgreSQL)
+        'user': str - Database username (must have connect permission)
+        'password': str - Database password (fetched from Secrets Manager in AWS Lambda)
+        'database': str - Database name (must exist, role must have usage permission)
+    }
+
+    Sources (priority order):
+    1. AWS Lambda: Fetches from DB_SECRET_ARN (Secrets Manager JSON blob)
+    2. Local dev: All fields must be set via environment variables
+
+    Validation:
+    - All fields are explicitly validated; missing fields raise ValueError with context
+    - No silent defaults (fail-fast principle)
+    - Invalid types (e.g., port not integer) raise TypeError
+    - Empty strings not allowed for any field
+
+    Raises:
+        ValueError: If required field is missing or invalid
+        RuntimeError: If Secrets Manager unavailable (AWS Lambda only)
     """
     return get_db_credentials()
 

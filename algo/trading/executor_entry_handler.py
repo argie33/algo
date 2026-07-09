@@ -441,7 +441,7 @@ class EntryHandler:
         cur.execute(
             """
             INSERT INTO algo_trades (
-                trade_id, idempotency_key, symbol, signal_date, trade_date,
+                trade_id, idempotency_key, symbol, signal_date, trade_date, entry_date,
                 entry_time, entry_price, entry_quantity, quantity, entry_reason,
                 stop_loss_price, stop_loss_method,
                 target_1_price, target_1_r_multiple,
@@ -457,7 +457,7 @@ class EntryHandler:
                 reentry_count, prior_trade_id, rejection_reason,
                 created_at
             ) VALUES (
-                %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s,
                 %s, %s,
                 %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s, %s, %s, %s,
@@ -476,6 +476,7 @@ class EntryHandler:
                 request.idempotency_key,
                 request.symbol,
                 request.signal_date,
+                request.entry_date,
                 request.entry_date,
                 request.executed_price,
                 request.shares,

@@ -118,10 +118,27 @@ class PositionSizer:
                     logger.info(
                         f"[PORTFOLIO] Using snapshot from {age_days}d ago (threshold: 1 day): ${snapshot_value:,.2f}"
                     )
+                    # Edge case: 0 days = current snapshot (normal case)
+                    # Edge case: 1 day = yesterday's data (acceptable, position sizing proceeds)
+                    if age_days == 0:
+                        logger.debug("[PORTFOLIO_SNAPSHOT] Using current day snapshot (latest available)")
+                    elif age_days == 1:
+                        logger.warning("[PORTFOLIO_SNAPSHOT] Using yesterday's snapshot (Phase 7 may have missed today)")
                     return snapshot_value
                 # CRITICAL: Snapshot is too stale. Stricter 1-day threshold prevents position
                 # sizing on multi-day-old data when Phase 7 fails. Better to halt than risk
                 # thousands of dollars in wrong position sizes.
+                # Log edge cases: negative age_days or very old data
+                if age_days < 0:
+                    logger.critical(
+                        f"[PORTFOLIO_SNAPSHOT CRITICAL] Snapshot date in future ({age_days}d): {snapshot_date}. "
+                        "Clock skew detected or snapshot timestamp corrupted."
+                    )
+                else:
+                    logger.critical(
+                        f"[PORTFOLIO_SNAPSHOT CRITICAL] Snapshot too stale ({age_days}d ago). "
+                        "Phase 7 (reconciliation) must run daily. Last successful Phase 7 run: {snapshot_date}"
+                    )
                 error_msg = (
                     f"Portfolio snapshot too stale ({age_days}d old, threshold 1 day). "
                     "Phase 7 must run daily. Position sizing halted."

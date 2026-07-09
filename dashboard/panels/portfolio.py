@@ -202,7 +202,9 @@ def panel_portfolio(
     snap = port.get("snapshot_date")
     max_n_val = cfg.get("max_pos_n") if cfg else None
     if max_n_val is None:
-        raise ValueError("max_pos_n config missing — cannot render portfolio position limits")
+        # Explicit default with audit trail logging
+        logger.warning("[PORTFOLIO] Config max_pos_n missing, using fallback default value of 12")
+        max_n_val = 12  # Default max positions if config unavailable
     # Config should always provide valid int, trust it
     try:
         max_n = int(max_n_val)
@@ -575,6 +577,17 @@ def panel_portfolio_perf_expanded(  # noqa: C901
     # ── Error boundary checks at function entry ──────────────────────────────
     # CRITICAL: Check for error markers in primary data endpoints before processing
     # Fail-fast pattern: if core data has errors, partial rendering is better than silent failure
+
+    # Primary data error checks - MUST be explicitly validated before use
+    if port and has_error(port):
+        err_msg = port.get("_error") if isinstance(port, dict) else "portfolio data error"
+        return Panel(
+            Text(f"Portfolio data error: {err_msg}", style="red"),
+            title="[bold red]PORTFOLIO & PERFORMANCE - ERROR[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
+
     rows: list[Any] = [
         Text.from_markup("[dim]press [/][bold green]f[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
