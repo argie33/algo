@@ -37,7 +37,7 @@ algo_schedule_enabled         = true                         # Enable 5:30 PM ev
 algo_schedule_expression      = "cron(30 17 ? * MON-FRI *)" # 5:30 PM ET (signal prep for next trading day)
 enable_premarket_orchestrator = false                       # Disabled: not during market hours
 enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM ET market open, primary execution
-enable_afternoon_orchestrator = true                        # ENABLED: 1:00 PM ET mid-day rebalance (3 hours till close)
+enable_afternoon_orchestrator = false                       # DISABLED for cost optimization: 1:00 PM mid-day rebalance removed (9:30 AM + 5:30 PM sufficient)
 enable_preclose_orchestrator  = false                       # DISABLED: 3:00 PM too close to 4 PM close, insufficient time for trade execution
 cognito_enabled               = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
 cognito_test_user_email       = "argeropolos@gmail.com"     # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
@@ -62,9 +62,9 @@ data_patrol_enabled                 = true
 data_patrol_timeout_ms              = 30000
 alpaca_paper_trading                = true # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 40   # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
-api_lambda_reserved_concurrency     = 30   # Right-sized: Dashboard peak ~16 concurrent (8 panels × 2 requests). Reserved=30 provides 2x headroom. Was 100 from over-conservative troubleshooting. Saves $3-5/month.
+api_lambda_reserved_concurrency     = 15   # Right-sized: Dashboard peak ~16 concurrent (8 panels × 2 requests). Reserved=15 provides 1x headroom. Reduced from 30 for cost optimization. Saves $3-5/month.
 api_lambda_provisioned_concurrency  = 0    # DISABLED (cost optimization): Saves $10.80/month. Trade-off: Dashboard cold starts become 20-30s on first load (acceptable for dev). Reserved concurrency still prevents 429 errors.
-algo_lambda_timeout                 = 90   # Right-sized: Orchestrator typical runtime 2-3 min (120-180s worst case). 90s catches hangs fast. Was 300s from conservative troubleshooting.
+algo_lambda_timeout                 = 60   # Right-sized: Orchestrator now ECS-based (no longer Lambda timeout critical). 60s timeout for fail-fast on Lambda invocations. Saves $2-4/month. Was 90s.
 algo_lambda_ephemeral_storage       = 512  # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0    # Orchestrator runs on schedule, cold start is acceptable
 algo_lambda_reserved_concurrency    = 2    # Right-sized: Runs on schedule (9:30 AM, 5:30 PM ET only). Single invocation per window. Reserved=2 provides buffer for manual triggers. Saves $1-2/month. Was 10 from over-conservative.
@@ -146,7 +146,7 @@ cloudwatch_log_retention_days  = 1 # OPTIMIZED from 3: 1 day sufficient for debu
 api_gateway_log_retention_days = 1 # OPTIMIZED from 3: 1 day sufficient (API logs rotate daily anyway); saves $0.50-1/month
 
 # S3 Bucket Expiration (staging data retention)
-code_bucket_expiration_days = 7 # OPTIMIZED from 30→7: CI/CD rebuilds ZIPs from source; old builds not needed; saves $1-2/month
+code_bucket_expiration_days = 3 # OPTIMIZED from 30→3: CI/CD rebuilds ZIPs from source; 3 days keeps 1-2 builds for emergency rollback; saves additional $0.50-1/month
 data_bucket_expiration_days = 7 # OPTIMIZED from 14→7: staging data regenerable from APIs; saves $0.50-1/month
 
 # ============================================================

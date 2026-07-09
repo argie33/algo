@@ -449,18 +449,25 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    "stock_prices_daily"    = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-    "technical_data_daily"  = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 1 }
+    # Cost-optimized: Reduced from 1024/2048 (price fetch is I/O bound, not compute intensive)
+    "stock_prices_daily"    = { cpu = 512, memory = 1024, timeout = 5400, parallelism = 1 }
+    # Cost-optimized: Reduced from 2048/4096 (vectorized SQL queries on ~10k rows, moderate compute)
+    "technical_data_daily"  = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 1 }
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
     "dxy_index"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "growth_metrics"        = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "quality_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "value_metrics"         = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 1 }
+    # Cost-optimized: Reduced from 1024/2048 (yfinance API fetch + lightweight metric calc)
+    "growth_metrics"        = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
+    # Cost-optimized: Reduced from 1024/2048 (SEC filing parse + DB insert, moderate CPU)
+    "quality_metrics"       = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
+    # Cost-optimized: Reduced from 1024/2048 (simple price ratio calculations)
+    "value_metrics"         = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
     "positioning_metrics"   = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
-    "stability_metrics"     = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
-    "momentum_metrics"      = { cpu = 1024, memory = 2048, timeout = 1800, parallelism = 2 }
+    # Cost-optimized: Reduced from 1024/2048 (dividend + payout ratio queries)
+    "stability_metrics"     = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+    # Cost-optimized: Reduced from 1024/2048 (return calculations on historical prices)
+    "momentum_metrics"      = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     "stock_scores"          = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     "market_constituents"         = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
@@ -469,7 +476,8 @@ locals {
     "sector_ranking"              = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "industry_ranking"            = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "algo_metrics_daily"          = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
-    "buy_sell_daily"              = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 }
+    # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
+    "buy_sell_daily"              = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     "earnings_history"            = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
     "earnings_calendar"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "company_profile"             = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
