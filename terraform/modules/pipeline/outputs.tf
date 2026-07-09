@@ -16,8 +16,8 @@ output "morning_state_machine_arn" {
 output "eventbridge_rule_names" {
   description = "EventBridge Scheduler rules that trigger all data pipelines"
   value = {
-    morning_trigger   = aws_scheduler_schedule.morning_pipeline_trigger.name
-    eod_trigger       = aws_scheduler_schedule.eod_pipeline_trigger.name
+    morning_trigger = aws_scheduler_schedule.morning_pipeline_trigger.name
+    eod_trigger     = aws_scheduler_schedule.eod_pipeline_trigger.name
   }
 }
 

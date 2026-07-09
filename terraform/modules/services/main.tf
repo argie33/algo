@@ -34,9 +34,9 @@ resource "aws_secretsmanager_secret_version" "algo_smtp" {
 # Allow orchestrator Lambda to read SMTP secret from Secrets Manager
 # This fixes the security issue of having SMTP password in Lambda environment variables
 resource "aws_iam_role_policy" "algo_lambda_read_smtp_secret" {
-  name   = "${var.project_name}-algo-lambda-read-smtp-secret-${var.environment}"
+  name = "${var.project_name}-algo-lambda-read-smtp-secret-${var.environment}"
   # Assume the algo Lambda role name follows the convention:  extract from the provided ARN
-  role   = element(split("/", var.algo_lambda_role_arn), length(split("/", var.algo_lambda_role_arn)) - 1)
+  role = element(split("/", var.algo_lambda_role_arn), length(split("/", var.algo_lambda_role_arn)) - 1)
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -249,10 +249,10 @@ resource "aws_lambda_function" "api" {
 # instead of creating the alias resource.
 
 data "aws_lambda_alias" "api_live" {
-  count             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
-  name              = "LIVE"
-  function_name     = aws_lambda_function.api.function_name
-  depends_on        = [aws_lambda_function.api]
+  count         = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
+  name          = "LIVE"
+  function_name = aws_lambda_function.api.function_name
+  depends_on    = [aws_lambda_function.api]
 }
 
 # REMOVED: API Lambda provisioned concurrency (cost optimization)
@@ -781,9 +781,9 @@ resource "aws_lambda_function" "algo" {
       # SECURITY FIX: Do NOT pass DB_PASSWORD in environment variables
       # Password must be fetched from AWS Secrets Manager at runtime via credential_manager
       # Passing passwords in env vars violates AWS security best practices
-      DB_SSL        = "require"
+      DB_SSL = "require"
       # AWS configuration
-      AWS_REGION    = var.aws_region
+      AWS_REGION     = var.aws_region
       AWS_ACCOUNT_ID = data.aws_caller_identity.current.account_id
       # Orchestrator execution configuration (MATCHES what code expects)
       ORCHESTRATOR_EXECUTION_MODE = var.execution_mode
@@ -808,14 +808,14 @@ resource "aws_lambda_function" "algo" {
       ALERT_EMAIL_TO    = var.alert_email_to
       ALERT_WEBHOOK_URL = var.alert_webhook_url
       # SMTP configuration for email alerts (fallback if ALERT_EMAIL_TO is set but SMTP not configured, uses SNS email)
-      ALERT_SMTP_HOST     = var.alert_smtp_host
-      ALERT_SMTP_PORT     = tostring(var.alert_smtp_port)
-      ALERT_SMTP_USER     = var.alert_smtp_user
+      ALERT_SMTP_HOST = var.alert_smtp_host
+      ALERT_SMTP_PORT = tostring(var.alert_smtp_port)
+      ALERT_SMTP_USER = var.alert_smtp_user
       # FIXED: SMTP password now loaded from AWS Secrets Manager at runtime (not Lambda env vars)
       # Lambda env vars are visible to anyone with lambda:GetFunction permission
       # Credentials fetched from Secrets Manager via Lambda execution role at startup
       ALERT_SMTP_SECRET_ARN = aws_secretsmanager_secret.algo_smtp.arn
-      ALERT_SMTP_FROM     = var.alert_smtp_from
+      ALERT_SMTP_FROM       = var.alert_smtp_from
       # ECS/Fargate configuration for failsafe loader trigger (Phase 1 stale data recovery)
       ECS_CLUSTER_ARN     = var.ecs_cluster_arn
       ECS_SUBNETS         = join(",", var.private_subnet_ids)
