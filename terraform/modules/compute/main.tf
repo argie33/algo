@@ -9,9 +9,13 @@
 resource "aws_ecs_cluster" "main" {
   name = coalesce(var.ecs_cluster_name, "${var.project_name}-cluster")
 
+  # COST OPTIMIZATION: Container Insights disabled for dev
+  # Detailed metrics cost $5-10/mo but only needed for production capacity planning.
+  # Dev loaders run 2x daily for ~5min each; monitoring logs sufficient.
+  # Re-enable for production: value = "enabled"
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = "disabled"
   }
 
   tags = merge(var.common_tags, {

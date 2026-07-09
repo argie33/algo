@@ -157,6 +157,11 @@ code_bucket_expiration_days = 7 # OPTIMIZED from 30→7: CI/CD rebuilds ZIPs fro
 data_bucket_expiration_days = 7 # OPTIMIZED from 14→7: staging data regenerable from APIs; saves $0.50-1/month
 
 # ============================================================
+# ECR Configuration
+# ============================================================
+ecr_image_scan_enabled = false # OPTIMIZED: Disabled in dev (saves ~$0.05/scan). Not needed for dev container builds. Enable for production security scanning.
+
+# ============================================================
 # RDS Proxy Configuration
 # ============================================================
 enable_rds_proxy = false # OPTIMIZED: Disabled in dev (saves ~$150/month). Enabled for production with 24+ concurrent loaders. Dev loaders don't need 24/7 connection pooling.
