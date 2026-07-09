@@ -89,9 +89,9 @@ class TestCompleteAWSDeployment:
 
         from loaders.load_stock_scores import StockScoresLoader
 
-        # Verify _validate_upstream_metrics_ready has growth_metrics validation
+        # Verify validate_upstream_metrics_ready has growth_metrics validation
         loader = StockScoresLoader()
-        source = inspect.getsource(loader._validate_upstream_metrics_ready)
+        source = inspect.getsource(loader.validate_upstream_metrics_ready)
 
         # Check that growth_metrics is validated (coverage threshold may vary)
         assert "growth_metrics" in source, "growth_metrics must be validated"
