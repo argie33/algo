@@ -43,10 +43,14 @@ def run(
             logger.info(f"  Exposure: {exposure['exposure_pct']}% ({exposure['regime']})")
             if exposure.get("halt_reasons"):
                 logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
-        except (MarketDataUnavailableError, KeyError, ValueError) as e:
-            # Market data unavailable in test mode - use safe defaults for paper trading
-            logger.warning(f"[PHASE 5] Market data unavailable ({type(e).__name__}): {str(e)[:80]}")
-            exposure = {"exposure_pct": 50, "regime": "caution", "halt_reasons": ["market_data_unavailable"]}
+        except MarketDataUnavailableError as e:
+            # Market data unavailable - fail-fast to prevent stale risk decisions
+            logger.error(f"[PHASE 5] CRITICAL: Market data unavailable, cannot proceed with exposure policy: {str(e)[:120]}")
+            raise RuntimeError(f"[PHASE 5] Cannot compute exposure without market regime data. {str(e)}") from e
+        except (KeyError, ValueError) as e:
+            # Data structure error - likely upstream bug
+            logger.error(f"[PHASE 5] CRITICAL: Market regime data malformed or missing required fields: {str(e)[:120]}")
+            raise RuntimeError(f"[PHASE 5] Market regime data structure invalid. {str(e)}") from e
 
         policy = ExposurePolicy()
         constraints = policy.get_entry_constraints(run_date)
@@ -73,22 +77,14 @@ def run(
 
         if not actions:
             logger.info("  No exposure-policy actions")
-            # CRITICAL FIX: Never return None constraints. Apply conservative CAUTION defaults if missing.
-            # Returning None causes Phase 8 to halt all trading, creating a complete system failure.
+            # CRITICAL: Constraints MUST exist. Failure to load risk policy is a system error.
             if not constraints:
-                logger.warning(
-                    "[PHASE 5] No entry constraints from policy — applying CAUTION defaults to keep trading enabled"
+                logger.error(
+                    "[PHASE 5] CRITICAL: Risk policy constraints failed to load. Cannot proceed without defined risk tiers."
                 )
-                constraints = {
-                    "tier_name": "CAUTION",
-                    "description": "Conservative entry constraints (system fallback)",
-                    "max_new_positions_today": 2,
-                    "halt_new_entries": False,
-                    "halt_reason": None,  # Not halting, so no halt reason needed
-                    "min_composite_score": 60,
-                    "risk_multiplier": 0.5,
-                    "max_concentration_pct": 12.0,  # Default concentration limit
-                }
+                raise RuntimeError(
+                    "[PHASE 5] Risk policy constraints are required but missing. Check ExposurePolicy configuration and database."
+                )
             log_phase_result_fn(
                 5,
                 "exposure_policy",
@@ -128,21 +124,16 @@ def run(
             r_str = f"{r_mult:+.2f}" if r_mult is not None else "N/A"
             logger.info(f"    {a['symbol']:6s} -> {a['action'].upper():15s} R={r_str}  {a['reason']}")
 
-        # CRITICAL FIX: Never return None constraints. Apply conservative CAUTION defaults if missing.
+        # CRITICAL: Constraints MUST exist at this point
         if constraints is None:
-            logger.warning("[PHASE 5] Exposure actions computed without entry constraints — applying CAUTION defaults")
-            constraints = {
-                "tier_name": "CAUTION",
-                "description": "Conservative entry constraints (system fallback)",
-                "max_new_positions_today": 2,
-                "halt_new_entries": False,
-                "halt_reason": None,  # Not halting, so no halt reason needed
-                "min_composite_score": 60,
-                "risk_multiplier": 0.5,
-            }
-            tier_name = "CAUTION (fallback)"
-        else:
-            tier_name = constraints["tier_name"]
+            logger.error(
+                "[PHASE 5] CRITICAL: Risk policy constraints are None after review_existing_positions. "
+                "This indicates ExposurePolicy.get_entry_constraints() failed to load risk tiers."
+            )
+            raise RuntimeError(
+                "[PHASE 5] Risk policy constraints missing after position review. Check database and policy configuration."
+            )
+        tier_name = constraints["tier_name"]
         # Validate counts dict has required keys before logging
         log_phase_result_fn(
             5,

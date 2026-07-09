@@ -318,10 +318,17 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             total_count is not None and total_count > 0 and filtered_count is not None and filtered_count > 0
         )
     if has_filtering_info and coverage_valid:
-        # coverage is guaranteed to be dict at this point
-        total = coverage.get("total_count", 0)  # type: ignore[union-attr]
-        valid = coverage.get("valid_count", 0)  # type: ignore[union-attr]
-        filt = coverage.get("filtered_count", 0)  # type: ignore[union-attr]
+        # Validate required coverage fields exist
+        if "total_count" not in coverage or "valid_count" not in coverage or "filtered_count" not in coverage:
+            logger.error(f"[POSITIONS] Coverage data missing required fields. Got: {coverage}")
+            return error_panel(
+                "Position Coverage",
+                "Data integrity error: coverage metrics missing required fields",
+                border_color="red",
+            )
+        total = coverage["total_count"]
+        valid = coverage["valid_count"]
+        filt = coverage["filtered_count"]
         border = "yellow"
         # Show: "POSITIONS (2/15 valid, 13 filtered)"
         title_str = f"[bold yellow]POSITIONS ({valid}/{total} valid, {filt} filtered)[/]"

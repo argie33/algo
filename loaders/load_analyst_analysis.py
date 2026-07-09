@@ -179,6 +179,20 @@ class AnalystAnalysisLoader(OptimalLoader):
         with DatabaseContext("write") as cur:
             for row in transformed_rows:
                 symbol = row["symbol"]
+                is_unavailable = row.get("data_unavailable", False)
+
+                # Validate analyst counts: when data is available, counts must be present
+                if not is_unavailable:
+                    if "analysts_overweight" not in row or row["analysts_overweight"] is None:
+                        raise ValueError(f"[{symbol}] analysts_overweight missing but data_unavailable=False")
+                    if "analysts_hold" not in row or row["analysts_hold"] is None:
+                        raise ValueError(f"[{symbol}] analysts_hold missing but data_unavailable=False")
+                    if "analysts_underweight" not in row or row["analysts_underweight"] is None:
+                        raise ValueError(f"[{symbol}] analysts_underweight missing but data_unavailable=False")
+                    if "recommendation_key" not in row or row["recommendation_key"] is None:
+                        raise ValueError(f"[{symbol}] recommendation_key missing but data_unavailable=False")
+                    if "number_of_analysts" not in row or row["number_of_analysts"] is None:
+                        raise ValueError(f"[{symbol}] number_of_analysts missing but data_unavailable=False")
 
                 # Upsert to analyst_sentiment_analysis
                 cur.execute(
@@ -197,7 +211,7 @@ class AnalystAnalysisLoader(OptimalLoader):
                         symbol,
                         row.get("recommendation_key"),
                         row.get("number_of_analysts"),
-                        row.get("data_unavailable", False),
+                        is_unavailable,
                         row.get("reason"),
                     ),
                 )
@@ -219,10 +233,10 @@ class AnalystAnalysisLoader(OptimalLoader):
                 """,
                     (
                         symbol,
-                        row.get("analysts_overweight", 0),
-                        row.get("analysts_hold", 0),
-                        row.get("analysts_underweight", 0),
-                        row.get("data_unavailable", False),
+                        row.get("analysts_overweight"),
+                        row.get("analysts_hold"),
+                        row.get("analysts_underweight"),
+                        is_unavailable,
                         row.get("reason"),
                     ),
                 )

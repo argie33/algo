@@ -277,8 +277,13 @@ def main() -> int:
     try:
         result = run()
 
-        # Check if result has rows_inserted key for success evaluation
-        rows_inserted = result.get("rows_inserted", 0) if isinstance(result, dict) else 0
+        if not isinstance(result, dict):
+            raise RuntimeError(f"[LOADER] Trend criteria run() returned unexpected type {type(result).__name__}, expected dict. Value: {result}")
+
+        if "rows_inserted" not in result:
+            raise ValueError(f"[LOADER] Trend criteria result missing required 'rows_inserted' field. Got: {result}")
+
+        rows_inserted = result["rows_inserted"]
 
         if rows_inserted > 0:
             logger.info(f"[LOADER] Trend criteria loader completed: {result}. Exit code 0 (SUCCESS).")

@@ -75,7 +75,7 @@ def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason:
             None,  # regime
             None,  # exposure_pct
             None,  # raw_score
-            [],  # halt_reasons
+            None,  # halt_reasons - use NULL not [] to distinguish from "data available, no halts"
             None,  # distribution_days
             None,  # factors
             True,  # data_unavailable

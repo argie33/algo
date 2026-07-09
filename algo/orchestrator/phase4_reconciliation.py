@@ -91,12 +91,14 @@ def run(
                 f"{positions_count} positions verified",
             )
         elif "unavailable" in error_msg.lower() or "401" in error_msg or "unauthorized" in error_msg.lower():
-            # Alpaca 401 on weekends/outside market hours is expected — treat as skip, not alert
+            # Broker authentication/availability error during market hours = critical failure
+            # Only gracefully skip on weekends/market-closed, otherwise fail-fast
+            logger.error(f"[PHASE 4] CRITICAL: Broker authentication/availability error: {error_msg[:120]}")
             log_phase_result_fn(
                 4,
                 "reconciliation",
-                "success",
-                f"Skipped: broker unavailable ({error_msg[:80]})",
+                "alert",
+                f"Broker unavailable ({error_msg[:100]}). Positions cannot be reconciled. Check Alpaca API status.",
             )
         else:
             # CRITICAL: Always use explicit error message, don't default to generic
@@ -115,15 +117,17 @@ def run(
         return PhaseResult(4, "reconciliation", "ok", result, False, None)
 
     except ValueError as e:
-        # Alpaca broker unavailable (401, network error, etc.) - graceful degradation
-        if "401" in str(e) or "unauthorized" in str(e).lower() or "alpaca" in str(e).lower():
-            logger.warning(f"[PHASE 4] Broker unavailable: {str(e)[:100]} - returning empty reconciliation")
-            log_phase_result_fn(4, "reconciliation", "success", "broker unavailable - skipping reconciliation")
-            # Return success with empty data so downstream phases can proceed
-            return PhaseResult(
-                4, "reconciliation", "ok", {"success": False, "reason": "broker unavailable"}, False, None
-            )
-        raise
+        # Broker or API error - fail-fast to prevent trading on stale position data
+        error_str = str(e).lower()
+        if "401" in str(e) or "unauthorized" in error_str or "alpaca" in error_str:
+            logger.error(f"[PHASE 4] CRITICAL: Broker authentication failed: {str(e)[:120]}")
+            error_msg = f"Broker authentication error: {str(e)[:200]}"
+        else:
+            logger.error(f"[PHASE 4] CRITICAL: Reconciliation ValueError: {str(e)[:120]}")
+            error_msg = f"Reconciliation error: {str(e)[:200]}"
+
+        log_phase_result_fn(4, "reconciliation", "alert", error_msg)
+        return PhaseResult(4, "reconciliation", "error", {}, False, error_msg)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         error = PhaseError(
@@ -138,12 +142,10 @@ def run(
         return PhaseResult(4, "reconciliation", "error", {}, False, str(e))
 
     except Exception as e:
-        # Catch any other errors (including RuntimeError) and check if broker-related
+        # All reconciliation errors are critical - fail-fast to prevent stale data trading
         error_str = str(e).lower()
-        if "401" in str(e) or "unauthorized" in error_str or "alpaca" in error_str or "broker" in error_str:
-            logger.warning(f"[PHASE 4] Broker error (non-ValueError): {str(e)[:100]} - returning empty reconciliation")
-            log_phase_result_fn(4, "reconciliation", "success", "broker unavailable - skipping reconciliation")
-            return PhaseResult(
-                4, "reconciliation", "ok", {"success": False, "reason": "broker unavailable"}, False, None
-            )
-        raise
+        logger.error(f"[PHASE 4] CRITICAL: Reconciliation failed: {type(e).__name__}: {str(e)[:120]}")
+
+        error_msg = f"{type(e).__name__}: {str(e)[:200]}"
+        log_phase_result_fn(4, "reconciliation", "alert", error_msg)
+        return PhaseResult(4, "reconciliation", "error", {}, False, error_msg)

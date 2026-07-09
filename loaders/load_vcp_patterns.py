@@ -275,7 +275,9 @@ def main() -> int:
         result = load_vcp_patterns()
 
         if isinstance(result, dict):
-            rows_inserted = result.get("rows_inserted", 0)
+            if "rows_inserted" not in result:
+                raise ValueError(f"[LOADER] VCP Patterns result missing required 'rows_inserted' field. Got: {result}")
+            rows_inserted = result["rows_inserted"]
             if rows_inserted > 0:
                 logger.info(f"[LOADER] VCP Patterns loaded successfully: {result}. Exit code 0 (SUCCESS).")
                 return 0

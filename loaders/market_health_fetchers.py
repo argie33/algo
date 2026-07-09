@@ -546,7 +546,12 @@ class BreadthFetcher:
         """
         cur.execute("SELECT COUNT(*) FROM price_daily WHERE date >= %s AND date <= %s", (start, end))
         price_count_row = cur.fetchone()
-        price_count = price_count_row[0] if price_count_row else 0
+        if price_count_row is None:
+            raise RuntimeError(
+                f"[BREADTH_FETCHER CRITICAL] Database query for price_daily count failed or returned None. "
+                f"Check: database connection, price_daily table exists, date range {start} to {end}."
+            )
+        price_count = price_count_row[0]
         if price_count == 0:
             raise RuntimeError(
                 f"[BREADTH_FETCHER CRITICAL] price_daily has no rows for {start} to {end}. "

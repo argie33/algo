@@ -843,6 +843,19 @@ def run(  # noqa: C901
 
             with DatabaseContext("write") as cur:
                 logger.info("[PHASE 9] Snapshot: Database connection established")
+
+                # Validate Phase 4 reconciliation data exists
+                if "portfolio_value" not in result:
+                    raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'portfolio_value'. Cannot create snapshot.")
+                if "positions" not in result or result["positions"] is None:
+                    raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'positions' count. Cannot create snapshot.")
+                if "unrealized_pnl" not in result:
+                    raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'unrealized_pnl'. Cannot create snapshot.")
+
+                current_value = Decimal(str(result["portfolio_value"]))
+                pos_count = result["positions"]
+                unrealized = Decimal(str(result["unrealized_pnl"]))
+
                 # Get previous portfolio value for daily return calculation
                 cur.execute(
                     """
@@ -854,16 +867,17 @@ def run(  # noqa: C901
                     (run_date,),
                 )
                 prev_row = cur.fetchone()
-                prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal("100000.00")
-                logger.info(f"[PHASE 9] Snapshot: Previous value={prev_value}")
 
-                current_value = Decimal(str(result.get("portfolio_value", 100000.00)))
+                if prev_row is None:
+                    # First snapshot - use current value as baseline (0% return)
+                    prev_value = current_value
+                    logger.info("[PHASE 9] Snapshot: No previous snapshot found; baseline to current value")
+                else:
+                    prev_value = Decimal(prev_row[0])
+
                 daily_return_pct = ((current_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
-                logger.info(f"[PHASE 9] Snapshot: Current value={current_value}, return={daily_return_pct}%")
+                logger.info(f"[PHASE 9] Snapshot: Previous={prev_value}, Current={current_value}, Daily return={daily_return_pct}%")
 
-                # Create snapshot with actual reconciliation data
-                pos_count = result.get("positions", 0)
-                unrealized = Decimal(str(result.get("unrealized_pnl", 0)))
                 cash = current_value - unrealized
 
                 logger.info(f"[PHASE 9] Snapshot: Executing INSERT with position_count={pos_count}, cash={cash}")

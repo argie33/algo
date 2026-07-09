@@ -278,12 +278,17 @@ def fetch_positions(c: None) -> dict[str, Any]:
             valid_items.append(pos)
 
         total_items = len(items)
-        items_coverage_pct = (len(valid_items) / total_items * 100) if total_items > 0 else 100.0
+        if total_items == 0:
+            # No positions returned - don't mask this with 100% coverage
+            items_coverage_pct = None
+            logger.warning("[POSITIONS] API returned zero positions - positions data unavailable or portfolio empty")
+        else:
+            items_coverage_pct = (len(valid_items) / total_items * 100)
 
         if invalid_count > 0:
             logger.warning(
                 f"Filtered {invalid_count} invalid position(s) from API response, {len(valid_items)} valid. "
-                f"Coverage: {items_coverage_pct:.1f}% ({len(valid_items)}/{total_items})"
+                f"Coverage: {items_coverage_pct:.1f}% ({len(valid_items)}/{total_items})" if items_coverage_pct is not None else f"Invalid positions filtered, but no valid items remain"
             )
 
         return {

@@ -387,7 +387,10 @@ def panel_performance_spark(  # noqa: C901
     else:
         closed_losses = int(l_val)
 
-    losing_open = (adj_l or 0) - closed_losses if adj_l is not None else 0
+    if adj_l is None:
+        losing_open = 0
+    else:
+        losing_open = adj_l - closed_losses
     avg_win_v = perf.get("avg_win")
     avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
@@ -402,7 +405,7 @@ def panel_performance_spark(  # noqa: C901
     # Header line: trade summary
     wr_s = f"{wr_v:.1f}%" if wr_v is not None else "--"
     header = Text.from_markup(
-        f"[bold white]{closed_wins + closed_losses + (losing_open or 0)} Trades[/]  "
+        f"[bold white]{closed_wins + closed_losses + losing_open} Trades[/]  "
         f"[{G}]{closed_wins}W[/][dim]/[/][{R}]{adj_l}L[/]  "
         f"[dim]Win Rate:[/][{wrc}]{wr_s}[/]{open_l_s}  "
         f"[{str_c}]{str_s} streak[/]"
@@ -650,7 +653,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         l_val = perf.get("l")
         closed_losses = safe_int(l_val, field_name="closed_losses_l")
         streak_val = perf.get("streak")
-        streak: int = safe_int(streak_val, 0, field_name="win_streak") or 0
+        streak: int = safe_int(streak_val, default=0, field_name="win_streak")
         pnl_val = safe_float(perf.get("pnl"), default=None)
         unrlzd_pnl = safe_float(perf.get("unrealized_pnl"), default=None)
         open_cnt = safe_int(perf.get("open_count"), default=None)
