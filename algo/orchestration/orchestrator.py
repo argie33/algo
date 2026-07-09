@@ -571,8 +571,12 @@ class Orchestrator:
 
                 for table_name, status, last_updated, completion_pct, symbols_loaded, symbol_count in cur.fetchall():
                     loaders_checked.add(table_name)
-                    # last_updated is a naive datetime from PostgreSQL — make it UTC-aware before comparing
-                    last_updated_utc = last_updated.replace(tzinfo=timezone.utc) if last_updated else None
+                    # CRITICAL FIX: Database stores timestamps as NAIVE in Eastern Time (-05:00).
+                    # Convert to UTC for staleness comparison, not assume they're already UTC.
+                    if last_updated:
+                        last_updated_utc = last_updated.replace(tzinfo=EASTERN_TZ).astimezone(timezone.utc)
+                    else:
+                        last_updated_utc = None
 
                     # CRITICAL: Must explicitly determine staleness — no silent assumptions about loader health
                     if last_updated_utc is None:

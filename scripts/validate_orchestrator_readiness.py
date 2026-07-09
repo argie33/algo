@@ -27,8 +27,12 @@ def validate_environment():
         "DB_USER": "PostgreSQL user",
         "DB_PASSWORD": "PostgreSQL password",
         "AWS_REGION": "AWS region",
-        "ORCHESTRATOR_EXECUTION_MODE": "Execution mode (paper/live)",
-        "ORCHESTRATOR_DRY_RUN": "Dry run mode (true/false)",
+    }
+
+    # Optional variables with defaults
+    optional_vars = {
+        "ORCHESTRATOR_EXECUTION_MODE": ("paper", "Execution mode (paper/live)"),
+        "ORCHESTRATOR_DRY_RUN": ("false", "Dry run mode (true/false)"),
     }
 
     missing = []
@@ -40,13 +44,22 @@ def validate_environment():
         else:
             logger.info(f"  ✓ {var} is set")
 
+    # Set optional variables with defaults if not set
+    for var, (default_val, desc) in optional_vars.items():
+        value = os.getenv(var)
+        if not value:
+            os.environ[var] = default_val
+            logger.info(f"  ✓ {var} defaults to: {default_val}")
+        else:
+            logger.info(f"  ✓ {var} is set to: {value}")
+
     if missing:
         logger.error("\nMissing environment variables:")
         for m in missing:
             logger.error(m)
         return False
 
-    logger.info("✓ All environment variables present")
+    logger.info("✓ All required environment variables present")
     return True
 
 def validate_imports():
