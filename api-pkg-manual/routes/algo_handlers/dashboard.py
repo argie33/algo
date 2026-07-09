@@ -302,7 +302,16 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
     # Sort positions by position value descending (largest positions first) for better UX
     # This makes the dashboard display more organized and easier to scan
-    items.sort(key=lambda x: float(x.get("position_value", 0)), reverse=True)
+    # FAIL-FAST: All items must have position_value (validation happens at line 149)
+    for item in items:
+        if "position_value" not in item or item["position_value"] is None:
+            logger.error(
+                f"[POSITIONS CRITICAL] Item {item.get('symbol')} missing position_value despite validation — data integrity issue"
+            )
+            raise ValueError(
+                f"Position {item.get('symbol')} missing position_value (should have been filtered at validation)"
+            )
+    items.sort(key=lambda x: float(x["position_value"]), reverse=True)
 
     # Compute sector_allocation array after processing all positions (E5 fix)
     # CRITICAL: Fail-fast if portfolio appears empty after position processing
