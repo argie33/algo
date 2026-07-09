@@ -8,13 +8,18 @@ from datetime import datetime, timedelta
 from utils.db import DatabaseContext
 
 
-def safe_datetime_diff(dt):
-    """Safely handle timezone-aware datetimes."""
+def safe_dt(dt):
+    """Safely remove timezone from datetime and convert date to datetime."""
     if dt is None:
         return None
+    # If it's a date, convert to datetime
+    if hasattr(dt, 'year') and not hasattr(dt, 'hour'):  # It's a date object
+        return datetime.combine(dt, datetime.min.time())
+    # If it's a datetime with tzinfo, remove it
     if hasattr(dt, 'tzinfo') and dt.tzinfo:
-        return dt.replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        return dt.replace(tzinfo=None)
     return dt
+
 
 def audit_orchestrator_runs():
     """Check recent orchestrator runs in last 24 hours."""
@@ -44,8 +49,8 @@ def audit_orchestrator_runs():
     print(f"  In Progress:    {result_24h['in_progress']}")
 
     if result_24h['latest_run']:
-        latest = result_24h['latest_run']
-        time_ago = datetime.now() - latest.replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        latest = safe_dt(result_24h['latest_run'])
+        time_ago = datetime.now() - latest
         print(f"  Latest run:     {latest} ({time_ago.total_seconds()/3600:.1f} hours ago)")
 
     # Get last 5 runs details
@@ -107,12 +112,12 @@ def audit_data_freshness():
 
     for loader in loaders:
         status = loader['status']
-        last_updated = loader['last_updated']
+        last_updated = safe_dt(loader['last_updated'])
         age_days = loader.get('age_days', None)
 
         # Calculate hours since last update
         if last_updated:
-            time_ago = datetime.now() - last_updated.replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+            time_ago = datetime.now() - last_updated
             hours_ago = time_ago.total_seconds() / 3600
         else:
             hours_ago = None
@@ -206,9 +211,7 @@ def audit_portfolio_status():
     print(f"  Total trades:   {recent_trades['total_trades']}")
     print(f"  Filled/Closed:  {recent_trades['filled_closed']}")
     if recent_trades['latest_trade']:
-        latest = recent_trades['latest_trade']
-        if latest.tzinfo:
-            latest = latest.replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        latest = safe_dt(recent_trades['latest_trade'])
         time_ago = datetime.now() - latest
         hours_ago = time_ago.total_seconds() / 3600
         print(f"  Latest trade:   {hours_ago:.1f} hours ago")
@@ -239,7 +242,7 @@ def audit_signal_generation():
             MAX(date) as latest_signal_date,
             MAX(created_at) as latest_created
         FROM buy_sell_daily
-        WHERE DATE(date) = CURDATE()
+        WHERE DATE(date) = CURRENT_DATE
         """)
         today_signals = cur.fetchone()
 
@@ -250,7 +253,8 @@ def audit_signal_generation():
     print(f"  HOLD:           {today_signals['hold_count']}")
 
     if today_signals['latest_signal_date']:
-        time_ago = datetime.now() - today_signals['latest_signal_date'].replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        latest = safe_dt(today_signals['latest_signal_date'])
+        time_ago = datetime.now() - latest
         hours_ago = time_ago.total_seconds() / 3600
         print(f"  Latest signal:  {hours_ago:.1f} hours ago")
 
@@ -275,7 +279,8 @@ def audit_signal_generation():
     if today_signals['total_signals'] == 0:
         print(f"\n[X] Status: NO SIGNALS TODAY - Signal generation may be stalled")
     elif today_signals['latest_created']:
-        time_ago = datetime.now() - today_signals['latest_created'].replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        latest = safe_dt(today_signals['latest_created'])
+        time_ago = datetime.now() - latest
         hours_ago = time_ago.total_seconds() / 3600
         if hours_ago < freshness_threshold:
             print(f"\n[OK] Status: FRESH - Signals generated {hours_ago:.1f} hours ago")
@@ -314,7 +319,8 @@ def audit_stock_scores():
         print(f"  Avg score:          {score_stats['avg_composite_score']:.2f}")
 
     if score_stats['latest_update']:
-        time_ago = datetime.now() - score_stats['latest_update'].replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        latest = safe_dt(score_stats['latest_update'])
+        time_ago = datetime.now() - latest
         hours_ago = time_ago.total_seconds() / 3600
         print(f"  Latest update:      {hours_ago:.1f} hours ago")
 
@@ -359,7 +365,8 @@ def audit_stock_scores():
     if score_stats['total_scores'] == 0:
         print(f"\n[X] Status: NO SCORES - Stock scores not available")
     elif score_stats['latest_update']:
-        time_ago = datetime.now() - score_stats['latest_update'].replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        latest = safe_dt(score_stats['latest_update'])
+        time_ago = datetime.now() - latest
         hours_ago = time_ago.total_seconds() / 3600
         if score_stats['with_composite'] and score_stats['with_composite'] > 0 and hours_ago < freshness_threshold:
             print(f"\n[OK] Status: FRESH - {score_stats['with_composite']} symbols with scores, updated {hours_ago:.1f}h ago")
@@ -386,7 +393,7 @@ def audit_market_data():
             MIN(CAST(market_exposure_pct AS FLOAT)) as min_exposure,
             MAX(exposure_tier) as latest_tier
         FROM market_exposure_daily
-        WHERE date > CURDATE() - INTERVAL '7 days'
+        WHERE date > CURRENT_DATE - INTERVAL '7 days'
         """)
         market_data = cur.fetchone()
 
@@ -394,7 +401,8 @@ def audit_market_data():
     print(f"  Data points:        {market_data['data_points']}")
 
     if market_data['latest_date']:
-        time_ago = datetime.now() - market_data['latest_date'].replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        latest = safe_dt(market_data['latest_date'])
+        time_ago = datetime.now() - latest
         hours_ago = time_ago.total_seconds() / 3600
         print(f"  Latest data date:   {market_data['latest_date']} ({hours_ago:.1f} hours ago)")
 
@@ -413,7 +421,7 @@ def audit_market_data():
         cur.execute("""
         SELECT date, market_exposure_pct, exposure_tier
         FROM market_exposure_daily
-        WHERE date > CURDATE() - INTERVAL '5 days'
+        WHERE date > CURRENT_DATE - INTERVAL '5 days'
         ORDER BY date DESC
         LIMIT 5
         """)
@@ -428,7 +436,8 @@ def audit_market_data():
     if market_data['data_points'] == 0:
         print(f"\n[X] Status: NO MARKET DATA - Market exposure data not available")
     elif market_data['latest_date']:
-        time_ago = datetime.now() - market_data['latest_date'].replace(tzinfo=None) if hasattr(_, 'tzinfo') and _.tzinfo else _
+        latest = safe_dt(market_data['latest_date'])
+        time_ago = datetime.now() - latest
         hours_ago = time_ago.total_seconds() / 3600
         if hours_ago < 24:
             print(f"\n[OK] Status: GOOD - Latest market data available ({hours_ago:.1f}h ago)")
