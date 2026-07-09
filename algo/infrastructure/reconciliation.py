@@ -318,6 +318,13 @@ class DailyReconciliation:
                 cash = account_data.get("cash")
                 equity = account_data.get("equity")
 
+                # CRITICAL FIX: In paper mode, broker may not return real cash (returns error dict).
+                # Calculate actual remaining cash from portfolio_value - position_value if cash is missing.
+                # This ensures accurate cash calculation instead of showing initial capital.
+                if cash is None and pv is not None:
+                    # Defer cash calculation until after we've computed total_position_value
+                    logger.debug("[PAPER MODE] Cash not available from broker, will compute from portfolio - positions")
+
                 # Validate critical fields are present - fail immediately, not silently
                 if pv is None:
                     logger.critical(
@@ -333,17 +340,19 @@ class DailyReconciliation:
                         logger.error(f"Failed to send critical notification (will still raise): {e}", exc_info=True)
                     raise ValueError("Broker portfolio_value required for reconciliation - cannot proceed")
 
-                if cash is None:
-                    logger.critical("Broker cash is missing - reconciliation cannot proceed without live cash value")
+                # CRITICAL FIX: Allow cash to be None in paper mode, calculate after position_value computed
+                # Live mode requires real cash from broker, but paper mode can compute it from portfolio - positions
+                if cash is None and execution_mode != "paper":
+                    logger.critical("Live mode: Broker cash is missing - reconciliation cannot proceed without live cash value")
                     try:
                         notify(
                             "critical",
                             title="Reconciliation Halted",
-                            message="Broker cash missing - reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
+                            message="Live mode: Broker cash missing - reconciliation requires live cash value for position sizing. Cannot use stale DB cache.",
                         )
                     except Exception as e:
                         logger.error(f"Failed to send critical notification (will still raise): {e}", exc_info=True)
-                    raise ValueError("Broker cash required for reconciliation - cannot proceed")
+                    raise ValueError("Live mode: Broker cash required for reconciliation - cannot proceed")
 
                 # CRITICAL: Validate cash is non-negative (indicates account in consistent state)
                 if cash < 0:
@@ -481,7 +490,15 @@ class DailyReconciliation:
                 # Our DB position_value sum may lag - Broker is the ground truth for drawdown math.
                 from decimal import Decimal
 
-                cash_dec = Decimal(str(cash))
+                # CRITICAL FIX: In paper mode, calculate cash as portfolio_value - position_value
+                # instead of using hardcoded initial capital
+                if cash is None:
+                    # Paper mode: Alpaca doesn't return cash, so compute it
+                    cash_computed = pv - total_position_value
+                    logger.info(f"[PAPER MODE] Computed cash: ${pv:,.2f} (portfolio) - ${total_position_value:,.2f} (positions) = ${cash_computed:,.2f}")
+                    cash_dec = Decimal(str(cash_computed))
+                else:
+                    cash_dec = Decimal(str(cash))
                 alpaca_portfolio_value_dec = Decimal(str(pv))
                 if alpaca_portfolio_value_dec <= 0:
                     logger.critical(

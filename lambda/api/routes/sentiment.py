@@ -9,6 +9,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -189,9 +190,10 @@ def handle(  # noqa: C901
                     )
             return sentiment_data_result
         elif path == "/api/sentiment/divergence":
+            interval_30d = get_interval_sql("30d")
             rows = execute_with_timeout(
                 cur,
-                """
+                f"""
                     SELECT asa.symbol, asa.date,
                            asa.bullish_count, asa.bearish_count, asa.analyst_count,
                            asa.upside_downside_percent,
@@ -200,7 +202,7 @@ def handle(  # noqa: C901
                            ss.composite_score
                     FROM analyst_sentiment_analysis asa
                     LEFT JOIN stock_scores ss ON ss.symbol = asa.symbol
-                    WHERE asa.date >= CURRENT_DATE - get_interval_sql('30d')
+                    WHERE asa.date >= CURRENT_DATE - {interval_30d}
                     ORDER BY asa.date DESC, asa.upside_downside_percent DESC NULLS LAST
                     LIMIT 2000
                 """,

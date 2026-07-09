@@ -13,6 +13,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from auth_utils import check_admin_access
 from models.requests import ManualTradeRequest
 from psycopg2.extensions import cursor
@@ -55,10 +56,11 @@ def _check_idempotency(cur: cursor, signature: str) -> dict[str, Any]:
         Cached response dict with cached_response=True, or {"cached_response": False} if not found
     """
     try:
+        interval_24h = get_interval_sql("24h")
         cur.execute(
-            """
+            f"""
             SELECT response_data, created_at FROM api_idempotency_cache
-            WHERE request_signature = %s AND created_at > NOW() - get_interval_sql('24h')
+            WHERE request_signature = %s AND created_at > NOW() - {interval_24h}
             LIMIT 1
             """,
             (signature,),

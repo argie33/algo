@@ -10,6 +10,7 @@ import psycopg2
 import psycopg2.errors
 import psycopg2.extras
 import psycopg2.sql
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
@@ -139,6 +140,7 @@ def _get_signals_stocks(
 
         params.append(limit)
 
+        interval_90d = get_interval_sql("90d")
         cur.execute(
             f"""
             SELECT
@@ -198,7 +200,7 @@ def _get_signals_stocks(
             FROM buy_sell_daily b
             LEFT JOIN trend_template_data t ON t.symbol = b.symbol AND t.date = b.date
             LEFT JOIN company_profile cp ON cp.ticker = b.symbol
-            WHERE b.date >= CURRENT_DATE - get_interval_sql('90d')
+            WHERE b.date >= CURRENT_DATE - {interval_90d}
             {symbol_clause}
             ORDER BY b.date DESC, b.signal DESC, b.entry_quality_score DESC
             LIMIT %s
@@ -240,8 +242,9 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
         from utils.market_symbols_config import MarketSymbolsConfig
 
         etf_symbols = MarketSymbolsConfig.get_etf_symbols()
+        interval_90d_etf = get_interval_sql("90d")
         cur.execute(
-            """
+            f"""
             SELECT
                 pd.symbol,
                 pd.date,
@@ -268,7 +271,7 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
             INNER JOIN trend_template_data tt ON tt.symbol = pd.symbol AND tt.date = pd.date
             LEFT JOIN company_profile cp ON cp.ticker = pd.symbol
             WHERE pd.symbol = ANY(%s)
-            AND pd.date >= CURRENT_DATE - get_interval_sql('90d')
+            AND pd.date >= CURRENT_DATE - {interval_90d_etf}
             ORDER BY pd.date DESC, pd.symbol
             LIMIT %s
             """,
