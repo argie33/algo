@@ -65,6 +65,7 @@ class TradeInsertionRequest:
     stop_reasoning: str | None
     advanced_components: dict[str, Any] | None
     rejection_reason: str | None
+    position_id: str | None = None  # FIXED: Link trade to position
 
 
 # Map stage phase names to integer IDs for database storage
@@ -447,7 +448,7 @@ class EntryHandler:
                 target_2_price, target_2_r_multiple,
                 target_3_price, target_3_r_multiple,
                 status, execution_mode, alpaca_order_id,
-                position_size_pct, signal_quality_score, trend_template_score,
+                position_id, position_size_pct, signal_quality_score, trend_template_score,
                 base_type, base_quality, stage_phase, entry_stage,
                 sector, industry, rs_percentile,
                 market_exposure_at_entry, exposure_tier_at_entry,
@@ -459,7 +460,7 @@ class EntryHandler:
                 %s, %s, %s, %s, %s, CURRENT_TIMESTAMP, %s, %s, %s, %s,
                 %s, %s,
                 %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s, %s, %s,
+                %s, %s, %s, %s, %s, %s, %s,
                 %s, %s, %s, %s,
                 %s, %s, %s,
                 %s, %s,
@@ -491,6 +492,7 @@ class EntryHandler:
                 request.order_status,
                 request.execution_mode,
                 request.alpaca_order_id,
+                request.position_id,  # FIXED: Link trade to position
                 request.position_size_pct,
                 float(request.sqs) if request.sqs is not None else None,
                 float(request.trend_score) if request.trend_score is not None else None,
@@ -706,6 +708,11 @@ class EntryHandler:
                 f"[ENTRY_HANDLER CRITICAL] {symbol}: Recording entry without executed_price. "
                 f"Cannot calculate position size percentage or record accurate cost basis."
             )
+
+        # Generate position_id upfront so it can be linked in both trade and position records
+        import uuid
+        position_id = str(uuid.uuid4())
+
         # Calculate position size percentage
         pv_for_pct = self.context._get_portfolio_value()
         position_size_pct = self._calculate_position_size_pct(shares, executed_price, pv_for_pct)
@@ -747,6 +754,7 @@ class EntryHandler:
             stop_reasoning=context.execution.stop_reasoning,
             advanced_components=context.signals.advanced_components,
             rejection_reason=rejection_reason,
+            position_id=position_id,  # FIXED: Link trades to positions
         )
         self._insert_trade_record(cur, trade_request)
 
@@ -754,6 +762,9 @@ class EntryHandler:
         # PAPER MODE: Create positions for paper_pending trades to maintain portfolio state
         # Live mode: Only create positions for actual filled/partially_filled orders
         if order_status in ("filled", "partially_filled", "paper_pending"):
+            # Use the position_id from trade_request to link position to trade
+            position_id = trade_request.position_id or str(uuid.uuid4())
+
             if self.context.execution_mode == "auto" and alpaca_order_id:
                 verified_status = self.context._verify_order_status(alpaca_order_id)
                 if verified_status is None:
@@ -779,8 +790,8 @@ class EntryHandler:
             if position_value <= 0:
                 return "invalid"
 
-            # Insert position record
-            position_id = f"POS-{trade_id}"
+            # Use the position_id that was created when inserting the trade
+            # This ensures trade and position are linked via foreign key
             # CRITICAL: Paper_pending trades MUST create open positions for portfolio tracking
             # This ensures paper mode trading maintains accurate position state
             position_status = "paper_open" if order_status == "paper_pending" else "open"
