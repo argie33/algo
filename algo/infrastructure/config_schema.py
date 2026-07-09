@@ -308,4 +308,13 @@ VALIDATION_SCHEMA = {
     # Corporate Action Configuration
     "patrol_corporate_action_lookback_days": ("int", 1, 365, False, 30),
     "patrol_corporate_action_drop_ratio": ("float", 0.0, 1.0, False, 0.10),
+    # Historical Price Lookback Periods (for comparative calculations in scores/rankings)
+    # These replace hardcoded INTERVAL values in SQL queries throughout loaders
+    "lookback_price_1m": ("int", 20, 60, False, 30),  # ~1 month
+    "lookback_price_3m": ("int", 40, 120, False, 60),  # ~3 months
+    "lookback_price_6m": ("int", 100, 250, False, 120),  # ~6 months
+    "lookback_price_1y": ("int", 200, 365, False, 252),  # 1 year (trading days)
+    "lookback_ranking_short": ("int", 5, 14, False, 7),  # 1-week rankings
+    "lookback_ranking_medium": ("int", 20, 35, False, 28),  # 4-week rankings
+    "lookback_ranking_long": ("int", 70, 100, False, 84),  # 12-week rankings
 }
