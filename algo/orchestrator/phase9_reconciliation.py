@@ -944,6 +944,24 @@ def run(  # noqa: C901
             logger.warning(f"[PHASE 9] Metrics update failed: {e}")
             log_phase_result_fn(9, "metrics_update", "warn", f"update error: {str(e)[:60]}")
 
+        # CRITICAL FIX: Sync quantity column for all open positions (entry_quantity -> quantity)
+        # This ensures the quantity field is populated for all open trades after reconciliation
+        # Without this, dashboard and risk calculations cannot determine current position sizes
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute("""
+                    UPDATE algo_trades
+                    SET quantity = entry_quantity, updated_at = CURRENT_TIMESTAMP
+                    WHERE status = 'open' AND (quantity IS NULL OR quantity != entry_quantity)
+                """)
+                synced_count = cur.cursor.rowcount
+                if synced_count > 0:
+                    logger.info(f"[PHASE 9] Synced quantity for {synced_count} open positions (quantity = entry_quantity)")
+            log_phase_result_fn(9, "quantity_sync", "success", f"synced {synced_count} open positions")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.error(f"[PHASE 9] CRITICAL: Failed to sync quantity column: {e}")
+            log_phase_result_fn(9, "quantity_sync", "error", f"sync failed: {str(e)[:60]}")
+
         # Refresh materialized view so positions dashboard reflects current state.
         # This runs after reconciliation updates algo_positions from Broker.
         try:
