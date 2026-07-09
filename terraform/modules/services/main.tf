@@ -460,6 +460,20 @@ resource "aws_cloudwatch_log_group" "api_gateway" {
 # ============================================================
 # CloudFront Distribution (Frontend CDN)
 # ============================================================
+# IMPORTANT: These resources use count = var.cloudfront_enabled ? 1 : 0
+#
+# When cloudfront_enabled = false (default in terraform.tfvars for dev cost optimization):
+# - Resources will NOT be created/recreated
+# - If resources exist in state, they WILL be destroyed (terraform plan shows "will be destroyed")
+# - GitHub Actions workflow removes these from state before plan to avoid destruction messages
+#
+# To disable CloudFront destruction warnings when cloudfront_enabled=false:
+# - Set in GitHub Actions "Remove Orphaned Resources From State" step: terraform state rm module.services.aws_cloudfront_*
+#
+# To RE-ENABLE CloudFront for production:
+# - Set cloudfront_enabled = true in terraform.tfvars
+# - Re-run deploy workflow
+# - All CloudFront resources will be recreated with new domain
 
 # CloudFront cache policies (AWS managed)
 data "aws_cloudfront_cache_policy" "managed_caching_optimized" {

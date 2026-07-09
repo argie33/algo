@@ -752,10 +752,20 @@ jobs:
           terraform state rm "module.pipeline.aws_lambda_function.loader_failure_handler" 2>/dev/null || echo "  (not in state)"
           terraform state rm "module.pipeline.aws_iam_role.loader_failure_handler" 2>/dev/null || echo "  (not in state)"
 
-          # Remove frontend CloudFront if it conflicts with current S3-based frontend
-          terraform state rm "module.services.aws_s3_bucket_policy.frontend_cloudfront[0]" 2>/dev/null || echo "  (not in state)"
+          # CRITICAL: Remove CloudFront resources from state when cloudfront_enabled=false
+          # Issue: Resources exist in state with count=1, but terraform.tfvars has cloudfront_enabled=false
+          # When terraform plan evaluates count=var.cloudfront_enabled ? 1 : 0, it becomes count=0
+          # This causes plan to show resource destruction. Remove from state to prevent this.
+          echo ""
+          echo "Removing CloudFront resources from state (cloudfront_enabled=false in terraform.tfvars)..."
+          terraform state rm "module.services.aws_cloudfront_response_headers_policy.api_cors[0]" 2>/dev/null || echo "  (not in state)"
+          terraform state rm "module.services.aws_cloudfront_response_headers_policy.s3_cors[0]" 2>/dev/null || echo "  (not in state)"
+          terraform state rm "module.services.aws_cloudfront_origin_access_control.frontend[0]" 2>/dev/null || echo "  (not in state)"
           terraform state rm "module.services.aws_cloudfront_distribution.frontend[0]" 2>/dev/null || echo "  (not in state)"
+          terraform state rm "module.services.aws_s3_bucket_policy.frontend_cloudfront[0]" 2>/dev/null || echo "  (not in state)"
+          echo "[OK] CloudFront resources removed from state"
 
+          echo ""
           echo "State cleanup completed"
           terraform state rm "module.pipeline.aws_iam_role_policy_attachment.loader_failure_handler_logs" 2>/dev/null || true
           terraform state rm "module.pipeline.aws_iam_role_policy.loader_failure_handler_cloudwatch" 2>/dev/null || true
