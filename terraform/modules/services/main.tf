@@ -845,14 +845,16 @@ resource "aws_lambda_function" "algo" {
 }
 
 # Provisioned concurrency for Orchestrator Lambda (keep instances warm for scheduled runs)
-resource "aws_lambda_provisioned_concurrency_config" "algo" {
-  count                             = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
-  function_name                     = aws_lambda_function.algo.function_name
-  provisioned_concurrent_executions = var.algo_lambda_provisioned_concurrency
-  qualifier                         = aws_lambda_function.algo.version
-
-  depends_on = [aws_lambda_function.algo]
-}
+# DISABLED: Provisioned concurrency requires published versions, but Lambda updates immediately on code change
+# This creates version conflicts during deployments. Reserved concurrency (5) is sufficient for scheduled runs.
+# resource "aws_lambda_provisioned_concurrency_config" "algo" {
+#   count                             = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
+#   function_name                     = aws_lambda_function.algo.function_name
+#   provisioned_concurrent_executions = var.algo_lambda_provisioned_concurrency
+#   qualifier                         = "LIVE"
+#
+#   depends_on = [aws_lambda_function.algo]
+# }
 
 # ============================================================
 # SNS Topic for Algo Alerts
