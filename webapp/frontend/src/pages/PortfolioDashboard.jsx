@@ -414,6 +414,9 @@ function PortfolioDashboardPage() {
     safeGet(portfolio, "total_portfolio_value"),
     null
   );
+  // FIXED: Track when portfolio value is computed from fallback (positions sum)
+  // instead of authoritative portfolio endpoint - user should be notified
+  const isPortfolioValueFallback = portfolioTotalValue === null;
   const totalValue =
     portfolioTotalValue !== null ? portfolioTotalValue : totalPositionValue;
 
@@ -685,7 +688,11 @@ function PortfolioDashboardPage() {
           <Kpi
             label="Portfolio Value"
             value={fmtMoneyShort(totalValue)}
-            sub={`${safePositionsList.length} open positions`}
+            sub={
+              isPortfolioValueFallback
+                ? "⚠️ Computed from positions (portfolio API unavailable)"
+                : `${safePositionsList.length} open positions`
+            }
             icon={DollarSign}
           />
           <Kpi
@@ -892,12 +899,12 @@ function PortfolioDashboardPage() {
       ) : (
         <div className="grid grid-2" style={{ marginTop: "var(--space-4)" }}>
           <ErrorBoundary>
-            <EquityCurve series={safeEquityCurve} loading={isPrimaryLoading} />
+            <EquityCurve series={safeEquityCurve} loading={equityLoading} />
           </ErrorBoundary>
           <ErrorBoundary>
             <DrawdownChart
               series={safeEquityCurve}
-              loading={isPrimaryLoading}
+              loading={equityLoading}
             />
           </ErrorBoundary>
         </div>
@@ -908,14 +915,14 @@ function PortfolioDashboardPage() {
         <ErrorBoundary>
           <DailyReturnHistogram
             histogram_data={returnHistogram}
-            loading={isPrimaryLoading}
+            loading={histogramLoading}
             error={histogramError}
           />
         </ErrorBoundary>
         <ErrorBoundary>
           <TradeDistribution
             distribution_data={tradeDistribution}
-            loading={isPrimaryLoading}
+            loading={distLoading}
             error={distError}
           />
         </ErrorBoundary>
@@ -951,7 +958,7 @@ function PortfolioDashboardPage() {
         <ErrorBoundary>
           <StagePhaseDonut
             distribution={stageDistribution}
-            loading={isPrimaryLoading}
+            loading={stageLoading}
             error={stageError}
           />
         </ErrorBoundary>
