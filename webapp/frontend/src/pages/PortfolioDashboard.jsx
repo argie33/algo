@@ -394,14 +394,27 @@ function PortfolioDashboardPage() {
 
   // Extract portfolio data with consistent nested access
   const portfolio = extractNestedValue(status, "portfolio", {});
-  const currentExp = extractNestedValue(markets, "current", {});
-  const currentHealth = extractNestedValue(markets, "market_health", {});
+
+  // FIXED: Validate market context data structure exists before access
+  // markets endpoint should return {current: {...}, market_health: {...}}
+  // If data is missing/malformed, use safe defaults
+  const currentExp = markets && typeof markets === 'object'
+    ? extractNestedValue(markets, "current", {})
+    : {};
+  const currentHealth = markets && typeof markets === 'object'
+    ? extractNestedValue(markets, "market_health", {})
+    : {};
+
+  // Validate that market objects have expected structure with safe fallbacks
   const market = {
-    trend: currentHealth.market_trend || "unknown",
-    stage: currentHealth.market_stage ?? 0,
-    vix: currentHealth.vix_level ?? 0,
-    distribution_days:
-      currentExp.distribution_days_4w ?? currentExp.distribution_days ?? 0,
+    trend: (currentHealth && currentHealth.market_trend) || "unknown",
+    stage: (currentHealth && typeof currentHealth.market_stage === 'number') ? currentHealth.market_stage : 0,
+    vix: (currentHealth && typeof currentHealth.vix_level === 'number') ? currentHealth.vix_level : 0,
+    distribution_days: (currentExp && typeof currentExp.distribution_days_4w === 'number')
+      ? currentExp.distribution_days_4w
+      : (currentExp && typeof currentExp.distribution_days === 'number')
+        ? currentExp.distribution_days
+        : 0,
   };
 
   // Compute portfolio metrics with safe calculations
