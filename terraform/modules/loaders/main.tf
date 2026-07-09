@@ -469,9 +469,9 @@ locals {
     "buy_sell_daily"              = { cpu = 2048, memory = 4096, timeout = 2400, parallelism = 2 }
     "earnings_history"            = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
     "earnings_calendar"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "company_profile"             = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "analyst_sentiment"           = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
-    "analyst_upgrades_downgrades" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 3 }
+    "company_profile"             = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "analyst_sentiment"           = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "analyst_upgrades_downgrades" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
