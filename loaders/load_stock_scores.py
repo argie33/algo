@@ -59,7 +59,7 @@ class StockScoresLoader(OptimalLoader):
         If quality/growth/value/positioning/stability metrics are all missing,
         stock_scores will be empty (no actual factor scores, just metadata).
         """
-        self._validate_upstream_metrics_ready()
+        self.validate_upstream_metrics_ready()
         return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
 
     def validate_upstream_metrics_ready(self) -> None:
