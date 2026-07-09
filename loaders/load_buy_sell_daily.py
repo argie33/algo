@@ -749,18 +749,23 @@ def main() -> int:  # noqa: C901
             # Enrichment module not available - this is OK, it's optional
             logger.info(f"[LOADER] Technical data enrichment module not available ({e}). Skipping enrichment.")
 
-        # CRITICAL FIX: Update loader status to COMPLETED with today's date so Phase 1 doesn't falsely halt
-        # This was missing, causing Phase 1 to think buy_sell_daily is stale
+        # CRITICAL FIX: Update loader status to COMPLETED with actual latest_date from table
+        # Bug fix: Use MAX(date) from buy_sell_daily, not calendar date (today_et)
+        # Root cause: Reporting today's calendar date when signals may only be generated through yesterday
         try:
             with DatabaseContext("write") as cur:
                 cur.execute("SET statement_timeout = 0")
+                # Get actual maximum date from buy_sell_daily (signals generated up to this date)
+                cur.execute("SELECT COALESCE(MAX(date), %s) FROM buy_sell_daily", (today_et,))
+                actual_max_date = cur.fetchone()[0]
+
                 cur.execute(
                     """UPDATE data_loader_status
                        SET status = %s, latest_date = %s, last_updated = NOW(), completion_pct = 100.0
                        WHERE table_name = %s""",
-                    ("COMPLETED", today_et, "buy_sell_daily"),
+                    ("COMPLETED", actual_max_date, "buy_sell_daily"),
                 )
-                logger.info(f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={today_et}")
+                logger.info(f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
             logger.error(f"[STATUS] Could not update loader status to COMPLETED: {status_err}")
             return 1
