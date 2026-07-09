@@ -99,16 +99,6 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     # Must happen BEFORE environment validation, so credentials are available
     _load_alpaca_credentials_from_secrets()
 
-    # PHASE 3 FIX: Validate environment variables
-    # This catches missing config before trying to initialize anything
-    from algo.config.environment_validation import EnvironmentValidator
-    EnvironmentValidator.require_valid_or_halt("lambda_handler")
-
-    # Reset config singleton on invocation to load fresh DB config
-    from algo.infrastructure import reset_config
-
-    reset_config()
-
     source = "unknown"
     try:
         # Load environment variables
@@ -122,6 +112,24 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 "statusCode": 400,
                 "body": json.dumps({"status": "error", "message": "Event must be a JSON object"}),
             }
+
+        # FIXED Issue #1: Parse event execution_mode BEFORE validation
+        # EventBridge scheduler passes execution_mode in payload, not as Lambda env var
+        event_execution_mode = event.get("execution_mode", "").strip().lower()
+        if event_execution_mode and event_execution_mode in ("paper", "live", "auto"):
+            # Set environment variable from event so validator will pass
+            os.environ["ORCHESTRATOR_EXECUTION_MODE"] = event_execution_mode
+            logger.info(f"[EXECUTION_MODE] Set from event payload: {event_execution_mode}")
+
+        # PHASE 3 FIX: Validate environment variables AFTER setting from event
+        # This catches missing config but allows EventBridge scheduler to inject via payload
+        from algo.config.environment_validation import EnvironmentValidator
+        EnvironmentValidator.require_valid_or_halt("lambda_handler")
+
+        # Reset config singleton on invocation to load fresh DB config
+        from algo.infrastructure import reset_config
+
+        reset_config()
 
         # Price seeding moved to separate test Lambda: algo-test-seed-prices-dev
         # Production orchestrator Lambda should not accept seed_prices
@@ -202,42 +210,27 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
         # ISSUE #5 FIX: Explicit execution mode validation and enforcement
         # Execution mode determines whether trades are paper (test) or live (real money)
-        # This MUST be explicit and validated at entry point, never using unsafe defaults
-        env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
-        if not env_execution_mode:
+        # At this point, ORCHESTRATOR_EXECUTION_MODE is already set (from event or Lambda env)
+        execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
+        if not execution_mode:
             logger.critical(
                 "[EXECUTION_MODE_MISSING] ORCHESTRATOR_EXECUTION_MODE environment variable is not set. "
-                "This is a CRITICAL configuration error - Lambda cannot determine trading mode. "
-                "Set ORCHESTRATOR_EXECUTION_MODE in Lambda environment variables to 'paper' or 'live'."
+                "This should not happen - EnvironmentValidator should have caught this."
             )
             raise ValueError(
-                "[CONFIG] ORCHESTRATOR_EXECUTION_MODE environment variable is required and must be set to 'paper' or 'live'. "
+                "[CONFIG] ORCHESTRATOR_EXECUTION_MODE environment variable is required and must be set to 'paper', 'live', or 'auto'. "
                 "Refusing to proceed without explicit execution mode configuration."
             )
 
-        # Event can override environment variable for manual invocations, but MUST be validated
         # FIXED: Allow "auto" mode like orchestrator does (in addition to paper/live)
-        event_execution_mode = event.get("execution_mode", "").strip().lower()
-        if event_execution_mode:
-            if event_execution_mode not in ("paper", "live", "auto"):
-                logger.critical(f"[EXECUTION_MODE_INVALID] Event specifies invalid execution_mode: {event_execution_mode}")
-                raise ValueError(
-                    f"[CONFIG] Event execution_mode '{event_execution_mode}' is invalid (must be 'paper', 'live', or 'auto'). "
-                    "Halting to prevent trading in unknown mode."
-                )
-            execution_mode = event_execution_mode
-            logger.info(f"[EXECUTION_MODE] Using event override: {execution_mode}")
-        else:
-            execution_mode = env_execution_mode
-            logger.info(f"[EXECUTION_MODE] Using environment variable: {execution_mode}")
-
-        # FIXED: Allow "auto" mode like orchestrator does
         if execution_mode not in ("paper", "live", "auto"):
             logger.critical(f"[EXECUTION_MODE_VALIDATION_FAILED] Final execution_mode invalid: {execution_mode}")
             raise ValueError(
                 f"[CONFIG] Execution mode validation failed - final mode '{execution_mode}' is invalid. "
                 "This should never happen if environment variable is set correctly."
             )
+
+        logger.info(f"[EXECUTION_MODE] Running in {execution_mode} mode")
 
         # ISSUE #2 FIX: Explicit DynamoDB halt flag check at Lambda entry point
         # Fail-fast before orchestrator initialization if emergency halt flag is set

@@ -5,7 +5,7 @@ Prevents silent failures from missing credentials or configuration.
 """
 
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from algo.config.error_codes import ErrorCode, OrchestrationError
 
@@ -49,7 +49,7 @@ class EnvironmentValidator:
     }
 
     @classmethod
-    def validate_required(cls) -> Tuple[bool, List[str]]:
+    def validate_required(cls) -> tuple[bool, list[str]]:
         """Validate all required environment variables are set.
 
         Returns:
@@ -83,7 +83,7 @@ class EnvironmentValidator:
         return bool(api_key) and bool(api_secret)
 
     @classmethod
-    def validate_optional(cls) -> Dict[str, str]:
+    def validate_optional(cls) -> dict[str, str]:
         """Check optional variables and log which ones are missing.
 
         Returns:
@@ -99,7 +99,7 @@ class EnvironmentValidator:
         return missing
 
     @classmethod
-    def get_status(cls) -> Dict[str, Any]:
+    def get_status(cls) -> dict[str, Any]:
         """Get environment validation status.
 
         Returns:
