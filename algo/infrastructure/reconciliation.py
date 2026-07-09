@@ -256,6 +256,7 @@ class DailyReconciliation:
                 "success": True,
                 "positions": open_position_count,
                 "portfolio_value": portfolio_value,
+                "position_value": float(total_invested),
                 "unrealized_pnl": total_unrealized_pnl,
                 "reason": "Reconciliation skipped: using database state (broker credentials unavailable, paper trading mode)",
             }
@@ -455,7 +456,8 @@ class DailyReconciliation:
 
                 # FIXED: Read from algo_trades (source of truth) instead of algo_positions (stale).
                 # algo_positions drifts over time; algo_trades is authoritative for open positions.
-                # CRITICAL: Do NOT fall back to entry_price when current_price is missing.
+                # CRITICAL: Fall back to algo_positions.entry_price if algo_trades.entry_price is NULL.
+                # This handles backlog of positions created before entry_price was consistently populated.
                 # When price_daily has no entry, current_price must be NULL to indicate missing data.
                 # This prevents position_value from being calculated incorrectly (showing 0% gain/loss).
                 cur.execute("""
@@ -466,10 +468,12 @@ class DailyReconciliation:
                     ),
                     open_trades AS (
                         SELECT DISTINCT ON (at.symbol)
-                            at.symbol, at.entry_quantity as quantity, at.entry_price as avg_entry_price,
+                            at.symbol, at.entry_quantity as quantity,
+                            COALESCE(NULLIF(at.entry_price, 0), ap.entry_price) as avg_entry_price,
                             lp.current_price,
                             (at.entry_quantity * lp.current_price) as position_value
                         FROM algo_trades at
+                        LEFT JOIN algo_positions ap ON at.symbol = ap.symbol AND ap.status IN ('open', 'paper_open')
                         LEFT JOIN latest_prices lp ON at.symbol = lp.symbol
                         WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
                           AND at.exit_date IS NULL
@@ -477,6 +481,7 @@ class DailyReconciliation:
                     )
                     SELECT symbol, quantity, avg_entry_price, current_price, position_value
                     FROM open_trades
+                    WHERE avg_entry_price IS NOT NULL AND avg_entry_price > 0
                     ORDER BY symbol
                 """)
 

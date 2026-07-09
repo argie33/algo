@@ -220,13 +220,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
 # - Weekly: walk-forward backtest validation (Fridays)
 # ============================================================
 
-# Weight optimization scheduler is DISABLED until the weight_optimization_task_definition_arn
-# is properly passed from the root module. This prevents scheduler errors when the task definition doesn't exist.
-# To enable: (1) Add weight_optimization_task_definition_arn output to loaders module
-# (2) Pass it from main.tf to services module as weight_optimization_task_definition_arn
-# (3) Change count = var.weight_optimization_task_definition_arn != null ? 1 : 0
+# Weight optimization scheduler - enabled when weight_optimization_task_definition_arn is provided
+# The ARN is passed from the loaders module output to enable this scheduler
 resource "aws_scheduler_schedule" "weight_optimization" {
-  count = 0 # DISABLED: variable not passed from root module - see comment above
+  count = var.weight_optimization_task_definition_arn != "" ? 1 : 0
 
   name                         = "${var.project_name}-weight-optimization-${var.environment}"
   description                  = "Daily weight optimization: 6:00 PM ET (after orchestrator, continuous improvement loop)"
@@ -336,6 +333,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_afternoon" {
       run_date       = "now"
       run_identifier = "prewarm"
       dry_run        = true
+      execution_mode = var.execution_mode
       note           = "Pre-warm only: warms Lambda container before 1:00 PM afternoon run. No trades executed."
     })
   }
@@ -373,6 +371,7 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_preclose" {
       run_date       = "now"
       run_identifier = "prewarm"
       dry_run        = true
+      execution_mode = var.execution_mode
       note           = "Pre-warm only: warms Lambda container before 3:00 PM pre-close run (SLA-critical, must finish by 3:15 PM). No trades executed."
     })
   }

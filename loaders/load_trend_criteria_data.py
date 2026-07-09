@@ -265,8 +265,20 @@ def run() -> dict:  # type: ignore[type-arg]
         return result
 
     except Exception as e:
-        _update_loader_status("FAILED", error_message=str(e))
-        raise
+        logger.error(
+            f"[TREND LOAD ERROR] Failed to compute trend criteria: {e}. "
+            f"Returning empty result instead of raising to allow orchestrator to continue with degraded data."
+        )
+        _update_loader_status("FAILED", error_message=str(e)[:255])
+        # GOVERNANCE: Return empty result dict instead of raising
+        # Allows Phase 1 to detect no data and mark affected symbols as data_unavailable
+        return {
+            "symbols_processed": 0,
+            "rows_inserted": 0,
+            "dates_covered": 0,
+            "duration_sec": round(time.time() - start, 1),
+            "error": str(e)[:255],
+        }
 
 
 def main() -> int:
