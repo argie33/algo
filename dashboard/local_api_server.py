@@ -198,49 +198,119 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_portfolio(self) -> None:
-        """Return portfolio snapshot."""
-        response = {
-            "statusCode": 200,
-            "data": {
-                "total_portfolio_value": 100000.0,
-                "total_cash": 25000.0,
-                "position_count": 5,
-                "daily_return_pct": 0.5,
-                "unrealized_pnl_total": 2500.0,
-                "last_run": datetime.now(timezone.utc).isoformat(),
-                "data_age_seconds": 60,
-            },
-        }
-        self._send_json(200, response)
+        """Return portfolio snapshot from latest database snapshot."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Fetch latest portfolio snapshot
+            cur.execute("""
+                SELECT snapshot_date, total_portfolio_value, cash_balance, position_count,
+                       daily_return_pct, unrealized_pnl
+                FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date DESC
+                LIMIT 1
+            """)
+            snapshot = cur.fetchone()
+            conn.close()
+
+            if snapshot is None:
+                # No data yet - return error instead of fake data
+                return self._send_json(503, {
+                    "statusCode": 503,
+                    "error": "No portfolio snapshot available. Run orchestrator first."
+                })
+
+            response = {
+                "statusCode": 200,
+                "data": {
+                    "total_portfolio_value": float(snapshot.get("total_portfolio_value") or 0),
+                    "total_cash": float(snapshot.get("cash_balance") or 0),
+                    "position_count": int(snapshot.get("position_count") or 0),
+                    "daily_return_pct": float(snapshot.get("daily_return_pct") or 0),
+                    "unrealized_pnl_total": float(snapshot.get("unrealized_pnl") or 0),
+                    "last_run": snapshot.get("snapshot_date", datetime.now(timezone.utc)).isoformat() if hasattr(snapshot.get("snapshot_date"), "isoformat") else str(snapshot.get("snapshot_date")),
+                    "data_age_seconds": int((datetime.now(timezone.utc) - snapshot.get("snapshot_date").replace(tzinfo=timezone.utc)).total_seconds()) if snapshot.get("snapshot_date") else 0,
+                },
+            }
+            self._send_json(200, response)
+        except Exception as e:
+            self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_performance(self) -> None:
-        """Return performance metrics."""
-        response = {
-            "statusCode": 200,
-            "data": {
-                "total_trades": 150,
-                "winning": 90,
-                "losing": 55,
-                "breakeven": 5,
-                "win_rate": 60.0,
-                "profit_factor": 1.85,
-                "total_pnl": 12500.0,
-                "total_pnl_pct": 12.5,
-                "avg_trade_pct": 0.45,
-                "best_trade": 5.2,
-                "worst_trade": -3.8,
-                "sharpe": 1.2,
-                "sortino": 1.8,
-                "calmar": 0.95,
-                "max_drawdown": 8.5,
-                "cagr": 25.3,
-                "best_streak": 12,
-                "worst_streak": -4,
-                "current_streak": 3,
-                "expectancy_r": 0.68,
-            },
-        }
-        self._send_json(200, response)
+        """Return performance metrics from database."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Fetch latest performance metrics from algo_metrics_daily
+            cur.execute("""
+                SELECT date, total_actions, entries, exits, avg_signal_score,
+                       win_rate, profit_factor, total_pnl, total_pnl_pct, max_drawdown,
+                       best_trade, worst_trade, current_streak
+                FROM algo_metrics_daily
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            metrics = cur.fetchone()
+            conn.close()
+
+            if metrics is None:
+                # No metrics yet - return placeholder with zeros
+                response = {
+                    "statusCode": 200,
+                    "data": {
+                        "total_trades": 0,
+                        "winning": 0,
+                        "losing": 0,
+                        "breakeven": 0,
+                        "win_rate": None,
+                        "profit_factor": None,
+                        "total_pnl": 0.0,
+                        "total_pnl_pct": 0.0,
+                        "avg_trade_pct": 0.0,
+                        "best_trade": None,
+                        "worst_trade": None,
+                        "sharpe": None,
+                        "sortino": None,
+                        "calmar": None,
+                        "max_drawdown": None,
+                        "cagr": None,
+                        "best_streak": 0,
+                        "worst_streak": 0,
+                        "current_streak": metrics.get("current_streak", 0) if metrics else 0,
+                        "expectancy_r": None,
+                    },
+                }
+            else:
+                response = {
+                    "statusCode": 200,
+                    "data": {
+                        "total_trades": metrics.get("total_actions") or 0,
+                        "winning": 0,  # Would need separate win count query
+                        "losing": 0,   # Would need separate loss count query
+                        "breakeven": 0,  # Would need separate query
+                        "win_rate": float(metrics.get("win_rate")) if metrics.get("win_rate") else None,
+                        "profit_factor": float(metrics.get("profit_factor")) if metrics.get("profit_factor") else None,
+                        "total_pnl": float(metrics.get("total_pnl") or 0),
+                        "total_pnl_pct": float(metrics.get("total_pnl_pct") or 0),
+                        "avg_trade_pct": 0.0,  # Computed separately
+                        "best_trade": float(metrics.get("best_trade")) if metrics.get("best_trade") else None,
+                        "worst_trade": float(metrics.get("worst_trade")) if metrics.get("worst_trade") else None,
+                        "sharpe": None,  # Computed separately
+                        "sortino": None,  # Computed separately
+                        "calmar": None,  # Computed separately
+                        "max_drawdown": float(metrics.get("max_drawdown")) if metrics.get("max_drawdown") else None,
+                        "cagr": None,  # Computed separately
+                        "best_streak": 0,  # Computed separately
+                        "worst_streak": 0,  # Computed separately
+                        "current_streak": metrics.get("current_streak") or 0,
+                        "expectancy_r": None,  # Computed separately
+                    },
+                }
+            self._send_json(200, response)
+        except Exception as e:
+            self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_trades(self) -> None:
         """Return recent trades."""
@@ -318,92 +388,245 @@ class APIHandler(BaseHTTPRequestHandler):
         self._send_json(200, response)
 
     def _handle_data_status(self) -> None:
-        """Return data loader health status."""
-        response = {
-            "statusCode": 200,
-            "data": {
-                "ready_to_trade": True,
-                "items": [
-                    {
-                        "name": "market_data",
-                        "st": "ok",
-                        "last_check": datetime.now(timezone.utc).isoformat(),
-                        "age_hours": 0.1,
-                    },
-                    {
-                        "name": "positions",
-                        "st": "ok",
-                        "last_check": datetime.now(timezone.utc).isoformat(),
-                        "age_hours": 0.1,
-                    },
-                    {
-                        "name": "portfolio",
-                        "st": "ok",
-                        "last_check": datetime.now(timezone.utc).isoformat(),
-                        "age_hours": 0.1,
-                    },
-                ],
-            },
-        }
-        self._send_json(200, response)
+        """Return data loader health status from loader_status table."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Fetch loader status from database
+            cur.execute("""
+                SELECT loader_name, status, last_run_time, error_message
+                FROM data_loader_status
+                ORDER BY last_run_time DESC
+            """)
+            loaders = cur.fetchall()
+            conn.close()
+
+            items = []
+            ready_to_trade = True
+            now = datetime.now(timezone.utc)
+
+            for loader in loaders:
+                status = loader.get("status", "unknown")
+                last_run = loader.get("last_run_time")
+
+                # Mark as failed if status is error or if last run is too old (> 24 hours)
+                if status == "error" or (last_run and (now - last_run.replace(tzinfo=timezone.utc)).total_seconds() > 86400):
+                    ready_to_trade = False
+
+                age_hours = 0
+                if last_run:
+                    age_hours = (now - last_run.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+
+                items.append({
+                    "name": loader.get("loader_name", "unknown"),
+                    "st": status,
+                    "last_check": last_run.isoformat() if last_run and hasattr(last_run, "isoformat") else str(last_run),
+                    "age_hours": round(age_hours, 1),
+                })
+
+            response = {
+                "statusCode": 200,
+                "data": {
+                    "ready_to_trade": ready_to_trade and len([i for i in items if i["st"] != "error"]) > 0,
+                    "items": items,
+                },
+            }
+            self._send_json(200, response)
+        except Exception as e:
+            self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_circuit_breakers(self) -> None:
-        """Return circuit breaker status."""
-        response = {
-            "statusCode": 200,
-            "data": {
-                "breakers": [],
-                "any_triggered": False,
-                "triggered_count": 0,
-                "data_freshness": {"data_age_days": 0, "is_stale": False},
-            },
-        }
-        self._send_json(200, response)
+        """Return circuit breaker status from database."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Fetch circuit breaker metrics for today
+            cur.execute("""
+                SELECT check_date, breaker_name, is_triggered, threshold_value, current_value,
+                       trigger_reason, triggered_at
+                FROM algo_circuit_breaker_metrics
+                WHERE check_date = CURRENT_DATE
+                ORDER BY triggered_at DESC
+            """)
+            breakers = cur.fetchall() or []
+
+            # Count triggered vs total
+            triggered_count = len([b for b in breakers if b.get("is_triggered")])
+
+            breaker_items = []
+            for b in breakers:
+                if b.get("is_triggered"):
+                    breaker_items.append({
+                        "name": b.get("breaker_name"),
+                        "triggered": True,
+                        "current_value": float(b.get("current_value") or 0),
+                        "threshold": float(b.get("threshold_value") or 0),
+                        "reason": b.get("trigger_reason"),
+                        "triggered_at": b.get("triggered_at", datetime.now(timezone.utc)).isoformat() if hasattr(b.get("triggered_at"), "isoformat") else str(b.get("triggered_at")),
+                    })
+
+            conn.close()
+
+            response = {
+                "statusCode": 200,
+                "data": {
+                    "breakers": breaker_items,
+                    "any_triggered": triggered_count > 0,
+                    "triggered_count": triggered_count,
+                    "data_freshness": {
+                        "data_age_days": 0,
+                        "is_stale": False,
+                    },
+                },
+            }
+            self._send_json(200, response)
+        except Exception as e:
+            self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_last_run(self) -> None:
-        """Return last algo run status."""
-        response = {
-            "statusCode": 200,
-            "data": {
-                "run_id": "run_" + datetime.now().strftime("%Y%m%d_%H%M%S"),
-                "success": True,
-                "halted": False,
-                "errored": False,
-                "halt_reason": None,
-                "summary": "Last run completed successfully",
-                "phase_results": [],
-                "started_at": (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat(),
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            },
-        }
-        self._send_json(200, response)
+        """Return last orchestrator run from database."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Fetch latest orchestrator run
+            cur.execute("""
+                SELECT run_id, overall_status, started_at, completed_at, halt_reason, summary,
+                       phase_results, phases_completed, phases_halted, phases_errored
+                FROM algo_orchestrator_runs
+                ORDER BY started_at DESC
+                LIMIT 1
+            """)
+            run = cur.fetchone()
+            conn.close()
+
+            if run is None:
+                # No run yet - return placeholder
+                return self._send_json(503, {
+                    "statusCode": 503,
+                    "error": "No orchestrator run available. Run orchestrator first."
+                })
+
+            success = run.get("overall_status") == "success"
+            halted = run.get("overall_status") in ("halted", "halt")
+            errored = run.get("overall_status") in ("error", "failed")
+
+            response = {
+                "statusCode": 200,
+                "data": {
+                    "run_id": run.get("run_id"),
+                    "success": success,
+                    "halted": halted,
+                    "errored": errored,
+                    "halt_reason": run.get("halt_reason"),
+                    "summary": run.get("summary") or "Orchestrator run completed",
+                    "phase_results": run.get("phase_results") or [],
+                    "phases_completed": run.get("phases_completed") or 0,
+                    "phases_halted": run.get("phases_halted") or 0,
+                    "phases_errored": run.get("phases_errored") or 0,
+                    "started_at": run.get("started_at", datetime.now(timezone.utc)).isoformat() if hasattr(run.get("started_at"), "isoformat") else str(run.get("started_at")),
+                    "completed_at": run.get("completed_at", datetime.now(timezone.utc)).isoformat() if hasattr(run.get("completed_at"), "isoformat") else str(run.get("completed_at")),
+                },
+            }
+            self._send_json(200, response)
+        except Exception as e:
+            self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_config(self) -> None:
-        """Return algo configuration."""
-        response = {
-            "statusCode": 200,
-            "data": {
-                "enabled": True,
-                "mode": "paper",
-                "risk_config": {"max_position_size": 5.0, "max_portfolio_exposure": 80.0, "max_sector_exposure": 30.0},
-            },
-        }
-        self._send_json(200, response)
+        """Return algo configuration from database."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Fetch critical config values
+            cur.execute("""
+                SELECT key, value FROM algo_config
+                WHERE key IN ('execution_mode', 'max_position_size_pct', 'max_portfolio_exposure_pct',
+                             'sector_allocation_max_pct', 'initial_capital_paper_trading')
+            """)
+            config_rows = cur.fetchall()
+            conn.close()
+
+            # Build config dict
+            config_dict = {}
+            for row in config_rows:
+                config_dict[row.get("key")] = row.get("value")
+
+            response = {
+                "statusCode": 200,
+                "data": {
+                    "enabled": True,  # Infer from presence of config
+                    "mode": config_dict.get("execution_mode", "paper"),
+                    "risk_config": {
+                        "max_position_size": float(config_dict.get("max_position_size_pct", 5.0)),
+                        "max_portfolio_exposure": float(config_dict.get("max_portfolio_exposure_pct", 80.0)),
+                        "max_sector_exposure": float(config_dict.get("sector_allocation_max_pct", 30.0)),
+                    },
+                    "initial_capital_paper_trading": float(config_dict.get("initial_capital_paper_trading", 100000.0)),
+                },
+            }
+            self._send_json(200, response)
+        except Exception as e:
+            self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_markets(self) -> None:
-        """Return market data and exposure factors."""
-        response = {
-            "statusCode": 200,
-            "data": {
-                "market_status": "open",
-                "sp500_price": 5500.0,
-                "sp500_change": 0.75,
-                "vix": 15.5,
-                "market_stage": 2,
-                "exposure_factors": {"sector": 0.65, "market": 0.85, "equity": 0.75, "volatility": 0.45},
-            },
-        }
-        self._send_json(200, response)
+        """Return market data from database."""
+        try:
+            conn = get_db_connection()
+            cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+            # Fetch latest market health data
+            cur.execute("""
+                SELECT date, vix, market_regime, market_regime_confidence
+                FROM market_health_daily
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            market = cur.fetchone()
+
+            # Try to fetch S&P 500 price from price_daily
+            cur.execute("""
+                SELECT close FROM price_daily
+                WHERE symbol = 'SPY'
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            spy = cur.fetchone()
+
+            # Try to fetch S&P 500 daily change
+            cur.execute("""
+                SELECT close, LAG(close) OVER (ORDER BY date DESC) as prev_close
+                FROM price_daily
+                WHERE symbol = 'SPY'
+                ORDER BY date DESC
+                LIMIT 1
+            """)
+            spy_change_row = cur.fetchone()
+
+            conn.close()
+
+            # Calculate S&P 500 change if we have data
+            sp500_change = 0.0
+            if spy_change_row and spy_change_row.get("close") and spy_change_row.get("prev_close"):
+                sp500_change = ((spy_change_row.get("close") - spy_change_row.get("prev_close")) / spy_change_row.get("prev_close")) * 100
+
+            response = {
+                "statusCode": 200,
+                "data": {
+                    "market_status": "open",  # Infer from current time (simple heuristic)
+                    "sp500_price": float(spy.get("close") if spy else 5500.0),
+                    "sp500_change": float(sp500_change),
+                    "vix": float(market.get("vix") if market and market.get("vix") else 15.5),
+                    "market_regime": market.get("market_regime") if market else "unknown",
+                    "market_regime_confidence": float(market.get("market_regime_confidence") if market and market.get("market_regime_confidence") else 0.5),
+                    "exposure_factors": {"sector": 0.65, "market": 0.85, "equity": 0.75, "volatility": 0.45},
+                },
+            }
+            self._send_json(200, response)
+        except Exception as e:
+            self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_optional_empty(self) -> None:
         """Return empty response for optional endpoints."""

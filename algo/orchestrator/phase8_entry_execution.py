@@ -467,16 +467,25 @@ def run(
     liquidity = LiquidityChecks(config=config)
 
     # Fetch portfolio value once — avoids one Alpaca API call per symbol
-    # For paper mode, use sensible default if Alpaca API unavailable
+    # For paper mode, use configured capital if Alpaca API unavailable
     execution_mode = config.get("execution_mode", "paper")
     try:
         portfolio_value = sizer.get_portfolio_value()
         logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from Alpaca API)")
     except RuntimeError as e:
         if execution_mode in ("paper", "auto"):
-            portfolio_value = Decimal("100000.00")
+            initial_capital = config.get("initial_capital_paper_trading")
+            if not initial_capital or initial_capital <= 0:
+                error_msg = (
+                    f"[PHASE 8 HALT] Paper mode requires 'initial_capital_paper_trading' config, got {initial_capital}. "
+                    f"Cannot determine portfolio value. Configure: initial_capital_paper_trading=<amount>"
+                )
+                logger.critical(error_msg)
+                log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+            portfolio_value = Decimal(str(initial_capital))
             logger.warning(
-                f"[PHASE 8] Portfolio value fetch failed, using default ${portfolio_value:,.0f} for paper mode: {e}"
+                f"[PHASE 8] Portfolio value fetch failed, using configured paper trading capital ${portfolio_value:,.0f}: {e}"
             )
         else:
             # Live mode requires accurate portfolio value
