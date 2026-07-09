@@ -24,6 +24,7 @@ from routes.algo_handlers.dashboard import (
     _get_equity_curve,
     _get_algo_status,
     _get_dashboard_signals,
+    _get_circuit_breakers,
 )
 from routes.algo_handlers.market import (
     _get_markets,
@@ -32,8 +33,15 @@ from routes.algo_handlers.market import (
 from routes.algo_handlers.monitoring import (
     _get_notifications,
 )
+from routes.algo_handlers.metrics import (
+    _get_daily_return_histogram,
+    _get_holding_period_distribution,
+    _get_stage_distribution,
+    _get_trade_distribution,
+)
 from config.credential_manager import get_db_config
 import psycopg2
+import psycopg2.extras
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,7 +52,9 @@ app = flask.Flask(__name__)
 def get_db_cursor():
     config = get_db_config()
     conn = psycopg2.connect(**config)
-    return conn.cursor(), conn
+    # Use DictCursor so rows can be accessed as dicts (not tuples)
+    cur = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    return cur, conn
 
 
 def safe_call(handler_func):
@@ -101,6 +111,36 @@ def status():
 @app.route('/api/algo/signals', methods=['GET'])
 def signals():
     data, code = safe_call(_get_dashboard_signals)
+    return flask.jsonify(data), code
+
+
+@app.route('/api/algo/circuit-breakers', methods=['GET'])
+def circuit_breakers():
+    data, code = safe_call(_get_circuit_breakers)
+    return flask.jsonify(data), code
+
+
+@app.route('/api/algo/daily-return-histogram', methods=['GET'])
+def daily_return_histogram():
+    data, code = safe_call(_get_daily_return_histogram)
+    return flask.jsonify(data), code
+
+
+@app.route('/api/algo/holding-period-distribution', methods=['GET'])
+def holding_period_distribution():
+    data, code = safe_call(_get_holding_period_distribution)
+    return flask.jsonify(data), code
+
+
+@app.route('/api/algo/stage-distribution', methods=['GET'])
+def stage_distribution():
+    data, code = safe_call(_get_stage_distribution)
+    return flask.jsonify(data), code
+
+
+@app.route('/api/algo/trade-distribution', methods=['GET'])
+def trade_distribution():
+    data, code = safe_call(_get_trade_distribution)
     return flask.jsonify(data), code
 
 
