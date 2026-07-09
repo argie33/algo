@@ -45,7 +45,7 @@ def check_loader_freshness():
 
     with DatabaseContext("read") as cur:
         cur.execute("""
-            SELECT loader_name, last_updated, completion_pct, reason
+            SELECT table_name, last_updated, completion_pct, reason
             FROM data_loader_status
             ORDER BY last_updated DESC
         """)
@@ -91,7 +91,7 @@ def check_orchestrator_runs():
 
     with DatabaseContext("read") as cur:
         cur.execute("""
-            SELECT run_id, started_at, completed_at, success
+            SELECT run_id, started_at, completed_at, overall_status
             FROM algo_orchestrator_runs
             ORDER BY started_at DESC
             LIMIT 5
@@ -103,9 +103,9 @@ def check_orchestrator_runs():
         return False
 
     now = datetime.now(timezone.utc)
-    for run_id, started_at, completed_at, success in runs:
+    for run_id, started_at, completed_at, overall_status in runs:
         age = (now - started_at.replace(tzinfo=timezone.utc)).total_seconds() / 3600
-        status = "✅ SUCCESS" if success else "❌ FAILED"
+        status = "✅ SUCCESS" if overall_status == "success" else "❌ FAILED"
         logger.info(f"  {status} {run_id:30} ({age:.1f}h ago)")
 
     latest_run = runs[0]
@@ -126,11 +126,11 @@ def check_trading_signals():
 
     with DatabaseContext("read") as cur:
         cur.execute("""
-            SELECT DATE(signal_date) as sig_date, COUNT(*) as signal_count
+            SELECT signal_triggered_date as sig_date, COUNT(*) as signal_count
             FROM buy_sell_daily
             WHERE signal_type = 'BUY'
-            GROUP BY DATE(signal_date)
-            ORDER BY signal_date DESC
+            GROUP BY signal_triggered_date
+            ORDER BY signal_triggered_date DESC
             LIMIT 5
         """)
         signals = cur.fetchall()
