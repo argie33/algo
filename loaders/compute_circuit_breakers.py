@@ -227,7 +227,11 @@ def _compute_consecutive_losses(cur: Any) -> int:
         raise ValueError("No closed trades available for consecutive loss calculation")
     streak = 0
     for row in rows:
-        pnl = float(row["profit_loss_pct"])
+        pnl_value = row["profit_loss_pct"]
+        if pnl_value is None:
+            # Skip rows with NULL profit_loss_pct (trades not yet fully reconciled)
+            continue
+        pnl = float(pnl_value)
         if pnl < 0:
             streak += 1
         else:
