@@ -122,7 +122,8 @@ def run(  # noqa: C901
         )
         still_failing = failsafe_result.get("still_failing")
         if still_failing is None:
-            still_failing = []
+            logger.error("[PHASE 1] failsafe_result missing 'still_failing' field — data quality issue")
+            still_failing = ["unknown"]
         log_phase_result_fn(
             1,
             "incomplete_loaders_after_retry",
@@ -142,9 +143,11 @@ def run(  # noqa: C901
     if failsafe_result.get("incomplete_loaders") is True:
         recovered = failsafe_result.get("recovered")
         if recovered is None:
+            logger.error("[PHASE 1] failsafe_result missing 'recovered' field — data quality issue")
             recovered = []
         still_failing = failsafe_result.get("still_failing")
         if still_failing is None:
+            logger.error("[PHASE 1] failsafe_result missing 'still_failing' field — data quality issue")
             still_failing = []
         logger.info(
             f"[PHASE 1] Failsafe retry check: {len(recovered)} recovered, "
@@ -532,32 +535,33 @@ def run(  # noqa: C901
             try:
                 cur.execute("SELECT MAX(date) FROM price_daily WHERE symbol = '^VIX'")
                 vix_row = cur.fetchone()
-                if not vix_row:
-                    logger.warning(
-                        "[PHASE 1] VIX data missing from price_daily — falling back to global max_date for health checks"
+                if not vix_row or vix_row[0] is None:
+                    logger.error(
+                        "[PHASE 1] CRITICAL: VIX data missing from price_daily. Cannot evaluate market health freshness."
                     )
-                    vix_max_date = None
-                else:
-                    vix_max_date = vix_row[0]
+                    raise RuntimeError(
+                        "[PHASE 1] VIX price data unavailable. Check price_daily loader for ^VIX symbol."
+                    )
+                vix_max_date = vix_row[0]
 
                 cur.execute("SELECT MAX(date) FROM market_health_daily")
                 health_row = cur.fetchone()
-                if not health_row:
-                    logger.warning(
-                        "[PHASE 1] market_health_daily table empty — falling back to global max_date for exposure checks"
+                if not health_row or health_row[0] is None:
+                    logger.error(
+                        "[PHASE 1] CRITICAL: market_health_daily table is empty. Cannot evaluate market breadth."
                     )
-                    health_max_date = None
-                else:
-                    health_max_date = health_row[0]
+                    raise RuntimeError(
+                        "[PHASE 1] Market health data unavailable. Check market_health_daily loader."
+                    )
+                health_max_date = health_row[0]
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.warning(f"[PHASE 1] Could not fetch VIX/health reference dates: {e} — using global max_date")
-                vix_max_date = None
-                health_max_date = None
+                logger.error(f"[PHASE 1] CRITICAL: Database error fetching VIX/health reference dates: {e}")
+                raise RuntimeError(f"[PHASE 1] Cannot fetch market reference dates from database: {e}") from e
 
             # Map each table to its upstream reference date for staleness comparison
             table_reference_dates = {
-                "market_health_daily": vix_max_date or max_date,
-                "market_exposure_daily": health_max_date or max_date,
+                "market_health_daily": vix_max_date,
+                "market_exposure_daily": health_max_date,
             }
 
             try:

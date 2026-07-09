@@ -133,11 +133,17 @@ def run(
                     "Circuit breaker halt: halt_reasons missing (data contract violation)",
                 )
             halt_reasons = result["halt_reasons"]
-            if not isinstance(halt_reasons, list) or len(halt_reasons) == 0:
-                logger.warning(
-                    f"Circuit breaker halt_reasons invalid type or empty: {type(halt_reasons)}, defaulting to ['unknown']"
+            if not isinstance(halt_reasons, list):
+                logger.error(
+                    f"CRITICAL: Circuit breaker halt_reasons has invalid type {type(halt_reasons)}, expected list: {halt_reasons}"
                 )
-                halt_reasons = ["unknown"]
+                raise ValueError(f"Circuit breaker halt_reasons must be a list, got {type(halt_reasons)}")
+            if len(halt_reasons) == 0:
+                logger.error(
+                    "CRITICAL: Circuit breaker triggered (halt=True) but halt_reasons list is empty. "
+                    "Cannot determine halt reason. This indicates incomplete data from Phase 2."
+                )
+                raise ValueError("Circuit breaker halt triggered with no halt_reasons specified")
             alerts.send_position_alert(
                 "PORTFOLIO",
                 "ACCOUNT_CIRCUIT_BREAKER",

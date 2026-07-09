@@ -30,6 +30,7 @@ Migration status:
 import logging
 import os
 import random
+import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -37,6 +38,11 @@ from typing import Any, cast
 
 import requests
 import requests.exceptions
+
+# Ensure dashboard package is on sys.path for imports
+_dashboard_dir = os.path.dirname(os.path.abspath(__file__))
+if _dashboard_dir not in sys.path:
+    sys.path.insert(0, _dashboard_dir)
 
 try:
     from .response_validators import ResponseValidationError, validate_response
