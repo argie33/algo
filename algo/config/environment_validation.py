@@ -7,6 +7,8 @@ Prevents silent failures from missing credentials or configuration.
 import os
 from typing import Dict, List, Tuple
 
+from algo.config.error_codes import ErrorCode, OrchestrationError
+
 
 class EnvironmentValidator:
     """Validates that all required environment variables are set and valid."""
@@ -92,13 +94,13 @@ class EnvironmentValidator:
 
     @classmethod
     def require_valid_or_halt(cls, context: str = "orchestrator") -> None:
-        """Require valid environment or raise RuntimeError with helpful message.
+        """Require valid environment or raise OrchestrationError with helpful message.
 
         Args:
             context: Where this validation is happening (for error messages)
 
         Raises:
-            RuntimeError if any required variable is missing
+            OrchestrationError if any required variable is missing
         """
         is_valid, missing = cls.validate_required()
 
@@ -115,7 +117,11 @@ class EnvironmentValidator:
             error_msg += "3. Docker: pass via -e flag or .env file\n"
             error_msg += "4. GitHub Actions: add to secrets or workflow env\n"
 
-            raise RuntimeError(error_msg)
+            raise OrchestrationError(
+                ErrorCode.ENV_VAR_MISSING,
+                error_msg,
+                {"context": context, "missing_vars": missing}
+            )
 
         # Log optional missing variables
         missing_optional = cls.validate_optional()
