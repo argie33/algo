@@ -80,6 +80,9 @@ API_BASE_URL = _dashboard_api_url if _dashboard_api_url else "http://localhost:8
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
+# ISSUE #10 FIX: Cache freshness threshold (in seconds) — read from environment or default to 30 minutes
+# This allows configuring cache staleness tolerance based on deployment environment
+API_CACHE_MAX_AGE_SECONDS = int(os.environ.get("DASHBOARD_CACHE_MAX_AGE_SECONDS", "1800"))  # default 30 min
 
 
 def _validate_api_url_at_startup() -> None:
@@ -363,11 +366,12 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
         )
     age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
 
-    if age_seconds > 1800:
+    if age_seconds > API_CACHE_MAX_AGE_SECONDS:
         # FINANCE APP SAFETY: Never serve stale data, regardless of circuit breaker state
+        cache_age_mins = API_CACHE_MAX_AGE_SECONDS // 60
         raise RuntimeError(
             f"API {endpoint}: cached response too stale "
-            f"(30+ min old, {int(age_seconds)}s). "
+            f"({cache_age_mins}+ min old, {int(age_seconds)}s). "
             "Cannot serve stale data in finance application — risk calculations would be invalid. "
             "API must be restored or dashboard must show data unavailable."
         )

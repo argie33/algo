@@ -335,6 +335,18 @@ def run(
             log_phase_result_fn(8, "entry_execution", "halt", str(e))
             return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, str(e))
 
+    # ISSUE #2 FIX: Validate Phase 7 data availability before processing
+    # Explicit check ensures we have valid signal data before attempting entry execution
+    if qualified_trades is None:
+        msg = (
+            "[PHASE 8 CRITICAL] Phase 7 did not provide qualified_trades (None). "
+            "Cannot execute entries without signal data. "
+            "Verify Phase 7 (Signal Generation) completed successfully."
+        )
+        logger.critical(msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+
     if not qualified_trades:
         logger.info("[PHASE 8] No qualified trades from Phase 7")
 

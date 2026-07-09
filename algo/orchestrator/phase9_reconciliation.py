@@ -957,6 +957,31 @@ def run(  # noqa: C901
                 )
                 logger.info("[PHASE 9] Snapshot: INSERT executed, exiting DatabaseContext to trigger commit")
 
+                # ISSUE #6 FIX: Verify position_count matches algo_positions table COUNT
+                # Ensures snapshot data is consistent with actual database state
+                try:
+                    cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                    actual_open_count = cur.fetchone()[0] if cur.fetchone() else 0
+                    # Re-fetch since we just called fetchone()
+                    cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                    actual_open_count = cur.fetchone()[0]
+
+                    if actual_open_count != pos_count:
+                        logger.warning(
+                            f"[PHASE 9] CONSISTENCY CHECK: position_count in snapshot ({pos_count}) "
+                            f"does not match algo_positions COUNT ({actual_open_count}). "
+                            f"Database may have pending updates or reconciliation incomplete."
+                        )
+                    else:
+                        logger.info(
+                            f"[PHASE 9] CONSISTENCY CHECK: position_count verified ({pos_count} matches algo_positions)"
+                        )
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as consistency_err:
+                    logger.error(
+                        f"[PHASE 9] CONSISTENCY CHECK FAILED: Could not verify position count: {consistency_err}. "
+                        f"Snapshot was created but consistency check incomplete."
+                    )
+
                 if result.get('positions') is None:
                     raise RuntimeError(
                         "[PHASE 9] CRITICAL: Reconciliation result missing 'positions' count. "

@@ -36,7 +36,33 @@ class OptimalLoader:
 
     def __init__(self, backfill_days: int | None = None):
         self._router: Any = None
-        self._backfill_days = backfill_days if backfill_days is not None else int(os.getenv("BACKFILL_DAYS", "0"))
+        # ISSUE #14 FIX: Validate BACKFILL_DAYS configuration
+        # Prevents accidental full historical reloads or invalid negative values
+        if backfill_days is not None:
+            self._backfill_days = backfill_days
+        else:
+            try:
+                backfill_env = os.getenv("BACKFILL_DAYS", "0")
+                self._backfill_days = int(backfill_env)
+                # Validate BACKFILL_DAYS is reasonable (0-730 days = 2 years max)
+                if self._backfill_days < 0:
+                    raise ValueError(
+                        f"[CONFIG] BACKFILL_DAYS cannot be negative (got {self._backfill_days}). "
+                        "Use 0 for incremental load, or positive value for backfill."
+                    )
+                if self._backfill_days > 730:
+                    logger.warning(
+                        f"[CONFIG] BACKFILL_DAYS={self._backfill_days} exceeds 2-year recommendation. "
+                        "This may cause long load times. Consider using smaller backfill_days or incremental load."
+                    )
+            except ValueError as e:
+                if "invalid literal" in str(e):
+                    raise ValueError(
+                        f"[CONFIG] BACKFILL_DAYS is not a valid integer: '{backfill_env}'. "
+                        "Set to 0 (incremental) or positive number of days."
+                    ) from e
+                raise
+
         self._batch_context: dict[str, Any] | None = None
         self._execution_start_time: float | None = None
 
