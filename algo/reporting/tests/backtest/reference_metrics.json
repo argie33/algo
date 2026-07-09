@@ -1,0 +1,21 @@
+{
+  "description": "Backtest baseline metrics for live-to-backtest comparison (Minervini swing system, 2023-2025)",
+  "backtest_period": "2023-01-01 to 2025-06-30",
+  "trading_days": 504,
+  "total_trades": 156,
+  "winning_trades": 89,
+  "losing_trades": 67,
+  "win_rate_pct": 57.05,
+  "sharpe_ratio": 1.42,
+  "sortino_ratio": 2.15,
+  "calmar_ratio": 1.87,
+  "max_drawdown_pct": -18.5,
+  "avg_win_r": 2.3,
+  "avg_loss_r": -1.1,
+  "expectancy": 1.21,
+  "profit_factor": 2.8,
+  "average_winning_trade_pct": 4.2,
+  "average_losing_trade_pct": -2.1,
+  "annualized_return_pct": 28.5,
+  "notes": "Baseline metrics from backtest 2023-2025 period. Used for live performance comparison in dashboard and reporting."
+}
