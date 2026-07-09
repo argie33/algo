@@ -769,6 +769,10 @@ resource "aws_lambda_function" "algo" {
       ECS_CLUSTER_ARN     = var.ecs_cluster_arn
       ECS_SUBNETS         = join(",", var.private_subnet_ids)
       ECS_SECURITY_GROUPS = var.ecs_tasks_sg_id
+      # Weight optimization task (async ECS task for portfolio optimization)
+      WEIGHT_OPTIMIZATION_TASK_ARN = var.weight_optimization_task_definition_arn
+      WEIGHT_OPTIMIZATION_CLUSTER  = var.ecs_cluster_arn
+      WEIGHT_OPTIMIZATION_SUBNETS  = join(",", var.private_subnet_ids)
       # CRITICAL FIX: Explicitly reject stale portfolio data
       # System must FAIL when data is stale, not silently trade on corrupted state
       # Per GOVERNANCE.md: Data integrity is non-negotiable
