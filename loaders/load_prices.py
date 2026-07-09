@@ -1337,7 +1337,7 @@ class PriceLoader(OptimalLoader):
 
         from algo.infrastructure import get_config
 
-        task_timeout_sec = 25200
+        task_timeout_sec = 10800  # 3 hours (EOD max observed: 143 min, safety buffer 2x)
         emergency_multiplier = float(get_config().get("loader_emergency_mode_threshold_multiplier"))
         emergency_mode_threshold = task_timeout_sec * emergency_multiplier
         completion_threshold_pct = 0.10

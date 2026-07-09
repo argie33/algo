@@ -133,10 +133,10 @@ resource "aws_lambda_function" "api" {
       DB_USER       = var.rds_username
       DB_SSL        = "require"
       # Frontend configuration (dynamic based on CloudFront enabled)
-      CLOUDFRONT_DOMAIN = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
-      FRONTEND_URL      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
-      FRONTEND_ORIGIN   = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://localhost:5173"
-      ALLOWED_ORIGINS   = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name},http://localhost:5173,http://localhost:3000" : "http://localhost:5173,http://localhost:3000"
+      CLOUDFRONT_DOMAIN = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://${aws_s3_bucket.frontend.bucket_regional_domain_name}"
+      FRONTEND_URL      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://${aws_s3_bucket.frontend.bucket_regional_domain_name}"
+      FRONTEND_ORIGIN   = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://${aws_s3_bucket.frontend.bucket_regional_domain_name}"
+      ALLOWED_ORIGINS   = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name},http://localhost:5173,http://localhost:3000" : "https://${aws_s3_bucket.frontend.bucket_regional_domain_name},http://localhost:5173,http://localhost:3000"
       # Cognito configuration (for JWT validation)
       COGNITO_REGION       = var.aws_region
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
