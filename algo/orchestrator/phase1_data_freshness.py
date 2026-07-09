@@ -101,6 +101,17 @@ def run(  # noqa: C901
             "Cannot proceed without explicit symbol count threshold (no hardcoded fallback)."
         ) from e
 
+    # ISSUE #5 FIX: Read staleness thresholds from config instead of hardcoding
+    try:
+        phase1_recent_cutoff_days = config.get("phase1_recent_cutoff_days", 2)
+        phase1_prior_cutoff_days = config.get("phase1_prior_cutoff_days", 2)
+        phase1_halt_table_max_tolerance_days = config.get("phase1_halt_table_max_tolerance_days", 1)
+    except (KeyError, TypeError) as e:
+        raise RuntimeError(
+            f"[PHASE 1] Config error reading staleness thresholds: {e}. "
+            "Defaults: phase1_recent_cutoff_days=2, phase1_prior_cutoff_days=2, phase1_halt_table_max_tolerance_days=1"
+        ) from e
+
     from datetime import datetime as dt
     from zoneinfo import ZoneInfo
 
@@ -427,9 +438,9 @@ def run(  # noqa: C901
                         f"Price data too old: {max_date} vs {last_trading_day} (emergency load failed)",
                     )
 
-            # Verify price coverage - accept symbols with recent data (past 2 trading days)
+            # Verify price coverage - accept symbols with recent data (configurable days)
             # This handles asynchronous data loading where different symbols update on different dates
-            recent_cutoff = max_date - td(days=2)
+            recent_cutoff = max_date - td(days=phase1_recent_cutoff_days)
             cur.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date <= %s",
                 (recent_cutoff, max_date),
@@ -438,7 +449,7 @@ def run(  # noqa: C901
             if row is None or row[0] is None:
                 raise RuntimeError("Symbol count query failed for recent period")
             symbols_loaded = row[0]
-            prior_cutoff = recent_cutoff - td(days=2)
+            prior_cutoff = recent_cutoff - td(days=phase1_prior_cutoff_days)
             cur.execute(
                 "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date < %s",
                 (prior_cutoff, recent_cutoff),

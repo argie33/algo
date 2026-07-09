@@ -487,6 +487,32 @@ class DailyReconciliation:
 
                 positions = cur.fetchall()
 
+                # CRITICAL VALIDATION: Check for invalid entry prices that would break P&L calculations
+                invalid_entry_prices = []
+                for pos in positions:
+                    symbol = pos[0]
+                    quantity = pos[1]
+                    avg_entry_price = pos[2]
+                    if avg_entry_price is None or float(avg_entry_price) <= 0:
+                        invalid_entry_prices.append({
+                            "symbol": symbol,
+                            "quantity": quantity,
+                            "entry_price": avg_entry_price,
+                        })
+
+                if invalid_entry_prices:
+                    logger.critical(
+                        f"[RECONCILIATION CRITICAL] {len(invalid_entry_prices)} positions have invalid entry_price (NULL or 0): "
+                        f"{invalid_entry_prices[:5]}. "
+                        f"P&L calculations will fail. Check: (1) algo_trades.entry_price, "
+                        f"(2) algo_positions.entry_price, (3) position creation logic."
+                    )
+                    raise ValueError(
+                        f"CRITICAL: {len(invalid_entry_prices)} positions have invalid entry_price. "
+                        f"Cannot calculate position values and P&L without entry price. "
+                        f"See logs for details. May require manual backfill from trade history."
+                    )
+
                 # Analyze positions using PositionAnalyzer service
                 analysis = PositionAnalyzer.analyze_positions(positions)
                 PositionAnalyzer.log_position_analysis(analysis, logger)

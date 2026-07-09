@@ -867,6 +867,23 @@ def run(  # noqa: C901
                 logger.info("[PHASE 9] Snapshot: Database connection established")
 
                 # Validate Phase 4 reconciliation data exists
+                missing_keys = []
+                required_keys = ["portfolio_value", "positions", "unrealized_pnl", "position_value"]
+                for key in required_keys:
+                    if key not in result or result[key] is None:
+                        missing_keys.append(key)
+
+                if missing_keys:
+                    available_keys = list(result.keys())
+                    raise ValueError(
+                        f"[PHASE 9] CRITICAL: Reconciliation missing {len(missing_keys)} required keys: {missing_keys}. "
+                        f"Available keys: {available_keys}. "
+                        f"Reconciliation result: {result}. "
+                        f"Cannot create snapshot without complete reconciliation data. "
+                        f"Check: (1) DailyReconciliation return values, (2) paper mode return statement, "
+                        f"(3) position_value calculation in reconciliation query"
+                    )
+
                 if "portfolio_value" not in result:
                     raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'portfolio_value'. Cannot create snapshot.")
                 if "positions" not in result or result["positions"] is None:

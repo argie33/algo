@@ -113,10 +113,11 @@ class QualifiedTrade(TypedDict, total=False):
     score: float
 
 
-class Phase7Contract(TypedDict):
+class Phase7Contract(TypedDict, total=False):
     """Data contract: what Phase 7 (Signal Generation) produces."""
 
     qualified_trades: list[QualifiedTrade]
+    liquidity_passed: int  # Number of signals that passed liquidity checks
 
 
 # Phase 8 produces this schema
@@ -188,7 +189,7 @@ PHASE_CONTRACTS = {
     # Phase 5 is CRITICAL: constraints MUST be validated separately with validate_phase_5_constraints()
     5: PhaseDataSchema(5, "EXPOSURE POLICY", required_keys=["constraints", "actions"]),
     6: PhaseDataSchema(6, "EXIT EXECUTION", optional_keys=["exits_executed", "summary"]),
-    7: PhaseDataSchema(7, "SIGNAL GENERATION", required_keys=["qualified_trades"]),
+    7: PhaseDataSchema(7, "SIGNAL GENERATION", required_keys=["qualified_trades"], optional_keys=["liquidity_passed"]),
     8: PhaseDataSchema(8, "ENTRY EXECUTION", optional_keys=["entered", "summary"]),
     9: PhaseDataSchema(9, "RECONCILIATION & SNAPSHOT", optional_keys=["positions", "summary"]),
 }

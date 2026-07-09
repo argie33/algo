@@ -502,6 +502,15 @@ def run(
         + (f" (cap: {max_entries}/day)" if max_entries else "")
     )
 
+    # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
+    execution_mode_check = config.get("execution_mode", "paper")
+    alpaca_paper_trading = config.get("alpaca_paper_trading", False)
+    if execution_mode_check in ("paper", "auto") or alpaca_paper_trading:
+        logger.info(
+            f"[PHASE 8] Paper trading mode active (execution_mode={execution_mode_check}, "
+            f"alpaca_paper_trading={alpaca_paper_trading}). Trades will execute against paper account."
+        )
+
     trade_executor = TradeExecutor(config=config)
 
     # Wire tier's max_concentration_pct into sizer so correction/caution limits are respected.

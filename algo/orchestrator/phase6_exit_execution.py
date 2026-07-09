@@ -100,6 +100,15 @@ def run(
             log_phase_result_fn(6, "exit_execution", "success", "DRY-RUN: execution skipped")
             return PhaseResult(6, "exit_execution", "ok", {}, False, None)
 
+        # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
+        execution_mode_check = config.get("execution_mode", "paper")
+        alpaca_paper_trading = config.get("alpaca_paper_trading", False)
+        if execution_mode_check in ("paper", "auto") or alpaca_paper_trading:
+            logger.info(
+                f"[PHASE 6] Paper trading mode active (execution_mode={execution_mode_check}, "
+                f"alpaca_paper_trading={alpaca_paper_trading}). Exit orders will execute against paper account."
+            )
+
         # Initialize TradeExecutor, gracefully handle missing credentials in paper mode
         try:
             executor = TradeExecutor(config)
