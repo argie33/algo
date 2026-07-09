@@ -192,7 +192,7 @@ const extractNestedValue = (obj, path, defaultValue = {}) => {
 };
 
 const hasError = (data) => data?._error != null;
-const isCached = (data) => data?.fromCache === true;
+const isCached = (data) => data?._fromCache === true;
 
 const CachedDataBadge = () => (
   <span

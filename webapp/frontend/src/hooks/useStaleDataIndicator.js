@@ -6,7 +6,7 @@ import React from "react";
 import { AlertCircle } from "lucide-react";
 
 export const useStaleDataIndicator = (data) => {
-  const isStale = data?.fromCache === true;
+  const isStale = data?._fromCache === true;
 
   const StaleDataBanner = () => {
     if (!isStale) return null;

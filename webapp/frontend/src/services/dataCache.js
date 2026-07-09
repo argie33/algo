@@ -10,7 +10,9 @@
 const cacheStore = new Map();
 
 const DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
-const MAX_STALE_AGE = 2 * 60 * 60 * 1000; // 2 hours - age at which data is considered phantom
+// FIXED: Reduced MAX_STALE_AGE from 2 hours to 30 minutes for intraday trading
+// Positions can close, orders fill, and market regime changes within 2 hours
+const MAX_STALE_AGE = 30 * 60 * 1000; // 30 minutes - age at which data is considered phantom
 
 /**
  * Validate cached data has expected structure
