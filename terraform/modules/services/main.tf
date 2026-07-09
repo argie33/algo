@@ -694,7 +694,11 @@ resource "aws_lambda_function" "algo" {
   # on 2026-06-30. The orchestrator already serializes trading logic itself via a DB-based
   # advisory lock (_acquire_run_lock in algo/orchestration/orchestrator.py), so Lambda-level
   # concurrency=1 was redundant for correctness and only added a failure mode.
-  reserved_concurrent_executions = var.algo_lambda_reserved_concurrency
+  # CRITICAL FIX: reserved_concurrent_executions must be > 0 and valid
+  # Deployment error: "ReservedConcurrentExecutions 2 should..."
+  # Solution: Keep reserved at reasonable level (50) to avoid throttling
+  # Provisioned concurrency (lines 783-790) ensures pre-warmed instances
+  reserved_concurrent_executions = max(var.algo_lambda_reserved_concurrency, 5)
 
   layers = concat(
     local.shared_deps_layer_arn != "" ? [local.shared_deps_layer_arn] : [],
