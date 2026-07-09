@@ -263,7 +263,7 @@ function StockDetailContent() {
         high: parseFloat(p.high),
         low: parseFloat(p.low),
         close: parseFloat(p.close ?? p.adj_close),
-        volume: parseFloat(p.volume || 0),
+        volume: p.volume != null ? parseFloat(p.volume) : null,
       }))
       .filter((p) => !isNaN(p.close));
 
@@ -312,19 +312,22 @@ function StockDetailContent() {
   const high52 = useMemo(() => {
     if (!priceSeries.length) return null;
     const window = priceSeries.slice(-252);
-    return (
-      window.reduce((m, p) => Math.max(m, p.high || p.close || 0), 0) || null
-    );
+    const validHighs = window.filter(p => !isNaN(p.high) && p.high > 0);
+    if (validHighs.length === 0) {
+      console.warn("[StockDetail] No valid high prices in 52-week window");
+      return null;
+    }
+    return Math.max(...validHighs.map(p => p.high));
   }, [priceSeries]);
   const low52 = useMemo(() => {
     if (!priceSeries.length) return null;
     const window = priceSeries.slice(-252);
-    return (
-      window.reduce(
-        (m, p) => Math.min(m, p.low || p.close || Infinity),
-        Infinity
-      ) || null
-    );
+    const validLows = window.filter(p => !isNaN(p.low) && p.low > 0);
+    if (validLows.length === 0) {
+      console.warn("[StockDetail] No valid low prices in 52-week window");
+      return null;
+    }
+    return Math.min(...validLows.map(p => p.low));
   }, [priceSeries]);
   const distFromHigh =
     last && high52 ? ((last.close - high52) / high52) * 100 : null;

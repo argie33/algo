@@ -2250,24 +2250,30 @@ function SectorRotationMap({ markets, onSelect }) {
   // RS-Momentum: positive if rank improved (rank_4w_ago > current_rank)
   const data = useMemo(() => {
     if (!sectors.length) return [];
-    const maxRank =
-      Math.max(...sectors.map((s) => s.rank || 0)) || sectors.length;
+    const validSectors = sectors.filter(s => s.rank != null);
+    if (validSectors.length === 0) {
+      console.warn("[MarketsHealth] No sectors with valid rank data");
+      return [];
+    }
+    const maxRank = Math.max(...validSectors.map((s) => s.rank));
     return sectors.map((s) => {
-      const rsRank = maxRank
-        ? ((maxRank - (s.rank || maxRank)) / maxRank) * 100
-        : 50;
+      if (s.rank == null) {
+        console.warn(`[MarketsHealth] Sector ${s.name} missing rank data`);
+        return null; // Will be filtered out
+      }
+      const rsRank = ((maxRank - s.rank) / maxRank) * 100;
       const rsMomentum =
         s.rank_4w_ago != null && s.rank != null
           ? s.rank_4w_ago - s.rank // positive = improving
-          : 0;
+          : null;
       return {
         name: s.name,
         rsRank: Number(rsRank.toFixed(1)),
-        rsMomentum: Number(rsMomentum),
+        rsMomentum: rsMomentum != null ? Number(rsMomentum) : null,
         rank: s.rank,
         momentum: s.momentum,
       };
-    });
+    }).filter(Boolean);
   }, [sectors]);
 
   if (!data.length)
