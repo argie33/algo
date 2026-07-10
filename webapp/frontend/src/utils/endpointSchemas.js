@@ -108,7 +108,7 @@ export const ENDPOINT_SCHEMAS = {
   },
   "/api/algo/performance": {
     type: "object",
-    requiredFields: ["total_return", "win_rate"],
+    requiredFields: ["total_return_pct", "win_rate_pct"],
     requireNonEmpty: true,
     decimalFields: [
       "total_return_pct",
