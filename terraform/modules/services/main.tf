@@ -245,7 +245,7 @@ resource "aws_lambda_provisioned_concurrency_config" "api" {
   count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.api.function_name
   provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
-  qualifier                         = "$LATEST"
+  qualifier                         = aws_lambda_function.api.version
 
   lifecycle {
     create_before_destroy = true
@@ -863,12 +863,12 @@ resource "aws_lambda_function" "algo" {
 }
 
 # Provisioned concurrency for Orchestrator Lambda (keep instances warm for scheduled runs)
-# Use $LATEST version - no alias required. Provisioned concurrency works on function versions.
+# When provisioned_concurrency > 0, enable with published version (not $LATEST)
 resource "aws_lambda_provisioned_concurrency_config" "algo" {
   count                             = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.algo.function_name
   provisioned_concurrent_executions = var.algo_lambda_provisioned_concurrency
-  qualifier                         = "$LATEST"
+  qualifier                         = aws_lambda_function.algo.version
 
   lifecycle {
     create_before_destroy = true

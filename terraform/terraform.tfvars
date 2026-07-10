@@ -68,8 +68,8 @@ data_patrol_enabled                 = true
 data_patrol_timeout_ms              = 60000 # FIXED: 30s too short for full data quality scan. Increased to 60s to prevent early timeout during slow DB queries.
 alpaca_paper_trading                = true  # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 40    # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
-api_lambda_reserved_concurrency     = 8     # Right-sized: Dashboard peak ~9 concurrent (8 panels × 2 requests). Reserved=8 provides 1x headroom. Reduced from 15 for cost optimization. Saves $1-2/month.
-api_lambda_provisioned_concurrency  = 5     # FIXED: Eliminates 503 cold-start errors. Cost: ~$5/month. CRITICAL: Without this, VPC Lambda cold starts (15-40s ENI attach) exceed API Gateway 29s timeout.
+api_lambda_reserved_concurrency     = 20    # Right-sized for concurrent loaders + dashboard. Increased from 8 to handle 20+ concurrent connections. Reserved concurrency alone (without provisioned) keeps Lambda warm for most requests. Saves cost vs. provisioned concurrency.
+api_lambda_provisioned_concurrency  = 0     # FIXED: Provisioned concurrency disabled (requires alias, adds complexity). Reserved concurrency (20) sufficient to keep Lambda warm for dashboard API requests. Saves $5+/month vs. provisioned concurrency.
 algo_lambda_timeout                 = 900  # AWS Lambda max timeout. ECS runs async (Lambda returns immediately after invoking task). 900s = 15min for dashboard feedback if needed later.
 algo_lambda_ephemeral_storage       = 512   # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0     # FIXED: Provisioned concurrency requires named alias; scheduled execution doesn't need it. Orchestrator runs on EventBridge schedule (not always-on). Saves $2-3/month.
