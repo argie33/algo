@@ -290,7 +290,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
             load_thread = threading.Thread(target=load_with_timeout, daemon=True)
             load_thread.start()
-            load_thread.join(timeout=5.0)
+            load_thread.join(timeout=20.0)
 
             if error[0]:
                 raise error[0]
@@ -390,7 +390,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
             load_thread = threading.Thread(target=load_with_timeout, daemon=True)
             load_thread.start()
-            load_thread.join(timeout=5.0)
+            load_thread.join(timeout=20.0)
 
             if error[0]:
                 raise error[0]
