@@ -66,7 +66,7 @@ class EnvironmentValidator:
             if not value or value.strip() == "":
                 # Check for alternative names if primary not set
                 if var_name in cls.ALTERNATIVE_VARS:
-                    alt_name, alt_desc = cls.ALTERNATIVE_VARS[var_name]
+                    alt_name, _alt_desc = cls.ALTERNATIVE_VARS[var_name]
                     alt_value = os.getenv(alt_name)
                     if alt_value and alt_value.strip() != "":
                         # Alternative found, continue without error

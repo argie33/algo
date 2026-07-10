@@ -365,7 +365,7 @@ class WeightOptimizer:
 
         return weights
 
-    def apply(
+    def apply(  # noqa: C901
         self,
         report_date: _date,
         regime: str = "confirmed_uptrend",
