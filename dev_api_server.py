@@ -50,6 +50,15 @@ logger = logging.getLogger(__name__)
 app = flask.Flask(__name__)
 
 
+@app.errorhandler(Exception)
+def handle_exception(e):
+    import traceback
+    logger.error(f"[Flask Exception Handler] Uncaught exception: {type(e).__name__}: {e}")
+    logger.error(traceback.format_exc())
+    return flask.jsonify({'success': False, 'statusCode': 500, 'error': 'internal_error',
+                         'message': str(e)[:200], 'timestamp': __import__('datetime').datetime.utcnow().isoformat() + 'Z'}), 500
+
+
 def get_db_cursor():
     config = get_db_config()
     conn = psycopg2.connect(**config)
@@ -71,9 +80,17 @@ def safe_call(handler_func):
         except Exception as e:
             logger.error(f"[safe_call] Cursor validation failed: {type(e).__name__}: {e}")
             raise RuntimeError(f"Database cursor invalid: {e}") from e
-        result = handler_func(cur)
-        cur.close()
-        conn.close()
+
+        try:
+            result = handler_func(cur)
+        except Exception as handler_e:
+            import traceback
+            logger.error(f"[safe_call] Handler {handler_func.__name__} raised exception:")
+            logger.error(traceback.format_exc())
+            raise handler_e
+        finally:
+            cur.close()
+            conn.close()
 
         result_type = type(result).__name__
         status = result.get('statusCode') if isinstance(result, dict) else 'N/A'

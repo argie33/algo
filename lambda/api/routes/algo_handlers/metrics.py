@@ -682,9 +682,11 @@ def _get_algo_portfolio(cur: cursor) -> Any:
 
 
 @db_route_handler("get daily return histogram")
-@validate_api_response("perf")
 def _get_daily_return_histogram(cur: cursor) -> Any:
     """Return histogram of daily portfolio returns with stats."""
+    import sys
+    print("[DEBUG] _get_daily_return_histogram called", file=sys.stderr)
+    sys.stderr.flush()
     cur.execute("""
         SELECT daily_return_pct
         FROM algo_portfolio_snapshots
