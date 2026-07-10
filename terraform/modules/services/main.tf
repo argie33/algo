@@ -255,11 +255,23 @@ data "aws_lambda_alias" "api_live" {
   depends_on    = [aws_lambda_function.api]
 }
 
-# REMOVED: API Lambda provisioned concurrency (cost optimization)
-# Was: $10.80/month for 1 pre-warmed instance
-# Trade-off: Cold starts become 20-30s on first load (acceptable for dev)
-# Reserved concurrency (30 units) still prevents 429 errors; provisioned concurrency just eliminates cold start delay
-# Can re-enable if dashboard UX becomes unacceptable
+# RE-ENABLED 2026-07-11: API Lambda provisioned concurrency (CRITICAL for 503 fix)
+# REASON: VPC cold starts (15-40s) exceed API Gateway timeout (29s), causing 503 errors
+# Cost: ~$12/month per unit in us-east-1 (default 1 pre-warmed instance)
+# CRITICAL: Without this, all first requests to API Lambda timeout and return 503
+# Solution: Keep 1-2 instances pre-warmed to eliminate VPC cold-start delays
+# This is NOT a cost optimization issue — it's a correctness issue for production deployment
+
+resource "aws_lambda_provisioned_concurrency_config" "api" {
+  count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
+  function_name                     = data.aws_lambda_alias.api_live[0].function_name
+  provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
+  qualifier                         = data.aws_lambda_alias.api_live[0].name
+  lifecycle {
+    create_before_destroy = true
+  }
+  depends_on = [data.aws_lambda_alias.api_live]
+}
 
 # ============================================================
 # API Gateway HTTP API
