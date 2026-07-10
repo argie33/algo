@@ -1,10 +1,10 @@
-"""DEPRECATED: Use lambda/api/utils/response_validation_unified.py instead.
+"""DEPRECATED: Use lambda/api/utils/response_validators.py instead.
 
 This module is kept for backward compatibility only.
-All new code should import from response_validation_unified.
+All new code should import from response_validators.
 """
 
-from utils.response_validation_unified import ResponseValidator
+from utils.response_validators import ResponseValidator
 
 # Re-export for backward compatibility
 __all__ = ["ResponseValidator", "SchemaValidator"]
