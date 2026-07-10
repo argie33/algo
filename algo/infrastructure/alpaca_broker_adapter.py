@@ -146,8 +146,6 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 "Reconciliation requires live Alpaca connection."
             )
 
-        is_paper_mode = "paper" in (self.alpaca_sync.alpaca_base_url or "").lower()
-
         try:
             resp = self._request_with_retry(
                 "get",

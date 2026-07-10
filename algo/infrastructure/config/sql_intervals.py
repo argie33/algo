@@ -27,7 +27,10 @@ Configuration Keys:
     sql_interval_52w_days      → INTERVAL '364 days'
 """
 
-from typing import Union
+from typing import TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    from . import AlgoConfig
 
 
 def get_interval_sql(interval_key: str, config: "AlgoConfig | None" = None) -> str:

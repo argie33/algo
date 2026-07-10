@@ -5,7 +5,6 @@ Enables testing with different configurations without code changes.
 """
 
 import os
-from typing import Optional
 
 
 class OrchestratorConfig:

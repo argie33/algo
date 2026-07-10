@@ -456,6 +456,8 @@ def _setup_local_api() -> str:
         logger.error(f"Invalid local API URL: {local_url}")
         sys.exit(1)
     set_api_url(local_url)
+    # Clear Cognito auth for local dev mode so dashboard injects dev-admin token
+    set_cognito_auth(None)
     return "LOCAL"
 
 
