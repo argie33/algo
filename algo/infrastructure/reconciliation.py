@@ -157,6 +157,38 @@ class DailyReconciliation:
                     # CRITICAL: P&L percentage calculation requires valid portfolio value
                     unrealized_pnl_pct = (total_unrealized_pnl / float(initial_capital)) * 100
 
+                    # Calculate position win/loss/breakeven counts from actual positions
+                    winning_count = 0
+                    losing_count = 0
+                    breakeven_count = 0
+                    if open_position_count > 0:
+                        cur.execute("""
+                            SELECT COUNT(*) as count
+                            FROM algo_positions
+                            WHERE status IN ('open', 'paper_open')
+                            AND unrealized_pnl > 0
+                        """)
+                        winning_row = cur.fetchone()
+                        winning_count = winning_row["count"] if winning_row else 0
+
+                        cur.execute("""
+                            SELECT COUNT(*) as count
+                            FROM algo_positions
+                            WHERE status IN ('open', 'paper_open')
+                            AND unrealized_pnl < 0
+                        """)
+                        losing_row = cur.fetchone()
+                        losing_count = losing_row["count"] if losing_row else 0
+
+                        cur.execute("""
+                            SELECT COUNT(*) as count
+                            FROM algo_positions
+                            WHERE status IN ('open', 'paper_open')
+                            AND unrealized_pnl = 0
+                        """)
+                        breakeven_row = cur.fetchone()
+                        breakeven_count = breakeven_row["count"] if breakeven_row else 0
+
                     snapshot_params = (
                         reconcile_date,
                         portfolio_value,
@@ -169,9 +201,9 @@ class DailyReconciliation:
                         0.0,
                         total_unrealized_pnl,
                         unrealized_pnl_pct,
-                        0,
-                        0,
-                        0,
+                        winning_count,
+                        losing_count,
+                        breakeven_count,
                         "open_positions_only",
                         0,
                         0,

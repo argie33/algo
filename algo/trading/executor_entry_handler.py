@@ -805,16 +805,27 @@ class EntryHandler:
             # CRITICAL: Paper_pending trades MUST create open positions for portfolio tracking
             # This ensures paper mode trading maintains accurate position state
             position_status = "paper_open" if order_status == "paper_pending" else "open"
+
+            # Calculate R-multiple for risk metrics (entry - stop) for accurate risk assessment
+            r_multiple = None
+            if stop_loss_price and executed_price:
+                risk_per_share = float(executed_price) - float(stop_loss_price)
+                if risk_per_share > 0:
+                    r_multiple = 1.0  # 1R baseline; actual targets provide specific R values
+
             cur.execute(
                 """
                 INSERT INTO algo_positions (
                     position_id, symbol, quantity, avg_entry_price, entry_price,
                     current_price, position_value, status, entry_date,
                     trade_ids_arr, current_stop_price, stop_loss_price, target_levels_hit,
-                    created_at
+                    target_1_price, target_2_price, target_3_price,
+                    target_1_r_multiple, target_2_r_multiple, target_3_r_multiple,
+                    r_multiple, metrics_updated_at, created_at
                 ) VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, 0, CURRENT_TIMESTAMP
+                    %s, %s, %s, 0, %s, %s, %s, %s, %s, %s,
+                    %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                 )
                 """,
                 (
@@ -830,6 +841,13 @@ class EntryHandler:
                     [trade_id],
                     stop_loss_price,
                     stop_loss_price,
+                    target_1_price,
+                    target_2_price,
+                    target_3_price,
+                    self.t1_target_r_multiple if target_1_price else None,
+                    self.t2_target_r_multiple if target_2_price else None,
+                    self.t3_target_r_multiple if target_3_price else None,
+                    r_multiple,
                 ),
             )
 

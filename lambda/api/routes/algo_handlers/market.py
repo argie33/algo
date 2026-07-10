@@ -531,7 +531,10 @@ def _get_market(cur: cursor) -> Any:
             ORDER BY date DESC LIMIT 1
         """)
         spy_row = cur.fetchone()
-        if not spy_row or spy_row["close"] is None:
+        if not spy_row:
+            return error_response(503, "data_unavailable", "SPY price data unavailable")
+        spy_row = safe_dict_convert(spy_row)
+        if spy_row.get("close") is None:
             return error_response(503, "data_unavailable", "SPY price data unavailable")
         spy_close = float(spy_row["close"])
 
@@ -660,6 +663,8 @@ def _get_market_sentiment(cur: cursor) -> Any:
 
     if not row:
         return error_response(503, "no_data", "Market sentiment data not yet available")
+
+    row = safe_dict_convert(row)
 
     if row.get("sentiment_score") is None:
         return error_response(503, "incomplete_data", "Market sentiment data incomplete")
@@ -872,7 +877,10 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 ORDER BY date DESC LIMIT 1
             """)
             spy_row = cur.fetchone()
-            if not spy_row or spy_row["close"] is None:
+            if not spy_row:
+                return error_response(503, "data_unavailable", "SPY price data not available")
+            spy_row = safe_dict_convert(spy_row)
+            if spy_row.get("close") is None:
                 return error_response(503, "data_unavailable", "SPY price data not available")
             spy_close = float(spy_row["close"])
             # CRITICAL: Validate SPY price is reasonable (> 0)
@@ -998,7 +1006,10 @@ def _get_trend_criteria(cur: cursor) -> Any:
         WHERE date = (SELECT MAX(date) FROM trend_template_data)
     """)
     row = cur.fetchone()
-    if not row or int(row["total_symbols"]) == 0:
+    if not row:
+        return error_response(503, "no_data", "Trend template data not yet available")
+    row = safe_dict_convert(row)
+    if int(row.get("total_symbols", 0)) == 0:
         return error_response(503, "no_data", "Trend template data not yet available")
 
     total_symbols = int(row["total_symbols"])
