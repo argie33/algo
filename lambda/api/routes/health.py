@@ -158,9 +158,10 @@ def _handle_basic(cur: cursor) -> Any:
                     # No signal data available — allow graceful degradation
                     # This is expected during first initialization or when loaders haven't run yet
                     # Don't mark as critical during non-market hours (loaders don't run then)
-                    logger.info("[HEALTH INFO] Signal data unavailable yet - loaders may not have run")
-                    if market_is_open:
-                        # Only critical if market is open and signals missing
+                    is_local_dev = os.getenv("LOCAL_MODE", "").lower() == "true"
+                    logger.info(f"[HEALTH INFO] Signal data unavailable yet - loaders may not have run (LOCAL_MODE={is_local_dev})")
+                    if market_is_open and not is_local_dev:
+                        # Only critical if market is open, signals missing, AND not in local dev mode
                         has_critical = True
                         health["freshness"] = {
                             "status": "NO_DATA",
@@ -168,11 +169,12 @@ def _handle_basic(cur: cursor) -> Any:
                             "market_open": market_is_open,
                         }
                     else:
-                        # After hours or before market - not critical
+                        # After hours, before market, or LOCAL_MODE - not critical
                         health["freshness"] = {
                             "status": "INITIALIZING",
-                            "error": "Signal data not yet loaded (normal during non-market hours)",
+                            "error": "Signal data not yet loaded (normal during non-market hours or LOCAL_MODE)",
                             "market_open": market_is_open,
+                            "local_mode": is_local_dev,
                         }
         except Exception as e:
             from utils.error_handlers import sanitize_error_message
