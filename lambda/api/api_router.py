@@ -11,7 +11,22 @@ from typing import Any
 # Set up imports for Lambda API - ensures routes and api_utils are importable
 import setup_imports  # noqa: F401
 from psycopg2.extensions import cursor
-from utils.response_service import wrap_response, format_handler_error, build_error_response
+
+# Import consolidated response handling service
+try:
+    # Try to import from local api_utils first (Lambda environment)
+    from api_utils.response_service import wrap_response, format_handler_error, build_error_response
+except ImportError:
+    # Fallback for different import contexts
+    try:
+        from utils.api_utils.response_service import wrap_response, format_handler_error, build_error_response
+    except ImportError:
+        # If response_service doesn't exist, create stubs (shouldn't happen in production)
+        def wrap_response(r: Any) -> Any: return r
+        def format_handler_error(e: Exception) -> dict[str, Any]:
+            return {"statusCode": 500, "errorType": "error", "message": str(e)}
+        def build_error_response(code: int, err_type: str, msg: str) -> dict[str, Any]:
+            return {"statusCode": code, "errorType": err_type, "message": msg}
 
 logger = logging.getLogger(__name__)
 
