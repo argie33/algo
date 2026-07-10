@@ -11,7 +11,7 @@ All response validation now goes through this single service.
 from __future__ import annotations
 
 import logging
-from typing import Any, TypedDict, cast
+from typing import Any, TypedDict
 
 logger = logging.getLogger(__name__)
 

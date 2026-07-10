@@ -10,6 +10,6 @@ from ..utils.response_validators import (
 )
 
 __all__ = [
-    "ResponseValidator",
     "ResponseValidationError",
+    "ResponseValidator",
 ]

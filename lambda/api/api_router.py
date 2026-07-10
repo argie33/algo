@@ -187,7 +187,7 @@ if "algo" in _AVAILABLE_ROUTES:
         PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
 
     logger.info(f"[STARTUP] Registered {len(dashboard_endpoints)} dashboard endpoints + {len(alias_endpoints)} aliases as public")
-    logger.info(f"[STARTUP] Dashboard aliases /api/portfolio and /api/positions are now public")
+    logger.info("[STARTUP] Dashboard aliases /api/portfolio and /api/positions are now public")
 
 # Register other public analytics endpoints needed by dashboard
 # These support market context, economic data, and analytical views
@@ -390,7 +390,7 @@ def route_request(
                     "all_failed_modules": import_status["failed_modules"],
                 },
             }
-            return _add_cors_headers(_wrap_response(response))
+            return _add_cors_headers(wrap_response(response))
 
     # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")

@@ -274,6 +274,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     def load_data() -> None:
         """Load data with 5-second timeout."""
+        logger.info("[LOAD_DATA] Thread started")
         try:
             state.loading = True
             state.error = None
@@ -284,27 +285,34 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
             def load_with_timeout() -> None:
                 try:
+                    logger.info("[LOAD_ALL] Starting...")
                     result[0] = load_all()
+                    logger.info(f"[LOAD_ALL] Completed with {len(result[0]) if result[0] else 0} items")
                 except Exception as e:
+                    logger.error(f"[LOAD_ALL] Exception: {e}", exc_info=True)
                     error[0] = e
 
             load_thread = threading.Thread(target=load_with_timeout, daemon=True)
             load_thread.start()
             load_thread.join(timeout=20.0)
+            logger.info(f"[LOAD_DATA] Thread join completed after {time.monotonic() - t0:.2f}s")
 
             if error[0]:
+                logger.error(f"[LOAD_DATA] Error from load thread: {error[0]}")
                 raise error[0]
             if result[0] is not None:
                 state.result = result[0]
+                logger.info(f"[LOAD_DATA] State result set to {len(result[0])} items")
             else:
-                logger.warning("load_all() returned None (timeout)")
+                logger.warning("[LOAD_DATA] load_all() returned None (timeout)")
                 state.result = {}
 
             state.elapsed = time.monotonic() - t0
             state.last_load = time.monotonic()
             state.loading = False
+            logger.info(f"[LOAD_DATA] Complete: loading=False, elapsed={state.elapsed:.2f}s")
         except Exception as e:
-            logger.error(f"Data load error: {type(e).__name__}: {e}", exc_info=True)
+            logger.error(f"[LOAD_DATA] Error: {type(e).__name__}: {e}", exc_info=True)
             state.loading = False
             state.error = f"{type(e).__name__}: {e}"
 
