@@ -1,28 +1,33 @@
-# ⚠️  WARNING: environment = "dev" — paper trading enabled (alpaca_paper_trading = true, line 54).
+# ⚠️  WARNING: environment = "dev" — paper trading enabled (alpaca_paper_trading = true).
 # All resources named "-dev" suffix. Paper trades only — no real money.
-# See steering/algo.md for full context.
-# See steering/algo.md for full context.
+#
+# ENVIRONMENT-SPECIFIC CONFIGURATION:
+# - LOCAL DEV: Use this file (terraform.tfvars) — hardcoded localhost origins
+# - STAGING: Use staging.tfvars — production-like config, reduced monitoring
+# - PRODUCTION: Use prod.tfvars — full security, compliance, and monitoring
+#
+# To use environment-specific config:
+#   terraform plan -var-file=staging.tfvars
+#   terraform plan -var-file=prod.tfvars
+#   terraform plan -var-file=dev.tfvars  (or default terraform.tfvars)
+
 environment  = "dev"
 aws_region   = "us-east-1"
 project_name = "algo"
-# Frontend origin for authentication redirects
-# Dynamically set from deployment environment via TF_VAR_frontend_origin environment variable
-# Terraform module uses this for Cognito redirect URIs and similar CORS configurations
-# Default value: http://localhost:3000 (for local dev); overridden by TF_VAR_frontend_origin in GitHub Actions
-# GitHub Actions workflow sets this to the CloudFront domain at deployment time
-frontend_origin = "http://localhost:3000" # Default for local dev; overridden by TF_VAR_frontend_origin in CI
-# Frontend deployment
-cloudfront_enabled = false # OPTIMIZED for dev: Dashboard served directly from S3 (no CloudFront cost). Re-enable for production. Saves ~$5-10/month.
-# API Gateway CORS configuration - Dynamically set from deployment environment
-# The CloudFront domain is discovered at deployment time and passed via TF_VAR_api_cors_allowed_origins
-# environment variable. This avoids hardcoding and ensures CORS always works with the current domain.
-# See .github/workflows/deploy-all-infrastructure.yml "Discover CloudFront domain for CORS configuration" step
-# Fallback: If no environment variable is set, this default is used (empty list is a safe fallback)
-api_cors_allowed_origins = [
-  "https://d2u93283nn45h2.cloudfront.net",
-  "http://localhost:5173",
-  "http://localhost:3000"
-]
+
+# ============================================================
+# FRONTEND CONFIGURATION (DEVELOPMENT)
+# ============================================================
+
+# Frontend origin for local development (localhost:5173 for Vite dev server)
+frontend_origin = "http://localhost:5173"
+
+# CloudFront DISABLED in dev (uses S3 direct; saves ~$5-10/month)
+cloudfront_enabled = false
+
+# API CORS: development allows localhost origins
+# In production: use prod.tfvars (empty list, requires TF_VAR_api_cors_allowed_origins from CI/CD)
+api_cors_allowed_origins = []  # Computed by locals to include localhost for dev
 # ORCHESTRATOR SCHEDULE: 2X DAILY (TESTING PHASE)
 # Goal: Minimize execution until system is fully verified and stable
 # Current configuration: Morning (9:30 AM ET) + Evening (5:30 PM ET)

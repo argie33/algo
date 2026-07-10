@@ -20,7 +20,8 @@
   },
   "todoFeatureEnabled": true,
   "env": {
-    "DEV_BYPASS_AUTH": "true"
+    "DEV_BYPASS_AUTH": "true",
+    "DEBUG_TERRAFORM": "1"
   },
   "hooks": {
     "SessionStart": [
