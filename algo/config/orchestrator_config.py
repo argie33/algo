@@ -4,6 +4,7 @@ Supports environment variable overrides for all settings.
 Enables testing with different configurations without code changes.
 """
 
+import logging
 import os
 
 
@@ -102,7 +103,7 @@ class OrchestratorConfig:
         return len(errors) == 0, errors
 
     @classmethod
-    def log_config(cls, logger: object) -> None:
+    def log_config(cls, logger: logging.Logger) -> None:
         """Log all configuration values for debugging."""
         logger.info(
             "ORCHESTRATOR CONFIG: "

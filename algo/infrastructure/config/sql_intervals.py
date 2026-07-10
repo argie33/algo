@@ -120,4 +120,5 @@ def get_interval_days(interval_key: str, config: "AlgoConfig | None" = None) -> 
         raise ValueError(f"Configuration key {config_key!r} not found")
     if isinstance(value, (int, float)):
         return value
-    return int(value)
+    result: int | float = int(value)
+    return result

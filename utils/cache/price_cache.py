@@ -61,7 +61,8 @@ class PriceCache:
                     cached = self.redis.get(cache_key)
                     if cached:
                         logger.debug(f"[PRICE_CACHE] Redis hit for {symbol}/{interval}")
-                        return json.loads(cached)
+                        result: dict[str, Any] = json.loads(cached)
+                        return result
                 except Exception as e:
                     logger.warning(f"[PRICE_CACHE] Redis get failed: {e}")
 
@@ -74,7 +75,7 @@ class PriceCache:
                         f"[PRICE_CACHE] Local hit for {symbol}/{interval} "
                         f"(age: {age_seconds:.0f}s, ttl: {self.cache_ttl_seconds}s)"
                     )
-                    return data
+                    return data if isinstance(data, dict) else None
                 else:
                     # Evict stale entry
                     del self._local_cache[cache_key]
