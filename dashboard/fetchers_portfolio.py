@@ -70,7 +70,6 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             "total_portfolio_value",
             "total_cash",
             "position_count",
-            "last_run",
         ]
         # Check for API error first
         is_error, error_msg = FetcherValidator.check_api_error(port)
@@ -88,17 +87,23 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
                     record_data_quality_issue("portfolio", field, "missing_required_field")
             return FetcherValidator.build_error_response(error_msg)
 
-        # Use the API-calculated data_age_seconds field for freshness check
-        # (avoids date parsing issues and trusts the API's calculation)
-        data_age = port.get("data_age_seconds")
-        max_age_with_grace = max_age_seconds + grace_period_seconds
+        # Validate snapshot_date field (API returns snapshot_date, not last_run)
+        snapshot_date = port.get("snapshot_date") or port.get("last_run")
+        if not snapshot_date:
+            logger.error("Portfolio missing snapshot_date/last_run field")
+            record_data_quality_issue("portfolio", "snapshot_date", "missing_required_field")
+            return FetcherValidator.build_error_response("Portfolio snapshot_date/last_run field missing")
 
-        # FAIL-FAST: Portfolio data staleness is critical for trading
-        # Accepting stale data silently is unacceptable for a finance app
-        # If data is stale, Phase 9 failed or is not running (check EventBridge deployment and logs)
-        if data_age is not None and data_age > max_age_with_grace:
+        # Check if API reports stale data in data_freshness field
+        data_freshness = port.get("data_freshness", {})
+        is_stale_from_api = data_freshness.get("is_stale", False)
+
+        # Use the is_stale flag from API if available (more reliable than calculating here)
+        # The API has direct database access and can timestamp accurately
+        if is_stale_from_api:
+            data_age = data_freshness.get("age_seconds", port.get("data_age_seconds", "unknown"))
             error_msg = (
-                f"Portfolio data is stale ({data_age}s old, max {max_age_with_grace}s including grace period). "
+                f"Portfolio data is stale ({data_age}s old). "
                 f"Phase 9 orchestration may not be running or may have failed. "
                 f"Check: (1) EventBridge scheduler deployed? (2) Phase 9 logs in AWS CloudWatch? "
                 f"(3) database table algo_portfolio_snapshots has recent updates?"
@@ -107,19 +112,7 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             record_data_quality_issue("portfolio", "freshness", "stale_data", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 
-        # WARN: Data is older than 24 hours but still within acceptable range
-        # This flag indicates portfolio data hasn't been updated in a while (non-trading day gap)
-        # Check Phase 9 reconciliation logs if concerned.
-        hours_24_seconds = 86400
-        is_stale_24h = data_age is not None and data_age > hours_24_seconds
-        if is_stale_24h and data_age is not None:
-            logger.warning(
-                f"[DATA_QUALITY] Portfolio data is {data_age}s old ({data_age / 3600:.1f} hours). "
-                f"This is normal on non-trading days but unexpected on trading days. "
-                f"Check Phase 9 reconciliation if this persists. Data is still within limits ({max_age_with_grace}s), "
-                f"but monitor for staleness."
-            )
-            record_data_quality_issue("portfolio", "freshness", "stale_warning_24h")
+        # Note: data_age_seconds will be extracted later from port and validated then
 
         # Validate required fields are present and non-None
         if port.get("total_portfolio_value") is None:
@@ -157,10 +150,8 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
                     f"[DATA_QUALITY] Portfolio unrealized_pnl is malformed: expected dict, got {type(unrealized_pnl_raw).__name__}"
                 )
 
-        # Validate optional fields have reasonable values when present
-        snapshot_date = port.get("last_run")
-        if not snapshot_date:
-            logger.warning("[DATA_QUALITY] Portfolio snapshot_date is missing (last_run not set)")
+        # snapshot_date already validated above (accepts both snapshot_date and last_run fields)
+        # Use the value we already validated, no need to re-fetch
 
         daily_return = port.get("daily_return_pct")
         cumulative_return = port.get("cumulative_return_pct")
