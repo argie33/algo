@@ -61,15 +61,17 @@ def get_db_cursor():
 def safe_call(handler_func):
     try:
         cur, conn = get_db_cursor()
+        logger.debug(f"[safe_call] Calling {handler_func.__name__}...")
         result = handler_func(cur)
         cur.close()
         conn.close()
+        logger.debug(f"[safe_call] {handler_func.__name__} returned {type(result)} with statusCode={result.get('statusCode') if isinstance(result, dict) else 'N/A'}")
 
         if isinstance(result, tuple) and len(result) >= 2:
             return result[1], result[0]
         return result, 200
     except Exception as e:
-        logger.error(f"Handler error: {type(e).__name__}: {e}", exc_info=True)
+        logger.error(f"[safe_call] Handler {handler_func.__name__} error: {type(e).__name__}: {e}", exc_info=True)
         return {'error': str(e), 'statusCode': 500}, 500
 
 
