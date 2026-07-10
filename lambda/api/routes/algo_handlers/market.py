@@ -964,7 +964,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         )
         response["data"]["fed"] = market_health.get("fed_rate_environment")
 
-        return response
+        return json_response(200, response["data"])
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
