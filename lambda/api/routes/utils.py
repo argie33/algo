@@ -910,6 +910,7 @@ def validate_api_response(endpoint_name: str) -> Callable[[Callable[P, dict[str,
                 500,
                 503,
             ):
+                logger.debug(f"[VALIDATION] Skipping validation for error response (statusCode={response.get('statusCode')})")
                 return response
 
             # Validate successful responses
