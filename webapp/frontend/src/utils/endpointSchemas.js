@@ -182,10 +182,13 @@ export const ENDPOINT_SCHEMAS = {
 
   // Portfolio metrics
   "/api/algo/markets": {
-    type: "object",
-    requiredFields: [],
-    requireNonEmpty: false,
+    type: "paginated",
+    itemFields: ["name", "rank"],
+    paginationFields: ["total"],
+    requireNonEmptyList: false,
     decimalFields: [
+      "rank",
+      "momentum",
       "current.exposure_pct",
       "current.raw_score",
       "market_health.vix_level",
@@ -220,24 +223,28 @@ export const ENDPOINT_SCHEMAS = {
     ],
   },
   "/api/algo/daily-return-histogram": {
-    type: "object",
-    requiredFields: [],
-    requireNonEmpty: false,
+    type: "paginated",
+    itemFields: ["mid", "count"],
+    paginationFields: ["total"],
+    requireNonEmptyList: false,
   },
   "/api/algo/trade-distribution": {
-    type: "object",
-    requiredFields: [],
-    requireNonEmpty: false,
+    type: "paginated",
+    itemFields: ["range", "count"],
+    paginationFields: ["total"],
+    requireNonEmptyList: false,
   },
   "/api/algo/holding-period-distribution": {
-    type: "object",
-    requiredFields: [],
-    requireNonEmpty: false,
+    type: "paginated",
+    itemFields: ["range", "count"],
+    paginationFields: ["total"],
+    requireNonEmptyList: false,
   },
   "/api/algo/stage-distribution": {
-    type: "object",
-    requiredFields: [],
-    requireNonEmpty: false,
+    type: "paginated",
+    itemFields: ["phase", "count"],
+    paginationFields: ["total"],
+    requireNonEmptyList: false,
   },
 
   // Backtests

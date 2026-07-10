@@ -23,9 +23,10 @@ def compute_market_sentiment() -> None:
     today = datetime.now(EASTERN_TZ).date()
 
     with DatabaseContext("write", cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-        # Get VIX level from market_health_daily
+        # Get VIX level from market_health_daily - use most recent available data (may not have today yet)
+        # This handles intra-day scenarios where market_health_daily is still being loaded
         cur.execute(
-            "SELECT vix_level FROM market_health_daily WHERE date = %s ORDER BY date DESC LIMIT 1",
+            "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (today,),
         )
         row = cur.fetchone()
@@ -74,6 +75,11 @@ def compute_market_sentiment() -> None:
         fear_greed = max(10, min(90, 100 - (vix * 2)))
 
         # Upsert into market_sentiment with data quality flags
+        sentiment_score = Decimal("50.0000")  # Neutral sentiment (50% = neutral between greed/fear)
+        bullish_pct = Decimal("33.3333")
+        bearish_pct = Decimal("33.3333")
+        neutral_pct = Decimal("33.3334")
+
         cur.execute(
             """
             INSERT INTO market_sentiment (
@@ -92,10 +98,10 @@ def compute_market_sentiment() -> None:
             (
                 today,
                 Decimal(str(round(fear_greed, 4))),
-                Decimal("50.0000"),  # Neutral sentiment
-                Decimal("33.33"),
-                Decimal("33.33"),
-                Decimal("33.34"),
+                sentiment_score,
+                bullish_pct,
+                bearish_pct,
+                neutral_pct,
                 False,  # Data is available
                 None,  # No unavailability reason
             ),
