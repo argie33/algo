@@ -92,7 +92,7 @@ def _get_last_run(cur: cursor) -> Any:
     """Get the most recent orchestrator run with halt reason."""
     cur.execute("""
         SELECT run_id, run_date, overall_status, halt_reason, started_at, completed_at,
-               phases_completed, phase_results
+               phase_results
         FROM orchestrator_execution_log
         ORDER BY created_at DESC
         LIMIT 1
@@ -108,15 +108,24 @@ def _get_last_run(cur: cursor) -> Any:
     halt_reason = latest_dict.get("halt_reason")
     started_at = latest_dict.get("started_at")
     completed_at = latest_dict.get("completed_at")
-    phases_completed = latest_dict.get("phases_completed")
     phase_results = latest_dict.get("phase_results")
+
+    # Compute phases_completed from phase_results JSONB
+    phases_completed = 0
+    if phase_results:
+        try:
+            if isinstance(phase_results, str):
+                import json
+                phase_results = json.loads(phase_results)
+            if isinstance(phase_results, list):
+                phases_completed = len([p for p in phase_results if p.get("status") == "success"])
+        except (ValueError, TypeError, KeyError):
+            phases_completed = 0
 
     if not run_id:
         return error_response(503, "invalid_data", "Run ID missing from orchestrator execution log")
     if overall_status is None:
         return error_response(503, "invalid_data", "Overall status missing from orchestrator execution log")
-    if phases_completed is None:
-        return error_response(503, "invalid_data", "Phases completed count missing from orchestrator execution log")
 
     # Determine success/halted/errored from overall_status
     success = overall_status == "success"
