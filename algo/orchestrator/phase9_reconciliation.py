@@ -989,13 +989,23 @@ def run(  # noqa: C901
                         f"Snapshot was created but consistency check incomplete."
                     )
 
+                if result is None:
+                    logger.error("[PHASE 9] CRITICAL: result is None in snapshot logging")
+                    raise RuntimeError(
+                        "[PHASE 9] CRITICAL: Reconciliation result is None. "
+                        "Cannot create snapshot without reconciliation data."
+                    )
                 if result.get('positions') is None:
+                    logger.error(f"[PHASE 9] result keys: {list(result.keys()) if isinstance(result, dict) else 'not a dict'}")
                     raise RuntimeError(
                         "[PHASE 9] CRITICAL: Reconciliation result missing 'positions' count. "
                         "Cannot create snapshot without verified position count. "
                         "Broker reconciliation data may be incomplete."
                     )
                 pos_count = result['positions']
+                if current_value is None:
+                    logger.error(f"[PHASE 9] current_value is None, portfolio_value from result was: {result.get('portfolio_value')}")
+                    raise RuntimeError("[PHASE 9] CRITICAL: current_value is None in snapshot logging")
                 logger.info(
                     f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={pos_count}"
                 )

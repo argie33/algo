@@ -89,7 +89,7 @@ jobs:
           # Install pip dependencies into package (pydantic, boto3, etc.)
           pip install -r lambda/api/requirements.txt \
             -t api-pkg/ --platform manylinux2014_x86_64 --only-binary=:all: --quiet
-          cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" -x "dev_server.py" -x "dev_auth.py" && cd ..
+          cd api-pkg && zip -r ../api_lambda.zip . -x "*.pyc" -x "__pycache__/*" -x "dev_server.py" && cd ..
           if [ ! -f api_lambda.zip ]; then
             echo "ERROR: Failed to create api_lambda.zip!"
             exit 1
