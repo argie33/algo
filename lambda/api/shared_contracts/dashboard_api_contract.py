@@ -471,6 +471,26 @@ DASHBOARD_ENDPOINTS = {
         "strict_fields": [],
         "critical": False,
     },
+    "dh": {
+        "path": "/api/algo/daily-return-histogram",
+        "method": "GET",
+        "description": "Daily return distribution histogram",
+        "response_schema": ResponseSchema(
+            required_fields=[],
+            optional_fields=["items", "total", "limit", "offset", "data"],
+            field_types={
+                "items": list,
+                "total": int,
+                "limit": (int, type(None)),
+                "offset": (int, type(None)),
+                "data": dict,
+            },
+            description="Return histogram buckets with statistics",
+        ),
+        "freshness_max_age_seconds": 3600,
+        "strict_fields": [],
+        "critical": False,
+    },
     "srank": {
         "path": "/api/sectors",
         "method": "GET",
