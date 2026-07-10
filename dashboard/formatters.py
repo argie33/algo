@@ -102,7 +102,7 @@ def mkt_hours_str() -> tuple[str, str]:
 
 
 def next_run_str() -> str:
-    """Return next orchestrator run time. Fetches schedule from API if available, falls back to hardcoded."""
+    """Return next orchestrator run time using configured schedule."""
     now = time.time()
     if (
         _schedule_cache["result"] is not None
@@ -112,27 +112,9 @@ def next_run_str() -> str:
         return cast(str, _schedule_cache["result"])
 
     try:
-        from .api_data_layer import api_call
-
-        resp = api_call("/api/algo/schedule")
-        if not has_error(resp) and "schedule" in resp:
-            schedule = resp.get("schedule")
-            if schedule and isinstance(schedule, list):
-                result = _next_run_from_schedule(schedule)
-                _schedule_cache["result"] = result
-                _schedule_cache["timestamp"] = now
-                return result
-    except Exception as sched_err:
-        import logging
-
-        logging.warning(f"Schedule API unavailable: {sched_err}. Dashboard showing fallback times.")  # noqa: LOG015
-
-    # Schedule fetch failed: indicate to user that times shown are not live
-    try:
         result = _next_run_hardcoded()
-        result = f"[yellow]{result}[/yellow] (offline schedule)"
     except Exception as e:
-        logger.warning(f"Hardcoded schedule calculation failed: {e}. Using minimal fallback.")
+        logger.warning(f"Schedule calculation failed: {e}. Using minimal fallback.")
         result = "[yellow]Schedule unavailable[/yellow]"
     _schedule_cache["result"] = result
     _schedule_cache["timestamp"] = now
