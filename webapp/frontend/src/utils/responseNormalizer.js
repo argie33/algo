@@ -143,19 +143,16 @@ export const extractData = (response) => {
   // Handle single object responses (data field)
   if (data.data !== null && data.data !== undefined) {
     // Check if data.data contains paginated items (list_response structure)
-    // API returns: { statusCode: 200, data: { items: [...], total: N, limit: N, offset: N } }
-    // CRITICAL: Only treat as paginated if it has pagination markers AND no other important fields
+    // API returns: { statusCode: 200, data: { items: [...], pagination: {...}, sector_allocation: [...], ... } }
+    // CRITICAL: Treat as paginated if it has items array + pagination markers (allow extra fields like sector_allocation)
     const hasPaginationMarkers =
       data.data.total !== undefined ||
       data.data.limit !== undefined ||
       data.data.offset !== undefined ||
       data.data.pagination !== undefined;
-    const hasOnlyPaginationFields =
-      Object.keys(data.data).every(k =>
-        ['items', 'total', 'limit', 'offset', 'pagination', 'page', 'totalPages', 'hasNext', 'hasPrev'].includes(k)
-      );
 
-    if (Array.isArray(data.data.items) && hasPaginationMarkers && hasOnlyPaginationFields) {
+    // If data.data has items array and pagination markers, treat as paginated response (even with extra fields)
+    if (Array.isArray(data.data.items) && hasPaginationMarkers) {
       const filteredItems = data.data.items.filter(
         (item) => item !== null && item !== undefined
       );
@@ -163,6 +160,8 @@ export const extractData = (response) => {
       const limit = pag.limit ?? data.data.limit ?? 50;
       const offset = pag.offset ?? data.data.offset ?? 0;
       const total = pag.total ?? data.data.total ?? filteredItems.length;
+
+      // Return paginated response with ALL extra fields (sector_allocation, coverage, etc.)
       return {
         items: filteredItems,
         pagination: {
@@ -178,6 +177,12 @@ export const extractData = (response) => {
               : offset + filteredItems.length < total,
           hasPrev: pag.hasPrev !== undefined ? pag.hasPrev : offset > 0,
         },
+        // Preserve extra fields from the API response (sector_allocation, coverage, stale_alerts, data_freshness, etc.)
+        ...(data.data.sector_allocation && { sector_allocation: data.data.sector_allocation }),
+        ...(data.data.coverage && { coverage: data.data.coverage }),
+        ...(data.data.stale_alerts && { stale_alerts: data.data.stale_alerts }),
+        ...(data.data.data_freshness && { data_freshness: data.data.data_freshness }),
+        ...(data.data.breakers && { breakers: data.data.breakers }),
         statusCode: httpStatus,
         success: true,
       };
