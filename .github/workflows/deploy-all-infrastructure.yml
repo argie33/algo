@@ -174,6 +174,22 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Restore deleted secrets from scheduled deletion
+        run: |
+          echo "[INFO] Checking for secrets scheduled for deletion..."
+          for SECRET in "algo/fred" "algo/alpaca"; do
+            STATUS=$(aws secretsmanager describe-secret --secret-id "$SECRET" --region us-east-1 2>/dev/null || echo "NOT_FOUND")
+
+            if echo "$STATUS" | grep -q "DeletedDate"; then
+              echo "[WARN] $SECRET is scheduled for deletion, attempting restore..."
+              aws secretsmanager restore-secret --secret-id "$SECRET" --region us-east-1 2>/dev/null && echo "[OK] Restored $SECRET" || echo "[INFO] Could not restore (may already exist)"
+            elif echo "$STATUS" | grep -q "NOT_FOUND"; then
+              echo "[INFO] $SECRET not found (will be created fresh)"
+            else
+              echo "[OK] $SECRET is active"
+            fi
+          done
+
       - name: Validate Alpaca credentials configured
         run: |
           if [ -z "${{ secrets.ALPACA_API_KEY_ID }}" ] || [ -z "${{ secrets.ALPACA_API_SECRET_KEY }}" ]; then
