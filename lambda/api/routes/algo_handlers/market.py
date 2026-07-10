@@ -961,10 +961,11 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         psycopg2.DatabaseError,
         Exception,
     ) as e:
+        import traceback
         logger.error(
-            f"Failed to fetch markets: {type(e).__name__}: {e}\n  Operation: Query market_exposure_daily\n  Endpoint: GET /api/algo/markets"
+            f"Failed to fetch markets: {type(e).__name__}: {e}\n  Operation: Query market_exposure_daily\n  Endpoint: GET /api/algo/markets\n  Traceback: {traceback.format_exc()}"
         )
-        return error_response(503, "service_unavailable", "Failed to fetch markets data")
+        return error_response(503, "service_unavailable", f"Failed to fetch markets data: {type(e).__name__}: {str(e)[:100]}")
 
 
 @db_route_handler("get trend criteria")

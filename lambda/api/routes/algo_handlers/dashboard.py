@@ -491,6 +491,8 @@ def _get_algo_status(cur: cursor) -> Any:
         psycopg2.DatabaseError,
         Exception,
     ) as e:
+        import traceback
+        logger.error(f"[_GET_ALGO_STATUS] Exception: {type(e).__name__}: {e}\nTraceback: {traceback.format_exc()}")
         code, error_type, message = handle_db_error(e, "fetch portfolio snapshot")
         return error_response(code, error_type, message)
 
