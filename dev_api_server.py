@@ -44,7 +44,7 @@ from config.credential_manager import get_db_config
 import psycopg2
 import psycopg2.extras
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG, format='%(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 app = flask.Flask(__name__)
@@ -61,13 +61,17 @@ def get_db_cursor():
 def safe_call(handler_func):
     try:
         cur, conn = get_db_cursor()
-        logger.debug(f"[safe_call] Calling {handler_func.__name__}...")
+        logger.info(f"[safe_call] Calling {handler_func.__name__}...")
         result = handler_func(cur)
         cur.close()
         conn.close()
-        logger.debug(f"[safe_call] {handler_func.__name__} returned {type(result)} with statusCode={result.get('statusCode') if isinstance(result, dict) else 'N/A'}")
+
+        result_type = type(result).__name__
+        status = result.get('statusCode') if isinstance(result, dict) else 'N/A'
+        logger.info(f"[safe_call] {handler_func.__name__} returned {result_type}, statusCode={status}")
 
         if isinstance(result, tuple) and len(result) >= 2:
+            logger.info(f"[safe_call] Result is tuple, returning tuple[1] and tuple[0]")
             return result[1], result[0]
 
         # CRITICAL FIX: Use statusCode from response dict, not hardcoded 200
@@ -75,14 +79,17 @@ def safe_call(handler_func):
         # Using statusCode 200 for all responses breaks error handling in the dashboard
         if isinstance(result, dict) and 'statusCode' in result:
             status_code = result.get('statusCode', 200)
+            logger.info(f"[safe_call] Returning dict with statusCode {status_code}")
             return result, status_code
+        logger.info(f"[safe_call] Result is not dict with statusCode, returning as-is with 200")
         return result, 200
     except Exception as e:
         # Log full traceback to help debug handler failures
         import traceback
         tb = traceback.format_exc()
-        logger.error(f"[safe_call] Handler {handler_func.__name__} exception:\n{tb}")
+        logger.error(f"[safe_call] {handler_func.__name__} EXCEPTION:\n{tb}")
         error_detail = str(e)[:500]  # Limit error message length
+        logger.error(f"[safe_call] Returning error response: {error_detail}")
         return {'error': error_detail, 'statusCode': 500}, 500
 
 
