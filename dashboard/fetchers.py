@@ -290,26 +290,26 @@ def load_all() -> dict[str, Any]:
         "pos",
         "trades",
         "health",
+        "sig",  # Dashboard-signals endpoint - REQUIRED for signals panel
+        "scores",  # Stock scores endpoint - REQUIRED for multiple panels
+        "risk",  # Risk metrics - REQUIRED for risk dashboard panel
+        "exp_factors",  # Market exposure factors - REQUIRED for exposure panel
+        "cb",  # Circuit breakers - REQUIRED for circuit breaker panel
     }
     optional_fetchers = {
-        "sig",  # Signals API (dashboard-signals endpoint returning 404 - endpoint not yet implemented)
-        "scores",  # Scores API (scores endpoint returning 404 - endpoint not yet implemented)
-        "risk",  # Risk metrics optional for now - will be added when full risk framework deployed
-        "exp_factors",  # Market exposure factors optional - core functionality doesn't require
-        "srank",
-        "activity",
-        "eco",
-        "notifs",
-        "sentiment",
-        "econ_cal",
-        "perf_anl",
-        "sig_eval",
-        "sec_rot",
-        "algo_metrics",
-        "irank",
-        "audit",
-        "exec_hist",
-        "cb",  # Moved to optional temporarily - stale data shouldn't block dashboard display
+        "srank",  # Nice-to-have sector rankings
+        "activity",  # Activity log (informational)
+        "eco",  # Economic data (optional enrichment)
+        "notifs",  # Notifications (informational)
+        "sentiment",  # Market sentiment (optional enrichment)
+        "econ_cal",  # Economic calendar (optional enrichment)
+        "perf_anl",  # Performance analytics (detailed metrics)
+        "sig_eval",  # Signal evaluation (optional analysis)
+        "sec_rot",  # Sector rotation (optional analysis)
+        "algo_metrics",  # Algo metrics (optional enrichment)
+        "irank",  # Industry rankings (optional enrichment)
+        "audit",  # Audit log (optional for debugging)
+        "exec_hist",  # Execution history (optional detailed view)
     }
 
     def one(name: str, fn: Callable[..., Any], timeout_sec: float) -> tuple[str, Any]:
@@ -417,11 +417,33 @@ def load_all() -> dict[str, Any]:
         out["_critical_fetcher_failures"] = critical_failures
 
     critical_elapsed = time.monotonic() - critical_start_time
+    logger.info(f"[LOAD_ALL] Critical fetchers completed in {critical_elapsed:.2f}s")
 
-    # CRITICAL FIX: Return immediately with critical data so dashboard renders fast (2-3s).
-    # Optional fetchers are NOT run - they block dashboard startup for 5-8+ seconds.
-    # Slow optional endpoints (scores, exec_hist, irank, sec_rot, audit, algo_metrics)
-    # cause the entire dashboard to hang during loading.
-    # Solution: Skip optional batch entirely for dashboard startup speed.
-    logger.info(f"[LOAD_ALL] Critical fetchers completed in {critical_elapsed:.2f}s - skipping optional batch for speed")
+    # Execute optional fetchers with relaxed timeout (5-10s total)
+    # These enhance dashboard but don't block startup
+    optional_batch_timeout = max(10, batch_timeout // 10)  # 10s for optional batch
+    optional_start_time = time.monotonic()
+    optional_out = _execute_fetcher_batch(
+        optional_fetchers,
+        6,
+        optional_batch_timeout,
+        one,
+        fetcher_timeout_seconds,
+        "optional",
+    )
+
+    optional_elapsed = time.monotonic() - optional_start_time
+    optional_failures = [k for k, v in optional_out.items() if isinstance(v, dict) and "_error" in v]
+    if optional_failures:
+        logger.warning(
+            f"[FETCHERS] Optional fetcher failures (non-blocking): "
+            f"{', '.join(optional_failures)}"
+        )
+
+    out.update(optional_out)
+    logger.info(
+        f"[LOAD_ALL] All fetchers completed in {critical_elapsed + optional_elapsed:.2f}s "
+        f"(critical: {critical_elapsed:.2f}s, optional: {optional_elapsed:.2f}s)"
+    )
+
     return out
