@@ -91,49 +91,68 @@ class SignalsDailyLoader(OptimalLoader):
                 iterations += 1
 
             with DatabaseContext("read") as cur:
-                # Use the most recent date with price_daily data, not just the market calendar date
+                # Find most recent date with COMPLETE price_daily coverage (>= 3000 symbols)
+                # If today's price_daily is incomplete (partial load), fall back to yesterday
+                # This allows buy_sell_daily to run with the most recent complete data set
+                # instead of blocking on incomplete intra-day loads
                 cur.execute(
-                    "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                    """SELECT date, COUNT(DISTINCT symbol) as cnt
+                       FROM price_daily
+                       WHERE date <= %s
+                       GROUP BY date
+                       ORDER BY date DESC
+                       LIMIT 10""",
                     (end,),
                 )
-                price_max_date_row = cur.fetchone()
-                if price_max_date_row is None:
-                    raise RuntimeError(
-                        f"CRITICAL: price_daily query returned None for {end}. "
-                        "Query malformed or price_daily table empty. Cannot determine end date for signal generation."
-                    )
-                if len(price_max_date_row) < 1:
-                    raise RuntimeError(
-                        f"CRITICAL: price_daily query returned invalid row structure. "
-                        f"Expected at least 1 column, got {len(price_max_date_row)}."
-                    )
-                price_max_date = price_max_date_row[0]
+                complete_date_rows = cur.fetchall()
 
-                # If there's no price data on the calculated end date, use the most recent available
-                if price_max_date:
-                    end = price_max_date
+                # Find the most recent date with >= 3000 symbols
+                end = None
+                price_coverage_symbols = 0
+                if complete_date_rows:
+                    for row in complete_date_rows:
+                        if row[1] >= 3000:
+                            end = row[0]
+                            price_coverage_symbols = int(row[1])
+                            logger.info(
+                                f"[BUY_SELL_DAILY] Found complete price_daily data: date={end} "
+                                f"with {price_coverage_symbols} symbols"
+                            )
+                            break
 
-                cur.execute(
-                    "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
-                    (end,),
-                )
-                price_row = cur.fetchone()
-                if price_row is None:
-                    raise RuntimeError(
-                        f"CRITICAL: price_daily coverage query returned None for {end}. "
-                        "Query malformed. Cannot validate price data availability."
+                # Fallback if no complete data found
+                if end is None:
+                    # Use most recent date with ANY price data
+                    cur.execute(
+                        "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                        (now_et.date(),),
                     )
-                if len(price_row) < 1:
-                    raise RuntimeError(
-                        f"CRITICAL: price_daily coverage query returned invalid row structure. "
-                        f"Expected at least 1 column, got {len(price_row)}."
+                    price_max_date_row = cur.fetchone()
+                    if price_max_date_row is None or price_max_date_row[0] is None:
+                        raise RuntimeError(
+                            f"CRITICAL: No price_daily data found at all. "
+                            "Cannot generate signals without price data."
+                        )
+                    end = price_max_date_row[0]
+
+                    cur.execute(
+                        "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                        (end,),
                     )
-                if price_row[0] is None:
-                    raise RuntimeError(
-                        f"CRITICAL: Price data count is NULL for {end}. "
-                        "Database query returned invalid data. Cannot generate signals."
-                    )
-                price_coverage_symbols = int(price_row[0])
+                    price_row = cur.fetchone()
+                    if price_row and price_row[0]:
+                        price_coverage_symbols = int(price_row[0])
+                        logger.warning(
+                            f"[BUY_SELL_DAILY] No complete price_daily data found. "
+                            f"Using most recent: date={end} with {price_coverage_symbols} symbols "
+                            f"(< 3000 minimum). Signals may be degraded."
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"CRITICAL: price_daily coverage query failed for {end}. "
+                            "Cannot generate signals without price data."
+                        )
+
                 if price_coverage_symbols == 0:
                     raise RuntimeError(
                         f"CRITICAL: No price data found for {end}. "
@@ -338,13 +357,17 @@ class SignalsDailyLoader(OptimalLoader):
                 price_coverage_symbols = self._batch_context["price_coverage_symbols"]
                 tech_coverage_symbols = self._batch_context["tech_coverage_symbols"]
 
-                # Require at least 3000 symbols with prices before generating signals
-                if price_coverage_symbols < 3000:
+                # Require minimum price coverage (warning only if less than optimal)
+                if price_coverage_symbols < 1000:
                     raise RuntimeError(
-                        f"{symbol}: price_daily incomplete for {end}: only "
-                        f"{price_coverage_symbols} symbols (expected >= 3000). "
-                        "Cannot generate signals without sufficient price data coverage. "
-                        "Verify price_daily loader completed successfully."
+                        f"{symbol}: price_daily insufficient for {end}: only "
+                        f"{price_coverage_symbols} symbols (minimum 1000 required). "
+                        "Cannot generate signals without minimum price data coverage."
+                    )
+                elif price_coverage_symbols < 3000:
+                    logger.warning(
+                        f"{symbol}: Generating signals with reduced price coverage "
+                        f"({price_coverage_symbols} symbols, optimal >= 3000)"
                     )
                 # Technical coverage relative to price coverage (normal: 80-83%)
                 tech_coverage = (
