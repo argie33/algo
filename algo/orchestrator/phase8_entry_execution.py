@@ -82,6 +82,11 @@ def _persist_signals_to_database(
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
                     )
+                    ON CONFLICT (signal_date, symbol, source_timeframe) DO UPDATE SET
+                        updated_at = NOW(),
+                        entry_price = EXCLUDED.entry_price,
+                        signal_quality_score = EXCLUDED.signal_quality_score,
+                        risk_score = EXCLUDED.risk_score
                 """, (
                     run_date,
                     symbol,

@@ -866,6 +866,13 @@ def run(  # noqa: C901
             with DatabaseContext("write") as cur:
                 logger.info("[PHASE 9] Snapshot: Database connection established")
 
+                # CRITICAL: Validate result exists
+                if result is None:
+                    raise ValueError(
+                        "[PHASE 9] CRITICAL: Reconciliation returned None instead of result dict. "
+                        "Cannot create snapshot without reconciliation data."
+                    )
+
                 # Validate Phase 4 reconciliation data exists
                 missing_keys = []
                 required_keys = ["portfolio_value", "positions", "unrealized_pnl", "position_value"]

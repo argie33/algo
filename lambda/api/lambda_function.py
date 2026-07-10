@@ -97,8 +97,11 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             return False, "Configuration has empty fields"
 
         # Connect to database
+        # Use sslmode="prefer" (try SSL, fall back to unencrypted) for local dev compatibility
+        # Lambda and RDS always support/require SSL
+        sslmode = "require" if "AWS_LAMBDA_FUNCTION_NAME" in os.environ else "prefer"
         conn = psycopg2.connect(
-            host=db_host, port=int(db_port), database=db_name, user=db_user, password=db_password, sslmode="require"
+            host=db_host, port=int(db_port), database=db_name, user=db_user, password=db_password, sslmode=sslmode
         )
         cur = conn.cursor()
 
