@@ -720,7 +720,13 @@ app.use("/api/performance", cacheMiddleware(30), performanceRoutes);
 // Swing trading algo routes
 const algoRoutes = require("./routes/algo");
 app.use("/api/algo", algoRoutes);
+
 // Aliases for backwards compatibility - redirect to algo routes
+// Test route to verify routing works
+app.get("/api/portfolio-test", (req, res) => {
+  sendSuccess(res, { test: true, message: "Test route working" });
+});
+
 app.use("/api/portfolio", algoRoutes);  // Alias for /api/algo/portfolio
 app.use("/api/positions", algoRoutes);  // Alias for /api/algo/positions
 
