@@ -176,15 +176,15 @@ resource "aws_lambda_function" "api" {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
       DB_HOST       = var.rds_proxy_address
-      DB_PORT       = "5432"
+      DB_PORT       = tostring(var.db_port)
       DB_NAME       = var.rds_database_name
       DB_USER       = var.rds_username
-      DB_SSL        = "require"
+      DB_SSL        = var.db_ssl_mode
       # Frontend configuration (dynamic based on CloudFront enabled)
       CLOUDFRONT_DOMAIN = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
       FRONTEND_URL      = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
       FRONTEND_ORIGIN   = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name}" : "https://${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com"
-      ALLOWED_ORIGINS   = var.cloudfront_enabled ? "https://${aws_cloudfront_distribution.frontend[0].domain_name},http://localhost:5173,http://localhost:3000" : "https://${var.frontend_bucket_name}.s3.${var.aws_region}.amazonaws.com,http://localhost:5173,http://localhost:3000"
+      ALLOWED_ORIGINS   = join(",", var.api_cors_allowed_origins)
       # Cognito configuration (for JWT validation)
       COGNITO_REGION       = var.aws_region
       COGNITO_USER_POOL_ID = var.cognito_user_pool_id
@@ -800,13 +800,13 @@ resource "aws_lambda_function" "algo" {
       DB_SECRET_ARN = var.rds_credentials_secret_arn
       DB_ENDPOINT   = var.rds_endpoint
       DB_HOST       = var.rds_proxy_address
-      DB_PORT       = "5432"
+      DB_PORT       = tostring(var.db_port)
       DB_NAME       = var.rds_database_name
       DB_USER       = var.rds_username
       # SECURITY FIX: Do NOT pass DB_PASSWORD in environment variables
       # Password must be fetched from AWS Secrets Manager at runtime via credential_manager
       # Passing passwords in env vars violates AWS security best practices
-      DB_SSL = "require"
+      DB_SSL = var.db_ssl_mode
       # AWS configuration
       # NOTE: AWS_REGION is reserved by Lambda and automatically set - do not override
       AWS_ACCOUNT_ID = data.aws_caller_identity.current.account_id

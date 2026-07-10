@@ -66,6 +66,16 @@ variable "db_port" {
   default     = 5432
 }
 
+variable "db_ssl_mode" {
+  description = "PostgreSQL SSL mode for ECS loader connections (disable, allow, prefer, require, verify-ca, verify-full)"
+  type        = string
+  default     = "require"
+  validation {
+    condition     = contains(["disable", "allow", "prefer", "require", "verify-ca", "verify-full"], var.db_ssl_mode)
+    error_message = "db_ssl_mode must be one of: disable, allow, prefer, require, verify-ca, verify-full"
+  }
+}
+
 variable "db_name" {
   description = "RDS database name"
   type        = string

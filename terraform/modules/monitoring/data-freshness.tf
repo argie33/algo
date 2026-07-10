@@ -106,7 +106,7 @@ resource "aws_lambda_function" "data_freshness_monitor" {
       DB_NAME             = var.db_name
       DB_PORT             = var.db_port
       DATABASE_SECRET_ARN = var.database_secret_arn
-      DB_SSL              = "require"
+      DB_SSL              = var.db_ssl_mode
     }
   }
 

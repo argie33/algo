@@ -79,39 +79,11 @@ resource "aws_cognito_user_pool_client" "web_app" {
   allowed_oauth_flows  = ["code"]
   allowed_oauth_scopes = ["openid", "profile", "email"]
 
-  # Callback URLs - must match deployment domains
-  callback_urls = concat(
-    var.environment == "dev" ? [
-      "http://localhost:5173/",
-      "http://localhost:5173/auth/callback",
-      "http://127.0.0.1:5173/"
-    ] : [],
-    var.environment == "dev" && var.cloudfront_domain != "" ? [
-      "https://${var.cloudfront_domain}/",
-      "https://${var.cloudfront_domain}/auth/callback"
-    ] : [],
-    var.environment == "prod" && var.cloudfront_domain != "" ? [
-      "https://${var.cloudfront_domain}/",
-      "https://${var.cloudfront_domain}/auth/callback"
-    ] : []
-  )
+  # Callback URLs - computed by root module (locals) to handle dev vs prod environment-aware URLs
+  callback_urls = var.callback_urls
 
-  # Logout URLs
-  logout_urls = concat(
-    var.environment == "dev" ? [
-      "http://localhost:5173/",
-      "http://localhost:5173/login",
-      "http://127.0.0.1:5173/"
-    ] : [],
-    var.environment == "dev" && var.cloudfront_domain != "" ? [
-      "https://${var.cloudfront_domain}/",
-      "https://${var.cloudfront_domain}/login"
-    ] : [],
-    var.environment == "prod" && var.cloudfront_domain != "" ? [
-      "https://${var.cloudfront_domain}/",
-      "https://${var.cloudfront_domain}/login"
-    ] : []
-  )
+  # Logout URLs - computed by root module (locals) to handle dev vs prod environment-aware URLs
+  logout_urls = var.logout_urls
 
   # Prevent user existence errors
   prevent_user_existence_errors = "ENABLED"

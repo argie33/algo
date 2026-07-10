@@ -75,6 +75,18 @@ variable "advanced_security_mode" {
   }
 }
 
+variable "callback_urls" {
+  description = "Cognito allowed callback URLs (computed by root module for dev/prod environment-awareness)"
+  type        = list(string)
+  default     = ["http://localhost:5173/", "http://localhost:5173/auth/callback"]
+}
+
+variable "logout_urls" {
+  description = "Cognito allowed logout URLs (computed by root module for dev/prod environment-awareness)"
+  type        = list(string)
+  default     = ["http://localhost:5173/", "http://127.0.0.1:5173/"]
+}
+
 variable "common_tags" {
   description = "Common tags for all resources"
   type        = map(string)

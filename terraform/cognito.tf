@@ -15,6 +15,8 @@ module "cognito" {
   cognito_sender_email         = var.cognito_sender_email
   mfa_configuration            = var.cognito_mfa_configuration
   advanced_security_mode       = var.cognito_advanced_security_mode
+  callback_urls                = local.cognito_callback_urls
+  logout_urls                  = local.cognito_logout_urls
 }
 
 # All Cognito outputs are defined in outputs.tf to avoid duplication at root level

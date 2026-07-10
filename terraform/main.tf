@@ -185,6 +185,7 @@ module "loaders" {
   db_secret_arn               = module.database.rds_credentials_secret_arn
   db_host                     = module.database.rds_proxy_address
   db_port                     = local.db_port
+  db_ssl_mode                 = local.db_ssl_mode
   db_name                     = var.rds_db_name
   db_user                     = module.database.rds_username
   ecr_repository_uri          = module.compute.ecr_repository_url
@@ -232,6 +233,8 @@ module "services" {
   rds_credentials_secret_arn             = module.database.rds_credentials_secret_arn
   rds_password                           = module.database.rds_password
   rds_username                           = module.database.rds_username
+  db_port                                = local.db_port
+  db_ssl_mode                            = local.db_ssl_mode
   algo_secrets_arn                       = module.database.algo_secrets_arn
   psycopg2_layer_arn                     = module.database.psycopg2_layer_arn
   frontend_bucket_name                   = module.storage.frontend_bucket_name
@@ -253,7 +256,7 @@ module "services" {
   eventbridge_scheduler_role_arn         = module.iam.eventbridge_scheduler_role_arn
   api_gateway_stage_name                 = var.api_gateway_stage_name
   api_gateway_logging_enabled            = var.api_gateway_logging_enabled
-  api_cors_allowed_origins               = var.api_cors_allowed_origins
+  api_cors_allowed_origins               = local.cors_allowed_origins
   cloudfront_enabled                     = var.cloudfront_enabled
   cloudfront_cache_default_ttl           = var.cloudfront_cache_default_ttl
   cloudfront_cache_max_ttl               = var.cloudfront_cache_max_ttl
@@ -391,6 +394,8 @@ module "monitoring" {
   # Database configuration
   rds_identifier        = module.database.rds_identifier
   db_host               = module.database.rds_proxy_address
+  db_port               = local.db_port
+  db_ssl_mode           = local.db_ssl_mode
   db_user               = module.database.rds_username
   db_name               = module.database.rds_database_name
   db_password           = module.database.rds_password

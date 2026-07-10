@@ -123,6 +123,26 @@ variable "rds_username" {
   sensitive   = true
 }
 
+variable "db_port" {
+  description = "PostgreSQL port for Lambda connections"
+  type        = number
+  default     = 5432
+  validation {
+    condition     = var.db_port > 0 && var.db_port < 65536
+    error_message = "Port must be between 1 and 65535"
+  }
+}
+
+variable "db_ssl_mode" {
+  description = "PostgreSQL SSL mode for Lambda connections (disable, allow, prefer, require, verify-ca, verify-full)"
+  type        = string
+  default     = "require"
+  validation {
+    condition     = contains(["disable", "allow", "prefer", "require", "verify-ca", "verify-full"], var.db_ssl_mode)
+    error_message = "db_ssl_mode must be one of: disable, allow, prefer, require, verify-ca, verify-full"
+  }
+}
+
 variable "algo_secrets_arn" {
   description = "ARN of algo runtime secrets (Alpaca, FRED, JWT) in Secrets Manager"
   type        = string
@@ -288,12 +308,9 @@ variable "api_gateway_logging_enabled" {
 }
 
 variable "api_cors_allowed_origins" {
-  description = "CORS allowed origins for API. For dev: defaults to localhost. For prod: must provide explicit origins without localhost."
+  description = "CORS allowed origins for API (computed by root module to be environment-aware). Passed from root locals which automatically adds localhost for dev, removes for prod."
   type        = list(string)
-  default = [
-    "http://localhost:5173",
-    "http://localhost:3000"
-  ]
+  default     = []
 }
 
 # ============================================================
