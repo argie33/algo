@@ -165,6 +165,9 @@ DASHBOARD_ENDPOINTS = {
                 "pcr",
                 "total",
                 "ycs",
+                "raw_score",
+                "factors",
+                "date",
             ],
             field_types={
                 "spy_close": (float, int),
@@ -433,6 +436,8 @@ DASHBOARD_ENDPOINTS = {
                 "status",
                 "timestamp",
                 "version",
+                "accuracy_check",
+                "last_check",
             ],
             field_types={
                 "ready_to_trade": bool,
