@@ -95,21 +95,63 @@ python3 scripts/trigger_orchestrator.py --run morning --mode paper
 ## Key Troubleshooting
 
 ### Dashboard shows "data not available"
-- **Cause:** Config.js pointing to wrong API
-- **Fix:** `cd webapp/frontend && node scripts/setup-dev.js`
+
+**⚠️ CRITICAL: You must run TWO services for the dashboard to work!**
+
+**Primary Cause:** dev_server is not running on port 3001.
+
+**Quick Diagnosis:**
+```bash
+python3 scripts/diagnose-dashboard-issue.py
+```
+
+**Complete Fix:**
+1. **Start dev_server (Terminal 1):**
+   ```bash
+   cd api-pkg
+   python dev_server.py
+   ```
+   Should show: `[DEV_SERVER] Ready on http://localhost:3001`
+
+2. **Start React frontend (Terminal 2):**
+   ```bash
+   cd webapp/frontend
+   npm run dev
+   ```
+   Should show: `Local: http://localhost:5173`
+
+3. **Open dashboard:**
+   ```
+   http://localhost:5173
+   ```
+
+**OR use automated startup:**
+```bash
+bash scripts/start-all-dev-services.sh
+```
+
+**If still showing "data not available" after servers are running:**
+- Run: `python3 scripts/test_orchestrator_execution.py`
+  - This populates the database with data
+- Or trigger manually: `python3 scripts/trigger_orchestrator.py --run morning --mode paper`
 
 ### API returns 401/403 errors
 - **Cause:** Missing or invalid auth token
-- **Fix:** Use `Authorization: Bearer dev-admin` header
+- **Fix:** Use `Authorization: Bearer dev-admin` header (dev_server auth is disabled)
 
 ### Dev server won't start
 - **Cause:** Port 3001 already in use
-- **Fix:** `lsof -i :3001` (macOS/Linux) or check port with PowerShell
-- Then restart
+- **Fix:** 
+  - On Windows PowerShell: `Get-NetTCPConnection -LocalPort 3001`
+  - On macOS/Linux: `lsof -i :3001`
+  - Kill the process and retry
 
 ### Vite proxy not working
-- **Cause:** Config.js has non-empty API_URL
-- **Fix:** `npm run setup-dev` or verify config.js API_URL is ""
+- **Cause:** VITE_PROXY_TARGET environment variable set incorrectly
+- **Fix:** 
+  - Clear env: `unset VITE_PROXY_TARGET` (or restart terminal)
+  - Or set it explicitly: `export VITE_PROXY_TARGET=http://localhost:3001`
+  - Then run: `cd webapp/frontend && npm run dev`
 
 ## What's Working
 
