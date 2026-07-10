@@ -43,6 +43,22 @@ SELECT MAX(created_at) as latest_snapshot FROM algo_portfolio_snapshots;
 
 See `steering/OPERATIONS.md` for IAM and scheduler details.
 
+## Dual-Mode Dashboard (Session 45)
+
+**Local Mode** (Development - Recommended)
+```bash
+./start_system.sh local              # Unix/macOS
+.\start_system.ps1 -Mode local       # Windows PowerShell
+```
+
+**AWS Mode** (Production)
+```bash
+./start_system.sh aws                # Unix/macOS
+.\start_system.ps1 -Mode aws         # Windows PowerShell
+```
+
+See `DUAL_MODE_SETUP.md` for complete setup, architecture, and troubleshooting.
+
 ## System Verification (Session 9)
 
 **Before integration testing:**
@@ -53,11 +69,11 @@ python3 scripts/validate_orchestrator_readiness.py
 # Test full end-to-end execution (dry run)
 python3 scripts/test_orchestrator_execution.py
 
-# Start dashboard and verify data loads
-cd webapp && npm run dev
+# Start dashboard (local mode recommended for dev)
+./start_system.sh local
 ```
 
-See `QUICKSTART.md` for complete setup and execution instructions.
+See `QUICKSTART.md` and `DUAL_MODE_SETUP.md` for complete setup instructions.
 
 ## Instant Fixes
 
