@@ -12,6 +12,8 @@ from typing import Any
 import setup_imports  # noqa: F401
 from psycopg2.extensions import cursor
 
+logger = logging.getLogger(__name__)
+
 # Import consolidated response handling service
 try:
     from utils.response_service import wrap_response, format_handler_error, build_error_response
@@ -27,8 +29,6 @@ except ImportError:
             return {"statusCode": 500, "errorType": "error", "message": str(e)}
         def build_error_response(code: int, err_type: str, msg: str) -> dict[str, Any]:
             return {"statusCode": code, "errorType": err_type, "message": msg}
-
-logger = logging.getLogger(__name__)
 
 
 # health is the only truly critical route — if it fails the API can't self-report its own status
