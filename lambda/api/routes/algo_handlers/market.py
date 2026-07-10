@@ -939,8 +939,8 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         logger.debug(f"[MARKETS_DEBUG] market_health breadth: adr={adr_val}, nh={nh_val}, nl={nl_val}")
 
         response["data"]["adr"] = float(adr_val) if adr_val is not None else None
-        response["data"]["nh"] = int(nh_val) if nh_val is not None else None
-        response["data"]["nl"] = int(nl_val) if nl_val is not None else None
+        response["data"]["nh"] = int(float(nh_val)) if nh_val is not None else None
+        response["data"]["nl"] = int(float(nl_val)) if nl_val is not None else None
         response["data"]["pcr"] = (
             float(market_health.get("put_call_ratio")) if market_health.get("put_call_ratio") is not None else None
         )

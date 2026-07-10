@@ -60,7 +60,7 @@ def check_orchestrator() -> bool:
             # Check orchestrator runs from last 24 hours
             cur.execute("""
                 SELECT COUNT(*) as count FROM algo_orchestrator_runs
-                WHERE started_at > NOW() - INTERVAL '24 hours'
+                WHERE started_at > CURRENT_TIMESTAMP - INTERVAL '24 hours'
             """)
             result = cur.fetchone()
             if not result or result['count'] == 0:
