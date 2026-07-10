@@ -898,7 +898,9 @@ def validate_api_response(endpoint_name: str) -> Callable[[Callable[P, dict[str,
     def decorator(func: Callable[P, dict[str, Any]]) -> Callable[P, dict[str, Any]]:
         @wraps(func)
         def wrapper(*args: P.args, **kwargs: P.kwargs) -> dict[str, Any]:
+            logger.debug(f"[VALIDATE_DECORATOR] validate_api_response('{endpoint_name}') decorator wrapping function {func.__name__}")
             response = func(*args, **kwargs)
+            logger.debug(f"[VALIDATE_DECORATOR] Function {func.__name__} returned: status={response.get('statusCode') if isinstance(response, dict) else 'N/A'}")
 
             # Skip validation for error responses (400, 401, 403, 404, 500, 503)
             # Error responses have their own format and don't need contract validation

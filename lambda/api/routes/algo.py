@@ -393,7 +393,10 @@ def _dispatch(  # noqa: C901
     elif path == "/api/algo/market":
         return _get_market(cur)
     elif path == "/api/algo/market-factors":
-        return _get_market_factors(cur)
+        logger.debug("[ALGO_ROUTE] Dispatching to _get_market_factors")
+        result = _get_market_factors(cur)
+        logger.debug(f"[ALGO_ROUTE] _get_market_factors returned status={result.get('statusCode')}")
+        return result
     elif path == "/api/algo/portfolio":
         return _get_algo_portfolio(cur)
     elif path == "/api/algo/metrics":

@@ -916,6 +916,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         response["data"]["current"] = response_data
         response["data"]["active_tier"] = active_tier
         response["data"]["history"] = history
+        response["data"]["sectors"] = sectors
         # Include spy_close in market_health as well (required by dashboard fetcher)
         market_health["spy_close"] = spy_close
         response["data"]["market_health"] = market_health
