@@ -24,12 +24,6 @@ if "LOCAL_MODE" not in os.environ:
     os.environ["LOCAL_MODE"] = "true"
     print("[DEV_SERVER] AUTO: Setting LOCAL_MODE=true for local development", flush=True)
 
-# For dev_server: Allow stale portfolio data during testing phase
-# (orchestrator schedules not yet deployed via GitHub Actions)
-if "ALLOW_STALE_PORTFOLIO_DATA" not in os.environ:
-    os.environ["ALLOW_STALE_PORTFOLIO_DATA"] = "true"
-    print("[DEV_SERVER] AUTO: Setting ALLOW_STALE_PORTFOLIO_DATA=true for testing phase", flush=True)
-
 # For dev_server: Enable dev token authentication (dev-admin, dev-user, etc.)
 # Required for local development when Cognito is configured in environment
 if "ALLOW_DEV_TOKENS_TEST" not in os.environ:
