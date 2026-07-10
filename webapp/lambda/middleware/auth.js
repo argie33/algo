@@ -19,6 +19,11 @@ const authenticateToken = (req, res, next) => {
   const isTest = nodeEnv === "test";
   const isDev = nodeEnv === "development" && !isLambda;
 
+  // DEBUG: Log auth detection (remove in production)
+  if (process.env.DEBUG_AUTH) {
+    console.log(`[AUTH DEBUG] isLambda=${isLambda}, nodeEnv=${nodeEnv}, isProd=${isProd}, isTest=${isTest}, isDev=${isDev}`);
+  }
+
   // CRITICAL: Reject test authentication in production
   if (isProd && isTest) {
     logger.security("auth_bypass_attempt", {
@@ -31,16 +36,19 @@ const authenticateToken = (req, res, next) => {
 
   // Path 1: Development environment (local dev with dev tokens)
   if (isDev) {
+    if (process.env.DEBUG_AUTH) console.log("[AUTH DEBUG] Using handleDevAuth");
     return handleDevAuth(req, res, next);
   }
 
   // Path 2: Test environment (explicit test tokens)
   if (isTest && !isProd) {
+    if (process.env.DEBUG_AUTH) console.log("[AUTH DEBUG] Using handleTestAuth");
     return handleTestAuth(req, res, next);
   }
 
   // Path 3: Production (async validation with real Cognito JWT)
   // This is the default for all other environments (staging, prod)
+  if (process.env.DEBUG_AUTH) console.log("[AUTH DEBUG] Using authenticateTokenAsync (production mode)");
   return authenticateTokenAsync(req, res, next);
 };
 
@@ -91,6 +99,10 @@ const handleDevAuth = (req, res, next) => {
     "admin-token": { role: "admin", username: "adminuser" },
     "mock-access-token": { role: "user", username: "mockuser" },
   };
+
+  if (process.env.DEBUG_AUTH) {
+    console.log(`[DEV AUTH DEBUG] Token: "${token}", Valid tokens: ${Object.keys(devTokens).join(", ")}`);
+  }
 
   if (devTokens[token]) {
     const tokenConfig = devTokens[token];

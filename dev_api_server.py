@@ -175,9 +175,9 @@ def health():
 
 
 if __name__ == '__main__':
-    logger.info("Starting development API server on 0.0.0.0:8000")
+    logger.info("Starting development API server on 0.0.0.0:3001")
     logger.info("Routes:")
     for rule in app.url_map.iter_rules():
         if str(rule).startswith('/api') or str(rule) == '/health':
             logger.info(f"  {rule}")
-    app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=3001, debug=False, use_reloader=False)
