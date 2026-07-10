@@ -684,54 +684,69 @@ def _get_algo_portfolio(cur: cursor) -> Any:
 @db_route_handler("get daily return histogram")
 def _get_daily_return_histogram(cur: cursor) -> Any:
     """Return histogram of daily portfolio returns with stats."""
-    cur.execute("""
-        SELECT daily_return_pct
-        FROM algo_portfolio_snapshots
-        WHERE daily_return_pct IS NOT NULL
-        ORDER BY snapshot_date DESC
-        LIMIT 250
-    """)
-    rows = cur.fetchall()
-    returns = [float(r["daily_return_pct"]) for r in rows if r.get("daily_return_pct") is not None]
+    try:
+        cur.execute("""
+            SELECT daily_return_pct
+            FROM algo_portfolio_snapshots
+            WHERE daily_return_pct IS NOT NULL
+            ORDER BY snapshot_date DESC
+            LIMIT 250
+        """)
+        rows = cur.fetchall()
+        returns = [float(r["daily_return_pct"]) for r in rows if r.get("daily_return_pct") is not None]
 
-    if not returns:
-        response = list_response([], total=0, limit=None, offset=None)
-        response["data"]["stats"] = None
-        return response
+        if not returns:
+            return {
+                "statusCode": 200,
+                "data": {
+                    "items": [],
+                    "total": 0,
+                    "stats": None
+                }
+            }
 
-    bucket_width = 0.5
-    min_ret = min(returns)
-    max_ret = max(returns)
-    min_bucket = math.floor(min_ret / bucket_width) * bucket_width
-    max_bucket = math.ceil(max_ret / bucket_width) * bucket_width
+        bucket_width = 0.5
+        min_ret = min(returns)
+        max_ret = max(returns)
+        min_bucket = math.floor(min_ret / bucket_width) * bucket_width
+        max_bucket = math.ceil(max_ret / bucket_width) * bucket_width
 
-    buckets_dict = {}
-    mid = min_bucket
-    while mid <= max_bucket:
-        buckets_dict[mid] = 0
-        mid += bucket_width
+        buckets_dict = {}
+        mid = min_bucket
+        while mid <= max_bucket:
+            buckets_dict[mid] = 0
+            mid += bucket_width
 
-    for ret in returns:
-        bucket_mid = round(ret / bucket_width) * bucket_width
-        if bucket_mid in buckets_dict:
-            buckets_dict[bucket_mid] += 1
+        for ret in returns:
+            bucket_mid = round(ret / bucket_width) * bucket_width
+            if bucket_mid in buckets_dict:
+                buckets_dict[bucket_mid] += 1
 
-    buckets = [
-        {"mid": format_decimal_string(mid, precision=2), "count": count} for mid, count in sorted(buckets_dict.items())
-    ]
+        buckets = [
+            {"mid": format_decimal_string(mid, precision=2), "count": count}
+            for mid, count in sorted(buckets_dict.items())
+        ]
 
-    mean_ret = sum(returns) / len(returns)
-    variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
-    std_ret = math.sqrt(variance)
-    stats = {
-        "count": len(returns),
-        "mean": format_decimal_string(mean_ret, precision=2),
-        "std": format_decimal_string(std_ret, precision=2),
-    }
+        mean_ret = sum(returns) / len(returns)
+        variance = sum((r - mean_ret) ** 2 for r in returns) / len(returns)
+        std_ret = math.sqrt(variance)
+        stats = {
+            "count": len(returns),
+            "mean": format_decimal_string(mean_ret, precision=2),
+            "std": format_decimal_string(std_ret, precision=2),
+        }
 
-    response = list_response(buckets, total=len(buckets), limit=None, offset=None)
-    response["data"]["stats"] = stats
-    return response
+        return {
+            "statusCode": 200,
+            "data": {
+                "items": buckets,
+                "total": len(buckets),
+                "stats": stats
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error in daily return histogram: {e}")
+        return error_response(500, "internal_error", "Failed to generate histogram")
 
 
 @db_route_handler("get holding period distribution")
