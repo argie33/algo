@@ -27,6 +27,10 @@ export default defineConfig(({ mode }) => {
     ? (proxyTargetEnv.trim() || "http://localhost:3001")  // Empty string or whitespace → localhost
     : "";
 
+  if (isDevelopment) {
+    console.log(`[VITE_CONFIG] proxyTarget=${proxyTarget}, proxyTargetEnv="${proxyTargetEnv}", isDev=${isDevelopment}`);
+  }
+
   return {
     plugins: [
       react({
