@@ -16,11 +16,19 @@ logger = logging.getLogger(__name__)
 
 # Import consolidated response handling service
 try:
-    from utils.response_service import wrap_response, format_handler_error, build_error_response
+    from utils.response_service import (
+        build_error_response,
+        format_handler_error,
+        wrap_response,
+    )
 except ImportError:
     # Fallback for different import contexts
     try:
-        from api_utils.response_service import wrap_response, format_handler_error, build_error_response
+        from api_utils.response_service import (
+            build_error_response,
+            format_handler_error,
+            wrap_response,
+        )
     except ImportError:
         # If response_service doesn't exist, create stubs (shouldn't happen in production)
         logger.warning("response_service.py not found - using stub implementations")
