@@ -163,6 +163,22 @@ if "algo" in _AVAILABLE_ROUTES:
         PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
     logger.info(f"[STARTUP] Registered {len(dashboard_endpoints)} dashboard endpoints as public")
 
+# Register other public analytics endpoints needed by dashboard
+# These support market context, economic data, and analytical views
+if all(m in _AVAILABLE_ROUTES for m in ["economic", "market", "sentiment", "prices", "stocks", "signals"]):
+    analytics_endpoints = [
+        ("/api/economic", _AVAILABLE_ROUTES.get("economic")),
+        ("/api/market", _AVAILABLE_ROUTES.get("market")),
+        ("/api/sentiment", _AVAILABLE_ROUTES.get("sentiment")),
+        ("/api/prices", _AVAILABLE_ROUTES.get("prices")),
+        ("/api/stocks", _AVAILABLE_ROUTES.get("stocks")),
+        ("/api/signals", _AVAILABLE_ROUTES.get("signals")),
+    ]
+    for path, handler in analytics_endpoints:
+        if handler:
+            PUBLIC_HANDLERS[path] = handler
+    logger.info(f"[STARTUP] Registered {len([e for e, h in analytics_endpoints if h])} analytics endpoints as public")
+
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
 # Also includes aliases: /api/positions → /api/algo/positions, /api/portfolio → /api/algo/portfolio
 _HANDLER_CONFIG = [
