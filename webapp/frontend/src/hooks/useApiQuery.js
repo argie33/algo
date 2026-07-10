@@ -110,10 +110,11 @@ export const useApiQuery = (
 
     const now = Date.now();
     const age = now - fetchedAt;
-    // FIXED: Dev mode uses 4-hour threshold, production uses 30 minutes
+    // FIXED: Dev mode uses 8-hour threshold, production uses 30 minutes
     // Dev mode allows testing without needing real-time orchestrator runs
+    // (orchestrator runs on schedule 9:30 AM, 1 PM, 3 PM, 5:30 PM ET)
     const isDev = import.meta.env?.DEV;
-    const staleThreshold = isDev ? 4 * 60 * 60 * 1000 : 30 * 60 * 1000;
+    const staleThreshold = isDev ? 8 * 60 * 60 * 1000 : 30 * 60 * 1000;
     const isStale = age > staleThreshold;
 
     if (Array.isArray(data)) {
