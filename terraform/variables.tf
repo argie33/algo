@@ -393,7 +393,7 @@ variable "log_archive_intelligent_tiering_enabled" {
 variable "api_lambda_memory" {
   description = "Memory for API Lambda"
   type        = number
-  default     = 256
+  default     = 512
 }
 
 variable "api_lambda_timeout" {
@@ -417,7 +417,7 @@ variable "api_lambda_reserved_concurrency" {
 variable "api_lambda_provisioned_concurrency" {
   description = "Provisioned concurrency for API Lambda (pre-warmed instances to avoid VPC cold starts). Cost: ~$12/month per unit. Set to 0 to disable."
   type        = number
-  default     = 1
+  default     = 5
 }
 
 variable "algo_lambda_memory" {
