@@ -112,8 +112,22 @@ def render_header_components(
         refresh_s = f"  [dim]↻{secs}s[/]"
 
     if has_error(ctx.mkt) or has_error(ctx.cfg):
+        error_hint = ""
+        api_url = ""
+        try:
+            from dashboard.api_data_layer import get_api_url
+            api_url = get_api_url()
+            if api_url and not ("localhost" in api_url or "127.0.0.1" in api_url):
+                error_hint = "\n[dim]Hint: Are you trying to use AWS? Try:[/]\n[cyan]python -m dashboard --local[/]"
+        except Exception:
+            pass
+
+        error_msg = "[red]Market/Config Error - Dashboard data unavailable[/]"
+        if error_hint:
+            error_msg += error_hint
+
         hdr_panel = Panel(
-            Text.from_markup("[red]Market/Config Error - Dashboard data unavailable[/]"),
+            Text.from_markup(error_msg),
             title="[bold red]✗ Data Error[/]",
             border_style="red",
         )
