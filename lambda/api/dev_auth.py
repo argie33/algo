@@ -25,17 +25,24 @@ def is_local_dev_mode() -> bool:
     Returns True ONLY if:
     1. We're NOT in AWS Lambda (no AWS_LAMBDA_FUNCTION_NAME)
     2. COGNITO_USER_POOL_ID is NOT configured
+    3. OR ALLOW_DEV_TOKENS_TEST override is set (for integration testing only)
 
-    This ensures dev mode is IMPOSSIBLE in production Lambda.
+    This ensures dev mode is IMPOSSIBLE in production Lambda, except when
+    explicitly enabled for testing with ALLOW_DEV_TOKENS_TEST env var.
     """
     is_lambda = "AWS_LAMBDA_FUNCTION_NAME" in os.environ
     cognito_configured = bool(os.getenv("COGNITO_USER_POOL_ID", "").strip())
+    allow_dev_test = os.getenv("ALLOW_DEV_TOKENS_TEST", "").lower() == "true"
 
     # Dev mode ONLY if: NOT in Lambda AND Cognito NOT configured
-    is_dev = (not is_lambda) and (not cognito_configured)
+    # OR if explicitly enabled for testing
+    is_dev = ((not is_lambda) and (not cognito_configured)) or allow_dev_test
 
     if is_dev:
-        logger.info("[DEV_AUTH] Local development mode enabled (Cognito not configured)")
+        if allow_dev_test:
+            logger.warning("[DEV_AUTH] Testing mode enabled: accepting dev tokens in production! This is ONLY for integration testing.")
+        else:
+            logger.info("[DEV_AUTH] Local development mode enabled (Cognito not configured)")
 
     return is_dev
 
