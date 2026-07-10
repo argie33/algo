@@ -169,6 +169,13 @@ class MarketCalendar:
         if not check_datetime:
             check_datetime = datetime.now(_ET)
 
+        # Convert UTC datetime to ET if needed
+        if check_datetime.tzinfo is not None and check_datetime.tzinfo != _ET:
+            check_datetime = check_datetime.astimezone(_ET)
+        elif check_datetime.tzinfo is None:
+            # Naive datetime assumed to be ET
+            check_datetime = check_datetime.replace(tzinfo=_ET)
+
         check_date = check_datetime.date()
         check_time = check_datetime.time()
 
