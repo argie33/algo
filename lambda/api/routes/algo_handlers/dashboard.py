@@ -1291,9 +1291,9 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             """)
             top_a = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
-            # Signal count trend: last 7 days
+            # Signal count trend: last 7 days - cast date to text at source
             cur.execute("""
-                SELECT s.signal_date AS date,
+                SELECT s.signal_date::text as date,
                        COUNT(*) FILTER (WHERE s.signal_quality_score >= 60 OR s.signal_quality_score IS NULL) AS buy_n,
                        COUNT(*) AS total_n
                 FROM algo_signals s
@@ -1302,13 +1302,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 ORDER BY s.signal_date DESC
                 LIMIT 7
             """)
-            trend_rows = cur.fetchall()
-            trend = []
-            for row in trend_rows:
-                row_dict = safe_json_serialize(safe_dict_convert(row))
-                if row_dict.get("date"):
-                    row_dict["date"] = str(row_dict["date"])
-                trend.append(row_dict)
+            trend = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Count qualifying high-quality signals (score >= 70)
             cur.execute("""
@@ -1326,32 +1320,22 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 freshness["max_date"] = str(freshness["max_date"])
             freshness = safe_json_serialize(freshness)
 
-            # Explicitly ensure date is a string or None (not a date object)
+            # Cast date to string at source
             sig_date = None
             if sig and sig.get("d"):
-                d_val = sig["d"]
-                sig_date = d_val.isoformat() if hasattr(d_val, 'isoformat') else str(d_val)
-
-            # Ensure ALL nested dicts are also fully serialized
-            buy_sigs_final = [safe_json_serialize(s) for s in buy_sigs[:15]] if buy_sigs else []
-            near_final = [safe_json_serialize(n) for n in near[:8]] if near else []
-            top_a_final = [safe_json_serialize(t) for t in top_a[:20]] if top_a else []
-            trend_final = [safe_json_serialize(tr) for tr in trend] if trend else []
-            grades_final = safe_json_serialize(grades) if grades else {}
+                sig_date = str(sig["d"])
 
             sig_response = {
                 "n": qualifying_buy_count,
                 "total": total_n,
                 "date": sig_date,
-                "buy_sigs": buy_sigs_final,
-                "near": near_final,
-                "top_a": top_a_final,
-                "grades": grades_final,
-                "trend": trend_final,
+                "buy_sigs": buy_sigs[:15] if buy_sigs else [],
+                "near": near[:8] if near else [],
+                "top_a": top_a[:20] if top_a else [],
+                "grades": grades,
+                "trend": trend,
                 "data_freshness": freshness,
             }
-            # Final pass: ensure entire response tree is JSON-serializable
-            sig_response = safe_json_serialize(sig_response)
 
         return json_response(200, sig_response)
     except (
