@@ -73,10 +73,10 @@ _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
 if not _dashboard_api_url:
     logger.debug(
         "DASHBOARD_API_URL environment variable not set. "
-        "Using default localhost:8000 for development. "
+        "Using default localhost:3001 for development (dev_server port). "
         "For production, set DASHBOARD_API_URL to your API endpoint."
     )
-API_BASE_URL = _dashboard_api_url if _dashboard_api_url else "http://localhost:8000"
+API_BASE_URL = _dashboard_api_url if _dashboard_api_url else "http://localhost:3001"
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
