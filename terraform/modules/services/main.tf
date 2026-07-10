@@ -204,6 +204,9 @@ resource "aws_lambda_function" "api" {
       CONTACT_RATE_LIMIT_TABLE = aws_dynamodb_table.contact_rate_limit.name
       # O-1: JWT token blocklist for server-side logout (revoked tokens rejected until natural expiry)
       TOKEN_BLOCKLIST_TABLE = aws_dynamodb_table.token_blocklist.name
+      # DEV TESTING: Allow dev tokens for dashboard testing without Cognito credentials
+      # When set to "true", dev-admin tokens are accepted (only when Cognito not fully configured)
+      ALLOW_DEV_TOKENS_TEST = "true"
     }
   }
 

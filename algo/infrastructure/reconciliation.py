@@ -1284,7 +1284,7 @@ class DailyReconciliation:
                             pnl,
                             pnl_pct,
                             PositionStatus.OPEN.value,
-                            run_date,
+                            datetime.now(),
                             [trade_id],
                             stop_loss_price_retry,
                             stop_loss_price_retry,
