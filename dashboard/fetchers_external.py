@@ -300,7 +300,7 @@ def fetch_sentiment(c: None) -> dict[str, Any]:
 
         d = data
         # Validate required fields
-        required = ["fear_greed_index", "label"]
+        required = ["fear_greed_index"]
         valid, error_msg = FetcherValidator.require_fields(d, required, "fetch_sentiment")
         if not valid:
             logger.error(error_msg)
@@ -313,7 +313,17 @@ def fetch_sentiment(c: None) -> dict[str, Any]:
         if not isinstance(fg_raw, (int, float, str)):
             raise ValueError(f"fear_greed_index must be numeric, got {type(fg_raw)}")
         fg = float(fg_raw)
-        label = d.get("label")
+        # Derive label from fear/greed index (scale 0-100)
+        if fg <= 25:
+            label = "Extreme Fear"
+        elif fg <= 45:
+            label = "Fear"
+        elif fg < 55:
+            label = "Neutral"
+        elif fg <= 75:
+            label = "Greed"
+        else:
+            label = "Extreme Greed"
         c_fg = R if fg <= 25 else (Y if fg <= 45 else (G if fg >= 75 else CY))
         return {
             "fg": round(fg, 1),
