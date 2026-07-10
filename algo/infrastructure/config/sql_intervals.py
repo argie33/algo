@@ -27,7 +27,7 @@ Configuration Keys:
     sql_interval_52w_days      → INTERVAL '364 days'
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from . import AlgoConfig
@@ -118,7 +118,4 @@ def get_interval_days(interval_key: str, config: "AlgoConfig | None" = None) -> 
     value = config.get(config_key)
     if value is None:
         raise ValueError(f"Configuration key {config_key!r} not found")
-    if isinstance(value, (int, float)):
-        return value
-    result: int | float = int(value)
-    return result
+    return cast(int | float, value if isinstance(value, (int, float)) else int(value))

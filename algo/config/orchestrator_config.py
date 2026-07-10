@@ -103,7 +103,7 @@ class OrchestratorConfig:
         return len(errors) == 0, errors
 
     @classmethod
-    def log_config(cls, logger: logging.Logger) -> None:
+    def log_config(cls: type["OrchestratorConfig"], logger: logging.Logger) -> None:
         """Log all configuration values for debugging."""
         logger.info(
             "ORCHESTRATOR CONFIG: "

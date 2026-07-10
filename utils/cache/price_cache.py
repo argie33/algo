@@ -10,7 +10,7 @@ import json
 import logging
 import os
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +61,7 @@ class PriceCache:
                     cached = self.redis.get(cache_key)
                     if cached:
                         logger.debug(f"[PRICE_CACHE] Redis hit for {symbol}/{interval}")
-                        result: dict[str, Any] = json.loads(cached)
-                        return result
+                        return cast(dict[str, Any], json.loads(cached))
                 except Exception as e:
                     logger.warning(f"[PRICE_CACHE] Redis get failed: {e}")
 
@@ -75,7 +74,7 @@ class PriceCache:
                         f"[PRICE_CACHE] Local hit for {symbol}/{interval} "
                         f"(age: {age_seconds:.0f}s, ttl: {self.cache_ttl_seconds}s)"
                     )
-                    return data if isinstance(data, dict) else None
+                    return cast(dict[str, Any], data)
                 else:
                     # Evict stale entry
                     del self._local_cache[cache_key]
