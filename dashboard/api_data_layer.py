@@ -444,19 +444,6 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
 
             if resp.status_code >= 400:
                 logger.warning(f"API {endpoint}: {resp.status_code} - {resp.text[:100]}")
-                # Check for deprecated endpoint (503 with errorType=deprecated_endpoint)
-                try:
-                    resp_data = resp.json()
-                    if resp.status_code == 503 and resp_data.get("errorType") == "deprecated_endpoint":
-                        msg = resp_data.get("message", "Endpoint deprecated")
-                        logger.info(f"API {endpoint}: endpoint deprecated, failing fast without retries")
-                        return {
-                            "_error": f"API error {resp.status_code}: {msg}",
-                            "_endpoint_deprecated": True,
-                        }
-                except (ValueError, AttributeError):
-                    pass  # If JSON parsing fails, continue with normal error handling
-
                 # Auth errors (401/403) are permanent, don't retry and don't count toward circuit breaker
                 if resp.status_code in (401, 403):
                     return {
@@ -514,14 +501,6 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                         return {
                             "_error": f"API error {status_code_int}: {msg}",
                             "_auth_error": True,
-                        }
-                    # Deprecated endpoints (503 with errorType=deprecated_endpoint) should fail fast without retries
-                    if status_code_int == 503 and data.get("errorType") == "deprecated_endpoint":
-                        msg = data.get("message", "Endpoint deprecated")
-                        logger.info(f"API {endpoint}: endpoint deprecated, failing fast without retries")
-                        return {
-                            "_error": f"API error {status_code_int}: {msg}",
-                            "_endpoint_deprecated": True,
                         }
                     # For other 4xx errors (client errors), don't retry; fail immediately
                     if status_code_int < 500:
