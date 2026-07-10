@@ -972,7 +972,7 @@ def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | Non
         # Cognito JWK is always a public key, safe to cast
         payload = jwt.decode(
             token,
-            rsa_key,  # type: ignore[arg-type]
+            rsa_key,
             algorithms=["RS256"],
             issuer=f"https://cognito-idp.{cognito_region}.amazonaws.com/{cognito_user_pool_id}",
             options={"verify_exp": True, "verify_aud": False},

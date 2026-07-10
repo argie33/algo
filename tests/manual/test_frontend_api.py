@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Test frontend API connectivity from browser perspective"""
+import pytest
 import requests
 import json
 
-def test_api_endpoint(url, headers=None):
+@pytest.mark.skip(reason="Manual test - requires running dev_server")
+def test_api_endpoint(url=None, headers=None):
     """Test if an endpoint is accessible"""
     if headers is None:
         headers = {"Authorization": "Bearer dev-admin"}
