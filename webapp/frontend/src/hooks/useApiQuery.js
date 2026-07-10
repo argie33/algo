@@ -110,9 +110,11 @@ export const useApiQuery = (
 
     const now = Date.now();
     const age = now - fetchedAt;
-    // FIXED: Reduced stale threshold from 2 hours to 30 minutes for intraday trading
-    // In intraday trading, positions close, orders fill, and market regime changes within 2 hours
-    const isStale = age > 30 * 60 * 1000; // 30 minutes
+    // FIXED: Dev mode uses 4-hour threshold, production uses 30 minutes
+    // Dev mode allows testing without needing real-time orchestrator runs
+    const isDev = import.meta.env?.DEV;
+    const staleThreshold = isDev ? 4 * 60 * 60 * 1000 : 30 * 60 * 1000;
+    const isStale = age > staleThreshold;
 
     if (Array.isArray(data)) {
       return data.map((item) => ({
