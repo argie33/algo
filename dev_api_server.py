@@ -35,7 +35,7 @@ from routes.algo_handlers.monitoring import (
 )
 from routes.algo_handlers.metrics import (
     _get_algo_portfolio,
-    _get_daily_return_histogram,
+    # _get_daily_return_histogram,  # Temporarily disabled for testing
     _get_holding_period_distribution,
     _get_stage_distribution,
     _get_trade_distribution,
