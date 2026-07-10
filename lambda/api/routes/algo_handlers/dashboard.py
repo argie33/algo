@@ -1325,12 +1325,20 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 
             freshness = check_data_freshness(cur, "algo_signals", "signal_date", warning_days=1)
             # Ensure freshness dict has dates as strings (check_data_freshness converts them, but be explicit)
+            if freshness and "max_date" in freshness and freshness["max_date"] is not None:
+                freshness["max_date"] = str(freshness["max_date"])
             freshness = safe_json_serialize(freshness)
+
+            # Explicitly ensure date is a string or None (not a date object)
+            sig_date = None
+            if sig and sig.get("d"):
+                d_val = sig["d"]
+                sig_date = d_val.isoformat() if hasattr(d_val, 'isoformat') else str(d_val)
 
             sig_response = {
                 "n": qualifying_buy_count,
                 "total": total_n,
-                "date": str(sig["d"]) if sig and sig.get("d") else None,
+                "date": sig_date,
                 "buy_sigs": buy_sigs[:15] if buy_sigs else [],
                 "near": near[:8] if near else [],
                 "top_a": top_a[:20] if top_a else [],
