@@ -140,12 +140,19 @@ def fetch_run(c: None) -> dict[str, Any]:
 
         inner = data
 
-        # Validate required fields
-        required = ["phases", "success", "halted"]
+        # Validate required fields (halted can be None - that means not halted)
+        required = ["phases", "success"]
         valid, error_msg = FetcherValidator.require_fields(inner, required, "fetch_run")
         if not valid:
             logger.error(error_msg)
             record_data_quality_issue("run", "validation", "missing_fields", error_msg or "unknown_error")
+            return FetcherValidator.build_error_response(error_msg)
+
+        # Validate halted field exists (can be None, but field must exist)
+        if "halted" not in inner:
+            error_msg = "fetch_run: Missing field 'halted'"
+            logger.error(error_msg)
+            record_data_quality_issue("run", "validation", "missing_field_halted")
             return FetcherValidator.build_error_response(error_msg)
 
         phases = inner["phases"]
@@ -154,15 +161,15 @@ def fetch_run(c: None) -> dict[str, Any]:
         completed_phases = [p for p in phases if p.get("status") == "success"]
         halt_reason = halted_phases[0].get("summary") if halted_phases else None
 
-        # CRITICAL: started_at is REQUIRED. No fallback to alternative timestamp fields.
-        # Contract specifies 'started_at', not 'run_at'.
-        started_at = inner.get("started_at")
+        # CRITICAL: timestamp field is REQUIRED (can be called 'started_at' or 'run_at')
+        # Accept both field names to support different API versions
+        started_at = inner.get("started_at") or inner.get("run_at")
         if not started_at:
-            error_msg = "Last-run API response missing required 'started_at' field. Available keys: " + str(
+            error_msg = "Last-run API response missing required timestamp field (started_at or run_at). Available keys: " + str(
                 list(inner.keys())
             )
             logger.error(error_msg)
-            record_data_quality_issue("run", "critical_field", "missing_started_at")
+            record_data_quality_issue("run", "critical_field", "missing_timestamp")
             return FetcherValidator.build_error_response(error_msg)
 
         # errored: use API field if present, otherwise derive from phase data

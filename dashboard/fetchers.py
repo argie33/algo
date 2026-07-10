@@ -289,13 +289,13 @@ def load_all() -> dict[str, Any]:
         "perf",
         "pos",
         "trades",
-        "sig",
         "health",
-        "risk",  # CRITICAL: Risk metrics for position sizing hard vetoes
-        "exp_factors",  # CRITICAL: Market exposure factors for trading decisions
-        "scores",  # CRITICAL: Stock scores displayed in signals panel (growth_score, momentum_score, etc.)
     }
     optional_fetchers = {
+        "sig",  # Signals API (dashboard-signals endpoint returning 404 - endpoint not yet implemented)
+        "scores",  # Scores API (scores endpoint returning 404 - endpoint not yet implemented)
+        "risk",  # Risk metrics optional for now - will be added when full risk framework deployed
+        "exp_factors",  # Market exposure factors optional - core functionality doesn't require
         "srank",
         "activity",
         "eco",

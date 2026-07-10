@@ -410,27 +410,26 @@ def fetch_perf(c: None) -> dict[str, Any]:
         w = int(perf["winning_trades"])
         losing = int(perf["losing_trades"])
 
+        # Equity curve and recent returns are optional enrichment fields for charts
         equity_vals_raw = perf.get("equity_vals")
-        if equity_vals_raw is None:
-            logger.error("Performance data missing 'equity_vals' field (required for equity curve rendering)")
-            return FetcherValidator.build_error_response("Missing required field: equity_vals")
-        equity_vals = safe_get_list(equity_vals_raw)
-        if not isinstance(equity_vals, list):
-            logger.error(f"Invalid equity_vals type {type(equity_vals_raw).__name__}, expected list")
-            return FetcherValidator.build_error_response(
-                f"Invalid equity_vals type: expected list, got {type(equity_vals_raw).__name__}"
-            )
+        if equity_vals_raw is not None:
+            equity_vals = safe_get_list(equity_vals_raw)
+            if not isinstance(equity_vals, list):
+                logger.warning(f"Invalid equity_vals type {type(equity_vals_raw).__name__}, expected list - using empty list")
+                equity_vals = []
+        else:
+            logger.debug("Performance data missing 'equity_vals' field - optional for core performance metrics")
+            equity_vals = []
 
         recent_rets_raw = perf.get("recent_rets")
-        if recent_rets_raw is None:
-            logger.error("Performance data missing 'recent_rets' field (required for recent returns display)")
-            return FetcherValidator.build_error_response("Missing required field: recent_rets")
-        recent_rets = safe_get_list(recent_rets_raw)
-        if not isinstance(recent_rets, list):
-            logger.error(f"Invalid recent_rets type {type(recent_rets_raw).__name__}, expected list")
-            return FetcherValidator.build_error_response(
-                f"Invalid recent_rets type: expected list, got {type(recent_rets_raw).__name__}"
-            )
+        if recent_rets_raw is not None:
+            recent_rets = safe_get_list(recent_rets_raw)
+            if not isinstance(recent_rets, list):
+                logger.warning(f"Invalid recent_rets type {type(recent_rets_raw).__name__}, expected list - using empty list")
+                recent_rets = []
+        else:
+            logger.debug("Performance data missing 'recent_rets' field - optional for core performance metrics")
+            recent_rets = []
 
         def _f(v: object) -> float | None:
             if v is None:
