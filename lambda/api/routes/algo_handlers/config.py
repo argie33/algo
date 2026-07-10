@@ -102,7 +102,8 @@ def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> Any:
     # Get current value for audit
     cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
     old_row = cur.fetchone()
-    old_value = old_row["value"] if old_row else None
+    old_row = safe_dict_convert(old_row) if old_row else None
+    old_value = old_row.get("value") if old_row else None
 
     # Reset to default
     cur.execute(
@@ -151,6 +152,7 @@ def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: 
     if row is None:
         return error_response(404, "not_found", f"Config key not found: {key}")
 
+    row = safe_dict_convert(row)
     new_value = body.get("value")
 
     # Validate the new value against AlgoConfig constraints
@@ -169,7 +171,8 @@ def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: 
     # Get old value for audit
     cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
     old_row = cur.fetchone()
-    old_value = old_row["value"] if old_row else None
+    old_row = safe_dict_convert(old_row) if old_row else None
+    old_value = old_row.get("value") if old_row else None
 
     # Update the config
     cur.execute(

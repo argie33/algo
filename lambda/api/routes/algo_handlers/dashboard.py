@@ -109,7 +109,14 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     try:
         # Get list of open position symbols from the positions we fetched
         if positions:
-            open_symbols = [p.get("symbol") for p in positions if p.get("symbol")]
+            # CRITICAL FIX: positions are tuples from fetchall(), must convert to dict first
+            open_symbols = []
+            for p in positions:
+                p_dict = safe_dict_convert(p)
+                symbol = p_dict.get("symbol")
+                if symbol:
+                    open_symbols.append(symbol)
+
             if open_symbols:
                 # Build placeholders for SQL query
                 placeholders = ",".join(["%s"] * len(open_symbols))
@@ -121,9 +128,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                     tuple(open_symbols),
                 )
                 for row in cur.fetchall():
-                    # Handle both dict-like and tuple returns
-                    ticker = row[0] if isinstance(row, (tuple, list)) else row.get("ticker")
-                    sector = row[1] if isinstance(row, (tuple, list)) else row.get("sector")
+                    row_dict = safe_dict_convert(row)
+                    ticker = row_dict.get("ticker")
+                    sector = row_dict.get("sector")
                     if ticker and sector:
                         sector_map[ticker] = sector
                 logger.debug(f"[POSITIONS] Loaded sector data for {len(sector_map)} symbols from company_profile")

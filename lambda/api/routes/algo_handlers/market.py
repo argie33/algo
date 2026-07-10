@@ -181,7 +181,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 FROM data_loader_status
                 ORDER BY table_name
             """)
-        loader_rows = [dict(r) for r in cur.fetchall() if r["table_name"] not in pipeline_removed_tables]
+        loader_rows_raw = cur.fetchall()
+        loader_rows = []
+        for r in loader_rows_raw:
+            r_dict = safe_dict_convert(r)
+            if r_dict.get("table_name") not in pipeline_removed_tables:
+                loader_rows.append(r_dict)
         loader_names = {r["table_name"] for r in loader_rows}
 
         # Algo-generated tables written by the orchestrator, not tracked in data_loader_status
@@ -206,11 +211,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 cur.execute(query)
                 r = cur.fetchone()
                 if r:
+                    r_dict = safe_dict_convert(r)
                     algo_rows.append(
                         {
                             "table_name": tbl_name,
-                            "row_count": r["row_count"],
-                            "last_updated": r["last_updated"],
+                            "row_count": r_dict.get("row_count"),
+                            "last_updated": r_dict.get("last_updated"),
                         }
                     )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
