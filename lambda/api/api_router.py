@@ -142,6 +142,22 @@ if "algo" in _AVAILABLE_ROUTES:
         "/api/algo/markets",        # Market data
         "/api/algo/scores",         # Stock scores
         "/api/algo/dashboard-signals",  # Signal data for dashboard
+        "/api/algo/circuit-breakers",  # Circuit breaker status
+        "/api/algo/daily-return-histogram",  # Daily return distribution
+        "/api/algo/equity-curve",   # Portfolio equity curve
+        "/api/algo/holding-period-distribution",  # Holding period histogram
+        "/api/algo/stage-distribution",  # Market stage distribution
+        "/api/algo/trade-distribution",  # Trade outcome distribution
+        "/api/algo/swing-scores",   # Swing score rankings
+        "/api/algo/swing-scores-history",  # Historical swing scores
+        "/api/algo/sector-rotation",  # Sector rotation metrics
+        "/api/algo/sector-breadth",  # Sector breadth indicators
+        "/api/algo/sector-stage2",  # Sector stage 2 stocks
+        "/api/algo/execution/stats",  # Execution statistics
+        "/api/algo/execution/recent",  # Recent execution records
+        "/api/algo/notifications",  # System notifications
+        "/api/algo/patrol",         # Data patrol status
+        "/api/algo/patrol-log",     # Patrol history
     ]
     for endpoint in dashboard_endpoints:
         PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
