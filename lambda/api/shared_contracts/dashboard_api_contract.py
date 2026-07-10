@@ -154,6 +154,7 @@ DASHBOARD_ENDPOINTS = {
                 "current",
                 "market_health",
                 "active_tier",
+                "sectors",
                 "adr",
                 "bmom",
                 "fed",

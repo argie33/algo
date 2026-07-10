@@ -282,6 +282,31 @@ class ResponseValidator:
         return sanitized
 
     @staticmethod
+    def validate_endpoint_response(endpoint_name: str, response_data: dict[str, Any]) -> tuple[bool, str | None]:
+        """Validate API response against dashboard API contract schema.
+
+        This is the primary validation method called by all Lambda routes to verify
+        responses match the DASHBOARD_ENDPOINTS contract before returning to dashboard.
+
+        Args:
+            endpoint_name: Short endpoint code (e.g., 'run', 'mkt', 'port') from contract
+            response_data: Response dict to validate (the 'data' field in JSON response)
+
+        Returns:
+            (is_valid, error_message) tuple - error_message is None if valid
+        """
+        try:
+            from shared_contracts.dashboard_api_contract import DASHBOARD_ENDPOINTS
+
+            return ResponseValidator.validate_contract_response(endpoint_name, response_data, DASHBOARD_ENDPOINTS)
+        except ImportError as e:
+            logger.error(f"[VALIDATION] Could not import DASHBOARD_ENDPOINTS: {e}")
+            return False, f"Validation unavailable: {e}"
+        except Exception as e:
+            logger.error(f"[VALIDATION] Unexpected error validating {endpoint_name}: {type(e).__name__}: {e}")
+            return False, f"Validation error: {type(e).__name__}: {str(e)[:100]}"
+
+    @staticmethod
     def validate_and_sanitize(
         endpoint_name: str, response: dict[str, Any], strict: bool = True
     ) -> tuple[bool, str | None, dict[str, Any]]:
