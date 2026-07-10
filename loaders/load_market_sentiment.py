@@ -42,7 +42,7 @@ def compute_market_sentiment() -> None:
                 """
                 INSERT INTO market_sentiment (
                     date, fear_greed_index, sentiment_score, bullish_pct, bearish_pct, neutral_pct,
-                    data_unavailable, data_unavailable_reason
+                    data_unavailable, reason
                 ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (date) DO UPDATE SET
                     fear_greed_index = EXCLUDED.fear_greed_index,
@@ -51,7 +51,7 @@ def compute_market_sentiment() -> None:
                     bearish_pct = EXCLUDED.bearish_pct,
                     neutral_pct = EXCLUDED.neutral_pct,
                     data_unavailable = EXCLUDED.data_unavailable,
-                    data_unavailable_reason = EXCLUDED.data_unavailable_reason
+                    reason = EXCLUDED.reason
             """,
                 (
                     today,
@@ -78,7 +78,7 @@ def compute_market_sentiment() -> None:
             """
             INSERT INTO market_sentiment (
                 date, fear_greed_index, sentiment_score, bullish_pct, bearish_pct, neutral_pct,
-                data_unavailable, data_unavailable_reason
+                data_unavailable, reason
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (date) DO UPDATE SET
                 fear_greed_index = EXCLUDED.fear_greed_index,
@@ -87,7 +87,7 @@ def compute_market_sentiment() -> None:
                 bearish_pct = EXCLUDED.bearish_pct,
                 neutral_pct = EXCLUDED.neutral_pct,
                 data_unavailable = EXCLUDED.data_unavailable,
-                data_unavailable_reason = EXCLUDED.data_unavailable_reason
+                reason = EXCLUDED.reason
         """,
             (
                 today,
