@@ -246,10 +246,12 @@ resource "aws_lambda_provisioned_concurrency_config" "api" {
   function_name                     = aws_lambda_function.api.function_name
   provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
   qualifier                         = "$LATEST"
+
   lifecycle {
     create_before_destroy = true
   }
-  depends_on = [data.aws_lambda_alias.api_live]
+
+  depends_on = [aws_lambda_function.api]
 }
 
 # ============================================================
