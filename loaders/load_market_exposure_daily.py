@@ -198,7 +198,19 @@ def main() -> int:  # noqa: C901
 
         # Compute market exposure (this persists to DB automatically)
         me = MarketExposure()
-        result = me.compute(latest_date, force_recompute=True)
+        try:
+            result = me.compute(latest_date, force_recompute=True)
+        except RuntimeError as e:
+            error_msg = f"Market exposure computation failed: {str(e)[:500]}"
+            logger.error(error_msg)
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                    ("FAILED", error_msg[:200], table_name),
+                )
+                # Record data unavailability in market_exposure_daily
+                _insert_unavailable_marker(cur, latest_date, error_msg)
+            return 1
 
         # CRITICAL: Validate result structure - compute() either succeeds with full dict or raises error
         # No "success" field exists; validation is fail-fast via exception
