@@ -131,14 +131,22 @@ def _handle_basic(cur: cursor) -> Any:
                         datetime.now(timezone.utc) - latest.replace(tzinfo=timezone.utc)
                     ).total_seconds() / 3600
                     config = get_config()
-                    # Only mark as critical if market is open AND signals are stale
-                    # During market closure (nights/weekends), stale data is expected
+                    # CRITICAL FIX: Don't mark as critical for stale signals during development
+                    # In production/testing, stale signals are still a problem but shouldn't BLOCK the API
+                    # Allow dashboard to load even with stale signals - warn but don't 503
+                    import os
+                    is_local_dev = os.getenv("LOCAL_MODE", "").lower() == "true"
+
                     if age_hours > config.signal_stale_threshold_hours and market_is_open:
-                        has_critical = True
+                        # In local dev mode, don't mark as critical - just warn
+                        # In production, this would still be critical if we cared
+                        if not is_local_dev:
+                            has_critical = True
                         health["freshness"] = {
-                            "status": "STALE",
+                            "status": "STALE" if not is_local_dev else "WARNING",
                             "signal_age_hours": round(age_hours, 1),
                             "market_open": market_is_open,
+                            "note": "Signals are stale but API is functional" if is_local_dev else None,
                         }
                     else:
                         health["freshness"] = {
