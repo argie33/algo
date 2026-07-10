@@ -27,7 +27,11 @@ try:
     from algo.infrastructure.config import get_config
 except ImportError:
     # Fallback if config not available in Lambda (use defaults)
-    get_config = lambda: type('Config', (), {'get': lambda self, k: {'retry_count_db_migration': 3}.get(k, 3)})()
+    def get_config():
+        class Config:
+            def get(self, k):
+                return {'retry_count_db_migration': 3}.get(k, 3)
+        return Config()
 
 
 def get_credentials() -> dict[str, Any]:

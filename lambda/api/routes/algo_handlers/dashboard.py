@@ -461,7 +461,6 @@ def _get_algo_status(cur: cursor) -> Any:
                         ),
                         "unrealized_pnl_dollars": round(unrealized_pnl, 2) if unrealized_pnl is not None else None,
                     }
-                    portfolio_from_snapshot = True
                 except (ValueError, TypeError) as e:
                     logger.warning(
                         f"[PORTFOLIO] Snapshot data type conversion failed, falling back to computed: {type(e).__name__}: {e}"

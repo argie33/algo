@@ -488,7 +488,7 @@ def lambda_handler(event, context):  # noqa: C901
                 )
 
                 if result.returncode == 0:
-                    logger.info(f"Migrations completed successfully")
+                    logger.info("Migrations completed successfully")
                     if result.stdout:
                         logger.info(f"Migration output: {result.stdout[:500]}")
                 else:
