@@ -161,7 +161,17 @@ if "algo" in _AVAILABLE_ROUTES:
     ]
     for endpoint in dashboard_endpoints:
         PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
-    logger.info(f"[STARTUP] Registered {len(dashboard_endpoints)} dashboard endpoints as public")
+
+    # Also register endpoint aliases as public
+    alias_endpoints = [
+        "/api/portfolio",   # Alias for /api/algo/portfolio
+        "/api/positions",   # Alias for /api/algo/positions
+    ]
+    for endpoint in alias_endpoints:
+        PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
+
+    logger.info(f"[STARTUP] Registered {len(dashboard_endpoints)} dashboard endpoints + {len(alias_endpoints)} aliases as public")
+    logger.info(f"[STARTUP] Dashboard aliases /api/portfolio and /api/positions are now public")
 
 # Register other public analytics endpoints needed by dashboard
 # These support market context, economic data, and analytical views
@@ -180,7 +190,7 @@ if all(m in _AVAILABLE_ROUTES for m in ["economic", "market", "sentiment", "pric
     logger.info(f"[STARTUP] Registered {len([e for e, h in analytics_endpoints if h])} analytics endpoints as public")
 
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
-# Also includes aliases: /api/positions → /api/algo/positions, /api/portfolio → /api/algo/portfolio
+# Note: /api/positions and /api/portfolio aliases are now in PUBLIC_HANDLERS
 _HANDLER_CONFIG = [
     ("/api/algo/risk-dashboard", "risk_dashboard"),
     # NOTE: /api/algo/scores is NOT routed to the "scores" module here — /api/algo below
@@ -191,8 +201,6 @@ _HANDLER_CONFIG = [
     # Wiring it up would need its own verification pass against the dashboard/API
     # contract, not a routing reorder — left as-is to avoid an unverified regression.
     ("/api/algo", "algo"),
-    ("/api/positions", "algo"),  # Alias for /api/algo/positions
-    ("/api/portfolio", "algo"),  # Alias for /api/algo/portfolio
     ("/api/financials", "financials"),
     ("/api/earnings", "earnings"),
     ("/api/signals", "signals"),
