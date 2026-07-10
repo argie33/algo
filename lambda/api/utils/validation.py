@@ -269,7 +269,10 @@ FRESHNESS_RULES = {
     "market_health_daily": {"max_age_hours": 24, "critical": True},
     "industry_ranking": {"max_age_hours": 168, "critical": False},
     "sector_ranking": {"max_age_hours": 24, "critical": True},
-    "buy_sell_daily": {"max_age_hours": 24, "critical": True},
+    # DEPRECATED: buy_sell_daily is no longer populated by orchestrator
+    # Signals now stored in algo_signals table (see dashboard.py _get_dashboard_signals)
+    # "buy_sell_daily": {"max_age_hours": 24, "critical": True},
+    "algo_signals": {"max_age_hours": 24, "critical": False},  # Optional, dashboard has fallback
 }
 
 

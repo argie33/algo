@@ -114,11 +114,12 @@ def handle(
 def _get_signals_stocks(
     cur: cursor, limit: int = 500, timeframe: str = "daily", symbol_filter: str | None = None
 ) -> Any:
-    """Get stock trading signals from buy_sell_daily (primary signal source).
+    """DEPRECATED: Get stock trading signals (legacy endpoint - not used by dashboard).
 
-    EOD pipeline runs: prices → metrics → buy_sell_daily.
-    buy_sell_daily generates BUY/SELL/HOLD signals from technical indicators and
-    quality scores. This endpoint sources from buy_sell_daily with price/sector data.
+    NOTE: buy_sell_daily table is no longer populated by orchestrator.
+    Dashboard signals now from algo_signals (via /api/algo/dashboard-signals).
+    This endpoint maintained for backward compatibility with external systems.
+    Returns empty result when buy_sell_daily table is not populated.
     """
     try:
         valid_timeframes = {"daily"}
