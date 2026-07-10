@@ -147,17 +147,25 @@ def _handle_basic(cur: cursor) -> Any:
                             "market_open": market_is_open,
                         }
                 else:
-                    # No signal data available — cannot verify freshness
-                    error_msg = (
-                        "[HEALTH CRITICAL] Signal data unavailable. Cannot assess signal freshness for health status."
-                    )
-                    logger.error(error_msg)
-                    has_critical = True
-                    health["freshness"] = {
-                        "status": "NO_DATA",
-                        "error": "Signal table empty or data unavailable",
-                        "market_open": market_is_open,
-                    }
+                    # No signal data available — allow graceful degradation
+                    # This is expected during first initialization or when loaders haven't run yet
+                    # Don't mark as critical during non-market hours (loaders don't run then)
+                    logger.info("[HEALTH INFO] Signal data unavailable yet - loaders may not have run")
+                    if market_is_open:
+                        # Only critical if market is open and signals missing
+                        has_critical = True
+                        health["freshness"] = {
+                            "status": "NO_DATA",
+                            "error": "Signal table empty (loaders should be running during market hours)",
+                            "market_open": market_is_open,
+                        }
+                    else:
+                        # After hours or before market - not critical
+                        health["freshness"] = {
+                            "status": "INITIALIZING",
+                            "error": "Signal data not yet loaded (normal during non-market hours)",
+                            "market_open": market_is_open,
+                        }
         except Exception as e:
             from utils.error_handlers import sanitize_error_message
 

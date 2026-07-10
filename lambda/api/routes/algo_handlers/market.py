@@ -968,9 +968,16 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         Exception,
     ) as e:
         import traceback
+        import sys
+        error_trace = traceback.format_exc()
         logger.error(
-            f"Failed to fetch markets: {type(e).__name__}: {e}\n  Operation: Query market_exposure_daily\n  Endpoint: GET /api/algo/markets\n  Traceback: {traceback.format_exc()}"
+            f"[MARKETS_HANDLER_ERROR] Failed to fetch markets: {type(e).__name__}: {e}\n"
+            f"  Operation: Query market_exposure_daily\n"
+            f"  Endpoint: GET /api/algo/markets\n"
+            f"  Full Traceback:\n{error_trace}"
         )
+        # Also print to stderr for dev_server visibility
+        print(f"[MARKETS_ERROR] {type(e).__name__}: {e}\n{error_trace}", file=sys.stderr, flush=True)
         return error_response(503, "service_unavailable", f"Failed to fetch markets data: {type(e).__name__}: {str(e)[:100]}")
 
 
