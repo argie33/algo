@@ -2,11 +2,11 @@
 """Algo Ops Terminal Dashboard
 
 Usage:
-  python -m dashboard                                 # live view (AWS endpoints, q or Ctrl+C to exit)
-  python -m dashboard -w                              # watch mode, auto-refresh every 30s
-  python -m dashboard -w 60                           # watch mode, refresh every 60s
-  python -m dashboard --compact                       # narrow positions table
-  python -m dashboard --local                         # use local API (localhost:3001) instead of AWS
+  python dashboard/dashboard.py                       # live view (AWS endpoints, q or Ctrl+C to exit)
+  python dashboard/dashboard.py -w                    # watch mode, auto-refresh every 30s
+  python dashboard/dashboard.py -w 60                 # watch mode, refresh every 60s
+  python dashboard/dashboard.py --compact             # narrow positions table
+  python dashboard/dashboard.py --local               # use local API (localhost:3001) instead of AWS
 
 Modes:
   AWS (default): Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID env vars
@@ -65,24 +65,45 @@ except ImportError:
 from rich.layout import Layout
 from rich.live import Live
 
-from dashboard.api_data_layer import set_api_url, set_cognito_auth, validate_api_config
-from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
-from dashboard.cognito_auth import save_tokens
-from dashboard.core import DashboardContext, ViewMode
-from dashboard.error_boundary import error_summary_panel
-from dashboard.error_recovery import RenderRecovery
-from dashboard.fetchers import load_all
-from dashboard.panel_registry import get_panel_registry as _get_panel_registry
-from dashboard.panels import loading_layout, mascot_compact
-from dashboard.renderers import (
-    check_auth_lost,
-    render_dashboard_body,
-    render_error_panel,
-    render_expanded_view,
-    render_header_components,
-)
-from dashboard.utilities import CONSOLE, MASCOT_W, logger
-from dashboard.watch import LoadState, WatchModeController, WatchState
+# Support both: direct execution (python dashboard/dashboard.py) and module execution (python -m dashboard)
+try:
+    # Try relative imports first (module execution)
+    from .api_data_layer import set_api_url, set_cognito_auth, validate_api_config
+    from .cognito_auth import get_cognito_auth as get_cognito_auth_instance, save_tokens
+    from .core import DashboardContext, ViewMode
+    from .error_boundary import error_summary_panel
+    from .error_recovery import RenderRecovery
+    from .fetchers import load_all
+    from .panel_registry import get_panel_registry as _get_panel_registry
+    from .panels import loading_layout, mascot_compact
+    from .renderers import (
+        check_auth_lost,
+        render_dashboard_body,
+        render_error_panel,
+        render_expanded_view,
+        render_header_components,
+    )
+    from .utilities import CONSOLE, MASCOT_W, logger
+    from .watch import LoadState, WatchModeController, WatchState
+except ImportError:
+    # Fall back to absolute imports (direct script execution)
+    from dashboard.api_data_layer import set_api_url, set_cognito_auth, validate_api_config
+    from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance, save_tokens
+    from dashboard.core import DashboardContext, ViewMode
+    from dashboard.error_boundary import error_summary_panel
+    from dashboard.error_recovery import RenderRecovery
+    from dashboard.fetchers import load_all
+    from dashboard.panel_registry import get_panel_registry as _get_panel_registry
+    from dashboard.panels import loading_layout, mascot_compact
+    from dashboard.renderers import (
+        check_auth_lost,
+        render_dashboard_body,
+        render_error_panel,
+        render_expanded_view,
+        render_header_components,
+    )
+    from dashboard.utilities import CONSOLE, MASCOT_W, logger
+    from dashboard.watch import LoadState, WatchModeController, WatchState
 
 
 class _RenderState:
