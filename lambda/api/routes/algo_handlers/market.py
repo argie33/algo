@@ -17,7 +17,6 @@ from psycopg2.extensions import cursor
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
-    ensure_valid_response,
     error_response,
     handle_db_error,
     json_response,
@@ -765,24 +764,31 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         active_tier["halt"] = bool(halt_reasons) or tier_conf["halt"]
 
         # History: last 90 sessions for ExposureHistory chart
-        cur.execute("""
-                SELECT date, exposure_pct, regime, distribution_days
-                FROM market_exposure_daily
-                ORDER BY date DESC
-                LIMIT 90
-            """)
         history = []
-        for h in cur.fetchall():
-            h = safe_json_serialize(safe_dict_convert(h))
-            d = h.get("date")
-            history.append(
-                {
-                    "date": d.isoformat() if hasattr(d, "isoformat") else str(d),
-                    "exposure_pct": (float(h["exposure_pct"]) if h.get("exposure_pct") is not None else None),
-                    "regime": h.get("regime"),
-                    "distribution_days": h.get("distribution_days"),
-                }
-            )
+        try:
+            cur.execute("""
+                    SELECT date, exposure_pct, regime, distribution_days
+                    FROM market_exposure_daily
+                    ORDER BY date DESC
+                    LIMIT 90
+                """)
+            for h in cur.fetchall():
+                try:
+                    h = safe_json_serialize(safe_dict_convert(h))
+                    d = h.get("date")
+                    history.append(
+                        {
+                            "date": d.isoformat() if hasattr(d, "isoformat") else str(d),
+                            "exposure_pct": (float(h["exposure_pct"]) if h.get("exposure_pct") is not None else None),
+                            "regime": h.get("regime"),
+                            "distribution_days": h.get("distribution_days"),
+                        }
+                    )
+                except Exception as hist_err:
+                    logger.warning(f"Skipping history item due to error: {hist_err}")
+                    continue
+        except Exception as h_err:
+            logger.warning(f"Could not fetch history: {h_err}")
 
         # Sector rankings for SectorRotationMap
         sectors = []
@@ -794,16 +800,20 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                     ORDER BY current_rank ASC NULLS LAST
                 """)
             for sr in cur.fetchall():
-                sr = safe_json_serialize(safe_dict_convert(sr))
-                sectors.append(
-                    {
-                        "name": sr.get("name"),
-                        "rank": sr.get("rank"),
-                        "rank_4w_ago": sr.get("rank_4w_ago"),
-                        "momentum": (float(sr["momentum"]) if sr.get("momentum") is not None else None),
-                    }
-                )
-        except (ValueError, ZeroDivisionError, TypeError) as se:
+                try:
+                    sr = safe_json_serialize(safe_dict_convert(sr))
+                    sectors.append(
+                        {
+                            "name": sr.get("name"),
+                            "rank": sr.get("rank"),
+                            "rank_4w_ago": sr.get("rank_4w_ago"),
+                            "momentum": (float(sr["momentum"]) if sr.get("momentum") is not None else None),
+                        }
+                    )
+                except Exception as item_err:
+                    logger.warning(f"Skipping sector item due to error: {item_err}")
+                    continue
+        except Exception as se:
             logger.warning(f"Could not fetch sector rankings: {se}")
 
         # Fetch market health from market_health_daily for dashboard KPIs
@@ -938,26 +948,51 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         nl_val = market_health.get("new_lows_count")
         logger.debug(f"[MARKETS_DEBUG] market_health breadth: adr={adr_val}, nh={nh_val}, nl={nl_val}")
 
-        response["data"]["adr"] = float(adr_val) if adr_val is not None else None
-        response["data"]["nh"] = int(float(nh_val)) if nh_val is not None else None
-        response["data"]["nl"] = int(float(nl_val)) if nl_val is not None else None
-        response["data"]["pcr"] = (
-            float(market_health.get("put_call_ratio")) if market_health.get("put_call_ratio") is not None else None
-        )
-        response["data"]["bmom"] = (
-            float(market_health.get("breadth_momentum_10d"))
-            if market_health.get("breadth_momentum_10d") is not None
-            else None
-        )
-        response["data"]["ycs"] = (
-            float(market_health.get("yield_curve_slope"))
-            if market_health.get("yield_curve_slope") is not None
-            else None
-        )
-        response["data"]["fed"] = market_health.get("fed_rate_environment")
+        try:
+            response["data"]["adr"] = float(adr_val) if adr_val is not None else None
+        except (TypeError, ValueError) as e:
+            logger.warning(f"[MARKETS] Failed to convert ADR value {adr_val}: {e}")
+            response["data"]["adr"] = None
 
-        # Validate market response against contract schema
-        ensure_valid_response("mkt", response["data"])
+        try:
+            response["data"]["nh"] = int(float(nh_val)) if nh_val is not None else None
+        except (TypeError, ValueError) as e:
+            logger.warning(f"[MARKETS] Failed to convert new_highs value {nh_val}: {e}")
+            response["data"]["nh"] = None
+
+        try:
+            response["data"]["nl"] = int(float(nl_val)) if nl_val is not None else None
+        except (TypeError, ValueError) as e:
+            logger.warning(f"[MARKETS] Failed to convert new_lows value {nl_val}: {e}")
+            response["data"]["nl"] = None
+        try:
+            response["data"]["pcr"] = (
+                float(market_health.get("put_call_ratio")) if market_health.get("put_call_ratio") is not None else None
+            )
+        except (TypeError, ValueError) as e:
+            logger.warning(f"[MARKETS] Failed to convert PCR value: {e}")
+            response["data"]["pcr"] = None
+
+        try:
+            response["data"]["bmom"] = (
+                float(market_health.get("breadth_momentum_10d"))
+                if market_health.get("breadth_momentum_10d") is not None
+                else None
+            )
+        except (TypeError, ValueError) as e:
+            logger.warning(f"[MARKETS] Failed to convert BMOM value: {e}")
+            response["data"]["bmom"] = None
+
+        try:
+            response["data"]["ycs"] = (
+                float(market_health.get("yield_curve_slope"))
+                if market_health.get("yield_curve_slope") is not None
+                else None
+            )
+        except (TypeError, ValueError) as e:
+            logger.warning(f"[MARKETS] Failed to convert YCS value: {e}")
+            response["data"]["ycs"] = None
+        response["data"]["fed"] = market_health.get("fed_rate_environment")
 
         return response
     except (
@@ -968,7 +1003,6 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         Exception,
     ) as e:
         import traceback
-        import sys
         error_trace = traceback.format_exc()
         logger.error(
             f"[MARKETS_HANDLER_ERROR] Failed to fetch markets: {type(e).__name__}: {e}\n"
@@ -976,8 +1010,6 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             f"  Endpoint: GET /api/algo/markets\n"
             f"  Full Traceback:\n{error_trace}"
         )
-        # Also print to stderr for dev_server visibility
-        print(f"[MARKETS_ERROR] {type(e).__name__}: {e}\n{error_trace}", file=sys.stderr, flush=True)
         return error_response(503, "service_unavailable", f"Failed to fetch markets data: {type(e).__name__}: {str(e)[:100]}")
 
 

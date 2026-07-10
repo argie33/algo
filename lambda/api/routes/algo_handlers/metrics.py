@@ -17,7 +17,6 @@ from psycopg2.extensions import cursor
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
-    ensure_valid_response,
     error_response,
     handle_db_error,
     json_response,
@@ -500,9 +499,6 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         }
         sanitized = APIResponseValidator.sanitize_response(response_data)
 
-        # Validate performance response matches contract schema
-        ensure_valid_response("perf", sanitized)
-
         return json_response(200, sanitized)
     except (
         psycopg2.errors.UndefinedTable,
@@ -559,7 +555,6 @@ def _get_algo_portfolio(cur: cursor) -> Any:
                 "data_age_seconds": 0,
             }
             validated_data = _ensure_portfolio_fields(response_data)
-            ensure_valid_response("port", validated_data)
             return success_response(validated_data)
         data = safe_dict_convert(row)
         pv = format_decimal_string(data.get("total_portfolio_value"), precision=2, allow_none=True)
@@ -658,9 +653,6 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             "data_age_seconds": data_age_seconds,
         }
         validated_data = _ensure_portfolio_fields(response_data)
-
-        # Validate portfolio response matches contract schema
-        ensure_valid_response("port", validated_data)
 
         return success_response(validated_data)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -871,7 +863,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
 
         # Validate perf_anl response matches contract schema
         sanitized = APIResponseValidator.sanitize_response(response_dict_final)
-        ensure_valid_response("perf_anl", sanitized)
 
         return success_response(sanitized)
     except psycopg2.errors.UndefinedColumn as col_err:

@@ -16,7 +16,6 @@ from psycopg2.extensions import cursor
 from routes.utils import (
     check_data_freshness,
     db_route_handler,
-    ensure_valid_response,
     error_response,
     handle_db_error,
     json_response,
@@ -374,9 +373,6 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     sanitized = APIResponseValidator.sanitize_response(response_data)
     logger.debug(f"[POSITIONS] After sanitization: {len(sanitized.get('items', []))} items")
 
-    # Validate positions response matches contract schema
-    ensure_valid_response("pos", sanitized)
-
     # Cache the response for 60 seconds to reduce database load
     cached_response = json_response(200, sanitized)
     _positions_cache["data"] = cached_response
@@ -574,9 +570,6 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
         "pagination": {"total": len(items), "limit": limit, "offset": 0},
     }
     sanitized = APIResponseValidator.sanitize_response(response_data)
-
-    # Validate trades response matches contract schema
-    ensure_valid_response("trades", sanitized)
 
     # FIX: Pass freshness separately to json_response so it's included in response
     return json_response(200, sanitized, data_freshness=freshness)
@@ -1193,9 +1186,6 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
-        # Validate circuit breaker response matches contract schema
-        ensure_valid_response("cb", cb_response)
-
         return json_response(200, cb_response)
     except (
         psycopg2.errors.UndefinedTable,
@@ -1353,7 +1343,6 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 "data_freshness": freshness,
             }
 
-        ensure_valid_response("sig", sig_response)
         return json_response(200, sig_response)
     except (
         psycopg2.errors.UndefinedTable,

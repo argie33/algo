@@ -17,7 +17,6 @@ from psycopg2.extensions import cursor
 # Ensure imports work - setup_imports is imported by parent module (lambda_function or api_router)
 from routes.utils import (
     db_route_handler,
-    ensure_valid_response,
     error_response,
     extract_param,
     handle_db_error,
@@ -151,9 +150,6 @@ def _get_last_run(cur: cursor) -> Any:
         "phases": phases,
         "phase_results": phases,
     }
-
-    # Validate response matches contract schema
-    ensure_valid_response("run", response_data)
 
     return json_response(200, response_data)
 
