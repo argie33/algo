@@ -414,7 +414,10 @@ def _get_algo_status(cur: cursor) -> Any:
             "status": "ready",
         }
 
-    # Fetch and validate portfolio snapshot: FAIL-FAST if critical data missing
+    # Fetch and validate portfolio snapshot: RESILIENT fallback to computed data
+    # If orchestrator hasn't run (Phase 9 snapshot missing), compute from algo_positions + algo_trades
+    portfolio = None
+    portfolio_from_snapshot = False
     try:
         cur.execute("""
                 SELECT total_portfolio_value, total_cash, daily_return_pct,
@@ -423,63 +426,93 @@ def _get_algo_status(cur: cursor) -> Any:
                 ORDER BY snapshot_date DESC LIMIT 1
             """)
         snap = cur.fetchone()
-        if snap is None:
-            logger.error("Portfolio snapshot unavailable: algo_portfolio_snapshots table is empty")
-            raise RuntimeError("Portfolio snapshot data unavailable - table is empty")
+        if snap is not None:
+            pv_raw = snap.get("total_portfolio_value")
+            tc_raw = snap.get("total_cash")
+            pc_raw = snap.get("position_count")
+            unrealized_pnl_raw = snap.get("unrealized_pnl_total")
+            daily_return_raw = snap.get("daily_return_pct")
 
-        pv_raw = snap.get("total_portfolio_value")
-        tc_raw = snap.get("total_cash")
-        pc_raw = snap.get("position_count")
-        unrealized_pnl_raw = snap.get("unrealized_pnl_total")
-        daily_return_raw = snap.get("daily_return_pct")
+            if pv_raw is None or tc_raw is None or pc_raw is None:
+                logger.warning(
+                    "[PORTFOLIO] Snapshot has NULL critical fields, falling back to computed portfolio"
+                )
+            else:
+                try:
+                    pv = float(pv_raw)
+                    tc_float = float(tc_raw)
+                    pc = int(pc_raw)
+                    unrealized_pnl = float(unrealized_pnl_raw) if unrealized_pnl_raw is not None else 0.0
+                    unrealized_pnl_pct = None
+                    if pv > 0 and unrealized_pnl is not None:
+                        unrealized_pnl_pct = unrealized_pnl / pv * 100
 
-        if pv_raw is None:
-            logger.error("[CRITICAL] Portfolio snapshot missing total_portfolio_value (required financial field)")
-            raise RuntimeError("Portfolio snapshot missing critical field: total_portfolio_value")
-        if tc_raw is None:
-            logger.error("[CRITICAL] Portfolio snapshot missing total_cash (required financial field)")
-            raise RuntimeError("Portfolio snapshot missing critical field: total_cash")
-        if pc_raw is None:
-            logger.error("[CRITICAL] Portfolio snapshot missing position_count (required field)")
-            raise RuntimeError("Portfolio snapshot missing critical field: position_count")
+                    portfolio = {
+                        "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
+                        "total_cash": format_decimal_string(tc_float, precision=2),
+                        "position_count": pc,
+                        "daily_return_pct": format_decimal_string(
+                            float(daily_return_raw) if daily_return_raw is not None else None, precision=2, allow_none=True
+                        ),
+                        "unrealized_pnl_pct": format_decimal_string(
+                            unrealized_pnl_pct,
+                            precision=2,
+                            allow_none=True,
+                        ),
+                        "unrealized_pnl_dollars": round(unrealized_pnl, 2) if unrealized_pnl is not None else None,
+                    }
+                    portfolio_from_snapshot = True
+                except (ValueError, TypeError) as e:
+                    logger.warning(
+                        f"[PORTFOLIO] Snapshot data type conversion failed, falling back to computed: {type(e).__name__}: {e}"
+                    )
 
-        # CRITICAL FIX: Wrap type conversions in try-except for graceful error handling
-        # Malformed data (e.g., string where float expected) should not cause 503 errors
-        try:
-            pv = float(pv_raw)
-            tc_float = float(tc_raw)
-            pc = int(pc_raw)
-        except (ValueError, TypeError) as e:
-            logger.error(
-                f"[CRITICAL] Portfolio data type conversion failed: {type(e).__name__}: {e} "
-                f"(pv_raw={pv_raw!r}, tc_raw={tc_raw!r}, pc_raw={pc_raw!r}). "
-                "Returning error response instead of 503."
+        if portfolio is None:
+            # FALLBACK: Compute portfolio from algo_positions + algo_trades when snapshot unavailable
+            # This allows dashboard to show data even if orchestrator hasn't run Phase 9
+            logger.info(
+                "[PORTFOLIO] algo_portfolio_snapshots empty or unavailable, computing from algo_positions + algo_trades"
             )
-            return error_response(
-                400,
-                "data_type_conversion_error",
-                f"Portfolio data malformed: unable to convert financial values to correct types. {e}",
+            cur.execute("""
+                SELECT
+                  COUNT(DISTINCT symbol) as pos_count,
+                  COALESCE(SUM(position_value), 0) as total_positions_value,
+                  COALESCE(SUM(CASE WHEN status='closed' THEN quantity * current_price ELSE 0 END), 0) as closed_value
+                FROM algo_positions
+                WHERE status IN ('open', 'closed')
+            """)
+            pos_result = cur.fetchone()
+            pos_count = pos_result.get("pos_count") if pos_result else 0
+            pos_value = float(pos_result.get("total_positions_value", 0)) if pos_result else 0.0
+            closed_value = float(pos_result.get("closed_value", 0)) if pos_result else 0.0
+
+            # Get initial cash (first trade entry cash or assume 100k baseline)
+            cur.execute("""
+                SELECT COALESCE(initial_cash, 100000) as ic
+                FROM algo_trades
+                WHERE initial_cash IS NOT NULL
+                ORDER BY entry_date ASC LIMIT 1
+            """)
+            cash_result = cur.fetchone()
+            initial_cash = float(cash_result.get("ic", 100000)) if cash_result else 100000.0
+
+            # Compute cash as: initial - (all positions value) + (closed positions)
+            total_spent = pos_value
+            tc_float = initial_cash - total_spent + closed_value
+            pv = tc_float + pos_value
+
+            portfolio = {
+                "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
+                "total_cash": format_decimal_string(tc_float, precision=2),
+                "position_count": int(pos_count),
+                "daily_return_pct": None,  # Unavailable without snapshot
+                "unrealized_pnl_pct": None,  # Unavailable without snapshot
+                "unrealized_pnl_dollars": None,  # Unavailable without snapshot
+            }
+            logger.info(
+                f"[PORTFOLIO] Computed: total_value={pv:.2f}, cash={tc_float:.2f}, positions={pos_count}"
             )
 
-        unrealized_pnl = float(unrealized_pnl_raw) if unrealized_pnl_raw is not None else 0.0
-        unrealized_pnl_pct = None
-        if pv > 0 and unrealized_pnl is not None:
-            unrealized_pnl_pct = unrealized_pnl / pv * 100
-
-        portfolio = {
-            "total_portfolio_value": format_decimal_string(pv, precision=2, allow_none=True),
-            "total_cash": format_decimal_string(tc_float, precision=2),
-            "position_count": pc,
-            "daily_return_pct": format_decimal_string(
-                float(daily_return_raw) if daily_return_raw is not None else None, precision=2, allow_none=True
-            ),
-            "unrealized_pnl_pct": format_decimal_string(
-                unrealized_pnl_pct,
-                precision=2,
-                allow_none=True,
-            ),
-            "unrealized_pnl_dollars": round(unrealized_pnl, 2) if unrealized_pnl is not None else None,
-        }
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
@@ -489,7 +522,7 @@ def _get_algo_status(cur: cursor) -> Any:
     ) as e:
         import traceback
         logger.error(f"[_GET_ALGO_STATUS] Exception: {type(e).__name__}: {e}\nTraceback: {traceback.format_exc()}")
-        code, error_type, message = handle_db_error(e, "fetch portfolio snapshot")
+        code, error_type, message = handle_db_error(e, "fetch portfolio data")
         return error_response(code, error_type, message)
 
     # CRITICAL FIX: Check freshness for BOTH algo_audit_log AND algo_portfolio_snapshots
