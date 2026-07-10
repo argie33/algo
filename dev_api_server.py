@@ -62,6 +62,15 @@ def safe_call(handler_func):
     try:
         cur, conn = get_db_cursor()
         logger.info(f"[safe_call] Calling {handler_func.__name__}...")
+
+        # Validate cursor is valid before calling handler
+        try:
+            cur.execute("SELECT 1")
+            _ = cur.fetchone()
+            logger.debug("[safe_call] Cursor validation: OK")
+        except Exception as e:
+            logger.error(f"[safe_call] Cursor validation failed: {type(e).__name__}: {e}")
+            raise RuntimeError(f"Database cursor invalid: {e}") from e
         result = handler_func(cur)
         cur.close()
         conn.close()
