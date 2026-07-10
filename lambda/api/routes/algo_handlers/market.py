@@ -753,9 +753,14 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             )
         active_tier = {"name": tier_key, **tier_conf}
         if "halt" not in tier_conf:
-            raise KeyError(
+            logger.error(
                 f"[MARKETS API] Tier config for '{tier_key}' missing 'halt' field. "
                 f"Configuration incomplete—cannot determine entry eligibility rules."
+            )
+            return error_response(
+                500,
+                "configuration_error",
+                f"Tier configuration incomplete for '{tier_key}'",
             )
         active_tier["halt"] = bool(halt_reasons) or tier_conf["halt"]
 

@@ -132,9 +132,7 @@ class ResponseValidator:
         }
 
     @staticmethod
-    def validate_required_fields(
-        data: dict[str, Any], required_fields: list[str], context: str
-    ) -> ValidationResult:
+    def validate_required_fields(data: dict[str, Any], required_fields: list[str], context: str) -> ValidationResult:
         """Validate that all required fields are present and not None.
 
         Args:
@@ -260,7 +258,7 @@ class ResponseValidator:
         if not remove_none:
             return response
 
-        sanitized = {}
+        sanitized: dict[str, Any] = {}
         for key, value in response.items():
             if value is None:
                 continue
@@ -268,11 +266,7 @@ class ResponseValidator:
                 sanitized[key] = ResponseValidator.sanitize_response(value, remove_none)
             elif isinstance(value, list):
                 sanitized[key] = [
-                    (
-                        ResponseValidator.sanitize_response(item, remove_none)
-                        if isinstance(item, dict)
-                        else item
-                    )
+                    (ResponseValidator.sanitize_response(item, remove_none) if isinstance(item, dict) else item)
                     for item in value
                     if item is not None
                 ]
