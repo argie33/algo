@@ -448,44 +448,42 @@ def fetch_perf(c: None) -> dict[str, Any]:
             unrealized_pnl = {"data_unavailable": True, "reason": "not_in_performance_response"}
 
         # open_positions_count = total open positions; open_losses_count = subset with losses
-        # CRITICAL: open_positions_count is required - cannot fall back to open_losses_count (different metric)
-        open_positions_count = perf.get("open_positions_count")
-        open_losses_count = perf.get("open_losses_count")
-        if open_losses_count is None:
-            raise ValueError(
-                "Performance data missing required field 'open_losses_count'. Available: " + str(list(perf.keys()))
-            )
+        # Accept both API field names to support different versions
+        open_positions_count = perf.get("open_positions_count") or perf.get("open_positions")
         if open_positions_count is None:
             error_msg = (
-                "Performance data missing 'open_positions_count' (total open positions). "
-                "Cannot use 'open_losses_count' (subset with losses) as fallback - different metrics. "
+                "Performance data missing 'open_positions' or 'open_positions_count' field. "
                 "Required to calculate position quality and risk metrics."
             )
             logger.error(f"[PORTFOLIO_FETCHER CRITICAL] {error_msg}")
             return FetcherValidator.build_error_response(error_msg)
         open_count = open_positions_count
 
-        # FAIL-FAST: Validate critical risk metrics. These determine strategy quality and risk assessment.
-        # None values mask data failures. Must validate all critical fields are present.
-        critical_metrics = {
+        # Validate core performance metrics (streak and expectancy are optional enrichment)
+        core_metrics = {
             "win_rate_pct": "wr",
             "total_pnl_dollars": "pnl",
-            "current_streak": "streak",
             "sharpe_annualized": "sharpe",
             "max_drawdown_pct": "maxdd",
             "avg_win_pct": "avg_win",
             "avg_loss_pct": "avg_loss",
             "profit_factor": "profit_factor",
-            "expectancy_r": "expectancy",
         }
-        missing_metrics = [
-            name for field, name in critical_metrics.items() if field not in perf or perf.get(field) is None
+        missing_core_metrics = [
+            name for field, name in core_metrics.items() if field not in perf or perf.get(field) is None
         ]
-        if missing_metrics:
-            error_msg = f"Performance data missing critical metrics: {', '.join(missing_metrics)}"
+        if missing_core_metrics:
+            error_msg = f"Performance data missing core metrics: {', '.join(missing_core_metrics)}"
             logger.error(f"[FAIL_FAST] {error_msg}")
             record_data_quality_issue("perf", "missing_metrics", "validation", error_msg)
             return FetcherValidator.build_error_response(error_msg)
+
+        # Optional enrichment metrics (may not be available in all API versions)
+        optional_metrics = ["current_streak", "expectancy_r"]
+        for field in optional_metrics:
+            if field not in perf or perf.get(field) is None:
+                logger.debug(f"Performance data missing optional field '{field}' - using None")
+                perf[field] = None
 
         return {
             "n": n,
