@@ -251,7 +251,9 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     row = cur.fetchone()
     if row:
         row = safe_dict_convert(row)
-    total = row["total"] if row else 0
+        total = row.get("total", 0)
+    else:
+        total = 0
 
     cur.execute(
         """

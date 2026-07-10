@@ -158,9 +158,11 @@ def _get_sector_position_warnings(cur: cursor) -> Any:
             ("max_positions_per_sector",),
         )
         max_per_sector_row = cur.fetchone()
+        max_per_sector = 3
         if max_per_sector_row:
             max_per_sector_row = safe_dict_convert(max_per_sector_row)
-        max_per_sector = int(max_per_sector_row["value"]) if max_per_sector_row and max_per_sector_row["value"] else 3
+            if max_per_sector_row.get("value"):
+                max_per_sector = int(max_per_sector_row["value"])
 
         warnings = []
         at_cap = []

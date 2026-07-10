@@ -61,9 +61,10 @@ def _get_symbol_sector(cur: cursor, symbol: str) -> str | Any:
         (symbol,),
     )
     profile_row = cur.fetchone()
+    sector = None
     if profile_row:
         profile_row = safe_dict_convert(profile_row)
-    sector = profile_row["sector"] if profile_row else None
+        sector = profile_row.get("sector")
 
     if sector is None:
         return error_response(
