@@ -163,22 +163,36 @@ def main() -> int:  # noqa: C901
             )
 
         # CRITICAL: Only compute market exposure for trading days
-        # Loading on weekend/holiday should not create entries for non-trading days (corrupts position sizing logic)
+        # If the latest date is not a trading day (weekend/holiday), walk back to find the most recent trading day
         from algo.infrastructure import MarketCalendar
 
-        if not MarketCalendar.is_trading_day(latest_date):
+        lookback_date = latest_date
+        max_lookback_days = 10  # Prevent infinite loop; something is wrong if we can't find a trading day within 10 days
+        while not MarketCalendar.is_trading_day(lookback_date) and max_lookback_days > 0:
+            from datetime import timedelta
+            lookback_date = lookback_date - timedelta(days=1)
+            max_lookback_days -= 1
+
+        if max_lookback_days == 0:
+            # If we couldn't find a trading day within 10 days, this is a serious data issue
             error_msg = (
-                f"Latest price_daily date {latest_date} is not a trading day. "
-                f"Cannot compute market exposure for non-trading days (would corrupt position sizing logic). "
-                f"Check: (1) Is yfinance loader running correctly? (2) Did market holidays get misconfigured?"
+                f"Could not find a recent trading day (searched back 10 days from {latest_date}). "
+                f"This suggests a serious data issue or market calendar misconfiguration."
             )
             logger.error(f"[MARKET_EXPOSURE LOADER CRITICAL] {error_msg}")
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
-                    ("FAILED", f"Latest date {latest_date} is not a trading day", table_name),
+                    ("FAILED", error_msg[:200], table_name),
                 )
             return 1
+
+        if lookback_date != latest_date:
+            logger.info(
+                f"[MARKET_EXPOSURE] Latest date {latest_date} is not a trading day. "
+                f"Using previous trading day {lookback_date} for market exposure calculation."
+            )
+            latest_date = lookback_date
 
         logger.info(f"Computing market exposure for {latest_date}")
 
