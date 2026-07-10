@@ -142,6 +142,54 @@ Required:
 
 ---
 
+## Lambda VPC Configuration (Critical - Blocks Database Access)
+
+**Problem:** Lambda endpoints (circuit-breakers, sentiment) return HTTP 503 from AWS.
+
+**Root Cause:** API Lambda (`algo-api-dev`) has no VPC configuration, cannot reach RDS database in VPC. This breaks all endpoints that query the database.
+
+**CRITICAL FIX (Required for AWS deployment):**
+
+Run this script (requires AWS credentials with Lambda + EC2 + RDS permissions):
+```bash
+bash scripts/fix-lambda-vpc.sh
+```
+
+This script:
+1. Queries RDS to find VPC/subnet/security group configuration
+2. Creates Lambda security group (if not exists)
+3. Authorizes Lambda SG to access RDS port 5432
+4. Updates Lambda VPC configuration with correct subnets and security group
+
+**Manual Fix (if script unavailable):**
+```bash
+# 1. Get RDS VPC details
+aws rds describe-db-instances --db-instance-identifier algo-db \
+  --query 'DBInstances[0].[DBSubnetGroup.VpcId,DBSubnetGroup.Subnets[].SubnetIdentifier,VpcSecurityGroups[].VpcSecurityGroupId]'
+
+# 2. Create Lambda security group
+aws ec2 create-security-group --group-name algo-lambda-sg \
+  --description "Lambda RDS access" --vpc-id <VPC_ID>
+
+# 3. Authorize RDS inbound
+aws ec2 authorize-security-group-ingress --group-id <RDS_SG> \
+  --protocol tcp --port 5432 --source-group <LAMBDA_SG>
+
+# 4. Update Lambda VPC
+aws lambda update-function-configuration --function-name algo-api-dev \
+  --vpc-config SubnetIds=<SUBNET1>,<SUBNET2> SecurityGroupIds=<LAMBDA_SG>
+```
+
+**Verification:**
+After fix + Lambda redeploy, test:
+```bash
+curl https://<api-gateway-url>/api/algo/circuit-breakers \
+  -H "Authorization: Bearer <token>"
+# Should return HTTP 200, not 503
+```
+
+---
+
 ## Portfolio Data Freshness (Critical for Trading)
 
 **Problem:** Dashboard shows "Data is stale (Xs old, max 360s)"
