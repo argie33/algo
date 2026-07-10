@@ -10,7 +10,7 @@ import logging
 from typing import Any
 
 from psycopg2.extensions import cursor
-from routes.utils import error_response
+from routes.utils import error_response, safe_dict_convert
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,8 @@ def handle(
             FROM stock_scores
             WHERE growth_score IS NOT NULL
         """)
-        count = cur.fetchone()["cnt"]
+        row = safe_dict_convert(cur.fetchone())
+        count = row.get("cnt")
 
         if count == 0:
             return error_response(400, "no_data", "No growth_score data to sync")
