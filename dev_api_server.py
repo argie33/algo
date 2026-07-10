@@ -69,7 +69,7 @@ def safe_call(handler_func):
             return result[1], result[0]
         return result, 200
     except Exception as e:
-        logger.error(f"Handler error: {e}", exc_info=True)
+        logger.error(f"Handler error: {type(e).__name__}: {e}", exc_info=True)
         return {'error': str(e), 'statusCode': 500}, 500
 
 
