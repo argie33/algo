@@ -530,7 +530,7 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
 
 @register_panel(
     "signals",
-    endpoint_deps=["sig", "sig_eval", "scores"],
+    endpoint_deps=["sig", "scores"],
     optional=True,
     description="Signals",
 )

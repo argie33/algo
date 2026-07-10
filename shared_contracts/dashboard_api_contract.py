@@ -1016,9 +1016,9 @@ DASHBOARD_PANELS = {
         "description": "Economic pulse",
     },
     "signals": {
-        "endpoint_deps": ["sig", "sig_eval"],
+        "endpoint_deps": ["sig", "scores"],
         "optional": True,
-        "description": "Signals and funnel",
+        "description": "Signals and composite scores",
     },
     "sectors": {
         "endpoint_deps": ["srank", "pos", "port", "sec_rot", "irank"],
