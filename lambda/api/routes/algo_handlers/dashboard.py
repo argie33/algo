@@ -1330,6 +1330,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             qualifying_buy_count = int(count_row["n"]) if count_row and count_row.get("n") else 0
 
             freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
+            # Ensure freshness dict has dates as strings (check_data_freshness converts them, but be explicit)
+            freshness = safe_json_serialize(freshness)
 
             sig_response = {
                 "n": qualifying_buy_count,
@@ -1342,6 +1344,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 "trend": trend,
                 "data_freshness": freshness,
             }
+            # Ensure entire response is JSON-serializable before validation
+            sig_response = safe_json_serialize(sig_response)
 
         return json_response(200, sig_response)
     except (
