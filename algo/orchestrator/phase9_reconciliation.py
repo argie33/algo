@@ -902,7 +902,6 @@ def run(  # noqa: C901
 
                 current_value = Decimal(str(result["portfolio_value"]))
                 pos_count = result["positions"]
-                unrealized = Decimal(str(result["unrealized_pnl"]))
                 position_value = Decimal(str(result["position_value"]))
 
                 # Get previous portfolio value for daily return calculation

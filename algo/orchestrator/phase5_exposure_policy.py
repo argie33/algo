@@ -45,12 +45,14 @@ def run(
                 logger.info(f"  Halt reasons: {'; '.join(exposure['halt_reasons'])}")
         except MarketDataUnavailableError as e:
             # Market data unavailable - fail-fast to prevent stale risk decisions
-            logger.error(f"[PHASE 5] CRITICAL: Market data unavailable, cannot proceed with exposure policy: {str(e)[:120]}")
-            raise RuntimeError(f"[PHASE 5] Cannot compute exposure without market regime data. {str(e)}") from e
+            e_str = f"{e!s}"[:120]
+            logger.error(f"[PHASE 5] CRITICAL: Market data unavailable, cannot proceed with exposure policy: {e_str}")
+            raise RuntimeError(f"[PHASE 5] Cannot compute exposure without market regime data. {e!s}") from e
         except (KeyError, ValueError) as e:
             # Data structure error - likely upstream bug
-            logger.error(f"[PHASE 5] CRITICAL: Market regime data malformed or missing required fields: {str(e)[:120]}")
-            raise RuntimeError(f"[PHASE 5] Market regime data structure invalid. {str(e)}") from e
+            e_str = f"{e!s}"[:120]
+            logger.error(f"[PHASE 5] CRITICAL: Market regime data malformed or missing required fields: {e_str}")
+            raise RuntimeError(f"[PHASE 5] Market regime data structure invalid. {e!s}") from e
 
         policy = ExposurePolicy()
         constraints = policy.get_entry_constraints(run_date)

@@ -765,6 +765,7 @@ class EntryHandler:
         if order_status in ("filled", "partially_filled", "paper_pending"):
             # Use the position_id from trade_request to link position to trade
             position_id = trade_request.position_id or str(uuid.uuid4())
+            entry_date = context.entry_date
 
             if self.context.execution_mode == "auto" and alpaca_order_id:
                 verified_status = self.context._verify_order_status(alpaca_order_id)

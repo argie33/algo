@@ -115,7 +115,6 @@ class LivePerformance:
             ValueError: If no closed trades found. Win rate is critical metric — cannot use default.
         """
         try:
-            from algo.infrastructure.config import get_config
             from algo.infrastructure.config.sql_intervals import get_interval_sql
 
             interval_sql = get_interval_sql("365d")
