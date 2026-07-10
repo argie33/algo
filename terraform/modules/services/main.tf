@@ -779,11 +779,11 @@ resource "aws_lambda_function" "algo" {
   # on 2026-06-30. The orchestrator already serializes trading logic itself via a DB-based
   # advisory lock (_acquire_run_lock in algo/orchestration/orchestrator.py), so Lambda-level
   # concurrency=1 was redundant for correctness and only added a failure mode.
-  # CRITICAL FIX: reserved_concurrent_executions must be > 0 and valid
-  # Deployment error: "ReservedConcurrentExecutions 2 should..."
-  # Solution: Keep reserved at reasonable level (50) to avoid throttling
-  # Provisioned concurrency (lines 783-790) ensures pre-warmed instances
-  reserved_concurrent_executions = max(var.algo_lambda_reserved_concurrency, 5)
+  # CRITICAL FIX: reserved_concurrent_executions must be >= provisioned_concurrent_executions
+  # AWS Lambda constraint enforced at apply time
+  # Solution: Ensure reserved >= provisioned (both set in terraform.tfvars)
+  # Provisioned concurrency (lines 892-899) ensures pre-warmed instances
+  reserved_concurrent_executions = max(var.algo_lambda_reserved_concurrency, var.algo_lambda_provisioned_concurrency)
 
   layers = concat(
     local.shared_deps_layer_arn != "" ? [local.shared_deps_layer_arn] : [],
