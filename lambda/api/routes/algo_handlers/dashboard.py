@@ -1199,8 +1199,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 
 
 @db_route_handler("fetch dashboard signals")
-# TEMPORARY FIX: Disable validation to debug date serialization issue
-# @validate_api_response("sig")
+@validate_api_response("sig")
 def _get_dashboard_signals(cur: cursor) -> Any:
     """Get dashboard-specific signal data from algo_signals table.
 
