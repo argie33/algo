@@ -43,17 +43,19 @@ jobs:
           # Use GitHub Actions run ID as unique execution identifier
           echo "[ORCHESTRATOR_TRIGGER] Starting invocation at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
 
-          # Create JSON payload using jq (ensures proper JSON formatting)
+          # Create JSON payload using jq and base64 encode it
+          # AWS Lambda invoke requires base64-encoded payloads
           PAYLOAD=$(jq -c -n \
             --arg source "github-actions-scheduled" \
             --arg run_id "gh-${{ github.run_id }}-${{ github.run_number }}" \
             --arg exec_mode "paper" \
             --arg triggered_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            '{source: $source, run_identifier: $run_id, execution_mode: $exec_mode, triggered_at: $triggered_at}')
+            '{source: $source, run_identifier: $run_id, execution_mode: $exec_mode, triggered_at: $triggered_at}' \
+            | base64 -w 0)
 
-          echo "Payload: $PAYLOAD"
+          echo "Invoking Lambda with payload..."
 
-          # Invoke Lambda with JSON payload (AWS CLI handles the JSON directly)
+          # Invoke Lambda (AWS CLI automatically decodes base64 payload for Lambda)
           aws lambda invoke \
             --function-name algo-algo-dev \
             --region us-east-1 \
