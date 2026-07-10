@@ -43,19 +43,23 @@ jobs:
           # Use GitHub Actions run ID as unique execution identifier
           echo "[ORCHESTRATOR_TRIGGER] Starting invocation at $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
 
-          # Create JSON payload safely using jq to avoid shell encoding issues
-          PAYLOAD=$(jq -n \
+          # Create JSON payload safely using jq and save to file
+          # This avoids shell quoting issues with the --payload parameter
+          jq -n \
             --arg source "github-actions-scheduled" \
             --arg run_id "gh-${{ github.run_id }}-${{ github.run_number }}" \
             --arg exec_mode "paper" \
             --arg triggered_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
-            '{source: $source, run_identifier: $run_id, execution_mode: $exec_mode, triggered_at: $triggered_at}')
+            '{source: $source, run_identifier: $run_id, execution_mode: $exec_mode, triggered_at: $triggered_at}' \
+            > /tmp/payload.json
+
+          cat /tmp/payload.json
 
           aws lambda invoke \
             --function-name algo-algo-dev \
             --region us-east-1 \
             --invocation-type Event \
-            --payload "$PAYLOAD" \
+            --payload file:///tmp/payload.json \
             /tmp/response.json
 
           echo "[ORCHESTRATOR_TRIGGER] Invocation queued successfully"
