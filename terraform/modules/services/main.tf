@@ -231,42 +231,21 @@ resource "aws_lambda_function" "api" {
 # Requires publish = true on the Lambda so Terraform can target a specific version.
 # Cost: ~$12/month per unit in us-east-1 (set api_lambda_provisioned_concurrency = 0 to disable).
 
-# Provisioned concurrency cannot target $LATEST -- it needs a numbered version or an alias
-# pointing to one. No "LIVE" qualifier exists on a Lambda function unless an alias with that
-# exact name is created; the config below previously pointed at a nonexistent alias, so every
-# terraform apply failed with "couldn't find resource" after retrying for ~2 minutes.
-# CRITICAL FIX 2026-07-07: Lambda alias management removed from Terraform.
-# Problem: Alias "LIVE" already exists in AWS but isn't in Terraform state. Every apply
-# tries to CREATE it, causing 409 ResourceConflictException. Terraform state is out of sync
-# with AWS reality, and there's no clean way to import it in the workflow.
-#
-# Solution: Let deploy-api-lambda.yml handle alias management (it already does):
-# 1. GitHub Actions publishes a new version when code changes
-# 2. GitHub Actions updates the LIVE alias to point to the new version
-# 3. Terraform creates provisioned concurrency pointing to the alias
-#
-# Provisioned concurrency can reference the alias directly by name (Terraform data source)
-# instead of creating the alias resource.
-
-data "aws_lambda_alias" "api_live" {
-  count         = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
-  name          = "LIVE"
-  function_name = aws_lambda_function.api.function_name
-  depends_on    = [aws_lambda_function.api]
-}
-
-# RE-ENABLED 2026-07-11: API Lambda provisioned concurrency (CRITICAL for 503 fix)
+# API Lambda provisioned concurrency (F-01 cold-start mitigation)
 # REASON: VPC cold starts (15-40s) exceed API Gateway timeout (29s), causing 503 errors
 # Cost: ~$12/month per unit in us-east-1 (default 1 pre-warmed instance)
 # CRITICAL: Without this, all first requests to API Lambda timeout and return 503
 # Solution: Keep 1-2 instances pre-warmed to eliminate VPC cold-start delays
 # This is NOT a cost optimization issue — it's a correctness issue for production deployment
+#
+# Use $LATEST version (like algo Lambda) — no alias required.
+# Provisioned concurrency works on function versions, and $LATEST is the default version.
 
 resource "aws_lambda_provisioned_concurrency_config" "api" {
   count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
-  function_name                     = data.aws_lambda_alias.api_live[0].function_name
+  function_name                     = aws_lambda_function.api.function_name
   provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
-  qualifier                         = data.aws_lambda_alias.api_live[0].name
+  qualifier                         = "$LATEST"
   lifecycle {
     create_before_destroy = true
   }
