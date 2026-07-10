@@ -22,7 +22,8 @@ that must complete and remain fresh. stock_scores requires minimum 3/6 metrics p
 to prevent single-metric bias. Stale metrics = stale scores = HALT.
 
 Phase 5 generates stock_scores and signals on-the-fly from price_daily input.
-Excluded: stock_scores (orchestrator output), technical_data_daily, buy_sell_daily (no longer in pipeline).
+CRITICAL FIX 2026-07-10: buy_sell_daily now loaded in Phase 1 (required by Phase 7).
+Excluded: stock_scores (orchestrator output), technical_data_daily.
 
 TIMEZONE REQUIREMENT: All dates passed to phases are ET (Eastern Time) dates, not UTC.
 Market trading hours are 9:30 AM - 4:00 PM ET. The orchestrator ensures run_date is always ET.
@@ -164,6 +165,27 @@ def run(  # noqa: C901
             f"[PHASE 1] Failsafe retry check: {len(recovered)} recovered, "
             f"{len(still_failing)} still failing (auxiliary)"
         )
+
+    # CRITICAL FIX: Load buy_sell_daily (required by Phase 7)
+    # Phase 7 signal generation fails without buy_sell_daily BUY signals
+    logger.info("[PHASE 1] Loading buy_sell_daily signals (required by Phase 7)")
+    try:
+        from loaders.load_buy_sell_daily import SignalsDailyLoader
+        loader = SignalsDailyLoader()
+        loaded_count = loader.run(symbols=None)
+        logger.info(f"[PHASE 1] Successfully loaded {loaded_count} buy_sell_daily records")
+    except Exception as e:
+        logger.critical(f"[PHASE 1] CRITICAL: Failed to load buy_sell_daily: {e}")
+        log_phase_result_fn(1, "buy_sell_daily_load_failed", "halt", f"buy_sell_daily load failed: {str(e)[:100]}")
+        from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
+        error = PhaseError(
+            category=ErrorCategory.DATA_UNAVAILABLE,
+            message="buy_sell_daily loader failed - Phase 7 signal generation requires this data",
+            root_cause=str(e),
+            recoverable=False,
+        )
+        log_phase_error(1, error, log_phase_result_fn)
+        return PhaseResult(1, "buy_sell_daily_load_failed", "halted", {}, True, f"buy_sell_daily load failed: {str(e)[:100]}")
 
     # ISSUE #6 FIX: Check DataPatrol results before proceeding with freshness validation
     # DataPatrol runs independently and validates data quality; Phase 1 must respect those findings
