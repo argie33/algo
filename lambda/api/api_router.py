@@ -135,6 +135,7 @@ if "algo" in _AVAILABLE_ROUTES:
         "/api/algo/performance",    # Performance metrics
         "/api/algo/risk-metrics",   # Risk analytics
         "/api/algo/last-run",       # Latest orchestrator run status
+        "/api/algo/status",         # Algorithm execution status (alternative to last-run)
         "/api/algo/trades",         # Trade history
         "/api/algo/config",         # System configuration
         "/api/algo/data-status",    # Data freshness status
