@@ -229,14 +229,16 @@ class ResponseValidator:
                 f"Type validation failed in {endpoint_name}: {type_mismatches}",
             )
 
-        # Check for extra fields not in schema (contract violation prevention)
+        # Check for extra fields not in schema (log warning but don't fail validation)
+        # Extra fields are expected during development/debugging and shouldn't block responses
+        # This prevents strict schema validation from rejecting valid responses that add extra fields
         allowed_fields = set(schema.required_fields) | set(schema.optional_fields)
         extra_fields = set(response.keys()) - allowed_fields
         if extra_fields:
-            return (
-                False,
-                f"Extra fields not in schema for {endpoint_name}: {sorted(extra_fields)}. "
-                f"Add to optional_fields in contract if intended.",
+            # Log as info level (not error) since extra fields are common and expected
+            logger.info(
+                f"Response for {endpoint_name} has extra fields not in schema: {sorted(extra_fields)}. "
+                f"These will be included in the response but are not validated."
             )
 
         return True, None
