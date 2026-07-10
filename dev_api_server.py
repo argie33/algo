@@ -69,6 +69,13 @@ def safe_call(handler_func):
 
         if isinstance(result, tuple) and len(result) >= 2:
             return result[1], result[0]
+
+        # CRITICAL FIX: Use statusCode from response dict, not hardcoded 200
+        # Handler functions return error responses with proper HTTP status codes (500, 503, etc)
+        # Using statusCode 200 for all responses breaks error handling in the dashboard
+        if isinstance(result, dict) and 'statusCode' in result:
+            status_code = result.get('statusCode', 200)
+            return result, status_code
         return result, 200
     except Exception as e:
         logger.error(f"[safe_call] Handler {handler_func.__name__} error: {type(e).__name__}: {e}", exc_info=True)
