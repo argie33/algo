@@ -27,7 +27,7 @@ Configuration Keys:
     sql_interval_52w_days      → INTERVAL '364 days'
 """
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from . import AlgoConfig
