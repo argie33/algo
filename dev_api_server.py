@@ -34,6 +34,7 @@ from routes.algo_handlers.monitoring import (
     _get_notifications,
 )
 from routes.algo_handlers.metrics import (
+    _get_algo_portfolio,
     _get_daily_return_histogram,
     _get_holding_period_distribution,
     _get_stage_distribution,
@@ -87,6 +88,12 @@ def positions():
 @app.route('/api/algo/performance', methods=['GET'])
 def performance():
     data, code = safe_call(_get_equity_curve)
+    return flask.jsonify(data), code
+
+
+@app.route('/api/algo/portfolio', methods=['GET'])
+def portfolio():
+    data, code = safe_call(_get_algo_portfolio)
     return flask.jsonify(data), code
 
 
