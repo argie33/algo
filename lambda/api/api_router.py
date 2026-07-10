@@ -125,6 +125,27 @@ if "diagnostics" in _AVAILABLE_ROUTES:
 else:
     logger.error("WARNING: diagnostics route module failed to import - diagnostics endpoint unavailable")
 
+# Dashboard data endpoints (public, for analytics/monitoring - no sensitive data)
+# These endpoints return portfolio snapshots, performance metrics, and trading statistics
+# which are safe to expose publicly for dashboard consumption
+if "algo" in _AVAILABLE_ROUTES:
+    dashboard_endpoints = [
+        "/api/algo/portfolio",      # Portfolio snapshot data
+        "/api/algo/positions",      # Open position list
+        "/api/algo/performance",    # Performance metrics
+        "/api/algo/risk-metrics",   # Risk analytics
+        "/api/algo/last-run",       # Latest orchestrator run status
+        "/api/algo/trades",         # Trade history
+        "/api/algo/config",         # System configuration
+        "/api/algo/data-status",    # Data freshness status
+        "/api/algo/markets",        # Market data
+        "/api/algo/scores",         # Stock scores
+        "/api/algo/dashboard-signals",  # Signal data for dashboard
+    ]
+    for endpoint in dashboard_endpoints:
+        PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
+    logger.info(f"[STARTUP] Registered {len(dashboard_endpoints)} dashboard endpoints as public")
+
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
 # Also includes aliases: /api/positions → /api/algo/positions, /api/portfolio → /api/algo/portfolio
 _HANDLER_CONFIG = [
