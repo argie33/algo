@@ -17,6 +17,14 @@ import flask
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'lambda', 'api'))
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Import only the handlers we need, commenting out others to isolate the issue
+from routes.algo_handlers.metrics import (
+    _get_algo_portfolio,
+    _get_daily_return_histogram,
+    _get_holding_period_distribution,
+    _get_stage_distribution,
+    _get_trade_distribution,
+)
 from routes.algo_handlers.dashboard import (
     _get_algo_positions,
     _get_dashboard_scores,
@@ -32,13 +40,6 @@ from routes.algo_handlers.market import (
 )
 from routes.algo_handlers.monitoring import (
     _get_notifications,
-)
-from routes.algo_handlers.metrics import (
-    _get_algo_portfolio,
-    # _get_daily_return_histogram,  # Temporarily disabled for testing
-    _get_holding_period_distribution,
-    _get_stage_distribution,
-    _get_trade_distribution,
 )
 from config.credential_manager import get_db_config
 import psycopg2
@@ -70,7 +71,6 @@ def get_db_cursor():
 def safe_call(handler_func):
     try:
         cur, conn = get_db_cursor()
-        print(f"[safe_call] Calling {handler_func.__name__}...", flush=True)
         logger.info(f"[safe_call] Calling {handler_func.__name__}...")
 
         # Validate cursor is valid before calling handler
@@ -83,14 +83,11 @@ def safe_call(handler_func):
             raise RuntimeError(f"Database cursor invalid: {e}") from e
 
         try:
-            print(f"[safe_call] About to call handler function...", flush=True)
             result = handler_func(cur)
-            print(f"[safe_call] Handler returned: type={type(result).__name__}", flush=True)
         except Exception as handler_e:
             import traceback
             logger.error(f"[safe_call] Handler {handler_func.__name__} raised exception:")
             logger.error(traceback.format_exc())
-            print(f"[safe_call] Handler exception: {type(handler_e).__name__}: {handler_e}", flush=True)
             raise handler_e
         finally:
             cur.close()
@@ -110,7 +107,6 @@ def safe_call(handler_func):
         if isinstance(result, dict) and 'statusCode' in result:
             status_code = result.get('statusCode', 200)
             logger.info(f"[safe_call] Returning dict with statusCode {status_code}")
-            print(f"[safe_call] Returning statusCode={status_code}", flush=True)
             return result, status_code
         logger.info(f"[safe_call] Result is not dict with statusCode, returning as-is with 200")
         return result, 200
@@ -121,7 +117,6 @@ def safe_call(handler_func):
         logger.error(f"[safe_call] {handler_func.__name__} EXCEPTION:\n{tb}")
         error_detail = str(e)[:500]  # Limit error message length
         logger.error(f"[safe_call] Returning error response: {error_detail}")
-        print(f"[safe_call] Exception: {error_detail}", flush=True)
         return {'error': error_detail, 'statusCode': 500}, 500
 
 
@@ -181,9 +176,8 @@ def circuit_breakers():
 
 @app.route('/api/algo/daily-return-histogram', methods=['GET'])
 def daily_return_histogram():
-    # Test with inline data to see if the route itself works
-    logger.info("[daily_return_histogram] Route called")
-    return flask.jsonify({"test": "ok", "statusCode": 200}), 200
+    data, code = safe_call(_get_daily_return_histogram)
+    return flask.jsonify(data), code
 
 
 @app.route('/api/algo/holding-period-distribution', methods=['GET'])
