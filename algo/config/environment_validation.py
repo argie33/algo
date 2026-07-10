@@ -15,12 +15,15 @@ class EnvironmentValidator:
 
     # Required environment variables for orchestrator execution
     REQUIRED_VARS = {
-        # Database (always required)
+        # Database connection (host, port, name, user required; password loaded from Secrets Manager or env)
         "DB_HOST": "PostgreSQL host",
         "DB_PORT": "PostgreSQL port",
         "DB_NAME": "PostgreSQL database name",
         "DB_USER": "PostgreSQL username",
-        "DB_PASSWORD": "PostgreSQL password",
+        # DB_PASSWORD is NOT required here - loaded from:
+        #   1. AWS Lambda: DB_SECRET_ARN (Secrets Manager JSON blob with password field)
+        #   2. Local dev: environment variable DB_PASSWORD
+        # Credential validation happens at first database connection, not at startup
 
         # AWS (always required)
         "AWS_REGION": "AWS region for Lambda/RDS/Secrets Manager",
