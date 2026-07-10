@@ -486,15 +486,26 @@ def _get_algo_status(cur: cursor) -> Any:
             pos_value = float(pos_result.get("total_positions_value", 0)) if pos_result else 0.0
             closed_value = float(pos_result.get("closed_value", 0)) if pos_result else 0.0
 
-            # Get initial cash (first trade entry cash or assume 100k baseline)
+            # Get initial cash from portfolio snapshot if available, else use default
+            # CRITICAL: algo_trades table does NOT have initial_cash column
+            # Use default of $100,000 (standard Alpaca paper trading starting balance)
+            # This is a reasonable assumption for paper trading accounts
+            initial_cash = 100000.0
+
+            # Try to get actual initial balance from first portfolio snapshot if available
             cur.execute("""
-                SELECT COALESCE(initial_cash, 100000) as ic
-                FROM algo_trades
-                WHERE initial_cash IS NOT NULL
-                ORDER BY entry_date ASC LIMIT 1
+                SELECT total_portfolio_value
+                FROM algo_portfolio_snapshots
+                ORDER BY created_at ASC LIMIT 1
             """)
-            cash_result = cur.fetchone()
-            initial_cash = float(cash_result.get("ic", 100000)) if cash_result else 100000.0
+            first_snapshot = cur.fetchone()
+            if first_snapshot and first_snapshot.get("total_portfolio_value"):
+                try:
+                    # If we have a first snapshot, use its value as our baseline
+                    # This represents the portfolio value at the very beginning
+                    initial_cash = float(first_snapshot["total_portfolio_value"])
+                except (ValueError, TypeError):
+                    pass  # Fall back to default if conversion fails
 
             # Compute cash as: initial - (all positions value) + (closed positions)
             total_spent = pos_value
