@@ -78,8 +78,12 @@ def safe_call(handler_func):
             return result, status_code
         return result, 200
     except Exception as e:
-        logger.error(f"[safe_call] Handler {handler_func.__name__} error: {type(e).__name__}: {e}", exc_info=True)
-        return {'error': str(e), 'statusCode': 500}, 500
+        # Log full traceback to help debug handler failures
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"[safe_call] Handler {handler_func.__name__} exception:\n{tb}")
+        error_detail = str(e)[:500]  # Limit error message length
+        return {'error': error_detail, 'statusCode': 500}, 500
 
 
 @app.route('/api/algo/scores', methods=['GET'])
