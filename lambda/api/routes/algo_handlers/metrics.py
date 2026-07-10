@@ -736,7 +736,6 @@ def _get_daily_return_histogram(cur: cursor) -> Any:
 
 
 @db_route_handler("get holding period distribution")
-@validate_api_response("perf")
 def _get_holding_period_distribution(cur: cursor) -> Any:
     """Return distribution of position holding periods in days."""
     cur.execute("""
@@ -1051,7 +1050,6 @@ def _get_risk_metrics(cur: cursor) -> Any:
 
 
 @db_route_handler("get stage distribution")
-@validate_api_response("perf")
 def _get_stage_distribution(cur: cursor) -> Any:
     """Return distribution of positions by Weinstein stage."""
     cur.execute("""
@@ -1084,7 +1082,6 @@ def _get_stage_distribution(cur: cursor) -> Any:
 
 
 @db_route_handler("get trade distribution")
-@validate_api_response("perf")
 def _get_trade_distribution(cur: cursor) -> Any:
     """Return distribution of trade outcomes by R-multiple."""
     cur.execute("""
