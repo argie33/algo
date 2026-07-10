@@ -591,6 +591,7 @@ def _get_market(cur: cursor) -> Any:
 @db_route_handler("get market factors")
 def _get_market_factors(cur: cursor) -> Any:
     """Get market exposure factors for dashboard display."""
+    logger.debug("[MARKET_FACTORS] Function called - no validation decorator")
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
 
