@@ -68,17 +68,7 @@ export default defineConfig(({ mode }) => {
             "/api": {
               target: proxyTarget,
               changeOrigin: true,
-              timeout: 30000, // 30s — matches API Gateway's 29s hard limit. Some queries (deep-value, market breadth) use up to 23s statement timeouts.
-              configure: (proxy, options) => {
-                // Forward CORS headers from backend to client to fix mixed mock/real API access
-                proxy.on('proxyRes', (proxyRes, req, res) => {
-                  const origin = req.headers.origin;
-                  if (origin) {
-                    proxyRes.headers['Access-Control-Allow-Origin'] = origin;
-                    proxyRes.headers['Access-Control-Allow-Credentials'] = 'true';
-                  }
-                });
-              },
+              timeout: 30000,
             },
           }
         : undefined,

@@ -589,7 +589,6 @@ def _get_market(cur: cursor) -> Any:
 
 
 @db_route_handler("get market factors")
-@validate_api_response("mkt")
 def _get_market_factors(cur: cursor) -> Any:
     """Get market exposure factors for dashboard display."""
     try:
