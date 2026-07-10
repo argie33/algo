@@ -209,13 +209,13 @@ export const ENDPOINT_SCHEMAS = {
   },
   "/api/algo/equity-curve": {
     type: "paginated",
-    itemFields: ["date", "value"],
-    paginationFields: ["page", "limit", "total"],
+    itemFields: ["snapshot_date", "total_portfolio_value"],
+    paginationFields: ["total", "limit"],
     decimalFields: [
       "total_portfolio_value",
-      "cash_balance",
-      "position_value",
-      "unrealized_pnl_dollars",
+      "total_cash",
+      "unrealized_pnl_total",
+      "daily_return_pct",
       "drawdown_pct",
     ],
   },
