@@ -420,6 +420,8 @@ def _get_algo_status(cur: cursor) -> Any:
             "message": "No trading activity yet",
             "status": "ready",
         }
+    else:
+        row = safe_dict_convert(row)
 
     # Fetch and validate portfolio snapshot: RESILIENT fallback to computed data
     # If orchestrator hasn't run (Phase 9 snapshot missing), compute from algo_positions + algo_trades
@@ -434,6 +436,7 @@ def _get_algo_status(cur: cursor) -> Any:
             """)
         snap = cur.fetchone()
         if snap is not None:
+            snap = safe_dict_convert(snap)
             pv_raw = snap.get("total_portfolio_value")
             tc_raw = snap.get("total_cash")
             pc_raw = snap.get("position_count")
@@ -488,6 +491,8 @@ def _get_algo_status(cur: cursor) -> Any:
                 WHERE status IN ('open', 'closed')
             """)
             pos_result = cur.fetchone()
+            if pos_result:
+                pos_result = safe_dict_convert(pos_result)
             pos_count = pos_result.get("pos_count") if pos_result else 0
             pos_value = float(pos_result.get("total_positions_value", 0)) if pos_result else 0.0
             closed_value = float(pos_result.get("closed_value", 0)) if pos_result else 0.0
@@ -505,6 +510,8 @@ def _get_algo_status(cur: cursor) -> Any:
                 ORDER BY created_at ASC LIMIT 1
             """)
             first_snapshot = cur.fetchone()
+            if first_snapshot:
+                first_snapshot = safe_dict_convert(first_snapshot)
             if first_snapshot and first_snapshot.get("total_portfolio_value"):
                 try:
                     # If we have a first snapshot, use its value as our baseline
@@ -708,6 +715,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                         "_error": "Circuit breaker metrics unavailable. Trading disabled until data is available.",
                     },
                 )
+            cbm_row = safe_dict_convert(cbm_row)
 
             # Extract check_date timestamp and calculate data age
             check_date = cbm_row["check_date"]
@@ -1266,6 +1274,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             WHERE signal_active = true AND signal_date >= CURRENT_DATE - 7
         """)
         sig = cur.fetchone()
+        if sig is not None:
+            sig = safe_dict_convert(sig)
         if sig is None or sig.get("n") is None or sig.get("n") == 0:
             # No signals available - return empty response instead of error
             logger.info("[DASHBOARD SIGNALS] No active signals found in last 7 days")
@@ -1360,6 +1370,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                   AND s.signal_quality_score >= 70
             """)
             count_row = cur.fetchone()
+            if count_row:
+                count_row = safe_dict_convert(count_row)
             qualifying_buy_count = int(count_row["n"]) if count_row and count_row.get("n") else 0
 
             freshness = check_data_freshness(cur, "algo_signals", "signal_date", warning_days=1)

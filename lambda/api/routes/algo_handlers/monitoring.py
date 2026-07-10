@@ -47,6 +47,7 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
     count_row = cur.fetchone()
     if count_row is None:
         raise RuntimeError("Failed to fetch audit log count: query returned no results")
+    count_row = safe_dict_convert(count_row)
     total = count_row["total"]
     if total is None:
         raise RuntimeError("Audit log count query returned None for 'total' field")
@@ -248,6 +249,8 @@ def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     """Get data patrol findings with pagination."""
     cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
     row = cur.fetchone()
+    if row:
+        row = safe_dict_convert(row)
     total = row["total"] if row else 0
 
     cur.execute(

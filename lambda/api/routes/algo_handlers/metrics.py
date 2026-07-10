@@ -254,6 +254,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                 """)
             pos_row = cur.fetchone()
             if pos_row:
+                pos_row = safe_dict_convert(pos_row)
                 # Fail-fast: COUNT(*) always returns non-None. If total_open is None, it indicates data issue.
                 # Do not silently convert to 0.
                 if "total_open" not in pos_row or pos_row["total_open"] is None:
@@ -899,6 +900,8 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
             logger.error("Performance metrics unavailable: algo_performance_metrics table empty.")
             raise RuntimeError("Performance metrics not yet available - table is empty")
 
+        row = safe_dict_convert(row)
+
         return json_response(
             200,
             {
@@ -931,6 +934,8 @@ def _get_portfolio_summary(cur: cursor) -> Any:
 
     if not row:
         return error_response(503, "no_data", "Portfolio snapshot not yet available")
+
+    row = safe_dict_convert(row)
 
     # Validate critical fields (fail-fast: check for None, not falsiness - 0.0 is valid)
     total_value_raw = row.get("total_portfolio_value")

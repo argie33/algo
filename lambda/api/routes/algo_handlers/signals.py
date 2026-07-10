@@ -42,6 +42,7 @@ def _validate_portfolio_snapshot(cur: cursor) -> tuple[dict[str, Any], Any] | An
     if port_row is None:
         return None, error_response(503, "service_unavailable", "Portfolio snapshot unavailable")
 
+    port_row = safe_dict_convert(port_row)
     portfolio_value = float(port_row["total_portfolio_value"])
     open_positions = int(port_row["position_count"])
 
@@ -60,6 +61,8 @@ def _get_symbol_sector(cur: cursor, symbol: str) -> str | Any:
         (symbol,),
     )
     profile_row = cur.fetchone()
+    if profile_row:
+        profile_row = safe_dict_convert(profile_row)
     sector = profile_row["sector"] if profile_row else None
 
     if sector is None:
@@ -305,6 +308,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
                 "Portfolio snapshot unavailable for position sizing",
             )
 
+        portfolio_row = safe_dict_convert(portfolio_row)
         portfolio_value_raw = portfolio_row.get("total_portfolio_value")
         if portfolio_value_raw is None:
             return error_response(
