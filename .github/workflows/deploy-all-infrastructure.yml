@@ -1997,7 +1997,7 @@ jobs:
   # Populate Database with Initial Data
   #
   run-initial-loaders:
-    name: Populate Database - Run Initial Loaders
+    name: Populate Database - Run Critical Data Loaders
     needs: [terraform, run-migrations]
     if: success()
     runs-on: ubuntu-latest
@@ -2010,14 +2010,48 @@ jobs:
           role-to-assume: ${{ secrets.GITHUB_ACTIONS_ROLE_ARN || format('arn:aws:iam::{0}:role/{1}', secrets.AWS_ACCOUNT_ID, secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev') }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Run AAII Sentiment Loader (Lambda)
+      - name: Trigger Morning Data Pipeline (Step Functions)
+        run: |
+          PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
+          ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
+          SFN_ARN="arn:aws:states:${AWS_REGION}:$(aws sts get-caller-identity --query Account --output text):stateMachine:${PROJECT}-morning-prep-pipeline-${ENVIRONMENT}"
+
+          echo "Starting Morning Data Pipeline: $SFN_ARN"
+
+          EXEC_ARN=$(aws stepfunctions start-execution \
+            --state-machine-arn "$SFN_ARN" \
+            --region $AWS_REGION \
+            --output text 2>&1)
+
+          if [ $? -eq 0 ]; then
+            echo "[OK] Started pipeline execution: $EXEC_ARN"
+            # Wait for execution with 15-minute timeout
+            echo "Waiting for data loaders to complete (timeout: 15 minutes)..."
+            aws stepfunctions wait execution-succeeded \
+              --execution-arn "$EXEC_ARN" \
+              --region $AWS_REGION \
+              --max-attempts 90 \
+              --delay 10 2>&1 | head -20
+
+            if [ $? -eq 0 ]; then
+              echo "[OK] Data loaders completed successfully"
+            else
+              echo "[WARN] Data loader timeout or failure - pipeline may still be running"
+              echo "Check Step Functions console for execution details: $EXEC_ARN"
+            fi
+          else
+            echo "[WARN] Could not start data loader pipeline: $EXEC_ARN"
+            echo "Manual trigger: aws stepfunctions start-execution --state-machine-arn $SFN_ARN --region $AWS_REGION"
+          fi
+
+      - name: Run AAII Sentiment Loader (Lambda) - Fallback
         continue-on-error: true
         run: |
           PROJECT=$(grep '^project_name' terraform/terraform.tfvars | cut -d'"' -f2)
           ENVIRONMENT=$(grep '^environment' terraform/terraform.tfvars | cut -d'"' -f2)
           LAMBDA_NAME="${PROJECT}-aaii-loader-${ENVIRONMENT}"
 
-          echo "Invoking AAII Sentiment Loader Lambda: $LAMBDA_NAME"
+          echo "Invoking AAII Sentiment Loader Lambda (fallback): $LAMBDA_NAME"
 
           # Invoke Lambda and capture response
           RESPONSE=$(aws lambda invoke \
@@ -2027,30 +2061,9 @@ jobs:
             /tmp/aaii_response.json 2>&1)
 
           if [ $? -eq 0 ]; then
-            # Lambda invocation succeeded, extract body from response
-            BODY=$(python3 << 'PYTHON'
-          import json
-          try:
-            with open('/tmp/aaii_response.json', 'r') as f:
-              response = json.load(f)
-              if 'body' in response:
-                body = response['body']
-                # body might be a JSON string or plain string
-                try:
-                  parsed = json.loads(body)
-                  print(parsed if isinstance(parsed, str) else body)
-                except:
-                  print(body)
-              else:
-                print(json.dumps(response))
-          except Exception as e:
-            print(f"Error reading response: {e}")
-          PYTHON
-            )
-            echo "$BODY"
+            echo "[OK] AAII loader invoked"
           else
-            echo "[WARN] AAII Sentiment Loader Lambda invocation failed: $RESPONSE"
-            echo "The loader will run post-deployment via EventBridge scheduled tasks."
+            echo "[WARN] AAII loader invocation failed: $RESPONSE"
           fi
 
   #
