@@ -791,6 +791,14 @@ class EntryHandler:
             if position_value <= 0:
                 return "invalid"
 
+            # CRITICAL VALIDATION: entry_price and entry_date must NEVER be NULL
+            if executed_price is None or entry_date is None:
+                raise ValueError(
+                    f"[POSITION_CREATION CRITICAL] {symbol}: Cannot create position with NULL entry_price or entry_date. "
+                    f"executed_price={executed_price}, entry_date={entry_date}. "
+                    f"Portfolio reconciliation depends on having entry prices for all positions."
+                )
+
             # Use the position_id that was created when inserting the trade
             # This ensures trade and position are linked via foreign key
             # CRITICAL: Paper_pending trades MUST create open positions for portfolio tracking
