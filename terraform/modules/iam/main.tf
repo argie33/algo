@@ -265,7 +265,8 @@ data "aws_iam_policy_document" "github_actions_identity" {
       "secretsmanager:CreateSecret", "secretsmanager:CreateSecretVersion",
       "secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret",
       "secretsmanager:ListSecrets", "secretsmanager:UpdateSecret",
-      "secretsmanager:RotateSecret", "secretsmanager:TagResource"
+      "secretsmanager:RotateSecret", "secretsmanager:TagResource", "secretsmanager:RestoreSecret",
+      "secretsmanager:DeleteSecret"
     ]
     resources = ["arn:aws:secretsmanager:*:${var.aws_account_id}:secret:${var.project_name}*"]
   }
