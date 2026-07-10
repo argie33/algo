@@ -798,6 +798,17 @@ jobs:
           terraform state rm "module.services.aws_lambda_function_event_invoke_config.api_async" 2>/dev/null || true
           echo "[OK] Orphaned Lambda alias and event invoke config state entries removed"
 
+          # CRITICAL: Remove provisioned concurrency configs when they're disabled (count = 0)
+          # Issue: When var.api_lambda_provisioned_concurrency=0, Terraform tries to destroy the config
+          # But if reserved_concurrent_executions < existing provisioned_concurrent_executions in AWS,
+          # the Lambda resource update fails before the config deletion can happen.
+          # Solution: Remove from state so Terraform doesn't try to manage them
+          echo ""
+          echo "Removing provisioned concurrency configs (provisioned_concurrency=0 in terraform.tfvars)..."
+          terraform state rm "module.services.aws_lambda_provisioned_concurrency_config.api[0]" 2>/dev/null || echo "  (not in state)"
+          terraform state rm "module.services.aws_lambda_provisioned_concurrency_config.algo[0]" 2>/dev/null || echo "  (not in state)"
+          echo "[OK] Provisioned concurrency configs removed from state"
+
       - name: Remove Orphaned S3 Config Bucket From State
         working-directory: terraform
         run: |
