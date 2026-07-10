@@ -29,6 +29,8 @@ class ErrorBoundary extends React.Component {
       errorId: null,
       copiedToClipboard: false,
     };
+    // variant can be 'page' (full MUI UI) or 'form' (minimal UI) or undefined (defaults to 'page')
+    this.variant = props.variant || "page";
   }
 
   static getDerivedStateFromError(_error) {
@@ -158,199 +160,252 @@ class ErrorBoundary extends React.Component {
     return errorId;
   };
 
-  render() {
-    if (this.state.hasError) {
-      return (
-        <Box
-          sx={{
-            minHeight: "100vh",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            bgcolor: "grey.50",
-            p: 3,
-          }}
-        >
-          <Card sx={{ maxWidth: 600, width: "100%" }}>
-            <CardContent sx={{ p: 4 }}>
-              <Stack spacing={3} alignItems="center" textAlign="center">
-                {/* Error Icon */}
-                <ErrorOutline
-                  data-testid="ErrorOutlineIcon"
-                  sx={{ fontSize: 64, color: "error.main" }}
-                />
+  renderPageVariant() {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          bgcolor: "grey.50",
+          p: 3,
+        }}
+      >
+        <Card sx={{ maxWidth: 600, width: "100%" }}>
+          <CardContent sx={{ p: 4 }}>
+            <Stack spacing={3} alignItems="center" textAlign="center">
+              {/* Error Icon */}
+              <ErrorOutline
+                data-testid="ErrorOutlineIcon"
+                sx={{ fontSize: 64, color: "error.main" }}
+              />
 
-                {/* Main Error Message */}
-                <Box>
-                  <Typography variant="h4" fontWeight={700} gutterBottom>
-                    Something went wrong
-                  </Typography>
-                  <Typography
-                    variant="body1"
-                    color="text.secondary"
-                    sx={{ mb: 2 }}
-                  >
-                    We apologize for the inconvenience. An unexpected error has
-                    occurred in our financial dashboard application.
-                  </Typography>
-                </Box>
+              {/* Main Error Message */}
+              <Box>
+                <Typography variant="h4" fontWeight={700} gutterBottom>
+                  Something went wrong
+                </Typography>
+                <Typography
+                  variant="body1"
+                  color="text.secondary"
+                  sx={{ mb: 2 }}
+                >
+                  We apologize for the inconvenience. An unexpected error has
+                  occurred in our financial dashboard application.
+                </Typography>
+              </Box>
 
-                {/* Error Details for Development */}
-                {process.env.NODE_ENV === "development" && this.state.error && (
-                  <Alert
-                    severity="error"
-                    sx={{ width: "100%", textAlign: "left" }}
-                  >
-                    <Typography
-                      variant="subtitle2"
-                      fontWeight={600}
-                      gutterBottom
-                    >
-                      Error Details (Development Only):
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ fontFamily: "monospace", mb: 1 }}
-                    >
-                      {this.state.error.toString()}
-                    </Typography>
-                    {this.state.errorInfo?.componentStack && (
-                      <details style={{ marginTop: 8 }}>
-                        <summary style={{ cursor: "pointer", fontWeight: 600 }}>
-                          Component Stack
-                        </summary>
-                        <pre
-                          style={{
-                            fontSize: "0.75rem",
-                            marginTop: 8,
-                            whiteSpace: "pre-wrap",
-                            maxHeight: 200,
-                            overflow: "auto",
-                          }}
-                        >
-                          {this.state.errorInfo.componentStack}
-                        </pre>
-                      </details>
-                    )}
-                  </Alert>
-                )}
-
-                {/* Error Details for Production */}
-                {process.env.NODE_ENV === "production" && (
-                  <Alert severity="warning" sx={{ width: "100%" }}>
-                    <Stack spacing={1}>
-                      <Box>
-                        <Typography variant="body2" gutterBottom>
-                          <strong>Error Details:</strong>
-                        </Typography>
-                        <Typography variant="body2" sx={{ mb: 1 }}>
-                          {this.getErrorSummary()}
-                        </Typography>
-                      </Box>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">
-                            Error ID: <code>{this.state.errorId}</code>
-                          </Typography>
-                        </Box>
-                        <Tooltip
-                          title={
-                            this.state.copiedToClipboard
-                              ? "Copied!"
-                              : "Copy error ID"
-                          }
-                        >
-                          <Button
-                            size="small"
-                            onClick={this.handleCopyErrorId}
-                            variant="text"
-                            startIcon={
-                              this.state.copiedToClipboard ? (
-                                <CheckCircle sx={{ fontSize: 16 }} />
-                              ) : (
-                                <ContentCopy sx={{ fontSize: 16 }} />
-                              )
-                            }
-                          >
-                            {this.state.copiedToClipboard ? "Copied" : "Copy"}
-                          </Button>
-                        </Tooltip>
-                      </Stack>
-                      <Typography variant="caption" color="text.secondary">
-                        Please provide the error ID above when contacting
-                        support for faster assistance.
-                      </Typography>
-                    </Stack>
-                  </Alert>
-                )}
-
-                <Divider sx={{ width: "100%" }} />
-
-                {/* Action Buttons */}
-                <Stack direction="row" spacing={2}>
-                  <Button
-                    variant="contained"
-                    startIcon={<Refresh />}
-                    onClick={this.handleReload}
-                    size="large"
-                  >
-                    Try Again
-                  </Button>
-                  <Button
-                    variant="outlined"
-                    startIcon={<Home />}
-                    onClick={this.handleGoHome}
-                    size="large"
-                  >
-                    Go Home
-                  </Button>
-                </Stack>
-
-                {/* Support Information */}
-                <Box sx={{ mt: 2 }}>
-                  <Typography
-                    variant="body2"
-                    color="text.secondary"
-                    gutterBottom
-                  >
-                    If this problem persists, please contact our support team:
-                  </Typography>
-                  <Button
-                    variant="text"
-                    startIcon={<ContactSupport />}
-                    size="small"
-                    href="mailto:support@edgebrooke.com"
-                  >
-                    support@edgebrooke.com
-                  </Button>
-                </Box>
-
-                {/* Professional Footer */}
-                <Box
-                  sx={{
-                    mt: 3,
-                    pt: 2,
-                    borderTop: 1,
-                    borderColor: "divider",
-                    width: "100%",
-                  }}
+              {/* Error Details for Development */}
+              {process.env.NODE_ENV === "development" && this.state.error && (
+                <Alert
+                  severity="error"
+                  sx={{ width: "100%", textAlign: "left" }}
                 >
                   <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    textAlign="center"
+                    variant="subtitle2"
+                    fontWeight={600}
+                    gutterBottom
                   >
-                    Edgebrooke Capital Financial Dashboard
-                    <br />
-                    Enterprise-grade financial data platform for professional
-                    investors
+                    Error Details (Development Only):
                   </Typography>
-                </Box>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontFamily: "monospace", mb: 1 }}
+                  >
+                    {this.state.error.toString()}
+                  </Typography>
+                  {this.state.errorInfo?.componentStack && (
+                    <details style={{ marginTop: 8 }}>
+                      <summary style={{ cursor: "pointer", fontWeight: 600 }}>
+                        Component Stack
+                      </summary>
+                      <pre
+                        style={{
+                          fontSize: "0.75rem",
+                          marginTop: 8,
+                          whiteSpace: "pre-wrap",
+                          maxHeight: 200,
+                          overflow: "auto",
+                        }}
+                      >
+                        {this.state.errorInfo.componentStack}
+                      </pre>
+                    </details>
+                  )}
+                </Alert>
+              )}
+
+              {/* Error Details for Production */}
+              {process.env.NODE_ENV === "production" && (
+                <Alert severity="warning" sx={{ width: "100%" }}>
+                  <Stack spacing={1}>
+                    <Box>
+                      <Typography variant="body2" gutterBottom>
+                        <strong>Error Details:</strong>
+                      </Typography>
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        {this.getErrorSummary()}
+                      </Typography>
+                    </Box>
+                    <Stack direction="row" spacing={1} alignItems="center">
+                      <Box>
+                        <Typography variant="caption" color="text.secondary">
+                          Error ID: <code>{this.state.errorId}</code>
+                        </Typography>
+                      </Box>
+                      <Tooltip
+                        title={
+                          this.state.copiedToClipboard
+                            ? "Copied!"
+                            : "Copy error ID"
+                        }
+                      >
+                        <Button
+                          size="small"
+                          onClick={this.handleCopyErrorId}
+                          variant="text"
+                          startIcon={
+                            this.state.copiedToClipboard ? (
+                              <CheckCircle sx={{ fontSize: 16 }} />
+                            ) : (
+                              <ContentCopy sx={{ fontSize: 16 }} />
+                            )
+                          }
+                        >
+                          {this.state.copiedToClipboard ? "Copied" : "Copy"}
+                        </Button>
+                      </Tooltip>
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      Please provide the error ID above when contacting
+                      support for faster assistance.
+                    </Typography>
+                  </Stack>
+                </Alert>
+              )}
+
+              <Divider sx={{ width: "100%" }} />
+
+              {/* Action Buttons */}
+              <Stack direction="row" spacing={2}>
+                <Button
+                  variant="contained"
+                  startIcon={<Refresh />}
+                  onClick={this.handleReload}
+                  size="large"
+                >
+                  Try Again
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<Home />}
+                  onClick={this.handleGoHome}
+                  size="large"
+                >
+                  Go Home
+                </Button>
               </Stack>
-            </CardContent>
-          </Card>
-        </Box>
-      );
+
+              {/* Support Information */}
+              <Box sx={{ mt: 2 }}>
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  gutterBottom
+                >
+                  If this problem persists, please contact our support team:
+                </Typography>
+                <Button
+                  variant="text"
+                  startIcon={<ContactSupport />}
+                  size="small"
+                  href="mailto:support@edgebrooke.com"
+                >
+                  support@edgebrooke.com
+                </Button>
+              </Box>
+
+              {/* Professional Footer */}
+              <Box
+                sx={{
+                  mt: 3,
+                  pt: 2,
+                  borderTop: 1,
+                  borderColor: "divider",
+                  width: "100%",
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  textAlign="center"
+                >
+                  Edgebrooke Capital Financial Dashboard
+                  <br />
+                  Enterprise-grade financial data platform for professional
+                  investors
+                </Typography>
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Box>
+    );
+  }
+
+  renderFormVariant() {
+    return (
+      <div
+        className="alert alert-danger"
+        style={{ marginBottom: "var(--space-4)" }}
+      >
+        <div style={{ marginBottom: "var(--space-3)" }}>
+          <strong>Form submission failed</strong>
+          <p style={{ marginTop: "var(--space-2)", fontSize: "var(--t-sm)" }}>
+            {this.state.error?.message || "An unexpected error occurred"}
+          </p>
+          {this.state.errorInfo && (
+            <details
+              style={{
+                marginTop: "var(--space-2)",
+                fontSize: "var(--t-2xs)",
+              }}
+            >
+              <summary style={{ cursor: "pointer", fontWeight: "var(--w-bold)" }}>
+                Details
+              </summary>
+              <pre
+                style={{
+                  marginTop: "var(--space-2)",
+                  padding: "var(--space-2)",
+                  background: "var(--surface)",
+                  borderRadius: "var(--r-sm)",
+                  overflow: "auto",
+                }}
+              >
+                {this.state.errorInfo.componentStack}
+              </pre>
+            </details>
+          )}
+        </div>
+        <button
+          type="button"
+          className="btn btn-sm btn-default"
+          onClick={this.handleReload}
+          style={{ marginTop: "var(--space-3)" }}
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.variant === "form"
+        ? this.renderFormVariant()
+        : this.renderPageVariant();
     }
 
     return this.props.children;

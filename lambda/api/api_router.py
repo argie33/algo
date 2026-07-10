@@ -14,14 +14,14 @@ from psycopg2.extensions import cursor
 
 # Import consolidated response handling service
 try:
-    # Try to import from local api_utils first (Lambda environment)
-    from api_utils.response_service import wrap_response, format_handler_error, build_error_response
+    from utils.response_service import wrap_response, format_handler_error, build_error_response
 except ImportError:
     # Fallback for different import contexts
     try:
-        from utils.api_utils.response_service import wrap_response, format_handler_error, build_error_response
+        from api_utils.response_service import wrap_response, format_handler_error, build_error_response
     except ImportError:
         # If response_service doesn't exist, create stubs (shouldn't happen in production)
+        logger.warning("response_service.py not found - using stub implementations")
         def wrap_response(r: Any) -> Any: return r
         def format_handler_error(e: Exception) -> dict[str, Any]:
             return {"statusCode": 500, "errorType": "error", "message": str(e)}

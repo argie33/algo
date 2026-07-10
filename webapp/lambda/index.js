@@ -718,7 +718,11 @@ app.use("/api/status", cacheMiddleware(30), statusRoutes);
 app.use("/api/performance", cacheMiddleware(30), performanceRoutes);
 
 // Swing trading algo routes
-app.use("/api/algo", require("./routes/algo"));
+const algoRoutes = require("./routes/algo");
+app.use("/api/algo", algoRoutes);
+// Aliases for backwards compatibility - redirect to algo routes
+app.use("/api/portfolio", algoRoutes);  // Alias for /api/algo/portfolio
+app.use("/api/positions", algoRoutes);  // Alias for /api/algo/positions
 
 // Stock market data routes
 app.use("/api/stocks", cacheMiddleware(60), require("./routes/stocks"));

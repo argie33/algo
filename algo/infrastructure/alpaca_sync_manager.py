@@ -67,8 +67,8 @@ class AlpacaSyncManager:
         if hasattr(self, "_session"):
             try:
                 self._session.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to close Alpaca session: {e}")
 
     @property
     def alpaca_key(self) -> str | None:

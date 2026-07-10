@@ -45,8 +45,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         if hasattr(self, "_session"):
             try:
                 self._session.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to close Alpaca session: {e}")
 
     def _request_with_retry(
         self,
