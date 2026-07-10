@@ -434,9 +434,7 @@ def _get_algo_status(cur: cursor) -> Any:
             daily_return_raw = snap.get("daily_return_pct")
 
             if pv_raw is None or tc_raw is None or pc_raw is None:
-                logger.warning(
-                    "[PORTFOLIO] Snapshot has NULL critical fields, falling back to computed portfolio"
-                )
+                logger.warning("[PORTFOLIO] Snapshot has NULL critical fields, falling back to computed portfolio")
             else:
                 try:
                     pv = float(pv_raw)
@@ -452,7 +450,9 @@ def _get_algo_status(cur: cursor) -> Any:
                         "total_cash": format_decimal_string(tc_float, precision=2),
                         "position_count": pc,
                         "daily_return_pct": format_decimal_string(
-                            float(daily_return_raw) if daily_return_raw is not None else None, precision=2, allow_none=True
+                            float(daily_return_raw) if daily_return_raw is not None else None,
+                            precision=2,
+                            allow_none=True,
                         ),
                         "unrealized_pnl_pct": format_decimal_string(
                             unrealized_pnl_pct,
@@ -519,9 +519,7 @@ def _get_algo_status(cur: cursor) -> Any:
                 "unrealized_pnl_pct": None,  # Unavailable without snapshot
                 "unrealized_pnl_dollars": None,  # Unavailable without snapshot
             }
-            logger.info(
-                f"[PORTFOLIO] Computed: total_value={pv:.2f}, cash={tc_float:.2f}, positions={pos_count}"
-            )
+            logger.info(f"[PORTFOLIO] Computed: total_value={pv:.2f}, cash={tc_float:.2f}, positions={pos_count}")
 
     except (
         psycopg2.errors.UndefinedTable,
@@ -531,6 +529,7 @@ def _get_algo_status(cur: cursor) -> Any:
         Exception,
     ) as e:
         import traceback
+
         logger.error(f"[_GET_ALGO_STATUS] Exception: {type(e).__name__}: {e}\nTraceback: {traceback.format_exc()}")
         code, error_type, message = handle_db_error(e, "fetch portfolio data")
         return error_response(code, error_type, message)
@@ -1272,12 +1271,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 "top_a": [],
                 "grades": {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0},
                 "trend": [],
-                "data_freshness": {
-                    "data_age_days": None,
-                    "is_stale": False,
-                    "max_date": None,
-                    "warning": None
-                },
+                "data_freshness": {"data_age_days": None, "is_stale": False, "max_date": None, "warning": None},
             }
             # Ensure empty response is also JSON-serializable
             sig_response = safe_json_serialize(sig_response)
@@ -1309,7 +1303,11 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
             """)
             grades_r = cur.fetchone()
-            grades = safe_json_serialize(safe_dict_convert(grades_r)) if grades_r else {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
+            grades = (
+                safe_json_serialize(safe_dict_convert(grades_r))
+                if grades_r
+                else {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
+            )
 
             # Near-misses: signals with decent scores (55-69 range)
             cur.execute("""

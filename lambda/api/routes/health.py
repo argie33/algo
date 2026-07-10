@@ -135,6 +135,7 @@ def _handle_basic(cur: cursor) -> Any:
                     # In production/testing, stale signals are still a problem but shouldn't BLOCK the API
                     # Allow dashboard to load even with stale signals - warn but don't 503
                     import os
+
                     is_local_dev = os.getenv("LOCAL_MODE", "").lower() == "true"
 
                     if age_hours > config.signal_stale_threshold_hours and market_is_open:
@@ -159,7 +160,9 @@ def _handle_basic(cur: cursor) -> Any:
                     # This is expected during first initialization or when loaders haven't run yet
                     # Don't mark as critical during non-market hours (loaders don't run then)
                     is_local_dev = os.getenv("LOCAL_MODE", "").lower() == "true"
-                    logger.info(f"[HEALTH INFO] Signal data unavailable yet - loaders may not have run (LOCAL_MODE={is_local_dev})")
+                    logger.info(
+                        f"[HEALTH INFO] Signal data unavailable yet - loaders may not have run (LOCAL_MODE={is_local_dev})"
+                    )
                     if market_is_open and not is_local_dev:
                         # Only critical if market is open, signals missing, AND not in local dev mode
                         has_critical = True

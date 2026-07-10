@@ -299,7 +299,9 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 missing_columns.append(f"{table}.{column} (validation failed)")
 
         if missing_columns:
-            logger.critical(f"[STARTUP CRITICAL] Required columns missing after migration: {', '.join(missing_columns)}")
+            logger.critical(
+                f"[STARTUP CRITICAL] Required columns missing after migration: {', '.join(missing_columns)}"
+            )
             raise RuntimeError(
                 f"[STARTUP] Data unavailable columns not created: {', '.join(missing_columns)}. "
                 f"Metric loaders require these columns to mark data unavailability."
@@ -893,6 +895,7 @@ def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | Non
     # CRITICAL: Check for dev tokens FIRST before JWT validation
     # Dev mode is only active in local development (not Lambda, no Cognito configured)
     from dev_auth import validate_dev_token
+
     is_dev_valid, dev_claims, dev_error = validate_dev_token(token)
     if is_dev_valid:
         return (True, dev_claims, None)
@@ -1260,7 +1263,9 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
 
     # SECURITY FIX: Explicitly exclude protected health endpoints before prefix matching
     # /api/health/detailed and /api/health/pipeline require authentication
-    if path in ("/api/health/detailed", "/api/health/pipeline") or path.startswith(("/api/health/detailed?", "/api/health/pipeline?")):
+    if path in ("/api/health/detailed", "/api/health/pipeline") or path.startswith(
+        ("/api/health/detailed?", "/api/health/pipeline?")
+    ):
         is_public = False
     else:
         # Check if path matches any public prefix
@@ -1373,9 +1378,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # STRUCTURED LOGGING: Log incoming event schema for validation and audit trail
     # This helps debugging event format issues and tracks which event types are being processed
     event_source = event.get("source")  # EventBridge: "eventbridge-scheduler", "warmup", etc.
-    event_type = (
-        "eventbridge" if event_source else "api-gateway"
-    )  # Determine if EventBridge or API Gateway request
+    event_type = "eventbridge" if event_source else "api-gateway"  # Determine if EventBridge or API Gateway request
     request_context = event.get("requestContext", {})
     http_context = request_context.get("http", {})
     event_schema = {

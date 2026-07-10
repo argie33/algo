@@ -688,14 +688,7 @@ def _get_daily_return_histogram(cur: cursor) -> Any:
         returns = [float(r["daily_return_pct"]) for r in rows if r.get("daily_return_pct") is not None]
 
         if not returns:
-            return {
-                "statusCode": 200,
-                "data": {
-                    "items": [],
-                    "total": 0,
-                    "stats": None
-                }
-            }
+            return {"statusCode": 200, "data": {"items": [], "total": 0, "stats": None}}
 
         bucket_width = 0.5
         min_ret = min(returns)
@@ -728,14 +721,7 @@ def _get_daily_return_histogram(cur: cursor) -> Any:
             "std": format_decimal_string(std_ret, precision=2),
         }
 
-        return {
-            "statusCode": 200,
-            "data": {
-                "items": buckets,
-                "total": len(buckets),
-                "stats": stats
-            }
-        }
+        return {"statusCode": 200, "data": {"items": buckets, "total": len(buckets), "stats": stats}}
     except Exception as e:
         logger.error(f"Error in daily return histogram: {e}")
         return error_response(500, "internal_error", "Failed to generate histogram")

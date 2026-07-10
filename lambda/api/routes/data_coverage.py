@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 def get_price_coverage(cur: cursor) -> Any:
     """Get price_daily coverage metrics."""
     try:
-        interval_7d = get_interval_sql('7d')
+        interval_7d = get_interval_sql("7d")
         rows = execute_with_timeout(
             cur,
             f"""
@@ -114,7 +114,7 @@ def get_technical_coverage(cur: cursor) -> Any:
     """Get technical_data_daily coverage and completeness."""
     try:
         cur.execute("SET LOCAL statement_timeout = '20s'")
-        interval_7d = get_interval_sql('7d')
+        interval_7d = get_interval_sql("7d")
         cur.execute(f"""
             SELECT
                 COUNT(DISTINCT symbol) as symbols,
@@ -177,7 +177,7 @@ def get_market_data_coverage(cur: cursor) -> Any:
     """Get market_health_daily and other market data coverage."""
     try:
         # Market health
-        interval_7d = get_interval_sql('7d')
+        interval_7d = get_interval_sql("7d")
         cur.execute(f"""
             SELECT
                 MAX(date) as latest_date,
@@ -191,7 +191,7 @@ def get_market_data_coverage(cur: cursor) -> Any:
         mh_rows = mh_row["rows"] if mh_row else 0
 
         # Economic data (FRED) — uses series_id not symbol
-        interval_30d = get_interval_sql('30d')
+        interval_30d = get_interval_sql("30d")
         cur.execute(f"""
             SELECT MAX(date) as latest_date, COUNT(DISTINCT series_id) as indicators
             FROM economic_data
@@ -232,7 +232,7 @@ def get_loader_health(cur: cursor) -> Any:
     """Get recent loader execution health from patrol log or direct table freshness checks."""
     try:
         # Try to get patrol data first
-        interval_7d = get_interval_sql('7d')
+        interval_7d = get_interval_sql("7d")
         cur.execute(f"""
             SELECT
                 table_name,

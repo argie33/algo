@@ -58,7 +58,7 @@ def _get_sector_breadth(cur: cursor) -> Any:
         # SAVEPOINT isolation: a timeout here must not abort the outer transaction
         # and break subsequent API requests in the same Lambda.
         cur.execute("SAVEPOINT sector_breadth_check")
-        interval_7d = get_interval_sql('7d')
+        interval_7d = get_interval_sql("7d")
         cur.execute(f"""
                 WITH latest_tech AS (
                     SELECT DISTINCT ON (td.symbol)

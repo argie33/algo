@@ -194,12 +194,7 @@ def format_handler_error(e: Exception) -> dict[str, Any]:
         return build_error_response(503, "query_error", "Database query execution failed")
 
     # Auth errors: JWT validation, token expiry, Cognito failures
-    if (
-        "Unauthorized" in error_type
-        or "Forbidden" in error_type
-        or "JWT" in error_type
-        or "token" in error_msg.lower()
-    ):
+    if "Unauthorized" in error_type or "Forbidden" in error_type or "JWT" in error_type or "token" in error_msg.lower():
         return build_error_response(403, "auth_error", "JWT validation or Cognito authorization failed")
 
     # Cognito config errors: missing or invalid Cognito environment variables

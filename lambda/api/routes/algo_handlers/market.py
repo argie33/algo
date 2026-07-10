@@ -42,7 +42,7 @@ def _get_data_quality(cur: cursor) -> Any:
     """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
         # Get patrol log entries from last 24 hours
-        interval_24h = get_interval_sql('24h')
+        interval_24h = get_interval_sql("24h")
         cur.execute(f"""
                 SELECT
                     target_table AS table_name,
@@ -952,11 +952,19 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 "sectors": sectors,
                 "market_health": market_health,
                 # Add breadth indicators at top level
-                "adr": float(market_health.get("advance_decline_ratio")) if market_health.get("advance_decline_ratio") is not None else None,
-                "nh": int(market_health.get("new_highs_count")) if market_health.get("new_highs_count") is not None else None,
-                "nl": int(market_health.get("new_lows_count")) if market_health.get("new_lows_count") is not None else None,
-                "pcr": float(market_health.get("put_call_ratio")) if market_health.get("put_call_ratio") is not None else None,
-            }
+                "adr": float(market_health.get("advance_decline_ratio"))
+                if market_health.get("advance_decline_ratio") is not None
+                else None,
+                "nh": int(market_health.get("new_highs_count"))
+                if market_health.get("new_highs_count") is not None
+                else None,
+                "nl": int(market_health.get("new_lows_count"))
+                if market_health.get("new_lows_count") is not None
+                else None,
+                "pcr": float(market_health.get("put_call_ratio"))
+                if market_health.get("put_call_ratio") is not None
+                else None,
+            },
         }
 
         # Add additional market indicators at top level
@@ -981,6 +989,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         Exception,
     ) as e:
         import traceback
+
         error_trace = traceback.format_exc()
         logger.error(
             f"[MARKETS_HANDLER_ERROR] Failed to fetch markets: {type(e).__name__}: {e}\n"
@@ -988,7 +997,9 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             f"  Endpoint: GET /api/algo/markets\n"
             f"  Full Traceback:\n{error_trace}"
         )
-        return error_response(503, "service_unavailable", f"Failed to fetch markets data: {type(e).__name__}: {str(e)[:100]}")
+        return error_response(
+            503, "service_unavailable", f"Failed to fetch markets data: {type(e).__name__}: {str(e)[:100]}"
+        )
 
 
 @db_route_handler("get trend criteria")

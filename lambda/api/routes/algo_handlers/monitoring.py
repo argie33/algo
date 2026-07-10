@@ -116,6 +116,7 @@ def _get_last_run(cur: cursor) -> Any:
         try:
             if isinstance(phase_results, str):
                 import json
+
                 phase_results = json.loads(phase_results)
             if isinstance(phase_results, list):
                 phases_completed = len([p for p in phase_results if p.get("status") == "success"])

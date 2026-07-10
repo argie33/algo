@@ -32,9 +32,13 @@ except ImportError:
     except ImportError:
         # If response_service doesn't exist, create stubs (shouldn't happen in production)
         logger.warning("response_service.py not found - using stub implementations")
-        def wrap_response(r: Any) -> Any: return r
+
+        def wrap_response(r: Any) -> Any:
+            return r
+
         def format_handler_error(e: Exception) -> dict[str, Any]:
             return {"statusCode": 500, "errorType": "error", "message": str(e)}
+
         def build_error_response(code: int, err_type: str, msg: str) -> dict[str, Any]:
             return {"statusCode": code, "errorType": err_type, "message": msg}
 
@@ -154,25 +158,25 @@ else:
 # which are safe to expose publicly for dashboard consumption
 if "algo" in _AVAILABLE_ROUTES:
     dashboard_endpoints = [
-        "/api/algo/portfolio",      # Portfolio snapshot data
-        "/api/algo/positions",      # Open position list
-        "/api/algo/performance",    # Performance metrics
-        "/api/algo/risk-metrics",   # Risk analytics
-        "/api/algo/last-run",       # Latest orchestrator run status
-        "/api/algo/status",         # Algorithm execution status (alternative to last-run)
-        "/api/algo/trades",         # Trade history
-        "/api/algo/config",         # System configuration
-        "/api/algo/data-status",    # Data freshness status
-        "/api/algo/markets",        # Market data
-        "/api/algo/scores",         # Stock scores
+        "/api/algo/portfolio",  # Portfolio snapshot data
+        "/api/algo/positions",  # Open position list
+        "/api/algo/performance",  # Performance metrics
+        "/api/algo/risk-metrics",  # Risk analytics
+        "/api/algo/last-run",  # Latest orchestrator run status
+        "/api/algo/status",  # Algorithm execution status (alternative to last-run)
+        "/api/algo/trades",  # Trade history
+        "/api/algo/config",  # System configuration
+        "/api/algo/data-status",  # Data freshness status
+        "/api/algo/markets",  # Market data
+        "/api/algo/scores",  # Stock scores
         "/api/algo/dashboard-signals",  # Signal data for dashboard
         "/api/algo/circuit-breakers",  # Circuit breaker status
         "/api/algo/daily-return-histogram",  # Daily return distribution
-        "/api/algo/equity-curve",   # Portfolio equity curve
+        "/api/algo/equity-curve",  # Portfolio equity curve
         "/api/algo/holding-period-distribution",  # Holding period histogram
         "/api/algo/stage-distribution",  # Market stage distribution
         "/api/algo/trade-distribution",  # Trade outcome distribution
-        "/api/algo/swing-scores",   # Swing score rankings
+        "/api/algo/swing-scores",  # Swing score rankings
         "/api/algo/swing-scores-history",  # Historical swing scores
         "/api/algo/sector-rotation",  # Sector rotation metrics
         "/api/algo/sector-breadth",  # Sector breadth indicators
@@ -180,21 +184,23 @@ if "algo" in _AVAILABLE_ROUTES:
         "/api/algo/execution/stats",  # Execution statistics
         "/api/algo/execution/recent",  # Recent execution records
         "/api/algo/notifications",  # System notifications
-        "/api/algo/patrol",         # Data patrol status
-        "/api/algo/patrol-log",     # Patrol history
+        "/api/algo/patrol",  # Data patrol status
+        "/api/algo/patrol-log",  # Patrol history
     ]
     for endpoint in dashboard_endpoints:
         PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
 
     # Also register endpoint aliases as public
     alias_endpoints = [
-        "/api/portfolio",   # Alias for /api/algo/portfolio
-        "/api/positions",   # Alias for /api/algo/positions
+        "/api/portfolio",  # Alias for /api/algo/portfolio
+        "/api/positions",  # Alias for /api/algo/positions
     ]
     for endpoint in alias_endpoints:
         PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
 
-    logger.info(f"[STARTUP] Registered {len(dashboard_endpoints)} dashboard endpoints + {len(alias_endpoints)} aliases as public")
+    logger.info(
+        f"[STARTUP] Registered {len(dashboard_endpoints)} dashboard endpoints + {len(alias_endpoints)} aliases as public"
+    )
     logger.info("[STARTUP] Dashboard aliases /api/portfolio and /api/positions are now public")
 
 # Register other public analytics endpoints needed by dashboard
@@ -267,8 +273,6 @@ if _SKIPPED_ROUTES:
     logger.error(
         f"ROUTE_SKIP_STATUS: total_skipped={len(_SKIPPED_ROUTES)}, routes={[r['path'] for r in _SKIPPED_ROUTES]}"
     )
-
-
 
 
 def _add_cors_headers(response: Any) -> Any:
@@ -403,9 +407,7 @@ def route_request(
     # No handler found - return properly formatted 404 with CORS headers
     logger.warning(f"No handler found for path: {path}")
     msg = "Endpoint not found"
-    return _add_cors_headers(
-        wrap_response(build_error_response(404, "not_found", msg))
-    )
+    return _add_cors_headers(wrap_response(build_error_response(404, "not_found", msg)))
 
 
 def get_import_status() -> dict[str, Any]:
@@ -486,5 +488,3 @@ try:
     _publish_import_metrics()
 except Exception as e:
     logger.warning(f"Metrics publishing failed at startup: {e}")
-
-

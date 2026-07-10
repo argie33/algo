@@ -123,7 +123,7 @@ def handle(  # noqa: C901
                 code, error_type, message = handle_db_error(e, "deep-value check")
                 return error_response(code, error_type, message)
             try:
-                interval_52w = get_interval_sql('52w')
+                interval_52w = get_interval_sql("52w")
                 deep_value_query = (
                     f"""
                 WITH value_stocks AS (

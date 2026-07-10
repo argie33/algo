@@ -99,7 +99,7 @@ def handle(  # noqa: C901
                 # Set timeout for trend query (10s for window function aggregations)
                 cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 # All camelCase aliases double-quoted so psycopg2 preserves case
-                interval_1d = get_interval_sql('1d')
+                interval_1d = get_interval_sql("1d")
                 cur.execute(
                     f"""
                         WITH sector_daily_avg AS (
@@ -177,7 +177,7 @@ def handle(  # noqa: C901
 
             # Set timeout for complex sector ranking query with multiple CTEs and joins
             cur.execute("SET LOCAL statement_timeout = '24000ms'")
-            interval_1d = get_interval_sql('1d')
+            interval_1d = get_interval_sql("1d")
             cur.execute(
                 f"""
                     WITH sp_exists AS (
