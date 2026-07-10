@@ -1,0 +1,28 @@
+⚠️  Alpaca credentials not configured - scheduler skipped
+Failed to get secrets from Secrets Manager, falling back to environment variables: You can't perform this operation on the secret because it was marked for deletion.
+Webapp table initialization skipped (not critical): Cannot find module '../webapp-db-init'
+Require stack:
+- C:\Users\arger\code\algo\webapp\lambda\utils\database.js
+- C:\Users\arger\code\algo\webapp\lambda\index.js
+⏱️ SLOW RESPONSE [200]: {
+  requestId: '1783687713170-0.6978797028852062',
+  method: 'GET',
+  path: '/api/portfolio-test',
+  duration: '5100ms'
+}
+[AUDIT_SLOW_REQUEST] {"timestamp":"2026-07-10T12:48:38.270Z","requestId":"req-1783687713170-a0osr9l","userId":"unauthenticated","userEmail":null,"userRole":null,"method":"GET","path":"/api/portfolio-test","url":"/api/portfolio-test","statusCode":200,"duration":"5100ms","durationMs":5100,"ipAddress":"::1","userAgent":"curl/8.19.0","responseSize":124,"warning":"Request exceeded 5 second threshold"}
+[AUDIT_SLOW_REQUEST] {"timestamp":"2026-07-10T12:48:38.271Z","requestId":"req-1783687713170-a0osr9l","userId":"unauthenticated","userEmail":null,"userRole":null,"method":"GET","path":"/api/portfolio-test","url":"/api/portfolio-test","statusCode":200,"duration":"5101ms","durationMs":5101,"ipAddress":"::1","userAgent":"curl/8.19.0","bodySize":null,"responseSize":124,"warning":"Request exceeded 5 second threshold"}
+ CLIENT ERROR [404]: {
+  requestId: '1783687718388-0.04654034113690231',
+  timestamp: '2026-07-10T12:48:38.389Z',
+  method: 'GET',
+  path: '/api/portfolio',
+  url: '/api/portfolio',
+  statusCode: 404,
+  duration: '1ms',
+  query: {},
+  body: '[no body]',
+  error: 'not_found'
+}
+[AUDIT_WARNING] {"timestamp":"2026-07-10T12:48:38.390Z","requestId":"req-1783687718388-temmwjq","userId":"unauthenticated","userEmail":null,"userRole":null,"method":"GET","path":"/api/portfolio","url":"/api/portfolio","statusCode":404,"duration":"2ms","durationMs":2,"ipAddress":"::1","userAgent":"curl/8.19.0","responseSize":166}
+[AUDIT_WARNING] {"timestamp":"2026-07-10T12:48:38.390Z","requestId":"req-1783687718388-temmwjq","userId":"unauthenticated","userEmail":null,"userRole":null,"method":"GET","path":"/api/portfolio","url":"/api/portfolio","statusCode":404,"duration":"2ms","durationMs":2,"ipAddress":"::1","userAgent":"curl/8.19.0","bodySize":null,"responseSize":166}

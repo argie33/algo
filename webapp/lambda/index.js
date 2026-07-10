@@ -721,14 +721,20 @@ app.use("/api/performance", cacheMiddleware(30), performanceRoutes);
 const algoRoutes = require("./routes/algo");
 app.use("/api/algo", algoRoutes);
 
-// Aliases for backwards compatibility - redirect to algo routes
-// Test route to verify routing works
-app.get("/api/portfolio-test", (req, res) => {
-  sendSuccess(res, { test: true, message: "Test route working" });
+// Aliases for backwards compatibility - forward to algo routes
+app.get("/api/portfolio", async (req, res, next) => {
+  // Forward to /api/algo/portfolio by calling the algo router directly
+  req.url = "/portfolio";
+  req.path = "/portfolio";
+  algoRoutes(req, res, next);
 });
 
-app.use("/api/portfolio", algoRoutes);  // Alias for /api/algo/portfolio
-app.use("/api/positions", algoRoutes);  // Alias for /api/algo/positions
+app.get("/api/positions", async (req, res, next) => {
+  // Forward to /api/algo/positions by calling the algo router directly
+  req.url = "/positions";
+  req.path = "/positions";
+  algoRoutes(req, res, next);
+});
 
 // Stock market data routes
 app.use("/api/stocks", cacheMiddleware(60), require("./routes/stocks"));

@@ -73,7 +73,7 @@ class DatabaseHealthMonitor:
         """Log system health status: what's working, what's not, what's stale."""
         try:
             with DatabaseContext("read") as cur:
-                cur.execute("SET statement_timeout = 10000")  # 10s timeout
+                cur.execute("SET statement_timeout = 30000")  # 30s timeout (increased from 10s to handle large table scans)
 
                 tables_to_check = [
                     ("price_daily", "Prices"),
