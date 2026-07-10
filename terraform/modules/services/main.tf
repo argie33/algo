@@ -808,7 +808,7 @@ resource "aws_lambda_function" "algo" {
       # Passing passwords in env vars violates AWS security best practices
       DB_SSL = "require"
       # AWS configuration
-      AWS_REGION     = var.aws_region
+      # NOTE: AWS_REGION is reserved by Lambda and automatically set - do not override
       AWS_ACCOUNT_ID = data.aws_caller_identity.current.account_id
       # Orchestrator execution configuration (MATCHES what code expects)
       ORCHESTRATOR_EXECUTION_MODE = var.execution_mode
