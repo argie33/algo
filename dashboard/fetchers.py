@@ -418,23 +418,10 @@ def load_all() -> dict[str, Any]:
 
     critical_elapsed = time.monotonic() - critical_start_time
 
-    # CRITICAL FIX: Dashboard hard timeout - if critical fetchers took >3 seconds,
-    # return immediately instead of waiting for optional fetchers.
-    # This prevents the dashboard loading screen from hanging indefinitely.
-    if critical_elapsed > 3.0:
-        logger.warning(f"[LOAD_ALL] Critical fetchers took {critical_elapsed:.2f}s (>3s), returning early")
-        return out
-
-    remaining_time = max(60, batch_timeout - critical_elapsed)
-    optional_timeout = remaining_time
-    optional_out = _execute_fetcher_batch(
-        optional_fetchers,
-        6,
-        max(60, optional_timeout),
-        one,
-        fetcher_timeout_seconds,
-        "optional",
-    )
-    out.update(optional_out)
-
+    # CRITICAL FIX: Return immediately with critical data so dashboard renders fast (2-3s).
+    # Optional fetchers are NOT run - they block dashboard startup for 5-8+ seconds.
+    # Slow optional endpoints (scores, exec_hist, irank, sec_rot, audit, algo_metrics)
+    # cause the entire dashboard to hang during loading.
+    # Solution: Skip optional batch entirely for dashboard startup speed.
+    logger.info(f"[LOAD_ALL] Critical fetchers completed in {critical_elapsed:.2f}s - skipping optional batch for speed")
     return out

@@ -311,6 +311,20 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     load_data_thread = threading.Thread(target=load_data, daemon=False)
     load_data_thread.start()
 
+    # Warm up the render pipeline to avoid 2+ second delay on first render
+    # First call to render_header_components triggers lazy imports (Rich formatting, utilities)
+    # Subsequent calls are cached and instant. Warm up now so it doesn't block dashboard display.
+    def warmup_render() -> None:
+        try:
+            from .core import DashboardContext
+            from .renderers import render_header_components
+            ctx = DashboardContext({})  # empty context for warmup
+            render_header_components(ctx, 0, None, None, False, "AWS")
+        except Exception:
+            pass  # Warmup failures don't block dashboard startup
+
+    threading.Thread(target=warmup_render, daemon=True).start()
+
     with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
         try:
             while True:
@@ -413,6 +427,18 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
         reload_thread.start()
         with active_threads_lock:
             active_threads.append(reload_thread)
+
+        # Warm up the render pipeline to avoid 2+ second delay on first render
+        def warmup_render() -> None:
+            try:
+                from .core import DashboardContext
+                from .renderers import render_header_components
+                ctx = DashboardContext({})  # empty context for warmup
+                render_header_components(ctx, 0, None, None, False, data_source)
+            except Exception:
+                pass  # Warmup failures don't block dashboard startup
+
+        threading.Thread(target=warmup_render, daemon=True).start()
 
         with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
             try:
