@@ -173,13 +173,14 @@ def run(  # noqa: C901
         from loaders.load_buy_sell_daily import SignalsDailyLoader
         loader = SignalsDailyLoader()
         loaded_count = loader.run(symbols=None)
+        loaded_count = loaded_count or 0
         logger.info(f"[PHASE 1] Successfully loaded {loaded_count} buy_sell_daily records")
     except Exception as e:
         logger.critical(f"[PHASE 1] CRITICAL: Failed to load buy_sell_daily: {e}")
         log_phase_result_fn(1, "buy_sell_daily_load_failed", "halt", f"buy_sell_daily load failed: {str(e)[:100]}")
         from algo.orchestrator.phase_error_handling import ErrorCategory, PhaseError, log_phase_error
         error = PhaseError(
-            category=ErrorCategory.DATA_UNAVAILABLE,
+            category=ErrorCategory.DATA_MISSING,
             message="buy_sell_daily loader failed - Phase 7 signal generation requires this data",
             root_cause=str(e),
             recoverable=False,
