@@ -282,14 +282,24 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             since: Optional datetime to filter orders after
 
         Returns:
-            List of order dicts from Alpaca API
+            List of order dicts from Alpaca API, or empty list in paper mode without credentials
 
         Raises ValueError if fetch fails (fail-fast, no silent fallback to empty list).
         """
         if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
-            raise ValueError(
-                "CRITICAL: Alpaca credentials missing. Cannot fetch closed orders without valid API credentials."
-            )
+            # Paper trading without Alpaca credentials - use database state only
+            is_paper_trading = self.config.get("alpaca_paper_trading", False) if isinstance(self.config, dict) else False
+            if is_paper_trading:
+                logger.warning(
+                    "[CLOSED_ORDERS] Alpaca credentials missing. "
+                    "Paper trading mode - returning empty order list. "
+                    "Reconciliation will use database state only."
+                )
+                return []
+            else:
+                raise ValueError(
+                    "CRITICAL: Alpaca credentials missing. Cannot fetch closed orders without valid API credentials."
+                )
 
         try:
             url = f"{self.alpaca_sync.alpaca_base_url}/v2/orders"

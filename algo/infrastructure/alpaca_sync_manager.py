@@ -29,21 +29,34 @@ class AlpacaSyncManager:
         creds = credential_manager.get_alpaca_credentials()
 
         # Fail-fast credential validation: never use .get() with silent defaults
-        if "key" not in creds:
-            raise ValueError(
-                "[CRITICAL] Alpaca API key missing from credentials. "
-                "AlpacaSyncManager cannot proceed without valid authentication. "
-                "Verify Alpaca credentials are properly configured in Secrets Manager."
-            )
-        if "secret" not in creds:
-            raise ValueError(
-                "[CRITICAL] Alpaca API secret missing from credentials. "
-                "AlpacaSyncManager cannot proceed without valid authentication. "
-                "Verify Alpaca credentials are properly configured in Secrets Manager."
-            )
+        # Paper trading mode can degrade gracefully without valid Alpaca credentials
+        has_key = "key" in creds and bool(creds.get("key"))
+        has_secret = "secret" in creds and bool(creds.get("secret"))
+        is_paper_trading = config.get("alpaca_paper_trading", False) if isinstance(config, dict) else False
 
-        self._alpaca_key = creds["key"]
-        self._alpaca_secret = creds["secret"]
+        if not has_key or not has_secret:
+            if is_paper_trading:
+                logger.warning(
+                    "[ALPACA_SYNC] Alpaca credentials missing or empty. "
+                    "Paper trading mode enabled - continuing with empty credentials. "
+                    "Reconciliation will use database state only (no live Alpaca API calls)."
+                )
+                self._alpaca_key = ""
+                self._alpaca_secret = ""
+            else:
+                error_msg = ""
+                if not has_key:
+                    error_msg += "Alpaca API key missing. "
+                if not has_secret:
+                    error_msg += "Alpaca API secret missing. "
+                raise ValueError(
+                    f"[CRITICAL] {error_msg}"
+                    "AlpacaSyncManager requires valid credentials for live/auto mode. "
+                    "Verify Alpaca credentials are properly configured in Secrets Manager."
+                )
+        else:
+            self._alpaca_key = creds["key"]
+            self._alpaca_secret = creds["secret"]
 
         # Use execution mode from config to determine correct Alpaca endpoint
         if isinstance(self.config, dict):
