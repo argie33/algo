@@ -1201,20 +1201,20 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 @db_route_handler("fetch dashboard signals")
 @validate_api_response("sig")
 def _get_dashboard_signals(cur: cursor) -> Any:
-    """Get dashboard-specific signal data from fresh buy_sell_daily source.
+    """Get dashboard-specific signal data from algo_signals table.
 
-    Queries buy_sell_daily (source of truth for trading signals) instead of
-    algo_signals (unmaintained cache). Returns top BUY signals ranked by composite score,
-    grade distribution, near-miss signals, and 7-day trend.
+    Queries algo_signals (populated by orchestrator Phase 8) instead of
+    buy_sell_daily (legacy table that's no longer populated). Returns active signals
+    ranked by signal_quality_score, grade distribution, near-miss signals, and 7-day trend.
     """
     try:
         cur.execute("SET LOCAL statement_timeout = '20000ms'")
 
-        # Fetch active signals from buy_sell_daily (source of truth for trading signals)
+        # Fetch active signals from algo_signals (source of truth from orchestrator Phase 8)
         cur.execute("""
-            SELECT COUNT(*) AS n, MAX(date) AS d
-            FROM buy_sell_daily
-            WHERE signal_type = 'BUY' AND date >= CURRENT_DATE - 7
+            SELECT COUNT(*) AS n, MAX(signal_date) AS d
+            FROM algo_signals
+            WHERE signal_active = true AND signal_date >= CURRENT_DATE - 7
         """)
         sig = cur.fetchone()
         if sig is None or sig.get("n") is None or sig.get("n") == 0:
@@ -1241,13 +1241,12 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 
             # Top active signals with quality scores
             cur.execute("""
-                SELECT s.symbol, ss.composite_score AS signal_quality_score,
-                       cp.sector, s.entry_price, s.date AS signal_date
-                FROM buy_sell_daily s
-                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
+                SELECT s.symbol, s.signal_quality_score,
+                       cp.sector, s.entry_price, s.signal_date
+                FROM algo_signals s
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
-                ORDER BY COALESCE(ss.composite_score, 0) DESC NULLS LAST
+                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                ORDER BY COALESCE(s.signal_quality_score, 0) DESC NULLS LAST
                 LIMIT 30
             """)
             buy_sigs_rows = cur.fetchall()
@@ -1258,56 +1257,52 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                     row_dict["signal_date"] = str(row_dict["signal_date"])
                 buy_sigs.append(row_dict)
 
-            # Grade distribution (A/B/C/D by signal quality score from stock_scores)
+            # Grade distribution (A/B/C/D by signal_quality_score from algo_signals)
             cur.execute("""
                 SELECT
-                    COUNT(*) FILTER (WHERE ss.composite_score >= 80) AS a,
-                    COUNT(*) FILTER (WHERE ss.composite_score >= 60 AND ss.composite_score < 80) AS b,
-                    COUNT(*) FILTER (WHERE ss.composite_score >= 40 AND ss.composite_score < 60) AS c,
-                    COUNT(*) FILTER (WHERE ss.composite_score < 40 OR ss.composite_score IS NULL) AS d,
+                    COUNT(*) FILTER (WHERE s.signal_quality_score >= 80) AS a,
+                    COUNT(*) FILTER (WHERE s.signal_quality_score >= 60 AND s.signal_quality_score < 80) AS b,
+                    COUNT(*) FILTER (WHERE s.signal_quality_score >= 40 AND s.signal_quality_score < 60) AS c,
+                    COUNT(*) FILTER (WHERE s.signal_quality_score < 40 OR s.signal_quality_score IS NULL) AS d,
                     COUNT(*) AS total
-                FROM buy_sell_daily s
-                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
-                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
+                FROM algo_signals s
+                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
             """)
             grades_r = cur.fetchone()
             grades = safe_dict_convert(grades_r) if grades_r else {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
 
             # Near-misses: signals with decent scores (55-69 range)
             cur.execute("""
-                SELECT s.symbol, ss.composite_score AS score, cp.sector
-                FROM buy_sell_daily s
-                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
+                SELECT s.symbol, s.signal_quality_score AS score, cp.sector
+                FROM algo_signals s
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
-                  AND ss.composite_score BETWEEN 55 AND 69
-                ORDER BY ss.composite_score DESC NULLS LAST
+                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                  AND s.signal_quality_score BETWEEN 55 AND 69
+                ORDER BY s.signal_quality_score DESC NULLS LAST
                 LIMIT 15
             """)
             near = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Top A-grade signals (score >= 80)
             cur.execute("""
-                SELECT s.symbol, ss.composite_score AS score
-                FROM buy_sell_daily s
-                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
-                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
-                  AND ss.composite_score >= 80
-                ORDER BY ss.composite_score DESC NULLS LAST
+                SELECT s.symbol, s.signal_quality_score AS score
+                FROM algo_signals s
+                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                  AND s.signal_quality_score >= 80
+                ORDER BY s.signal_quality_score DESC NULLS LAST
                 LIMIT 20
             """)
             top_a = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Signal count trend: last 7 days
             cur.execute("""
-                SELECT s.date,
-                       COUNT(*) FILTER (WHERE ss.composite_score >= 60 OR ss.composite_score IS NULL) AS buy_n,
+                SELECT s.signal_date AS date,
+                       COUNT(*) FILTER (WHERE s.signal_quality_score >= 60 OR s.signal_quality_score IS NULL) AS buy_n,
                        COUNT(*) AS total_n
-                FROM buy_sell_daily s
-                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
-                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
-                GROUP BY s.date
-                ORDER BY s.date DESC
+                FROM algo_signals s
+                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                GROUP BY s.signal_date
+                ORDER BY s.signal_date DESC
                 LIMIT 7
             """)
             trend_rows = cur.fetchall()
@@ -1321,15 +1316,14 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             # Count qualifying high-quality signals (score >= 70)
             cur.execute("""
                 SELECT COUNT(*) AS n
-                FROM buy_sell_daily s
-                LEFT JOIN stock_scores ss ON ss.symbol = s.symbol
-                WHERE s.signal_type = 'BUY' AND s.date >= CURRENT_DATE - 7
-                  AND ss.composite_score >= 70
+                FROM algo_signals s
+                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                  AND s.signal_quality_score >= 70
             """)
             count_row = cur.fetchone()
             qualifying_buy_count = int(count_row["n"]) if count_row and count_row.get("n") else 0
 
-            freshness = check_data_freshness(cur, "buy_sell_daily", "date", warning_days=1)
+            freshness = check_data_freshness(cur, "algo_signals", "signal_date", warning_days=1)
             # Ensure freshness dict has dates as strings (check_data_freshness converts them, but be explicit)
             freshness = safe_json_serialize(freshness)
 
