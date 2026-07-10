@@ -906,8 +906,6 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 "reason": "vix_regime_missing_from_market_exposure_computation",
             }
 
-        response = list_response(sectors, total=len(sectors), limit=None, offset=None)
-
         # distribution_days is a key market factor; warn and use 0 if missing
         dist_days_raw = row.get("distribution_days")
         if dist_days_raw is None:
@@ -928,70 +926,42 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             "spy_close": spy_close,
             "date": (current_date.isoformat() if hasattr(current_date, "isoformat") else str(current_date)),
         }
-        response["data"]["current"] = response_data
-        response["data"]["active_tier"] = active_tier
-        response["data"]["history"] = history
-        response["data"]["sectors"] = sectors
+
         # Include spy_close in market_health as well (required by dashboard fetcher)
         market_health["spy_close"] = spy_close
-        response["data"]["market_health"] = market_health
 
-        # Add spy_close and vix_level to top level (required by dashboard contract)
-        response["data"]["spy_close"] = spy_close
+        # Build response with market data (not a list response)
+        # Contract requires: spy_close, vix_level (required), plus optional market data fields
         vix_level = market_health.get("vix_level")
-        response["data"]["vix_level"] = float(vix_level) if vix_level is not None else None
+        response = {
+            "statusCode": 200,
+            "data": {
+                "spy_close": spy_close,
+                "vix_level": float(vix_level) if vix_level is not None else None,
+                "current": response_data,
+                "active_tier": active_tier,
+                "history": history,
+                "sectors": sectors,
+                "market_health": market_health,
+                # Add breadth indicators at top level
+                "adr": float(market_health.get("advance_decline_ratio")) if market_health.get("advance_decline_ratio") is not None else None,
+                "nh": int(market_health.get("new_highs_count")) if market_health.get("new_highs_count") is not None else None,
+                "nl": int(market_health.get("new_lows_count")) if market_health.get("new_lows_count") is not None else None,
+                "pcr": float(market_health.get("put_call_ratio")) if market_health.get("put_call_ratio") is not None else None,
+            }
+        }
 
-        # Add breadth indicators at top level (ADR, new highs, new lows)
-        # DEBUG: Log market_health to understand what values are available
-        adr_val = market_health.get("advance_decline_ratio")
-        nh_val = market_health.get("new_highs_count")
-        nl_val = market_health.get("new_lows_count")
-        logger.debug(f"[MARKETS_DEBUG] market_health breadth: adr={adr_val}, nh={nh_val}, nl={nl_val}")
-
-        try:
-            response["data"]["adr"] = float(adr_val) if adr_val is not None else None
-        except (TypeError, ValueError) as e:
-            logger.warning(f"[MARKETS] Failed to convert ADR value {adr_val}: {e}")
-            response["data"]["adr"] = None
-
-        try:
-            response["data"]["nh"] = int(float(nh_val)) if nh_val is not None else None
-        except (TypeError, ValueError) as e:
-            logger.warning(f"[MARKETS] Failed to convert new_highs value {nh_val}: {e}")
-            response["data"]["nh"] = None
-
-        try:
-            response["data"]["nl"] = int(float(nl_val)) if nl_val is not None else None
-        except (TypeError, ValueError) as e:
-            logger.warning(f"[MARKETS] Failed to convert new_lows value {nl_val}: {e}")
-            response["data"]["nl"] = None
-        try:
-            response["data"]["pcr"] = (
-                float(market_health.get("put_call_ratio")) if market_health.get("put_call_ratio") is not None else None
-            )
-        except (TypeError, ValueError) as e:
-            logger.warning(f"[MARKETS] Failed to convert PCR value: {e}")
-            response["data"]["pcr"] = None
-
-        try:
-            response["data"]["bmom"] = (
-                float(market_health.get("breadth_momentum_10d"))
-                if market_health.get("breadth_momentum_10d") is not None
-                else None
-            )
-        except (TypeError, ValueError) as e:
-            logger.warning(f"[MARKETS] Failed to convert BMOM value: {e}")
-            response["data"]["bmom"] = None
-
-        try:
-            response["data"]["ycs"] = (
-                float(market_health.get("yield_curve_slope"))
-                if market_health.get("yield_curve_slope") is not None
-                else None
-            )
-        except (TypeError, ValueError) as e:
-            logger.warning(f"[MARKETS] Failed to convert YCS value: {e}")
-            response["data"]["ycs"] = None
+        # Add additional market indicators at top level
+        response["data"]["bmom"] = (
+            float(market_health.get("breadth_momentum_10d"))
+            if market_health.get("breadth_momentum_10d") is not None
+            else None
+        )
+        response["data"]["ycs"] = (
+            float(market_health.get("yield_curve_slope"))
+            if market_health.get("yield_curve_slope") is not None
+            else None
+        )
         response["data"]["fed"] = market_health.get("fed_rate_environment")
 
         return response
