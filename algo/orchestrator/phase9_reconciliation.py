@@ -968,10 +968,8 @@ def run(  # noqa: C901
                 # Ensures snapshot data is consistent with actual database state
                 try:
                     cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-                    actual_open_count = cur.fetchone()[0] if cur.fetchone() else 0
-                    # Re-fetch since we just called fetchone()
-                    cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-                    actual_open_count = cur.fetchone()[0]
+                    count_row = cur.fetchone()
+                    actual_open_count = count_row[0] if count_row else 0
 
                     if actual_open_count != pos_count:
                         logger.warning(
