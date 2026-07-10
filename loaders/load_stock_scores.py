@@ -906,14 +906,16 @@ class StockScoresLoader(OptimalLoader):
         """
         try:
             # CRITICAL: Validate row has expected 5 columns before accessing indices
+            # FIXED: Replaced get_interval_sql() (nonexistent function) with standard SQL INTERVAL syntax
+            max_date_query = "(SELECT MAX(date) FROM price_daily)"
             cur.execute(
-                """
+                f"""
                 SELECT
                     (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1) as current,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= (SELECT MAX(date) FROM price_daily) - get_interval_sql('30d') ORDER BY date DESC LIMIT 1) as price_1m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= (SELECT MAX(date) FROM price_daily) - get_interval_sql('60d') ORDER BY date DESC LIMIT 1) as price_3m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= (SELECT MAX(date) FROM price_daily) - INTERVAL '120 days' ORDER BY date DESC LIMIT 1) as price_6m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= (SELECT MAX(date) FROM price_daily) - INTERVAL '252 days' ORDER BY date DESC LIMIT 1) as price_12m_ago
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= {max_date_query} - INTERVAL '30 days' ORDER BY date DESC LIMIT 1) as price_1m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= {max_date_query} - INTERVAL '60 days' ORDER BY date DESC LIMIT 1) as price_3m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= {max_date_query} - INTERVAL '120 days' ORDER BY date DESC LIMIT 1) as price_6m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= {max_date_query} - INTERVAL '252 days' ORDER BY date DESC LIMIT 1) as price_12m_ago
             """,
                 (symbol, symbol, symbol, symbol, symbol),
             )
