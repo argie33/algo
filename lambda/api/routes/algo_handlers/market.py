@@ -83,7 +83,7 @@ def _get_data_quality(cur: cursor) -> Any:
                 tables_dict[table_name] = row_dict
 
         # Get latest timestamp
-        latest_ts = max([r["created_at"] for r in patrol_rows]) if patrol_rows else None
+        latest_ts = max([safe_dict_convert(r)["created_at"] for r in patrol_rows]) if patrol_rows else None
 
         # Compute summary
         severity_counts = {"critical": 0, "error": 0, "warn": 0, "healthy": 0}
