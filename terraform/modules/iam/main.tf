@@ -192,7 +192,9 @@ data "aws_iam_policy_document" "github_actions_data" {
     ]
     resources = [
       "arn:aws:s3:::${var.project_name}*",
-      "arn:aws:s3:::${var.project_name}*/*"
+      "arn:aws:s3:::${var.project_name}*/*",
+      "arn:aws:s3:::stocks-terraform-state",
+      "arn:aws:s3:::stocks-terraform-state/*"
     ]
   }
 
@@ -260,6 +262,7 @@ data "aws_iam_policy_document" "github_actions_identity" {
     sid    = "SecretsManager"
     effect = "Allow"
     actions = [
+      "secretsmanager:CreateSecret", "secretsmanager:CreateSecretVersion",
       "secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret",
       "secretsmanager:ListSecrets", "secretsmanager:UpdateSecret",
       "secretsmanager:RotateSecret", "secretsmanager:TagResource"
