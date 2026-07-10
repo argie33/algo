@@ -29,6 +29,17 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
+# CRITICAL FIX: When --local flag is used, override DASHBOARD_API_URL to localhost:3001
+# This allows local development to work without AWS credentials
+# Parse --local flag early before any dashboard/API modules are imported
+_args_temp = argparse.ArgumentParser(add_help=False)
+_args_temp.add_argument('--local', action='store_true', help='Use local API (localhost:3001)')
+_temp_args, _ = _args_temp.parse_known_args()
+if _temp_args.local:
+    import os
+    os.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
+    os.environ['LOCAL_MODE'] = 'true'
+
 try:
     import msvcrt
 
