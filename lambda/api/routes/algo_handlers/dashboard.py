@@ -1199,9 +1199,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 
 
 @db_route_handler("fetch dashboard signals")
-# TODO: Fix response validation error for "date" field type mismatch
-# Temporarily disabled to unblock dashboard data display
-# @validate_api_response("sig")
+@validate_api_response("sig")
 def _get_dashboard_signals(cur: cursor) -> Any:
     """Get dashboard-specific signal data from algo_signals table.
 
@@ -1243,23 +1241,18 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         else:
             total_n = int(sig["n"])
 
-            # Top active signals with quality scores
+            # Top active signals with quality scores - cast date to text at source
             cur.execute("""
                 SELECT s.symbol, s.signal_quality_score,
-                       cp.sector, s.entry_price, s.signal_date
+                       cp.sector, s.entry_price,
+                       s.signal_date::text as signal_date
                 FROM algo_signals s
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
                 WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
                 ORDER BY COALESCE(s.signal_quality_score, 0) DESC NULLS LAST
                 LIMIT 30
             """)
-            buy_sigs_rows = cur.fetchall()
-            buy_sigs = []
-            for row in buy_sigs_rows:
-                row_dict = safe_json_serialize(safe_dict_convert(row))
-                if row_dict.get("signal_date"):
-                    row_dict["signal_date"] = str(row_dict["signal_date"])
-                buy_sigs.append(row_dict)
+            buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
 
             # Grade distribution (A/B/C/D by signal_quality_score from algo_signals)
             cur.execute("""
@@ -1273,7 +1266,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
             """)
             grades_r = cur.fetchone()
-            grades = safe_dict_convert(grades_r) if grades_r else {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
+            grades = safe_json_serialize(safe_dict_convert(grades_r)) if grades_r else {"a": 0, "b": 0, "c": 0, "d": 0, "total": 0}
 
             # Near-misses: signals with decent scores (55-69 range)
             cur.execute("""
