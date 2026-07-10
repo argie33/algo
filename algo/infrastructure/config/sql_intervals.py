@@ -27,7 +27,7 @@ Configuration Keys:
     sql_interval_52w_days      → INTERVAL '364 days'
 """
 
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from . import AlgoConfig
@@ -81,7 +81,7 @@ def get_interval_sql(interval_key: str, config: "AlgoConfig | None" = None) -> s
     return f"INTERVAL '{days_int} days'"
 
 
-def get_interval_days(interval_key: str, config: "AlgoConfig | None" = None) -> Union[int, float]:
+def get_interval_days(interval_key: str, config: "AlgoConfig | None" = None) -> int | float:
     """Get raw day value from config.
 
     Args:

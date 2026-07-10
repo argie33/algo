@@ -12,6 +12,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.config.environment_validation import EnvironmentValidator
 from algo.infrastructure import MarketCalendar
 from algo.orchestration.database_health_monitor import DatabaseHealthMonitor
 from algo.orchestration.halt_flag_manager import HaltFlagManager
@@ -34,7 +35,6 @@ from algo.orchestrator.phase9_reconciliation import run as run_phase9
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
 from algo.orchestrator.phase_registry import PhaseRegistry
 from algo.reporting import AlertManager
-from algo.config.environment_validation import EnvironmentValidator
 from monitoring.metrics_context import (
     TimeBlock,
     log_metrics_summary,

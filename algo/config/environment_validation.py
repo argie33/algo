@@ -74,12 +74,12 @@ class EnvironmentValidator:
                 missing.append(f"{var_name}: {description}")
 
         # Check optional variables with defaults - no missing errors if defaults exist
-        for var_name, (default_val, description) in cls.OPTIONAL_WITH_DEFAULTS.items():
+        for var_name, (default_val, _description) in cls.OPTIONAL_WITH_DEFAULTS.items():
             value = os.getenv(var_name)
             if not value or value.strip() == "":
                 # Check for alternative names if primary not set
                 if var_name in cls.ALTERNATIVE_VARS:
-                    alt_name, alt_desc = cls.ALTERNATIVE_VARS[var_name]
+                    alt_name, _alt_desc = cls.ALTERNATIVE_VARS[var_name]
                     alt_value = os.getenv(alt_name)
                     if alt_value and alt_value.strip() != "":
                         # Alternative found, use it instead of default
