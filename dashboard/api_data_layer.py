@@ -69,14 +69,20 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Dashboard API URL will be set at runtime, either from environment or via set_api_url()
-_dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
-if not _dashboard_api_url:
-    logger.debug(
-        "DASHBOARD_API_URL environment variable not set. "
-        "Using default localhost:3001 for development (dev_server port). "
-        "For production, set DASHBOARD_API_URL to your API endpoint."
-    )
-API_BASE_URL = _dashboard_api_url if _dashboard_api_url else "http://localhost:3001"
+# Priority: LOCAL_MODE env var > DASHBOARD_API_URL env var > default localhost:3001
+if os.environ.get("LOCAL_MODE"):
+    # Local mode: always use localhost for dev_server
+    API_BASE_URL = "http://localhost:3001"
+    logger.debug("[API] LOCAL_MODE enabled - using local dev_server at http://localhost:3001")
+else:
+    _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
+    if not _dashboard_api_url:
+        logger.debug(
+            "DASHBOARD_API_URL environment variable not set. "
+            "Using default localhost:3001 for development (dev_server port). "
+            "For production, set DASHBOARD_API_URL to your API endpoint."
+        )
+    API_BASE_URL = _dashboard_api_url if _dashboard_api_url else "http://localhost:3001"
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
