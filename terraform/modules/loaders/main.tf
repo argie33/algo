@@ -301,6 +301,8 @@ locals {
     "market_constituents" = "load_market_constituents.py"
     "market_health_daily" = "load_market_health_daily.py"
     "market_sentiment"    = "load_market_sentiment.py"
+    "aaii_sentiment"      = "load_aaii_sentiment.py"
+    "options_chains"      = "load_options_chains.py"
     # Consolidated market rankings loader (replaces 2 separate loaders)
     "sector_ranking"     = "load_market_rankings.py"
     "industry_ranking"   = "load_market_rankings.py"
@@ -364,6 +366,14 @@ locals {
     "dxy_index" = {
       description = "Load DXY/USD economic indicator - EOD pipeline"
       schedule    = "cron(15 21 ? * MON-FRI *)" # 4:15 PM ET
+    }
+    "aaii_sentiment" = {
+      description = "Load AAII investor sentiment survey - EOD pipeline (used for contrarian market exposure factor)"
+      schedule    = "cron(18 21 ? * MON-FRI *)" # 4:18 PM ET (parallel, optional enrichment data)
+    }
+    "options_chains" = {
+      description = "Load options chains for put/call ratio and IV history - EOD pipeline (optional enrichment for signal options)"
+      schedule    = "cron(19 21 ? * MON-FRI *)" # 4:19 PM ET (parallel, optional enrichment data)
     }
 
     # Metric loaders: Parallel at 4:20 PM ET (after SEC Edgar financials complete at ~3:30 PM)
@@ -481,6 +491,8 @@ locals {
     "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
     "market_sentiment"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "aaii_sentiment"      = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    "options_chains"      = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 2 }
     "sector_ranking"      = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "industry_ranking"    = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "algo_metrics_daily"  = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
