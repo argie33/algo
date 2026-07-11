@@ -172,9 +172,7 @@ class OptimalLoader:
         if self._backfill_days > 0:
             previous_date = datetime.now(timezone.utc).date() - timedelta(days=self._backfill_days)
         else:
-            previous_date = self._watermark.get(symbol)
-            if previous_date is None:
-                previous_date = self._watermark.read_from_db(symbol)
+            previous_date = self._watermark.get_current_watermark(symbol=symbol)
 
         # Retry transient API errors (timeouts, connection errors) with exponential backoff
         max_attempts = 3
