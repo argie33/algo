@@ -70,12 +70,12 @@ logger = logging.getLogger(__name__)
 
 # Dashboard API URL will be set at runtime, either from environment or via set_api_url()
 # Priority: LOCAL_MODE env var > DASHBOARD_API_URL env var > default localhost:3001
+_dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
 if os.environ.get("LOCAL_MODE"):
     # Local mode: always use localhost for dev_server
     API_BASE_URL = "http://localhost:3001"
     logger.debug("[API] LOCAL_MODE enabled - using local dev_server at http://localhost:3001")
 else:
-    _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
     if not _dashboard_api_url:
         logger.debug(
             "DASHBOARD_API_URL environment variable not set. "
