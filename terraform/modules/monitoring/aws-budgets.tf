@@ -26,6 +26,15 @@ resource "aws_budgets_budget" "daily_cost" {
   limit_amount      = tostring(var.cost_threshold_daily_usd)
   limit_unit        = "USD"
 
+  # Email notification when threshold is exceeded
+  notification {
+    comparison_operator        = "GREATER_THAN"
+    notification_type          = "FORECASTED"
+    threshold                  = 100
+    threshold_type             = "PERCENTAGE"
+    subscriber_email_addresses = ["argeropolos@gmail.com"]
+  }
+
   tags = merge(var.common_tags, {
     Name = "Daily budget threshold"
   })
