@@ -68,21 +68,37 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Dashboard API URL will be set at runtime, either from environment or via set_api_url()
-# Priority: LOCAL_MODE env var > DASHBOARD_API_URL env var > default localhost:3001
+# Dashboard API URL detection with smart fallback to localhost
+# Priority: 1) LOCAL_MODE env var, 2) Test localhost availability, 3) DASHBOARD_API_URL env var, 4) default localhost:3001
 _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
+
+def _check_localhost_available() -> bool:
+    """Check if dev_server is running on localhost:3001."""
+    import socket
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('127.0.0.1', 3001))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
+# Smart detection: Try localhost first if available, even if AWS URL is configured
 if os.environ.get("LOCAL_MODE"):
-    # Local mode: always use localhost for dev_server
     API_BASE_URL = "http://localhost:3001"
     logger.debug("[API] LOCAL_MODE enabled - using local dev_server at http://localhost:3001")
+elif _check_localhost_available():
+    # Auto-detect dev_server on localhost (no --local flag needed)
+    API_BASE_URL = "http://localhost:3001"
+    logger.debug("[API] Dev server detected on localhost:3001 - using local connection")
+elif _dashboard_api_url:
+    API_BASE_URL = _dashboard_api_url
+    logger.debug(f"[API] Using configured DASHBOARD_API_URL: {_dashboard_api_url}")
 else:
-    if not _dashboard_api_url:
-        logger.debug(
-            "DASHBOARD_API_URL environment variable not set. "
-            "Using default localhost:3001 for development (dev_server port). "
-            "For production, set DASHBOARD_API_URL to your API endpoint."
-        )
-    API_BASE_URL = _dashboard_api_url if _dashboard_api_url else "http://localhost:3001"
+    # Ultimate fallback
+    API_BASE_URL = "http://localhost:3001"
+    logger.debug("[API] DASHBOARD_API_URL not set, trying localhost:3001")
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
