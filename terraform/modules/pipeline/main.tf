@@ -2408,8 +2408,8 @@ resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
 
 resource "aws_scheduler_schedule" "financial_data_pipeline_trigger" {
   name                         = "${var.project_name}-financial-data-pipeline-${var.environment}"
-  description                  = "Daily financial data: income/balance/cash flow (annual/quarterly/TTM) - 4:05 PM ET, runs in parallel with EOD"
-  schedule_expression          = "cron(5 16 ? * MON-FRI *)"
+  description                  = "Daily financial data: income/balance/cash flow (annual/quarterly/TTM) - 4:00 PM ET (runs before EOD at 4:05 PM)"
+  schedule_expression          = "cron(0 16 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
 

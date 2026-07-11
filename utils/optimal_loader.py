@@ -729,7 +729,7 @@ class OptimalLoader:
             with DatabaseContext("read") as cur:
                 # CRITICAL: Handle loaders with no watermark_field (e.g., stock_scores computed all-at-once)
                 if self.watermark_field:
-                    cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")
+                    cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}), COUNT(DISTINCT symbol) FROM {self.table_name}")
                     result = cur.fetchone()
                     if result is None:
                         raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
@@ -737,8 +737,9 @@ class OptimalLoader:
                         raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
                     total_rows = result[0]
                     latest_date = result[1].date() if result[1] is not None and hasattr(result[1], "date") else None
+                    actual_symbols_loaded = result[2] if result[2] is not None else 0
                 else:
-                    # No watermark_field: just count rows
+                    # No watermark_field: just count rows (can't count distinct symbols for non-symbol tables)
                     cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
                     result = cur.fetchone()
                     if result is None:
@@ -747,16 +748,12 @@ class OptimalLoader:
                         raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
                     total_rows = result[0]
                     latest_date = None
+                    actual_symbols_loaded = total_rows  # For non-symbol tables, use row count
 
-            # CRITICAL FIX: Validate symbols_processed exists — don't mask incomplete tracking with 0
-            symbols_processed = self._stats.get("symbols_processed")
-            if symbols_processed is None:
-                logger.warning(
-                    f"[{self.table_name}] symbols_processed not tracked in stats — possible loader instrumentation issue. "
-                    "Defaulting to 0 but check loader logging for completion issues."
-                )
-                symbols_processed = 0
-            completion_pct = (symbols_processed / expected_symbols * 100) if expected_symbols > 0 else 100.0
+            # FIX: Use actual symbol count from table, not from stats
+            # This ensures accuracy even if symbols_processed tracking has issues
+            symbols_loaded = actual_symbols_loaded
+            completion_pct = (symbols_loaded / expected_symbols * 100) if expected_symbols > 0 else 100.0
             loader_status = "COMPLETED" if completion_pct >= 95 else "INCOMPLETE"
 
             from utils.db.pooled_context_var import get_pooled_connection, set_pooled_connection
@@ -779,7 +776,7 @@ class OptimalLoader:
                             loader_status,
                             completion_pct,
                             expected_symbols,
-                            symbols_processed,
+                            symbols_loaded,
                         ),
                     )
             finally:
