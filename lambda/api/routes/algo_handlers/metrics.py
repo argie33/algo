@@ -596,7 +596,7 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             if not now_row:
                 raise ValueError("Database NOW() returned empty")
             now_row = safe_dict_convert(now_row)
-            now_db = now_row.get("now") or list(now_row.values())[0]
+            now_db = now_row.get("now") or next(iter(now_row.values()))
         except Exception as e:
             logger.error(f"CRITICAL: Cannot get database NOW(): {e}")
             return error_response(503, "database_error", "Cannot get current database time")

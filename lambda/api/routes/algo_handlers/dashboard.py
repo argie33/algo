@@ -426,7 +426,6 @@ def _get_algo_status(cur: cursor) -> Any:
     # Fetch and validate portfolio snapshot: RESILIENT fallback to computed data
     # If orchestrator hasn't run (Phase 9 snapshot missing), compute from algo_positions + algo_trades
     portfolio = None
-    portfolio_from_snapshot = False
     try:
         cur.execute("""
                 SELECT total_portfolio_value, total_cash, daily_return_pct,
