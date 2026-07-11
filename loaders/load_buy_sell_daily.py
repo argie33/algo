@@ -54,7 +54,7 @@ class SignalsDailyLoader(OptimalLoader):
 
         self._batch_context = {}
 
-            now_utc = datetime.now(timezone.utc)
+        now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
             end = now_et.date()
 
