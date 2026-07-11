@@ -8,7 +8,8 @@
 2. **Architecture & rules?** → `steering/GOVERNANCE.md`
 3. **AWS/deployment?** → `steering/OPERATIONS.md`
 4. **Data loading system?** → `steering/DATA_LOADERS.md`
-5. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
+5. **Lambda 503 errors?** → `steering/AWS_LAMBDA_503_FIX.md`
+6. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
 
 ## Quick Setup
 
@@ -49,13 +50,14 @@ WHERE started_at > NOW() - INTERVAL '1 hour';
 
 | Issue | Fix |
 |-------|-----|
-| Dashboard shows "data not available" | Use `python3 -m dashboard --local` (need `--local` flag) |
-| Dev server connection refused | Run `python3 api-pkg/dev_server.py` in another terminal |
-| PostgreSQL connection refused | Check DB running: `psql -U stocks stocks -c "SELECT 1"` |
-| Code fails pre-commit | Run `make format && make type-check` |
-| AWS credential error | Set `COGNITO_USER_POOL_ID` and `COGNITO_CLIENT_ID` (see `steering/OPERATIONS.md`) |
-| Orchestrator not running in AWS | Check scheduler: `aws events describe-rule --name algo-orchestrator-2x-daily` |
-| Positions/portfolio mismatch | Refresh: `REFRESH MATERIALIZED VIEW algo_positions_with_risk` |
+| Dashboard "data not available" (local) | Use `python3 -m dashboard --local` - MUST use --local flag |
+| Dashboard "API Errors" panel (AWS) | Check `steering/AWS_LAMBDA_503_FIX.md` - likely VPC misconfiguration |
+| Dev server "connection refused" | Run both: Terminal 1: `python3 api-pkg/dev_server.py` + Terminal 2: `python3 -m dashboard --local` |
+| PostgreSQL connection refused | Check DB: `python3 -c "import psycopg2; psycopg2.connect('dbname=stocks user=stocks host=localhost')"` |
+| Lambda 503 errors (AWS) | Run: `bash scripts/fix-lambda-vpc.sh` then redeploy: `gh workflow run deploy-api-lambda.yml` |
+| Code fails pre-commit | Run: `make format && make type-check` |
+| Orchestrator not running | Check AWS: `aws events describe-rule --name algo-orchestrator-2x-daily` |
+| Stale data (> 4 hours) | Loaders not running - check EventBridge Scheduler + ECS logs |
 
 ## Non-Negotiable Rules
 
