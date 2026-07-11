@@ -107,11 +107,6 @@ class DailyReconciliation:
                 total_unrealized_pnl = float(pnl_row["total_pnl"])
                 total_invested = float(pnl_row["total_invested"])
 
-                # DEBUG: Log what we're about to use for cash calculation
-                logger.info(
-                    f"[PAPER MODE DEBUG] position_value sum={total_invested}, unrealized_pnl={total_unrealized_pnl}"
-                )
-
                 # Portfolio value = base capital + unrealized P&L
                 # FIX: Provide default fallback for initial_capital_paper_trading in case config doesn't have it
                 initial_capital = self.config.get("initial_capital_paper_trading", 100000.0)
@@ -139,11 +134,6 @@ class DailyReconciliation:
                     logger.info("[RECONCILIATION] Paper mode: DatabaseContext opened, role=write")
                     # CRITICAL: Calculate cash from initial capital - invested amount (never hardcoded)
                     cash_remaining = float(initial_capital) - total_invested
-
-                    # DEBUG: Log the cash calculation
-                    logger.info(
-                        f"[PAPER MODE CASH CALC] initial={initial_capital}, invested={total_invested}, cash_remaining={cash_remaining}"
-                    )
 
                     # CRITICAL: Portfolio value must be positive for valid reconciliation
                     if portfolio_value <= 0:
