@@ -552,9 +552,15 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
     if not env_url:
         logger.error("[CREDS] DASHBOARD_API_URL environment variable not set")
         try:
-            CONSOLE.print("[bold red]ERROR:[/] AWS mode requires API endpoint")
-            CONSOLE.print("[bold cyan]To use AWS:[/] Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID")
-            CONSOLE.print("[bold cyan]For local dev:[/] Use [cyan]python -m dashboard --local[/]")
+            CONSOLE.print("\n[bold red]ERROR: Dashboard cannot connect to AWS API[/]")
+            CONSOLE.print("[red]Missing: DASHBOARD_API_URL[/]\n")
+            CONSOLE.print("[bold cyan]SOLUTION FOR LOCAL DEVELOPMENT:[/]")
+            CONSOLE.print("  python -m dashboard [bold cyan]--local[/]\n")
+            CONSOLE.print("[bold cyan]SOLUTION FOR AWS PRODUCTION:[/]")
+            CONSOLE.print("  Set environment variables:")
+            CONSOLE.print("    DASHBOARD_API_URL")
+            CONSOLE.print("    COGNITO_USER_POOL_ID")
+            CONSOLE.print("    COGNITO_CLIENT_ID")
         except Exception as display_err:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
@@ -562,7 +568,15 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
     if not env_pool:
         logger.error("[CREDS] COGNITO_USER_POOL_ID environment variable not set")
         try:
-            CONSOLE.print("[bold red]ERROR:[/] COGNITO_USER_POOL_ID required for AWS mode. Use --local for dev mode.")
+            CONSOLE.print("\n[bold red]ERROR: Dashboard cannot connect to AWS API[/]")
+            CONSOLE.print("[red]Missing: COGNITO_USER_POOL_ID[/]\n")
+            CONSOLE.print("[bold cyan]SOLUTION FOR LOCAL DEVELOPMENT:[/]")
+            CONSOLE.print("  python -m dashboard [bold cyan]--local[/]\n")
+            CONSOLE.print("[bold cyan]SOLUTION FOR AWS PRODUCTION:[/]")
+            CONSOLE.print("  Set environment variables:")
+            CONSOLE.print("    DASHBOARD_API_URL")
+            CONSOLE.print("    COGNITO_USER_POOL_ID")
+            CONSOLE.print("    COGNITO_CLIENT_ID")
         except Exception as display_err:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
@@ -570,7 +584,15 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
     if not env_client:
         logger.error("[CREDS] COGNITO_CLIENT_ID environment variable not set")
         try:
-            CONSOLE.print("[bold red]ERROR:[/] COGNITO_CLIENT_ID required for AWS mode. Use --local for dev mode.")
+            CONSOLE.print("\n[bold red]ERROR: Dashboard cannot connect to AWS API[/]")
+            CONSOLE.print("[red]Missing: COGNITO_CLIENT_ID[/]\n")
+            CONSOLE.print("[bold cyan]SOLUTION FOR LOCAL DEVELOPMENT:[/]")
+            CONSOLE.print("  python -m dashboard [bold cyan]--local[/]\n")
+            CONSOLE.print("[bold cyan]SOLUTION FOR AWS PRODUCTION:[/]")
+            CONSOLE.print("  Set environment variables:")
+            CONSOLE.print("    DASHBOARD_API_URL")
+            CONSOLE.print("    COGNITO_USER_POOL_ID")
+            CONSOLE.print("    COGNITO_CLIENT_ID")
         except Exception as display_err:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
