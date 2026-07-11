@@ -41,13 +41,12 @@ logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
 ce_client = boto3.client("ce")
 scheduler_client = boto3.client("scheduler")
 ecs_client = boto3.client("ecs")
-ses_client = boto3.client("ses")
+sns_client = boto3.client("sns")
 cloudwatch_client = boto3.client("cloudwatch")
 
 PROJECT_NAME = os.environ.get("PROJECT_NAME", "stocks")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
-ALERT_EMAIL_TO = os.environ.get("ALERT_EMAIL_TO", "argeropolos@gmail.com")
-ALERT_EMAIL_FROM = os.environ.get("ALERT_EMAIL_FROM", "noreply@algo.local")
+SNS_ALERT_TOPIC_ARN = os.environ.get("SNS_ALERT_TOPIC_ARN", "")
 DAILY_COST_THRESHOLD_USD = float(os.environ.get("DAILY_COST_THRESHOLD_USD", "50.0"))
 ECS_CLUSTER_NAME = os.environ.get("ECS_CLUSTER_NAME", f"{PROJECT_NAME}-{ENVIRONMENT}")
 
@@ -195,15 +194,15 @@ def suspend_ecs_tasks() -> dict:
 
 
 def send_cost_alert(costs: dict, alert_type: str, suspension_details: dict = None) -> None:
-    """Send SES email alert with cost summary and suspension status.
+    """Send SNS alert with cost summary and suspension status.
 
     Args:
         costs: Cost data from get_daily_costs()
         alert_type: "WARNING" (under threshold) or "CRITICAL" (over threshold)
         suspension_details: Suspension results if alert_type == "CRITICAL"
     """
-    if not ALERT_EMAIL_TO:
-        logger.warning("ALERT_EMAIL_TO not configured - skipping email alert")
+    if not SNS_ALERT_TOPIC_ARN:
+        logger.warning("SNS_ALERT_TOPIC_ARN not configured - skipping email alert")
         return
 
     try:
@@ -273,17 +272,14 @@ More information:
   - Lambda Logs: https://console.aws.amazon.com/lambda/
   - ECS Cluster: {ECS_CLUSTER_NAME}"""
 
-        ses_client.send_email(
-            Source=ALERT_EMAIL_FROM,
-            Destination={"ToAddresses": [ALERT_EMAIL_TO]},
-            Message={
-                "Subject": {"Data": subject},
-                "Body": {"Text": {"Data": body}},
-            },
+        sns_client.publish(
+            TopicArn=SNS_ALERT_TOPIC_ARN,
+            Subject=subject,
+            Message=body,
         )
-        logger.info(f"Sent SES email alert: {alert_type}")
+        logger.info(f"Sent SNS alert: {alert_type}")
     except Exception as e:
-        logger.error(f"Failed to send SES email alert: {e}")
+        logger.error(f"Failed to send SNS alert: {e}")
 
 
 def publish_cost_metric(total_cost: float, threshold: float) -> None:
