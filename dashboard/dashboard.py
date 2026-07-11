@@ -326,9 +326,18 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=warmup_render, daemon=True).start()
 
     first_render_with_data = False
+    data_display_start = None
     with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
         try:
+            loop_start = time.monotonic()
             while True:
+                elapsed_loop = time.monotonic() - loop_start
+
+                # Timeout: if no data after 30 seconds or if displaying data for >10 seconds, exit
+                if elapsed_loop > 30 or (first_render_with_data and (time.monotonic() - data_display_start) > 10):
+                    logger.info("[DASHBOARD] run_once() exiting after displaying data")
+                    break
+
                 key = _keypress()
                 if key == "q":
                     break
@@ -364,6 +373,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         if not first_render_with_data:
                             logger.info(f"[DASHBOARD] Transitioned to data display after {current_elapsed:.1f}s")
                             first_render_with_data = True
+                            data_display_start = time.monotonic()
                     except Exception as e:
                         logger.error(f"Render failed: {type(e).__name__}: {e}", exc_info=True)
                         try:
@@ -375,7 +385,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         except KeyboardInterrupt:
             pass
 
-    load_data_thread.join(timeout=60)
+    load_data_thread.join(timeout=5)
 
 
 def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
