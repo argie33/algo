@@ -115,7 +115,7 @@ class WatermarkManager:
                         ON CONFLICT (loader, symbol, granularity)
                         DO UPDATE SET
                             watermark = %s,
-                            rows_loaded = rows_loaded + %s,
+                            rows_loaded = loader_watermarks.rows_loaded + %s,
                             last_run_at = NOW(),
                             last_success_at = NOW(),
                             error_count = 0,
@@ -141,7 +141,7 @@ class WatermarkManager:
                         ON CONFLICT (loader, symbol, granularity)
                         DO UPDATE SET
                             watermark = %s,
-                            rows_loaded = rows_loaded + %s,
+                            rows_loaded = loader_watermarks.rows_loaded + %s,
                             last_run_at = NOW(),
                             last_success_at = NOW(),
                             error_count = 0,
@@ -167,7 +167,7 @@ class WatermarkManager:
                         ON CONFLICT (loader, symbol, granularity)
                         DO UPDATE SET
                             watermark = %s,
-                            rows_loaded = rows_loaded + %s,
+                            rows_loaded = loader_watermarks.rows_loaded + %s,
                             last_run_at = NOW(),
                             last_success_at = NOW(),
                             error_count = 0,
