@@ -444,10 +444,13 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             return {"_error": f"Authentication failed: {auth_err}", "_auth_error": True}
     else:
         # For development without Cognito, inject dev token automatically
-        # Works for both localhost and non-AWS environments to enable testing
-        if "localhost" in API_BASE_URL or "127.0.0.1" in API_BASE_URL or os.environ.get("LOCAL_MODE"):
+        # CRITICAL FIX: Check if we're talking to a local dev_server (localhost:3001)
+        # This works for both localhost and non-AWS environments to enable testing
+        is_localhost = "localhost" in API_BASE_URL or "127.0.0.1" in API_BASE_URL or ":3001" in API_BASE_URL
+        is_dev_mode = os.environ.get("LOCAL_MODE") or os.environ.get("ENVIRONMENT") == "development"
+        if is_localhost or is_dev_mode:
             headers["Authorization"] = "Bearer dev-admin"
-            logger.debug(f"Using dev-admin token for API call to {endpoint}")
+            logger.debug(f"Using dev-admin token for API call to {endpoint} (localhost={is_localhost}, dev_mode={is_dev_mode})")
     for attempt in range(API_MAX_RETRIES + 1):
         try:
             if method == "GET":
@@ -472,8 +475,12 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
 
                 # Auth errors (401/403) are permanent, don't retry and don't count toward circuit breaker
                 if resp.status_code in (401, 403):
+                    # CRITICAL FIX: Provide helpful error message for local development
+                    error_msg = f"API error {resp.status_code}: Authentication required"
+                    if "localhost" in endpoint or ":3001" in endpoint:
+                        error_msg += " [LOCAL DEV] Try running: python -m dashboard --local"
                     return {
-                        "_error": f"API error {resp.status_code}: Authentication required",
+                        "_error": error_msg,
                         "_auth_error": True,
                     }
                 # For other 4xx client errors, don't retry; fail immediately
@@ -524,8 +531,12 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                     # Auth errors (401/403) are permanent config issues, not transient API failures
                     if status_code_int in (401, 403):
                         msg = data.get("message", "Unknown API error")
+                        error_msg = f"API error {status_code_int}: {msg}"
+                        # CRITICAL FIX: Provide helpful error message for local development
+                        if "localhost" in endpoint or ":3001" in endpoint:
+                            error_msg += " [LOCAL DEV] Try running: python -m dashboard --local"
                         return {
-                            "_error": f"API error {status_code_int}: {msg}",
+                            "_error": error_msg,
                             "_auth_error": True,
                         }
                     # Deprecated endpoints (503 with errorType=deprecated_endpoint) should fail fast without retries
