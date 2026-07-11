@@ -594,7 +594,13 @@ class PriceLoader(OptimalLoader):
         last_error_type = None
         last_error_msg = None
 
-        while time.time() - start_time < max_wait_sec:
+        # CRITICAL FIX #3: Add max attempts + systematic failure detection
+        # Prevents hanging for 30 min if yfinance is down
+        max_attempts = 60  # Max 60 checks × 3s wait = 180s = 3 min even if all fail
+        consecutive_errors = 0
+        max_consecutive_errors = 5  # Abort if 5 errors in a row (detects yfinance down)
+
+        while time.time() - start_time < max_wait_sec and attempt < max_attempts:
             attempt += 1
             try:
                 # Use FAST market close check: 15s timeout instead of 120s
@@ -605,7 +611,7 @@ class PriceLoader(OptimalLoader):
                 if data_available:
                     elapsed = time.time() - start_time
                     logger.info(
-                        "[MARKET_CLOSE]  Data available after {elapsed:.1f}s (attempt %s)",
+                        "[MARKET_CLOSE] Data available after {elapsed:.1f}s (attempt %s)",
                         attempt,
                     )
                     # Emit success metric
@@ -626,12 +632,27 @@ class PriceLoader(OptimalLoader):
                             metric_err,
                         )
                     return True
+                # Data not available yet, will retry
+                consecutive_errors = 0
             except Exception as e:
                 last_error_type = type(e).__name__
                 last_error_msg = str(e)[:200]  # Truncate for logging
                 error_str = str(e).lower()
                 is_timeout = "timeout" in error_str or "connect" in error_str or "read timed" in error_str
                 is_rate_limit = "429" in error_str or "too many" in error_str or "rate" in error_str
+
+                # CRITICAL FIX #3: Track consecutive errors to detect systematic failure
+                consecutive_errors += 1
+                if consecutive_errors >= max_consecutive_errors:
+                    logger.critical(
+                        f"[MARKET_CLOSE] {max_consecutive_errors} consecutive errors detected - yfinance appears unavailable. "
+                        f"Last error: {last_error_type}: {last_error_msg}"
+                    )
+                    raise RuntimeError(
+                        f"Market close data unavailable after {max_consecutive_errors} consecutive failures. "
+                        f"yfinance API appears down. Last error: {last_error_type}: {last_error_msg}. "
+                        f"Check yfinance status and network connectivity."
+                    ) from e
 
                 log_level = "warning" if is_rate_limit else ("warning" if is_timeout else "debug")
                 logger.log(
@@ -640,9 +661,9 @@ class PriceLoader(OptimalLoader):
                         if log_level in ["debug", "warning", "error"]
                         else logging.DEBUG
                     ),
-                    f"[MARKET_CLOSE] Attempt {attempt}: {last_error_type} "
+                    f"[MARKET_CLOSE] Attempt {attempt}/{max_attempts}: {last_error_type} "
                     + ("(rate limit)" if is_rate_limit else "(timeout)" if is_timeout else "(other)")
-                    + f" - {last_error_msg}",
+                    + f" - {last_error_msg} [{consecutive_errors}/{max_consecutive_errors} consecutive]",
                 )
 
             # Check time remaining and wait before next attempt
@@ -652,11 +673,23 @@ class PriceLoader(OptimalLoader):
 
             if wait_time > 0 and wait_remaining > 0:
                 logger.debug(
-                    f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}... (elapsed {elapsed / 60:.1f}min/{max_wait_sec / 60:.0f}min)"
+                    f"[MARKET_CLOSE] Waiting {wait_time:.0f}s before retry {attempt + 1}/{max_attempts}... (elapsed {elapsed / 60:.1f}min/{max_wait_sec / 60:.0f}min)"
                 )
                 time.sleep(wait_time)
             elif wait_remaining <= 0:
                 break  # Total timeout reached
+
+        # Check if max attempts reached before timeout
+        if attempt >= max_attempts:
+            elapsed = time.time() - start_time
+            logger.error(
+                f"[MARKET_CLOSE] Max attempts ({max_attempts}) reached after {elapsed:.0f}s ({elapsed / 60:.1f}min). "
+                f"Data not available. Last error: {last_error_type}: {last_error_msg}"
+            )
+            raise RuntimeError(
+                f"Market close data not available after {max_attempts} attempts ({elapsed / 60:.1f}min). "
+                f"yfinance API degraded or unavailable."
+            )
 
         # Timeout - data not available, HALT loader with explicit error (ISSUE #11 FIX)
         elapsed = time.time() - start_time

@@ -275,8 +275,8 @@ class VectorizedTechnicalLoader:
                 symbol_df["roc_120d"] = symbol_df["close"].pct_change(120) * 100
                 symbol_df["roc_252d"] = symbol_df["close"].pct_change(252) * 100
 
-                # Clamp ROC
-                decimal84_max = 9999.9999
+                # Validate ROC values (NUMERIC(14,4) supports -99999.9999 to 99999.9999)
+                roc_max = 99999.9999
                 for col in [
                     "roc",
                     "roc_10d",
@@ -286,12 +286,21 @@ class VectorizedTechnicalLoader:
                     "roc_252d",
                 ]:
                     before = symbol_df[col].copy()
-                    symbol_df[col] = symbol_df[col].clip(-decimal84_max, decimal84_max)
-                    capped_count = ((before.abs() > decimal84_max) & (symbol_df[col].notna())).sum()
-                    if capped_count > 0:
-                        logger.warning(
-                            f"{symbol}: {capped_count} {col} values capped to +/{decimal84_max} (extreme market conditions)"
+                    # Check if any values would exceed the new limit
+                    exceeded_count = ((before.abs() > roc_max) & (symbol_df[col].notna())).sum()
+                    if exceeded_count > 0:
+                        exceeded_values = before[before.abs() > roc_max].values
+                        logger.error(
+                            f"[ROC_OVERFLOW] {symbol}: {exceeded_count} {col} values exceed NUMERIC(14,4) limit. "
+                            f"Max value: {before.abs().max():.4f}. This indicates extreme market conditions that must not be truncated silently. "
+                            f"Examples: {exceeded_values[:5]}"
                         )
+                        raise RuntimeError(
+                            f"[ROC_OVERFLOW] {symbol}: ROC values exceed NUMERIC(14,4) precision limit (max ±99999.9999). "
+                            f"Extreme market volatility detected - cannot proceed. Check market conditions (flash crash, data error, or API issue)."
+                        )
+                    # Clip to the safe limit (shouldn't happen if above check passes, but belt-and-suspenders)
+                    symbol_df[col] = symbol_df[col].clip(-roc_max, roc_max)
 
                 # Moving averages
                 mas = compute_moving_averages(symbol_df["close"])
