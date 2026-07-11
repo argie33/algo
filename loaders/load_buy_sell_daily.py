@@ -415,6 +415,24 @@ class SignalsDailyLoader(OptimalLoader):
             # Generate signals
             signals = self._generate_signals(symbol, rows)
 
+            # Defensive: Handle case where _generate_signals returns None (should not happen, but add guard)
+            if signals is None:
+                logger.error(f"[BUY_SELL_DAILY] {symbol}: _generate_signals returned None instead of list")
+                signals = [{
+                    "symbol": symbol,
+                    "date": end.isoformat(),
+                    "data_unavailable": True,
+                    "reason": "signal generation returned None (internal error)"
+                }]
+            elif not isinstance(signals, list):
+                logger.error(f"[BUY_SELL_DAILY] {symbol}: _generate_signals returned {type(signals).__name__} instead of list")
+                signals = [{
+                    "symbol": symbol,
+                    "date": end.isoformat(),
+                    "data_unavailable": True,
+                    "reason": f"signal generation returned {type(signals).__name__} instead of list"
+                }]
+
             # Mark all successful signals with data_unavailable=False and reason=None
             for sig in signals:
                 sig["data_unavailable"] = False

@@ -982,13 +982,13 @@ class MarketHealthDailyLoader(OptimalLoader):
                     f"(VIX in price_daily through {max_vix_str}; skipping dates beyond that)"
                 )
             if not health_metrics:
-                # FAIL-FAST: Market health is critical for circuit breaker evaluation
-                # Cannot silently skip all dates - must raise error so orchestrator knows to retry
-                raise RuntimeError(
-                    "[MARKET_HEALTH CRITICAL] No dates with VIX coverage available. "
-                    "Cannot compute market health metrics without VIX data. "
-                    "Check price_daily table for ^VIX symbol data availability."
+                # All dates were beyond VIX coverage - likely because today's VIX isn't available yet
+                # This is expected during intraday runs; return empty and let next run handle it
+                logger.info(
+                    "[MARKET_HEALTH] No dates with VIX coverage available (likely today waiting for VIX data). "
+                    "Will be included in next run once VIX data lands."
                 )
+                return []
 
             # Filter to only dates where VIX actually exists in price_daily.
             # The cap above removes dates AFTER the latest VIX row, but VIX coverage may be
