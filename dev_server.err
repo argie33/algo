@@ -1,0 +1,4 @@
+[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled (dev mode)
+[COGNITO] COGNITO_USER_POOL_ID not set - Cognito authentication is disabled (dev mode)
+2026-07-10 20:44:42,261 - INFO - Starting API dev server on http://localhost:3001
+2026-07-10 20:44:42,262 - INFO - Press Ctrl+C to stop
