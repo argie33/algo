@@ -1818,11 +1818,28 @@ class PriceLoader(OptimalLoader):
                     f"[{self.table_name}] CRITICAL: Watermark store is None. "
                     f"Cannot determine previous watermark date for incremental loads."
                 )
-            watermarks = [wm_store.get(s) for s in symbols]
+            # BUG FIX: Read watermarks from database, not just in-memory cache
+            # In-memory cache is empty on first load - must query DB to get prior watermarks
+            watermarks = []
+            for s in symbols:
+                # Check cache first (may be populated from prior symbol loads in same batch)
+                cached_wm = wm_store.get(s)
+                if cached_wm is not None:
+                    watermarks.append(cached_wm)
+                else:
+                    # Not in cache - read from database (this is the missing piece!)
+                    db_wm = wm_store.read_from_db(s)
+                    if db_wm is not None:
+                        wm_store.set(s, db_wm)  # Cache it for next symbol
+                    watermarks.append(db_wm)
+
             previous_dates: list[date | None] = [w if isinstance(w, date) else None for w in watermarks]
             valid_dates: list[date] = [d for d in previous_dates if d is not None]
             if valid_dates:
                 previous_date = min(valid_dates)
+                logger.info(
+                    f"[{self.table_name}] Batch watermark: min={previous_date} from {len(valid_dates)}/{len(symbols)} symbols"
+                )
             else:
                 # CRITICAL: If no watermarks available for any symbol, this indicates first load
                 # or watermark tracking failure. Log explicitly.
