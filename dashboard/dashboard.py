@@ -325,6 +325,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     threading.Thread(target=warmup_render, daemon=True).start()
 
+    first_render_with_data = False
     with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
         try:
             while True:
@@ -342,6 +343,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 current_elapsed = state.elapsed
 
                 if current_result is None:
+                    first_render_with_data = False
                     if current_error:
                         try:
                             live.update(render_error_panel(RuntimeError(current_error)))
@@ -350,6 +352,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     else:
                         live.update(loading_layout(current_frame, data_source=data_source))
                 else:
+                    # Data is available - render dashboard
                     with render_state._lock:
                         render_state.elapsed = current_elapsed
                         render_state.frame = current_frame
@@ -357,6 +360,10 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     try:
                         layout, _ = recovery.render_with_recovery(current_result, render_state)
                         live.update(layout)
+                        # Log first successful transition to data display
+                        if not first_render_with_data:
+                            logger.info(f"[DASHBOARD] Transitioned to data display after {current_elapsed:.1f}s")
+                            first_render_with_data = True
                     except Exception as e:
                         logger.error(f"Render failed: {type(e).__name__}: {e}", exc_info=True)
                         try:
