@@ -105,8 +105,8 @@ def _calculate_adjusted_win_rate(
     w_i = safe_int(w_val, default=0, field_name="closed_wins")
     l_i = safe_int(l_val, default=0, field_name="closed_losses")
 
-    closed_wins: int = w_i
-    closed_losses: int = l_i
+    closed_wins: int = w_i if w_i is not None else 0
+    closed_losses: int = l_i if l_i is not None else 0
     losing_open: int = 0
 
     if pos and not has_error(pos):
@@ -666,7 +666,8 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         l_val = perf.get("l")
         closed_losses = safe_int(l_val, field_name="closed_losses_l")
         streak_val = perf.get("streak")
-        streak: int = safe_int(streak_val, default=0, field_name="win_streak")
+        streak_raw = safe_int(streak_val, default=0, field_name="win_streak")
+        streak: int = streak_raw if streak_raw is not None else 0
         pnl_val = safe_float(perf.get("pnl"), default=None)
         unrlzd_pnl = safe_float(perf.get("unrealized_pnl"), default=None)
         open_cnt = safe_int(perf.get("open_count"), default=None)
