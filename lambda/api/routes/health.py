@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -249,8 +250,6 @@ def _handle_cognito(cur: cursor) -> Any:
     - cognito_client_id: Actual client ID from Cognito (if verifiable)
     - cognito_user_pool_id: User pool ID from config
     """
-    import os
-
     import boto3
 
     try:
