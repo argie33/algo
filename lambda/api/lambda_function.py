@@ -1206,6 +1206,9 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/sector-rotation",  # Sector rotation analysis (public market analysis)
         "/api/algo/sector-breadth",  # Sector breadth analysis (public market data)
         "/api/algo/sector-stage2",  # Stage 2 sector stocks (public market analysis)
+        "/api/algo/last-run",  # Orchestrator run status (public system metadata for dashboard health panel)
+        "/api/algo/data-status",  # Data loader status and freshness (public metadata)
+        "/api/algo/config",  # Algorithm configuration (public strategy parameters)
         # SECURITY FIX: Protected endpoints removed from public list (require JWT authentication)
         # REMOVED: /api/algo/positions - sensitive trading data
         # REMOVED: /api/algo/portfolio - sensitive account data
