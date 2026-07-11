@@ -10,7 +10,7 @@ Traces:
 
 import psycopg2
 from datetime import datetime, timedelta
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Any
 
 PIPELINE_LAYERS = {
     "Foundation": {
