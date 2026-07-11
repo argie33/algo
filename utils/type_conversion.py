@@ -1,8 +1,7 @@
-#!/usr/bin/env python3
 """Shared type conversion utilities for loaders.
 
-Eliminates duplication of _safe_float(), _safe_int(), etc. across 6+ loaders.
-Provides consistent error handling and logging for metric type conversions.
+Consolidates duplicate type-checking code across all data loaders.
+Provides fail-fast validation with clear error messages.
 """
 
 import logging
@@ -12,130 +11,117 @@ logger = logging.getLogger(__name__)
 
 
 def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | None:
-    """Safely convert value to float with clear error messages.
+    """Safely convert value to float with fail-fast validation.
 
     Args:
-        value: Value to convert
-        field_name: Name of field (for error messages)
-        allow_none: If True, return None for None values. If False, raise error.
+        value: Value to convert (can be None, float, int, or string)
+        field_name: Name of field for error reporting (e.g., "AAPL.roe")
+        allow_none: If True, returns None for None input; if False, raises error
 
     Returns:
         Float value or None (if allow_none=True and value is None)
 
     Raises:
-        RuntimeError: If conversion fails and allow_none=False, or if value is not convertible
+        ValueError: If value cannot be converted to float or if type is invalid
+        TypeError: If value is bool (often a data corruption indicator)
     """
+    if isinstance(value, bool):
+        raise TypeError(
+            f"[TYPE_CONVERSION] Cannot convert {field_name}={value!r}: got bool (data corruption?). "
+            f"Expected numeric or None."
+        )
+
     if value is None:
         if allow_none:
             return None
-        raise RuntimeError(f"Cannot convert {field_name}: value is None but allow_none=False")
+        raise ValueError(f"[TYPE_CONVERSION] {field_name}=None but None not allowed")
 
-    try:
+    if isinstance(value, float):
+        return value
+
+    if isinstance(value, int):
         return float(value)
-    except (ValueError, TypeError) as e:
-        raise RuntimeError(
-            f"Cannot convert {field_name} to float: {value!r} ({type(value).__name__}). "
-            f"Error: {e}"
-        ) from e
+
+    if isinstance(value, str):
+        try:
+            return float(value)
+        except ValueError as e:
+            raise ValueError(f"[TYPE_CONVERSION] Cannot parse {field_name}={value!r} as float: {e}") from e
+
+    raise TypeError(
+        f"[TYPE_CONVERSION] Cannot convert {field_name}={value!r} (type={type(value).__name__}). "
+        f"Expected numeric, string, or None."
+    )
 
 
 def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None:
-    """Safely convert value to int with clear error messages.
+    """Safely convert value to int with fail-fast validation."""
+    if isinstance(value, bool):
+        raise TypeError(f"[TYPE_CONVERSION] {field_name}: got bool, expected int")
 
-    Args:
-        value: Value to convert
-        field_name: Name of field (for error messages)
-        allow_none: If True, return None for None values. If False, raise error.
-
-    Returns:
-        Int value or None (if allow_none=True and value is None)
-
-    Raises:
-        RuntimeError: If conversion fails
-    """
     if value is None:
         if allow_none:
             return None
-        raise RuntimeError(f"Cannot convert {field_name}: value is None but allow_none=False")
+        raise ValueError(f"[TYPE_CONVERSION] {field_name}=None but None not allowed")
 
-    try:
-        return int(value)
-    except (ValueError, TypeError) as e:
-        raise RuntimeError(
-            f"Cannot convert {field_name} to int: {value!r} ({type(value).__name__}). "
-            f"Error: {e}"
-        ) from e
+    if isinstance(value, int):
+        return value
+
+    if isinstance(value, str):
+        try:
+            return int(value)
+        except ValueError as e:
+            raise ValueError(f"[TYPE_CONVERSION] Cannot parse {field_name}={value!r} as int: {e}") from e
+
+    raise TypeError(
+        f"[TYPE_CONVERSION] Cannot convert {field_name}={value!r} (type={type(value).__name__}). "
+        f"Expected int, string, or None."
+    )
 
 
 def safe_bool(value: Any, field_name: str, allow_none: bool = True) -> bool | None:
-    """Safely convert value to bool with clear error messages.
-
-    Args:
-        value: Value to convert (accepts True/False, 1/0, 'true'/'false', etc)
-        field_name: Name of field (for error messages)
-        allow_none: If True, return None for None values. If False, raise error.
-
-    Returns:
-        Bool value or None (if allow_none=True and value is None)
-
-    Raises:
-        RuntimeError: If conversion fails
-    """
+    """Safely convert value to bool with fail-fast validation."""
     if value is None:
         if allow_none:
             return None
-        raise RuntimeError(f"Cannot convert {field_name}: value is None but allow_none=False")
+        raise ValueError(f"[TYPE_CONVERSION] {field_name}=None but None not allowed")
 
     if isinstance(value, bool):
         return value
 
+    if isinstance(value, int):
+        if value in (0, 1):
+            return bool(value)
+        raise ValueError(f"[TYPE_CONVERSION] {field_name}={value}: int must be 0 or 1 for bool conversion")
+
     if isinstance(value, str):
-        if value.lower() in ("true", "1", "yes", "y"):
+        if value.lower() in ("true", "1", "yes"):
             return True
-        if value.lower() in ("false", "0", "no", "n"):
+        if value.lower() in ("false", "0", "no"):
             return False
+        raise ValueError(f"[TYPE_CONVERSION] {field_name}={value!r}: unknown bool value")
 
-    if isinstance(value, (int, float)):
-        return bool(value)
-
-    raise RuntimeError(
-        f"Cannot convert {field_name} to bool: {value!r} ({type(value).__name__}). "
-        f"Acceptable values: True/False, 1/0, 'true'/'false', 'yes'/'no'"
+    raise TypeError(
+        f"[TYPE_CONVERSION] Cannot convert {field_name}={value!r} (type={type(value).__name__}). "
+        f"Expected bool, 0/1, or string."
     )
 
 
-def safe_str(value: Any, field_name: str, allow_none: bool = True, strip: bool = True) -> str | None:
-    """Safely convert value to str with clear error messages.
-
-    Args:
-        value: Value to convert
-        field_name: Name of field (for error messages)
-        allow_none: If True, return None for None values. If False, raise error.
-        strip: If True, strip leading/trailing whitespace
-
-    Returns:
-        String value or None (if allow_none=True and value is None)
-
-    Raises:
-        RuntimeError: If conversion fails
-    """
+def safe_string(value: Any, field_name: str, allow_none: bool = True, max_len: int | None = None) -> str | None:
+    """Safely convert value to string with optional length validation."""
     if value is None:
         if allow_none:
             return None
-        raise RuntimeError(f"Cannot convert {field_name}: value is None but allow_none=False")
+        raise ValueError(f"[TYPE_CONVERSION] {field_name}=None but None not allowed")
 
-    try:
+    if isinstance(value, str):
+        result = value
+    else:
         result = str(value)
-        return result.strip() if strip else result
-    except Exception as e:
-        raise RuntimeError(
-            f"Cannot convert {field_name} to str: {value!r}. Error: {e}"
-        ) from e
 
+    if max_len and len(result) > max_len:
+        raise ValueError(
+            f"[TYPE_CONVERSION] {field_name}={result!r}: length {len(result)} exceeds max {max_len}"
+        )
 
-__all__ = [
-    "safe_float",
-    "safe_int",
-    "safe_bool",
-    "safe_str",
-]
+    return result

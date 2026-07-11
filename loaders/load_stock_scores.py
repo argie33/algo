@@ -40,6 +40,7 @@ import psycopg2  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
+from utils.type_conversion import safe_float  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
@@ -511,21 +512,6 @@ class StockScoresLoader(OptimalLoader):
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _safe_float(self, value: Any, field_name: str) -> float | None:
-        """Convert value to float, distinguishing None (no data) from conversion errors (corrupted data).
-
-        CRITICAL: Allows operators to distinguish "no data available" from "corrupted data detected".
-        """
-        if value is None:
-            return None
-        try:
-            return float(value)
-        except (ValueError, TypeError) as e:
-            raise RuntimeError(
-                f"CRITICAL: Financial metric {field_name} cannot be converted to float: {value!r}. "
-                f"Data corruption detected or invalid format. Cannot score stock without valid financials. "
-                f"Error: {e}"
-            ) from e
 
     # ARCHITECTURAL PATTERN: Internal Scoring Pipeline (UPDATED 2026-07-03)
     # ====================================================
@@ -539,8 +525,8 @@ class StockScoresLoader(OptimalLoader):
     # - Marker dicts always have {"data_unavailable": True, "reason": "..."}
     #
     # FIELD CONVERSION (CRITICAL SAFETY):
-    # - All numeric fields converted via self._safe_float() (never raw float())
-    # - self._safe_float() raises RuntimeError on type conversion failure
+    # - All numeric fields converted via safe_float() (never raw float())
+    # - safe_float() raises RuntimeError on type conversion failure
     # - Prevents data corruption from propagating silently
     # - Every field conversion distinguishes None (no data) from ValueError (corrupted data)
     #
@@ -568,7 +554,7 @@ class StockScoresLoader(OptimalLoader):
     #
     # KEY CHANGES (2026-07-03):
     # 1. All _get_* now validate row length before accessing (6 bound checks x 1-5 fields = 15+ validations)
-    # 2. All numeric conversions use self._safe_float() consistently (prevents type corruption)
+    # 2. All numeric conversions use safe_float() consistently (prevents type corruption)
     # 3. Removed new-listing exception that allowed 2/6 metrics
     # 4. Removed short-term momentum fallback (2/4/7/14 day lookbacks violated standards)
     # 5. Type hints: Removed | None from _score_* returns (always float or dict)
@@ -585,7 +571,7 @@ class StockScoresLoader(OptimalLoader):
         - Row length validation: Must have 9 columns (roe, roa, operating_margin, net_margin,
           debt_to_equity, current_ratio, quick_ratio, quality_score, data_unavailable)
         - Schema mismatch (len(row) < 9) → raises ValueError immediately
-        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_quality_metrics_found"
 
@@ -614,7 +600,7 @@ class StockScoresLoader(OptimalLoader):
                         f"Schema mismatch detected — cannot safely access data. Failing fast."
                     )
                 data_unavailable = row[8]
-                quality_score = self._safe_float(row[7], f"{symbol}.quality_score")
+                quality_score = safe_float(row[7], f"{symbol}.quality_score")
                 # If marked unavailable, return marker even if row exists
                 if data_unavailable:
                     logger.debug(
@@ -624,13 +610,13 @@ class StockScoresLoader(OptimalLoader):
                     return {"symbol": symbol, "data_unavailable": True, "reason": "quality_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
-                    "roe": self._safe_float(row[0], f"{symbol}.roe"),
-                    "roa": self._safe_float(row[1], f"{symbol}.roa"),
-                    "operating_margin": self._safe_float(row[2], f"{symbol}.operating_margin"),
-                    "net_margin": self._safe_float(row[3], f"{symbol}.net_margin"),
-                    "debt_to_equity": self._safe_float(row[4], f"{symbol}.debt_to_equity"),
-                    "current_ratio": self._safe_float(row[5], f"{symbol}.current_ratio"),
-                    "quick_ratio": self._safe_float(row[6], f"{symbol}.quick_ratio"),
+                    "roe": safe_float(row[0], f"{symbol}.roe"),
+                    "roa": safe_float(row[1], f"{symbol}.roa"),
+                    "operating_margin": safe_float(row[2], f"{symbol}.operating_margin"),
+                    "net_margin": safe_float(row[3], f"{symbol}.net_margin"),
+                    "debt_to_equity": safe_float(row[4], f"{symbol}.debt_to_equity"),
+                    "current_ratio": safe_float(row[5], f"{symbol}.current_ratio"),
+                    "quick_ratio": safe_float(row[6], f"{symbol}.quick_ratio"),
                     "quality_score": quality_score,  # Pre-computed by load_quality_metrics.py
                 }
             # No row exists at all
@@ -651,7 +637,7 @@ class StockScoresLoader(OptimalLoader):
         - Row length validation: Must have 7 columns (revenue_growth_1y, revenue_growth_3y,
           revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable)
         - Schema mismatch (len(row) < 7) → raises ValueError immediately
-        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_growth_metrics_found"
 
@@ -685,12 +671,12 @@ class StockScoresLoader(OptimalLoader):
                     return {"symbol": symbol, "data_unavailable": True, "reason": "growth_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
-                    "revenue_growth_1y": self._safe_float(row[0], f"{symbol}.revenue_growth_1y"),
-                    "revenue_growth_3y": self._safe_float(row[1], f"{symbol}.revenue_growth_3y"),
-                    "revenue_growth_5y": self._safe_float(row[2], f"{symbol}.revenue_growth_5y"),
-                    "eps_growth_1y": self._safe_float(row[3], f"{symbol}.eps_growth_1y"),
-                    "eps_growth_3y": self._safe_float(row[4], f"{symbol}.eps_growth_3y"),
-                    "eps_growth_5y": self._safe_float(row[5], f"{symbol}.eps_growth_5y"),
+                    "revenue_growth_1y": safe_float(row[0], f"{symbol}.revenue_growth_1y"),
+                    "revenue_growth_3y": safe_float(row[1], f"{symbol}.revenue_growth_3y"),
+                    "revenue_growth_5y": safe_float(row[2], f"{symbol}.revenue_growth_5y"),
+                    "eps_growth_1y": safe_float(row[3], f"{symbol}.eps_growth_1y"),
+                    "eps_growth_3y": safe_float(row[4], f"{symbol}.eps_growth_3y"),
+                    "eps_growth_5y": safe_float(row[5], f"{symbol}.eps_growth_5y"),
                 }
             # No row exists at all
             logger.warning(
@@ -710,7 +696,7 @@ class StockScoresLoader(OptimalLoader):
         - Row length validation: Must have 7 columns (pe_ratio, pb_ratio, ps_ratio, peg_ratio,
           dividend_yield, fcf_yield, data_unavailable)
         - Schema mismatch (len(row) < 7) → raises ValueError immediately
-        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_value_metrics_found"
 
@@ -744,12 +730,12 @@ class StockScoresLoader(OptimalLoader):
                     return {"symbol": symbol, "data_unavailable": True, "reason": "value_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
-                    "pe_ratio": self._safe_float(row[0], f"{symbol}.pe_ratio"),
-                    "pb_ratio": self._safe_float(row[1], f"{symbol}.pb_ratio"),
-                    "ps_ratio": self._safe_float(row[2], f"{symbol}.ps_ratio"),
-                    "peg_ratio": self._safe_float(row[3], f"{symbol}.peg_ratio"),
-                    "dividend_yield": self._safe_float(row[4], f"{symbol}.dividend_yield"),
-                    "fcf_yield": self._safe_float(row[5], f"{symbol}.fcf_yield"),
+                    "pe_ratio": safe_float(row[0], f"{symbol}.pe_ratio"),
+                    "pb_ratio": safe_float(row[1], f"{symbol}.pb_ratio"),
+                    "ps_ratio": safe_float(row[2], f"{symbol}.ps_ratio"),
+                    "peg_ratio": safe_float(row[3], f"{symbol}.peg_ratio"),
+                    "dividend_yield": safe_float(row[4], f"{symbol}.dividend_yield"),
+                    "fcf_yield": safe_float(row[5], f"{symbol}.fcf_yield"),
                 }
             # No row exists at all
             logger.warning(
@@ -769,7 +755,7 @@ class StockScoresLoader(OptimalLoader):
         - Row length validation: Must have 4 columns (institutional_ownership, insider_ownership,
           short_interest_percent, data_unavailable)
         - Schema mismatch (len(row) < 4) → raises ValueError immediately
-        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_positioning_metrics_found"
 
@@ -803,9 +789,9 @@ class StockScoresLoader(OptimalLoader):
                     return {"symbol": symbol, "data_unavailable": True, "reason": "positioning_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
-                    "institutional_ownership": self._safe_float(row[0], f"{symbol}.institutional_ownership"),
-                    "insider_ownership": self._safe_float(row[1], f"{symbol}.insider_ownership"),
-                    "short_interest": self._safe_float(row[2], f"{symbol}.short_interest"),
+                    "institutional_ownership": safe_float(row[0], f"{symbol}.institutional_ownership"),
+                    "insider_ownership": safe_float(row[1], f"{symbol}.insider_ownership"),
+                    "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
                 }
             # No row exists at all
             logger.debug(
@@ -825,7 +811,7 @@ class StockScoresLoader(OptimalLoader):
         - Row length validation: Must have 5 columns (volatility_252d, volatility_60d,
           volatility_30d, beta, data_unavailable)
         - Schema mismatch (len(row) < 5) → raises ValueError immediately
-        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_stability_metrics_found"
 
@@ -833,7 +819,7 @@ class StockScoresLoader(OptimalLoader):
         marked data_unavailable=True with NULL values. Previously returned NULLs instead of
         marker; now properly returns marker dict.
 
-        CRITICAL FIX 2026-07-03: Now uses self._safe_float() for all numeric fields to detect
+        CRITICAL FIX 2026-07-03: Now uses safe_float() for all numeric fields to detect
         data corruption. Previous inline float() bypassed error handling.
 
         MINIMUM DATA REQUIREMENT: Row must have exactly 5 columns. Missing columns causes immediate
@@ -862,10 +848,10 @@ class StockScoresLoader(OptimalLoader):
                     return {"symbol": symbol, "data_unavailable": True, "reason": "stability_data_marked_unavailable"}
                 # Row exists and data is available
                 return {
-                    "volatility_252d": self._safe_float(row[0], f"{symbol}.volatility_252d"),
-                    "volatility_60d": self._safe_float(row[1], f"{symbol}.volatility_60d"),
-                    "volatility_30d": self._safe_float(row[2], f"{symbol}.volatility_30d"),
-                    "beta": self._safe_float(row[3], f"{symbol}.beta"),
+                    "volatility_252d": safe_float(row[0], f"{symbol}.volatility_252d"),
+                    "volatility_60d": safe_float(row[1], f"{symbol}.volatility_60d"),
+                    "volatility_30d": safe_float(row[2], f"{symbol}.volatility_30d"),
+                    "beta": safe_float(row[3], f"{symbol}.beta"),
                 }
             # No row exists at all
             logger.warning(
@@ -885,7 +871,7 @@ class StockScoresLoader(OptimalLoader):
         - Row length validation: Must have 5 columns (current, price_1m_ago, price_3m_ago,
           price_6m_ago, price_12m_ago)
         - Schema mismatch (len(row) < 5) → raises ValueError immediately
-        - All numeric fields converted via self._safe_float() (detects data corruption)
+        - All numeric fields converted via safe_float() (detects data corruption)
         - Returns marker dict if any critical price is missing/None
         - No row at all → returns marker dict with reason="no_momentum_data_available"
 
@@ -900,7 +886,7 @@ class StockScoresLoader(OptimalLoader):
         data; insufficient lookback periods (2/4/7/14 days) indicate unreliable technical signals.
         If historical data is insufficient, momentum values are None (not guessed).
 
-        CRITICAL FIX 2026-07-03: Now uses self._safe_float() for all price fields to detect
+        CRITICAL FIX 2026-07-03: Now uses safe_float() for all price fields to detect
         data corruption. Previous inline float() bypassed error handling.
 
         Returns marker dict if no prices at all. Otherwise returns dict with momentum values
@@ -931,11 +917,11 @@ class StockScoresLoader(OptimalLoader):
                     )
 
                 prices = {
-                    "current": self._safe_float(row[0], f"{symbol}.current_price"),
-                    "price_1m_ago": self._safe_float(row[1], f"{symbol}.price_1m_ago"),
-                    "price_3m_ago": self._safe_float(row[2], f"{symbol}.price_3m_ago"),
-                    "price_6m_ago": self._safe_float(row[3], f"{symbol}.price_6m_ago"),
-                    "price_12m_ago": self._safe_float(row[4], f"{symbol}.price_12m_ago"),
+                    "current": safe_float(row[0], f"{symbol}.current_price"),
+                    "price_1m_ago": safe_float(row[1], f"{symbol}.price_1m_ago"),
+                    "price_3m_ago": safe_float(row[2], f"{symbol}.price_3m_ago"),
+                    "price_6m_ago": safe_float(row[3], f"{symbol}.price_6m_ago"),
+                    "price_12m_ago": safe_float(row[4], f"{symbol}.price_12m_ago"),
                 }
 
                 current = prices["current"]
@@ -1001,7 +987,7 @@ class StockScoresLoader(OptimalLoader):
 
         CRITICAL FIX 2026-07-01: Use pre-computed quality_score from load_quality_metrics.py
         when available (quality_score in metrics dict). This ensures consistency and avoids
-        discrepancies between the two scoring algorithms. Now uses self._safe_float() for
+        discrepancies between the two scoring algorithms. Now uses safe_float() for
         robust error handling.
 
         MINIMUM DATA REQUIREMENT: At least one of ROE/ROA/margin/ratio metrics must be
@@ -1014,7 +1000,7 @@ class StockScoresLoader(OptimalLoader):
 
         # Use pre-computed quality_score from load_quality_metrics.py if available
         if metrics.get("quality_score") is not None:
-            quality_score_value = self._safe_float(metrics["quality_score"], f"{symbol}.quality_score")
+            quality_score_value = safe_float(metrics["quality_score"], f"{symbol}.quality_score")
             if quality_score_value is not None:
                 logger.debug(f"[STOCK_SCORES] Using pre-computed quality_score for {symbol}: {quality_score_value}")
                 return quality_score_value

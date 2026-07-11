@@ -68,9 +68,11 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# Dashboard API URL detection with smart fallback to localhost
-# Priority: 1) LOCAL_MODE env var, 2) Test localhost availability, 3) DASHBOARD_API_URL env var, 4) default localhost:3001
+# Dashboard API URL with smart localhost detection
+# Uses lazy detection: checks localhost availability on first API call, not at import time
 _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
+_api_base_url_cache = None
+_localhost_checked = False
 
 def _check_localhost_available() -> bool:
     """Check if dev_server is running on localhost:3001."""
@@ -84,21 +86,41 @@ def _check_localhost_available() -> bool:
     except Exception:
         return False
 
-# Smart detection: Try localhost first if available, even if AWS URL is configured
-if os.environ.get("LOCAL_MODE"):
-    API_BASE_URL = "http://localhost:3001"
-    logger.debug("[API] LOCAL_MODE enabled - using local dev_server at http://localhost:3001")
-elif _check_localhost_available():
-    # Auto-detect dev_server on localhost (no --local flag needed)
-    API_BASE_URL = "http://localhost:3001"
-    logger.debug("[API] Dev server detected on localhost:3001 - using local connection")
-elif _dashboard_api_url:
-    API_BASE_URL = _dashboard_api_url
-    logger.debug(f"[API] Using configured DASHBOARD_API_URL: {_dashboard_api_url}")
-else:
-    # Ultimate fallback
-    API_BASE_URL = "http://localhost:3001"
-    logger.debug("[API] DASHBOARD_API_URL not set, trying localhost:3001")
+def _get_api_base_url() -> str:
+    """Get API URL with smart detection (lazy evaluation)."""
+    global _api_base_url_cache, _localhost_checked
+
+    if _api_base_url_cache:
+        return _api_base_url_cache
+
+    # Priority 1: Explicit LOCAL_MODE flag
+    if os.environ.get("LOCAL_MODE"):
+        _api_base_url_cache = "http://localhost:3001"
+        logger.debug("[API] LOCAL_MODE enabled - using local dev_server")
+        return _api_base_url_cache
+
+    # Priority 2: Auto-detect localhost (lazy check - only on first use)
+    if not _localhost_checked and _check_localhost_available():
+        _api_base_url_cache = "http://localhost:3001"
+        _localhost_checked = True
+        logger.debug("[API] Dev server detected on localhost:3001 - auto-switching to local mode")
+        return _api_base_url_cache
+
+    _localhost_checked = True
+
+    # Priority 3: Use configured AWS URL
+    if _dashboard_api_url:
+        _api_base_url_cache = _dashboard_api_url
+        logger.debug(f"[API] Using configured DASHBOARD_API_URL: {_dashboard_api_url}")
+        return _api_base_url_cache
+
+    # Priority 4: Fallback to localhost
+    _api_base_url_cache = "http://localhost:3001"
+    logger.debug("[API] No DASHBOARD_API_URL, falling back to localhost:3001")
+    return _api_base_url_cache
+
+# Set initial value (will be overridden on first API call if localhost is available)
+API_BASE_URL = _get_api_base_url()
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
@@ -431,8 +453,11 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
         or {"_error": message} on failure. On 503 errors, includes "_is_transient_503" flag
         to help callers determine if error is temporary.
     """
-    if not API_BASE_URL:
-        logger.error("DASHBOARD_API_URL environment variable not set - cannot make API calls")
+    # Lazy evaluation: check for localhost on first API call (in case dev_server just started)
+    api_url = _get_api_base_url()
+
+    if not api_url:
+        logger.error("No API URL available - cannot make API calls")
         return {"_error": "API_BASE_URL not configured - set DASHBOARD_API_URL environment variable"}
 
     if _check_circuit_breaker():
@@ -443,7 +468,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             "_is_transient_503": True,
         }
 
-    url = f"{API_BASE_URL}{endpoint}"
+    url = f"{api_url}{endpoint}"
     headers: dict[str, str] = {"Content-Type": "application/json"}
 
     # Add Cognito authorization if available
@@ -462,7 +487,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
         # For development without Cognito, inject dev token automatically
         # CRITICAL FIX: Check if we're talking to a local dev_server (localhost:3001)
         # This works for both localhost and non-AWS environments to enable testing
-        is_localhost = "localhost" in API_BASE_URL or "127.0.0.1" in API_BASE_URL or ":3001" in API_BASE_URL
+        is_localhost = "localhost" in api_url or "127.0.0.1" in api_url or ":3001" in api_url
         is_dev_mode = os.environ.get("LOCAL_MODE") or os.environ.get("ENVIRONMENT") == "development"
         if is_localhost or is_dev_mode:
             headers["Authorization"] = "Bearer dev-admin"
