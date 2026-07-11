@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ Production Ready (Session 59 - Watermark Pipeline Fixed)
+**Status:** ✅ Production Ready (Session 67 - Complete orchestration consolidation)
 
 ## Start Here
 
@@ -28,8 +28,8 @@ python3 -m dashboard --local -w 30
 ## System Status
 
 - **Database:** PostgreSQL, 8.5M+ prices, 4.7k scores, 10,601 watermarks
-- **Last critical fixes (Session 59):** Watermark pipeline rebuilt, OptimalLoader corrected, price loader batch fixed
-- **Production:** EventBridge Scheduler runs orchestrator 2x daily
+- **Last critical fixes (Session 67):** Phase 3 complete - orchestration consolidated to Step Functions (single source of truth)
+- **Production:** Step Functions runs orchestrator 2x daily (morning 2:15 AM ET, evening 4:00 PM ET)
 
 ## Running Orchestrator
 
@@ -38,7 +38,7 @@ python3 -m dashboard --local -w 30
 python3 scripts/trigger_orchestrator.py --run morning --mode paper
 ```
 
-**Production:** Configured in `terraform/modules/services/2x-daily-orchestrator.tf`, runs via EventBridge Scheduler.
+**Production:** Configured in `terraform/modules/services/2x-daily-orchestrator.tf`, runs via Step Functions (primary) + optional weekly enrichment via EventBridge.
 
 **Check status:**
 ```sql
@@ -57,7 +57,7 @@ WHERE started_at > NOW() - INTERVAL '1 hour';
 | PostgreSQL connection refused | Check DB: `python3 -c "import psycopg2; psycopg2.connect('dbname=stocks user=stocks host=localhost')"` |
 | Lambda 503 errors (AWS) | Run: `bash scripts/fix-lambda-vpc.sh` then redeploy: `gh workflow run deploy-api-lambda.yml` |
 | Code fails pre-commit | Run: `make format && make type-check` |
-| Orchestrator not running | Check AWS: `aws events describe-rule --name algo-orchestrator-2x-daily` |
+| Orchestrator not running | Check AWS Step Functions: `aws stepfunctions describe-state-machine --state-machine-arn arn:aws:states:...` or AWS EventBridge Scheduler |
 | Stale data (> 4 hours) | Loaders not running - check EventBridge Scheduler + ECS logs |
 
 ## Non-Negotiable Rules
