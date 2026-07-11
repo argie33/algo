@@ -755,6 +755,10 @@ class OptimalLoader:
             # This ensures accuracy even if symbols_processed tracking has issues
             symbols_loaded = actual_symbols_loaded
             completion_pct = (symbols_loaded / expected_symbols * 100) if expected_symbols > 0 else 100.0
+            # CAP at 100 to prevent numeric overflow (NUMERIC(5,2) max is 999.99)
+            # For incremental loads where actual_symbols_loaded > expected_symbols (e.g., updating existing table),
+            # this is expected behavior and should still be marked COMPLETED
+            completion_pct = min(completion_pct, 100.0)
             loader_status = "COMPLETED" if completion_pct >= 95 else "INCOMPLETE"
 
             from utils.db.pooled_context_var import get_pooled_connection, set_pooled_connection
