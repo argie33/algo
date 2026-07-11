@@ -226,6 +226,28 @@ class VectorizedTechnicalLoader:
                         }
                     )
 
+                # HIGH FIX #2: Validate coverage - fail if upstream data incomplete
+                if not result:
+                    raise RuntimeError(
+                        f"No price data found for {len(symbols)} symbols in date range [{start_date}, {end_date}]. "
+                        f"price_daily loader may have failed or data is stale."
+                    )
+
+                # Check coverage: at least 80% of symbols have data
+                symbols_with_data = set(r["symbol"] for r in result)
+                coverage_ratio = len(symbols_with_data) / len(symbols)
+                if coverage_ratio < 0.8:
+                    missing_symbols = set(symbols) - symbols_with_data
+                    logger.error(
+                        f"[COVERAGE] price_daily coverage only {coverage_ratio*100:.1f}% ({len(symbols_with_data)}/{len(symbols)} symbols). "
+                        f"Missing: {sorted(missing_symbols)[:10]}... "
+                        f"This indicates upstream price_daily loader failed partially."
+                    )
+                    raise RuntimeError(
+                        f"Insufficient price data coverage ({coverage_ratio*100:.1f}%). "
+                        f"Cannot compute indicators - upstream price_daily must be >80% complete."
+                    )
+
                 return result
         except psycopg2.Error as e:
             raise RuntimeError(
