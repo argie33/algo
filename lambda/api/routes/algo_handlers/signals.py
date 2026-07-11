@@ -27,6 +27,7 @@ from routes.utils import (
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from utils.validation import (
     format_decimal_string,
+    safe_float,
 )
 
 logger = logging.getLogger(__name__)
@@ -390,19 +391,87 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
 @db_route_handler("fetch rejection funnel")
 @validate_api_response("sig_eval")
 def _get_rejection_funnel(cur: cursor) -> Any:
-    """Get signal rejection funnel with detailed breakdown by filter.
+    """Get signal evaluation funnel stats from stock_scores composite_score.
 
-    SWING SCORE REMOVAL: This endpoint is deprecated. The swing_trader_scores table
-    no longer exists and has been retired in favor of composite_score from stock_scores.
-    Returns 503 to indicate endpoint is no longer available.
+    SWING SCORE MIGRATION: Previously used swing_trader_scores table.
+    Now calculates funnel stages from stock_scores composite_score tiers:
+    - t1: all candidates evaluated (composite_score > 0)
+    - t2: quality tier C+ (composite_score >= 55)
+    - t3: quality tier B+ (composite_score >= 65)
+    - t4: quality tier A+ (composite_score >= 75)
+    - t5: top tier A++ (composite_score >= 85)
     """
-    error_msg = (
-        "Signal rejection funnel endpoint has been retired. "
-        "The swing_trader_scores table is no longer maintained. "
-        "Swing score analysis has been replaced with composite_score from stock_scores table."
-    )
-    logger.warning("Deprecated endpoint called: /api/algo/rejection-funnel")
-    return error_response(503, "deprecated_endpoint", error_msg)
+    try:
+        cur.execute("SET LOCAL statement_timeout = '10000ms'")
+
+        # Get today's stock_scores evaluation stats by composite_score tier
+        cur.execute("""
+            SELECT
+                COUNT(*) AS total,
+                COUNT(CASE WHEN composite_score > 0 THEN 1 END) AS t1,
+                COUNT(CASE WHEN composite_score >= 55 THEN 1 END) AS t2,
+                COUNT(CASE WHEN composite_score >= 65 THEN 1 END) AS t3,
+                COUNT(CASE WHEN composite_score >= 75 THEN 1 END) AS t4,
+                COUNT(CASE WHEN composite_score >= 85 THEN 1 END) AS t5,
+                ROUND(AVG(composite_score)::NUMERIC, 1) AS avg_score,
+                MAX(created_at::date) AS signal_date
+            FROM stock_scores
+            WHERE created_at::date = CURRENT_DATE AND data_unavailable = FALSE
+        """)
+        result = cur.fetchone()
+        if result is None:
+            logger.info("No stock_scores found for today - returning zero funnel")
+            return json_response(
+                200,
+                {
+                    "total": 0,
+                    "t1": 0,
+                    "t2": 0,
+                    "t3": 0,
+                    "t4": 0,
+                    "t5": 0,
+                    "avg_score": None,
+                    "signal_date": None,
+                    "rejected": 0,
+                },
+            )
+
+        result_dict = safe_dict_convert(result)
+        total = int(result_dict.get("total", 0) or 0)
+        t1 = int(result_dict.get("t1", 0) or 0)
+        t2 = int(result_dict.get("t2", 0) or 0)
+        t3 = int(result_dict.get("t3", 0) or 0)
+        t4 = int(result_dict.get("t4", 0) or 0)
+        t5 = int(result_dict.get("t5", 0) or 0)
+        avg_score = result_dict.get("avg_score")
+        signal_date = result_dict.get("signal_date")
+
+        # Rejected count = total - t1 (candidates with 0 or NULL composite_score)
+        rejected = max(0, total - t1) if total > 0 else 0
+
+        return json_response(
+            200,
+            {
+                "total": total,
+                "t1": t1,
+                "t2": t2,
+                "t3": t3,
+                "t4": t4,
+                "t5": t5,
+                "avg_score": safe_float(avg_score, default=None, strict=True) if avg_score else None,
+                "signal_date": signal_date,
+                "rejected": rejected,
+            },
+        )
+    except (
+        psycopg2.errors.UndefinedTable,
+        psycopg2.errors.UndefinedColumn,
+        psycopg2.OperationalError,
+        psycopg2.DatabaseError,
+        Exception,
+    ) as e:
+        code, error_type, message = handle_db_error(e, "fetch rejection funnel")
+        return error_response(code, error_type, message)
 
 
 _TIER_CONFIG = {
