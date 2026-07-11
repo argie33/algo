@@ -684,10 +684,11 @@ resource "aws_ecs_task_definition" "loader" {
         }
         ],
         # Unified price loader: handles all intervals and asset classes
+        # OPTIMIZATION 2026-07-10: Load daily only (removed unused weekly/monthly)
         each.key == "stock_prices_daily" ? [
           {
             name  = "LOADER_INTERVALS"
-            value = "1d,1wk,1mo"
+            value = "1d"
           },
           {
             name  = "LOADER_ASSET_CLASSES"
