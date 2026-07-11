@@ -4,6 +4,39 @@
 
 ---
 
+## Problem: Dashboard Shows "Data Not Available"
+
+**Symptom:** Dashboard displays "data not available" on all panels.
+
+**Cause:** Dashboard not connecting to API correctly. Usually:
+- Missing `--local` flag (tries to connect to AWS instead of localhost)
+- API dev server not running
+- Lambda returning 503 errors in AWS
+
+**Quick Fix (Local Development):**
+```bash
+# Terminal 1: Start API dev server
+python3 api-pkg/dev_server.py
+
+# Terminal 2: Start dashboard WITH --local flag (REQUIRED)
+python3 -m dashboard --local -w 30
+
+# Verify: Dashboard should show portfolio, positions, trades with real data
+```
+
+**If still showing errors:**
+1. Check dev server is running: `curl http://localhost:3001/api/health`
+2. Check for API errors: `curl http://localhost:3001/api/algo/portfolio`
+3. Review dev server logs for errors
+4. Run diagnostics: `python3 scripts/diagnose_system.py`
+
+**If using AWS (not local):**
+- See [AWS_LAMBDA_503_FIX.md](AWS_LAMBDA_503_FIX.md) for Lambda 503 troubleshooting
+- Run: `bash scripts/fix-lambda-vpc.sh`
+- Redeploy: `gh workflow run deploy-api-lambda.yml`
+
+---
+
 ## Problem: Data Not Appearing in Dashboard
 
 **Symptom:** Made changes to database, but dashboard shows old data.
