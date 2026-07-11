@@ -325,126 +325,41 @@ locals {
     "compute_performance_metrics" = "compute_performance_metrics.py"
   }
 
+  # ============================================================
+  # CRITICAL: ALL PRODUCTION LOADERS NOW SCHEDULED VIA STEP FUNCTIONS
+  # ============================================================
+  # Morning pipeline (2:00 AM ET): stock prices, technical indicators
+  # Evening pipeline (4:00 PM ET): all metrics, scores, rankings, signals
+  # See: terraform/modules/pipeline/main.tf for complete dependency graph
+  #
+  # EventBridge is NOW ONLY for OPTIONAL enrichment data (weekly).
+  # All critical loaders consolidated into Step Functions for:
+  # - Explicit dependency ordering (not time-based guessing)
+  # - Single source of truth (readable in terraform)
+  # - No duplicate execution (was running same loaders via both systems)
+  # - Cost savings (eliminated $100-150/month in duplicates)
+  # ============================================================
+
   scheduled_loaders = {
-    # Morning pipeline: 2:15 AM ET (7:15 AM UTC), Mon-Fri
-    # Loads fresh market data for 9:30 AM signal generation
-    # CRITICAL: Sequenced with sufficient gaps to ensure dependency completion
-    "stock_prices_daily" = {
-      description = "Load OHLCV prices - morning pipeline (10k+ symbols, ~30 min runtime)"
-      schedule    = "cron(15 7 ? * MON-FRI *)" # 2:15 AM ET - starts first
-    }
-    "technical_data_daily" = {
-      description = "Compute 50/200-day SMA - morning pipeline (depends on prices)"
-      schedule    = "cron(55 7 ? * MON-FRI *)" # 2:55 AM ET - 40 min after prices start (allows completion)
-    }
+    # Optional enrichment: Weekly on Wednesday 2:00 PM ET
+    # These loaders provide nice-to-have enrichment but are not critical for trading.
+    # Moved from daily to weekly to reduce costs and free up resources.
 
-    # EOD pipeline: 3:00 PM ET (8:00 PM UTC), Mon-Fri - SEC Edgar financial statements (upstream for quality/growth metrics)
-    # Must run early enough to complete before quality/growth loaders at 4:20 PM
-    "financials_annual_income" = {
-      description = "Load annual income statements from SEC EDGAR - EOD pipeline (upstream for quality/growth metrics)"
-      schedule    = "cron(0 20 ? * MON-FRI *)" # 3:00 PM ET - starts early for completion
-    }
-    "financials_annual_balance" = {
-      description = "Load annual balance sheets from SEC EDGAR - EOD pipeline (upstream for quality/growth metrics)"
-      schedule    = "cron(5 20 ? * MON-FRI *)" # 3:05 PM ET - 5 min after income statement
-    }
-
-    # EOD pipeline: 4:05 PM ET (9:05 PM UTC), Mon-Fri
-    # Loads end-of-day data for 5:30 PM orchestrator run
-    "market_health_daily" = {
-      description = "Load market health indicators - EOD pipeline"
-      schedule    = "cron(5 21 ? * MON-FRI *)" # 4:05 PM ET
-    }
-    "market_exposure_daily" = {
-      description = "Compute market exposure factors - EOD pipeline"
-      schedule    = "cron(10 21 ? * MON-FRI *)" # 4:10 PM ET (after market_health)
+    "aaii_sentiment" = {
+      description = "WEEKLY: Load AAII investor sentiment survey (contrarian market exposure factor)"
+      schedule    = "cron(0 18 ? * WED *)" # Wed 2:00 PM ET (was daily at 4:18 PM)
     }
     "market_sentiment" = {
-      description = "Compute market sentiment (fear/greed index from VIX) - EOD pipeline"
-      schedule    = "cron(12 21 ? * MON-FRI *)" # 4:12 PM ET (after market_exposure_daily)
-    }
-    "dxy_index" = {
-      description = "Load DXY/USD economic indicator - EOD pipeline"
-      schedule    = "cron(15 21 ? * MON-FRI *)" # 4:15 PM ET
-    }
-    "aaii_sentiment" = {
-      description = "Load AAII investor sentiment survey - EOD pipeline (used for contrarian market exposure factor)"
-      schedule    = "cron(18 21 ? * MON-FRI *)" # 4:18 PM ET (parallel, optional enrichment data)
+      description = "WEEKLY: Compute fear/greed index from VIX (optional enrichment)"
+      schedule    = "cron(5 18 ? * WED *)" # Wed 2:05 PM ET (was daily at 4:12 PM)
     }
     "options_chains" = {
-      description = "Load options chains for put/call ratio and IV history - EOD pipeline (optional enrichment for signal options)"
-      schedule    = "cron(19 21 ? * MON-FRI *)" # 4:19 PM ET (parallel, optional enrichment data)
+      description = "WEEKLY: Load options chains for put/call ratio and IV (optional enrichment)"
+      schedule    = "cron(10 18 ? * WED *)" # Wed 2:10 PM ET (was daily at 4:19 PM)
     }
-
-    # Metric loaders: Parallel at 4:20 PM ET (after SEC Edgar financials complete at ~3:30 PM)
-    "quality_metrics" = {
-      description = "Load quality + growth metrics from SEC - EOD pipeline (consolidated loader, depends on financials)"
-      schedule    = "cron(20 21 ? * MON-FRI *)" # 4:20 PM ET (parallel, after SEC data available)
-    }
-    # NOTE: growth_metrics removed from scheduling — now computed by quality_metrics loader (consolidation)
-    "value_metrics" = {
-      description = "Load value metrics (P/E, P/B, P/S) - EOD pipeline"
-      schedule    = "cron(20 21 ? * MON-FRI *)" # 4:20 PM ET (parallel)
-    }
-    "positioning_metrics" = {
-      description = "Load positioning metrics (short interest) - EOD pipeline"
-      schedule    = "cron(20 21 ? * MON-FRI *)" # 4:20 PM ET (parallel)
-    }
-    "stability_metrics" = {
-      description = "Load stability metrics (dividend yield) - EOD pipeline"
-      schedule    = "cron(20 21 ? * MON-FRI *)" # 4:20 PM ET (parallel)
-    }
-    "momentum_metrics" = {
-      description = "Load momentum metrics (1m/3m/6m/12m returns) - EOD pipeline"
-      schedule    = "cron(20 21 ? * MON-FRI *)" # 4:20 PM ET (parallel)
-    }
-
-    # Stock scores: 4:30 PM ET (after all metrics complete ~4:25 PM)
-    "stock_scores" = {
-      description = "Compute composite stock scores - EOD pipeline (depends on all metric loaders)"
-      schedule    = "cron(30 21 ? * MON-FRI *)" # 4:30 PM ET (after all metrics)
-    }
-
-    # Industry and sector rankings: 4:40 PM ET (after stock_scores complete ~4:35 PM)
-    "industry_ranking" = {
-      description = "Compute industry rankings from stock scores - EOD pipeline (depends on stock_scores)"
-      schedule    = "cron(40 21 ? * MON-FRI *)" # 4:40 PM ET (after stock_scores)
-    }
-    "sector_ranking" = {
-      description = "Compute sector rankings from stock scores - EOD pipeline (depends on stock_scores)"
-      schedule    = "cron(45 21 ? * MON-FRI *)" # 4:45 PM ET (after industry_ranking)
-    }
-
-    # Signal generation and analytics: 5:00 PM ET (after all data loaded ~4:50 PM)
-    "buy_sell_daily" = {
-      description = "Generate BUY/SELL signals from technical+fundamental analysis - CRITICAL for trading"
-      schedule    = "cron(0 22 ? * MON-FRI *)" # 5:00 PM ET (after sector_ranking)
-    }
-    "algo_metrics_daily" = {
-      description = "Compute daily algo performance metrics - CRITICAL for dashboard/reports"
-      schedule    = "cron(5 22 ? * MON-FRI *)" # 5:05 PM ET (after buy_sell_daily)
-    }
-    "signal_quality_scores" = {
-      description = "Signal quality scores (0-100) combining buy/sell signal, technical confirmation, and trend - CRITICAL for monitoring"
-      schedule    = "cron(13 22 ? * MON-FRI *)" # 5:13 PM ET (after algo_metrics)
-    }
-
-    # Supporting data: 5:10 PM ET and later
-    "earnings_calendar" = {
-      description = "Load earnings calendar - needed for earnings blackout logic"
-      schedule    = "cron(10 22 ? * MON-FRI *)" # 5:10 PM ET
-    }
-    "company_profile" = {
-      description = "Load company profile (sector, industry) - needed for position tracking"
-      schedule    = "cron(15 22 ? * MON-FRI *)" # 5:15 PM ET
-    }
-    "analyst_sentiment" = {
-      description = "Load analyst sentiment scores - dashboard data"
-      schedule    = "cron(20 22 ? * MON-FRI *)" # 5:20 PM ET
-    }
-    "yfinance_snapshot" = {
-      description = "Cache yfinance snapshots - MOVED EARLIER to 4:00 PM to feed value/positioning metrics at 4:20 PM"
-      schedule    = "cron(0 21 ? * MON-FRI *)" # 4:00 PM ET (was 5:25 PM - dependency fix)
+    "dxy_index" = {
+      description = "WEEKLY: Load DXY/USD economic indicator (optional enrichment)"
+      schedule    = "cron(15 18 ? * WED *)" # Wed 2:15 PM ET (was daily at 4:15 PM)
     }
   }
 }
