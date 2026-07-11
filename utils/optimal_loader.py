@@ -68,7 +68,10 @@ class OptimalLoader:
 
         self._infrastructure = LoaderInfrastructure(self.table_name)
         self._stats = LoaderStats()
-        self._watermark = WatermarkManager(self.table_name, self.watermark_field)
+        # CRITICAL FIX: Derive loader_name from module name (e.g., loaders.load_prices -> load_prices)
+        # This fixes watermark lookup failure where loader_name was incorrectly set to table_name
+        loader_module_name = self.__class__.__module__.split(".")[-1]
+        self._watermark = WatermarkManager(loader_module_name, self.table_name)
         self._bulk_insert_mgr = BulkInsertManager(self.table_name, self.primary_key, self.chunk_size)
 
         self._configure_chunk_size()
