@@ -55,18 +55,18 @@ class SignalsDailyLoader(OptimalLoader):
         self._batch_context = {}
 
         now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-            end = now_et.date()
+        now_et = now_utc.astimezone(EASTERN_TZ)
+        end = now_et.date()
 
-            # CLUSTER 4 FIX: Use cached is_trading_day() to prevent repeated lookups
-            # The @lru_cache on _is_trading_day_cached() makes repeated checks ~1000x faster
-            max_iterations = 10  # Prevent infinite loop (max gap is ~3 days over a weekend)
-            iterations = 0
-            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end) and iterations < max_iterations:
-                end = end - timedelta(days=1)
-                iterations += 1
+        # CLUSTER 4 FIX: Use cached is_trading_day() to prevent repeated lookups
+        # The @lru_cache on _is_trading_day_cached() makes repeated checks ~1000x faster
+        max_iterations = 10  # Prevent infinite loop (max gap is ~3 days over a weekend)
+        iterations = 0
+        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end) and iterations < max_iterations:
+            end = end - timedelta(days=1)
+            iterations += 1
 
-            with DatabaseContext("read") as cur:
+        with DatabaseContext("read") as cur:
                 # Find most recent date with COMPLETE price_daily coverage (>= 3000 symbols)
                 # If today's price_daily is incomplete (partial load), fall back to yesterday
                 # This allows buy_sell_daily to run with the most recent complete data set
