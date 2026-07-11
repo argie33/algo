@@ -542,6 +542,46 @@ jobs:
             echo "[WARN] lambda/circuit-breaker/index.py not found — skipping"
           fi
 
+      - name: Build Cost Circuit Breaker Lambda
+        run: |
+          # Build cost monitoring Lambda ZIP for cost control (cost suspension)
+          # Monitors daily AWS costs via Cost Explorer API
+          # If threshold exceeded: disables EventBridge Scheduler + stops ECS tasks
+          # Must run before Terraform so filebase64sha256() can find the file
+          SOURCE=$GITHUB_WORKSPACE/lambda/cost-circuit-breaker
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda
+          PKG_DIR=/tmp/cost-circuit-breaker-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA
+
+          if [ -f "$SOURCE/index.py" ]; then
+            # Copy cost circuit breaker Lambda function
+            cp $SOURCE/index.py $PKG_DIR/index.py
+
+            # No external modules required (uses boto3 pre-installed in Lambda runtime)
+            # Install dependencies from requirements.txt if present
+            if [ -f "$SOURCE/requirements.txt" ]; then
+              python3.12 -m pip install -r $SOURCE/requirements.txt \
+                -t $PKG_DIR/ \
+                --no-cache-dir --quiet 2>/dev/null || true
+            fi
+
+            # Remove pycache
+            find $PKG_DIR -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+            find $PKG_DIR -type f -name "*.pyc" -delete
+
+            # Create ZIP
+            rm -f $TERRAFORM_LAMBDA/cost_circuit_breaker.zip
+            cd $PKG_DIR
+            zip -r $TERRAFORM_LAMBDA/cost_circuit_breaker.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*" "requirements.txt"
+            cd $GITHUB_WORKSPACE
+
+            echo "[OK] cost-circuit-breaker Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/cost_circuit_breaker.zip | cut -f1)"
+            unzip -l $TERRAFORM_LAMBDA/cost_circuit_breaker.zip | head -10
+          else
+            echo "[WARN] lambda/cost-circuit-breaker/index.py not found — skipping"
+          fi
+
       - name: Build AAII Sentiment Loader Lambda
         run: |
           # Build AAII Loader Lambda ZIP for initial data population

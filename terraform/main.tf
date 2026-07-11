@@ -426,6 +426,9 @@ module "monitoring" {
   enable_performance_alarms    = var.enable_performance_alarms
   enable_resource_alarms       = var.enable_resource_alarms
   enable_data_quality_monitors = var.enable_data_quality_monitors
+
+  # Cost circuit breaker configuration
+  cost_threshold_daily_usd = var.cost_threshold_daily_usd
 }
 
 module "orchestration" {

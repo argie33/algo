@@ -9,7 +9,8 @@
 3. **AWS/deployment?** → `steering/OPERATIONS.md`
 4. **Data loading system?** → `steering/DATA_LOADERS.md`
 5. **Lambda 503 errors?** → `steering/AWS_LAMBDA_503_FIX.md`
-6. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
+6. **AWS billing emails & cost controls?** → `BILLING_QUICK_REFERENCE.md` (or `steering/AWS_BILLING_AND_COST_CONTROLS.md`)
+7. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
 
 ## Quick Setup
 

@@ -731,6 +731,16 @@ variable "enable_data_quality_monitors" {
   default     = false
 }
 
+variable "cost_threshold_daily_usd" {
+  description = "Daily AWS cost threshold (USD) before triggering cost circuit breaker suspension"
+  type        = number
+  default     = 50.0
+  validation {
+    condition     = var.cost_threshold_daily_usd > 0
+    error_message = "Cost threshold must be greater than 0"
+  }
+}
+
 variable "alert_smtp_host" {
   description = "SMTP server hostname for email alerts (e.g., smtp.gmail.com)"
   type        = string

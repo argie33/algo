@@ -233,3 +233,17 @@ variable "enable_data_quality_monitors" {
   type        = bool
   default     = false
 }
+
+# ============================================================
+# Cost Circuit Breaker Configuration
+# ============================================================
+
+variable "cost_threshold_daily_usd" {
+  description = "Daily AWS cost threshold (USD) before triggering cost circuit breaker suspension. Dev=$50/day, Prod=$200/day (adjust based on expected usage)"
+  type        = number
+  default     = 50.0
+  validation {
+    condition     = var.cost_threshold_daily_usd > 0
+    error_message = "Cost threshold must be greater than 0"
+  }
+}
