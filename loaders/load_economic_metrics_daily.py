@@ -2,12 +2,16 @@
 """Economic Metrics Daily Loader - Market indicators and macro data."""
 
 import logging
+import socket
 from datetime import date as _date
 from typing import Any
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
+
+# HIGH FIX #4: Set socket timeout globally to prevent hangs on slow/broken APIs
+socket.setdefaulttimeout(10)  # 10s timeout for all socket operations (FRED, BEA, etc)
 
 logger = logging.getLogger(__name__)
 
