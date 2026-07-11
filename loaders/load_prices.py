@@ -1302,12 +1302,15 @@ class PriceLoader(OptimalLoader):
             return
 
         try:
-            market_close_available = self._check_market_close_data_available(max_wait_sec=10)
+            # Use configured timeout from algo_config, not hardcoded 10s.
+            # yfinance can lag 5-15 minutes after market close.
+            # Hardcoding 10s prevents it from ever getting data in EOD pipeline.
+            market_close_available = self._check_market_close_data_available()  # None = use configured timeout
             if not market_close_available:
                 raise RuntimeError(
-                    "[MARKET_CLOSE] Market close data not confirmed available within 10s timeout. "
+                    "[MARKET_CLOSE] Market close data not confirmed available within configured timeout. "
                     "Cannot load daily prices without market close verification. "
-                    "Either wait for market close or run price loader after market close confirmation."
+                    "Check yfinance API status and retry when data becomes available."
                 )
             logger.debug("[MARKET_CLOSE] Verified: market close data available")
         except RuntimeError:
@@ -1895,7 +1898,9 @@ class PriceLoader(OptimalLoader):
 
             if not rows:
                 # GOVERNANCE FIX: Mark symbol as having unavailable price data
-                # Prevents downstream from silently using stale prices
+                # BUT: Do NOT update watermark when data unavailable.
+                # This allows next run to retry fetching - yfinance may have the data next time.
+                # If watermark is updated on unavailable data, symbols become permanently stuck.
                 try:
                     unavailable_marker = {
                         "symbol": symbol,
@@ -1910,12 +1915,13 @@ class PriceLoader(OptimalLoader):
                     }
                     self._bulk_insert_mgr.bulk_insert(
                         [unavailable_marker],
-                        symbol=symbol,
-                        new_watermark=datetime.now(timezone.utc).date(),
-                        watermark_mgr=self._watermark,
+                        symbol=None,  # Don't pass symbol so watermark isn't updated
+                        new_watermark=None,  # Explicitly don't update watermark
+                        watermark_mgr=None,  # Don't track watermark for unavailable data
                     )
                     logger.warning(
-                        f"[{self.table_name}] {symbol}: Marked as data_unavailable (no valid prices after validation)"
+                        f"[{self.table_name}] {symbol}: Marked as data_unavailable (no valid prices after validation). "
+                        "Watermark NOT updated - next run will retry this symbol."
                     )
                 except Exception as e:
                     logger.warning(f"[{self.table_name}] {symbol}: Could not mark as unavailable: {e} (continuing)")
