@@ -289,13 +289,13 @@ locals {
     "quality_metrics"       = "load_quality_growth_metrics.py"
     "growth_metrics"        = "load_quality_growth_metrics.py"
     # Consolidated yfinance readers: 1 loader → 7 output tables (read snapshot once, write to 7 tables in parallel)
+    # Output tables: value_metrics, positioning_metrics, company_profile, analyst_sentiment_analysis,
+    #               analyst_upgrade_downgrade, earnings_calendar, earnings_history
     "value_metrics"         = "load_fundamental_metrics.py"
     "positioning_metrics"   = "load_fundamental_metrics.py"
     "company_profile"       = "load_fundamental_metrics.py"
     "earnings_history"      = "load_fundamental_metrics.py"
     "earnings_calendar"     = "load_fundamental_metrics.py"
-    "analyst_sentiment"     = "load_fundamental_metrics.py"
-    "analyst_upgrades_downgrades" = "load_fundamental_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
     "momentum_metrics"      = "load_momentum_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
