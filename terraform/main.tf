@@ -314,6 +314,7 @@ module "services" {
   task_execution_role_arn                = module.iam.ecs_task_execution_role_arn
   task_role_arn                          = module.iam.ecs_task_role_arn
   api_lambda_layer_enabled               = false # Layers built but NOT published to AWS (would need separate publish step)
+  allow_dev_tokens_test                  = var.allow_dev_tokens_test
   common_tags                            = local.common_tags
 }
 

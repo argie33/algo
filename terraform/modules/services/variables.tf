@@ -839,6 +839,16 @@ variable "fred_credential_rotation_schedule" {
 }
 
 # ============================================================
+# Authentication Configuration
+# ============================================================
+
+variable "allow_dev_tokens_test" {
+  description = "Enable dev token authentication for testing (e.g., dev-admin, dev-user). For testing only, NOT for production."
+  type        = bool
+  default     = false
+}
+
+# ============================================================
 # Step Functions Integration
 # ============================================================
 

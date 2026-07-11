@@ -1186,6 +1186,12 @@ variable "dev_mode" {
   }
 }
 
+variable "allow_dev_tokens_test" {
+  description = "Allow dev tokens (dev-admin, dev-user) for Lambda testing. NOT for production. Requires Lambda code update."
+  type        = bool
+  default     = false
+}
+
 # ============================================================
 # Credentials & Notification Configuration
 # ============================================================
