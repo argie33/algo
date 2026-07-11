@@ -204,6 +204,9 @@ def fetch_market(c: None) -> dict[str, Any]:
             strict=True,
         )
 
+        # Spy change is optional enrichment data
+        spy_chg_val = market_health.get("spy_change_pct")
+
         result = {
             "pct": safe_float(current.get("exposure_pct"), field_name="market.exposure_pct", strict=True),
             "tier": tier,
@@ -211,13 +214,22 @@ def fetch_market(c: None) -> dict[str, Any]:
             "vix": vix,
             "dist": safe_int(current.get("distribution_days"), field_name="market.distribution_days", strict=True),
             "spy": spy,
-            "spy_chg": safe_float(market_health.get("spy_change_pct"), field_name="market.spy_change_pct", strict=True),
             "upvol": upvol_val,
             "adr": adr_val,
             "nh": nh_val,
             "nl": nl_val,
             "bmom": bmom_val,
         }
+
+        # Add spy_chg only if available
+        if spy_chg_val is not None:
+            try:
+                result["spy_chg"] = safe_float(spy_chg_val, field_name="market.spy_change_pct", strict=True)
+            except (StrictValidationError, ValueError, TypeError) as e:
+                logger.warning(f"[MARKET] SPY change conversion failed ({type(e).__name__}): {e}. Marking as unavailable.")
+                result["spy_chg_unavailable"] = True
+        else:
+            result["spy_chg_unavailable"] = True
 
         # Mark breadth metrics as unavailable if missing (critical for market exposure scoring)
         if upvol_val is None:
