@@ -26,9 +26,71 @@ resource "aws_iam_role" "eventbridge_run_task" {
   tags = var.common_tags
 }
 
-# Removed: orchestrator_locks, loader_locks, loader_execution_status
-# Step Functions handles coordination; distributed locking tables were not used.
-# Savings: ~$1-2/month DynamoDB; reduced maintenance burden.
+# DynamoDB Table for Orchestrator Distributed Locking
+resource "aws_dynamodb_table" "orchestrator_locks" {
+  name         = "${var.project_name}-orchestrator-locks-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "lock_key"
+
+  attribute {
+    name = "lock_key"
+    type = "S"
+  }
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-orchestrator-locks"
+  })
+}
+
+# DynamoDB Table for Loader Distributed Locking (prevents concurrent instances)
+resource "aws_dynamodb_table" "loader_locks" {
+  name         = "${var.project_name}-loader-locks-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "lock_key"
+
+  attribute {
+    name = "lock_key"
+    type = "S"
+  }
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-loader-locks"
+  })
+}
+
+# DynamoDB Table for Loader Execution Status (separate from lock TTL)
+resource "aws_dynamodb_table" "loader_execution_status" {
+  name         = "${var.project_name}-loader-status-${var.environment}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "loader_name"
+  range_key    = "execution_date"
+
+  attribute {
+    name = "loader_name"
+    type = "S"
+  }
+
+  attribute {
+    name = "execution_date"
+    type = "S"
+  }
+  ttl {
+    attribute_name = "expires_at"
+    enabled        = true
+  }
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-loader-status"
+  })
+}
 
 # DynamoDB Table for Dynamic Loader Configuration
 resource "aws_dynamodb_table" "loader_config" {
@@ -94,7 +156,42 @@ resource "aws_iam_role_policy" "ecs_task_loader_status_access" {
   })
 }
 
-# Removed: ecs_task_lock_access policy (orchestrator_locks and loader_locks tables deleted)
+# Grant ECS tasks permission to access the lock tables
+resource "aws_iam_role_policy" "ecs_task_lock_access" {
+  name = "${var.project_name}-ecs-lock-table-access"
+  role = split("/", var.task_role_arn)[1]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "DynamoDBOrchestrationLocks"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = aws_dynamodb_table.orchestrator_locks.arn
+      },
+      {
+        Sid    = "DynamoDBLoaderLocks"
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = aws_dynamodb_table.loader_locks.arn
+      }
+    ]
+  })
+}
 
 # ============================================================
 # SQS Dead-Letter Queue for EventBridge loader failures
@@ -186,6 +283,8 @@ locals {
     "technical_data_daily"  = "load_technical_indicators.py"
     "trend_template_data"   = "load_trend_analysis.py"
     "market_exposure_daily" = "load_market_exposure_daily.py"
+    "yfinance_snapshot"     = "load_company_cache.py"
+    "dxy_index"             = "load_dxy_index.py"
     # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
     "quality_metrics"       = "load_quality_growth_metrics.py"
     "growth_metrics"        = "load_quality_growth_metrics.py"
@@ -198,10 +297,14 @@ locals {
     "earnings_history"      = "load_fundamental_metrics.py"
     "earnings_calendar"     = "load_fundamental_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
+    "momentum_metrics"      = "load_momentum_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
 
     "market_constituents" = "load_market_constituents.py"
     "market_health_daily" = "load_market_health_daily.py"
+    "market_sentiment"    = "load_market_sentiment.py"
+    "aaii_sentiment"      = "load_aaii_sentiment.py"
+    "options_chains"      = "load_options_chains.py"
     # Consolidated market rankings loader (replaces 2 separate loaders)
     "sector_ranking"     = "load_sector_rankings.py"
     "industry_ranking"   = "load_sector_rankings.py"
@@ -217,6 +320,9 @@ locals {
     "financials_quarterly_cashflow" = "load_financial_statements.py"
     "financials_ttm_income"         = "load_financial_statements.py"
     "financials_ttm_cashflow"       = "load_financial_statements.py"
+
+    # Sector performance loader (optional, not in critical path)
+    "sector_performance" = "load_sector_performance.py"
   }
 
   # ============================================================
@@ -234,10 +340,28 @@ locals {
   # - Cost savings (eliminated $100-150/month in duplicates)
   # ============================================================
 
-  scheduled_loaders = {}
-  # Removed optional enrichment loaders (aaii_sentiment, market_sentiment, options_chains, dxy_index)
-  # These weren't being used and were consuming unnecessary resources.
-  # Previous cost: ~$2-5/month; Core pipeline unaffected (Step Functions handles all critical data).
+  scheduled_loaders = {
+    # Optional enrichment: Weekly on Wednesday 2:00 PM ET
+    # These loaders provide nice-to-have enrichment but are not critical for trading.
+    # Moved from daily to weekly to reduce costs and free up resources.
+
+    "aaii_sentiment" = {
+      description = "WEEKLY: Load AAII investor sentiment survey (contrarian market exposure factor)"
+      schedule    = "cron(0 18 ? * WED *)" # Wed 2:00 PM ET (was daily at 4:18 PM)
+    }
+    "market_sentiment" = {
+      description = "WEEKLY: Compute fear/greed index from VIX (optional enrichment)"
+      schedule    = "cron(5 18 ? * WED *)" # Wed 2:05 PM ET (was daily at 4:12 PM)
+    }
+    "options_chains" = {
+      description = "WEEKLY: Load options chains for put/call ratio and IV (optional enrichment)"
+      schedule    = "cron(10 18 ? * WED *)" # Wed 2:10 PM ET (was daily at 4:19 PM)
+    }
+    "dxy_index" = {
+      description = "WEEKLY: Load DXY/USD economic indicator (optional enrichment)"
+      schedule    = "cron(15 18 ? * WED *)" # Wed 2:15 PM ET (was daily at 4:15 PM)
+    }
+  }
 }
 
 resource "aws_cloudwatch_event_rule" "scheduled_loader" {
@@ -259,6 +383,8 @@ locals {
     "technical_data_daily"  = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 1 }
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
+    "dxy_index"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     # Cost-optimized: Reduced from 1024/2048 (yfinance API fetch + lightweight metric calc)
     "growth_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     # Cost-optimized: Reduced from 1024/2048 (SEC filing parse + DB insert, moderate CPU)
@@ -273,15 +399,22 @@ locals {
     "earnings_calendar"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
     # Cost-optimized: Reduced from 1024/2048 (dividend + payout ratio queries)
     "stability_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+    # Cost-optimized: Reduced from 1024/2048 (return calculations on historical prices)
+    "momentum_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     "stock_scores"     = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    "market_sentiment"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    "aaii_sentiment"      = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    "options_chains"      = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 2 }
     "sector_ranking"      = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "industry_ranking"    = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "algo_metrics_daily"  = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
     # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
     "buy_sell_daily"      = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
+    # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_fundamental_metrics.py, not separate tasks
+    # They share ECS task definition with other yfinance-derived metrics (value, positioning, company_profile, earnings*)
 
     "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
@@ -291,6 +424,8 @@ locals {
     "financials_quarterly_cashflow" = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
+
+    "sector_performance" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 
@@ -300,13 +435,16 @@ locals {
     "algo_metrics_daily",
     "stock_scores",
     "buy_sell_daily",
+    "yfinance_snapshot",
+    "dxy_index",
     "financials_annual_income",
     "financials_annual_balance",
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
     "positioning_metrics",
-    "stability_metrics"
+    "stability_metrics",
+    "momentum_metrics"
   ])
 }
 
