@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -318,7 +318,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         has_filtering_info = (
             total_count is not None and total_count > 0 and filtered_count is not None and filtered_count > 0
         )
-    if has_filtering_info and coverage_valid:
+    if has_filtering_info and coverage_valid and isinstance(coverage, dict):
         # Validate required coverage fields exist
         if "total_count" not in coverage or "valid_count" not in coverage or "filtered_count" not in coverage:
             logger.error(f"[POSITIONS] Coverage data missing required fields. Got: {coverage}")
@@ -332,9 +332,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
                 border_style="red",
                 padding=(0, 1),
             )
-        total = coverage["total_count"]
-        valid = coverage["valid_count"]
-        filt = coverage["filtered_count"]
+        total = cast(int, coverage.get("total_count", 0))
+        valid = cast(int, coverage.get("valid_count", 0))
+        filt = cast(int, coverage.get("filtered_count", 0))
         border = "yellow"
         # Show: "POSITIONS (2/15 valid, 13 filtered)"
         title_str = f"[bold yellow]POSITIONS ({valid}/{total} valid, {filt} filtered)[/]"

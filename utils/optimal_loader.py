@@ -250,7 +250,7 @@ class OptimalLoader:
             )
 
         if new_wm:
-            self._watermark.set(symbol, new_wm, inserted)
+            self._watermark.advance_watermark(new_wm, symbol=symbol, rows_loaded=inserted)
 
         self._stats.increment("rows_inserted", inserted)
         return inserted
@@ -432,7 +432,7 @@ class OptimalLoader:
             with DatabaseContext("read") as cur:
                 cur.execute(f"SELECT MAX({self.watermark_field}) FROM {self.table_name}")
                 row = cur.fetchone()
-                since = self._watermark._parse_watermark_date(row[0]) if row and row[0] is not None else None
+                since = row[0] if row and row[0] is not None else None
 
             try:
                 rows_result = self.fetch_global(since)
