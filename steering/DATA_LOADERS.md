@@ -28,7 +28,7 @@ Live data pipeline: 40+ loaders organized into 5 Step Functions pipelines, sched
 
 **Sequence (all parallel except Terminal steps):**
 1. `load_prices` — Fetches OHLCV from Alpaca (3000+ symbols)
-2. `load_technical_data_daily` — Computes 50/200-day SMA, momentum from price_daily (vectorized in-database)
+2. `load_technical_data_daily` — Computes 50/200-day SMA, momentum, ATR, ADX from price_daily (vectorized in-database). Also computes VCP (Volatility Contraction Pattern) data for signal quality scoring.
 3. `load_swing_trader_scores` — Swing score calculation (auxiliary, non-blocking if timeout)
 
 **Timing:**

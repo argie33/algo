@@ -2,10 +2,11 @@
 """Technical Data Daily Loader — Vectorized for Institutional Speed
 
 Computes technical indicators (SMA, Bollinger Bands, RSI, MACD, ATR, ADX) for ALL symbols.
+Also consolidates VCP (Volatility Contraction Pattern) calculation from separate loader.
 Uses vectorized bulk operations (10-20x faster than per-symbol approach):
 - Single bulk fetch of all price_daily data
 - Vectorized pandas operations across all 5000+ symbols
-- Single bulk insert for all results
+- Single bulk insert for all results + VCP patterns
 - Completes in 15-25 minutes vs 60-90 minutes with per-symbol approach
 
 This is the primary/only implementation; per-symbol variants were deprecated.
@@ -49,6 +50,7 @@ class VectorizedTechnicalLoader:
 
     def __init__(self) -> None:
         self.table_name = "technical_data_daily"
+        self.vcp_patterns_inserted = 0
 
     def run(self, symbols: list[str], since_date: date | None = None) -> dict[str, Any]:
         """Load technical indicators for all symbols vectorized.
@@ -112,6 +114,9 @@ class VectorizedTechnicalLoader:
 
             inserted = self._bulk_insert(indicators_df, since_date)
 
+            # Consolidation: Compute and insert VCP patterns (moved from separate loader)
+            self._compute_and_insert_vcp_patterns(indicators_df)
+
             # Get the latest date in the computed indicators
             latest_date = None
             if len(indicators_df) > 0:
@@ -119,12 +124,14 @@ class VectorizedTechnicalLoader:
 
             duration = time.time() - start_time
             logger.info(
-                f"VectorizedTechnicalLoader completed: {inserted} rows in {duration:.1f}s, latest_date={latest_date}"
+                f"VectorizedTechnicalLoader completed: {inserted} technical rows, "
+                f"{self.vcp_patterns_inserted} VCP patterns in {duration:.1f}s, latest_date={latest_date}"
             )
 
             return {
                 "symbols_processed": len(symbols),
                 "rows_inserted": inserted,
+                "vcp_patterns_inserted": self.vcp_patterns_inserted,
                 "duration_sec": round(duration, 2),
                 "latest_date": latest_date,
                 "error": None,
@@ -395,6 +402,163 @@ class VectorizedTechnicalLoader:
             raise RuntimeError(
                 f"[SPY_PRICES] Invalid SPY price data format: {e}. SPY price data may be corrupted."
             ) from e
+
+    def _compute_and_insert_vcp_patterns(self, indicators_df: pd.DataFrame) -> None:
+        """Compute VCP patterns from indicators and insert to vcp_patterns table.
+
+        Consolidation: Previously in separate load_vcp_patterns.py loader.
+        VCP patterns depend on ATR which we just computed, so consolidate here for efficiency.
+
+        Args:
+            indicators_df: DataFrame with computed technical indicators including atr_14
+        """
+        if indicators_df.empty or "atr_14" not in indicators_df.columns:
+            logger.warning("[VCP] No indicators or ATR data available — skipping VCP pattern computation")
+            return
+
+        try:
+            # Use only the most recent date's data for VCP (no need for full historical scan)
+            vcp_symbols = indicators_df[["symbol", "date", "atr_14"]].dropna(subset=["atr_14"])
+
+            if vcp_symbols.empty:
+                logger.warning("[VCP] No ATR data available after filtering — skipping VCP patterns")
+                return
+
+            vcp_patterns = []
+
+            for symbol in vcp_symbols["symbol"].unique():
+                try:
+                    self._compute_vcp_for_symbol(symbol, vcp_patterns)
+                except Exception as e:
+                    logger.debug(f"[VCP] Failed to compute VCP for {symbol}: {e}")
+
+            if vcp_patterns:
+                self._bulk_insert_vcp_patterns(vcp_patterns)
+            else:
+                logger.info("[VCP] No VCP patterns computed for any symbols")
+        except Exception as e:
+            logger.warning(f"[VCP] VCP pattern computation failed (non-blocking): {e}")
+
+    def _compute_vcp_for_symbol(self, symbol: str, vcp_patterns: list[dict[str, Any]]) -> None:
+        """Compute VCP pattern for a single symbol using price history.
+
+        Args:
+            symbol: Stock symbol
+            vcp_patterns: List to append results to
+        """
+        end_date = datetime.now(ZoneInfo("UTC")).astimezone(EASTERN_TZ).date()
+
+        try:
+            with DatabaseContext("read") as cur:
+                # Fetch last 30 days of ATR from technical_data_daily
+                cur.execute(
+                    "SELECT date, atr_14 FROM technical_data_daily "
+                    "WHERE symbol = %s AND date >= %s AND date <= %s AND atr_14 IS NOT NULL "
+                    "ORDER BY date DESC LIMIT 30",
+                    (symbol, end_date - timedelta(days=30), end_date),
+                )
+                atr_rows = cur.fetchall()
+                if not atr_rows or len(atr_rows) < 30:
+                    return
+
+                # Current ATR is most recent
+                current_atr = float(atr_rows[0][1])
+                atrs = [float(row[1]) for row in atr_rows]
+                atr_30d_avg = sum(atrs) / len(atrs)
+
+                if atr_30d_avg == 0:
+                    return
+
+                atr_compression_pct = max(0, (1.0 - (current_atr / atr_30d_avg)) * 100)
+                vcp_strength = min(100, max(0, int(atr_compression_pct)))
+
+                # Calculate volume ratio
+                cur.execute(
+                    "SELECT volume FROM price_daily "
+                    "WHERE symbol = %s AND date = %s",
+                    (symbol, end_date),
+                )
+                vol_row = cur.fetchone()
+                current_vol = float(vol_row[0]) if vol_row and vol_row[0] else 1.0
+
+                cur.execute(
+                    "SELECT AVG(volume) FROM price_daily "
+                    "WHERE symbol = %s AND date >= %s AND date < %s AND volume > 0",
+                    (symbol, end_date - timedelta(days=30), end_date),
+                )
+                avg_vol_row = cur.fetchone()
+                avg_vol = float(avg_vol_row[0]) if avg_vol_row and avg_vol_row[0] else 1.0
+
+                breakout_volume_ratio = current_vol / avg_vol if avg_vol > 0 else 1.0
+
+                vcp_patterns.append({
+                    "symbol": symbol,
+                    "date": end_date,
+                    "atr_30d_avg": atr_30d_avg,
+                    "atr_current": current_atr,
+                    "atr_compression_pct": atr_compression_pct,
+                    "range_30d_avg": 0.0,
+                    "range_current": 0.0,
+                    "vcp_strength": vcp_strength,
+                    "breakout_volume_ratio": breakout_volume_ratio,
+                })
+        except Exception as e:
+            logger.debug(f"[VCP] Error computing VCP for {symbol}: {e}")
+
+    def _bulk_insert_vcp_patterns(self, vcp_patterns: list[dict[str, Any]]) -> None:
+        """Insert VCP patterns to database using COPY.
+
+        Args:
+            vcp_patterns: List of VCP pattern dicts
+        """
+        if not vcp_patterns:
+            return
+
+        try:
+            vcp_df = pd.DataFrame(vcp_patterns)
+            columns = [
+                "symbol",
+                "date",
+                "atr_30d_avg",
+                "atr_current",
+                "atr_compression_pct",
+                "range_30d_avg",
+                "range_current",
+                "vcp_strength",
+                "breakout_volume_ratio",
+            ]
+
+            vcp_df["date"] = pd.to_datetime(vcp_df["date"]).dt.date.astype(str)
+
+            with DatabaseContext("write") as cur:
+                cur.execute("LOCK TABLE vcp_patterns IN EXCLUSIVE MODE")
+
+                # Clear old VCP patterns for symbols being loaded
+                symbols_to_load = vcp_df["symbol"].unique().tolist()
+                sql_param_markers = ",".join(["%s"] * len(symbols_to_load))
+                delete_sql = f"DELETE FROM vcp_patterns WHERE symbol IN ({sql_param_markers})"
+                cur.execute(delete_sql, symbols_to_load)
+
+                # Insert new patterns
+                import psycopg2.sql
+
+                col_ids = [psycopg2.sql.Identifier(c) for c in columns]
+                sql = psycopg2.sql.SQL(
+                    "COPY {table} ({fields}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({fields}))"
+                ).format(
+                    table=psycopg2.sql.Identifier("vcp_patterns"),
+                    fields=psycopg2.sql.SQL(", ").join(col_ids),
+                )
+
+                csv_string = vcp_df[columns].to_csv(index=False, header=False, na_rep="")
+                csv_buffer = StringIO(csv_string)
+                cur.copy_expert(sql, csv_buffer)
+
+                self.vcp_patterns_inserted = cast(int, cur.rowcount)
+                logger.info(f"[VCP] Inserted {self.vcp_patterns_inserted} VCP patterns")
+        except Exception as e:
+            logger.error(f"[VCP] Failed to insert VCP patterns: {e}")
+            raise
 
     def _bulk_insert(self, df: pd.DataFrame, since_date: date | None = None) -> int:
         """Bulk insert all indicators at once using COPY (fast).

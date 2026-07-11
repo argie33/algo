@@ -433,10 +433,10 @@ class SignalQualityScoresLoader(OptimalLoader):
             ) from e
 
     def _ensure_vcp_patterns_populated(self, cur: Any) -> None:
-        """Auto-populate VCP patterns if table exists but is empty.
+        """Verify VCP patterns table exists (VCP now computed by technical_data_daily loader).
 
-        This unblocks signal_quality_scores when VCP patterns haven't been pre-loaded.
-        Fixes coverage issue where 1.4% of symbols had VCP data due to missing loader.
+        Consolidation: VCP patterns are now computed by load_technical_data_daily,
+        eliminating the separate load_vcp_patterns.py loader.
         """
         try:
             # Check if vcp_patterns table exists
@@ -446,7 +446,7 @@ class SignalQualityScoresLoader(OptimalLoader):
             )
             row = cur.fetchone()
             if row is None or not row[0]:
-                logger.info("[VCP] vcp_patterns table does not exist - will create on demand")
+                logger.warning("[VCP] vcp_patterns table does not exist - will be created when technical_data_daily runs")
                 return
 
             # Check if vcp_patterns has any data
@@ -454,37 +454,12 @@ class SignalQualityScoresLoader(OptimalLoader):
             row = cur.fetchone()
             count = row[0] if row else 0
             if count > 0:
-                logger.debug(f"[VCP] vcp_patterns already populated ({count} rows)")
+                logger.debug(f"[VCP] vcp_patterns populated with {count} rows (computed by technical_data_daily)")
                 return
 
-            logger.info("[VCP] vcp_patterns table exists but is empty - auto-populating from technical_data_daily")
-
-            # Auto-populate from technical data
-            from loaders.load_vcp_patterns import load_vcp_patterns
-
-            try:
-                result = load_vcp_patterns()
-                # Validate VCP result has expected keys - don't silently default to 0
-                if not isinstance(result, dict):
-                    logger.warning(
-                        f"[VCP] Auto-population returned invalid type {type(result).__name__}: {result}. "
-                        "Expected dict with 'patterns_found' and 'symbols_processed' keys."
-                    )
-                elif "patterns_found" not in result or "symbols_processed" not in result:
-                    logger.warning(
-                        f"[VCP] Auto-population returned incomplete result: {result}. "
-                        "Missing expected keys: 'patterns_found' and/or 'symbols_processed'."
-                    )
-                else:
-                    logger.info(
-                        f"[VCP] Auto-populated: {result['patterns_found']} patterns found, "
-                        f"{result['symbols_processed']} symbols processed"
-                    )
-            except Exception as e:
-                logger.warning(f"[VCP] Auto-population failed: {e} - proceeding without VCP patterns")
-
+            logger.info("[VCP] vcp_patterns table empty - will be populated by next technical_data_daily run")
         except psycopg2.DatabaseError as e:
-            logger.warning(f"[VCP] Failed to check/populate VCP patterns: {e}")
+            logger.warning(f"[VCP] Failed to check VCP patterns: {e}")
 
     def _fetch_vcp_patterns(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
         """Fetch VCP patterns."""
@@ -504,7 +479,7 @@ class SignalQualityScoresLoader(OptimalLoader):
                 if not table_exists:
                     raise RuntimeError(
                         "[VCP_TABLE_MISSING] VCP patterns table does not exist. "
-                        "Upstream loader (load_vcp_patterns.py) must run first before signal quality scores. "
+                        "Technical data loader (load_technical_data_daily) computes VCP patterns. "
                         "Cannot compute quality scores without VCP pattern data."
                     )
 
