@@ -53,7 +53,7 @@ class SignalsDailyLoader(OptimalLoader):
         from algo.infrastructure import MarketCalendar
 
         self._batch_context = {}
-
+        try:
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
             end = now_et.date()
