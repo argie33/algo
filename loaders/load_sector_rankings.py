@@ -1,21 +1,46 @@
 #!/usr/bin/env python3
-"""Consolidated Market Rankings Loader - Rank sectors and industries by composite scores.
+"""
+Sector Rankings — Rank sectors and industries by composite performance.
 
-Consolidates 2 separate loaders into one:
-  - load_sector_ranking.py (rank sectors by composite stock scores)
-  - load_industry_ranking.py (rank industries by composite stock scores)
+PURPOSE: Rank sectors and industries by their average composite stock score
+to identify which sectors are in favor. Used by portfolio manager to tilt
+position sizing and by Phase 3 sector filtering.
 
-Both compute rankings from the same upstream data (stock_scores + company_profile),
-so consolidation eliminates redundant ECS tasks.
+INPUT: 2 tables:
+  - stock_scores (composite score 0-100 for each symbol)
+  - company_profile (sector and industry for each symbol)
+OUTPUT: 2 tables:
+  - sector_ranking (average score by sector, with rank 1-N)
+  - industry_ranking (average score by industry, with rank 1-N)
 
-Dependencies:
-  - stock_scores: Must have >= 95% data completeness
-  - company_profile: Must have >= 80% data completeness
+SCHEDULE: Step Functions Pipeline, Step 8c (SectorRanking task)
+  Timing: ~5:09 PM ET (after buy_sell_daily)
+  Dependency: stock_scores must be fresh (>= 95% complete)
 
-Uses circuit breaker to prevent cascading failures when dependencies incomplete.
+COST: CPU=512m, Memory=1024MB, Timeout=900s (15m)
+  Runtime: 3-5 minutes (aggregation query, not per-symbol)
+  Parallelism: 1
 
-Run:
-    python3 load_market_rankings.py
+DATA FRESHNESS: Daily
+COMPLETENESS: 99%+ (depends on stock_scores being complete)
+
+FAILURE MODE: Graceful degradation (not fail-close).
+  If fails, uses prior day's rankings.
+
+CONSOLIDATION: Since sessions 62-63, 2 separate loaders → 1.
+  - Eliminates 1 redundant ECS task per run
+  - Single query reads stock_scores once, computes both sector + industry rankings
+
+METRICS COMPUTED:
+  - Sector ranking: Average composite score by sector, sorted descending
+  - Industry ranking: Average composite score by industry, sorted descending
+  - Rank positions 1-N per sector/industry
+
+DOWNSTREAM USE:
+  - Portfolio manager: Tilt position sizing by sector favorability
+  - Phase 3 signal generation: Sector filters and regime determination
+
+NOTE: Formerly load_market_rankings.py (renamed 2026-07 for clarity).
 """
 
 import logging

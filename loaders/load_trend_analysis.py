@@ -1,26 +1,47 @@
 #!/usr/bin/env python3
-"""Trend Template Data Loader
+"""
+Trend Analysis — Compute Minervini & Weinstein trend scores for all symbols.
 
-Computes Minervini trend scores and Weinstein market stages for each symbol.
-Results populate trend_template_data, which is used by:
-  - market_health_daily (advance/decline breadth from price_above_sma50)
-  - Phase 7 signal generation (market regime and signal filtering)
+PURPOSE: Classify each symbol by trend strength (Minervini 0-8) and market stage
+(Weinstein 1-4). Used by market_health_daily for breadth calculations and by signal
+generation to filter entries by market regime.
 
-Minervini score (0-8, integer) — one point per criterion:
+INPUT: technical_data_daily table (SMA-50, SMA-200, RSI, price changes)
+OUTPUT: trend_template_data table
+ROWS: ~10,600 symbols × 1 update/day
+
+SCHEDULE: Step Functions Pipeline, Step 2 (ParallelEnrichment/TrendTemplate)
+  Timing: ~2:15 AM ET
+  Dependency: price_daily
+
+COST: CPU=1024m, Memory=2048MB, Timeout=5400s (90m)
+  Runtime: 30-45 minutes
+  Parallelism: 1 (vectorized)
+
+DATA FRESHNESS: Daily
+COMPLETENESS: 99%+
+
+FAILURE MODE: Graceful (doesn't fail-close)
+
+METRICS:
+
+  Minervini Score (0-8):
   1. close > sma_200
   2. close > sma_50
   3. sma_50 > sma_200
-  4. roc_60d > 0
-  5. roc_252d > 10 (annual return > 10%)
-  6. rsi_14 > 50
-  7. close > sma_200 * 1.10 (price 10%+ above 200-day)
-  8. roc_20d > 0
+  4. roc_60d > 0%
+  5. roc_252d > 10%
+  6. RSI > 50
+  7. close > sma_200 × 1.10
+  8. roc_20d > 0%
 
-Weinstein stage (1-4):
-  Stage 2 (uptrend)   : close > sma_200 AND sma_50 > sma_200
-  Stage 4 (downtrend) : close < sma_200 AND sma_50 < sma_200
-  Stage 3 (topping)   : close > sma_200 AND sma_50 < sma_200
-  Stage 1 (basing)    : close < sma_200 AND sma_50 > sma_200
+  Weinstein Stage:
+  - Stage 1 (basing): < sma_200, sma_50 > sma_200
+  - Stage 2 (uptrend): > sma_200, sma_50 > sma_200
+  - Stage 3 (topping): > sma_200, sma_50 < sma_200
+  - Stage 4 (downtrend): < sma_200, sma_50 < sma_200
+
+NOTE: Formerly load_trend_criteria_data.py (renamed 2026-07 for clarity).
 """
 
 import logging
