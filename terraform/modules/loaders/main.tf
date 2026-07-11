@@ -430,8 +430,8 @@ locals {
       schedule    = "cron(20 22 ? * MON-FRI *)" # 5:20 PM ET
     }
     "yfinance_snapshot" = {
-      description = "Cache yfinance snapshots for quick metric calculations"
-      schedule    = "cron(25 22 ? * MON-FRI *)" # 5:25 PM ET
+      description = "Cache yfinance snapshots - MOVED EARLIER to 4:00 PM to feed value/positioning metrics at 4:20 PM"
+      schedule    = "cron(0 21 ? * MON-FRI *)" # 4:00 PM ET (was 5:25 PM - dependency fix)
     }
   }
 }
