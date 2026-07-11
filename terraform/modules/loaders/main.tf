@@ -306,9 +306,9 @@ locals {
     "industry_ranking"   = "load_market_rankings.py"
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
     "buy_sell_daily"     = "load_buy_sell_daily.py"
-    # Consolidated analyst loader (replaces 2 separate loaders)
-    "analyst_sentiment"           = "load_analyst_analysis.py"
-    "analyst_upgrades_downgrades" = "load_analyst_analysis.py"
+    # Consolidated analyst + earnings loader (replaces 6 separate loaders - now all in load_yfinance_derived_metrics.py)
+    "analyst_sentiment"           = "load_yfinance_derived_metrics.py"
+    "analyst_upgrades_downgrades" = "load_yfinance_derived_metrics.py"
 
     # Consolidated financial statements loader (replaces 8 separate loaders)
     "financials_annual_income"      = "load_financial_statements.py"
