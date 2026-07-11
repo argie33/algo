@@ -43,51 +43,59 @@ SELECT MAX(created_at) as latest_snapshot FROM algo_portfolio_snapshots;
 
 See `steering/OPERATIONS.md` for IAM and scheduler details.
 
-## Dual-Mode Dashboard (Session 45)
+## Running Dashboard (Session 59)
 
-**Local Mode** (Development - Recommended)
+**Local Development Mode** (Recommended - No AWS credentials needed)
 ```bash
-./start_system.sh local              # Unix/macOS
-.\start_system.ps1 -Mode local       # Windows PowerShell
+# Terminal 1: Start API dev server
+python3 api-pkg/dev_server.py
+
+# Terminal 2: Start dashboard in local mode
+python3 -m dashboard --local -w 30
 ```
 
-**AWS Mode** (Production)
+See `QUICKSTART_LOCAL.md` for complete setup, troubleshooting, and examples.
+
+**AWS Production Mode**  
+Requires Cognito credentials configured. See `steering/OPERATIONS.md` for setup.
+
+## System Verification (Session 59)
+
+**Before running locally:**
 ```bash
-./start_system.sh aws                # Unix/macOS
-.\start_system.ps1 -Mode aws         # Windows PowerShell
+# Diagnose system state
+python3 scripts/diagnose_system.py
+
+# Expected output: All checks PASS
+# - Environment configured
+# - Database has data
+# - Dev server can start
+# - Dashboard fetchers load
 ```
 
-See `DUAL_MODE_SETUP.md` for complete setup, architecture, and troubleshooting.
-
-## System Verification (Session 9)
-
-**Before integration testing:**
+**To run the system:**
 ```bash
-# Validate system prerequisites
-python3 scripts/validate_orchestrator_readiness.py
+# Terminal 1: API dev server
+python3 api-pkg/dev_server.py
 
-# Test full end-to-end execution (dry run)
-python3 scripts/test_orchestrator_execution.py
-
-# Start dashboard (local mode recommended for dev)
-./start_system.sh local
+# Terminal 2: Dashboard
+python3 -m dashboard --local -w 30
 ```
 
-See `QUICKSTART.md` and `DUAL_MODE_SETUP.md` for complete setup instructions.
+See `QUICKSTART_LOCAL.md` for complete instructions.
 
 ## Instant Fixes
 
 | Problem | Fix |
 |---------|-----|
-| Validate system prerequisites | `python3 scripts/validate_orchestrator_readiness.py` |
-| Test orchestrator end-to-end | `python3 scripts/test_orchestrator_execution.py` |
-| Orchestrator not executing (dashboard shows no data) | `python3 scripts/trigger_orchestrator.py --run morning --mode paper` |
-| AWS credential error | `scripts/refresh-aws-credentials.ps1` |
+| Dashboard shows "data not available" | Use `python3 -m dashboard --local` (need --local flag for dev) |
+| Can't connect to dev server | Check `python3 api-pkg/dev_server.py` is running in another terminal |
+| Database connection refused | Check PostgreSQL is running (`psql -U stocks stocks -c "SELECT 1"`) |
+| Verify system is working | `python3 scripts/diagnose_system.py` |
 | Code fails pre-commit | `make format && make type-check` |
-| Dashboard stale data | `pkill -9 python && python -m dashboard -w` |
-| Positions panel and portfolio panel show different counts | Refresh materialized view: `python3 -c "from utils.db import DatabaseContext; DatabaseContext('write').execute('REFRESH MATERIALIZED VIEW algo_positions_with_risk')"` |
-| Need to deploy AWS cost optimizations | `cd terraform && terraform apply -lock=false` (see AWS Cost Optimizations above) |
-| Check if position data sources are in sync | Call `/api/diagnostics` endpoint to detect sync issues across algo_trades, algo_positions, and view cache |
+| AWS credential error | Requires COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID set (see OPERATIONS.md) |
+| Orchestrator not running in AWS | Check EventBridge Scheduler is enabled: `aws events describe-rule --name algo-orchestrator-2x-daily` |
+| Positions/portfolio count mismatch | Refresh view: `REFRESH MATERIALIZED VIEW algo_positions_with_risk` |
 
 ## Non-Negotiable Rules
 
