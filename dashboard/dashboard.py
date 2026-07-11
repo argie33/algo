@@ -535,11 +535,9 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
     if not env_url:
         logger.error("[CREDS] DASHBOARD_API_URL environment variable not set")
         try:
-            CONSOLE.print("[bold red]ERROR:[/] DASHBOARD_API_URL environment variable required for AWS mode")
-            CONSOLE.print("[bold cyan]To set up:[/]")
-            CONSOLE.print("[cyan]   export DASHBOARD_API_URL='https://your-api-endpoint'[/]")
-            CONSOLE.print("[cyan]   export COGNITO_USER_POOL_ID='your-pool-id'[/]")
-            CONSOLE.print("[cyan]   export COGNITO_CLIENT_ID='your-client-id'[/]")
+            CONSOLE.print("[bold red]ERROR:[/] AWS mode requires API endpoint")
+            CONSOLE.print("[bold cyan]To use AWS:[/] Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID")
+            CONSOLE.print("[bold cyan]For local dev:[/] Use [cyan]python -m dashboard --local[/]")
         except Exception as display_err:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
@@ -547,7 +545,7 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
     if not env_pool:
         logger.error("[CREDS] COGNITO_USER_POOL_ID environment variable not set")
         try:
-            CONSOLE.print("[bold red]ERROR:[/] COGNITO_USER_POOL_ID environment variable required for AWS mode")
+            CONSOLE.print("[bold red]ERROR:[/] COGNITO_USER_POOL_ID required for AWS mode. Use --local for dev mode.")
         except Exception as display_err:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
@@ -555,7 +553,7 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
     if not env_client:
         logger.error("[CREDS] COGNITO_CLIENT_ID environment variable not set")
         try:
-            CONSOLE.print("[bold red]ERROR:[/] COGNITO_CLIENT_ID environment variable required for AWS mode")
+            CONSOLE.print("[bold red]ERROR:[/] COGNITO_CLIENT_ID required for AWS mode. Use --local for dev mode.")
         except Exception as display_err:
             logger.error(f"Failed to display error message: {type(display_err).__name__}: {display_err}")
         sys.exit(1)
