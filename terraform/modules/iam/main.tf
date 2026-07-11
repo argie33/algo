@@ -1546,7 +1546,7 @@ data "aws_iam_policy_document" "developer" {
     resources = ["*"]
   }
 
-  # CloudWatch (read-only for monitoring)
+  # CloudWatch (read + write metrics for monitoring and diagnostics)
   statement {
     sid    = "CloudWatchReadOnly"
     effect = "Allow"
@@ -1563,6 +1563,24 @@ data "aws_iam_policy_document" "developer" {
     ]
 
     resources = ["*"]
+  }
+
+  # CloudWatch Metrics (write for loaders and diagnostic tools)
+  statement {
+    sid    = "CloudWatchPutMetrics"
+    effect = "Allow"
+
+    actions = [
+      "cloudwatch:PutMetricData"
+    ]
+
+    resources = ["*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "cloudwatch:namespace"
+      values   = ["${var.project_name}/loaders", "${var.project_name}/diagnostics"]
+    }
   }
 
   # Lambda (read-only for inspection)
@@ -1583,7 +1601,7 @@ data "aws_iam_policy_document" "developer" {
     ]
   }
 
-  # DynamoDB (for orchestrator lock inspection during troubleshooting)
+  # DynamoDB (for orchestrator lock inspection and loader config during troubleshooting)
   # FIXED: Added missing permissions for production incident response
   statement {
     sid    = "DynamoDBInspect"
@@ -1599,7 +1617,8 @@ data "aws_iam_policy_document" "developer" {
 
     resources = [
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-orchestrator-locks-*",
-      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-locks-*"
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-locks-*",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-config*"
     ]
   }
 
