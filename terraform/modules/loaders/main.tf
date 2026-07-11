@@ -280,20 +280,22 @@ resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
 locals {
   loader_file_map = {
     "stock_prices_daily"    = "load_prices.py"
-    "technical_data_daily"  = "load_technical_data_daily.py"
-    "trend_template_data"   = "load_trend_criteria_data.py"
+    "technical_data_daily"  = "load_technical_indicators.py"
+    "trend_template_data"   = "load_trend_analysis.py"
     "market_exposure_daily" = "load_market_exposure_daily.py"
-    "yfinance_snapshot"     = "load_yfinance_snapshot.py"
+    "yfinance_snapshot"     = "load_company_cache.py"
     "dxy_index"             = "load_dxy_index.py"
     # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
     "quality_metrics"       = "load_quality_growth_metrics.py"
     "growth_metrics"        = "load_quality_growth_metrics.py"
-    # Consolidated yfinance readers: 6 loaders → 1 consolidated (read snapshot once, output to 6 tables)
-    "value_metrics"         = "load_yfinance_derived_metrics.py"
-    "positioning_metrics"   = "load_yfinance_derived_metrics.py"
-    "company_profile"       = "load_yfinance_derived_metrics.py"
-    "earnings_history"      = "load_yfinance_derived_metrics.py"
-    "earnings_calendar"     = "load_yfinance_derived_metrics.py"
+    # Consolidated yfinance readers: 1 loader → 7 output tables (read snapshot once, write to 7 tables in parallel)
+    "value_metrics"         = "load_fundamental_metrics.py"
+    "positioning_metrics"   = "load_fundamental_metrics.py"
+    "company_profile"       = "load_fundamental_metrics.py"
+    "earnings_history"      = "load_fundamental_metrics.py"
+    "earnings_calendar"     = "load_fundamental_metrics.py"
+    "analyst_sentiment"     = "load_fundamental_metrics.py"
+    "analyst_upgrades_downgrades" = "load_fundamental_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
     "momentum_metrics"      = "load_momentum_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
@@ -304,13 +306,10 @@ locals {
     "aaii_sentiment"      = "load_aaii_sentiment.py"
     "options_chains"      = "load_options_chains.py"
     # Consolidated market rankings loader (replaces 2 separate loaders)
-    "sector_ranking"     = "load_market_rankings.py"
-    "industry_ranking"   = "load_market_rankings.py"
+    "sector_ranking"     = "load_sector_rankings.py"
+    "industry_ranking"   = "load_sector_rankings.py"
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
     "buy_sell_daily"     = "load_buy_sell_daily.py"
-    # Consolidated analyst + earnings loader (replaces 6 separate loaders - now all in load_yfinance_derived_metrics.py)
-    "analyst_sentiment"           = "load_yfinance_derived_metrics.py"
-    "analyst_upgrades_downgrades" = "load_yfinance_derived_metrics.py"
 
     # Consolidated financial statements loader (replaces 8 separate loaders)
     "financials_annual_income"      = "load_financial_statements.py"
@@ -322,7 +321,8 @@ locals {
     "financials_ttm_income"         = "load_financial_statements.py"
     "financials_ttm_cashflow"       = "load_financial_statements.py"
 
-    "compute_performance_metrics" = "compute_performance_metrics.py"
+    # Sector performance loader (optional, not in critical path)
+    "sector_performance" = "load_sector_performance.py"
   }
 
   # ============================================================
@@ -413,8 +413,8 @@ locals {
     "algo_metrics_daily"  = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
     # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
     "buy_sell_daily"      = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
-    "analyst_sentiment"           = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "analyst_upgrades_downgrades" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_fundamental_metrics.py, not separate tasks
+    # They share ECS task definition with other yfinance-derived metrics (value, positioning, company_profile, earnings*)
 
     "financials_annual_income"      = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_annual_balance"     = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
@@ -425,7 +425,7 @@ locals {
     "financials_ttm_income"         = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
     "financials_ttm_cashflow"       = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
 
-    "compute_performance_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+    "sector_performance" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 
