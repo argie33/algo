@@ -294,7 +294,6 @@ def load_all() -> dict[str, Any]:
         "scores",  # Stock scores endpoint - REQUIRED for multiple panels
         "risk",  # Risk metrics - REQUIRED for risk dashboard panel
         "exp_factors",  # Market exposure factors - REQUIRED for exposure panel
-        "cb",  # Circuit breakers - REQUIRED for circuit breaker panel
     }
     optional_fetchers = {
         "srank",  # Nice-to-have sector rankings
@@ -310,6 +309,9 @@ def load_all() -> dict[str, Any]:
         "irank",  # Industry rankings (optional enrichment)
         "audit",  # Audit log (optional for debugging)
         "exec_hist",  # Execution history (optional detailed view)
+        "cb",  # Circuit breakers - moved from critical to optional.
+               # Lambda endpoint returns 503 with exponential retry backoff (12+ seconds).
+               # Not required for dashboard function; panels handle missing data gracefully.
     }
 
     def one(name: str, fn: Callable[..., Any], timeout_sec: float) -> tuple[str, Any]:
