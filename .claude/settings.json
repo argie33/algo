@@ -36,6 +36,19 @@
           }
         ]
       }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c '\nset -e\necho \"Checking Phase 1 deployment status...\"\n\n# Check if main branch has Phase 1 changes\nif ! git rev-parse --verify main &>/dev/null; then\n  echo \"{\\\"systemMessage\\\": \\\"⚠️  No main branch found. Phase 1 progress: Cannot verify deployment.\\\"}\"\n  exit 0\nfi\n\n# List of dead code files that should be deleted in Phase 1\nDEAD_CODE_FILES=(\n  \"loaders/load_signal_quality_scores.py\"\n  \"loaders/load_options_chains.py\"\n  \"loaders/load_fred_economic_data.py\"\n  \"loaders/load_aaii_sentiment.py\"\n  \"loaders/load_balance_sheet.py\"\n  \"loaders/load_cash_flow.py\"\n  \"loaders/load_income_statement.py\"\n  \"loaders/load_analyst_sentiment_analysis.py\"\n  \"loaders/load_analyst_upgrade_downgrade.py\"\n)\n\n# Check if dead code files are deleted in main\nDEAD_CODE_DELETED=0\nfor file in \"${DEAD_CODE_FILES[@]}\"; do\n  if git show main:\"$file\" &>/dev/null 2>&1; then\n    DEAD_CODE_DELETED=$((DEAD_CODE_DELETED + 1))\n  fi\ndone\n\n# Check if terraform resource right-sizing is in main\nTF_RESOURCE_FIXES=$(git show main:terraform/modules/loaders/main.tf 2>/dev/null | grep -c '\"algo_metrics_daily\".*timeout.*1800' || echo 0)\n\nif [ \"$DEAD_CODE_DELETED\" -eq 0 ] && [ \"$TF_RESOURCE_FIXES\" -gt 0 ]; then\n  echo \"{\\\"systemMessage\\\": \\\"✅ Phase 1 COMPLETE: Dead code removed + terraform right-sized. Ready for Phase 2.\\\"}\"\n  exit 0\nelse\n  REMAINING=$((9 - DEAD_CODE_DELETED))\n  echo \"{\\\"systemMessage\\\": \\\"⏳ Phase 1 IN PROGRESS: $DEAD_CODE_DELETED/9 dead code files deleted, terraform updates: $TF_RESOURCE_FIXES. Remaining: $REMAINING files to remove.\\\"}\"\n  exit 0\nfi\n'",
+            "statusMessage": "Validating Phase 1 deployment...",
+            "shell": "bash"
+          }
+        ]
+      }
     ]
   }
 }
