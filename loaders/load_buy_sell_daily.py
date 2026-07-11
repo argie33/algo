@@ -54,146 +54,146 @@ class SignalsDailyLoader(OptimalLoader):
 
         self._batch_context = {}
 
-        now_utc = datetime.now(timezone.utc)
-        now_et = now_utc.astimezone(EASTERN_TZ)
-        end = now_et.date()
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(EASTERN_TZ)
+            end = now_et.date()
 
-        # CLUSTER 4 FIX: Use cached is_trading_day() to prevent repeated lookups
-        # The @lru_cache on _is_trading_day_cached() makes repeated checks ~1000x faster
-        max_iterations = 10  # Prevent infinite loop (max gap is ~3 days over a weekend)
-        iterations = 0
-        while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end) and iterations < max_iterations:
-            end = end - timedelta(days=1)
-            iterations += 1
+            # CLUSTER 4 FIX: Use cached is_trading_day() to prevent repeated lookups
+            # The @lru_cache on _is_trading_day_cached() makes repeated checks ~1000x faster
+            max_iterations = 10  # Prevent infinite loop (max gap is ~3 days over a weekend)
+            iterations = 0
+            while end > date(2020, 1, 1) and not MarketCalendar.is_trading_day(end) and iterations < max_iterations:
+                end = end - timedelta(days=1)
+                iterations += 1
 
-        with DatabaseContext("read") as cur:
-            # Find most recent date with COMPLETE price_daily coverage (>= 3000 symbols)
-            # If today's price_daily is incomplete (partial load), fall back to yesterday
-            # This allows buy_sell_daily to run with the most recent complete data set
-            # instead of blocking on incomplete intra-day loads
-            cur.execute(
-                """SELECT date, COUNT(DISTINCT symbol) as cnt
-                   FROM price_daily
-                   WHERE date <= %s
-                   GROUP BY date
-                   ORDER BY date DESC
-                   LIMIT 10""",
-                (end,),
-            )
-            complete_date_rows = cur.fetchall()
-
-            # Find the most recent date with >= 3000 symbols
-            end = None
-            price_coverage_symbols = 0
-            if complete_date_rows:
-                for row in complete_date_rows:
-                    if row[1] >= 3000:
-                        end = row[0]
-                        price_coverage_symbols = int(row[1])
-                        logger.info(
-                            f"[BUY_SELL_DAILY] Found complete price_daily data: date={end} "
-                            f"with {price_coverage_symbols} symbols"
-                        )
-                        break
-
-            # Fallback if no complete data found
-            if end is None:
-                # Use most recent date with ANY price data
+            with DatabaseContext("read") as cur:
+                # Find most recent date with COMPLETE price_daily coverage (>= 3000 symbols)
+                # If today's price_daily is incomplete (partial load), fall back to yesterday
+                # This allows buy_sell_daily to run with the most recent complete data set
+                # instead of blocking on incomplete intra-day loads
                 cur.execute(
-                    "SELECT MAX(date) FROM price_daily WHERE date <= %s",
-                    (now_et.date(),),
-                )
-                price_max_date_row = cur.fetchone()
-                if price_max_date_row is None or price_max_date_row[0] is None:
-                    raise RuntimeError(
-                        f"CRITICAL: No price_daily data found at all. "
-                        "Cannot generate signals without price data."
-                    )
-                end = price_max_date_row[0]
-
-                cur.execute(
-                    "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                    """SELECT date, COUNT(DISTINCT symbol) as cnt
+                       FROM price_daily
+                       WHERE date <= %s
+                       GROUP BY date
+                       ORDER BY date DESC
+                       LIMIT 10""",
                     (end,),
                 )
-                price_row = cur.fetchone()
-                if price_row and price_row[0]:
-                    price_coverage_symbols = int(price_row[0])
-                    logger.warning(
-                        f"[BUY_SELL_DAILY] No complete price_daily data found. "
-                        f"Using most recent: date={end} with {price_coverage_symbols} symbols "
-                        f"(< 3000 minimum). Signals may be degraded."
+                complete_date_rows = cur.fetchall()
+
+                # Find the most recent date with >= 3000 symbols
+                end = None
+                price_coverage_symbols = 0
+                if complete_date_rows:
+                    for row in complete_date_rows:
+                        if row[1] >= 3000:
+                            end = row[0]
+                            price_coverage_symbols = int(row[1])
+                            logger.info(
+                                f"[BUY_SELL_DAILY] Found complete price_daily data: date={end} "
+                                f"with {price_coverage_symbols} symbols"
+                            )
+                            break
+
+                # Fallback if no complete data found
+                if end is None:
+                    # Use most recent date with ANY price data
+                    cur.execute(
+                        "SELECT MAX(date) FROM price_daily WHERE date <= %s",
+                        (now_et.date(),),
                     )
-                else:
+                    price_max_date_row = cur.fetchone()
+                    if price_max_date_row is None or price_max_date_row[0] is None:
+                        raise RuntimeError(
+                            f"CRITICAL: No price_daily data found at all. "
+                            "Cannot generate signals without price data."
+                        )
+                    end = price_max_date_row[0]
+
+                    cur.execute(
+                        "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                        (end,),
+                    )
+                    price_row = cur.fetchone()
+                    if price_row and price_row[0]:
+                        price_coverage_symbols = int(price_row[0])
+                        logger.warning(
+                            f"[BUY_SELL_DAILY] No complete price_daily data found. "
+                            f"Using most recent: date={end} with {price_coverage_symbols} symbols "
+                            f"(< 3000 minimum). Signals may be degraded."
+                        )
+                    else:
+                        raise RuntimeError(
+                            f"CRITICAL: price_daily coverage query failed for {end}. "
+                            "Cannot generate signals without price data."
+                        )
+
+                if price_coverage_symbols == 0:
                     raise RuntimeError(
-                        f"CRITICAL: price_daily coverage query failed for {end}. "
-                        "Cannot generate signals without price data."
+                        f"CRITICAL: No price data found for {end}. "
+                        "Upstream loader failed. Cannot generate signals without price data."
                     )
 
-            if price_coverage_symbols == 0:
-                raise RuntimeError(
-                    f"CRITICAL: No price data found for {end}. "
-                    "Upstream loader failed. Cannot generate signals without price data."
+                # Count symbols with tech data within 10 calendar days of end.
+                # On days when TechnicalDataDaily loads partial coverage (e.g., new symbols added
+                # mid-cycle, or price loader ran in two batches), some symbols have end-1d tech data
+                # instead of exact end-date data. Those symbols still generate valid signals since
+                # _fetch_signal_data queries t.date <= end (uses best available tech row).
+                cur.execute(
+                    """SELECT COUNT(DISTINCT symbol), MAX(date) FROM technical_data_daily
+                       WHERE date >= %s AND date <= %s""",
+                    (end - timedelta(days=10), end),
                 )
+                tech_row = cur.fetchone()
+                if tech_row is None:
+                    raise RuntimeError(
+                        f"CRITICAL: technical_data_daily query returned None for {end}. "
+                        "Query malformed or table empty. Cannot determine technical data availability."
+                    )
+                if len(tech_row) < 2:
+                    raise RuntimeError(
+                        f"CRITICAL: technical_data_daily query returned invalid structure. "
+                        f"Expected 2 columns, got {len(tech_row)}."
+                    )
+                if tech_row[0] is None:
+                    raise RuntimeError(
+                        f"CRITICAL: technical_data_daily row count query returned NULL for {end}. "
+                        "Database query or upstream loader may have failed."
+                    )
+                tech_coverage_symbols = int(tech_row[0])
+                if tech_coverage_symbols == 0:
+                    raise RuntimeError(
+                        f"CRITICAL: No symbols found in technical_data_daily within 10 days of {end}. "
+                        "Upstream loader failed. Cannot generate signals."
+                    )
+                tech_max_date = tech_row[1]
 
-            # Count symbols with tech data within 10 calendar days of end.
-            # On days when TechnicalDataDaily loads partial coverage (e.g., new symbols added
-            # mid-cycle, or price loader ran in two batches), some symbols have end-1d tech data
-            # instead of exact end-date data. Those symbols still generate valid signals since
-            # _fetch_signal_data queries t.date <= end (uses best available tech row).
-            cur.execute(
-                """SELECT COUNT(DISTINCT symbol), MAX(date) FROM technical_data_daily
-                   WHERE date >= %s AND date <= %s""",
-                (end - timedelta(days=10), end),
-            )
-            tech_row = cur.fetchone()
-            if tech_row is None:
-                raise RuntimeError(
-                    f"CRITICAL: technical_data_daily query returned None for {end}. "
-                    "Query malformed or table empty. Cannot determine technical data availability."
+                # ISSUE #9 FIX: Pre-cache all per-symbol watermarks at startup
+                # Fetch in one query: symbol -> max(date) mapping for entire table
+                # Prevents 10k individual queries on ECS restart (would stall if any single query is slow)
+                symbol_watermarks = {}
+                cur.execute(
+                    "SELECT symbol, MAX(date) FROM buy_sell_daily GROUP BY symbol",
                 )
-            if len(tech_row) < 2:
-                raise RuntimeError(
-                    f"CRITICAL: technical_data_daily query returned invalid structure. "
-                    f"Expected 2 columns, got {len(tech_row)}."
-                )
-            if tech_row[0] is None:
-                raise RuntimeError(
-                    f"CRITICAL: technical_data_daily row count query returned NULL for {end}. "
-                    "Database query or upstream loader may have failed."
-                )
-            tech_coverage_symbols = int(tech_row[0])
-            if tech_coverage_symbols == 0:
-                raise RuntimeError(
-                    f"CRITICAL: No symbols found in technical_data_daily within 10 days of {end}. "
-                    "Upstream loader failed. Cannot generate signals."
-                )
-            tech_max_date = tech_row[1]
-
-            # ISSUE #9 FIX: Pre-cache all per-symbol watermarks at startup
-            # Fetch in one query: symbol -> max(date) mapping for entire table
-            # Prevents 10k individual queries on ECS restart (would stall if any single query is slow)
-            symbol_watermarks = {}
-            cur.execute(
-                "SELECT symbol, MAX(date) FROM buy_sell_daily GROUP BY symbol",
-            )
-            for row in cur.fetchall():
-                symbol, max_date = row
-                if max_date:
-                    symbol_watermarks[symbol] = max_date
+                for row in cur.fetchall():
+                    symbol, max_date = row
+                    if max_date:
+                        symbol_watermarks[symbol] = max_date
 
             today_et = now_et.date()
             tech_data_age = (today_et - tech_max_date).days if tech_max_date else None
 
             self._batch_context = {
-            "end_date": end,
-            "price_coverage_symbols": price_coverage_symbols,
-            "tech_coverage_symbols": tech_coverage_symbols,
-            "tech_data_age": tech_data_age,
-            "symbol_watermarks": symbol_watermarks,
+                "end_date": end,
+                "price_coverage_symbols": price_coverage_symbols,
+                "tech_coverage_symbols": tech_coverage_symbols,
+                "tech_data_age": tech_data_age,
+                "symbol_watermarks": symbol_watermarks,
             }
             logger.debug(
-            f"Batch context: end={end}, price_coverage={price_coverage_symbols}, "
-            f"tech_coverage={tech_coverage_symbols}, cached {len(symbol_watermarks)} symbol watermarks"
+                f"Batch context: end={end}, price_coverage={price_coverage_symbols}, "
+                f"tech_coverage={tech_coverage_symbols}, cached {len(symbol_watermarks)} symbol watermarks"
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
