@@ -229,6 +229,7 @@ class StockScoresLoader(OptimalLoader):
                         "data_completeness": 0,
                         "data_unavailable": True,
                         "reason": "Internal scoring failure - unexpected None return",
+                        "reason_type": "loader_failed",
                         "updated_at": datetime.now(timezone.utc),
                     }
                 ]
@@ -251,6 +252,7 @@ class StockScoresLoader(OptimalLoader):
                     "data_completeness": 0,
                     "data_unavailable": True,
                     "reason": str(e),
+                    "reason_type": "loader_failed",
                     "updated_at": datetime.now(timezone.utc),
                 }
             ]
