@@ -413,6 +413,10 @@ locals {
       description = "Compute daily algo performance metrics - CRITICAL for dashboard/reports"
       schedule    = "cron(5 22 ? * MON-FRI *)" # 5:05 PM ET (after buy_sell_daily)
     }
+    "signal_quality_scores" = {
+      description = "Signal quality scores (0-100) combining buy/sell signal, technical confirmation, and trend - CRITICAL for monitoring"
+      schedule    = "cron(13 22 ? * MON-FRI *)" # 5:13 PM ET (after algo_metrics)
+    }
 
     # Supporting data: 5:10 PM ET and later
     "earnings_calendar" = {
