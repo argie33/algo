@@ -285,8 +285,9 @@ locals {
     "market_exposure_daily" = "load_market_exposure_daily.py"
     "yfinance_snapshot"     = "load_yfinance_snapshot.py"
     "dxy_index"             = "load_dxy_index.py"
-    "growth_metrics"        = "load_growth_metrics.py"
-    "quality_metrics"       = "load_quality_metrics.py"
+    # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
+    "quality_metrics"       = "load_quality_growth_metrics.py"
+    "growth_metrics"        = "load_quality_growth_metrics.py"
     "value_metrics"         = "load_value_metrics.py"
     "positioning_metrics"   = "load_positioning_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
@@ -366,13 +367,10 @@ locals {
 
     # Metric loaders: Parallel at 4:20 PM ET (after SEC Edgar financials complete at ~3:30 PM)
     "quality_metrics" = {
-      description = "Load quality metrics from SEC - EOD pipeline (depends on financials_annual_income/balance)"
+      description = "Load quality + growth metrics from SEC - EOD pipeline (consolidated loader, depends on financials)"
       schedule    = "cron(20 21 ? * MON-FRI *)" # 4:20 PM ET (parallel, after SEC data available)
     }
-    "growth_metrics" = {
-      description = "Load growth metrics from SEC - EOD pipeline (depends on financials_annual_income)"
-      schedule    = "cron(20 21 ? * MON-FRI *)" # 4:20 PM ET (parallel, after SEC data available)
-    }
+    # NOTE: growth_metrics removed from scheduling — now computed by quality_metrics loader (consolidation)
     "value_metrics" = {
       description = "Load value metrics (P/E, P/B, P/S) - EOD pipeline"
       schedule    = "cron(20 21 ? * MON-FRI *)" # 4:20 PM ET (parallel)
