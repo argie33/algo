@@ -8,11 +8,11 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any, cast
 
 from utils.bulk_insert_manager import BulkInsertManager
+from utils.data.watermark import WatermarkManager
 from utils.db.context import DatabaseContext
 from utils.loader_infrastructure import LoaderInfrastructure
 from utils.loader_stats import LoaderStats
 from utils.loaders.transient_errors import TransientAPIError
-from utils.watermark_manager import WatermarkManager
 
 if not logging.root.handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s", stream=None)
