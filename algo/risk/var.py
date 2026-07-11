@@ -275,13 +275,11 @@ class ValueAtRisk:
                 rows = cur.fetchall()
 
                 if len(rows) < 365:
-                    logger.critical(
-                        f"Stressed VaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 365 required for 5-year window)"
+                    logger.warning(
+                        f"Stressed VaR skipped: only {len(rows)} portfolio snapshots found (minimum 365 required). "
+                        "Portfolio needs 1 year of trading history for reliable 5-year window analysis."
                     )
-                    raise RuntimeError(
-                        f"Insufficient historical data for Stressed VaR (only {len(rows)} snapshots, need 365+). "
-                        "Portfolio must have at least 1 year of trading history."
-                    )
+                    return None  # Return None instead of crashing - portfolio too new for Stressed VaR
 
                 values = [Decimal(str(float(row[1]))) for i, row in enumerate(rows)]
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
