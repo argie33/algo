@@ -673,44 +673,68 @@ class VectorizedTechnicalLoader:
             if col not in ("symbol", "date") and col not in integer_cols and col not in ("data_unavailable",):
                 df[col] = df[col].where(pd.notna(df[col]), None)
 
-        # Bulk insert via UPSERT (atomic update-or-insert, no locking needed)
-        # FIX: Changed from DELETE+INSERT (requires table lock) to ON CONFLICT DO UPDATE
-        # Benefits: atomic per row, no table-level locking, better concurrent performance
+        # Bulk insert via temp table + UPSERT (atomic, no table locking)
+        # FIX: Changed from DELETE+EXCLUSIVE_LOCK+INSERT to temp table + UPSERT
+        # Benefits: atomic per row, concurrent-safe, no table-level locking
         try:
             with DatabaseContext("write") as cur:
                 insert_df = df[columns]
 
-                # Build COPY command with UPSERT logic
+                # Step 1: Create temp table with new data
                 import psycopg2.sql
 
                 col_ids = [psycopg2.sql.Identifier(c) for c in columns]
+                col_defs = []
+                for col in columns:
+                    # Infer types from dataframe
+                    dtype = insert_df[col].dtype
+                    if col in ("symbol",):
+                        pg_type = "VARCHAR(20)"
+                    elif col in ("date",):
+                        pg_type = "DATE"
+                    elif col in ("data_unavailable",):
+                        pg_type = "BOOLEAN"
+                    elif col in ("reason",):
+                        pg_type = "TEXT"
+                    elif dtype in ("int64", "Int64"):
+                        pg_type = "BIGINT"
+                    elif dtype in ("float64",):
+                        pg_type = "NUMERIC"
+                    else:
+                        pg_type = "NUMERIC"
+                    col_defs.append(f"{col} {pg_type}")
 
-                # Create INSERT ... ON CONFLICT DO UPDATE statement
-                # This is atomic per row and doesn't require table locking
-                insert_values = []
-                for idx, row in insert_df.iterrows():
-                    values = [
-                        psycopg2.extensions.adapt(row[col]).getquoted().decode('utf-8')
-                        if row[col] is not None else 'NULL'
-                        for col in columns
-                    ]
-                    insert_values.append(f"({', '.join(values)})")
+                # Create temp table
+                temp_table_sql = f"CREATE TEMP TABLE technical_data_daily_new ({', '.join(col_defs)})"
+                cur.execute(temp_table_sql)
 
-                # Build the UPSERT query
-                # ON CONFLICT (symbol, date) means: if a row with same symbol+date exists, UPDATE it
-                # Otherwise, INSERT the new row
+                # Step 2: Load data into temp table via COPY
+                col_ids = [psycopg2.sql.Identifier(c) for c in columns]
+                copy_sql = psycopg2.sql.SQL(
+                    "COPY {table} ({fields}) FROM STDIN WITH (FORMAT CSV, FORCE_NULL ({fields}))"
+                ).format(
+                    table=psycopg2.sql.Identifier("technical_data_daily_new"),
+                    fields=psycopg2.sql.SQL(", ").join(col_ids),
+                )
+                csv_string = insert_df.to_csv(index=False, header=False, na_rep="")
+                csv_buffer = StringIO(csv_string)
+                cur.copy_expert(copy_sql, csv_buffer)
+                logger.info(f"Loaded {cur.rowcount} rows into temp table")
+
+                # Step 3: UPSERT from temp table to main table (atomic, no locks)
                 update_cols = [col for col in columns if col not in ("symbol", "date")]
                 update_set = ", ".join([f"{col} = EXCLUDED.{col}" for col in update_cols])
 
-                sql = f"""
+                upsert_sql = f"""
                     INSERT INTO technical_data_daily ({', '.join(columns)})
-                    VALUES {', '.join(insert_values)}
+                    SELECT {', '.join(columns)} FROM technical_data_daily_new
                     ON CONFLICT (symbol, date) DO UPDATE SET {update_set}
                 """
-
-                cur.execute(sql)
+                cur.execute(upsert_sql)
                 inserted = cast(int, cur.rowcount)
-                logger.info(f"Upserted {inserted} technical indicator rows (insert or update per row)")
+                logger.info(f"Upserted {inserted} technical indicator rows from temp table")
+
+                # Temp table auto-dropped at end of session
                 return inserted
 
         except psycopg2.Error as e:
