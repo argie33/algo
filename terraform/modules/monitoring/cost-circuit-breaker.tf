@@ -85,9 +85,9 @@ resource "aws_iam_role_policy" "cost_circuit_breaker_ecs" {
   })
 }
 
-# SNS publish (send cost alerts)
-resource "aws_iam_role_policy" "cost_circuit_breaker_sns" {
-  name = "${var.project_name}-cost-circuit-breaker-sns-${var.environment}"
+# SES email (send cost alerts)
+resource "aws_iam_role_policy" "cost_circuit_breaker_ses" {
+  name = "${var.project_name}-cost-circuit-breaker-ses-${var.environment}"
   role = aws_iam_role.cost_circuit_breaker.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -95,9 +95,9 @@ resource "aws_iam_role_policy" "cost_circuit_breaker_sns" {
       {
         Effect = "Allow"
         Action = [
-          "sns:Publish",
+          "ses:SendEmail",
         ]
-        Resource = var.sns_alerts_topic_arn != "" ? [var.sns_alerts_topic_arn] : []
+        Resource = "*"
       }
     ]
   })
@@ -152,7 +152,8 @@ resource "aws_lambda_function" "cost_circuit_breaker" {
     variables = {
       PROJECT_NAME                = var.project_name
       ENVIRONMENT                 = var.environment
-      SNS_ALERT_TOPIC_ARN         = var.sns_alerts_topic_arn
+      ALERT_EMAIL_TO              = var.alert_email_address
+      ALERT_EMAIL_FROM            = "noreply@${var.project_name}.local"
       DAILY_COST_THRESHOLD_USD    = var.cost_threshold_daily_usd
       ECS_CLUSTER_NAME            = "${var.project_name}-${var.environment}"
       LOG_LEVEL                   = "INFO"
@@ -163,7 +164,7 @@ resource "aws_lambda_function" "cost_circuit_breaker" {
     aws_iam_role_policy.cost_circuit_breaker_cost_explorer,
     aws_iam_role_policy.cost_circuit_breaker_scheduler,
     aws_iam_role_policy.cost_circuit_breaker_ecs,
-    aws_iam_role_policy.cost_circuit_breaker_sns,
+    aws_iam_role_policy.cost_circuit_breaker_ses,
     aws_iam_role_policy.cost_circuit_breaker_cloudwatch,
     aws_cloudwatch_log_group.cost_circuit_breaker,
   ]
