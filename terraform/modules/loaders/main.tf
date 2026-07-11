@@ -288,8 +288,12 @@ locals {
     # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
     "quality_metrics"       = "load_quality_growth_metrics.py"
     "growth_metrics"        = "load_quality_growth_metrics.py"
-    "value_metrics"         = "load_value_metrics.py"
-    "positioning_metrics"   = "load_positioning_metrics.py"
+    # Consolidated yfinance readers: 6 loaders → 1 consolidated (read snapshot once, output to 6 tables)
+    "value_metrics"         = "load_yfinance_derived_metrics.py"
+    "positioning_metrics"   = "load_yfinance_derived_metrics.py"
+    "company_profile"       = "load_yfinance_derived_metrics.py"
+    "earnings_history"      = "load_yfinance_derived_metrics.py"
+    "earnings_calendar"     = "load_yfinance_derived_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
     "momentum_metrics"      = "load_momentum_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
@@ -302,9 +306,6 @@ locals {
     "industry_ranking"   = "load_market_rankings.py"
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
     "buy_sell_daily"     = "load_buy_sell_daily.py"
-    "earnings_history"   = "load_earnings_history.py"
-    "earnings_calendar"  = "load_earnings_calendar.py"
-    "company_profile"    = "load_company_profile.py"
     # Consolidated analyst loader (replaces 2 separate loaders)
     "analyst_sentiment"           = "load_analyst_analysis.py"
     "analyst_upgrades_downgrades" = "load_analyst_analysis.py"
@@ -463,9 +464,14 @@ locals {
     "growth_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     # Cost-optimized: Reduced from 1024/2048 (SEC filing parse + DB insert, moderate CPU)
     "quality_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
-    # Cost-optimized: Reduced from 1024/2048 (simple price ratio calculations)
-    "value_metrics"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
-    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
+    # Consolidated yfinance readers: All read from yfinance_snapshot, write to different tables
+    # Previously 6 separate tasks (value, positioning, company_profile, analyst×2, earnings×2)
+    # Now consolidated into 1 loader that reads snapshot once, writes to 6 tables in parallel
+    "value_metrics"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "company_profile"     = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "earnings_history"    = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
+    "earnings_calendar"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 4 }
     # Cost-optimized: Reduced from 1024/2048 (dividend + payout ratio queries)
     "stability_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     # Cost-optimized: Reduced from 1024/2048 (return calculations on historical prices)
@@ -479,10 +485,7 @@ locals {
     "industry_ranking"    = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "algo_metrics_daily"  = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
     # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
-    "buy_sell_daily"              = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
-    "earnings_history"            = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 1 }
-    "earnings_calendar"           = { cpu = 512, memory = 1024, timeout = 1200, parallelism = 1 }
-    "company_profile"             = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "buy_sell_daily"      = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     "analyst_sentiment"           = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
     "analyst_upgrades_downgrades" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
