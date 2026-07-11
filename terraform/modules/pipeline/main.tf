@@ -1266,7 +1266,9 @@ resource "aws_sfn_state_machine" "financial_data_pipeline" {
 # FIXED Issue #32: Wire reference data loaders into Step Functions
 # Reference (9:15 AM ET): Runs early morning before prices load
 # Loads: earnings_calendar, earnings_history, company_profile, analyst data
-# Independence: No dependencies (separate APIs, can fail gracefully)
+# CONSOLIDATED: All 7 tables (earnings, company, analyst sentiment/upgrades) now loaded from single
+# load_yfinance_derived_metrics.py loader which reads yfinance_snapshot once and writes to all 7 tables
+# No dependencies (reads from cache, can fail gracefully)
 # ============================================================
 
 resource "aws_sfn_state_machine" "reference_data_pipeline" {
@@ -1281,67 +1283,28 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
   }
 
   definition = jsonencode({
-    Comment = "Daily reference data: earnings, company profiles, analyst data (independent APIs)"
-    StartAt = "EarningsCalendar"
+    Comment = "Consolidated reference data: earnings, company profiles, analyst sentiment/upgrades from single yfinance_derived_metrics loader (reads snapshot once, writes to 7 tables)"
+    StartAt = "YfinanceDerivedMetrics"
 
     States = {
-      # ── Earnings Calendar (next 180 days) ──
-      EarningsCalendar = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["earnings_calendar"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogEarningsCalendarFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "EarningsHistory"
-      }
-
-      LogEarningsCalendarFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "earnings_calendar"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "EarningsHistory"
-          ResultPath  = "$.logError"
-        }]
-        Next = "EarningsHistory"
-      }
-
-      # ── Earnings History (yfinance, rate-limited) ──
-      EarningsHistory = {
+      # ── Consolidated Yfinance Derived Metrics ──
+      # CONSOLIDATION: Combines 6 separate loaders into 1 that writes to all 7 tables:
+      # - value_metrics (P/E, P/B, P/S, dividend yield, FCF yield, market cap)
+      # - positioning_metrics (short interest)
+      # - company_profile (sector, industry, country)
+      # - analyst_sentiment_analysis (recommendation, analyst count)
+      # - analyst_upgrade_downgrade (recommendation, analyst count)
+      # - earnings_calendar (next earnings date)
+      # - earnings_history (historical earnings dates)
+      # Reads from yfinance_snapshot (pre-cached), parallelizes output writes
+      YfinanceDerivedMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
         TimeoutSeconds = 7200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["earnings_history"]
+          TaskDefinition       = var.loader_task_definition_arns["value_metrics"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -1352,211 +1315,17 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "LogEarningsHistoryFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "CompanyProfile"
-      }
-
-      LogEarningsHistoryFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "earnings_history"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "CompanyProfile"
-          ResultPath  = "$.logError"
-        }]
-        Next = "CompanyProfile"
-      }
-
-      # ── Company Profile (sector, industry, name) ──
-      CompanyProfile = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["company_profile"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogCompanyProfileFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "PositioningMetrics"
-      }
-
-      LogCompanyProfileFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "company_profile"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "PositioningMetrics"
-          ResultPath  = "$.logError"
-        }]
-        Next = "PositioningMetrics"
-      }
-
-      # ── Positioning Metrics (short interest, institutional ownership) ──
-      # FIXED: Increase timeout from 3600s (1h) to 18000s (5h) to handle yfinance rate limiting
-      # positioning_metrics takes 120-180 minutes to fetch for 5000+ symbols with parallelism=2
-      PositioningMetrics = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 18000
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["positioning_metrics"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogPositioningMetricsFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "AnalystSentiment"
-      }
-
-      LogPositioningMetricsFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "positioning_metrics"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "AnalystSentiment"
-          ResultPath  = "$.logError"
-        }]
-        Next = "AnalystSentiment"
-      }
-
-      # ── Analyst Sentiment (buy/hold/sell recommendations) ──
-      AnalystSentiment = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["analyst_sentiment"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogAnalystSentimentFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "AnalystUpgradesDowngrades"
-      }
-
-      LogAnalystSentimentFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "analyst_sentiment"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "AnalystUpgradesDowngrades"
-          ResultPath  = "$.logError"
-        }]
-        Next = "AnalystUpgradesDowngrades"
-      }
-
-      # ── Analyst Upgrades/Downgrades (recent rating changes) ──
-      AnalystUpgradesDowngrades = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1800
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["analyst_upgrades_downgrades"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogAnalystUpgradesDowngradesFailure"
+          Next        = "LogYfinanceDerivedMetricsFailure"
           ResultPath  = "$.loaderError"
         }]
         Next = "ReferenceDataSuccess"
       }
 
-      LogAnalystUpgradesDowngradesFailure = {
+      LogYfinanceDerivedMetricsFailure = {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "analyst_upgrades_downgrades"
+          loader_name       = "yfinance_derived_metrics"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
