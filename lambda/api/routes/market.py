@@ -20,6 +20,7 @@ from routes.utils import (
     list_response,
     raise_api_error,
     raise_db_error,
+    safe_dict_convert,
     safe_json_serialize,
 )
 
@@ -1248,10 +1249,12 @@ def _get_cap_distribution(cur: cursor) -> Any:
     if not rows:
         # Distinguish between "no stocks loaded" vs "data quality issue"
         # Check if company_profile or key_metrics tables are empty
-        cur.execute("SELECT COUNT(*) FROM company_profile WHERE sector IS NOT NULL")
-        profile_count = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM key_metrics WHERE market_cap > 0")
-        metrics_count = cur.fetchone()[0]
+        cur.execute("SELECT COUNT(*) as cnt FROM company_profile WHERE sector IS NOT NULL")
+        profile_row = safe_dict_convert(cur.fetchone())
+        profile_count = profile_row.get("cnt", 0) if profile_row else 0
+        cur.execute("SELECT COUNT(*) as cnt FROM key_metrics WHERE market_cap > 0")
+        metrics_row = safe_dict_convert(cur.fetchone())
+        metrics_count = metrics_row.get("cnt", 0) if metrics_row else 0
 
         if profile_count == 0 or metrics_count == 0:
             raise_api_error(
