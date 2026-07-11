@@ -303,8 +303,6 @@ locals {
     "market_constituents" = "load_market_constituents.py"
     "market_health_daily" = "load_market_health_daily.py"
     "market_sentiment"    = "load_market_sentiment.py"
-    "aaii_sentiment"      = "load_aaii_sentiment.py"
-    "options_chains"      = "load_options_chains.py"
     # Consolidated market rankings loader (replaces 2 separate loaders)
     "sector_ranking"     = "load_sector_rankings.py"
     "industry_ranking"   = "load_sector_rankings.py"
@@ -345,17 +343,9 @@ locals {
     # These loaders provide nice-to-have enrichment but are not critical for trading.
     # Moved from daily to weekly to reduce costs and free up resources.
 
-    "aaii_sentiment" = {
-      description = "WEEKLY: Load AAII investor sentiment survey (contrarian market exposure factor)"
-      schedule    = "cron(0 18 ? * WED *)" # Wed 2:00 PM ET (was daily at 4:18 PM)
-    }
     "market_sentiment" = {
       description = "WEEKLY: Compute fear/greed index from VIX (optional enrichment)"
       schedule    = "cron(5 18 ? * WED *)" # Wed 2:05 PM ET (was daily at 4:12 PM)
-    }
-    "options_chains" = {
-      description = "WEEKLY: Load options chains for put/call ratio and IV (optional enrichment)"
-      schedule    = "cron(10 18 ? * WED *)" # Wed 2:10 PM ET (was daily at 4:19 PM)
     }
     "dxy_index" = {
       description = "WEEKLY: Load DXY/USD economic indicator (optional enrichment)"
@@ -401,16 +391,16 @@ locals {
     "stability_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     # Cost-optimized: Reduced from 1024/2048 (return calculations on historical prices)
     "momentum_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-    "stock_scores"     = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    # Cost-optimized: Reduced from 1024/2048 (I/O bound: reads price_daily + technical_data_daily only)
+    "stock_scores"     = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
     "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
     "market_sentiment"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    "aaii_sentiment"      = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
-    "options_chains"      = { cpu = 512, memory = 1024, timeout = 7200, parallelism = 2 }
     "sector_ranking"      = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     "industry_ranking"    = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
-    "algo_metrics_daily"  = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
+    # Cost-optimized: Reduced timeout from 10800s (3h) to 1800s (30m) - actual execution ~5-10 min
+    "algo_metrics_daily"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
     # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
     "buy_sell_daily"      = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_fundamental_metrics.py, not separate tasks

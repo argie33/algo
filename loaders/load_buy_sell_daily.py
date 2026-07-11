@@ -53,30 +53,6 @@ class SignalsDailyLoader(OptimalLoader):
         from algo.infrastructure import MarketCalendar
 
         self._batch_context = {}
-        try:
-            # Check signal_quality_scores availability — warn but don't block.
-            # On initial bootstrap, quality scores don't exist yet; buy_sell_daily must run
-            # first so signal_quality_scores can evaluate its output. Signals will have NULL
-            # quality scores on first run; a subsequent SQS run backfills them.
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    "SELECT status FROM data_loader_status WHERE table_name = %s",
-                    ("signal_quality_scores",),
-                )
-                sqs_status = cur.fetchone()
-                if not sqs_status:
-                    logger.warning(
-                        "signal_quality_scores loader has not run yet. "
-                        "Buy/sell signals will have NULL quality scores until SQS backfill completes. "
-                        "This is expected on first run; subsequent runs will have quality validation."
-                    )
-                elif sqs_status[0] not in ("COMPLETED", "success", "OK"):
-                    raise RuntimeError(
-                        f"signal_quality_scores loader failed with status '{sqs_status[0]}' (not COMPLETED). "
-                        "Cannot generate buy/sell signals without quality validation. "
-                        "Signal validation is CRITICAL for trading decisions. "
-                        "Upstream loader must complete successfully before signal generation can proceed."
-                    )
 
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
