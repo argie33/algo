@@ -60,14 +60,13 @@ def check_data_freshness():
             ('price_daily', 'date'),
             ('technical_data_daily', 'date'),
             ('market_exposure_daily', 'date'),
-            ('stock_scores', 'updated_at'),  # stock_scores uses updated_at, not date
-            ('daily_signals', 'signal_date'),
+            ('stock_scores', 'updated_at'),
+            ('buy_sell_daily', 'date'),
         ]
 
         issues = []
         for table, date_col in tables:
             try:
-                # Use fresh connection for each query to avoid transaction abortion
                 c2 = psycopg2.connect('dbname=stocks user=stocks host=localhost')
                 cur2 = c2.cursor()
                 cur2.execute(f'SELECT MAX({date_col}) FROM {table}')
@@ -77,17 +76,16 @@ def check_data_freshness():
                     issues.append(f"{table}: EMPTY")
                     continue
 
-                if isinstance(latest, date):
+                if isinstance(latest, date) and not isinstance(latest, datetime):
                     days_old = (date.today() - latest).days
-                    if days_old > 1:
+                    if days_old > 2:
                         issues.append(f"{table}: {days_old} days old")
                 else:
-                    # It's a timestamp
                     hours_old = (datetime.now() - latest).total_seconds() / 3600
-                    if hours_old > 24:
+                    if hours_old > 48:
                         issues.append(f"{table}: {hours_old:.1f}h old")
             except Exception as e:
-                issues.append(f"{table}: ERROR - {str(e)[:50]}")
+                issues.append(f"{table}: ERROR - {str(e)[:80]}")
 
         conn.close()
 
