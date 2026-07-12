@@ -1221,7 +1221,7 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/performance",  # Performance metrics (dev mode uses dev-admin token)
         "/api/algo/dashboard-signals",  # Signal data (dev mode uses dev-admin token)
         "/api/algo/risk-metrics",  # Risk analytics (dev mode uses dev-admin token)
-        "/api/algo/circuit-breakers",  # Circuit breaker status (dev mode uses dev-admin token)
+        "/api/algo/circuit-breakers",  # Circuit breaker status (dev mode uses dev-admin token - REQUIRED for dashboard)
         "/api/algo/daily-return-histogram",  # Daily return distribution (dev mode)
         "/api/algo/equity-curve",  # Portfolio equity curve (dev mode)
         "/api/algo/holding-period-distribution",  # Holding period histogram (dev mode)
