@@ -41,15 +41,9 @@ class SectorPerformanceLoader(BaseLoader):
             rows_inserted = self._load_sector_performance(target_date)
             return rows_inserted
         except psycopg2.errors.OperationalError as e:
-            raise LoaderRetryableError(
-                f"[{self.name}] Database connection error: {e}. "
-                "Will retry on next run."
-            ) from e
+            raise LoaderRetryableError(f"[{self.name}] Database connection error: {e}. Will retry on next run.") from e
         except psycopg2.errors.UndefinedTable as e:
-            raise LoaderFatalError(
-                f"[{self.name}] Required table missing: {e}. "
-                "Check database schema."
-            ) from e
+            raise LoaderFatalError(f"[{self.name}] Required table missing: {e}. Check database schema.") from e
 
     def _load_sector_performance(self, target_date: date) -> int:
         """Calculate sector performance from daily price changes.
@@ -70,7 +64,8 @@ class SectorPerformanceLoader(BaseLoader):
 
         # CRITICAL: Only calculate for trading days (Monday-Friday, market open)
         # Skip weekends and holidays automatically when no price data exists
-        self.cur.execute("""
+        self.cur.execute(
+            """
             WITH daily_changes AS (
                 SELECT
                     cp.sector,
@@ -106,7 +101,9 @@ class SectorPerformanceLoader(BaseLoader):
             ON CONFLICT (sector, date) DO UPDATE SET
                 return_pct = EXCLUDED.return_pct,
                 updated_at = NOW()
-        """, (prev_date, target_date, target_date))
+        """,
+            (prev_date, target_date, target_date),
+        )
 
         rows = self.cur.rowcount
         if rows <= 0:

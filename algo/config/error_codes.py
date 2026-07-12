@@ -78,31 +78,24 @@ ERROR_SEVERITY_MAP = {
     # Configuration errors are CRITICAL (system won't start)
     ErrorCode.ENV_VAR_MISSING: ErrorSeverity.CRITICAL,
     ErrorCode.CONFIG_KEY_MISSING: ErrorSeverity.CRITICAL,
-
     # Database errors are CRITICAL (can't access data)
     ErrorCode.DB_CONNECTION_FAILED: ErrorSeverity.CRITICAL,
     ErrorCode.DB_SCHEMA_MISSING: ErrorSeverity.CRITICAL,
-
     # Loader errors are CRITICAL (no data = no trading)
     ErrorCode.LOADER_MISSING: ErrorSeverity.CRITICAL,
     ErrorCode.LOADER_STALE: ErrorSeverity.CRITICAL,
     ErrorCode.DATA_QUALITY_INSUFFICIENT: ErrorSeverity.CRITICAL,
-
     # Orchestrator failures are CRITICAL
     ErrorCode.ORCHESTRATOR_PHASE_FAILED: ErrorSeverity.CRITICAL,
     ErrorCode.ORCHESTRATOR_HALTED: ErrorSeverity.CRITICAL,
-
     # Credential errors are CRITICAL
     ErrorCode.ALPACA_AUTH_FAILED: ErrorSeverity.CRITICAL,
-
     # Trade execution can be ERROR (single trade failure)
     ErrorCode.TRADE_REJECTED: ErrorSeverity.ERROR,
     ErrorCode.TRADE_CIRCUIT_BREAKER: ErrorSeverity.ERROR,
-
     # Timeouts are WARNING (can retry)
     ErrorCode.DB_TIMEOUT: ErrorSeverity.WARNING,
     ErrorCode.ORCHESTRATOR_TIMEOUT: ErrorSeverity.WARNING,
-
     # Default
     ErrorCode.UNKNOWN: ErrorSeverity.ERROR,
 }
@@ -122,9 +115,7 @@ class OrchestrationError(Exception):
         self.details = details or {}
         self.severity = get_severity(error_code)
 
-        super().__init__(
-            f"[{error_code.value}] {message}"
-        )
+        super().__init__(f"[{error_code.value}] {message}")
 
     def to_dict(self) -> dict[str, Any]:
         """Convert error to dictionary for logging/alerting."""

@@ -68,7 +68,7 @@ class PriceCache:
             # Try local cache
             if cache_key in self._local_cache:
                 data, timestamp = self._local_cache[cache_key]
-                age_seconds = (datetime.now(timezone.utc).timestamp() - timestamp)
+                age_seconds = datetime.now(timezone.utc).timestamp() - timestamp
                 if age_seconds < self.cache_ttl_seconds:
                     logger.debug(
                         f"[PRICE_CACHE] Local hit for {symbol}/{interval} "

@@ -561,9 +561,7 @@ def run(  # noqa: C901
                     logger.error(
                         "[PHASE 1] CRITICAL: market_health_daily table is empty. Cannot evaluate market breadth."
                     )
-                    raise RuntimeError(
-                        "[PHASE 1] Market health data unavailable. Check market_health_daily loader."
-                    )
+                    raise RuntimeError("[PHASE 1] Market health data unavailable. Check market_health_daily loader.")
                 health_max_date = health_row[0]
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[PHASE 1] CRITICAL: Database error fetching VIX/health reference dates: {e}")
@@ -730,7 +728,9 @@ def run(  # noqa: C901
             except RuntimeError as e:
                 metric_error = str(e)
                 logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
-                log_phase_result_fn(1, "metric_loaders_not_ready", "halt", f"Metric loaders incomplete: {metric_error[:100]}")
+                log_phase_result_fn(
+                    1, "metric_loaders_not_ready", "halt", f"Metric loaders incomplete: {metric_error[:100]}"
+                )
                 return PhaseResult(
                     1,
                     "metric_loaders_not_ready",

@@ -512,7 +512,6 @@ class StockScoresLoader(OptimalLoader):
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-
     # ARCHITECTURAL PATTERN: Internal Scoring Pipeline (UPDATED 2026-07-03)
     # ====================================================
     # The following _get_* and _score_* methods are INTERNAL PLUMBING that feeds into

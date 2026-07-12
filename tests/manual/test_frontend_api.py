@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Test frontend API connectivity from browser perspective"""
+
 import json
 
 import pytest
@@ -16,6 +17,7 @@ def test_api_endpoint(url=None, headers=None):
         return resp.status_code, resp.json() if resp.text else None
     except Exception as e:
         return None, str(e)
+
 
 # Test backend API on localhost:3001 (what dev_server should serve)
 endpoints = [

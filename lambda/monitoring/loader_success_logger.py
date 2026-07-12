@@ -26,9 +26,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         db_password = os.getenv("DB_PASSWORD", "")
         db_name = os.getenv("DB_NAME", "stocks")
 
-        conn = psycopg2.connect(
-            host=db_host, user=db_user, password=db_password, database=db_name
-        )
+        conn = psycopg2.connect(host=db_host, user=db_user, password=db_password, database=db_name)
         cur = conn.cursor()
 
         # Log execution

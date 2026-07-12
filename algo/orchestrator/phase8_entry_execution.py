@@ -42,9 +42,7 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def _persist_signals_to_database(
-    qualified_trades: list[dict[str, Any]], run_date: _date, dry_run: bool
-) -> None:
+def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_date: _date, dry_run: bool) -> None:
     """Persist Phase 7 generated signals to algo_signals table for dashboard display.
 
     CRITICAL FIX: Signals were being generated but never saved, causing:
@@ -71,10 +69,13 @@ def _persist_signals_to_database(
 
                 # Safely extract optional fields with defaults
                 entry_price = float(signal_data.get("entry_price", 0.0))
-                signal_quality_score = float(signal_data.get("composite_score", signal_data.get("signal_quality_score", 0.0)))
+                signal_quality_score = float(
+                    signal_data.get("composite_score", signal_data.get("signal_quality_score", 0.0))
+                )
                 risk_score = float(signal_data.get("risk_score", 0.0))
 
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO algo_signals (
                         signal_date, symbol, source_table, source_timeframe,
                         entry_price, entry_stage, signal_active,
@@ -87,17 +88,19 @@ def _persist_signals_to_database(
                         entry_price = EXCLUDED.entry_price,
                         signal_quality_score = EXCLUDED.signal_quality_score,
                         risk_score = EXCLUDED.risk_score
-                """, (
-                    run_date,
-                    symbol,
-                    "phase7_signal_generation",
-                    "daily",
-                    entry_price,
-                    "entry",
-                    True,
-                    signal_quality_score,
-                    risk_score,
-                ))
+                """,
+                    (
+                        run_date,
+                        symbol,
+                        "phase7_signal_generation",
+                        "daily",
+                        entry_price,
+                        "entry",
+                        True,
+                        signal_quality_score,
+                        risk_score,
+                    ),
+                )
 
         logger.info(f"[PERSIST SIGNALS] Inserted {len(qualified_trades)} signals for {run_date}")
     except psycopg2.DatabaseError as e:

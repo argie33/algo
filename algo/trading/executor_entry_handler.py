@@ -712,6 +712,7 @@ class EntryHandler:
 
         # Generate position_id upfront so it can be linked in both trade and position records
         import uuid
+
         position_id = str(uuid.uuid4())
 
         # Calculate position size percentage

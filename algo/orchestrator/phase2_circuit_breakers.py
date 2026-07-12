@@ -84,7 +84,9 @@ def run(
                         "pct_down": cb_result.get("pct_down"),
                     },
                 )
-                logger.warning(f"[PHASE 2] Market circuit breaker L{halt_level} active but proceeding (may need trading halt)")
+                logger.warning(
+                    f"[PHASE 2] Market circuit breaker L{halt_level} active but proceeding (may need trading halt)"
+                )
                 log_phase_result_fn(
                     2,
                     "market_circuit_breaker",

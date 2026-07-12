@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Manual database tests - requires local PostgreSQL."""
+
 import os
 
 import psycopg2
@@ -15,12 +16,7 @@ pytestmark = pytest.mark.skip(reason="Manual database tests require local Postgr
 def test_db_connection():
     """Test database connectivity and table row counts."""
     conn = psycopg2.connect(
-        host="localhost",
-        port=5432,
-        database="stocks",
-        user="stocks",
-        password="stocks",
-        sslmode="disable"
+        host="localhost", port=5432, database="stocks", user="stocks", password="stocks", sslmode="disable"
     )
     cur = conn.cursor()
 

@@ -86,7 +86,9 @@ class Orchestrator:
             self.config.override("execution_mode", env_execution_mode)
         else:
             configured_mode = self.config.get("execution_mode", "paper")
-            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using configured mode: {configured_mode}")
+            logger.info(
+                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using configured mode: {configured_mode}"
+            )
 
         # Explicitly default run_date to today if not provided
         self.run_date = run_date if run_date is not None else datetime.now(EASTERN_TZ).date()

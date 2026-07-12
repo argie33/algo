@@ -730,7 +730,9 @@ class OptimalLoader:
             with DatabaseContext("read") as cur:
                 # CRITICAL: Handle loaders with no watermark_field (e.g., stock_scores computed all-at-once)
                 if self.watermark_field:
-                    cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}), COUNT(DISTINCT symbol) FROM {self.table_name}")
+                    cur.execute(
+                        f"SELECT COUNT(*), MAX({self.watermark_field}), COUNT(DISTINCT symbol) FROM {self.table_name}"
+                    )
                     result = cur.fetchone()
                     if result is None:
                         raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")

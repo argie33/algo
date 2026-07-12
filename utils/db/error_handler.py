@@ -69,8 +69,7 @@ def safe_query(
                 logger.info("[TRANSACTION_ABORT] Rollback successful, abort state cleared")
             except Exception as rollback_err:
                 logger.error(
-                    f"[TRANSACTION_ABORT] Failed to rollback: {rollback_err}. "
-                    f"Connection may be in inconsistent state."
+                    f"[TRANSACTION_ABORT] Failed to rollback: {rollback_err}. Connection may be in inconsistent state."
                 )
         raise
 
@@ -111,18 +110,12 @@ def execute_with_savepoint(
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         # Rollback to savepoint (not entire transaction)
-        logger.warning(
-            f"[SAVEPOINT] Query failed in {operation_name}: {e}. "
-            f"Rolling back to savepoint {sp_name}"
-        )
+        logger.warning(f"[SAVEPOINT] Query failed in {operation_name}: {e}. Rolling back to savepoint {sp_name}")
         try:
             cursor.execute(f"ROLLBACK TO SAVEPOINT {sp_name}")
             logger.info(f"[SAVEPOINT] Rolled back to {sp_name}, transaction continues")
         except Exception as rollback_err:
-            logger.error(
-                f"[SAVEPOINT] Failed to rollback to {sp_name}: {rollback_err}. "
-                f"Transaction may be aborted."
-            )
+            logger.error(f"[SAVEPOINT] Failed to rollback to {sp_name}: {rollback_err}. Transaction may be aborted.")
         raise
 
 

@@ -239,12 +239,12 @@ class VectorizedTechnicalLoader:
                 if coverage_ratio < 0.8:
                     missing_symbols = set(symbols) - symbols_with_data
                     logger.error(
-                        f"[COVERAGE] price_daily coverage only {coverage_ratio*100:.1f}% ({len(symbols_with_data)}/{len(symbols)} symbols). "
+                        f"[COVERAGE] price_daily coverage only {coverage_ratio * 100:.1f}% ({len(symbols_with_data)}/{len(symbols)} symbols). "
                         f"Missing: {sorted(missing_symbols)[:10]}... "
                         f"This indicates upstream price_daily loader failed partially."
                     )
                     raise RuntimeError(
-                        f"Insufficient price data coverage ({coverage_ratio*100:.1f}%). "
+                        f"Insufficient price data coverage ({coverage_ratio * 100:.1f}%). "
                         f"Cannot compute indicators - upstream price_daily must be >80% complete."
                     )
 
@@ -505,16 +505,14 @@ class VectorizedTechnicalLoader:
 
                 # Calculate volume ratio
                 cur.execute(
-                    "SELECT volume FROM price_daily "
-                    "WHERE symbol = %s AND date = %s",
+                    "SELECT volume FROM price_daily WHERE symbol = %s AND date = %s",
                     (symbol, end_date),
                 )
                 vol_row = cur.fetchone()
                 current_vol = float(vol_row[0]) if vol_row and vol_row[0] else 1.0
 
                 cur.execute(
-                    "SELECT AVG(volume) FROM price_daily "
-                    "WHERE symbol = %s AND date >= %s AND date < %s AND volume > 0",
+                    "SELECT AVG(volume) FROM price_daily WHERE symbol = %s AND date >= %s AND date < %s AND volume > 0",
                     (symbol, end_date - timedelta(days=30), end_date),
                 )
                 avg_vol_row = cur.fetchone()
@@ -522,17 +520,19 @@ class VectorizedTechnicalLoader:
 
                 breakout_volume_ratio = current_vol / avg_vol if avg_vol > 0 else 1.0
 
-                vcp_patterns.append({
-                    "symbol": symbol,
-                    "date": end_date,
-                    "atr_30d_avg": atr_30d_avg,
-                    "atr_current": current_atr,
-                    "atr_compression_pct": atr_compression_pct,
-                    "range_30d_avg": 0.0,
-                    "range_current": 0.0,
-                    "vcp_strength": vcp_strength,
-                    "breakout_volume_ratio": breakout_volume_ratio,
-                })
+                vcp_patterns.append(
+                    {
+                        "symbol": symbol,
+                        "date": end_date,
+                        "atr_30d_avg": atr_30d_avg,
+                        "atr_current": current_atr,
+                        "atr_compression_pct": atr_compression_pct,
+                        "range_30d_avg": 0.0,
+                        "range_current": 0.0,
+                        "vcp_strength": vcp_strength,
+                        "breakout_volume_ratio": breakout_volume_ratio,
+                    }
+                )
         except Exception as e:
             logger.debug(f"[VCP] Error computing VCP for {symbol}: {e}")
 
@@ -726,8 +726,8 @@ class VectorizedTechnicalLoader:
                 update_set = ", ".join([f"{col} = EXCLUDED.{col}" for col in update_cols])
 
                 upsert_sql = f"""
-                    INSERT INTO technical_data_daily ({', '.join(columns)})
-                    SELECT {', '.join(columns)} FROM technical_data_daily_new
+                    INSERT INTO technical_data_daily ({", ".join(columns)})
+                    SELECT {", ".join(columns)} FROM technical_data_daily_new
                     ON CONFLICT (symbol, date) DO UPDATE SET {update_set}
                 """
                 cur.execute(upsert_sql)

@@ -124,6 +124,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         # PHASE 3 FIX: Validate environment variables AFTER setting from event
         # This catches missing config but allows EventBridge scheduler to inject via payload
         from algo.config.environment_validation import EnvironmentValidator
+
         EnvironmentValidator.require_valid_or_halt("lambda_handler")
 
         # Reset config singleton on invocation to load fresh DB config
@@ -238,6 +239,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
         if not dry_run:
             try:
                 import boto3
+
                 dynamodb = boto3.resource("dynamodb")
                 table = dynamodb.Table(os.environ.get("HALT_FLAG_TABLE", "algo_orchestrator_state"))
                 response = table.get_item(Key={"key": "orchestrator_halt"})
@@ -249,23 +251,27 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                         logger.critical(f"[HALT_FLAG_DETECTED] Trading halted: {halt_reason}")
                         return {
                             "statusCode": 503,
-                            "body": json.dumps({
-                                "status": "halted",
-                                "message": f"Trading halted by emergency halt flag: {halt_reason}",
-                                "source": source,
-                                "halt_timestamp": item.get("triggered_at"),
-                            }),
+                            "body": json.dumps(
+                                {
+                                    "status": "halted",
+                                    "message": f"Trading halted by emergency halt flag: {halt_reason}",
+                                    "source": source,
+                                    "halt_timestamp": item.get("triggered_at"),
+                                }
+                            ),
                         }
             except Exception as halt_err:
                 logger.critical(f"[HALT_CHECK_FAILED] Could not verify halt flag in DynamoDB: {halt_err}")
                 # Fail-closed: if we can't verify halt status, assume halt for safety
                 return {
                     "statusCode": 503,
-                    "body": json.dumps({
-                        "status": "halted",
-                        "message": f"Could not verify halt status - assuming halt for safety: {halt_err!s}",
-                        "source": source,
-                    }),
+                    "body": json.dumps(
+                        {
+                            "status": "halted",
+                            "message": f"Could not verify halt status - assuming halt for safety: {halt_err!s}",
+                            "source": source,
+                        }
+                    ),
                 }
 
         # CONSOLIDATED: Single halt flag system using DynamoDB (managed by orchestrator.py)

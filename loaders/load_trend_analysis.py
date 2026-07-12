@@ -311,7 +311,9 @@ def main() -> int:
         result = run()
 
         if not isinstance(result, dict):
-            raise RuntimeError(f"[LOADER] Trend criteria run() returned unexpected type {type(result).__name__}, expected dict. Value: {result}")
+            raise RuntimeError(
+                f"[LOADER] Trend criteria run() returned unexpected type {type(result).__name__}, expected dict. Value: {result}"
+            )
 
         if "rows_inserted" not in result:
             raise ValueError(f"[LOADER] Trend criteria result missing required 'rows_inserted' field. Got: {result}")

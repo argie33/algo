@@ -207,9 +207,7 @@ def send_cost_alert(costs: dict, alert_type: str, suspension_details: dict | Non
     try:
         # Build service breakdown string
         service_lines = []
-        for service, cost in sorted(
-            costs["service_breakdown"].items(), key=lambda x: x[1], reverse=True
-        )[:10]:
+        for service, cost in sorted(costs["service_breakdown"].items(), key=lambda x: x[1], reverse=True)[:10]:
             service_lines.append(f"  {service}: ${cost:.2f}")
 
         subject = f"[{alert_type}] AWS Cost Alert - {PROJECT_NAME}-{ENVIRONMENT}"
@@ -217,13 +215,13 @@ def send_cost_alert(costs: dict, alert_type: str, suspension_details: dict | Non
         if alert_type == "WARNING":
             body = f"""AWS Cost Circuit Breaker Status: NORMAL
 
-Daily Cost: ${costs['total_cost']:.2f} / ${costs['threshold_usd']:.2f} (threshold)
+Daily Cost: ${costs["total_cost"]:.2f} / ${costs["threshold_usd"]:.2f} (threshold)
 Status: Within budget
 
 Top Services:
 {chr(10).join(service_lines)}
 
-Check time: {costs['query_time']}
+Check time: {costs["query_time"]}
 
 All services are operating normally.
 No action required."""
@@ -232,8 +230,8 @@ No action required."""
             suspension_info = (
                 f"""
 SERVICES SUSPENDED:
-  - EventBridge Schedules: {len(suspension_details.get('disabled_schedules', []))} disabled
-  - ECS Tasks: {suspension_details.get('ecs_details', {}).get('stop_count', 0)} stopped
+  - EventBridge Schedules: {len(suspension_details.get("disabled_schedules", []))} disabled
+  - ECS Tasks: {suspension_details.get("ecs_details", {}).get("stop_count", 0)} stopped
   - Loaders: HALTED
   - Orchestrator: HALTED"""
                 if suspension_details
@@ -242,9 +240,9 @@ SERVICES SUSPENDED:
 
             body = f"""🚨 AWS COST CIRCUIT BREAKER TRIGGERED 🚨
 
-Daily Cost: ${costs['total_cost']:.2f}
-Budget Threshold: ${costs['threshold_usd']:.2f}
-EXCEEDED BY: ${costs['total_cost'] - costs['threshold_usd']:.2f}
+Daily Cost: ${costs["total_cost"]:.2f}
+Budget Threshold: ${costs["threshold_usd"]:.2f}
+EXCEEDED BY: ${costs["total_cost"] - costs["threshold_usd"]:.2f}
 
 SEVERITY: CRITICAL
 ACTION: All AWS services have been suspended to prevent further costs
@@ -254,7 +252,7 @@ ACTION: All AWS services have been suspended to prevent further costs
 Top Services:
 {chr(10).join(service_lines)}
 
-Check time: {costs['query_time']}
+Check time: {costs["query_time"]}
 
 NEXT STEPS:
 1. Review AWS Cost Explorer for cost drivers
@@ -301,7 +299,9 @@ def publish_cost_metric(total_cost: float, threshold: float) -> None:
                 },
             ],
         )
-        logger.debug(f"Published cost metrics: cost=${total_cost:.2f}, utilization={(total_cost/threshold*100):.1f}%")
+        logger.debug(
+            f"Published cost metrics: cost=${total_cost:.2f}, utilization={(total_cost / threshold * 100):.1f}%"
+        )
     except Exception as e:
         logger.warning(f"Failed to publish CloudWatch metrics: {e}")
 
@@ -316,9 +316,7 @@ def lambda_handler(event, context):
         publish_cost_metric(costs["total_cost"], DAILY_COST_THRESHOLD_USD)
 
         if costs["total_cost"] <= DAILY_COST_THRESHOLD_USD:
-            logger.info(
-                f"Cost within budget: ${costs['total_cost']:.2f} <= ${DAILY_COST_THRESHOLD_USD:.2f}"
-            )
+            logger.info(f"Cost within budget: ${costs['total_cost']:.2f} <= ${DAILY_COST_THRESHOLD_USD:.2f}")
             send_cost_alert(costs, "WARNING")
             return {
                 "statusCode": 200,
@@ -332,9 +330,7 @@ def lambda_handler(event, context):
             }
 
         # Cost exceeded - suspend services
-        logger.critical(
-            f"COST CIRCUIT BREAKER TRIGGERED: ${costs['total_cost']:.2f} > ${DAILY_COST_THRESHOLD_USD:.2f}"
-        )
+        logger.critical(f"COST CIRCUIT BREAKER TRIGGERED: ${costs['total_cost']:.2f} > ${DAILY_COST_THRESHOLD_USD:.2f}")
 
         disabled_schedules = disable_scheduler_rules()
         ecs_details = suspend_ecs_tasks()
@@ -367,8 +363,17 @@ def lambda_handler(event, context):
             disabled_schedules = disable_scheduler_rules()
             ecs_details = suspend_ecs_tasks()
 
-            costs = {"total_cost": 0, "service_breakdown": {}, "query_time": datetime.now(timezone.utc).isoformat(), "threshold_usd": DAILY_COST_THRESHOLD_USD}
-            send_cost_alert(costs, "CRITICAL", {"error": str(e), "disabled_schedules": disabled_schedules, "ecs_details": ecs_details})
+            costs = {
+                "total_cost": 0,
+                "service_breakdown": {},
+                "query_time": datetime.now(timezone.utc).isoformat(),
+                "threshold_usd": DAILY_COST_THRESHOLD_USD,
+            }
+            send_cost_alert(
+                costs,
+                "CRITICAL",
+                {"error": str(e), "disabled_schedules": disabled_schedules, "ecs_details": ecs_details},
+            )
         except Exception as suspend_err:
             logger.error(f"Failed to suspend after cost query error: {suspend_err}")
 

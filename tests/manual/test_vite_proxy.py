@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Test if Vite proxy is forwarding API requests correctly"""
+
 import json
 import time
 
@@ -14,9 +15,7 @@ print("\n[1] Backend API (direct):")
 print("    GET http://localhost:3001/api/algo/status")
 try:
     resp = requests.get(
-        "http://localhost:3001/api/algo/status",
-        headers={"Authorization": "Bearer dev-admin"},
-        timeout=5
+        "http://localhost:3001/api/algo/status", headers={"Authorization": "Bearer dev-admin"}, timeout=5
     )
     print(f"    Status: {resp.status_code}")
     if resp.status_code == 200:
@@ -34,11 +33,8 @@ print("    GET http://localhost:5175/api/algo/status")
 try:
     resp = requests.get(
         "http://localhost:5175/api/algo/status",
-        headers={
-            "Authorization": "Bearer dev-admin",
-            "Origin": "http://localhost:5175"
-        },
-        timeout=5
+        headers={"Authorization": "Bearer dev-admin", "Origin": "http://localhost:5175"},
+        timeout=5,
     )
     print(f"    Status: {resp.status_code}")
     if resp.status_code == 200:
@@ -62,14 +58,11 @@ print("\n[3] CORS Headers from Vite Proxy:")
 try:
     resp = requests.options(
         "http://localhost:5175/api/algo/status",
-        headers={
-            "Origin": "http://localhost:5175",
-            "Access-Control-Request-Method": "GET"
-        },
-        timeout=5
+        headers={"Origin": "http://localhost:5175", "Access-Control-Request-Method": "GET"},
+        timeout=5,
     )
     print(f"    Status: {resp.status_code}")
-    cors_headers = {k: v for k, v in resp.headers.items() if 'access' in k.lower()}
+    cors_headers = {k: v for k, v in resp.headers.items() if "access" in k.lower()}
     if cors_headers:
         for k, v in cors_headers.items():
             print(f"    {k}: {v}")

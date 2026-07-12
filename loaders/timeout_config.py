@@ -228,10 +228,7 @@ def wrap_api_call_with_timeout(api_name: str) -> Any:
             try:
                 return func(*args, **kwargs)
             except TimeoutError as e:
-                logger.error(
-                    f"[TIMEOUT] {api_name} API call timed out: {e}. "
-                    f"Returning data_unavailable marker."
-                )
+                logger.error(f"[TIMEOUT] {api_name} API call timed out: {e}. Returning data_unavailable marker.")
                 # Return marker dict for data_unavailable handling
                 return {
                     "data_unavailable": True,

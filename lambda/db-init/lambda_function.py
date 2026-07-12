@@ -466,25 +466,27 @@ def lambda_handler(event, context):  # noqa: C901
 
             # Set environment for migrations runner
             migration_env = os.environ.copy()
-            migration_env.update({
-                'DB_HOST': creds['host'],
-                'DB_PORT': str(creds['port']),
-                'DB_USER': creds['user'],
-                'DB_PASSWORD': creds['password'],
-                'DB_NAME': creds['database'],
-                'DB_SSL': os.environ.get('DB_SSL', 'require'),
-            })
+            migration_env.update(
+                {
+                    "DB_HOST": creds["host"],
+                    "DB_PORT": str(creds["port"]),
+                    "DB_USER": creds["user"],
+                    "DB_PASSWORD": creds["password"],
+                    "DB_NAME": creds["database"],
+                    "DB_SSL": os.environ.get("DB_SSL", "require"),
+                }
+            )
 
             # Run migrations from the project root directory
-            migration_script = os.path.join(os.path.dirname(__file__), '..', '..', 'migrations', 'run.py')
+            migration_script = os.path.join(os.path.dirname(__file__), "..", "..", "migrations", "run.py")
             if os.path.exists(migration_script):
                 logger.info(f"Found migrations script at {migration_script}")
                 result = subprocess.run(
-                    [sys.executable, migration_script, 'apply', '--all'],
+                    [sys.executable, migration_script, "apply", "--all"],
                     env=migration_env,
                     capture_output=True,
                     text=True,
-                    timeout=600  # 10 minute timeout for all migrations
+                    timeout=600,  # 10 minute timeout for all migrations
                 )
 
                 if result.returncode == 0:
@@ -502,7 +504,9 @@ def lambda_handler(event, context):  # noqa: C901
 
         return {
             "statusCode": 200,
-            "body": json.dumps(f"Database schema initialized ({ok_count}/{len(statements)} statements) and migrations applied"),
+            "body": json.dumps(
+                f"Database schema initialized ({ok_count}/{len(statements)} statements) and migrations applied"
+            ),
         }
 
     except psycopg2.OperationalError as e:

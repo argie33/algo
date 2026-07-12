@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 class HealthStatus(Enum):
     """Health status levels."""
+
     HEALTHY = "healthy"
     DEGRADED = "degraded"
     CRITICAL = "critical"
@@ -49,7 +50,7 @@ class LoaderHealthMonitor:
             "details": {
                 "loaders_without_recent_runs": len(missing_loaders),
                 "missing_loaders": [row[0] for row in missing_loaders],
-            }
+            },
         }
 
         if missing_loaders:
@@ -94,7 +95,7 @@ class LoaderHealthMonitor:
             "details": {
                 "stale_tables": len(stale_tables),
                 "tables_with_stale_data": stale_tables,
-            }
+            },
         }
 
         if stale_tables:
@@ -127,7 +128,7 @@ class LoaderHealthMonitor:
                 "successful_runs": successful,
                 "success_rate_pct": round(success_rate, 1),
                 "latest_run": str(latest) if latest else None,
-            }
+            },
         }
 
         if success_rate < 80:
@@ -149,7 +150,7 @@ class LoaderHealthMonitor:
                 "details": {
                     "tables": table_count,
                     "connection": "OK",
-                }
+                },
             }
             return check
         except Exception as e:
@@ -158,7 +159,7 @@ class LoaderHealthMonitor:
                 "status": HealthStatus.CRITICAL.value,
                 "details": {
                     "error": str(e),
-                }
+                },
             }
             self.status = HealthStatus.CRITICAL
             logger.error(f"Critical: Database connection failed: {e!s}")

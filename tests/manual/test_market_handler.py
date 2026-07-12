@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Test market endpoint directly."""
+
 import logging
 import os
 import sys
@@ -27,7 +28,7 @@ try:
     logger.info("[TEST] Testing _get_markets...")
 
     # Get a database cursor
-    db = DatabaseContext('read')
+    db = DatabaseContext("read")
     cur = db.__enter__()
 
     # Call the function
@@ -42,6 +43,7 @@ try:
                 print(f"Error: {result}")
         else:
             import json
+
             print(f"Result: {json.dumps(result, indent=2, default=str)[:500]}")
     else:
         print(f"Result type: {type(result)}")
@@ -51,6 +53,7 @@ try:
 
 except Exception as e:
     import traceback
+
     logger.error(f"Error: {e}")
     print(traceback.format_exc())
     sys.exit(1)

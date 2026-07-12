@@ -123,7 +123,9 @@ class PositionSizer:
                     if age_days == 0:
                         logger.debug("[PORTFOLIO_SNAPSHOT] Using current day snapshot (latest available)")
                     elif age_days == 1:
-                        logger.warning("[PORTFOLIO_SNAPSHOT] Using yesterday's snapshot (Phase 7 may have missed today)")
+                        logger.warning(
+                            "[PORTFOLIO_SNAPSHOT] Using yesterday's snapshot (Phase 7 may have missed today)"
+                        )
                     return snapshot_value
                 # CRITICAL: Snapshot is too stale. Stricter 1-day threshold prevents position
                 # sizing on multi-day-old data when Phase 7 fails. Better to halt than risk

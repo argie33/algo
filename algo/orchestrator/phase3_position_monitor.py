@@ -206,8 +206,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         # This allows testing of trading logic even if position monitoring fails
         if config.get("is_paper_trading", False):
             logger.warning(
-                f"[PHASE 3 PAPER MODE] Position monitor failed but continuing paper trading: "
-                f"{type(e).__name__}: {e}"
+                f"[PHASE 3 PAPER MODE] Position monitor failed but continuing paper trading: {type(e).__name__}: {e}"
             )
             return PhaseResult(
                 3,

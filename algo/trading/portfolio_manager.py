@@ -20,7 +20,9 @@ logger = logging.getLogger(__name__)
 class PortfolioManager:
     """Query live portfolio state from Alpaca only."""
 
-    def __init__(self, alpaca_key: str, alpaca_secret: str, alpaca_base_url: str, config: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self, alpaca_key: str, alpaca_secret: str, alpaca_base_url: str, config: dict[str, Any] | None = None
+    ) -> None:
         self.alpaca_key = alpaca_key
         self.alpaca_secret = alpaca_secret
         self.alpaca_base_url = alpaca_base_url

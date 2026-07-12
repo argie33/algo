@@ -30,7 +30,8 @@ except ImportError:
     def get_config():
         class Config:
             def get(self, k):
-                return {'retry_count_db_migration': 3}.get(k, 3)
+                return {"retry_count_db_migration": 3}.get(k, 3)
+
         return Config()
 
 
@@ -222,7 +223,7 @@ def run_migrations(creds: dict[str, Any]) -> dict[str, Any]:
     # Clear blocking queries before running migrations (multiple retries with increasing waits)
     import time
 
-    max_retries = get_config().get('retry_count_db_migration')
+    max_retries = get_config().get("retry_count_db_migration")
     for attempt in range(1, max_retries + 1):
         if not clear_blocking_queries(creds):
             logger.warning(f"Failed to clear blocking queries on attempt {attempt}")

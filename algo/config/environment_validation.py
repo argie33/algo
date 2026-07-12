@@ -24,10 +24,8 @@ class EnvironmentValidator:
         #   1. AWS Lambda: DB_SECRET_ARN (Secrets Manager JSON blob with password field)
         #   2. Local dev: environment variable DB_PASSWORD
         # Credential validation happens at first database connection, not at startup
-
         # AWS (always required)
         "AWS_REGION": "AWS region for Lambda/RDS/Secrets Manager",
-
         # Execution Mode (optional if EXECUTION_MODE set, defaults to paper if neither set)
         # NOTE: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) only required for live trading
         # For paper trading, credentials can be loaded from AWS Secrets Manager at runtime
@@ -42,7 +40,10 @@ class EnvironmentValidator:
     # Alternative variable names (accepted if primary not set)
     # Allows flexibility across different deployment contexts
     ALTERNATIVE_VARS = {
-        "AWS_ACCOUNT_ID": ("ORCHESTRATOR_EXECUTION_MODE", "AWS account ID (optional, can be fetched from STS if not set)"),
+        "AWS_ACCOUNT_ID": (
+            "ORCHESTRATOR_EXECUTION_MODE",
+            "AWS account ID (optional, can be fetched from STS if not set)",
+        ),
         "EXECUTION_MODE": ("ORCHESTRATOR_EXECUTION_MODE", "Legacy name for execution mode"),
     }
 
@@ -164,15 +165,14 @@ class EnvironmentValidator:
             error_msg += "they only need to be in the environment for paper trading if not using Secrets Manager.\n"
 
             raise OrchestrationError(
-                ErrorCode.ENV_VAR_MISSING,
-                error_msg,
-                {"context": context, "missing_vars": missing}
+                ErrorCode.ENV_VAR_MISSING, error_msg, {"context": context, "missing_vars": missing}
             )
 
         # Log optional missing variables
         missing_optional = cls.validate_optional()
         if missing_optional:
             import logging
+
             logger = logging.getLogger(__name__)
             logger.warning(
                 f"[{context.upper()}] Optional environment variables not set: "

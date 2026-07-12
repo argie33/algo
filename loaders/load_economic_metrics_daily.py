@@ -50,11 +50,7 @@ class EconomicMetricsDailyLoader(OptimalLoader):
 
             # Return stub - real implementation would fetch live economic data
             logger.info(f"[{self.table_name}] Economic metrics data fetch would retrieve from FRED API")
-            return {
-                "rows": [],
-                "status": "fetched",
-                "note": "Fetching live economic data from FRED would happen here"
-            }
+            return {"rows": [], "status": "fetched", "note": "Fetching live economic data from FRED would happen here"}
 
     def insert_rows(self, rows: list[dict[str, Any]]) -> int:
         """Insert economic metrics into database."""

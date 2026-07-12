@@ -375,7 +375,9 @@ class DailyReconciliation:
                 # CRITICAL FIX: Allow cash to be None in paper mode, calculate after position_value computed
                 # Live mode requires real cash from broker, but paper mode can compute it from portfolio - positions
                 if cash is None and execution_mode != "paper":
-                    logger.critical("Live mode: Broker cash is missing - reconciliation cannot proceed without live cash value")
+                    logger.critical(
+                        "Live mode: Broker cash is missing - reconciliation cannot proceed without live cash value"
+                    )
                     try:
                         notify(
                             "critical",
@@ -516,11 +518,13 @@ class DailyReconciliation:
                     quantity = pos[1]
                     avg_entry_price = pos[2]
                     if avg_entry_price is None or float(avg_entry_price) <= 0:
-                        invalid_entry_prices.append({
-                            "symbol": symbol,
-                            "quantity": quantity,
-                            "entry_price": avg_entry_price,
-                        })
+                        invalid_entry_prices.append(
+                            {
+                                "symbol": symbol,
+                                "quantity": quantity,
+                                "entry_price": avg_entry_price,
+                            }
+                        )
 
                 if invalid_entry_prices:
                     logger.critical(
@@ -558,7 +562,9 @@ class DailyReconciliation:
                 if execution_mode == "paper":
                     # Paper mode: Compute actual remaining cash from portfolio and positions
                     cash_computed = pv - total_position_value
-                    logger.info(f"[PAPER MODE] Computed cash: ${pv:,.2f} (portfolio) - ${total_position_value:,.2f} (positions) = ${cash_computed:,.2f}")
+                    logger.info(
+                        f"[PAPER MODE] Computed cash: ${pv:,.2f} (portfolio) - ${total_position_value:,.2f} (positions) = ${cash_computed:,.2f}"
+                    )
                     cash_dec = Decimal(str(cash_computed))
                 else:
                     # Live mode: Use actual cash from broker

@@ -59,8 +59,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
                         logger.warning(f"Failed to compute metrics for {symbol}: {e}")
 
             logger.info(
-                f"[QUALITY_GROWTH] Consolidated load complete: "
-                f"{quality_inserts} quality, {growth_inserts} growth"
+                f"[QUALITY_GROWTH] Consolidated load complete: {quality_inserts} quality, {growth_inserts} growth"
             )
             return {"quality_metrics": quality_inserts, "growth_metrics": growth_inserts}
 

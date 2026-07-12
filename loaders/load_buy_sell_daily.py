@@ -106,8 +106,7 @@ class SignalsDailyLoader(OptimalLoader):
                     price_max_date_row = cur.fetchone()
                     if price_max_date_row is None or price_max_date_row[0] is None:
                         raise RuntimeError(
-                            "CRITICAL: No price_daily data found at all. "
-                            "Cannot generate signals without price data."
+                            "CRITICAL: No price_daily data found at all. Cannot generate signals without price data."
                         )
                     end = price_max_date_row[0]
 
@@ -394,20 +393,26 @@ class SignalsDailyLoader(OptimalLoader):
             # Defensive: Handle case where _generate_signals returns None (should not happen, but add guard)
             if signals is None:
                 logger.error(f"[BUY_SELL_DAILY] {symbol}: _generate_signals returned None instead of list")
-                signals = [{
-                    "symbol": symbol,
-                    "date": end.isoformat(),
-                    "data_unavailable": True,
-                    "reason": "signal generation returned None (internal error)"
-                }]
+                signals = [
+                    {
+                        "symbol": symbol,
+                        "date": end.isoformat(),
+                        "data_unavailable": True,
+                        "reason": "signal generation returned None (internal error)",
+                    }
+                ]
             elif not isinstance(signals, list):
-                logger.error(f"[BUY_SELL_DAILY] {symbol}: _generate_signals returned {type(signals).__name__} instead of list")
-                signals = [{
-                    "symbol": symbol,
-                    "date": end.isoformat(),
-                    "data_unavailable": True,
-                    "reason": f"signal generation returned {type(signals).__name__} instead of list"
-                }]
+                logger.error(
+                    f"[BUY_SELL_DAILY] {symbol}: _generate_signals returned {type(signals).__name__} instead of list"
+                )
+                signals = [
+                    {
+                        "symbol": symbol,
+                        "date": end.isoformat(),
+                        "data_unavailable": True,
+                        "reason": f"signal generation returned {type(signals).__name__} instead of list",
+                    }
+                ]
 
             # Mark all successful signals with data_unavailable=False and reason=None
             for sig in signals:
@@ -782,7 +787,9 @@ def main() -> int:  # noqa: C901
                        WHERE table_name = %s""",
                     ("COMPLETED", actual_max_date, "buy_sell_daily"),
                 )
-                logger.info(f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)")
+                logger.info(
+                    f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
+                )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
             logger.error(f"[STATUS] Could not update loader status to COMPLETED: {status_err}")
             return 1

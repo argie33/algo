@@ -784,7 +784,9 @@ def run(  # noqa: C901
                                 (run_date,),
                             )
                             prev_row = cur.fetchone()
-                            prev_value = Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal(str(initial_capital))
+                            prev_value = (
+                                Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal(str(initial_capital))
+                            )
                             daily_return_pct = (
                                 ((total_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
                             )
@@ -892,13 +894,21 @@ def run(  # noqa: C901
                     )
 
                 if "portfolio_value" not in result:
-                    raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'portfolio_value'. Cannot create snapshot.")
+                    raise ValueError(
+                        "[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'portfolio_value'. Cannot create snapshot."
+                    )
                 if "positions" not in result or result["positions"] is None:
-                    raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'positions' count. Cannot create snapshot.")
+                    raise ValueError(
+                        "[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'positions' count. Cannot create snapshot."
+                    )
                 if "unrealized_pnl" not in result:
-                    raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'unrealized_pnl'. Cannot create snapshot.")
+                    raise ValueError(
+                        "[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'unrealized_pnl'. Cannot create snapshot."
+                    )
                 if "position_value" not in result:
-                    raise ValueError("[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'position_value'. Cannot calculate cash. Cannot create snapshot.")
+                    raise ValueError(
+                        "[PHASE 9] CRITICAL: Phase 4 reconciliation missing 'position_value'. Cannot calculate cash. Cannot create snapshot."
+                    )
 
                 current_value = Decimal(str(result["portfolio_value"]))
                 pos_count = result["positions"]
@@ -933,10 +943,14 @@ def run(  # noqa: C901
                         f"Check database state."
                     )
                 daily_return_pct = (current_value - prev_value) / prev_value * 100
-                logger.info(f"[PHASE 9] Snapshot: Previous={prev_value}, Current={current_value}, Daily return={daily_return_pct}%")
+                logger.info(
+                    f"[PHASE 9] Snapshot: Previous={prev_value}, Current={current_value}, Daily return={daily_return_pct}%"
+                )
 
                 cash = current_value - position_value
-                logger.info(f"[PHASE 9] Snapshot: Cash calculation: ${current_value:,.2f} (portfolio) - ${position_value:,.2f} (positions) = ${cash:,.2f}")
+                logger.info(
+                    f"[PHASE 9] Snapshot: Cash calculation: ${current_value:,.2f} (portfolio) - ${position_value:,.2f} (positions) = ${cash:,.2f}"
+                )
 
                 logger.info(f"[PHASE 9] Snapshot: Executing INSERT with position_count={pos_count}, cash={cash}")
                 cur.execute(
@@ -992,20 +1006,22 @@ def run(  # noqa: C901
                         "[PHASE 9] CRITICAL: Reconciliation result is None. "
                         "Cannot create snapshot without reconciliation data."
                     )
-                if result.get('positions') is None:
-                    logger.error(f"[PHASE 9] result keys: {list(result.keys()) if isinstance(result, dict) else 'not a dict'}")
+                if result.get("positions") is None:
+                    logger.error(
+                        f"[PHASE 9] result keys: {list(result.keys()) if isinstance(result, dict) else 'not a dict'}"
+                    )
                     raise RuntimeError(
                         "[PHASE 9] CRITICAL: Reconciliation result missing 'positions' count. "
                         "Cannot create snapshot without verified position count. "
                         "Broker reconciliation data may be incomplete."
                     )
-                pos_count = result['positions']
+                pos_count = result["positions"]
                 if current_value is None:
-                    logger.error(f"[PHASE 9] current_value is None, portfolio_value from result was: {result.get('portfolio_value')}")
+                    logger.error(
+                        f"[PHASE 9] current_value is None, portfolio_value from result was: {result.get('portfolio_value')}"
+                    )
                     raise RuntimeError("[PHASE 9] CRITICAL: current_value is None in snapshot logging")
-                logger.info(
-                    f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={pos_count}"
-                )
+                logger.info(f"[PHASE 9 SNAPSHOT] Created: portfolio=${current_value:.2f}, positions={pos_count}")
                 log_phase_result_fn(
                     9,
                     "portfolio_snapshot",
@@ -1064,7 +1080,9 @@ def run(  # noqa: C901
                 """)
                 synced_count = cur.cursor.rowcount
                 if synced_count > 0:
-                    logger.info(f"[PHASE 9] Synced quantity for {synced_count} open positions (quantity = entry_quantity)")
+                    logger.info(
+                        f"[PHASE 9] Synced quantity for {synced_count} open positions (quantity = entry_quantity)"
+                    )
             log_phase_result_fn(9, "quantity_sync", "success", f"synced {synced_count} open positions")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[PHASE 9] CRITICAL: Failed to sync quantity column: {e}")

@@ -64,7 +64,9 @@ def handle_credential_failure(secret_name: str, error: Exception, loader_name: s
     }
 
 
-def handle_api_timeout(api_name: str, endpoint: str, timeout_seconds: int, loader_name: str = "unknown") -> dict[str, Any]:
+def handle_api_timeout(
+    api_name: str, endpoint: str, timeout_seconds: int, loader_name: str = "unknown"
+) -> dict[str, Any]:
     """Handle API timeout gracefully.
 
     CRITICAL FIX: Mark data as unavailable instead of returning partial/empty results.
@@ -105,9 +107,7 @@ def handle_database_error(query: str, error: Exception, loader_name: str = "unkn
     Returns:
         Dict with data_unavailable marker
     """
-    logger.error(
-        f"[DATA_UNAVAILABLE] Database query failed in {loader_name}: {error} (query: {query[:100]}...)"
-    )
+    logger.error(f"[DATA_UNAVAILABLE] Database query failed in {loader_name}: {error} (query: {query[:100]}...)")
     return {
         "data_unavailable": True,
         "reason": "database_query_error",
@@ -145,11 +145,15 @@ def validate_schema(data: Any, required_fields: list[str], loader_name: str = "u
         if missing:
             return False, f"Item {i} missing fields: {missing}"
 
-    logger.info(f"[SCHEMA_VALID] {loader_name} schema validation passed ({len(data)} items, {len(required_fields)} required fields)")
+    logger.info(
+        f"[SCHEMA_VALID] {loader_name} schema validation passed ({len(data)} items, {len(required_fields)} required fields)"
+    )
     return True, None
 
 
-def mark_data_unavailable(reason: str, loader_name: str = "unknown", details: dict[str, Any] | None = None) -> dict[str, Any]:
+def mark_data_unavailable(
+    reason: str, loader_name: str = "unknown", details: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Mark data as unavailable with metadata.
 
     Use this when a loader cannot produce data and should fail-closed.

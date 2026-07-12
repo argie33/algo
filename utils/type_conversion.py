@@ -120,8 +120,6 @@ def safe_string(value: Any, field_name: str, allow_none: bool = True, max_len: i
         result = str(value)
 
     if max_len and len(result) > max_len:
-        raise ValueError(
-            f"[TYPE_CONVERSION] {field_name}={result!r}: length {len(result)} exceeds max {max_len}"
-        )
+        raise ValueError(f"[TYPE_CONVERSION] {field_name}={result!r}: length {len(result)} exceeds max {max_len}")
 
     return result

@@ -77,9 +77,7 @@ class WeightOptimizer:
         if self.MIN_WEIGHT < 0 or self.MAX_WEIGHT < 0:
             raise ValueError(f"MIN_WEIGHT ({self.MIN_WEIGHT}) and MAX_WEIGHT ({self.MAX_WEIGHT}) must be non-negative")
         if self.MIN_WEIGHT > self.MAX_WEIGHT:
-            raise ValueError(
-                f"MIN_WEIGHT ({self.MIN_WEIGHT}) cannot exceed MAX_WEIGHT ({self.MAX_WEIGHT})"
-            )
+            raise ValueError(f"MIN_WEIGHT ({self.MIN_WEIGHT}) cannot exceed MAX_WEIGHT ({self.MAX_WEIGHT})")
         if self.MIN_TRADES <= 0:
             raise ValueError(f"MIN_TRADES must be positive, got {self.MIN_TRADES}")
         if len(self.COMPONENT_KEYS) != len(self.COMPONENTS):
@@ -102,9 +100,7 @@ class WeightOptimizer:
             try:
                 w = int(val)
                 if not (0 <= w <= 100):
-                    raise ValueError(
-                        f"Component '{component}' weight {w}% is out of valid range [0, 100]"
-                    )
+                    raise ValueError(f"Component '{component}' weight {w}% is out of valid range [0, 100]")
                 weights[component] = w
             except (ValueError, TypeError) as e:
                 raise ValueError(f"Cannot convert weight for component '{component}': {val}") from e
@@ -291,8 +287,7 @@ class WeightOptimizer:
             if delta != 0:
                 # Find weights that can be adjusted (not at bounds)
                 not_at_bounds = [
-                    i for i in range(len(weights_int))
-                    if self.MIN_WEIGHT < weights_int[i] < self.MAX_WEIGHT
+                    i for i in range(len(weights_int)) if self.MIN_WEIGHT < weights_int[i] < self.MAX_WEIGHT
                 ]
 
                 if not_at_bounds:
@@ -319,9 +314,7 @@ class WeightOptimizer:
             # Final validation
             final_sum = int(weights_int.sum())
             if final_sum != 100:
-                raise ValueError(
-                    f"Final weights sum to {final_sum}, not 100. weights={weights_int}"
-                )
+                raise ValueError(f"Final weights sum to {final_sum}, not 100. weights={weights_int}")
 
             result_dict = {comp: int(w) for comp, w in zip(self.COMPONENTS, weights_int, strict=False)}
             return result_dict
@@ -345,8 +338,7 @@ class WeightOptimizer:
         # Validate that equal weights respect MIN/MAX constraints
         if base < self.MIN_WEIGHT and n > 1:
             raise ValueError(
-                f"Cannot create equal weights: base weight {base}% < MIN_WEIGHT {self.MIN_WEIGHT}% "
-                f"with {n} components"
+                f"Cannot create equal weights: base weight {base}% < MIN_WEIGHT {self.MIN_WEIGHT}% with {n} components"
             )
 
         weights = {}
@@ -361,7 +353,7 @@ class WeightOptimizer:
         if total != 100:
             # Adjust largest component to fix sum
             largest = max(weights.items(), key=lambda item: item[1])[0]
-            weights[largest] += (100 - total)
+            weights[largest] += 100 - total
 
         return weights
 
@@ -447,9 +439,7 @@ class WeightOptimizer:
             if not isinstance(optimal, dict):
                 raise ValueError(f"optimal weights must be dict, got {type(optimal)}")
             if len(optimal) != len(self.COMPONENTS):
-                raise ValueError(
-                    f"optimal weights dict has {len(optimal)} components, expected {len(self.COMPONENTS)}"
-                )
+                raise ValueError(f"optimal weights dict has {len(optimal)} components, expected {len(self.COMPONENTS)}")
 
             blend_alpha = self.BLEND_FACTORS[regime]
             if not (0 <= blend_alpha <= 1):
@@ -485,17 +475,13 @@ class WeightOptimizer:
                 largest_comp = max(blended.items(), key=lambda item: item[1])[0]
                 new_val = blended[largest_comp] + delta
                 if not (0 <= new_val <= 100):
-                    raise ValueError(
-                        f"Cannot fix sum: adjusting '{largest_comp}' to {new_val} exceeds bounds [0, 100]"
-                    )
+                    raise ValueError(f"Cannot fix sum: adjusting '{largest_comp}' to {new_val} exceeds bounds [0, 100]")
                 blended[largest_comp] = new_val
 
             # Final validation
             final_sum = sum(blended.values())
             if final_sum != 100:
-                raise ValueError(
-                    f"Final blended weights sum to {final_sum}, expected 100. weights={blended}"
-                )
+                raise ValueError(f"Final blended weights sum to {final_sum}, expected 100. weights={blended}")
 
             # Track changes as dicts (consumed by phase7 as change['component'] etc.)
             changes = []
@@ -599,13 +585,9 @@ class WeightOptimizer:
 
                     # Validate weight values
                     if not isinstance(old_w, int) or not (0 <= old_w <= 100):
-                        raise ValueError(
-                            f"Invalid old weight for '{comp}': {old_w} (must be int in [0, 100])"
-                        )
+                        raise ValueError(f"Invalid old weight for '{comp}': {old_w} (must be int in [0, 100])")
                     if not isinstance(new_w, int) or not (0 <= new_w <= 100):
-                        raise ValueError(
-                            f"Invalid new weight for '{comp}': {new_w} (must be int in [0, 100])"
-                        )
+                        raise ValueError(f"Invalid new weight for '{comp}': {new_w} (must be int in [0, 100])")
 
                     if old_w != new_w:
                         cur.execute(
@@ -631,9 +613,7 @@ class WeightOptimizer:
         except (OSError, RuntimeError) as e:
             # FIX: Don't silent-fail on database errors - re-raise so caller knows
             logger.error(f"Failed to log weight changes to database: {e}")
-            raise RuntimeError(
-                f"Weight optimization logging failed (weight changes NOT persisted): {e}"
-            ) from e
+            raise RuntimeError(f"Weight optimization logging failed (weight changes NOT persisted): {e}") from e
 
 
 if __name__ == "__main__":

@@ -267,9 +267,7 @@ def main() -> int:
     try:
         return run_loader(ConsolidatedFinancialStatementsLoader)
     except Exception as e:
-        logger.error(
-            f"[FINANCIAL_STATEMENTS FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True
-        )
+        logger.error(f"[FINANCIAL_STATEMENTS FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         try:
             statement_type = os.environ.get("LOADER_STATEMENT_TYPE", "income")
             period = os.environ.get("LOADER_PERIOD", "annual")
@@ -320,9 +318,7 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         statement_type = os.environ.get("LOADER_STATEMENT_TYPE", "income").lower()
         period = os.environ.get("LOADER_PERIOD", "annual").lower()
 
-        logger.info(
-            f"[FINANCIAL_STATEMENTS] Initializing: statement_type={statement_type}, period={period}"
-        )
+        logger.info(f"[FINANCIAL_STATEMENTS] Initializing: statement_type={statement_type}, period={period}")
 
         config = get_statement_config(statement_type, period)
         self.table_name = config["table_name"]

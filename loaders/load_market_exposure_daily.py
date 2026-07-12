@@ -166,9 +166,12 @@ def main() -> int:  # noqa: C901
         from algo.infrastructure import MarketCalendar
 
         lookback_date = latest_date
-        max_lookback_days = 10  # Prevent infinite loop; something is wrong if we can't find a trading day within 10 days
+        max_lookback_days = (
+            10  # Prevent infinite loop; something is wrong if we can't find a trading day within 10 days
+        )
         while not MarketCalendar.is_trading_day(lookback_date) and max_lookback_days > 0:
             from datetime import timedelta
+
             lookback_date = lookback_date - timedelta(days=1)
             max_lookback_days -= 1
 

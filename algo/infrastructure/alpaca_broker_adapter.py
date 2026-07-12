@@ -34,7 +34,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             total=3,
             backoff_factor=1,
             status_forcelist=[429, 500, 502, 503, 504],
-            allowed_methods=["GET", "POST", "PUT", "DELETE"]
+            allowed_methods=["GET", "POST", "PUT", "DELETE"],
         )
         adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxsize=10)
         self._session.mount("http://", adapter)
@@ -49,12 +49,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 logger.warning(f"Failed to close Alpaca session: {e}")
 
     def _request_with_retry(
-        self,
-        method: str,
-        url: str,
-        max_retries: int = 3,
-        initial_backoff: float = 1.0,
-        **kwargs: Any
+        self, method: str, url: str, max_retries: int = 3, initial_backoff: float = 1.0, **kwargs: Any
     ) -> requests.Response:
         """Execute HTTP request with exponential backoff retry on timeout.
 
@@ -86,8 +81,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
                 last_error = e
                 if attempt < max_retries - 1:
                     logger.warning(
-                        f"Alpaca API request timeout (attempt {attempt + 1}/{max_retries}), "
-                        f"retrying in {backoff}s: {e}"
+                        f"Alpaca API request timeout (attempt {attempt + 1}/{max_retries}), retrying in {backoff}s: {e}"
                     )
                     time.sleep(backoff)
                     backoff *= 2
@@ -288,7 +282,9 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         """
         if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
             # Paper trading without Alpaca credentials - use database state only
-            is_paper_trading = self.config.get("alpaca_paper_trading", False) if isinstance(self.config, dict) else False
+            is_paper_trading = (
+                self.config.get("alpaca_paper_trading", False) if isinstance(self.config, dict) else False
+            )
             if is_paper_trading:
                 logger.warning(
                     "[CLOSED_ORDERS] Alpaca credentials missing. "

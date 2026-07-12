@@ -92,14 +92,28 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
 
         if not row:
             logger.debug(f"[YFINANCE_DERIVED] {symbol}: yfinance_snapshot row not found")
-            return [{"symbol": symbol, "data_unavailable": True, "reason": "yfinance_snapshot_missing", "updated_at": now_et}]
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": "yfinance_snapshot_missing",
+                    "updated_at": now_et,
+                }
+            ]
 
         data_available = row.get("data_available", False)
         unavailable_reason = row.get("unavailable_reason", "")
 
         if not data_available:
             logger.debug(f"[YFINANCE_DERIVED] {symbol}: yfinance_snapshot marked unavailable ({unavailable_reason})")
-            return [{"symbol": symbol, "data_unavailable": True, "reason": unavailable_reason or "yfinance_data_unavailable", "updated_at": now_et}]
+            return [
+                {
+                    "symbol": symbol,
+                    "data_unavailable": True,
+                    "reason": unavailable_reason or "yfinance_data_unavailable",
+                    "updated_at": now_et,
+                }
+            ]
 
         # Build consolidated record with all metrics
         record = {
@@ -160,10 +174,19 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                       market_cap = EXCLUDED.market_cap, held_percent_insiders = EXCLUDED.held_percent_insiders,
                       held_percent_institutions = EXCLUDED.held_percent_institutions, updated_at = EXCLUDED.updated_at
                     """,
-                    (symbol, record.get("pe_ratio"), record.get("pb_ratio"), record.get("ps_ratio"),
-                     record.get("peg_ratio"), record.get("dividend_yield"), record.get("fcf_yield"),
-                     record.get("market_cap"), record.get("held_percent_insiders"),
-                     record.get("held_percent_institutions"), updated_at),
+                    (
+                        symbol,
+                        record.get("pe_ratio"),
+                        record.get("pb_ratio"),
+                        record.get("ps_ratio"),
+                        record.get("peg_ratio"),
+                        record.get("dividend_yield"),
+                        record.get("fcf_yield"),
+                        record.get("market_cap"),
+                        record.get("held_percent_insiders"),
+                        record.get("held_percent_institutions"),
+                        updated_at,
+                    ),
                 )
             else:
                 cur.execute(
@@ -200,8 +223,16 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                       exchange = EXCLUDED.exchange, website = EXCLUDED.website, country = EXCLUDED.country,
                       updated_at = EXCLUDED.updated_at
                     """,
-                    (symbol, record.get("long_name"), record.get("sector"), record.get("industry"),
-                     record.get("exchange"), record.get("website"), record.get("country"), updated_at),
+                    (
+                        symbol,
+                        record.get("long_name"),
+                        record.get("sector"),
+                        record.get("industry"),
+                        record.get("exchange"),
+                        record.get("website"),
+                        record.get("country"),
+                        updated_at,
+                    ),
                 )
             else:
                 cur.execute(
@@ -285,10 +316,7 @@ def main() -> int:
     try:
         return run_loader(YfinanceDerivedMetricsLoader)
     except Exception as e:
-        logger.error(
-            f"[YFINANCE_DERIVED FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}",
-            exc_info=True
-        )
+        logger.error(f"[YFINANCE_DERIVED FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         # Mark all 6 output tables unavailable
         try:
             symbols = set()

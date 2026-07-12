@@ -48,6 +48,7 @@ def get_interval_sql(interval_key: str, config: "AlgoConfig | None" = None) -> s
     """
     if config is None:
         from . import get_config
+
         config = get_config()
 
     # Map short keys to config keys
@@ -66,10 +67,7 @@ def get_interval_sql(interval_key: str, config: "AlgoConfig | None" = None) -> s
 
     config_key = key_map.get(interval_key)
     if not config_key:
-        raise ValueError(
-            f"Unknown interval key: {interval_key!r}. "
-            f"Supported: {', '.join(sorted(key_map.keys()))}"
-        )
+        raise ValueError(f"Unknown interval key: {interval_key!r}. Supported: {', '.join(sorted(key_map.keys()))}")
 
     days = config.get(config_key)
     if days is None:
@@ -93,6 +91,7 @@ def get_interval_days(interval_key: str, config: "AlgoConfig | None" = None) -> 
     """
     if config is None:
         from . import get_config
+
         config = get_config()
 
     key_map = {
@@ -110,10 +109,7 @@ def get_interval_days(interval_key: str, config: "AlgoConfig | None" = None) -> 
 
     config_key = key_map.get(interval_key)
     if not config_key:
-        raise ValueError(
-            f"Unknown interval key: {interval_key!r}. "
-            f"Supported: {', '.join(sorted(key_map.keys()))}"
-        )
+        raise ValueError(f"Unknown interval key: {interval_key!r}. Supported: {', '.join(sorted(key_map.keys()))}")
 
     value = config.get(config_key)
     if value is None:
