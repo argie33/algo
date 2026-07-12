@@ -279,8 +279,10 @@ class APIHandler(BaseHTTPRequestHandler):
                         "best_streak": 0,
                         "worst_streak": 0,
                         "current_streak": (
-                            int(metrics["current_streak"]) if ("current_streak" in metrics and metrics["current_streak"] is not None) else 0
-                        ) if metrics else 0,
+                            int(metrics["current_streak"])
+                            if (metrics and "current_streak" in metrics and metrics["current_streak"] is not None)
+                            else None
+                        ),
                         "expectancy_r": None,
                     },
                 }

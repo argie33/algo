@@ -74,6 +74,10 @@ class WatermarkManager:
                 if row:
                     watermark_str = row[0]
                     if watermark_str:
+                        # Handle both date and datetime isoformat strings
+                        # If it contains 'T', it's a datetime string - extract just the date part
+                        if 'T' in watermark_str:
+                            return _date.fromisoformat(watermark_str.split('T')[0])
                         return _date.fromisoformat(watermark_str)
                 return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -102,7 +106,9 @@ class WatermarkManager:
         """
         try:
             with DatabaseContext("write") as cur:
-                watermark_str = new_watermark.isoformat()
+                # Handle both date and datetime objects - always extract just the date part
+                watermark_date = new_watermark.date() if hasattr(new_watermark, 'date') else new_watermark
+                watermark_str = watermark_date.isoformat()
 
                 if self.granularity == "symbol":
                     if not symbol:

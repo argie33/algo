@@ -67,23 +67,24 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                     logger.warning("[PERSIST SIGNALS] Skipping signal with no symbol")
                     continue
 
-                # Explicitly validate optional fields before using (fail-fast governance)
-                if "entry_price" in signal_data and signal_data["entry_price"] is not None:
-                    entry_price = float(signal_data["entry_price"])
-                else:
-                    entry_price = 0.0
+                # Explicitly validate required financial fields (fail-fast governance)
+                if "entry_price" not in signal_data or signal_data["entry_price"] is None:
+                    logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing entry_price")
+                    continue
+                entry_price = float(signal_data["entry_price"])
 
                 if "composite_score" in signal_data and signal_data["composite_score"] is not None:
                     signal_quality_score = float(signal_data["composite_score"])
                 elif "signal_quality_score" in signal_data and signal_data["signal_quality_score"] is not None:
                     signal_quality_score = float(signal_data["signal_quality_score"])
                 else:
-                    signal_quality_score = 0.0
+                    logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing signal quality score")
+                    continue
 
-                if "risk_score" in signal_data and signal_data["risk_score"] is not None:
-                    risk_score = float(signal_data["risk_score"])
-                else:
-                    risk_score = 0.0
+                if "risk_score" not in signal_data or signal_data["risk_score"] is None:
+                    logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing risk_score")
+                    continue
+                risk_score = float(signal_data["risk_score"])
 
                 cur.execute(
                     """

@@ -1026,8 +1026,10 @@ def _get_trend_criteria(cur: cursor) -> Any:
     if not row:
         return error_response(503, "no_data", "Trend template data not yet available")
     row = safe_dict_convert(row)
-    total_symbols_val = row.get("total_symbols")
-    if total_symbols_val is None or int(total_symbols_val) == 0:
+    if "total_symbols" not in row or row["total_symbols"] is None:
+        return error_response(503, "no_data", "Trend template data not yet available")
+    total_symbols_val = row["total_symbols"]
+    if int(total_symbols_val) == 0:
         return error_response(503, "no_data", "Trend template data not yet available")
 
     total_symbols = int(row["total_symbols"])

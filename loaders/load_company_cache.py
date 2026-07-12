@@ -62,7 +62,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
             return [
                 {
                     "symbol": symbol,
-                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "fetched_at": datetime.now(timezone.utc),
                     "data_available": False,
                     "unavailable_reason": "yfinance_ticker_unavailable",
                 }
@@ -75,7 +75,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
             return [
                 {
                     "symbol": symbol,
-                    "fetched_at": datetime.now(timezone.utc).isoformat(),
+                    "fetched_at": datetime.now(timezone.utc),
                     "data_available": False,
                     "unavailable_reason": "yfinance_invalid_info_dict",
                 }
@@ -128,7 +128,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
         return [
             {
                 "symbol": symbol,
-                "fetched_at": datetime.now(timezone.utc).isoformat(),
+                "fetched_at": datetime.now(timezone.utc),
                 "pe_ratio": pe_ratio,
                 "pb_ratio": pb_ratio,
                 "ps_ratio": ps_ratio,

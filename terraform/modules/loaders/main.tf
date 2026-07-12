@@ -369,8 +369,8 @@ locals {
   all_loaders = {
     # Cost-optimized: Reduced from 1024/2048 (price fetch is I/O bound, not compute intensive)
     "stock_prices_daily" = { cpu = 512, memory = 1024, timeout = 5400, parallelism = 1 }
-    # Cost-optimized: Reduced from 2048/4096 (vectorized SQL queries on ~10k rows, moderate compute)
-    "technical_data_daily"  = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 1 }
+    # FIXED: Increased from 2048 to 4096 (vectorized SQL + pandas operations on 10k rows, OOM on 2048)
+    "technical_data_daily"  = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
