@@ -1,12 +1,22 @@
 #!/usr/bin/env python3
-"""Quality + Growth Metrics Consolidated Loader.
+"""Quality + Growth Metrics Computed from SEC Financials.
 
-Consolidates two separate SEC-based loaders into one:
+Consolidates two separate SEC-based metric loaders into one:
 - quality_metrics (ROE, margins, debt ratios)
 - growth_metrics (revenue/EPS growth)
 
-Both fetch from SEC EDGAR, so consolidating eliminates one SEC API round-trip
-and allows computing both metrics in parallel from the same financial data.
+CRITICAL DEPENDENCY: Requires load_financial_statements.py to populate:
+  - annual_income_statement (via financials_annual_income task)
+  - annual_balance_sheet (via financials_annual_balance task)
+
+Data Flow in Orchestrator:
+  1. load_financial_statements.py → SEC EDGAR API → annual_income_statement, annual_balance_sheet tables
+  2. load_quality_growth_metrics.py → Reads tables from step 1 → Computes quality/growth metrics
+  3. Orchestrator must ensure step 1 runs BEFORE step 2
+
+This two-step approach (fetch raw → compute metrics) avoids duplicate SEC API calls:
+  - Financial statements cached in DB (reused for fundamentals, quality, growth)
+  - Quality/growth computed via in-DB joins (cheaper than re-fetching)
 
 Run: python3 loaders/load_quality_growth_metrics.py [--symbols AAPL,MSFT]
 """
@@ -21,7 +31,7 @@ from typing import Any
 from psycopg2.extensions import cursor as pg_cursor
 
 from loaders.runner import run_loader
-from loaders.sec_financials_loader import SecFinancialsLoader
+from loaders.helpers.sec_base import SecFinancialsLoader
 
 logger = logging.getLogger(__name__)
 

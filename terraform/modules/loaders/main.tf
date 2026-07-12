@@ -283,19 +283,21 @@ locals {
     "technical_data_daily"  = "load_technical_indicators.py"
     "trend_template_data"   = "load_trend_analysis.py"
     "market_exposure_daily" = "load_market_exposure_daily.py"
-    "yfinance_snapshot"     = "load_company_cache.py"
+    "yfinance_snapshot"     = "load_yfinance_snapshot.py"
     "dxy_index"             = "load_dxy_index.py"
     # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
+    # Computed metrics from SEC financials (DEPENDS ON: financials_annual_income, financials_annual_balance)
+    # Reads annual_income_statement & annual_balance_sheet tables populated by load_financial_statements.py
     "quality_metrics"       = "load_quality_growth_metrics.py"
     "growth_metrics"        = "load_quality_growth_metrics.py"
     # Consolidated yfinance readers: 1 loader → 7 output tables (read snapshot once, write to 7 tables in parallel)
     # Output tables: value_metrics, positioning_metrics, company_profile, analyst_sentiment_analysis,
     #               analyst_upgrade_downgrade, earnings_calendar, earnings_history
-    "value_metrics"         = "load_fundamental_metrics.py"
-    "positioning_metrics"   = "load_fundamental_metrics.py"
-    "company_profile"       = "load_fundamental_metrics.py"
-    "earnings_history"      = "load_fundamental_metrics.py"
-    "earnings_calendar"     = "load_fundamental_metrics.py"
+    "value_metrics"         = "load_yfinance_derived_metrics.py"
+    "positioning_metrics"   = "load_yfinance_derived_metrics.py"
+    "company_profile"       = "load_yfinance_derived_metrics.py"
+    "earnings_history"      = "load_yfinance_derived_metrics.py"
+    "earnings_calendar"     = "load_yfinance_derived_metrics.py"
     "stability_metrics"     = "load_stability_metrics.py"
     "momentum_metrics"      = "load_momentum_metrics.py"
     "stock_scores"          = "load_stock_scores.py"
@@ -407,7 +409,7 @@ locals {
     "algo_metrics_daily"  = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
     # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
     "buy_sell_daily"      = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
-    # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_fundamental_metrics.py, not separate tasks
+    # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_yfinance_derived_metrics.py, not separate tasks
     # They share ECS task definition with other yfinance-derived metrics (value, positioning, company_profile, earnings*)
 
     # Cost-optimized: Reduced from 1024 to 512 (SEC filing parsing, I/O-bound not compute-bound)
