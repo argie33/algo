@@ -394,8 +394,10 @@ def load_all() -> dict[str, Any]:
     # Per-fetcher timeout is 8s each, but with 12+ concurrent fetchers and limited RDS connections,
     # some are serialized at the DB level, requiring higher batch timeout.
     critical_batch_timeout = min(60, batch_timeout)  # 60s for critical fetchers to complete
+    # Reduce workers from 15 to 6 to prevent database connection pool exhaustion
+    # when many fetchers run concurrently and all hit the RDS database
     critical_out = _execute_fetcher_batch(
-        critical_fetchers, 15, critical_batch_timeout, one, fetcher_timeout_seconds, "critical"
+        critical_fetchers, 6, critical_batch_timeout, one, fetcher_timeout_seconds, "critical"
     )
 
     # Log critical fetcher failures loudly, but degrade per-panel rather than
@@ -427,9 +429,10 @@ def load_all() -> dict[str, Any]:
     # These enhance dashboard but don't block startup
     optional_batch_timeout = max(10, batch_timeout // 10)  # 10s for optional batch
     optional_start_time = time.monotonic()
+    # Use 3 workers for optional fetchers to further reduce concurrent load
     optional_out = _execute_fetcher_batch(
         optional_fetchers,
-        6,
+        3,
         optional_batch_timeout,
         one,
         fetcher_timeout_seconds,
