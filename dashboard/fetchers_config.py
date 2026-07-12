@@ -16,60 +16,6 @@ _data_status_cache: dict[str, Any] = {}
 _data_status_lock = threading.Lock()
 
 
-def _fetch_run_from_local_db() -> dict[str, Any] | None:
-    """Fetch last orchestrator run directly from local database (fallback for auth errors).
-
-    Used when API is unavailable or requires authentication before dashboard loads.
-    """
-    try:
-        from api_utils.database_context import DatabaseContext
-
-        with DatabaseContext("read") as cur:
-            cur.execute("""
-                SELECT run_id, overall_status, created_at, phases_completed, phase_results
-                FROM orchestrator_execution_log
-                ORDER BY created_at DESC
-                LIMIT 1
-            """)
-            result = cur.fetchone()
-
-            if not result:
-                return None
-
-            # Explicitly validate result type - should be dict with RealDictCursor
-            if not isinstance(result, dict):
-                raise TypeError(
-                    f"[TYPE_ERROR] Expected dict from cursor (RealDictCursor), got {type(result).__name__}. "
-                    f"Database cursor factory may be misconfigured."
-                )
-
-            run_id = result.get("run_id")
-            status = result.get("overall_status")
-            created_at = result.get("created_at")
-
-            if not all([run_id, status, created_at]):
-                raise ValueError(
-                    f"[DATA_VALIDATION] Missing required fields in orchestrator_execution_log: "
-                    f"run_id={run_id}, overall_status={status}, created_at={created_at}"
-                )
-
-            return {
-                "_source": "local_db_fallback",
-                "run_id": run_id,
-                "run_at": str(created_at),
-                "success": status == "success",
-                "halted": False,
-                "errored": status == "error",
-                "summary": f"Last run: {status}",
-                "halt_reason": None,
-                "phases_completed": [],
-                "phases_halted": [],
-                "phases_errored": [],
-                "phase_results": [],
-            }
-    except Exception as e:
-        logger.warning(f"Local database fallback failed: {e}")
-        return None
 
 
 def clear_data_status_cache() -> None:
@@ -128,13 +74,6 @@ def fetch_run(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            # If API returns auth error (401), try local database as fallback
-            if data.get("_auth_error"):
-                logger.warning(f"API auth error - trying local database fallback")
-                fallback_data = _fetch_run_from_local_db()
-                if fallback_data:
-                    return fallback_data
-
             record_data_quality_issue("run", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)
 

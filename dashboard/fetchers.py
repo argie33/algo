@@ -215,9 +215,9 @@ def _execute_fetcher_batch(
 def load_all() -> dict[str, Any]:
     """Load all fetcher data with priority-based execution to prevent RDS connection exhaustion.
 
-    FALLBACK MODE: If API endpoints are unreachable, fetchers will use direct database queries
-    as a fallback. This ensures the dashboard can display data even if Lambda functions aren't
-    responding. Critical for development and debugging scenarios.
+    FAIL-FAST MODE: If API endpoints are unreachable, fetchers immediately return errors rather
+    than falling back to stale data. This ensures data integrity per GOVERNANCE.md. All errors
+    are explicitly logged and visible in dashboard error panels.
 
     FIXES APPLIED:
     - Issue #1: Removed duplicate api_call() stub
@@ -251,7 +251,7 @@ def load_all() -> dict[str, Any]:
     # Optional data: 6 second timeout (nice-to-have but shouldn't block critical paths)
     fetcher_timeout_seconds = {
         # Critical fetchers: 8 second timeout (API takes ~2.3s, allows for retries)
-        # Fetchers use local database fallbacks on API timeout/auth errors
+        # On timeout/error, fails fast - no silent fallbacks per GOVERNANCE.md
         "run": 8.0,
         "cfg": 8.0,
         "mkt": 8.0,
