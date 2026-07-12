@@ -215,27 +215,27 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
             if not record.get("data_unavailable"):
                 cur.execute(
                     """
-                    INSERT INTO company_profile (symbol, long_name, sector, industry, exchange, website, country, updated_at)
+                    INSERT INTO company_profile (ticker, symbol, long_name, sector, industry, exchange, website, updated_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                      long_name = EXCLUDED.long_name, sector = EXCLUDED.sector, industry = EXCLUDED.industry,
-                      exchange = EXCLUDED.exchange, website = EXCLUDED.website, country = EXCLUDED.country,
+                    ON CONFLICT (ticker) DO UPDATE SET
+                      symbol = EXCLUDED.symbol, long_name = EXCLUDED.long_name, sector = EXCLUDED.sector, industry = EXCLUDED.industry,
+                      exchange = EXCLUDED.exchange, website = EXCLUDED.website,
                       updated_at = EXCLUDED.updated_at
                     """,
                     (
+                        symbol,
                         symbol,
                         record.get("long_name"),
                         record.get("sector"),
                         record.get("industry"),
                         record.get("exchange"),
                         record.get("website"),
-                        record.get("country"),
                         updated_at,
                     ),
                 )
             else:
                 cur.execute(
-                    "INSERT INTO company_profile (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                    "INSERT INTO company_profile (ticker, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (ticker) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
                     (symbol, record.get("reason", "unknown"), updated_at),
                 )
 
