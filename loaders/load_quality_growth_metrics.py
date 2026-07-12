@@ -67,7 +67,12 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             logger.info(
                 f"[QUALITY_GROWTH] Consolidated load complete: {quality_inserts} quality, {growth_inserts} growth"
             )
-            return {"symbols_succeeded": symbols_succeeded, "symbols_failed": symbols_failed, "quality_metrics": quality_inserts, "growth_metrics": growth_inserts}
+            return {
+                "symbols_succeeded": symbols_succeeded,
+                "symbols_failed": symbols_failed,
+                "quality_metrics": quality_inserts,
+                "growth_metrics": growth_inserts,
+            }
 
         except Exception as e:
             logger.error(f"[QUALITY_GROWTH FATAL] {type(e).__name__}: {e!s}", exc_info=True)
