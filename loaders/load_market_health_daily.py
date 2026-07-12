@@ -10,7 +10,6 @@ Run: python3 load_market_health_daily.py [--parallelism 1]
 import argparse
 import logging
 import sys
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
@@ -24,6 +23,9 @@ from loaders.market_health_fetchers import (
     VIXFetcher,
     YieldCurveFetcher,
 )
+from utils.loaders.marker_factory import DataUnavailableMarker
+from utils.loaders.retry_helper import RetryHelper
+from utils.loaders.type_conversion import safe_float
 from loaders.technical_indicators import compute_moving_averages
 from utils.data.age_validator import DataAgeValidator
 from utils.db.context import DatabaseContext
@@ -376,70 +378,31 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         logger.info(f"VIX enrichment: matched {matched_count}/{len(health_metrics)} dates with valid vix_close values")
 
-    def _fetch_put_call_with_retries(
-        self, end_date: date, max_retries: int = 3, backoff_seconds: float = 1.0
-    ) -> dict[str, Any]:
-        """Fetch put/call ratio with retry logic for transient errors.
+    def _fetch_put_call_with_retries(self, end_date: date) -> dict[str, Any]:
+        """Fetch put/call ratio with automatic retry on transient errors.
 
-        Retries on transient errors (ConnectionError, timeout, 503).
-        Returns explicit data_unavailable marker dict after all retries exhausted.
-
-        Args:
-            end_date: Date to fetch put/call ratio for
-            max_retries: Maximum number of retry attempts (default 3)
-            backoff_seconds: Initial backoff delay in seconds (default 1.0)
-
-        Returns:
-            Dict with either {put_call_ratio: float} if successful,
-            or {data_unavailable: True, reason: "..."} if unavailable
+        Uses centralized retry_helper for exponential backoff logic.
+        Returns data_unavailable marker if fetch fails after retries.
         """
-        for attempt in range(max_retries):
-            try:
-                result = self._put_call_fetcher.fetch(end_date)
-                # Check if result is a dict with "data_unavailable" key
-                if isinstance(result, dict) and result.get("data_unavailable"):
-                    if "reason" not in result:
-                        raise ValueError(
-                            "[MARKET_HEALTH] Put/call fetcher returned data_unavailable=True but missing reason field. "
-                            "Data structure corruption or incomplete error handling."
-                        )
-                    reason = result["reason"]
-                    logger.debug(f"[MARKET_HEALTH] Put/call ratio unavailable from fetcher: {reason}")
-                    return {"data_unavailable": True, "reason": reason, "put_call_ratio": None}
-                # If it's a float, return it as the ratio with data_unavailable marker
-                if isinstance(result, float):
-                    return {"data_unavailable": False, "put_call_ratio": result, "reason": None}
-                # Shouldn't reach here, but handle unexpected types defensively
-                logger.debug("[MARKET_HEALTH] Put/call fetcher returned unexpected type, marking unavailable")
-                return {"data_unavailable": True, "reason": "unexpected_return_type", "put_call_ratio": None}
-            except (ConnectionError, TimeoutError) as e:
-                # Transient errors: retry with backoff
-                if attempt < max_retries - 1:
-                    wait_time = backoff_seconds * (2**attempt)  # Exponential backoff
-                    logger.warning(
-                        f"[MARKET_HEALTH] Put/call ratio fetch attempt {attempt + 1}/{max_retries} failed with "
-                        f"transient error: {type(e).__name__}: {e}. Retrying in {wait_time}s..."
-                    )
-                    time.sleep(wait_time)
-                else:
-                    logger.error(
-                        f"[MARKET_HEALTH] Put/call ratio fetch failed after {max_retries} attempts. "
-                        f"All retries exhausted on transient error: {e}"
-                    )
-                    logger.debug("[MARKET_HEALTH] Put/call ratio unavailable after max retries on transient error")
-                    return {"data_unavailable": True, "reason": "transient_error_max_retries", "put_call_ratio": None}
-            except Exception as e:
-                # Other exceptions: don't retry, mark unavailable
-                logger.warning(
-                    f"[MARKET_HEALTH] Put/call ratio fetch failed with non-transient error: {type(e).__name__}: {e}. "
-                    f"Options sentiment is optional - marking unavailable."
-                )
-                logger.debug(
-                    f"[MARKET_HEALTH] Put/call ratio unavailable due to non-transient exception: {type(e).__name__}"
-                )
-                return {"data_unavailable": True, "reason": "fetch_exception", "put_call_ratio": None}
-        logger.debug("[MARKET_HEALTH] Put/call ratio fetch exhausted all retries, marking unavailable")
-        return {"data_unavailable": True, "reason": "transient_error_max_retries", "put_call_ratio": None}
+        retry_helper = RetryHelper(max_retries=3, backoff_seconds=1.0)
+
+        def fetch_and_validate() -> dict[str, Any]:
+            result = self._put_call_fetcher.fetch(end_date)
+            if isinstance(result, dict) and result.get("data_unavailable"):
+                reason = result.get("reason", "unknown")
+                logger.debug(f"[MARKET_HEALTH] Put/call ratio unavailable from fetcher: {reason}")
+                return {"data_unavailable": True, "reason": reason, "put_call_ratio": None}
+            if isinstance(result, float):
+                return {"data_unavailable": False, "put_call_ratio": result, "reason": None}
+            logger.debug("[MARKET_HEALTH] Put/call fetcher returned unexpected type")
+            return {"data_unavailable": True, "reason": "unexpected_return_type", "put_call_ratio": None}
+
+        return retry_helper.with_retries_silent(
+            fetch_and_validate,
+            fallback={"data_unavailable": True, "reason": "transient_error_max_retries", "put_call_ratio": None},
+            context="fetch put/call ratio",
+            log_errors=True,
+        )
 
     def _merge_put_call_data(self, health_metrics: list[dict[str, Any]], end: date) -> None:
         """Merge put/call ratio into health metrics.
@@ -536,61 +499,26 @@ class MarketHealthDailyLoader(OptimalLoader):
                 f"Options sentiment is optional enrichment."
             )
 
-    def _fetch_yield_curve_with_retries(
-        self, start: date, end: date, max_retries: int = 3, backoff_seconds: float = 1.0
-    ) -> dict[str, Any]:
-        """Fetch yield curve data with retry logic for transient errors.
+    def _fetch_yield_curve_with_retries(self, start: date, end: date) -> dict[str, Any]:
+        """Fetch yield curve data with automatic retry on transient errors.
 
-        Retries on transient errors (API timeout, connection issues).
-        Returns explicit data_unavailable marker dict after all retries exhausted.
-
-        Args:
-            start: Start date for yield curve range
-            end: End date for yield curve range
-            max_retries: Maximum number of retry attempts (default 3)
-            backoff_seconds: Initial backoff delay in seconds (default 1.0)
-
-        Returns:
-            Dict with either yield curve data if successful,
-            or {data_unavailable: True, reason: "..."} if unavailable
+        Uses centralized retry_helper for exponential backoff logic.
         """
-        for attempt in range(max_retries):
-            try:
-                yield_curve = self._yield_curve_fetcher.fetch(start, end)
-                # Success: return the data (may have data_unavailable flag set by fetcher)
-                return (
-                    yield_curve
-                    if yield_curve is not None
-                    else {"data_unavailable": True, "reason": "fetcher_returned_none"}
-                )
-            except (ConnectionError, TimeoutError) as e:
-                # Transient errors: retry with backoff
-                if attempt < max_retries - 1:
-                    wait_time = backoff_seconds * (2**attempt)  # Exponential backoff
-                    logger.warning(
-                        f"[MARKET_HEALTH] Yield curve fetch attempt {attempt + 1}/{max_retries} failed with "
-                        f"transient error: {type(e).__name__}: {e}. Retrying in {wait_time}s..."
-                    )
-                    time.sleep(wait_time)
-                else:
-                    logger.error(
-                        f"[MARKET_HEALTH] Yield curve fetch failed after {max_retries} attempts. "
-                        f"All retries exhausted on transient error: {e}"
-                    )
-                    logger.debug("[MARKET_HEALTH] Yield curve unavailable after max retries on transient error")
-                    return {"data_unavailable": True, "reason": "transient_error_max_retries"}
-            except Exception as e:
-                # Other exceptions: don't retry, mark unavailable
-                logger.warning(
-                    f"[MARKET_HEALTH] Yield curve fetch failed with non-transient error: {type(e).__name__}: {e}. "
-                    f"Market regime detection will skip inversion signals."
-                )
-                logger.debug(
-                    f"[MARKET_HEALTH] Yield curve unavailable due to non-transient exception: {type(e).__name__}"
-                )
-                return {"data_unavailable": True, "reason": "fetch_exception"}
-        logger.debug("[MARKET_HEALTH] Yield curve fetch exhausted all retries, marking unavailable")
-        return {"data_unavailable": True, "reason": "transient_error_max_retries"}
+        retry_helper = RetryHelper(max_retries=3, backoff_seconds=1.0)
+
+        def fetch_and_validate() -> dict[str, Any]:
+            yield_curve = retry_helper.with_retries_silent(
+                lambda: self._yield_curve_fetcher.fetch(start, end),
+                fallback=None,
+                context="fetch yield curve",
+            )
+            return (
+                yield_curve
+                if yield_curve is not None
+                else {"data_unavailable": True, "reason": "fetcher_returned_none"}
+            )
+
+        return fetch_and_validate()
 
     def _merge_yield_curve_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge yield curve slope into health metrics.
@@ -743,26 +671,15 @@ class MarketHealthDailyLoader(OptimalLoader):
                 m["yield_curve_data_unavailable"] = True
                 m["yield_curve_unavailable_reason"] = "fetcher_exception"
 
-    def _fetch_fed_rate_with_retries(
-        self, start: date, end: date, max_retries: int = 3, backoff_seconds: float = 1.0
-    ) -> dict[str, Any]:
-        """Fetch Fed rate data from database with retry logic for transient errors.
+    def _fetch_fed_rate_with_retries(self, start: date, end: date) -> dict[str, Any]:
+        """Fetch Fed rate data from database with automatic retry on transient errors.
 
-        Retries on OperationalError (connection pool exhaustion, transient failures).
-        Raises on DatabaseError (permanent failures - table missing, permissions, etc).
-
-        Args:
-            start: Start date for query range
-            end: End date for query range
-            max_retries: Maximum number of retry attempts (default 3)
-            backoff_seconds: Initial backoff delay in seconds (default 1.0)
-
-        Returns:
-            Dict with either {fed_rate_rows: list} if successful,
-            or {data_unavailable: True, reason: "..."} if unavailable after retries.
-            Raises RuntimeError on permanent database errors.
+        Uses centralized retry_helper for exponential backoff.
+        Raises RuntimeError on permanent database errors (schema, permissions, invalid SQL).
         """
-        for attempt in range(max_retries):
+        retry_helper = RetryHelper(max_retries=3, backoff_seconds=1.0)
+
+        def fetch_fed_rates() -> dict[str, Any]:
             try:
                 with DatabaseContext("read") as cur:
                     cur.execute(
@@ -776,36 +693,19 @@ class MarketHealthDailyLoader(OptimalLoader):
                     )
                     rows = cur.fetchall()
                     return {"fed_rate_rows": rows}
-            except psycopg2.OperationalError as e:
-                # Transient error: connection pool exhaustion, temporary network issue
-                if attempt < max_retries - 1:
-                    wait_time = backoff_seconds * (2**attempt)  # Exponential backoff
-                    logger.warning(
-                        f"[MARKET_HEALTH] Fed rate fetch attempt {attempt + 1}/{max_retries} failed with "
-                        f"transient OperationalError: {e}. Retrying in {wait_time}s..."
-                    )
-                    time.sleep(wait_time)
-                else:
-                    logger.error(
-                        f"[MARKET_HEALTH] Fed rate fetch failed after {max_retries} attempts. "
-                        f"All retries exhausted on transient OperationalError: {e}"
-                    )
-                    logger.debug(
-                        "[MARKET_HEALTH] Fed rate data unavailable after max retries on database connection failure"
-                    )
-                    return {"data_unavailable": True, "reason": "database_connection_failed", "fed_rate_rows": None}
             except psycopg2.DatabaseError as e:
-                # Permanent error: invalid SQL, table missing, permissions, schema mismatch
-                logger.error(
-                    f"[MARKET_HEALTH] Fed rate fetch failed with permanent DatabaseError "
-                    f"(not retrying): {e}. Check economic_data table schema and permissions."
-                )
-                raise RuntimeError(
-                    f"[MARKET_HEALTH] Permanent database error fetching Fed rate data: {e}. "
-                    "This indicates a schema or configuration problem that requires investigation."
-                ) from e
-        logger.debug("[MARKET_HEALTH] Fed rate fetch exhausted all retries, marking unavailable")
-        return {"data_unavailable": True, "reason": "database_connection_failed", "fed_rate_rows": None}
+                logger.error(f"[MARKET_HEALTH] Permanent database error fetching Fed rate: {e}")
+                raise RuntimeError(f"[MARKET_HEALTH] Permanent database error: {e}") from e
+
+        try:
+            return retry_helper.with_retries(
+                fetch_fed_rates,
+                context="fetch Fed rate data",
+                transient_errors=(psycopg2.OperationalError, ConnectionError, TimeoutError),
+            )
+        except psycopg2.OperationalError as e:
+            logger.error(f"[MARKET_HEALTH] Fed rate fetch failed after retries: {e}")
+            return {"data_unavailable": True, "reason": "database_connection_failed", "fed_rate_rows": None}
 
     def _merge_fed_rate_environment(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge Fed rate environment classification into health metrics.
