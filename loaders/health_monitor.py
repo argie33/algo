@@ -189,7 +189,7 @@ class LoaderHealthMonitor:
             "checks": self.checks,
         }
 
-    def log_health_report(self):
+    def log_health_report(self) -> dict[str, Any]:
         """Log health report."""
         report = self.get_health_report()
         logger.info(f"System Health: {report['overall_status'].upper()}")
