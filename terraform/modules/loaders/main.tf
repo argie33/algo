@@ -298,8 +298,9 @@ locals {
     "company_profile"       = "load_yfinance_derived_metrics.py"
     "earnings_history"      = "load_yfinance_derived_metrics.py"
     "earnings_calendar"     = "load_yfinance_derived_metrics.py"
-    "stability_metrics"     = "load_stability_metrics.py"
-    "momentum_metrics"      = "load_momentum_metrics.py"
+    # Consolidated: Both metrics from single loader (Phase 5 optimization - single pass, unified watermark)
+    "stability_metrics"     = "load_risk_metrics_daily.py"
+    "momentum_metrics"      = "load_risk_metrics_daily.py"
     "stock_scores"          = "load_stock_scores.py"
 
     "market_constituents" = "load_market_constituents.py"

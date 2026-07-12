@@ -62,14 +62,9 @@ LOADERS = {
         "min_rows": 10000,
         "critical": True,
     },
-    "load_momentum_metrics.py": {
-        "output_table": "momentum_metrics",
-        "date_column": None,
-        "min_rows": 1000,
-        "critical": False,
-    },
-    "load_stability_metrics.py": {
-        "output_table": "stability_metrics",
+    # Consolidated: load_risk_metrics_daily.py writes to both momentum_metrics and stability_metrics
+    "load_risk_metrics_daily.py": {
+        "output_table": "momentum_metrics",  # Primary table (stability_metrics is side effect)
         "date_column": None,
         "min_rows": 1000,
         "critical": False,

@@ -105,13 +105,14 @@ class VIXFetcher:
 
 
 class PutCallRatioFetcher:
-    """Fetches put/call ratio with circuit breaker and exponential backoff retry logic.
+    """Fetches CBOE Put/Call Ratio Index (PCRX) with circuit breaker and caching.
 
-    Implements resilience against transient failures:
-    - Categorizes errors as TRANSIENT (503, ConnectionError, timeout) vs PERMANENT (404, auth)
+    Uses official CBOE PCRX index (more reliable than computing from options chains):
+    - Fetches PCRX ticker from yfinance (simple, single API call)
+    - Caches per trading day (fetch once morning/evening, reuse)
+    - Categorizes errors as TRANSIENT vs PERMANENT for retry logic
     - Retries TRANSIENT errors up to 3 times with exponential backoff (1s, 2s, 4s)
     - Only marks data_unavailable if all retries fail
-    - Logs all retry attempts and final failure reason
     """
 
     MAX_RETRIES = 3
