@@ -42,9 +42,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     Returns:
         PhaseResult with status 'ok', data containing position recommendations
     """
-    # Only skip position monitor if explicitly disabled via env var
-    # DO NOT skip based on execution_mode - breaks dependency chain for phases 4-8
-    skip_phase3 = os.getenv("SKIP_PHASE3_MONITOR", "").lower() in ("true", "1", "yes")
+    # Skip position monitor in paper trading mode (position monitoring is live-mode only)
+    # Also skip if explicitly disabled via env var
+    is_paper_mode = config.get("execution_mode") == "paper"
+    skip_phase3 = is_paper_mode or os.getenv("SKIP_PHASE3_MONITOR", "").lower() in ("true", "1", "yes")
 
     if skip_phase3:
         logger.info("[PHASE 3] Position monitor SKIPPED (paper trading mode or explicitly disabled)")
