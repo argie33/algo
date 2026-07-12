@@ -56,7 +56,8 @@ def _handle_basic(cur: cursor) -> Any:
     Fast health check: DB connectivity + key metrics (optimized).
     Uses simple, indexed queries only. Complex checks move to /health/detailed.
     """
-    import os as os_module  # Explicit local import to avoid NameError in Lambda
+    import os as os_module
+
     from api_router import get_import_status as get_api_import_status
 
     import_status = get_api_import_status()
@@ -251,6 +252,7 @@ def _handle_cognito(cur: cursor) -> Any:
     - cognito_user_pool_id: User pool ID from config
     """
     import os as os_module  # Explicit local import to avoid NameError
+
     import boto3
 
     try:
