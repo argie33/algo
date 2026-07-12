@@ -251,7 +251,7 @@ def _handle_cognito(cur: cursor) -> Any:
     - cognito_client_id: Actual client ID from Cognito (if verifiable)
     - cognito_user_pool_id: User pool ID from config
     """
-    import os as os_module  # Explicit local import to avoid NameError
+    import os as os_module
 
     import boto3
 
