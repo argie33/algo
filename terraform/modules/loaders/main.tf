@@ -312,6 +312,11 @@ locals {
     "buy_sell_daily"     = "load_buy_sell_daily.py"
 
     # Consolidated financial statements loader (replaces 8 separate loaders)
+    # OPTIMIZATION READY (2026-07-12): Loader now supports LOADER_STATEMENT_TYPE="all"
+    # to load all 8 statement/period combinations in sequence within single container.
+    # To activate: Update terraform to spawn single "financials_all" task with env="all"
+    # and update Step Functions pipeline to reference it. Currently keeping 8 separate
+    # tasks for backwards compatibility pending Step Functions refactor.
     "financials_annual_income"      = "load_financial_statements.py"
     "financials_annual_balance"     = "load_financial_statements.py"
     "financials_annual_cashflow"    = "load_financial_statements.py"
