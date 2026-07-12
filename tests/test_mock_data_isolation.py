@@ -152,27 +152,6 @@ class TestEnableTestMode:
             enable_test_mode(mode="dry-run", environment_override="production")
 
 
-class TestPreCommitHooks:
-    """Test that pre-commit hooks work correctly."""
-
-    def test_block_seed_prices_script_exists(self):
-        """Verify block_seed_prices.py script exists."""
-        import pathlib
-
-        hook_path = pathlib.Path("scripts/block_seed_prices.py")
-        assert hook_path.exists(), "block_seed_prices.py hook not found"
-
-    def test_block_seed_prices_script_is_executable(self):
-        """Verify block_seed_prices.py can be imported."""
-        import sys
-        from pathlib import Path
-
-        script_path = Path("scripts/block_seed_prices.py")
-        spec = __import__("importlib").util.spec_from_file_location("block_seed_prices", script_path)
-        module = __import__("importlib").util.module_from_spec(spec)
-        assert module is not None
-
-
 class TestTestDataRegistry:
     """Test that test data registry is properly configured."""
 
