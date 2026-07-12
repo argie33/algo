@@ -31,7 +31,6 @@ import json
 import logging
 import os
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 
 import boto3
 
@@ -103,7 +102,7 @@ def get_daily_costs() -> dict:
         }
     except Exception as e:
         logger.error(f"Failed to query Cost Explorer: {e}")
-        raise RuntimeError(f"Cost Explorer query failed: {str(e)}") from e
+        raise RuntimeError(f"Cost Explorer query failed: {e!s}") from e
 
 
 def disable_scheduler_rules() -> list:
@@ -141,7 +140,7 @@ def disable_scheduler_rules() -> list:
         return disabled_rules
     except Exception as e:
         logger.error(f"Failed to disable EventBridge schedules: {e}")
-        raise RuntimeError(f"Scheduler disable failed: {str(e)}") from e
+        raise RuntimeError(f"Scheduler disable failed: {e!s}") from e
 
 
 def suspend_ecs_tasks() -> dict:
@@ -190,10 +189,10 @@ def suspend_ecs_tasks() -> dict:
         }
     except Exception as e:
         logger.error(f"Failed to suspend ECS tasks: {e}")
-        raise RuntimeError(f"ECS suspension failed: {str(e)}") from e
+        raise RuntimeError(f"ECS suspension failed: {e!s}") from e
 
 
-def send_cost_alert(costs: dict, alert_type: str, suspension_details: dict = None) -> None:
+def send_cost_alert(costs: dict, alert_type: str, suspension_details: dict | None = None) -> None:
     """Send SNS alert with cost summary and suspension status.
 
     Args:
@@ -378,7 +377,7 @@ def lambda_handler(event, context):
             "body": json.dumps(
                 {
                     "status": "SUSPENDED",
-                    "reason": f"Cost query failed - fail-closed suspension triggered: {str(e)}",
+                    "reason": f"Cost query failed - fail-closed suspension triggered: {e!s}",
                 }
             ),
         }
