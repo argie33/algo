@@ -20,6 +20,16 @@ Modes:
 import os
 import sys
 
+# CRITICAL FIX: Windows console encoding (cp1252) cannot display UTF-8.
+# Redirect stdout/stderr to use UTF-8 before any Rich console creation.
+if sys.platform.startswith('win'):
+    import io
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass  # If redirection fails, continue anyway - better than crashing
+
 _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
 if _dashboard_dir in sys.path:

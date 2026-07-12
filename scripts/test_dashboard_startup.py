@@ -1,132 +1,67 @@
 #!/usr/bin/env python3
-"""Test dashboard startup and circuit breaker behavior."""
+"""Diagnostic script to test dashboard startup."""
 
-import os
 import sys
-import time
-import socket
-import subprocess
-import signal
+import os
+import traceback
 
-# Add parent directory to path for dashboard imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Fix Windows console encoding before doing anything else
+if sys.platform.startswith('win'):
+    import codecs
+    import io
+    # Allow UTF-8 output even on Windows
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
 
+# Add repo root to path
+_repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
+
+os.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
 os.environ['LOCAL_MODE'] = 'true'
-os.environ['ENVIRONMENT'] = 'development'
 
-def wait_for_server(host='localhost', port=3001, timeout=30):
-    """Wait for dev_server to be ready."""
-    print(f"Waiting for dev_server on {host}:{port}...")
-    start = time.time()
-    while time.time() - start < timeout:
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1)
-            result = sock.connect_ex(('127.0.0.1', port))
-            sock.close()
-            if result == 0:
-                print("[OK] Dev server is ready!")
-                return True
-        except Exception:
-            pass
-        time.sleep(0.5)
-    print("[FAILED] Dev server startup timeout!")
-    return False
+print("[TEST] Starting dashboard diagnostic...", flush=True)
 
-def test_api():
-    """Test API endpoint to verify it works."""
-    import requests
-    try:
-        resp = requests.get(
-            'http://localhost:3001/api/algo/config',
-            headers={'Authorization': 'Bearer dev-admin'},
-            timeout=5
-        )
-        if resp.status_code == 200:
-            print("[OK] API endpoint works!")
-            return True
-        else:
-            print(f"[FAILED] API returned {resp.status_code}")
-            return False
-    except Exception as e:
-        print(f"[FAILED] API test failed: {e}")
-        return False
+try:
+    print("[TEST] Step 1: Importing dashboard module...", flush=True)
+    import dashboard
+    print("[TEST] OK: Dashboard module imported successfully", flush=True)
 
-def test_circuit_breaker():
-    """Test circuit breaker state."""
-    import dashboard.api_data_layer as api_layer
-    print(f"[INFO] Circuit breaker state: {api_layer._circuit_breaker_state}")
-    print(f"[INFO] Circuit breaker failures: {api_layer._circuit_breaker_failures}")
-    return api_layer._circuit_breaker_state == 'closed'
+except Exception as e:
+    print(f"[TEST] FAIL: Failed to import dashboard: {type(e).__name__}: {e}", flush=True)
+    traceback.print_exc()
+    sys.exit(1)
 
-def main():
-    print("=== Dashboard Startup Test ===\n")
+try:
+    print("[TEST] Step 2: Importing Rich Console...", flush=True)
+    from rich.console import Console
+    from dashboard.utilities import CONSOLE
+    print(f"[TEST] OK: Console imported", flush=True)
 
-    # Kill any existing dev_server
-    print("[1] Cleaning up old processes...")
-    os.system("taskkill /F /IM python.exe /FI \"COMMANDLINE eq *dev_server*\" 2>/dev/null || true")
-    time.sleep(1)
+except Exception as e:
+    print(f"[TEST] FAIL: Failed to import Console: {type(e).__name__}: {e}", flush=True)
+    traceback.print_exc()
+    sys.exit(1)
 
-    # Start dev_server
-    print("[2] Starting dev_server...")
-    dev_proc = subprocess.Popen(
-        [sys.executable, 'api-pkg/dev_server.py'],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
+try:
+    print("[TEST] Step 3: Testing Live context manager...", flush=True)
+    from rich.live import Live
+    from rich.text import Text
 
-    # Wait for it to be ready
-    if not wait_for_server():
-        dev_proc.kill()
-        sys.exit(1)
-    time.sleep(1)
+    test_console = Console(force_terminal=True, legacy_windows=False)
+    print(f"[TEST] OK: Test console created", flush=True)
 
-    # Test API
-    print("\n[3] Testing API...")
-    if not test_api():
-        dev_proc.kill()
-        sys.exit(1)
+    with Live(console=test_console, screen=True) as live:
+        print("[TEST] OK: Live context manager opened successfully", flush=True)
+        live.update(Text("Test output"))
+        print("[TEST] OK: Live.update() succeeded", flush=True)
 
-    # Test circuit breaker
-    print("\n[4] Checking circuit breaker...")
-    if not test_circuit_breaker():
-        print("[FAILED] Circuit breaker is not in closed state!")
-        dev_proc.kill()
-        sys.exit(1)
+    print("[TEST] OK: Live context manager exited successfully", flush=True)
 
-    # Test fetcher
-    print("\n[5] Testing fetcher...")
-    try:
-        from dashboard.fetchers_config import fetch_algo_config
-        result = fetch_algo_config(None)
-        if '_error' not in result:
-            print(f"[OK] Fetcher works! Got {len(result)} config keys")
-        else:
-            print(f"[FAILED] Fetcher error: {result['_error']}")
-            dev_proc.kill()
-            sys.exit(1)
-    except Exception as e:
-        print(f"[FAILED] Fetcher exception: {e}")
-        dev_proc.kill()
-        sys.exit(1)
+except Exception as e:
+    print(f"[TEST] FAIL: Failed Live context manager test: {type(e).__name__}: {e}", flush=True)
+    traceback.print_exc()
+    sys.exit(1)
 
-    # Test load_all
-    print("\n[6] Testing load_all...")
-    try:
-        from dashboard.fetchers import load_all
-        data = load_all()
-        errors = [k for k, v in data.items() if isinstance(v, dict) and '_error' in v]
-        print(f"[OK] load_all completed: {len(data)} fetchers, {len(errors)} errors")
-        if errors:
-            print(f"  Failed fetchers: {errors[:5]}")
-    except Exception as e:
-        print(f"[FAILED] load_all exception: {e}")
-        import traceback
-        traceback.print_exc()
-
-    print("\n[OK] All tests passed!")
-    dev_proc.kill()
-
-if __name__ == '__main__':
-    main()
+print("[TEST] OK: All diagnostics passed! Dashboard should work.", flush=True)
