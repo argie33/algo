@@ -7,37 +7,17 @@ const cors = require("cors");
 const express = require("express");
 const helmet = require("helmet");
 const morgan = require("morgan");
-const serverlessHttp = require('serverless-http');
-
-// Only load .env.local in local development (never in Lambda/CI)
-if (!process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.CI) {
-  const envPath = path.resolve(__dirname, "../../.env.local");
-  try {
-    const envResult = require("dotenv").config({ path: envPath });
-    if (envResult.parsed) {
-      console.log(`[Startup] Loaded .env.local from ${envPath} (local development)`);
-    }
-  } catch (e) {
-    console.debug(`[Startup] .env.local not found or not readable (normal in production)`);
-  }
-}
-
-// Financial Dashboard API - Lambda Function
-// Updated: 2026-05-09 - Fixed CORS configuration + auth flow
-
-// Note: Authentication is handled by API Gateway (Cognito JWT authorizer)
-// No custom JWT signing/verification is performed in this Lambda
-// The Cognito JWT token is validated at the API Gateway level before reaching this function
+const serverlessHttp = require("serverless-http");
 
 const errorHandler = require("./middleware/errorHandler");
 const requestLogger = require("./middleware/requestLogger");
 const auditLogger = require("./middleware/auditLogger");
 const { authenticateToken } = require("./middleware/auth");
+const responseNormalizer = require("./middleware/responseNormalizer");
+const { cacheMiddleware } = require("./middleware/cacheMiddleware");
 const { initializeDatabase, initializeSchema, query } = require("./utils/database");
 const { initializeAlpacaSync } = require("./utils/alpacaSyncScheduler");
 const { marketCache } = require("./utils/market-cache");
-const responseNormalizer = require("./middleware/responseNormalizer");
-const { cacheMiddleware } = require("./middleware/cacheMiddleware");
 const { sendSuccess, sendError } = require("./utils/apiResponse");
 const auditRoutes = require("./routes/audit");
 const commoditiesRoutes = require("./routes/commodities");
@@ -58,7 +38,29 @@ const backtestsRoutes = require("./routes/backtests");
 const statusRoutes = require("./routes/status");
 const performanceRoutes = require("./routes/performance");
 const logoutRoutes = require("./routes/logout");
+// eslint-disable-next-line import/order
 const settingsRoutes = require("./routes/settings");
+
+// Financial Dashboard API - Lambda Function
+// Updated: 2026-05-09 - Fixed CORS configuration + auth flow
+
+// Note: Authentication is handled by API Gateway (Cognito JWT authorizer)
+// No custom JWT signing/verification is performed in this Lambda
+// The Cognito JWT token is validated at the API Gateway level before reaching this function
+
+// Only load .env.local in local development (never in Lambda/CI)
+if (!process.env.AWS_LAMBDA_FUNCTION_NAME && !process.env.CI) {
+  const envPath = path.resolve(__dirname, "../../.env.local");
+  try {
+    const envResult = require("dotenv").config({ path: envPath });
+    if (envResult.parsed) {
+      console.log(`[Startup] Loaded .env.local from ${envPath} (local development)`);
+    }
+  } catch (e) {
+    console.debug(`[Startup] .env.local not found or not readable (normal in production)`);
+  }
+}
+
 const app = express();
 
 // CRITICAL: Catch unhandled errors to prevent orphaned processes
