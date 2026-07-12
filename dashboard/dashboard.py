@@ -294,23 +294,32 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             state.loading = True
             state.error = None
             t0 = time.monotonic()
+            logger.info("[LOAD_DATA] Starting...")
 
             result: list[Any] = [None]
             error: list[Exception | None] = [None]
 
             def load_with_timeout() -> None:
                 try:
+                    logger.info("[LOAD_THREAD] Calling load_all()...")
                     result[0] = load_all()
+                    logger.info(f"[LOAD_THREAD] load_all() returned dict with {len(result[0]) if result[0] else 0} keys")
                 except Exception as e:
+                    logger.error(f"[LOAD_THREAD] Exception: {type(e).__name__}: {e}", exc_info=True)
                     error[0] = e
 
             load_thread = threading.Thread(target=load_with_timeout, daemon=True)
             load_thread.start()
+            logger.info("[LOAD_DATA] Waiting for thread (20s timeout)...")
             load_thread.join(timeout=20.0)
+            elapsed = time.monotonic() - t0
+            logger.info(f"[LOAD_DATA] Thread finished. Elapsed: {elapsed:.2f}s, thread alive: {load_thread.is_alive()}, result[0]: {type(result[0]).__name__ if result[0] else 'None'}")
 
             if error[0]:
+                logger.error(f"[LOAD_DATA] Raising caught error: {error[0]}")
                 raise error[0]
             if result[0] is not None:
+                logger.info(f"[LOAD_DATA] Setting state.result from {len(result[0])} items")
                 state.result = result[0]
             else:
                 logger.warning("load_all() returned None (timeout)")
@@ -319,10 +328,12 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             state.elapsed = time.monotonic() - t0
             state.last_load = time.monotonic()
             state.loading = False
+            logger.info(f"[LOAD_DATA] Complete. state.result={len(state.result) if state.result else 0} items, state.loading={state.loading}")
         except Exception as e:
             logger.error(f"Data load error: {type(e).__name__}: {e}", exc_info=True)
             state.loading = False
             state.error = f"{type(e).__name__}: {e}"
+            logger.error(f"[LOAD_DATA] Error set: {state.error}")
 
     load_data_thread = threading.Thread(target=load_data, daemon=False)
     load_data_thread.start()
