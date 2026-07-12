@@ -30,8 +30,8 @@ from typing import Any
 
 from psycopg2.extensions import cursor as pg_cursor
 
-from loaders.runner import run_loader
 from loaders.helpers.sec_base import SecFinancialsLoader
+from loaders.runner import run_loader
 
 logger = logging.getLogger(__name__)
 

@@ -3,7 +3,6 @@
 
 import logging
 import sys
-from datetime import date
 
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext

@@ -23,13 +23,11 @@ from loaders.market_health_fetchers import (
     VIXFetcher,
     YieldCurveFetcher,
 )
-from utils.loaders.marker_factory import DataUnavailableMarker
-from utils.loaders.retry_helper import RetryHelper
-from utils.loaders.type_conversion import safe_float
 from loaders.technical_indicators import compute_moving_averages
 from utils.data.age_validator import DataAgeValidator
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.retry_helper import RetryHelper
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)

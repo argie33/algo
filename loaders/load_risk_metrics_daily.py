@@ -156,7 +156,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "created_at": datetime.now(timezone.utc),
             }
 
-    def _compute_stability_row(self, symbol: str) -> dict[str, Any]:  # noqa: C901
+    def _compute_stability_row(self, symbol: str) -> dict[str, Any]:
         """Compute stability metrics and return row dict for stability_metrics table."""
         try:
             with DatabaseContext("read") as cur:
