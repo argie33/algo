@@ -123,8 +123,10 @@ class AlgoMetricsDailyLoader(OptimalLoader):
             logger.error(f"[ALGO_METRICS] {reason_msg}")
             return [
                 {
+                    "date": run_date,
                     "data_unavailable": True,
                     "reason": reason_msg,
+                    "reason_type": "loader_failed",
                 }
             ]
 

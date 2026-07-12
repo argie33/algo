@@ -386,6 +386,7 @@ class SignalsDailyLoader(OptimalLoader):
                         "date": end.isoformat(),
                         "data_unavailable": True,
                         "reason": "_fetch_signal_data returned no rows for signal date range",
+                        "reason_type": "loader_failed",
                     }
                 ]
 
@@ -401,6 +402,7 @@ class SignalsDailyLoader(OptimalLoader):
                         "date": end.isoformat(),
                         "data_unavailable": True,
                         "reason": "signal generation returned None (internal error)",
+                        "reason_type": "loader_failed",
                     }
                 ]
             elif not isinstance(signals, list):
@@ -413,6 +415,7 @@ class SignalsDailyLoader(OptimalLoader):
                         "date": end.isoformat(),
                         "data_unavailable": True,
                         "reason": f"signal generation returned {type(signals).__name__} instead of list",
+                        "reason_type": "loader_failed",
                     }
                 ]
 
@@ -440,7 +443,7 @@ class SignalsDailyLoader(OptimalLoader):
             # Truncate reason to 255 chars to fit VARCHAR(255) column
             reason = error_msg[:255] if len(error_msg) > 255 else error_msg
             logger.error(f"[BUY_SELL_DAILY] {symbol}: Signal generation failed: {error_msg}")
-            return [{"symbol": symbol, "date": end.isoformat(), "data_unavailable": True, "reason": reason}]
+            return [{"symbol": symbol, "date": end.isoformat(), "data_unavailable": True, "reason": reason, "reason_type": "loader_failed"}]
 
     def get_tech_data_age(self) -> float | None:
         """Return current batch tech_data_age for signal generation.
