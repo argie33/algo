@@ -267,19 +267,17 @@ def _get_system_health(cur: cursor) -> Any:
         # Use trading-day-aware freshness: data is fresh if it's from the most
         # recent trading day. A hardcoded day threshold causes false 'degraded'
         # on 3-day holiday weekends where Friday data is 4 calendar days old.
-        try:
-            from algo.infrastructure import MarketCalendar
+        def is_trading_day(d: date) -> bool:
+            # Simple heuristic: weekday 0-4 are trading days, 5-6 are weekends
+            # This doesn't account for holidays but provides basic correctness
+            return d.weekday() < 5
 
-            expected = today - timedelta(days=1)
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(expected):
-                    break
-                expected -= timedelta(days=1)
-            is_fresh = last_price_date_typed >= expected
-        except ImportError as e:
-            raise RuntimeError(f"MarketCalendar unavailable: cannot determine data freshness: {e}") from e
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Database error determining expected trading day: {type(e).__name__}: {e}") from e
+        expected = today - timedelta(days=1)
+        for _ in range(10):
+            if is_trading_day(expected):
+                break
+            expected -= timedelta(days=1)
+        is_fresh = last_price_date_typed >= expected
         health_data["components"]["data_freshness"] = "ok" if is_fresh else "stale"
         health_data["last_data_update"] = last_price_date_typed.isoformat()
         if not is_fresh:

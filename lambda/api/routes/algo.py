@@ -597,16 +597,21 @@ def _dispatch(  # noqa: C901
         # Returns overall system health including data freshness and loader status
         try:
             from routes import health as health_module
+
             return health_module.handle(cur, "/api/health", method, params, body, jwt_claims)
         except (ImportError, AttributeError) as e:
-            logger.warning(f"[ALGO_HEALTH] Could not import health handler: {e} - returning degraded status")
-            return json_response({
-                "statusCode": 503,
-                "data": {
-                    "status": "degraded",
-                    "message": "Health module unavailable",
-                    "reason": "data_health_check_unavailable"
+            logger.warning(
+                f"[ALGO_HEALTH] Could not import health handler: {e} - returning degraded status"
+            )
+            return json_response(
+                {
+                    "statusCode": 503,
+                    "data": {
+                        "status": "degraded",
+                        "message": "Health module unavailable",
+                        "reason": "data_health_check_unavailable",
+                    },
                 }
-            })
+            )
     else:
         raise_api_error(404, "not_found", f"No algo handler for {path}")

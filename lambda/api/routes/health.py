@@ -115,10 +115,10 @@ def _handle_basic(cur: cursor) -> Any:
         # This table is populated by the orchestrator and contains the entry/exit signals
         # used for trading decisions. MAX(signal_date) uses the btree index on signal_date for performance.
         try:
-            from algo.infrastructure import MarketCalendar
-
-            market_cal = MarketCalendar()
-            market_is_open = market_cal.is_market_open(datetime.now(timezone.utc))
+            # Simple heuristic: market is "open" if today is a weekday
+            now = datetime.now(timezone.utc)
+            today_weekday = now.weekday()
+            market_is_open = today_weekday < 5  # Monday-Friday
 
             signal_check = execute_with_timeout(
                 cur,
