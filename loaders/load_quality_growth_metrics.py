@@ -13,11 +13,13 @@ Run: python3 loaders/load_quality_growth_metrics.py [--symbols AAPL,MSFT]
 
 import logging
 import sys
+from contextlib import contextmanager
 from datetime import date
-from typing import Any
+from typing import Any, Generator
 
 from loaders.runner import run_loader
 from loaders.sec_financials_loader import SecFinancialsLoader
+from psycopg2.extensions import cursor as PgCursor
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +36,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
     watermark_field = "updated_at"
     max_fail_rate = 50.0
 
-    def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:
+    def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:  # type: ignore[override]
         """Override run() to insert to TWO tables instead of one."""
         quality_inserts = 0
         growth_inserts = 0
@@ -78,7 +80,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             logger.error(f"[QUALITY_GROWTH FATAL] {type(e).__name__}: {e!s}", exc_info=True)
             raise
 
-    def fetch_incremental(self, symbol: str, since: date | None) -> list[tuple[dict[str, Any], dict[str, Any]]]:
+    def fetch_incremental(self, symbol: str, since: date | None) -> list[tuple[dict[str, Any], dict[str, Any]]]:  # type: ignore[override]
         """Fetch SEC data once and compute BOTH quality and growth metrics.
 
         Returns tuple of (quality_dict, growth_dict).
@@ -125,7 +127,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         else:
             total_assets = stockholders_equity = total_liabilities = None
 
-        metrics = {
+        metrics: dict[str, Any] = {
             "symbol": symbol,
             "operating_margin": None,
             "net_margin": None,
@@ -168,7 +170,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
                 "updated_at": date.today().isoformat(),
             }
 
-        metrics = {
+        metrics: dict[str, Any] = {
             "symbol": symbol,
             "revenue_growth_1y": None,
             "revenue_growth_3y": None,
@@ -210,18 +212,13 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         values = tuple(record.values())
         cur.execute(query, values)
 
-    def _db_write_context(self):
+    @contextmanager
+    def _db_write_context(self) -> Generator[PgCursor, None, None]:
         """Context manager for DB writes."""
-        from contextlib import contextmanager
-
         from utils.db.context import DatabaseContext
 
-        @contextmanager
-        def context():
-            with DatabaseContext("write") as cur:
-                yield cur
-
-        return context()
+        with DatabaseContext("write") as cur:
+            yield cur
 
 
 def main() -> int:
