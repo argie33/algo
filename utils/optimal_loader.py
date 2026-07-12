@@ -771,11 +771,16 @@ class OptimalLoader:
                 with DatabaseContext("write", enable_correlation_tracking=False) as cur:
                     cur.execute("SET statement_timeout = 0")
                     cur.execute("DELETE FROM data_loader_status WHERE table_name = %s", (self.table_name,))
+                    # Convert execution_start_time from Unix timestamp to datetime
+                    execution_started = None
+                    if self._execution_start_time:
+                        execution_started = datetime.fromtimestamp(self._execution_start_time, tz=timezone.utc)
+
                     cur.execute(
                         "INSERT INTO data_loader_status "
                         "(table_name, row_count, latest_date, last_updated, status, "
                         "completion_pct, symbol_count, symbols_loaded, execution_started, execution_completed) "
-                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, NOW(), NOW())",
+                        "VALUES (%s, %s, %s, NOW(), %s, %s, %s, %s, %s, NOW())",
                         (
                             self.table_name,
                             total_rows,
@@ -784,6 +789,7 @@ class OptimalLoader:
                             completion_pct,
                             expected_symbols,
                             symbols_loaded,
+                            execution_started,
                         ),
                     )
             finally:
