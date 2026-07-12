@@ -297,7 +297,7 @@ class PutCallRatioFetcher:
                 )
 
             # Extract close price (PCRX close value is the put/call ratio)
-            pcrx_close = float(pcrx_data["Close"].iloc[0])
+            pcrx_close = float(pcrx_data["Close"].iloc[0].item())
 
             if pcrx_close <= 0:
                 raise RuntimeError(
