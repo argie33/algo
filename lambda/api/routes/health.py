@@ -57,6 +57,7 @@ def _handle_basic(cur: cursor) -> Any:
     Fast health check: DB connectivity + key metrics (optimized).
     Uses simple, indexed queries only. Complex checks move to /health/detailed.
     """
+    import os as os_module  # Explicit local import to avoid NameError in Lambda
     from api_router import get_import_status as get_api_import_status
 
     import_status = get_api_import_status()
@@ -135,7 +136,7 @@ def _handle_basic(cur: cursor) -> Any:
                     # CRITICAL FIX: Don't mark as critical for stale signals during development
                     # In production/testing, stale signals are still a problem but shouldn't BLOCK the API
                     # Allow dashboard to load even with stale signals - warn but don't 503
-                    is_local_dev = os.getenv("LOCAL_MODE", "").lower() == "true"
+                    is_local_dev = os_module.getenv("LOCAL_MODE", "").lower() == "true"
 
                     if age_hours > config.signal_stale_threshold_hours and market_is_open:
                         # In local dev mode, don't mark as critical - just warn
@@ -158,7 +159,7 @@ def _handle_basic(cur: cursor) -> Any:
                     # No signal data available — allow graceful degradation
                     # This is expected during first initialization or when loaders haven't run yet
                     # Don't mark as critical during non-market hours (loaders don't run then)
-                    is_local_dev = os.getenv("LOCAL_MODE", "").lower() == "true"
+                    is_local_dev = os_module.getenv("LOCAL_MODE", "").lower() == "true"
                     logger.info(
                         f"[HEALTH INFO] Signal data unavailable yet - loaders may not have run (LOCAL_MODE={is_local_dev})"
                     )
@@ -250,12 +251,13 @@ def _handle_cognito(cur: cursor) -> Any:
     - cognito_client_id: Actual client ID from Cognito (if verifiable)
     - cognito_user_pool_id: User pool ID from config
     """
+    import os as os_module  # Explicit local import to avoid NameError
     import boto3
 
     try:
-        configured_client_id = os.getenv("COGNITO_CLIENT_ID", "").strip()
-        cognito_user_pool_id = os.getenv("COGNITO_USER_POOL_ID", "").strip()
-        cognito_region = os.getenv("AWS_REGION", "us-east-1").strip()
+        configured_client_id = os_module.getenv("COGNITO_CLIENT_ID", "").strip()
+        cognito_user_pool_id = os_module.getenv("COGNITO_USER_POOL_ID", "").strip()
+        cognito_region = os_module.getenv("AWS_REGION", "us-east-1").strip()
 
         health: dict[str, Any] = {
             "status": "healthy",
