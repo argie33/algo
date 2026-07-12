@@ -1404,8 +1404,6 @@ def _get_cap_distribution(cur: cursor) -> Any:
 
 def _get_index_symbols() -> list[str]:
     """Get market index symbols from configuration."""
-    from typing import cast
-
     from utils.market_symbols_config import MarketSymbolsConfig
 
     return MarketSymbolsConfig.get_index_symbols()
@@ -1413,8 +1411,6 @@ def _get_index_symbols() -> list[str]:
 
 def _get_index_names() -> dict[str, str]:
     """Get index symbol names from configuration."""
-    from typing import cast
-
     from utils.market_symbols_config import MarketSymbolsConfig
 
     return MarketSymbolsConfig.get_index_names()
