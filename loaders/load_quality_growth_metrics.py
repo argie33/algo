@@ -13,13 +13,15 @@ Run: python3 loaders/load_quality_growth_metrics.py [--symbols AAPL,MSFT]
 
 import logging
 import sys
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import date
-from typing import Any, Generator
+from typing import Any
+
+from psycopg2.extensions import cursor as pg_cursor
 
 from loaders.runner import run_loader
 from loaders.sec_financials_loader import SecFinancialsLoader
-from psycopg2.extensions import cursor as PgCursor
 
 logger = logging.getLogger(__name__)
 
@@ -213,7 +215,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         cur.execute(query, values)
 
     @contextmanager
-    def _db_write_context(self) -> Generator[PgCursor, None, None]:
+    def _db_write_context(self) -> Generator[pg_cursor, None, None]:
         """Context manager for DB writes."""
         from utils.db.context import DatabaseContext
 
