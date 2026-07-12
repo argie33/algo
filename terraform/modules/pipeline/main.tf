@@ -1,4 +1,4 @@
-﻿// Step Functions state machines for dependency-driven data loading pipelines.
+// Step Functions state machines for dependency-driven data loading pipelines.
 // Replaces EventBridge cron rules with guaranteed ordering: orchestrator runs only when
 // all signal data is ready. Timeout strategy: expected + 2-3x safety margin, fail fast on real failures.
 
@@ -58,7 +58,7 @@ resource "aws_iam_role_policy" "sfn_pipeline" {
         ]
       },
       {
-        # Required for ecs:runTask.sync â€” Step Functions uses EventBridge internally
+        # Required for ecs:runTask.sync — Step Functions uses EventBridge internally
         Sid    = "EventBridgeSync"
         Effect = "Allow"
         Action = [
@@ -135,11 +135,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
   }
 
   definition = jsonencode({
-    Comment = "EOD data loading pipeline: symbols â†’ prices â†’ technicals â†’ scores â†’ signals â†’ orchestrator"
+    Comment = "EOD data loading pipeline: symbols → prices → technicals → scores → signals → orchestrator"
     StartAt = "CheckTradingDay"
 
     States = {
-      # â”€â”€ Pre-flight: Skip pipeline on non-trading days (weekends, holidays) â”€â”€
+      # ── Pre-flight: Skip pipeline on non-trading days (weekends, holidays) ──
       CheckTradingDay = {
         Type = "Pass"
         Parameters = {
@@ -149,7 +149,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Comment = "On non-trading days (weekends/holidays), EventBridge won't trigger. If it does, pipeline succeeds harmlessly."
       }
 
-      # â”€â”€ Step 0: Load reference data (symbols) first â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Step 0: Load reference data (symbols) first ──────────
       # Must run before prices to ensure new symbols are included
       StockSymbols = {
         Type           = "Task"
@@ -198,7 +198,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "EodBulkPrices"
       }
 
-      # â”€â”€ Step 1: Load today's close prices for all 5000+ symbols â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Step 1: Load today's close prices for all 5000+ symbols ──────────
       # CRITICAL LOADER (FAIL-CLOSED): Must succeed or entire pipeline halts.
       # parallelism=1, batch=100, cpu=2048: ~5.5min expected (serial execution to prevent rate limiting)
       # Timeout hierarchy: ECS container timeout (25200=7h) < Step Functions state timeout (21600=6h)
@@ -209,7 +209,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       #
       # Root causes addressed in production:
       # - yfinance rate limiting: Reduced parallelism from 6 to 1 (serial execution)
-      # - RDS pool exhaustion: Enabled RDS Proxy (multiplexes 24 loaders â†’ 20-30 connections)
+      # - RDS pool exhaustion: Enabled RDS Proxy (multiplexes 24 loaders → 20-30 connections)
       # - Market close data lag: Market close polling added (15s timeouts, rapid checks)
       EodBulkPrices = {
         Type           = "Task"
@@ -277,8 +277,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Cause = "stock_prices_daily failed after retries. Pipeline halted to prevent trading on stale data. Check CloudWatch logs for details."
       }
 
-      # â”€â”€ Step 2: Trend template (parallel enrichment) â”€
-      # REFACTORED: Removed technical_data_daily (90 min) â€” orchestrator Phase 5 computes signals on-the-fly.
+      # ── Step 2: Trend template (parallel enrichment) ─
+      # REFACTORED: Removed technical_data_daily (90 min) — orchestrator Phase 5 computes signals on-the-fly.
       # FIXED: Moved market_health_daily to run AFTER technical_data_daily (Step 8b) to ensure breadth_data dependencies complete.
       # FIXED: Moved market_exposure_daily to run AFTER sector_ranking (Step 8c) to ensure all dependencies complete.
       # Now only trend_template runs in parallel for maximum speed.
@@ -304,6 +304,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
+                End = true
               }
             }
           }
@@ -342,9 +343,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       }
 
 
-      # â”€â”€ Step 7: Summarize signal quality metrics â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Step 7: Summarize signal quality metrics ──────────────────────────
       # parallelism=4: ~12 min expected, 2h timeout for safety.
-      # FIXED Issue #4: Graceful degradation â€” if metrics fail, continue with available data
+      # FIXED Issue #4: Graceful degradation — if metrics fail, continue with available data
       AlgoMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -392,7 +393,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "TechnicalDataDaily"
       }
 
-      # â”€â”€ Step 8: Technical Data Daily (depends on prices) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Step 8: Technical Data Daily (depends on prices) ──────────────
       # REQUIRED BY PHASE 1 & BUY_SELL_DAILY: Computes RSI, MACD, ATR, Bollinger Bands, etc.
       # buy_sell_daily loader validates that technical_data_daily is fresh before generating signals.
       # Uses vectorized loader: 5000+ symbols in 15-25 minutes (single bulk fetch + vectorized pandas ops).
@@ -460,7 +461,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Cause = "technical_data_daily failed after retries. Pipeline halted because buy_sell_daily requires fresh technical indicators. Check CloudWatch logs for details."
       }
 
-      # â”€â”€ Step 8b: Market Health Daily (depends on technical_data_daily) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Step 8b: Market Health Daily (depends on technical_data_daily) ──────────────
       # FIXED: Moved from ParallelEnrichment to sequential execution after TechnicalDataDaily.
       # market_health_daily._merge_breadth_data() requires technical_data_daily to be fresh.
       # Previously ran in parallel, causing "stale technical_data_daily" errors.
@@ -513,7 +514,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "BuySellDaily"
       }
 
-      # â”€â”€ Step 8c: Buy/Sell Daily Signals (depends on prices + scores + technical data) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Step 8c: Buy/Sell Daily Signals (depends on prices + scores + technical data) ──────────────
       # CRITICAL FOR PHASE 5: Must provide fresh buy_sell_daily BUY signals.
       # Phase 5 signal generation uses these signals as primary path (with composite_score ranking).
       # Depends on: stock_prices_daily (completed), swing_trader_scores (completed), technical_data_daily (completed)
@@ -566,7 +567,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "SectorRanking"
       }
 
-      # â”€â”€ Step 8c: Sector ranking (depends on stock_scores) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Step 8c: Sector ranking (depends on stock_scores) ──────────────
       # CRITICAL: Must run before orchestrator to ensure Phase 3 and Phase 5 have current sector data.
       # Runs after swing_trader_scores completes. Timeout 900 seconds (15 minutes).
       SectorRanking = {
@@ -616,7 +617,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "MarketExposureDaily"
       }
 
-      # â”€â”€ Step 8d: Market exposure limits â€” CRITICAL for Phase 1 freshness check â”€â”€
+      # ── Step 8d: Market exposure limits — CRITICAL for Phase 1 freshness check ──
       # FIXED: Moved from ParallelEnrichment (was timing out at 600s) to run AFTER sector_ranking.
       # Now has 600+ seconds guaranteed with all dependencies complete:
       # - market_health_daily (VIX, put/call, breadth, new highs/lows)
@@ -672,7 +673,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "DataPatrol"
       }
 
-      # â”€â”€ Step 8e: Data patrol â€” validates data quality before orchestrator runs â”€â”€
+      # ── Step 8e: Data patrol — validates data quality before orchestrator runs ──
       # Runs algo/algo_data_patrol.py, writes findings to data_patrol_log.
       # Orchestrator Phase 1 reads data_patrol_log; CRITICAL findings block trading.
       # Fail-open: if patrol itself errors, pipeline continues (Phase 1 passes vacuously).
@@ -723,14 +724,14 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "TriggerOrchestrator"
       }
 
-      # â”€â”€ Step 9: Validate pipeline completion (dry-run only) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Step 9: Validate pipeline completion (dry-run only) ──────────────
       # The Lambda orchestrator (EventBridge at 9:30 AM ET) is the trading trigger.
       # This ECS step runs dry_run=true: validates all data loaded, logs phase results,
       # but does NOT place orders. Prevents double-execution vs. the 9:30 AM Lambda.
       # FIXED Issue #15: Container overrides are intentionally STATIC for EOD pipeline
       # (execution_mode=paper, dry_run=true). Dynamic overrides not needed since this
       # is always a dry-run validation step, not a trading decision step.
-      # FIXED Issue #4: Graceful degradation â€” if validation fails, pipeline succeeds anyway
+      # FIXED Issue #4: Graceful degradation — if validation fails, pipeline succeeds anyway
       # (actual trading logic runs at 9:30 AM Lambda, this is just an early check)
       TriggerOrchestrator = {
         Type           = "Task"
@@ -880,7 +881,7 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
     StartAt = "YfinanceDerivedMetrics"
 
     States = {
-      # â”€â”€ Consolidated Yfinance Derived Metrics â”€â”€
+      # ── Consolidated Yfinance Derived Metrics ──
       # CONSOLIDATION: Combines 6 separate loaders into 1 that writes to all 7 tables:
       # - value_metrics (P/E, P/B, P/S, dividend yield, FCF yield, market cap)
       # - positioning_metrics (short interest)
@@ -949,7 +950,7 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
 # ============================================================
 # Morning Prep Pipeline - Separate State Machine
 # FIXED Issue #5: Split morning and EOD pipelines to prevent signal double-generation
-# Morning (2:00 AM ET): Load prices â†’ market health â†’ swing scores â†’ sector ranking
+# Morning (2:00 AM ET): Load prices → market health → swing scores → sector ranking
 # FIXED Issue #13: Signals NOT generated here; orchestrator regenerates at 9:30 AM using fresh data
 # FIXED 2026-06-02: Added market_health_daily to morning pipeline (was only in EOD).
 # If EOD pipeline fails, market health data went stale; now refreshed daily at 3:30 AM.
@@ -1061,7 +1062,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Cause = "stock_prices_daily failed during morning prep. Pipeline halted to prevent trading on stale data. Morning prep needs 7.5 hours to complete before market open. Check CloudWatch logs for details (yfinance rate limiting, RDS issues, or network problems)."
       }
 
-      # â”€â”€ Morning market health + trend template (parallel enrichment, fail-open) â”€
+      # ── Morning market health + trend template (parallel enrichment, fail-open) ─
       # FIXED: Implement market_health_daily in morning pipeline (was only in EOD)
       # If EOD pipeline fails, market health data is now refreshed at 3:30 AM each day
       # Fail-open: if either enrichment fails, orchestrator continues with stale data instead of halting
@@ -1087,6 +1088,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
+                End = true
               }
             }
           },
@@ -1109,6 +1111,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
+                End = true
               }
             }
           }
@@ -1145,7 +1148,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Next = "MorningMarketExposure"
       }
 
-      # â”€â”€ Morning market exposure (fresh regime for 9:30 AM orchestrator) â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Morning market exposure (fresh regime for 9:30 AM orchestrator) ────────
       # CRITICAL FIX: Eliminates EOD-only single point of failure
       # If EOD pipeline fails, morning pipeline ensures market_exposure_daily is fresh for:
       # - 9:30 AM orchestrator run (9+ hours until EOD)
@@ -1178,7 +1181,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Next = "MorningTechnicalData"
       }
 
-      # â”€â”€ Morning technical data daily (required for Phase 1 freshness) â”€â”€
+      # ── Morning technical data daily (required for Phase 1 freshness) ──
       # FIXED Issue #18: Add technical_data_daily to morning pipeline for redundancy
       # If EOD pipeline fails, morning pipeline ensures technical_data_daily is fresh for Phase 1 checks
       # and Phase 5 signal generation that may run later in the day.
@@ -1209,9 +1212,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Next = "MorningSectorRanking"
       }
 
-      # â”€â”€ Morning sector ranking (depends on technical_data_daily) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Morning sector ranking (depends on technical_data_daily) ──────────
       # CRITICAL: Must run before orchestrator to ensure Phase 3 and Phase 5 have current sector data.
-      # Timeout 900 seconds (15 minutes) â€” same as EOD pipeline sector ranking.
+      # Timeout 900 seconds (15 minutes) — same as EOD pipeline sector ranking.
       MorningSectorRanking = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -1255,18 +1258,18 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
 # ============================================================
 # Computed Metrics Pipeline - Daily Stock Metrics
 # FIXED Issue #31: Wire quality/growth/value/stability loaders into Step Functions
-# FIXED 2026-07-05: Growth metrics now CRITICAL â†’ require financial data; increased schedule buffer
+# FIXED 2026-07-05: Growth metrics now CRITICAL → require financial data; increased schedule buffer
 #
 # Timeline:
-# - 4:05 PM ET: financial_data_pipeline starts (timeout 110 min â†’ completes by ~5:55 PM)
+# - 4:05 PM ET: financial_data_pipeline starts (timeout 110 min → completes by ~5:55 PM)
 # - 7:00 PM ET: computed_metrics_pipeline starts (175 min buffer ensures financial data ready)
 #
 # Why 175-min buffer: financial pipeline 6600s (110 min) + 60 min margin of safety
 # Growth/quality metrics depend on annual_income_statement, balance_sheet, cash_flow
 # If financial data incomplete at 7:00 PM:
-# - growth_metrics â†’ data_unavailable markers
-# - Phase 1 failsafe â†’ retries (now critical)
-# - stock_scores validates 70% coverage â†’ explicit fail-fast if insufficient
+# - growth_metrics → data_unavailable markers
+# - Phase 1 failsafe → retries (now critical)
+# - stock_scores validates 70% coverage → explicit fail-fast if insufficient
 # Result: No silent degradation; missing financials = explicit data_unavailable flags
 # ============================================================
 
@@ -1286,7 +1289,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
     StartAt = "YFinanceSnapshot"
 
     States = {
-      # â”€â”€ Fetch yfinance snapshot once (all PE, PB, PS, dividend, beta, volatility for all symbols) â”€â”€
+      # ── Fetch yfinance snapshot once (all PE, PB, PS, dividend, beta, volatility for all symbols) ──
       # CRITICAL FIX 2026-07-02: Consolidated yfinance calls into single snapshot loader to fix rate limiting.
       # Fetches once per symbol, caches 24h. Eliminates 6x redundant API calls (value_metrics, positioning, stability).
       # Before: value_metrics parallelism=2 took 176 min due to rate limiting. After: 2h expected, reads from cache.
@@ -1337,7 +1340,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Next = "FinancialDataLoaders"
       }
 
-      # â”€â”€ Financial Data Loaders (Parallel) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+      # ── Financial Data Loaders (Parallel) ──────────────────────────
       # CONSOLIDATED: Moved from separate state machine (financial_data_pipeline)
       # into main EOD pipeline for unified monitoring and dependency management.
       # Runs 9 loaders in PARALLEL (not sequential), reducing execution time
@@ -1374,6 +1377,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsAnnualIncomeFailure"
                   ResultPath  = "$.loaderError"
                 }]
+                End = true
               }
               LogFinancialsAnnualIncomeFailure = {
                 Type     = "Task"
@@ -1390,6 +1394,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
+                Catch = [{
+                  ErrorEquals = ["States.ALL"]
+                  End         = true
+                  ResultPath  = "$.logError"
+                }]
+                End = true
               }
             }
           },
@@ -1417,6 +1427,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsAnnualBalanceFailure"
                   ResultPath  = "$.loaderError"
                 }]
+                End = true
               }
               LogFinancialsAnnualBalanceFailure = {
                 Type     = "Task"
@@ -1434,8 +1445,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]                  ResultPath  = "$.logError"
+                  ErrorEquals = ["States.ALL"]
+                  End         = true
+                  ResultPath  = "$.logError"
                 }]
+                End = true
               }
             }
           },
@@ -1463,6 +1477,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsAnnualCashflowFailure"
                   ResultPath  = "$.loaderError"
                 }]
+                End = true
               }
               LogFinancialsAnnualCashflowFailure = {
                 Type     = "Task"
@@ -1480,8 +1495,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]                  ResultPath  = "$.logError"
+                  ErrorEquals = ["States.ALL"]
+                  End         = true
+                  ResultPath  = "$.logError"
                 }]
+                End = true
               }
             }
           },
@@ -1509,6 +1527,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsQuarterlyIncomeFailure"
                   ResultPath  = "$.loaderError"
                 }]
+                End = true
               }
               LogFinancialsQuarterlyIncomeFailure = {
                 Type     = "Task"
@@ -1526,8 +1545,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]                  ResultPath  = "$.logError"
+                  ErrorEquals = ["States.ALL"]
+                  End         = true
+                  ResultPath  = "$.logError"
                 }]
+                End = true
               }
             }
           },
@@ -1555,6 +1577,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsQuarterlyBalanceFailure"
                   ResultPath  = "$.loaderError"
                 }]
+                End = true
               }
               LogFinancialsQuarterlyBalanceFailure = {
                 Type     = "Task"
@@ -1572,8 +1595,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]                  ResultPath  = "$.logError"
+                  ErrorEquals = ["States.ALL"]
+                  End         = true
+                  ResultPath  = "$.logError"
                 }]
+                End = true
               }
             }
           },
@@ -1601,6 +1627,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsQuarterlyCashflowFailure"
                   ResultPath  = "$.loaderError"
                 }]
+                End = true
               }
               LogFinancialsQuarterlyCashflowFailure = {
                 Type     = "Task"
@@ -1618,8 +1645,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]                  ResultPath  = "$.logError"
+                  ErrorEquals = ["States.ALL"]
+                  End         = true
+                  ResultPath  = "$.logError"
                 }]
+                End = true
               }
             }
           },
@@ -1647,6 +1677,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsTTMIncomeFailure"
                   ResultPath  = "$.loaderError"
                 }]
+                End = true
               }
               LogFinancialsTTMIncomeFailure = {
                 Type     = "Task"
@@ -1664,8 +1695,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]                  ResultPath  = "$.logError"
+                  ErrorEquals = ["States.ALL"]
+                  End         = true
+                  ResultPath  = "$.logError"
                 }]
+                End = true
               }
             }
           },
@@ -1693,6 +1727,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsTTMCashflowFailure"
                   ResultPath  = "$.loaderError"
                 }]
+                End = true
               }
               LogFinancialsTTMCashflowFailure = {
                 Type     = "Task"
@@ -1710,8 +1745,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]                  ResultPath  = "$.logError"
+                  ErrorEquals = ["States.ALL"]
+                  End         = true
+                  ResultPath  = "$.logError"
                 }]
+                End = true
               }
             }
           }
@@ -1748,7 +1786,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Next = "GrowthMetrics"
       }
 
-      # â”€â”€ Growth Metrics (depends on financial data) â”€â”€
+      # ── Growth Metrics (depends on financial data) ──
       # FIXED: Realistic timeout of 110 minutes (2.7x expected 41 min max)
       # With parallelism=2, execution takes ~20-41 minutes; 6600s provides good detection of hangs
       GrowthMetrics = {
@@ -1806,7 +1844,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Next = "QualityMetrics"
       }
 
-      # â”€â”€ Quality Metrics (depends on financial data) â”€â”€
+      # ── Quality Metrics (depends on financial data) ──
       # FIXED: Realistic timeout of 110 minutes (2.7x expected 41 min max)
       # With parallelism=2, execution takes ~20-41 minutes; 6600s provides good detection of hangs
       QualityMetrics = {
@@ -1864,7 +1902,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Next = "ValueMetrics"
       }
 
-      # â”€â”€ Value Metrics (independent of financial data) â”€â”€
+      # ── Value Metrics (independent of financial data) ──
       # FIXED 2026-07-02: Now reads from yfinance_snapshot table (consolidated fetch) instead of calling yfinance.
       # Timeout reduced from 21600s (6h) to 1800s (30m) since it's just DB reads, not API calls.
       # Previous timeout was needed because yfinance rate limiting caused ~176 min delays. That's now eliminated.
@@ -1915,7 +1953,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Next = "StabilityMetrics"
       }
 
-      # â”€â”€ Stability Metrics (independent of financial data) â”€â”€
+      # ── Stability Metrics (independent of financial data) ──
       # FIXED: Increase timeout from 1800s (30m) to 3600s (1h) to safely compute volatility and beta for all 5000+ symbols
       StabilityMetrics = {
         Type           = "Task"
@@ -1964,7 +2002,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Next = "StockScores"
       }
 
-      # â”€â”€ Stock Composite Scores (depends on all above metrics) â”€â”€
+      # ── Stock Composite Scores (depends on all above metrics) ──
       # FIXED: Realistic timeout of 60 minutes (2x expected 30 min)
       StockScores = {
         Type           = "Task"
@@ -2039,7 +2077,7 @@ resource "aws_cloudwatch_metric_alarm" "morning_pipeline_timeout_risk" {
   namespace           = "AWS/States"
   period              = 60
   statistic           = "Maximum"
-  threshold           = 16200 # 4.5 hours (270 min) â€” alert if running >270 min at 9:00 AM
+  threshold           = 16200 # 4.5 hours (270 min) — alert if running >270 min at 9:00 AM
   alarm_description   = "Morning pipeline running >4.5h (started 4:30 AM ET). May not complete before 9:30 AM orchestrator run."
   alarm_actions       = var.sns_alerts_enabled ? [var.sns_alert_topic_arn] : []
 
@@ -2141,10 +2179,10 @@ resource "aws_cloudwatch_log_group" "eventbridge_scheduler" {
 # EventBridge Scheduler (timezone-aware): all pipelines use America/New_York so they
 # fire at the correct wall-clock time year-round regardless of EST/EDT offset.
 #
-# Morning: 2:00 AM ET   â€” loads prices + technicals before market open (7h 30m before 9:30 AM, 210min buffer)
-# Afternoon: 12:50 PM ET â€” fresh scores 10 min before 1 PM orchestrator
-# Preclose: 2:50 PM ET   â€” fresh scores 10 min before 3 PM orchestrator (SLA critical)
-# EOD:     4:05 PM ET    â€” 5 min after market close, gives Alpaca time to settle prices
+# Morning: 2:00 AM ET   — loads prices + technicals before market open (7h 30m before 9:30 AM, 210min buffer)
+# Afternoon: 12:50 PM ET — fresh scores 10 min before 1 PM orchestrator
+# Preclose: 2:50 PM ET   — fresh scores 10 min before 3 PM orchestrator (SLA critical)
+# EOD:     4:05 PM ET    — 5 min after market close, gives Alpaca time to settle prices
 
 resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
   name                         = "${var.project_name}-morning-pipeline-${var.environment}"
@@ -2279,7 +2317,7 @@ resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
 resource "aws_cloudwatch_metric_alarm" "eod_pipeline_failed" {
   count               = var.sns_alerts_enabled ? 1 : 0
   alarm_name          = "${var.project_name}-eod-pipeline-failed-${var.environment}"
-  alarm_description   = "EOD data pipeline execution failed â€” orchestrator may not have run"
+  alarm_description   = "EOD data pipeline execution failed — orchestrator may not have run"
   namespace           = "AWS/States"
   metric_name         = "ExecutionsFailed"
   dimensions          = { StateMachineArn = aws_sfn_state_machine.eod_pipeline.arn }
@@ -2328,4 +2366,3 @@ resource "aws_cloudwatch_metric_alarm" "morning_pipeline_slow" {
   treat_missing_data  = "notBreaching"
   tags                = var.common_tags
 }
-
