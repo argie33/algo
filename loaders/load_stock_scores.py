@@ -39,6 +39,7 @@ import psycopg2  # noqa: E402
 
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
+from utils.loaders.unavailable_markers import marker_loader_failed, marker_not_applicable  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 from utils.type_conversion import safe_float  # noqa: E402
 
@@ -606,7 +607,7 @@ class StockScoresLoader(OptimalLoader):
                         f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in quality_metrics "
                         f"(likely REIT or security with missing SEC filings)"
                     )
-                    return {"symbol": symbol, "data_unavailable": True, "reason": "quality_data_marked_unavailable"}
+                    return marker_not_applicable(symbol, "quality_metrics")
                 # Row exists and data is available
                 return {
                     "roe": safe_float(row[0], f"{symbol}.roe"),
@@ -622,7 +623,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced"
             )
-            return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_metrics_found"}
+            return marker_loader_failed(symbol, "no_quality_metrics", "Quality metrics table missing data")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching quality metrics for {symbol}: {e}") from e
 
@@ -667,7 +668,7 @@ class StockScoresLoader(OptimalLoader):
                         f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in growth_metrics "
                         f"(likely security with missing SEC filings)"
                     )
-                    return {"symbol": symbol, "data_unavailable": True, "reason": "growth_data_marked_unavailable"}
+                    return marker_not_applicable(symbol, "growth_metrics")
                 # Row exists and data is available
                 return {
                     "revenue_growth_1y": safe_float(row[0], f"{symbol}.revenue_growth_1y"),
@@ -681,7 +682,7 @@ class StockScoresLoader(OptimalLoader):
             logger.warning(
                 f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced"
             )
-            return {"symbol": symbol, "data_unavailable": True, "reason": "no_growth_metrics_found"}
+            return marker_loader_failed(symbol, "no_growth_metrics", "Growth metrics table missing data")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e
 
