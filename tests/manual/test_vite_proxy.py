@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test if Vite proxy is forwarding API requests correctly"""
-import requests
 import json
 import time
+
+import requests
 
 print("=" * 70)
 print("VITE PROXY TEST - Simulating browser API calls")
@@ -20,7 +21,7 @@ try:
     print(f"    Status: {resp.status_code}")
     if resp.status_code == 200:
         data = resp.json()
-        print(f"    [OK] Backend responding correctly")
+        print("    [OK] Backend responding correctly")
         print(f"         Response has: {list(data.keys())}")
     else:
         print(f"    [FAIL] Status {resp.status_code}")
@@ -42,7 +43,7 @@ try:
     print(f"    Status: {resp.status_code}")
     if resp.status_code == 200:
         data = resp.json()
-        print(f"    [OK] Proxy forwarding correctly")
+        print("    [OK] Proxy forwarding correctly")
         print(f"         Response has: {list(data.keys())}")
     elif resp.status_code in [404, 502, 503]:
         print(f"    [FAIL] Proxy not forwarding: {resp.status_code}")
@@ -51,7 +52,7 @@ try:
         print(f"    [FAIL] Unexpected status: {resp.status_code}")
         print(f"           Response: {resp.text[:200]}")
 except requests.ConnectionError as e:
-    print(f"    [ERROR] Connection refused - Vite proxy not listening?")
+    print("    [ERROR] Connection refused - Vite proxy not listening?")
     print(f"           {e}")
 except Exception as e:
     print(f"    [ERROR] {e}")

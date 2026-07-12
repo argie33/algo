@@ -4,11 +4,10 @@ Tracks loader performance, data freshness, and system health.
 Provides early warning for potential issues.
 """
 
-from typing import Dict, List, Any
-from datetime import datetime, timedelta
 import logging
-import psycopg2
+from datetime import datetime
 from enum import Enum
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,9 +26,9 @@ class LoaderHealthMonitor:
         """Initialize monitor with database connection."""
         self.conn = conn
         self.status = HealthStatus.HEALTHY
-        self.checks: List[Dict[str, Any]] = []
+        self.checks: list[dict[str, Any]] = []
 
-    def check_loader_execution_rate(self, hours: int = 24) -> Dict[str, Any]:
+    def check_loader_execution_rate(self, hours: int = 24) -> dict[str, Any]:
         """Check if loaders are executing at expected frequency."""
         cur = self.conn.cursor()
         cur.execute(f"""
@@ -59,7 +58,7 @@ class LoaderHealthMonitor:
 
         return check
 
-    def check_data_freshness(self) -> Dict[str, Any]:
+    def check_data_freshness(self) -> dict[str, Any]:
         """Check if critical output tables have fresh data."""
         cur = self.conn.cursor()
 
@@ -80,14 +79,14 @@ class LoaderHealthMonitor:
                     WHERE {date_col} < CURRENT_TIMESTAMP - INTERVAL '{max_hours} hours'
                 """
                 cur.execute(query)
-                stale_count, max_date = cur.fetchone()
+                stale_count, _max_date = cur.fetchone()
 
                 if stale_count > 0:
                     pct_stale = 100 * stale_count / max(1, self._get_table_row_count(table))
                     if pct_stale > 10:
                         stale_tables.append((table, pct_stale))
             except Exception as e:
-                logger.warning(f"Could not check freshness of {table}: {str(e)}")
+                logger.warning(f"Could not check freshness of {table}: {e!s}")
 
         check = {
             "name": "Data Freshness",
@@ -105,7 +104,7 @@ class LoaderHealthMonitor:
 
         return check
 
-    def check_orchestrator_health(self) -> Dict[str, Any]:
+    def check_orchestrator_health(self) -> dict[str, Any]:
         """Check orchestrator execution health."""
         cur = self.conn.cursor()
         cur.execute("""
@@ -137,7 +136,7 @@ class LoaderHealthMonitor:
 
         return check
 
-    def check_database_health(self) -> Dict[str, Any]:
+    def check_database_health(self) -> dict[str, Any]:
         """Check database connectivity and performance."""
         try:
             cur = self.conn.cursor()
@@ -162,7 +161,7 @@ class LoaderHealthMonitor:
                 }
             }
             self.status = HealthStatus.CRITICAL
-            logger.error(f"Critical: Database connection failed: {str(e)}")
+            logger.error(f"Critical: Database connection failed: {e!s}")
             return check
 
     def _get_table_row_count(self, table: str) -> int:
@@ -171,10 +170,10 @@ class LoaderHealthMonitor:
             cur = self.conn.cursor()
             cur.execute(f"SELECT COUNT(*) FROM {table}")
             return cur.fetchone()[0]
-        except:
+        except Exception:
             return 0
 
-    def get_health_report(self) -> Dict[str, Any]:
+    def get_health_report(self) -> dict[str, Any]:
         """Get comprehensive health report."""
         self.checks = [
             self.check_database_health(),

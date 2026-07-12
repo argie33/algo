@@ -19,7 +19,6 @@ Fetches once per symbol, caches 24 hours. Eliminates 30,000+ redundant API calls
 """
 
 import logging
-import socket
 import sys
 from datetime import date, datetime, timezone
 from typing import Any

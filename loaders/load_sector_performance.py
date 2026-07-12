@@ -11,13 +11,11 @@ Cost: ~$0.01/run (single query)
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime, timedelta
-from decimal import Decimal
+from datetime import date, timedelta
 
 import psycopg2
 import psycopg2.errors
 from psycopg2.extensions import cursor
-
 from shared.base_loader import BaseLoader, LoaderPhase
 from shared.exceptions import LoaderFatalError, LoaderRetryableError
 

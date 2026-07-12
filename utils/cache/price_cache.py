@@ -9,7 +9,7 @@ This eliminates ~90% of yfinance calls, solving the shared NAT IP rate limiting.
 import json
 import logging
 import os
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from typing import Any, cast
 
 logger = logging.getLogger(__name__)

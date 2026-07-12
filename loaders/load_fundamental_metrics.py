@@ -21,9 +21,8 @@ Run:
 """
 
 import logging
-import socket
 import sys
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from typing import Any
 
 from loaders.runner import run_loader
@@ -287,7 +286,7 @@ def main() -> int:
         return run_loader(YfinanceDerivedMetricsLoader)
     except Exception as e:
         logger.error(
-            f"[YFINANCE_DERIVED FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", 
+            f"[YFINANCE_DERIVED FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}",
             exc_info=True
         )
         # Mark all 6 output tables unavailable
@@ -299,14 +298,14 @@ def main() -> int:
 
             tables = [
                 "value_metrics",
-                "positioning_metrics", 
+                "positioning_metrics",
                 "company_profile",
                 "analyst_sentiment_analysis",
                 "analyst_upgrade_downgrade",
                 "earnings_calendar",
                 "earnings_history",
             ]
-            
+
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
                     for table in tables:

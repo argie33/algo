@@ -46,11 +46,9 @@ NOTE: Formerly load_market_rankings.py (renamed 2026-07 for clarity).
 import logging
 import sys
 from datetime import date
-from typing import Any
-
-import psycopg2
 
 from loaders.runner import run_loader
+from utils.db.context import DatabaseContext
 from utils.loaders import execute_query, fetch_latest
 from utils.optimal_loader import OptimalLoader
 
@@ -113,7 +111,7 @@ class MarketRankingsLoader(OptimalLoader):
                 return 0
 
         except Exception as e:
-            logger.error(f"[MARKET_RANKINGS] Failed to load rankings: {type(e).__name__}: {str(e)}")
+            logger.error(f"[MARKET_RANKINGS] Failed to load rankings: {type(e).__name__}: {e!s}")
             raise
 
     def _load_sector_rankings(self, latest_date: date) -> int:
@@ -197,7 +195,7 @@ class MarketRankingsLoader(OptimalLoader):
             return len(rows)
 
         except Exception as e:
-            logger.error(f"[MARKET_RANKINGS] Failed to load sector rankings: {type(e).__name__}: {str(e)}")
+            logger.error(f"[MARKET_RANKINGS] Failed to load sector rankings: {type(e).__name__}: {e!s}")
             raise
 
     def _load_industry_rankings(self, latest_date: date) -> int:
@@ -285,7 +283,7 @@ class MarketRankingsLoader(OptimalLoader):
             return len(rows)
 
         except Exception as e:
-            logger.error(f"[MARKET_RANKINGS] Failed to load industry rankings: {type(e).__name__}: {str(e)}")
+            logger.error(f"[MARKET_RANKINGS] Failed to load industry rankings: {type(e).__name__}: {e!s}")
             raise
 
 

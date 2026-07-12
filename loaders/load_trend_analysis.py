@@ -8,7 +8,7 @@ generation to filter entries by market regime.
 
 INPUT: technical_data_daily table (SMA-50, SMA-200, RSI, price changes)
 OUTPUT: trend_template_data table
-ROWS: ~10,600 symbols × 1 update/day
+ROWS: ~10,600 symbols x 1 update/day
 
 SCHEDULE: Step Functions Pipeline, Step 2 (ParallelEnrichment/TrendTemplate)
   Timing: ~2:15 AM ET
@@ -32,7 +32,7 @@ METRICS:
   4. roc_60d > 0%
   5. roc_252d > 10%
   6. RSI > 50
-  7. close > sma_200 × 1.10
+  7. close > sma_200 x 1.10
   8. roc_20d > 0%
 
   Weinstein Stage:

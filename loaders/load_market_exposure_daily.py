@@ -31,7 +31,6 @@ Time: ~2-5 seconds (vectorized computation, minimal DB load)
 from __future__ import annotations
 
 import logging
-import socket
 import sys
 from datetime import date
 from typing import Any

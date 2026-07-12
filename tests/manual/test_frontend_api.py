@@ -5,6 +5,7 @@ import json
 import pytest
 import requests
 
+
 @pytest.mark.skip(reason="Manual test - requires running dev_server")
 def test_api_endpoint(url=None, headers=None):
     """Test if an endpoint is accessible"""

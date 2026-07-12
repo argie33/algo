@@ -2,7 +2,6 @@
 """Fetch actual ICE DXY (US Dollar Index) from Yahoo Finance."""
 
 import sys
-import socket
 from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
@@ -54,7 +53,7 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
                 progress=False,
                 timeout=http_timeout[1],  # yfinance's timeout parameter
             )
-        except (socket.timeout, TimeoutError) as e:
+        except TimeoutError as e:
             raise RuntimeError(f"[DXY] Yahoo Finance fetch timed out: {e}") from e
 
         if dxy is None or len(dxy) == 0:

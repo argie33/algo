@@ -3,7 +3,6 @@
 
 import logging
 import os
-import socket
 from datetime import date
 from typing import Any, cast
 

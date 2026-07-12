@@ -22,7 +22,6 @@ Or directly:
 """
 
 import os
-import socket
 import sys
 
 from loaders.loader_helper import setup_imports
@@ -307,7 +306,7 @@ def get_conflict_target(primary_key: tuple[str, ...]) -> str:
 
 
 class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
-    """Unified loader for all financial statements (income, balance, cashflow × annual/quarterly/ttm).
+    """Unified loader for all financial statements (income, balance, cashflow x annual/quarterly/ttm).
 
     Consolidates 8 separate loaders into one, parametrized by:
     - LOADER_STATEMENT_TYPE env var: 'income', 'balance', or 'cashflow'

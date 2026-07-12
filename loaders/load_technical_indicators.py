@@ -234,7 +234,7 @@ class VectorizedTechnicalLoader:
                     )
 
                 # Check coverage: at least 80% of symbols have data
-                symbols_with_data = set(r["symbol"] for r in result)
+                symbols_with_data = {r["symbol"] for r in result}
                 coverage_ratio = len(symbols_with_data) / len(symbols)
                 if coverage_ratio < 0.8:
                     missing_symbols = set(symbols) - symbols_with_data

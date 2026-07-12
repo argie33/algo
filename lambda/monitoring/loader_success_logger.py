@@ -8,7 +8,6 @@ from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
-from psycopg2.extras import execute_batch
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)

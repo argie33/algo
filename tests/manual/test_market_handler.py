@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Test market endpoint directly."""
+import logging
 import os
 import sys
-import logging
 
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"

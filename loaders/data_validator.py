@@ -4,10 +4,9 @@ Validates loader output against data quality rules before persistence.
 Catches issues early: missing data, duplicates, schema violations, outliers.
 """
 
-from typing import Dict, List, Tuple, Any
-from datetime import datetime, timedelta
 import logging
-import psycopg2
+from datetime import datetime
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +17,8 @@ class DataValidator:
     def __init__(self, conn: Any):
         """Initialize validator with database connection."""
         self.conn = conn
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
 
     def validate_table_not_empty(self, table_name: str, min_rows: int = 1) -> bool:
         """Check table has minimum rows."""
@@ -33,7 +32,7 @@ class DataValidator:
             return False
         return True
 
-    def validate_no_duplicates(self, table_name: str, key_columns: List[str]) -> bool:
+    def validate_no_duplicates(self, table_name: str, key_columns: list[str]) -> bool:
         """Check for duplicate records on key columns."""
         cur = self.conn.cursor()
         cols = ", ".join(key_columns)
@@ -75,7 +74,7 @@ class DataValidator:
                 return False
         return True
 
-    def validate_no_null_columns(self, table_name: str, critical_columns: List[str]) -> bool:
+    def validate_no_null_columns(self, table_name: str, critical_columns: list[str]) -> bool:
         """Check critical columns have no NULL values."""
         cur = self.conn.cursor()
         has_nulls = False
@@ -118,7 +117,7 @@ class DataValidator:
             self.validate_value_range("price_daily", "volume", 0, 1e12)
             return len(self.errors) == 0
         except Exception as e:
-            self.errors.append(f"price_daily validation error: {str(e)}")
+            self.errors.append(f"price_daily validation error: {e!s}")
             return False
 
     def validate_technical_data(self) -> bool:
@@ -130,7 +129,7 @@ class DataValidator:
             self.validate_value_range("technical_data_daily", "rsi", 0, 100)
             return len(self.errors) == 0
         except Exception as e:
-            self.errors.append(f"technical_data_daily validation error: {str(e)}")
+            self.errors.append(f"technical_data_daily validation error: {e!s}")
             return False
 
     def validate_stock_scores(self) -> bool:
@@ -141,7 +140,7 @@ class DataValidator:
             self.validate_value_range("stock_scores", "composite_score", 0, 100)
             return len(self.errors) == 0
         except Exception as e:
-            self.errors.append(f"stock_scores validation error: {str(e)}")
+            self.errors.append(f"stock_scores validation error: {e!s}")
             return False
 
     def validate_buy_sell_signals(self) -> bool:
@@ -154,10 +153,10 @@ class DataValidator:
             self.validate_value_range("buy_sell_daily", "strength", 0, 100)
             return len(self.errors) == 0
         except Exception as e:
-            self.errors.append(f"buy_sell_daily validation error: {str(e)}")
+            self.errors.append(f"buy_sell_daily validation error: {e!s}")
             return False
 
-    def get_report(self) -> Dict[str, Any]:
+    def get_report(self) -> dict[str, Any]:
         """Get validation report."""
         return {
             "timestamp": datetime.now().isoformat(),

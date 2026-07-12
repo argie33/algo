@@ -106,7 +106,7 @@ class SignalsDailyLoader(OptimalLoader):
                     price_max_date_row = cur.fetchone()
                     if price_max_date_row is None or price_max_date_row[0] is None:
                         raise RuntimeError(
-                            f"CRITICAL: No price_daily data found at all. "
+                            "CRITICAL: No price_daily data found at all. "
                             "Cannot generate signals without price data."
                         )
                     end = price_max_date_row[0]

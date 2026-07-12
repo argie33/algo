@@ -65,7 +65,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             return {"quality_metrics": quality_inserts, "growth_metrics": growth_inserts}
 
         except Exception as e:
-            logger.error(f"[QUALITY_GROWTH FATAL] {type(e).__name__}: {str(e)}", exc_info=True)
+            logger.error(f"[QUALITY_GROWTH FATAL] {type(e).__name__}: {e!s}", exc_info=True)
             raise
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[tuple[dict[str, Any], dict[str, Any]]]:
@@ -109,13 +109,11 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         revenue, operating_income, net_income = income_row[0:3] if income_row else (None, None, None)
 
         if balance_row:
-            total_assets, stockholders_equity, current_assets, total_liabilities, current_liabilities, inventory = (
+            total_assets, stockholders_equity, _current_assets, total_liabilities, _current_liabilities, _inventory = (
                 balance_row
             )
         else:
-            total_assets = stockholders_equity = current_assets = total_liabilities = current_liabilities = (
-                inventory
-            ) = None
+            total_assets = stockholders_equity = total_liabilities = None
 
         metrics = {
             "symbol": symbol,
@@ -172,7 +170,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
 
         # Extract revenue from rows (first element of each tuple)
         revenues = [row[0] for row in income_rows if row[0] is not None and row[0] > 0]
-        eps_values = [row[1] for row in income_rows if row[1] is not None]
+        [row[1] for row in income_rows if row[1] is not None]
 
         # 1-year growth
         if len(revenues) >= 2:
@@ -205,6 +203,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
     def _db_write_context(self):
         """Context manager for DB writes."""
         from contextlib import contextmanager
+
         from utils.db.context import DatabaseContext
 
         @contextmanager

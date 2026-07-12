@@ -596,7 +596,7 @@ class PriceLoader(OptimalLoader):
 
         # CRITICAL FIX #3: Add max attempts + systematic failure detection
         # Prevents hanging for 30 min if yfinance is down
-        max_attempts = 60  # Max 60 checks × 3s wait = 180s = 3 min even if all fail
+        max_attempts = 60  # Max 60 checks x 3s wait = 180s = 3 min even if all fail
         consecutive_errors = 0
         max_consecutive_errors = 5  # Abort if 5 errors in a row (detects yfinance down)
 

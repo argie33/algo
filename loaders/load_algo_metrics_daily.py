@@ -2,7 +2,6 @@
 """Algo Daily Metrics Loader - Portfolio stats and execution summary (Market-wide compute)."""
 
 import logging
-import socket
 import sys
 from datetime import date, datetime, timezone
 from typing import Any
