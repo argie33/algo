@@ -332,20 +332,35 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             state.loading = False
             state.error = f"{type(e).__name__}: {str(e)[:100]}"
 
+    # CRITICAL FIX: Load data BEFORE showing dashboard to avoid infinite loading state
+    try:
+        logger.info("[STARTUP] Preloading data...")
+        state.result = load_all()
+        logger.info(f"[STARTUP] Preload SUCCESSFUL: {len(state.result)} fetchers loaded")
+        state.loading = False
+        state.elapsed = 0.0
+        state.last_load = time.monotonic()
+    except Exception as e:
+        logger.error(f"[STARTUP] Preload FAILED: {type(e).__name__}: {e}", exc_info=True)
+        state.result = {}
+        state.loading = False
+        state.elapsed = 0.0
+        state.last_load = time.monotonic()
+        state.error = f"{type(e).__name__}: {str(e)[:50]}"
+
+    # Still start the background load_data thread for future refresh cycles (in watch mode)
     load_data_thread = threading.Thread(target=load_data, daemon=False)
     load_data_thread.start()
 
     # Warm up the render pipeline to avoid 2+ second delay on first render
-    # First call to render_header_components triggers lazy imports (Rich formatting, utilities)
-    # Subsequent calls are cached and instant. Warm up now so it doesn't block dashboard display.
     def warmup_render() -> None:
         try:
             from .core import DashboardContext
             from .renderers import render_header_components
-            ctx = DashboardContext({})  # empty context for warmup
+            ctx = DashboardContext({})
             render_header_components(ctx, 0, None, None, False, "AWS")
         except Exception:
-            pass  # Warmup failures don't block dashboard startup
+            pass
 
     threading.Thread(target=warmup_render, daemon=True).start()
 
@@ -382,16 +397,23 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 current_elapsed = state.elapsed
 
                 # CRITICAL FIX: Force data display after load completes
-                # Dashboard was stuck in infinite loading state because state.result wasn't triggering render
-                # After data is available AND loading complete, force render attempt
-                if current_result is not None and not is_loading:
+                # CRITICAL FIX: Render as soon as data is available, regardless of loading flag
+                # state.result being set means load_all() completed, show the dashboard
+                if current_result is not None:
                     # Data has arrived and loading is done - render it
                     with render_state._lock:
                         render_state.elapsed = current_elapsed
                         render_state.frame = current_frame
                         render_state.view_mode = controller.get_view_mode()
                     try:
-                        layout, _ = recovery.render_with_recovery(current_result, render_state)
+                        # CRITICAL FIX: Direct render as fallback to avoid recovery layer issues
+                        try:
+                            layout, _ = recovery.render_with_recovery(current_result, render_state)
+                        except Exception as recovery_err:
+                            # Fallback: render directly without recovery
+                            logger.warning(f"Recovery failed, using direct render: {recovery_err}")
+                            layout = render_state(current_result)
+
                         live.update(layout)
                         if not first_render_with_data:
                             logger.info(f"[DASHBOARD] Transitioned to data display after {current_elapsed:.1f}s")
@@ -404,7 +426,10 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         except Exception as panel_error:
                             logger.error(f"Error panel render failed: {type(panel_error).__name__}: {panel_error}")
                             # Last resort: show loading state instead of crashing
-                            live.update(loading_layout(current_frame, data_source=data_source))
+                            try:
+                                live.update(loading_layout(current_frame, data_source=data_source))
+                            except Exception as load_err:
+                                logger.critical(f"All rendering failed: {load_err}")
                 elif current_result is None:
                     first_render_with_data = False
                     if current_error:
