@@ -297,9 +297,9 @@ class VectorizedTechnicalLoader:
                 symbol_df["roc_120d"] = symbol_df["close"].pct_change(120) * 100
                 symbol_df["roc_252d"] = symbol_df["close"].pct_change(252) * 100
 
-                # Clip ROC values to prevent database overflow (NUMERIC(14,4) supports -99999.9999 to 99999.9999)
-                # Penny stocks and extreme market moves can produce ROC values > 99999%
-                # Rather than fail, we clip and log the occurrence (data integrity maintained, no silent truncation)
+                # Validate ROC values fit within database NUMERIC(14,4) precision (-99999.9999 to 99999.9999)
+                # Extreme volatility (e.g., stock dropping 50% in 1 day = -5000% ROC) should raise error, not silently truncate
+                # This prevents signal corruption from extreme market moves being clamped to same value
                 roc_max = 99999.9999
                 for col in [
                     "roc",
@@ -310,16 +310,24 @@ class VectorizedTechnicalLoader:
                     "roc_252d",
                 ]:
                     before = symbol_df[col].copy()
-                    # Clip to the safe limit
-                    symbol_df[col] = symbol_df[col].clip(-roc_max, roc_max)
+                    exceeded_values = before[before.abs() > roc_max]
 
-                    # Log if clipping occurred (for monitoring purposes)
-                    exceeded_count = ((before.abs() > roc_max) & (before.notna())).sum()
-                    if exceeded_count > 0:
-                        logger.warning(
-                            f"[ROC_CLIPPED] {symbol}: {exceeded_count} {col} values clipped from NUMERIC(14,4) overflow. "
-                            f"Max value before clip: {before.abs().max():.4f}. This is normal for penny stocks."
+                    if len(exceeded_values) > 0:
+                        max_exceeded = exceeded_values.abs().max()
+                        logger.critical(
+                            f"[ROC_OVERFLOW] {symbol}: {len(exceeded_values)} {col} values exceed NUMERIC(14,4) range. "
+                            f"Max value: {max_exceeded:.4f}. This indicates extreme market volatility that must be escalated. "
+                            f"Examples: {exceeded_values.head(3).values}"
                         )
+                        raise RuntimeError(
+                            f"[ROC_OVERFLOW] {symbol}: ROC values exceed NUMERIC(14,4) precision for column {col}. "
+                            f"Max value {max_exceeded:.4f} cannot be stored without data loss. "
+                            f"This indicates extreme market volatility (>99999% change). "
+                            f"Check market conditions and ensure database schema uses NUMERIC(14,4) or larger."
+                        )
+
+                    # Clipping is OK only for values within safe range (defensive programming)
+                    symbol_df[col] = symbol_df[col].clip(-roc_max, roc_max)
 
                 # Moving averages
                 mas = compute_moving_averages(symbol_df["close"])
