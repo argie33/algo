@@ -151,6 +151,16 @@ class OptimalLoader:
                 )
             field_value = r[self.watermark_field]
             if field_value is not None:
+                # Convert string dates to date objects (field may come from transformers as strings)
+                if isinstance(field_value, str):
+                    try:
+                        from datetime import datetime as dt
+                        field_value = dt.fromisoformat(field_value).date()
+                    except (ValueError, AttributeError) as e:
+                        raise ValueError(
+                            f"[{self.table_name}] Cannot parse {self.watermark_field} as date: '{field_value}'. "
+                            f"Expected ISO format (YYYY-MM-DD). Error: {e}"
+                        ) from e
                 values.append(cast(date, field_value))
 
         if not values:
