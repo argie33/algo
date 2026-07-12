@@ -1394,9 +1394,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 Catch = [{
                   ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError",
-                  End = true
+                  Next        = "SuccessAnnualIncome"
                 }]
-                End = true
+                Next = "SuccessAnnualIncome"
+              }
+              SuccessAnnualIncome = {
+                Type = "Succeed"
               }
             }
           },
@@ -1444,9 +1447,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 Catch = [{
                   ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError",
-                  End = true
+                  Next        = "SuccessAnnualBalance"
                 }]
-                End = true
+                Next = "SuccessAnnualBalance"
+              }
+              SuccessAnnualBalance = {
+                Type = "Succeed"
               }
             }
           },
@@ -1494,9 +1500,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 Catch = [{
                   ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError",
-                  End = true
+                  Next        = "SuccessAnnualCashflow"
                 }]
-                End = true
+                Next = "SuccessAnnualCashflow"
+              }
+              SuccessAnnualCashflow = {
+                Type = "Succeed"
               }
             }
           },
@@ -1544,9 +1553,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 Catch = [{
                   ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError",
-                  End = true
+                  Next        = "SuccessQuarterlyIncome"
                 }]
-                End = true
+                Next = "SuccessQuarterlyIncome"
+              }
+              SuccessQuarterlyIncome = {
+                Type = "Succeed"
               }
             }
           },
@@ -1594,9 +1606,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 Catch = [{
                   ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError",
-                  End = true
+                  Next        = "SuccessQuarterlyBalance"
                 }]
-                End = true
+                Next = "SuccessQuarterlyBalance"
+              }
+              SuccessQuarterlyBalance = {
+                Type = "Succeed"
               }
             }
           },
@@ -1644,9 +1659,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 Catch = [{
                   ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError",
-                  End = true
+                  Next        = "SuccessQuarterlyCashflow"
                 }]
-                End = true
+                Next = "SuccessQuarterlyCashflow"
+              }
+              SuccessQuarterlyCashflow = {
+                Type = "Succeed"
               }
             }
           },
@@ -1694,9 +1712,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 Catch = [{
                   ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError",
-                  End = true
+                  Next        = "SuccessTTMIncome"
                 }]
-                End = true
+                Next = "SuccessTTMIncome"
+              }
+              SuccessTTMIncome = {
+                Type = "Succeed"
               }
             }
           },
@@ -1744,9 +1765,12 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 Catch = [{
                   ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError",
-                  End = true
+                  Next        = "SuccessTTMCashflow"
                 }]
-                End = true
+                Next = "SuccessTTMCashflow"
+              }
+              SuccessTTMCashflow = {
+                Type = "Succeed"
               }
             }
           }
