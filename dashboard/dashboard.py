@@ -283,12 +283,10 @@ def render_dashboard(
 
 def run_once(compact: bool, data_source: str = "AWS") -> None:
     """Single run - load data once and display. Uses same reliable pattern as run_watch()."""
-    print(f"[RUN_ONCE] Starting ({data_source} mode)", flush=True)
     state = WatchState()
     recovery = RenderRecovery()
     render_state = _RenderState(compact, data_source)
     controller = WatchModeController()
-    print("[RUN_ONCE] Objects initialized", flush=True)
 
     def load_data() -> None:
         """Load data with 20-second timeout."""
@@ -345,9 +343,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     first_render_with_data = False
     data_display_start = None
-    print("[RUN_ONCE] Entering Live context...", flush=True)
     with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
-        print("[RUN_ONCE] Live context entered", flush=True)
         try:
             loop_start = time.monotonic()
             while True:
