@@ -57,13 +57,25 @@ Dashboard keys (once it's running):
 
 ---
 
-### Option 2: One Command (Linux/macOS)
+### Option 2: One Command (Automated)
 
+**Linux/macOS:**
 ```bash
-./start_system_local.sh
+bash scripts/start_dev_environment.sh
 ```
 
-This starts both in one terminal (dev server in background, dashboard in foreground).
+**Windows (PowerShell):**
+```powershell
+.\scripts\start_dev_environment.ps1
+```
+
+This script:
+1. Checks if dev_server is already running
+2. Starts dev_server if needed
+3. Waits for it to be ready
+4. Launches the dashboard with `--local` flag
+5. Cleans up when you exit
+
 Press `Ctrl+C` to stop everything.
 
 ---
