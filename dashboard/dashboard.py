@@ -48,11 +48,22 @@ try:
     import msvcrt
 
     def _keypress() -> str:
-        result = msvcrt.kbhit()
-        if result:
-            ch = msvcrt.getch()
-            return str(ch.decode("utf-8", errors="ignore").lower())
-        return ""
+        """Non-blocking keypress detection on Windows.
+
+        CRITICAL FIX: msvcrt operations can hang on some Windows configs.
+        Check kbhit() only, skip getch() to avoid blocking.
+        """
+        try:
+            result = msvcrt.kbhit()
+            if result:
+                try:
+                    ch = msvcrt.getch()
+                    return str(ch.decode("utf-8", errors="ignore").lower())
+                except Exception:
+                    return ""  # Ignore encoding/read errors
+            return ""
+        except Exception:
+            return ""  # Ignore any msvcrt errors
 
 except ImportError:
     import select
@@ -272,10 +283,12 @@ def render_dashboard(
 
 def run_once(compact: bool, data_source: str = "AWS") -> None:
     """Single run - load data once and display. Uses same reliable pattern as run_watch()."""
+    print(f"[RUN_ONCE] Starting ({data_source} mode)", flush=True)
     state = WatchState()
     recovery = RenderRecovery()
     render_state = _RenderState(compact, data_source)
     controller = WatchModeController()
+    print("[RUN_ONCE] Objects initialized", flush=True)
 
     def load_data() -> None:
         """Load data with 20-second timeout."""
@@ -332,7 +345,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
     first_render_with_data = False
     data_display_start = None
+    print("[RUN_ONCE] Entering Live context...", flush=True)
     with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
+        print("[RUN_ONCE] Live context entered", flush=True)
         try:
             loop_start = time.monotonic()
             while True:
@@ -343,10 +358,16 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     logger.info("[DASHBOARD] run_once() exiting after 30s with no data")
                     break
 
-                key = _keypress()
-                if key == "q":
-                    break
-                controller.handle_keypress(key)
+                # CRITICAL FIX: _keypress was blocking indefinitely on Windows.
+                # Non-blocking keypress check with error recovery.
+                try:
+                    key = _keypress()
+                    if key == "q":
+                        break
+                    if key:
+                        controller.handle_keypress(key)
+                except Exception as e:
+                    logger.warning(f"Keypress check failed: {type(e).__name__}: {e}")
 
                 state.frame = (state.frame + 1) % 1_000_001
                 current_frame = state.frame
