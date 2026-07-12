@@ -304,7 +304,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
-                End = true
+                Next = "SuccessTrendTemplate"
+              }
+              SuccessTrendTemplate = {
+                Type = "Succeed"
               }
             }
           }
@@ -1088,7 +1091,10 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
-                End = true
+                Next = "SuccessMorningMarketHealth"
+              }
+              SuccessMorningMarketHealth = {
+                Type = "Succeed"
               }
             }
           },
@@ -1111,7 +1117,10 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
-                End = true
+                Next = "SuccessMorningTrend"
+              }
+              SuccessMorningTrend = {
+                Type = "Succeed"
               }
             }
           }
