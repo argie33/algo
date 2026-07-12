@@ -251,6 +251,7 @@ def _dispatch(  # noqa: C901
         if not isinstance(body, dict):
             logger.warning(f"[PRE_TRADE] Request body is not dict, got {type(body).__name__} — raising 400 error")
             raise_api_error(400, "bad_request", "Request body is required and must be a JSON object")
+        assert isinstance(body, dict)
         return _calculate_pre_trade_impact(cur, body)
 
     # Position management endpoints and aliases
