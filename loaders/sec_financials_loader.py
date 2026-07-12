@@ -14,7 +14,6 @@ This base class eliminates ~200 lines of duplication across:
 """
 
 import logging
-import socket
 from abc import abstractmethod
 from datetime import date
 from decimal import Decimal

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Manual database tests - requires local PostgreSQL."""
 import os
-os.environ["LOCAL_MODE"] = "true"
 
-import pytest
 import psycopg2
+import pytest
+
+os.environ["LOCAL_MODE"] = "true"
 
 
 # Skip all tests in this file in CI - requires local PostgreSQL

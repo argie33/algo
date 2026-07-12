@@ -7,7 +7,7 @@ import socket
 from datetime import date
 from typing import Any, cast
 
-from loaders.timeout_config import configure_socket_timeout, get_http_timeout
+from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.optimal_loader import OptimalLoader
 

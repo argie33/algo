@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Test frontend API connectivity from browser perspective"""
+import json
+
 import pytest
 import requests
-import json
 
 @pytest.mark.skip(reason="Manual test - requires running dev_server")
 def test_api_endpoint(url=None, headers=None):
@@ -52,6 +53,6 @@ print("Vite proxy forwards to: http://localhost:3001/api/portfolio")
 
 status, resp = test_api_endpoint("http://localhost:3001/api/portfolio")
 if status == 200:
-    print(f"[OK] Backend is accessible via proxy target")
+    print("[OK] Backend is accessible via proxy target")
 else:
     print(f"[FAIL] Backend NOT accessible: {resp}")

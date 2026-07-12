@@ -225,12 +225,9 @@ def wrap_api_call_with_timeout(api_name: str) -> Any:
     def decorator(func: Any) -> Any:
         @functools.wraps(func)
         def wrapper(*args: Any, **kwargs: Any) -> Any:
-            import socket
-            from socket import timeout as socket_timeout
-
             try:
                 return func(*args, **kwargs)
-            except (socket_timeout, TimeoutError) as e:
+            except TimeoutError as e:
                 logger.error(
                     f"[TIMEOUT] {api_name} API call timed out: {e}. "
                     f"Returning data_unavailable marker."
@@ -238,7 +235,7 @@ def wrap_api_call_with_timeout(api_name: str) -> Any:
                 # Return marker dict for data_unavailable handling
                 return {
                     "data_unavailable": True,
-                    "reason": f"{api_name}_timeout:{str(e)}",
+                    "reason": f"{api_name}_timeout:{e!s}",
                 }
             except Exception as e:
                 # Re-raise non-timeout exceptions
