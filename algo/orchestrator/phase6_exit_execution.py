@@ -57,42 +57,51 @@ def run(
         from algo.trading import ExitEngine
         from algo.trading.executor import TradeExecutor
 
+        # ISSUE #4 FIX: Check if paper mode is active FIRST before validating position_recs
+        # In paper mode, Phase 3 intentionally skips position monitoring (it's a live-trading risk feature)
+        # so position_recs will be empty. This is expected behavior, not an error.
+        execution_mode_check = config.get("execution_mode", "paper")
+        alpaca_paper_trading = config.get("alpaca_paper_trading", False)
+        is_paper_mode = execution_mode_check in ("paper", "auto") or alpaca_paper_trading
+
         # Detect Phase 3 crash: if position monitor errored, position_recs is []
         # but we may have real open positions. This is a critical data integrity error.
-        if position_recs is None:
-            msg = (
-                "[PHASE 6 CRITICAL] position_recs not set — Phase 3 did not execute properly. "
-                "Cannot proceed with exit execution without position monitor recommendations."
-            )
-            logger.critical(msg)
-            raise RuntimeError(msg)
-        elif len(position_recs) == 0:
-            # Check if open positions exist but phase 3 returned empty
-            try:
-                with DatabaseContext("read") as cur_chk:
-                    cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-                    row = cur_chk.fetchone()
-                    if row is None or row[0] is None:
-                        raise RuntimeError("Open position count query failed")
-                    open_count = row[0]
-                if open_count > 0:
-                    msg = (
-                        f"[PHASE 6 CRITICAL] position_recs is empty but {open_count} open positions exist. "
-                        f"Phase 3 likely crashed without recommendations. "
-                        f"Cannot execute safety exits without position monitor evaluation. "
-                        f"Open positions remain unevaluated for exit conditions."
-                    )
-                    logger.critical(msg)
-                    raise RuntimeError(msg)
-            except RuntimeError:
-                raise
-            except Exception as e:
+        # SKIP THIS CHECK in paper mode since Phase 3 intentionally returns empty in paper mode
+        if not is_paper_mode:
+            if position_recs is None:
                 msg = (
-                    f"[PHASE 6 CRITICAL] Position count check failed: {e}. "
-                    f"Cannot verify if open positions need exit evaluation."
+                    "[PHASE 6 CRITICAL] position_recs not set — Phase 3 did not execute properly. "
+                    "Cannot proceed with exit execution without position monitor recommendations."
                 )
                 logger.critical(msg)
-                raise RuntimeError(msg) from e
+                raise RuntimeError(msg)
+            elif len(position_recs) == 0:
+                # Check if open positions exist but phase 3 returned empty
+                try:
+                    with DatabaseContext("read") as cur_chk:
+                        cur_chk.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+                        row = cur_chk.fetchone()
+                        if row is None or row[0] is None:
+                            raise RuntimeError("Open position count query failed")
+                        open_count = row[0]
+                    if open_count > 0:
+                        msg = (
+                            f"[PHASE 6 CRITICAL] position_recs is empty but {open_count} open positions exist. "
+                            f"Phase 3 likely crashed without recommendations. "
+                            f"Cannot execute safety exits without position monitor evaluation. "
+                            f"Open positions remain unevaluated for exit conditions."
+                        )
+                        logger.critical(msg)
+                        raise RuntimeError(msg)
+                except RuntimeError:
+                    raise
+                except Exception as e:
+                    msg = (
+                        f"[PHASE 6 CRITICAL] Position count check failed: {e}. "
+                        f"Cannot verify if open positions need exit evaluation."
+                    )
+                    logger.critical(msg)
+                    raise RuntimeError(msg) from e
 
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
@@ -101,9 +110,7 @@ def run(
             return PhaseResult(6, "exit_execution", "ok", {}, False, None)
 
         # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
-        execution_mode_check = config.get("execution_mode", "paper")
-        alpaca_paper_trading = config.get("alpaca_paper_trading", False)
-        if execution_mode_check in ("paper", "auto") or alpaca_paper_trading:
+        if is_paper_mode:
             logger.info(
                 f"[PHASE 6] Paper trading mode active (execution_mode={execution_mode_check}, "
                 f"alpaca_paper_trading={alpaca_paper_trading}). Exit orders will execute against paper account."
