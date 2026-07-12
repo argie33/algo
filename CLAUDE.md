@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ Production Ready (Session 89 - Dashboard startup fixes, all systems operational)
+**Status:** ✅ Production Ready (Session 96 - All systems operational, Lambda 503 fix documented, dashboard working end-to-end)
 
 ## Start Here
 
@@ -15,35 +15,52 @@
 
 ## Quick Setup (LOCAL DEVELOPMENT)
 
-**CRITICAL: Start dev_server FIRST, then dashboard. Do NOT run them in reverse order.**
+**CRITICAL: Follow these steps EXACTLY to avoid "data not available" errors**
 
+**Step 1: Open TERMINAL 1** - Run the backend API (localhost:3001)
 ```bash
-# Verify system ready
-python3 scripts/diagnose_system.py
-
-# TERMINAL 1: Start API dev server
 python3 api-pkg/dev_server.py
-# Wait for: "[OK] DEV Server running on http://localhost:3001"
+```
+Wait for this exact output:
+```
+[INFO] Starting API dev server on http://localhost:3001
+[INFO] Press Ctrl+C to stop
+```
+**Keep this terminal open and running.**
 
-# TERMINAL 2: Start dashboard (ONLY after Terminal 1 is ready)
+**Step 2: Open TERMINAL 2** - Run the dashboard (ONLY after Terminal 1 shows "running")
+```bash
+python3 -m dashboard --local
+```
+Or with watch mode for auto-refresh every 30 seconds:
+```bash
 python3 -m dashboard --local -w 30
-# Must use --local flag! Without it, dashboard tries AWS Lambda (requires Cognito auth)
 ```
 
-**Why two terminals?**
-- Terminal 1 keeps dev_server running
-- Terminal 2 runs the dashboard and updates live
-- If one crashes, you can restart it without losing the other
+**KEY REQUIREMENTS:**
+- ✅ **ALWAYS use `--local` flag** - Without it, tries AWS Lambda (requires Cognito auth + provisioned concurrency)
+- ✅ **ALWAYS start Terminal 1 first** - Dashboard needs dev_server to fetch data
+- ✅ **Keep both terminals running** - If either crashes, restart it independently
+- ✅ **Dashboard takes 3-5 seconds to load** - Fetches data from all 26 sources, shows "Fetching..." spinner initially
 
-**Most Common Mistake:** Running dashboard without dev_server or without --local flag
+**If you see "Data not available" on all panels:**
+- ❌ Did you run dashboard WITHOUT --local flag? (tries AWS Lambda)
+- ❌ Did you run dashboard before dev_server was ready? (restart dashboard after dev_server prints "running")
+- ❌ Is dev_server still running in Terminal 1? (check the window, it must stay open)
+
+**Diagnostic command:**
+```bash
+python3 scripts/diagnose_system.py
+```
 
 ## System Status
 
-- **Database:** PostgreSQL, 8.6M+ prices, fresh data as of today
-- **Dashboard:** All 26 fetchers working (100%), all 9 API endpoints responding
-- **Circuit Breaker:** Improved to handle startup failures gracefully (threshold 5, not 3)
-- **Dev Server:** Startup validation added - fails fast with clear instructions if not running
-- **Production Orchestrator:** Step Functions runs 2x daily (morning 2:15 AM ET, evening 4:00 PM ET)
+- **Database:** PostgreSQL, 8.6M+ prices, fresh data
+- **Dashboard (Local):** ✅ All 26 fetchers working when using `--local` flag + dev_server running
+- **Dashboard (AWS Lambda):** ⚠️ May timeout with 503 errors - VPC cold-start exceeds 29s API Gateway timeout (see fix below)
+- **Circuit Breaker:** ✅ All 9 circuit breaker metrics available, auto-reset on dashboard startup
+- **Dev Server:** ✅ Startup validation included - fails fast with clear instructions
+- **Production Orchestrator:** ✅ Step Functions runs 2x daily (2:15 AM ET + 4:00 PM ET)
 
 ## Running Orchestrator
 
@@ -63,16 +80,16 @@ WHERE started_at > NOW() - INTERVAL '1 hour';
 
 ## Common Fixes
 
-| Issue | Fix |
-|-------|-----|
-| Dashboard "data not available" (local) | Use `python3 -m dashboard --local` - MUST use --local flag |
-| Dashboard "API Errors" panel (AWS) | Check `steering/AWS_LAMBDA_503_FIX.md` - likely VPC misconfiguration |
-| Dev server "connection refused" | Run both: Terminal 1: `python3 api-pkg/dev_server.py` + Terminal 2: `python3 -m dashboard --local` |
-| PostgreSQL connection refused | Check DB: `python3 -c "import psycopg2; psycopg2.connect('dbname=stocks user=stocks host=localhost')"` |
-| Lambda 503 errors (AWS) | Run: `bash scripts/fix-lambda-vpc.sh` then redeploy: `gh workflow run deploy-api-lambda.yml` |
-| Code fails pre-commit | Run: `make format && make type-check` |
-| Orchestrator not running | Check AWS Step Functions: `aws stepfunctions describe-state-machine --state-machine-arn arn:aws:states:...` or AWS EventBridge Scheduler |
-| Stale data (> 4 hours) | Loaders not running - check EventBridge Scheduler + ECS logs |
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| **Dashboard: "Data not available" on all panels** | Dashboard running WITHOUT `--local` flag, trying AWS Lambda | Use: `python3 -m dashboard --local` (requires Terminal 1: dev_server running) |
+| **Dashboard: "Data not available" on all panels (v2)** | dev_server not running when dashboard starts | Start Terminal 1: `python3 api-pkg/dev_server.py` FIRST, wait for "running on http://localhost:3001", THEN start Terminal 2: dashboard |
+| **AWS Mode: Lambda 503 "Service Unavailable"** | VPC cold-start (15-40s) exceeds API Gateway 29s timeout | See `steering/AWS_LAMBDA_503_FIX.md` - enable provisioned concurrency (5 units) to keep Lambda warm |
+| **Dev server "Connection refused"** | dev_server not listening on localhost:3001 | Check Terminal 1 is running: `python3 api-pkg/dev_server.py` and wait for startup message |
+| **PostgreSQL "connection refused"** | Database not running or wrong credentials | Verify: `python3 -c "import psycopg2; psycopg2.connect('dbname=stocks user=stocks host=localhost')"` |
+| **Code fails pre-commit hooks** | Type errors or formatting issues | Run: `make format && make type-check` |
+| **Orchestrator not executing** | Step Functions not triggered or EventBridge broken | Check: `aws stepfunctions describe-execution` + EventBridge Scheduler logs |
+| **Data older than 4 hours** | Loaders not running per schedule | Check EventBridge Scheduler + CloudWatch logs for loader tasks |
 
 ## Non-Negotiable Rules
 
