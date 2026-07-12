@@ -338,9 +338,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             while True:
                 elapsed_loop = time.monotonic() - loop_start
 
-                # Timeout: if no data after 30 seconds or if displaying data for >10 seconds, exit
-                if elapsed_loop > 30 or (first_render_with_data and data_display_start is not None and (time.monotonic() - data_display_start) > 10):
-                    logger.info("[DASHBOARD] run_once() exiting after displaying data")
+                # Timeout: if no data after 30 seconds, exit
+                if elapsed_loop > 30 and state.result is None:
+                    logger.info("[DASHBOARD] run_once() exiting after 30s with no data")
                     break
 
                 key = _keypress()
