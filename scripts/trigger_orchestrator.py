@@ -44,20 +44,38 @@ def invoke_orchestrator(
     logger.info(json.dumps(payload, indent=2))
 
     try:
+        # CRITICAL FIX: Use async invocation (Event) not sync (RequestResponse)
+        # Orchestrator Lambda takes 11-15 minutes, but boto3 client timeout is 60s
+        # Async invocation returns immediately when queued successfully
+        # Lambda execution happens asynchronously and logs to CloudWatch
         response = client.invoke(
             FunctionName=function_name,
-            InvocationType='RequestResponse',
-            Payload=json.dumps(payload),
-            LogType='Tail'
+            InvocationType='Event',  # Async invocation - returns immediately
+            Payload=json.dumps(payload)
+            # Note: LogType='Tail' only works with RequestResponse (sync mode)
         )
 
         status_code = response['StatusCode']
-        logger.info(f"Lambda StatusCode: {status_code}")
+        logger.info(f"Lambda invocation queued with StatusCode: {status_code}")
+        request_id = response.get('ResponseMetadata', {}).get('HTTPHeaders', {}).get('x-amzn-requestid', 'unknown')
+        logger.info(f"Request ID: {request_id}")
 
-        if status_code == 200:
-            body = json.loads(response['Payload'].read())
-            logger.info(f"Response: {json.dumps(body, indent=2)}")
-            return body
+        if status_code == 202:
+            # 202 Accepted = successfully queued for async execution
+            logger.info(
+                f"Orchestrator queued successfully for async execution.\n"
+                f"Execution mode: {payload['execution_mode']}\n"
+                f"Run identifier: {payload['run_identifier']}\n"
+                f"Check CloudWatch Logs for execution progress:\n"
+                f"  aws logs tail /aws/lambda/{function_name} --follow"
+            )
+            return {
+                "success": True,
+                "message": "Orchestrator invocation queued successfully",
+                "request_id": request_id,
+                "invocation_type": "async",
+                "payload": payload
+            }
         else:
             logger.error(f"Lambda invocation failed with status {status_code}")
             if 'FunctionError' in response:
