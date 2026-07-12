@@ -154,13 +154,16 @@ def _validate_api_url_at_startup() -> None:
         return
 
     env_mode = os.environ.get("ENVIRONMENT", "dev")
-    if env_mode != "dev" and not _dashboard_api_url:
+    # Allow localhost in dev/development/local modes
+    is_dev_mode = env_mode in ("dev", "development") or env_mode.startswith("dev")
+
+    if not is_dev_mode and not _dashboard_api_url:
         raise RuntimeError(
             f"[API] DASHBOARD_API_URL environment variable not set in {env_mode} environment. "
             "Cannot initialize dashboard API layer for production. "
             "Set DASHBOARD_API_URL to your API endpoint."
         )
-    if _dashboard_api_url and "localhost" in _dashboard_api_url and env_mode != "dev":
+    if _dashboard_api_url and "localhost" in _dashboard_api_url and not is_dev_mode:
         raise RuntimeError(
             f"[API] DASHBOARD_API_URL is set to {_dashboard_api_url} (localhost). "
             "This is only valid for local development. "
