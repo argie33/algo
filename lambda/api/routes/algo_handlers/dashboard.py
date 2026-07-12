@@ -1422,19 +1422,20 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
         cur.execute(
             """
-            SELECT symbol, composite_score, growth_score, momentum_score,
-                   quality_score, value_score, stability_score, positioning_score,
-                   data_completeness, updated_at
-            FROM stock_scores
-            WHERE composite_score > 0
-            AND data_completeness >= 70
-            ORDER BY composite_score DESC
+            SELECT s.symbol, s.composite_score, s.growth_score, s.momentum_score,
+                   s.quality_score, s.value_score, s.stability_score, s.positioning_score,
+                   s.data_completeness, s.updated_at, COALESCE(c.short_name, s.symbol) as company_name
+            FROM stock_scores s
+            LEFT JOIN company_profile c ON s.symbol = c.symbol
+            WHERE s.composite_score > 0
+            AND s.data_completeness >= 70
+            ORDER BY s.composite_score DESC
             LIMIT %s
         """,
             (limit,),
         )
         rows = cur.fetchall()
-        logger.info(f"[SCORES] Direct query returned {len(rows)} rows")
+        logger.info(f"[SCORES] Query returned {len(rows)} rows")
 
         top_scores = []
         for row in rows:
