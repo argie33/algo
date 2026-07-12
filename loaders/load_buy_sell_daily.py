@@ -56,7 +56,7 @@ class SignalsDailyLoader(OptimalLoader):
         try:
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
-            end = now_et.date()
+            end: date | None = now_et.date()
 
             # CLUSTER 4 FIX: Use cached is_trading_day() to prevent repeated lookups
             # The @lru_cache on _is_trading_day_cached() makes repeated checks ~1000x faster

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date, timedelta
+from typing import Any
 
 import psycopg2
 import psycopg2.errors
@@ -118,7 +119,7 @@ class SectorPerformanceLoader(BaseLoader):
         return rows
 
 
-def run(cur: cursor) -> dict[str, any]:
+def run(cur: cursor) -> dict[str, Any]:
     """Entry point for orchestrator."""
     loader = SectorPerformanceLoader(cur)
     rows = loader.load()

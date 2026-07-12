@@ -455,7 +455,7 @@ class VectorizedTechnicalLoader:
                 logger.warning("[VCP] No ATR data available after filtering — skipping VCP patterns")
                 return
 
-            vcp_patterns = []
+            vcp_patterns: list[dict[str, Any]] = []
 
             for symbol in vcp_symbols["symbol"].unique():
                 try:

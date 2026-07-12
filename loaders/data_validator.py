@@ -165,7 +165,7 @@ class DataValidator:
             "warnings": self.warnings,
         }
 
-    def log_report(self):
+    def log_report(self) -> dict[str, Any]:
         """Log validation results."""
         report = self.get_report()
         if report["valid"]:

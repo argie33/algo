@@ -279,7 +279,10 @@ class ValueAtRisk:
                         f"Stressed VaR skipped: only {len(rows)} portfolio snapshots found (minimum 365 required). "
                         "Portfolio needs 1 year of trading history for reliable 5-year window analysis."
                     )
-                    return None  # Return None instead of crashing - portfolio too new for Stressed VaR
+                    return {
+                        "data_unavailable": True,
+                        "reason": "insufficient_history",
+                    }  # Portfolio too new for Stressed VaR
 
                 values = [Decimal(str(float(row[1]))) for i, row in enumerate(rows)]
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]

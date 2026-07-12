@@ -170,7 +170,8 @@ class LoaderHealthMonitor:
         try:
             cur = self.conn.cursor()
             cur.execute(f"SELECT COUNT(*) FROM {table}")
-            return cur.fetchone()[0]
+            result = cur.fetchone()
+            return int(result[0]) if result else 0
         except Exception:
             return 0
 
