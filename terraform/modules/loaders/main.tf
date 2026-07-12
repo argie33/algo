@@ -323,16 +323,6 @@ locals {
     # Single task replaces 8 parallel branches, saving $8-15/mo + 40-80s per execution
     "financials_all"                = "load_financial_statements.py"
 
-    # Legacy: Keeping individual loaders for backwards compatibility, may be removed after validation
-    "financials_annual_income"      = "load_financial_statements.py"
-    "financials_annual_balance"     = "load_financial_statements.py"
-    "financials_annual_cashflow"    = "load_financial_statements.py"
-    "financials_quarterly_income"   = "load_financial_statements.py"
-    "financials_quarterly_balance"  = "load_financial_statements.py"
-    "financials_quarterly_cashflow" = "load_financial_statements.py"
-    "financials_ttm_income"         = "load_financial_statements.py"
-    "financials_ttm_cashflow"       = "load_financial_statements.py"
-
     # Sector performance loader (optional, not in critical path)
     "sector_performance" = "load_sector_performance.py"
   }
@@ -425,17 +415,6 @@ locals {
     # Consolidated: All 8 statement types in single task (runs sequentially, ~9600s total)
     # Provides 4.2h timeout (2.7x expected 60m) to detect hangs, saves $8-15/mo + 40-80s per run
     "financials_all"                = { cpu = 512, memory = 512, timeout = 15000, parallelism = 1 }
-
-    # Legacy: Keeping individual loaders for backwards compatibility, may be removed after validation
-    # Cost-optimized: Reduced from 1024 to 512 (SEC filing parsing, I/O-bound not compute-bound)
-    "financials_annual_income"      = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
-    "financials_annual_balance"     = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
-    "financials_annual_cashflow"    = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
-    "financials_quarterly_income"   = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
-    "financials_quarterly_balance"  = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
-    "financials_quarterly_cashflow" = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
-    "financials_ttm_income"         = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
-    "financials_ttm_cashflow"       = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
 
     # Cost-optimized: Reduced from 1024 to 512 (sector performance ranking, <50MB actual)
     "sector_performance" = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
