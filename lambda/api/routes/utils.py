@@ -145,40 +145,48 @@ def safe_page(page_str: str | None, default: int | None = None) -> int:
 
 def safe_int(int_str: str | None, min_val: int | None = None, max_val: int | None = None) -> int:
     """DEPRECATED: Use ParamValidator.int() instead. Thin wrapper for backward compatibility."""
+    from typing import cast
+
     from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        return ParamValidator.int(int_str, min_val=min_val, max_val=max_val)
+        return cast(int, ParamValidator.int(int_str, min_val=min_val, max_val=max_val))
     except ParamValidationError as e:
         raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_float(float_str: str | None, min_val: float | None = None, max_val: float | None = None) -> float:
     """DEPRECATED: Use ParamValidator.float() instead. Thin wrapper for backward compatibility."""
+    from typing import cast
+
     from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        return ParamValidator.float(float_str, min_val=min_val, max_val=max_val)
+        return cast(float, ParamValidator.float(float_str, min_val=min_val, max_val=max_val))
     except ParamValidationError as e:
         raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_string(value_str: str | None, allowed_values: set[str] | None = None, max_length: int = 100) -> str:
     """DEPRECATED: Use ParamValidator.string() instead. Thin wrapper for backward compatibility."""
+    from typing import cast
+
     from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        return ParamValidator.string(value_str, allowed_values=allowed_values, max_length=max_length)
+        return cast(str, ParamValidator.string(value_str, allowed_values=allowed_values, max_length=max_length))
     except ParamValidationError as e:
         raise_api_error(e.status_code, e.error_type, e.message)
 
 
 def safe_symbol(symbol_str: str | None) -> str:
     """DEPRECATED: Use ParamValidator.symbol() instead. Thin wrapper for backward compatibility."""
+    from typing import cast
+
     from routes.param_validators import ParamValidationError, ParamValidator
 
     try:
-        return ParamValidator.symbol(symbol_str)
+        return cast(str, ParamValidator.symbol(symbol_str))
     except ParamValidationError as e:
         raise_api_error(e.status_code, e.error_type, e.message)
 
