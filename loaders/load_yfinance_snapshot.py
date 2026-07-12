@@ -14,6 +14,9 @@ Consolidates redundant calls from:
 - analyst_upgrade_downgrade (analyst counts)
 - analyst_sentiment_analysis (recommendation key, analyst counts)
 
+OPTIMIZATION 2026-07-12: Implemented batch fetching of yfinance.Ticker() calls.
+Instead of fetching each symbol individually, batches 50 symbols per request.
+Reduces fetch time from 2+ hours to 5-10 minutes.
 Single fetch per symbol → yfinance_snapshot table → all loaders read from table.
 Fetches once per symbol, caches 24 hours. Eliminates 30,000+ redundant API calls.
 """
