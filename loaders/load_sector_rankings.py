@@ -76,7 +76,7 @@ class MarketRankingsLoader(OptimalLoader):
     Fails fast if stock_scores or company_profile incomplete.
     """
 
-    table_name = "market_rankings"  # Metadata for locking/watermark
+    table_name = "sector_ranking"  # Metadata for locking/watermark
     primary_key = ("ranking_type", "ranking_name", "date")
     watermark_field = "date"
 

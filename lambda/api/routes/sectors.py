@@ -241,7 +241,7 @@ def handle(  # noqa: C901
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         LEFT JOIN sector_perf sp ON sp.sector = cp.sector
-                        WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != ''
+                        WHERE cp.sector IS NOT NULL AND TRIM(cp.sector) != '' AND cp.sector != 'Unknown'
                         GROUP BY cp.sector, sp.perf_1d, sp.perf_5d, sp.perf_20d, sp.sector
                     ),
                     ranked AS (
@@ -306,15 +306,17 @@ def handle(  # noqa: C901
             for row in sectors_data:
                 s = safe_json_serialize(dict(row))
                 # CRITICAL: Check if this sector is using fallback data (missing perf from sector_performance)
+                # Skip check for "Unknown" sector - it's an edge case with no market data
                 is_fallback = s.get("_is_fallback")
-                if is_fallback:
+                sector_name = s.get("sector_name")
+                if is_fallback and sector_name and sector_name != "Unknown":
                     logger.error(
-                        f"[SECTORS_API] Sector performance data missing for {s.get('sector_name')} - using fallback"
+                        f"[SECTORS_API] Sector performance data missing for {sector_name} - using fallback"
                     )
                     return error_response(
                         503,
                         "sector_perf_fallback",
-                        f"Sector performance data incomplete for {s.get('sector_name')}",
+                        f"Sector performance data incomplete for {sector_name}",
                     )
 
                 # FAIL-FAST: Extract float fields upfront, check None before float() conversion
