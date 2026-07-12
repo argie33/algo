@@ -87,7 +87,18 @@ def _check_localhost_available() -> bool:
         return False
 
 def _get_api_base_url() -> str:
-    """Get API URL with smart detection (lazy evaluation)."""
+    """Get API URL with smart detection (lazy evaluation).
+
+    Priority:
+    1. Explicit LOCAL_MODE flag
+    2. Auto-detect localhost (dev_server available)
+    3. Configured AWS URL (requires Cognito auth)
+    4. Fallback to localhost
+
+    This ensures local dev always works without auth setup, while AWS mode
+    requires explicit configuration. Prevents "data not available" errors
+    when dev_server is running but AWS credentials are missing.
+    """
     global _api_base_url_cache, _localhost_checked
 
     if _api_base_url_cache:
