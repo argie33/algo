@@ -52,19 +52,19 @@ class TestVIXFetcherFailFast:
 
 
 class TestMarketHealthDailyFailFast:
-    """Market health daily loader must fail-fast on no data."""
+    """Market health daily loader handles missing data gracefully."""
 
-    def test_no_incremental_data_raises(self):
-        """No incremental data should raise, not return error code."""
+    def test_no_incremental_data_returns_zero(self):
+        """No incremental data should return 0 (graceful handling for intraday runs)."""
         from loaders.load_market_health_daily import MarketHealthDailyLoader
 
         loader = MarketHealthDailyLoader()
 
         # Mock fetch_incremental returning no rows
         with patch.object(loader, "fetch_incremental", return_value=None):
-            # Should raise RuntimeError, not return code 1
-            with pytest.raises(RuntimeError, match=r"MARKET_HEALTH.*No incremental data"):
-                loader.load_symbol("SPY")
+            # Should return 0 when data is unavailable (expected during intraday runs)
+            result = loader.load_symbol("SPY")
+            assert result == 0, "Expected 0 rows when no incremental data available"
 
 
 class TestDashboardKeyPressFailFast:
