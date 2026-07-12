@@ -44,12 +44,30 @@ logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
 
 
+def get_all_statement_configs() -> list[tuple[str, str]]:
+    """Enumerate all statement/period combinations for 'all' mode.
+
+    Returns:
+        List of (statement_type, period) tuples in execution order
+    """
+    return [
+        ("income", "annual"),
+        ("income", "quarterly"),
+        ("income", "ttm"),
+        ("balance", "annual"),
+        ("balance", "quarterly"),
+        ("balance", "ttm"),
+        ("cashflow", "annual"),
+        ("cashflow", "quarterly"),
+    ]
+
+
 def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:
     """Return configuration for a specific statement type and period.
 
     Args:
-        statement_type: 'income', 'balance', or 'cashflow'
-        period: 'annual', 'quarterly', or 'ttm'
+        statement_type: 'income', 'balance', 'cashflow', or 'all' (loads all combos)
+        period: 'annual', 'quarterly', 'ttm', or ignored if statement_type='all'
 
     Returns:
         Dict with table_name, primary_key, schema_cols, field_mapping
@@ -60,6 +78,8 @@ def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:
         return get_balance_sheet_config(period)
     elif statement_type == "cashflow":
         return get_cash_flow_config(period)
+    elif statement_type == "all":
+        raise ValueError("Use load_all_statements() for statement_type='all', not get_statement_config()")
     else:
         raise ValueError(f"Unknown statement type: {statement_type}")
 
@@ -262,14 +282,56 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
         raise ValueError(f"Unknown period: {period}")
 
 
+def load_all_statements() -> int:
+    """Load all 8 statement/period combinations in sequence (when LOADER_STATEMENT_TYPE='all').
+
+    Iterates through all (statement_type, period) combos and executes the loader for each,
+    sequentially within a single container. Reduces ECS task overhead from 8 container
+    startups to 1, saving 40-80s per run.
+
+    Returns:
+        0 on success (all statements loaded or marked unavailable), 1 on fatal error
+    """
+    logger.info("[FINANCIAL_STATEMENTS ALL MODE] Loading all 8 statement/period combinations")
+    all_combos = get_all_statement_configs()
+    failed_combos = []
+
+    for statement_type, period in all_combos:
+        logger.info(f"[FINANCIAL_STATEMENTS ALL MODE] Loading {statement_type}/{period}")
+        os.environ["LOADER_STATEMENT_TYPE"] = statement_type
+        os.environ["LOADER_PERIOD"] = period
+
+        try:
+            result = run_loader(ConsolidatedFinancialStatementsLoader)
+            if result != 0:
+                logger.warning(f"[FINANCIAL_STATEMENTS ALL MODE] {statement_type}/{period} returned {result}")
+                failed_combos.append((statement_type, period))
+        except Exception as e:
+            logger.error(f"[FINANCIAL_STATEMENTS ALL MODE] {statement_type}/{period} crashed: {e}")
+            failed_combos.append((statement_type, period))
+
+    if failed_combos:
+        logger.warning(f"[FINANCIAL_STATEMENTS ALL MODE] {len(failed_combos)}/{len(all_combos)} combos failed")
+        return 1 if len(failed_combos) == len(all_combos) else 0  # Return 1 only if all failed
+
+    logger.info("[FINANCIAL_STATEMENTS ALL MODE] All 8 statement/period combinations loaded successfully")
+    return 0
+
+
 def main() -> int:
     """Wrapped main with exception handling for data_unavailable markers."""
+    statement_type = os.environ.get("LOADER_STATEMENT_TYPE", "income").lower()
+
+    # Handle 'all' mode (load all statement types and periods sequentially)
+    if statement_type == "all":
+        return load_all_statements()
+
+    # Handle single statement/period mode
     try:
         return run_loader(ConsolidatedFinancialStatementsLoader)
     except Exception as e:
         logger.error(f"[FINANCIAL_STATEMENTS FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         try:
-            statement_type = os.environ.get("LOADER_STATEMENT_TYPE", "income")
             period = os.environ.get("LOADER_PERIOD", "annual")
             config = get_statement_config(statement_type, period)
             table_name = config["table_name"]

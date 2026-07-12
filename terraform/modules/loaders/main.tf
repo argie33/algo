@@ -312,11 +312,12 @@ locals {
     "buy_sell_daily"     = "load_buy_sell_daily.py"
 
     # Consolidated financial statements loader (replaces 8 separate loaders)
-    # OPTIMIZATION READY (2026-07-12): Loader now supports LOADER_STATEMENT_TYPE="all"
+    # ACTIVATED (2026-07-12): Loader now supports LOADER_STATEMENT_TYPE="all"
     # to load all 8 statement/period combinations in sequence within single container.
-    # To activate: Update terraform to spawn single "financials_all" task with env="all"
-    # and update Step Functions pipeline to reference it. Currently keeping 8 separate
-    # tasks for backwards compatibility pending Step Functions refactor.
+    # Single task replaces 8 parallel branches, saving $8-15/mo + 40-80s per execution
+    "financials_all"                = "load_financial_statements.py"
+
+    # Legacy: Keeping individual loaders for backwards compatibility, may be removed after validation
     "financials_annual_income"      = "load_financial_statements.py"
     "financials_annual_balance"     = "load_financial_statements.py"
     "financials_annual_cashflow"    = "load_financial_statements.py"
@@ -417,6 +418,11 @@ locals {
     # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_yfinance_derived_metrics.py, not separate tasks
     # They share ECS task definition with other yfinance-derived metrics (value, positioning, company_profile, earnings*)
 
+    # Consolidated: All 8 statement types in single task (runs sequentially, ~9600s total)
+    # Provides 4.2h timeout (2.7x expected 60m) to detect hangs, saves $8-15/mo + 40-80s per run
+    "financials_all"                = { cpu = 512, memory = 512, timeout = 15000, parallelism = 1 }
+
+    # Legacy: Keeping individual loaders for backwards compatibility, may be removed after validation
     # Cost-optimized: Reduced from 1024 to 512 (SEC filing parsing, I/O-bound not compute-bound)
     "financials_annual_income"      = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
     "financials_annual_balance"     = { cpu = 512, memory = 512, timeout = 1200, parallelism = 1 }
@@ -440,8 +446,7 @@ locals {
     "buy_sell_daily",
     "yfinance_snapshot",
     "dxy_index",
-    "financials_annual_income",
-    "financials_annual_balance",
+    "financials_all",       # Consolidated financial statements (replaces 8 individual tasks)
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
@@ -631,7 +636,12 @@ resource "aws_ecs_task_definition" "loader" {
           }
         ] : [],
         # Financial loaders: determine period and statement type from task name
-        strcontains(each.key, "annual") ? [
+        each.key == "financials_all" ? [
+          {
+            name  = "LOADER_STATEMENT_TYPE"
+            value = "all"
+          }
+        ] : strcontains(each.key, "annual") ? [
           {
             name  = "LOADER_PERIOD"
             value = "annual"
@@ -647,23 +657,25 @@ resource "aws_ecs_task_definition" "loader" {
             value = "quarterly"
           }
         ] : [],
-        # Financial loaders: determine statement type from task name
-        strcontains(each.key, "income") ? [
-          {
-            name  = "LOADER_STATEMENT_TYPE"
-            value = "income"
-          }
-          ] : strcontains(each.key, "balance") ? [
-          {
-            name  = "LOADER_STATEMENT_TYPE"
-            value = "balance"
-          }
-          ] : strcontains(each.key, "cashflow") ? [
-          {
-            name  = "LOADER_STATEMENT_TYPE"
-            value = "cashflow"
-          }
-        ] : []
+        # Statement type (income/balance/cashflow) applies to all period types
+        each.key != "financials_all" ? (
+          strcontains(each.key, "income") ? [
+            {
+              name  = "LOADER_STATEMENT_TYPE"
+              value = "income"
+            }
+            ] : strcontains(each.key, "balance") ? [
+            {
+              name  = "LOADER_STATEMENT_TYPE"
+              value = "balance"
+            }
+            ] : strcontains(each.key, "cashflow") ? [
+            {
+              name  = "LOADER_STATEMENT_TYPE"
+              value = "cashflow"
+            }
+          ] : []
+        ) : []
       )
 
       # FIXED Issue #14: Health check to detect stalled/zombie loaders
