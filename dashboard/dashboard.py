@@ -48,8 +48,9 @@ try:
     import msvcrt
 
     def _keypress() -> str:
-        if msvcrt.kbhit():  # type: ignore[attr-defined]
-            ch = msvcrt.getch()  # type: ignore[attr-defined]
+        result = msvcrt.kbhit()
+        if result:
+            ch = msvcrt.getch()
             return str(ch.decode("utf-8", errors="ignore").lower())
         return ""
 
@@ -62,13 +63,13 @@ except ImportError:
         if select.select([sys.stdin], [], [], 0)[0]:
             try:
                 fd = sys.stdin.fileno()
-                old_settings = termios.tcgetattr(fd)
+                old_settings = termios.tcgetattr(fd)  # type: ignore[attr-defined]
                 try:
-                    tty.setraw(fd)
+                    tty.setraw(fd)  # type: ignore[attr-defined]
                     ch = sys.stdin.read(1).lower()
                     return ch if ch else ""
                 finally:
-                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)  # type: ignore[attr-defined]
             except (OSError, AttributeError, ValueError) as e:
                 raise RuntimeError(
                     f"Dashboard terminal input failed: {type(e).__name__}: {e}. "
@@ -338,7 +339,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 elapsed_loop = time.monotonic() - loop_start
 
                 # Timeout: if no data after 30 seconds or if displaying data for >10 seconds, exit
-                if elapsed_loop > 30 or (first_render_with_data and (time.monotonic() - data_display_start) > 10):
+                if elapsed_loop > 30 or (first_render_with_data and data_display_start is not None and (time.monotonic() - data_display_start) > 10):
                     logger.info("[DASHBOARD] run_once() exiting after displaying data")
                     break
 
