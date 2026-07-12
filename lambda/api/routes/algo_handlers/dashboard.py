@@ -729,8 +729,10 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 data_age_seconds = int((now_et - computed_at).total_seconds())
 
                 # On weekends/holidays, accept data from previous trading day
-                from algo.infrastructure.market_calendar import MarketCalendar
-                today_trading = MarketCalendar.is_trading_day(datetime.now().date())
+                # Use simple heuristic: weekday 0-4 = trading day, 5-6 = weekend
+                import datetime as dt_module
+                today_weekday = dt_module.datetime.now().weekday()
+                today_trading = today_weekday < 5  # Monday-Friday
                 threshold_seconds = 86400 if today_trading else 259200  # 1 day if trading, 3 days if market closed
                 data_stale = data_age_seconds > threshold_seconds
 
