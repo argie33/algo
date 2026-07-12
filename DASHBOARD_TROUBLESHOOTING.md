@@ -31,9 +31,14 @@ python3 -m dashboard --local
 
 | Scenario | Command | Result |
 |----------|---------|--------|
-| **Local Dev** | `python -m dashboard --local` | ✅ Works perfectly |
-| **AWS Mode** | `python -m dashboard` | ❌ Needs Cognito auth |
+| **Local Dev (RECOMMENDED)** | `python -m dashboard --local` | ✅ Works perfectly |
+| **AWS Mode** | `python -m dashboard` | ⚠️ Lambda timeout (VPC issue) |
 | **Raw test** | `curl -H "Authorization: Bearer dev-admin" http://localhost:3001/api/algo/portfolio` | ✅ Works |
+
+### Current Status (Session 85, 2026-07-12)
+- **Dev Server:** ✅ Running and responding on localhost:3001
+- **AWS Lambda:** ⚠️ Timing out (VPC cold-start issue, needs investigation)
+- **Data:** ✅ Fresh (today is Saturday, price data current through Friday)
 
 ## Health Check
 
