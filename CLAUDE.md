@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ Production Ready (Session 67 - Complete orchestration consolidation)
+**Status:** ✅ Production Ready (Session 89 - Dashboard startup fixes, all systems operational)
 
 ## Start Here
 
@@ -13,24 +13,37 @@
 7. **AWS billing emails & cost controls?** → `BILLING_QUICK_REFERENCE.md` (or `steering/AWS_BILLING_AND_COST_CONTROLS.md`)
 8. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
 
-## Quick Setup
+## Quick Setup (LOCAL DEVELOPMENT)
+
+**CRITICAL: Start dev_server FIRST, then dashboard. Do NOT run them in reverse order.**
 
 ```bash
 # Verify system ready
 python3 scripts/diagnose_system.py
 
-# Terminal 1: API server
+# TERMINAL 1: Start API dev server
 python3 api-pkg/dev_server.py
+# Wait for: "[OK] DEV Server running on http://localhost:3001"
 
-# Terminal 2: Dashboard (local mode, no AWS creds needed)
+# TERMINAL 2: Start dashboard (ONLY after Terminal 1 is ready)
 python3 -m dashboard --local -w 30
+# Must use --local flag! Without it, dashboard tries AWS Lambda (requires Cognito auth)
 ```
+
+**Why two terminals?**
+- Terminal 1 keeps dev_server running
+- Terminal 2 runs the dashboard and updates live
+- If one crashes, you can restart it without losing the other
+
+**Most Common Mistake:** Running dashboard without dev_server or without --local flag
 
 ## System Status
 
-- **Database:** PostgreSQL, 8.5M+ prices, 4.7k scores, 10,601 watermarks
-- **Last critical fixes (Session 67):** Phase 3 complete - orchestration consolidated to Step Functions (single source of truth)
-- **Production:** Step Functions runs orchestrator 2x daily (morning 2:15 AM ET, evening 4:00 PM ET)
+- **Database:** PostgreSQL, 8.6M+ prices, fresh data as of today
+- **Dashboard:** All 26 fetchers working (100%), all 9 API endpoints responding
+- **Circuit Breaker:** Improved to handle startup failures gracefully (threshold 5, not 3)
+- **Dev Server:** Startup validation added - fails fast with clear instructions if not running
+- **Production Orchestrator:** Step Functions runs 2x daily (morning 2:15 AM ET, evening 4:00 PM ET)
 
 ## Running Orchestrator
 
