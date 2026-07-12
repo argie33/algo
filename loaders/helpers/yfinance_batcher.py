@@ -22,7 +22,8 @@ Usage:
 
 import logging
 import time
-from typing import Any, Generator
+from collections.abc import Generator
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -78,12 +79,12 @@ def batch_tickers(symbols: list[str], batch_size: int = 50) -> Generator[dict[st
                         )
                         time.sleep(wait_time)
                     else:
-                        logger.error(f"[YFINANCE_BATCHER] Rate limited, max retries exceeded. Skipping batch.")
-                        yield {symbol: None for symbol in batch}
+                        logger.error("[YFINANCE_BATCHER] Rate limited, max retries exceeded. Skipping batch.")
+                        yield dict.fromkeys(batch)
                         break
                 else:
                     logger.error(f"[YFINANCE_BATCHER] Unexpected error: {e}")
-                    yield {symbol: None for symbol in batch}
+                    yield dict.fromkeys(batch)
                     break
 
 
