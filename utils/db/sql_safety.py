@@ -108,6 +108,7 @@ SAFE_TABLES = {
     "key_metrics",
     # Market snapshots
     "yfinance_snapshot",
+    "yfinance_derived_metrics",
     # Financial statements
     "balance_sheet",
     "cash_flow",

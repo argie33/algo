@@ -78,10 +78,10 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                 SELECT
                     pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield,
                     market_cap, held_percent_insiders, held_percent_institutions,
-                    short_interest, short_interest_trend,
+                    short_interest,
                     long_name, sector, industry, exchange, website, country,
-                    analyst_recommendation, number_of_analysts,
-                    earnings_date, earnings_history_dates,
+                    recommendation_key, number_of_analysts,
+                    earnings_date, earnings_dates,
                     data_available, unavailable_reason
                 FROM yfinance_snapshot
                 WHERE symbol = %s
@@ -129,17 +129,16 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
             "held_percent_insiders": row.get("held_percent_insiders"),
             "held_percent_institutions": row.get("held_percent_institutions"),
             "short_interest": row.get("short_interest"),
-            "short_interest_trend": row.get("short_interest_trend"),
             "long_name": row.get("long_name"),
             "sector": row.get("sector"),
             "industry": row.get("industry"),
             "exchange": row.get("exchange"),
             "website": row.get("website"),
             "country": row.get("country"),
-            "analyst_recommendation": row.get("analyst_recommendation"),
+            "analyst_recommendation": row.get("recommendation_key"),
             "number_of_analysts": row.get("number_of_analysts"),
             "earnings_date": row.get("earnings_date"),
-            "earnings_history_dates": row.get("earnings_history_dates"),
+            "earnings_history_dates": row.get("earnings_dates"),
             "updated_at": now_et,
         }
         return [record]
