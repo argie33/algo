@@ -983,12 +983,15 @@ class MarketHealthDailyLoader(OptimalLoader):
                 )
             if not health_metrics:
                 # All dates were beyond VIX coverage - likely because today's VIX isn't available yet
-                # This is expected during intraday runs; return empty and let next run handle it
+                # This is expected during intraday runs; raise explicit exception (not silent empty)
                 logger.info(
-                    "[MARKET_HEALTH] No dates with VIX coverage available (likely today waiting for VIX data). "
-                    "Will be included in next run once VIX data lands."
+                    "[MARKET_HEALTH] No dates with VIX coverage available. "
+                    "Deferring load until VIX data available (expected during intraday)."
                 )
-                return []
+                raise ValueError(
+                    "[MARKET_HEALTH] VIX data not yet available. "
+                    "Expected during intraday hours - next scheduled run will process once VIX lands."
+                )
 
             # Filter to only dates where VIX actually exists in price_daily.
             # The cap above removes dates AFTER the latest VIX row, but VIX coverage may be

@@ -1251,10 +1251,14 @@ def _get_cap_distribution(cur: cursor) -> Any:
         # Check if company_profile or key_metrics tables are empty
         cur.execute("SELECT COUNT(*) as cnt FROM company_profile WHERE sector IS NOT NULL")
         profile_row = safe_dict_convert(cur.fetchone())
-        profile_count = profile_row.get("cnt", 0) if profile_row else 0
+        profile_count = (
+            int(profile_row["cnt"]) if (profile_row and "cnt" in profile_row and profile_row["cnt"] is not None) else 0
+        )
         cur.execute("SELECT COUNT(*) as cnt FROM key_metrics WHERE market_cap > 0")
         metrics_row = safe_dict_convert(cur.fetchone())
-        metrics_count = metrics_row.get("cnt", 0) if metrics_row else 0
+        metrics_count = (
+            int(metrics_row["cnt"]) if (metrics_row and "cnt" in metrics_row and metrics_row["cnt"] is not None) else 0
+        )
 
         if profile_count == 0 or metrics_count == 0:
             raise_api_error(

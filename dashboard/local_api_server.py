@@ -278,7 +278,9 @@ class APIHandler(BaseHTTPRequestHandler):
                         "cagr": None,
                         "best_streak": 0,
                         "worst_streak": 0,
-                        "current_streak": metrics.get("current_streak", 0) if metrics else 0,
+                        "current_streak": (
+                            int(metrics["current_streak"]) if ("current_streak" in metrics and metrics["current_streak"] is not None) else 0
+                        ) if metrics else 0,
                         "expectancy_r": None,
                     },
                 }
@@ -286,12 +288,14 @@ class APIHandler(BaseHTTPRequestHandler):
                 response = {
                     "statusCode": 200,
                     "data": {
-                        "total_trades": metrics.get("total_actions") or 0,
+                        "total_trades": (
+                            int(metrics["total_actions"]) if ("total_actions" in metrics and metrics["total_actions"] is not None) else 0
+                        ),
                         "winning": 0,  # Would need separate win count query
                         "losing": 0,   # Would need separate loss count query
                         "breakeven": 0,  # Would need separate query
-                        "win_rate": float(metrics.get("win_rate")) if metrics.get("win_rate") else None,
-                        "profit_factor": float(metrics.get("profit_factor")) if metrics.get("profit_factor") else None,
+                        "win_rate": float(metrics["win_rate"]) if ("win_rate" in metrics and metrics["win_rate"] is not None) else None,
+                        "profit_factor": float(metrics["profit_factor"]) if ("profit_factor" in metrics and metrics["profit_factor"] is not None) else None,
                         "total_pnl": float(metrics.get("total_pnl") or 0),
                         "total_pnl_pct": float(metrics.get("total_pnl_pct") or 0),
                         "avg_trade_pct": 0.0,  # Computed separately

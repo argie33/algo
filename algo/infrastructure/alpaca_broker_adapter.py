@@ -287,11 +287,14 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             )
             if is_paper_trading:
                 logger.warning(
-                    "[CLOSED_ORDERS] Alpaca credentials missing. "
-                    "Paper trading mode - returning empty order list. "
-                    "Reconciliation will use database state only."
+                    "[CLOSED_ORDERS] Alpaca credentials missing (paper mode). "
+                    "Using database state for reconciliation - live orders unavailable."
                 )
-                return []
+                # Paper mode: explicitly communicate unavailability instead of silent empty list
+                raise ValueError(
+                    "[PAPER_TRADING] Alpaca orders unavailable - credentials not configured. "
+                    "Expected behavior: reconciliation uses database state only."
+                )
             else:
                 raise ValueError(
                     "CRITICAL: Alpaca credentials missing. Cannot fetch closed orders without valid API credentials."

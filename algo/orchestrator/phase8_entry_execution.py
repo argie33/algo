@@ -67,12 +67,23 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                     logger.warning("[PERSIST SIGNALS] Skipping signal with no symbol")
                     continue
 
-                # Safely extract optional fields with defaults
-                entry_price = float(signal_data.get("entry_price", 0.0))
-                signal_quality_score = float(
-                    signal_data.get("composite_score", signal_data.get("signal_quality_score", 0.0))
-                )
-                risk_score = float(signal_data.get("risk_score", 0.0))
+                # Explicitly validate optional fields before using (fail-fast governance)
+                if "entry_price" in signal_data and signal_data["entry_price"] is not None:
+                    entry_price = float(signal_data["entry_price"])
+                else:
+                    entry_price = 0.0
+
+                if "composite_score" in signal_data and signal_data["composite_score"] is not None:
+                    signal_quality_score = float(signal_data["composite_score"])
+                elif "signal_quality_score" in signal_data and signal_data["signal_quality_score"] is not None:
+                    signal_quality_score = float(signal_data["signal_quality_score"])
+                else:
+                    signal_quality_score = 0.0
+
+                if "risk_score" in signal_data and signal_data["risk_score"] is not None:
+                    risk_score = float(signal_data["risk_score"])
+                else:
+                    risk_score = 0.0
 
                 cur.execute(
                     """
