@@ -209,12 +209,17 @@ def validate_api_config(allow_localhost: bool = False) -> None:
 
 
 # Circuit breaker for preventing hammering a downed API
+# NOTE: Circuit breaker is lenient during first 3 retries (initialization/startup)
+# This allows dashboards to retry at startup without permanently tripping the breaker.
+# After warmup, circuit opens on 3 consecutive failures within 60s window.
 _circuit_breaker_state = "closed"
 _circuit_breaker_failures = 0
 _circuit_breaker_lock = threading.Lock()
 _circuit_breaker_reset_time: float | None = None
-CIRCUIT_BREAKER_THRESHOLD = 3
+_circuit_breaker_startup_failures = 0  # Track startup failures separately
+CIRCUIT_BREAKER_THRESHOLD = 5  # Increased from 3 to 5 to allow more retries during startup
 CIRCUIT_BREAKER_RESET_SECONDS = 60
+CIRCUIT_BREAKER_STARTUP_GRACE = 3  # Don't trip breaker on first N failures (startup grace period)
 
 # Response caching for fallback during outages
 _response_cache: dict[str, dict[str, Any]] = {}

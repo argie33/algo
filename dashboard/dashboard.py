@@ -529,11 +529,39 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
 
 def _setup_local_api() -> str:
-    """Setup local API mode."""
+    """Setup local API mode.
+
+    Checks if dev_server is running on localhost:3001. If not, provides
+    helpful instructions to start it. Does NOT auto-start to avoid
+    unexpected background processes.
+    """
     local_url = "http://localhost:3001"
     if not _validate_api_url(local_url):
         logger.error(f"Invalid local API URL: {local_url}")
         sys.exit(1)
+
+    # Check if dev_server is actually running
+    import socket
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(1)
+        result = sock.connect_ex(('127.0.0.1', 3001))
+        sock.close()
+        if result != 0:
+            # Dev server not running
+            try:
+                CONSOLE.print("\n[bold red]ERROR: Dev server not running on localhost:3001[/]")
+                CONSOLE.print("[yellow]The dashboard requires dev_server to be running in another terminal[/]\n")
+                CONSOLE.print("[bold cyan]TO FIX (in another terminal):[/]")
+                CONSOLE.print("  python3 api-pkg/dev_server.py\n")
+                CONSOLE.print("[bold cyan]THEN (after dev_server starts):[/]")
+                CONSOLE.print("  python3 -m dashboard --local\n")
+            except Exception as display_err:
+                logger.error(f"Failed to display error: {type(display_err).__name__}: {display_err}")
+            sys.exit(1)
+    except Exception as e:
+        logger.warning(f"Failed to check dev_server availability: {e}")
+
     set_api_url(local_url)
     # Clear Cognito auth for local dev mode so dashboard injects dev-admin token
     set_cognito_auth(None)

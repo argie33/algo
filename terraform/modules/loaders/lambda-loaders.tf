@@ -1,6 +1,7 @@
 # Lambda functions for quick loaders (<5 min each)
-# Replaces ECS tasks for: dxy_index, market_constituents, sector_ranking,
+# Replaces ECS tasks for: market_constituents, sector_ranking,
 # algo_metrics_daily, market_health_daily, market_sentiment
+# NOTE: dxy_index removed (Phase 2) - only ECS task used, not Lambda
 
 # Archive existing loader code as Lambda deployment package
 data "archive_file" "lambda_loaders_code" {
@@ -41,41 +42,6 @@ resource "aws_lambda_layer_version" "loader_dependencies" {
   ]
 
   tags = var.common_tags
-}
-
-# ============================================================
-# Lambda: dxy_index (Economic data fetcher)
-# ============================================================
-resource "aws_lambda_function" "dxy_index" {
-  filename      = data.archive_file.lambda_loaders_code.output_path
-  function_name = "${var.project_name}-loader-dxy-index-${var.environment}"
-  role          = aws_iam_role.lambda_loader_execution.arn
-  handler       = "handlers.dxy_index.handler"
-  runtime       = local.lambda_loader_config.runtime
-  timeout       = 120  # 2 min timeout
-  memory_size   = 256  # Lightweight, I/O bound
-
-  source_code_hash = filebase64sha256(data.archive_file.lambda_loaders_code.output_path)
-
-  layers = [aws_lambda_layer_version.loader_dependencies.arn]
-
-  environment {
-    variables = merge(
-      local.lambda_loader_config.environment_variables,
-      {
-        LOADER_NAME = "dxy_index"
-      }
-    )
-  }
-
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.db_security_group_id]
-  }
-
-  tags = merge(var.common_tags, {
-    Loader = "dxy_index"
-  })
 }
 
 # ============================================================
@@ -263,7 +229,6 @@ resource "aws_lambda_function" "market_sentiment" {
 # ============================================================
 resource "aws_cloudwatch_log_group" "lambda_loaders" {
   for_each = toset([
-    "dxy-index",
     "market-constituents",
     "sector-ranking",
     "algo-metrics-daily",
@@ -285,7 +250,6 @@ resource "aws_cloudwatch_log_group" "lambda_loaders" {
 output "lambda_loader_functions" {
   description = "ARNs of all Lambda loader functions"
   value = {
-    dxy_index              = aws_lambda_function.dxy_index.arn
     market_constituents    = aws_lambda_function.market_constituents.arn
     sector_ranking         = aws_lambda_function.sector_ranking.arn
     algo_metrics_daily     = aws_lambda_function.algo_metrics_daily.arn
