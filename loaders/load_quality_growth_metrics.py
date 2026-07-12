@@ -38,14 +38,17 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         """Override run() to insert to TWO tables instead of one."""
         quality_inserts = 0
         growth_inserts = 0
+        symbols_succeeded = 0
+        symbols_failed = 0
 
         try:
             with self._db_write_context() as cur:
                 for symbol in symbols:
                     try:
                         result = self.fetch_incremental(symbol, since_date)
-                        if result:
-                            quality_row, growth_row = result[0], result[1] if len(result) > 1 else (result[0], None)
+                        if result and len(result) > 0:
+                            # result is list[(quality_dict, growth_dict)], so unpack the tuple inside the list
+                            quality_row, growth_row = result[0]
 
                             # Insert quality metrics
                             self._insert_record(cur, "quality_metrics", quality_row)
@@ -55,13 +58,16 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
                             if growth_row:
                                 self._insert_record(cur, "growth_metrics", growth_row)
                                 growth_inserts += 1
+
+                            symbols_succeeded += 1
                     except Exception as e:
                         logger.warning(f"Failed to compute metrics for {symbol}: {e}")
+                        symbols_failed += 1
 
             logger.info(
                 f"[QUALITY_GROWTH] Consolidated load complete: {quality_inserts} quality, {growth_inserts} growth"
             )
-            return {"quality_metrics": quality_inserts, "growth_metrics": growth_inserts}
+            return {"symbols_succeeded": symbols_succeeded, "symbols_failed": symbols_failed, "quality_metrics": quality_inserts, "growth_metrics": growth_inserts}
 
         except Exception as e:
             logger.error(f"[QUALITY_GROWTH FATAL] {type(e).__name__}: {e!s}", exc_info=True)
