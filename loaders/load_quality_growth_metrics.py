@@ -29,12 +29,12 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
     Now consolidated to fetch once and compute both metrics.
     """
 
-    table_name = "quality_growth_metrics"  # For watermarking
+    table_name = "quality_metrics"  # For watermarking; actually writes to quality_metrics and growth_metrics
     primary_key = ("symbol",)
     watermark_field = "updated_at"
     max_fail_rate = 50.0
 
-    def run(self, symbols: list[str], since_date: date | None = None) -> dict[str, Any]:
+    def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:
         """Override run() to insert to TWO tables instead of one."""
         quality_inserts = 0
         growth_inserts = 0
