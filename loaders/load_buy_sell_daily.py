@@ -56,7 +56,7 @@ class SignalsDailyLoader(OptimalLoader):
         try:
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
-            end: date | None = now_et.date()
+            end = now_et.date()
 
             # CLUSTER 4 FIX: Use cached is_trading_day() to prevent repeated lookups
             # The @lru_cache on _is_trading_day_cached() makes repeated checks ~1000x faster
@@ -83,21 +83,22 @@ class SignalsDailyLoader(OptimalLoader):
                 complete_date_rows = cur.fetchall()
 
                 # Find the most recent date with >= 3000 symbols
-                end = None
+                complete_date: date | None = None
                 price_coverage_symbols = 0
                 if complete_date_rows:
                     for row in complete_date_rows:
                         if row[1] >= 3000:
-                            end = row[0]
+                            complete_date = row[0]
+                            end = complete_date
                             price_coverage_symbols = int(row[1])
                             logger.info(
-                                f"[BUY_SELL_DAILY] Found complete price_daily data: date={end} "
+                                f"[BUY_SELL_DAILY] Found complete price_daily data: date={complete_date} "
                                 f"with {price_coverage_symbols} symbols"
                             )
                             break
 
                 # Fallback if no complete data found
-                if end is None:
+                if complete_date is None:
                     # Use most recent date with ANY price data
                     cur.execute(
                         "SELECT MAX(date) FROM price_daily WHERE date <= %s",
@@ -108,7 +109,8 @@ class SignalsDailyLoader(OptimalLoader):
                         raise RuntimeError(
                             "CRITICAL: No price_daily data found at all. Cannot generate signals without price data."
                         )
-                    end = price_max_date_row[0]
+                    complete_date = price_max_date_row[0]
+                    end = complete_date
 
                     cur.execute(
                         "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
