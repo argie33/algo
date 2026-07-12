@@ -287,20 +287,20 @@ locals {
     # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
     # Computed metrics from SEC financials (DEPENDS ON: financials_annual_income, financials_annual_balance)
     # Reads annual_income_statement & annual_balance_sheet tables populated by load_financial_statements.py
-    "quality_metrics"       = "load_quality_growth_metrics.py"
-    "growth_metrics"        = "load_quality_growth_metrics.py"
+    "quality_metrics" = "load_quality_growth_metrics.py"
+    "growth_metrics"  = "load_quality_growth_metrics.py"
     # Consolidated yfinance readers: 1 loader → 7 output tables (read snapshot once, write to 7 tables in parallel)
     # Output tables: value_metrics, positioning_metrics, company_profile, analyst_sentiment_analysis,
     #               analyst_upgrade_downgrade, earnings_calendar, earnings_history
-    "value_metrics"         = "load_yfinance_derived_metrics.py"
-    "positioning_metrics"   = "load_yfinance_derived_metrics.py"
-    "company_profile"       = "load_yfinance_derived_metrics.py"
-    "earnings_history"      = "load_yfinance_derived_metrics.py"
-    "earnings_calendar"     = "load_yfinance_derived_metrics.py"
+    "value_metrics"       = "load_yfinance_derived_metrics.py"
+    "positioning_metrics" = "load_yfinance_derived_metrics.py"
+    "company_profile"     = "load_yfinance_derived_metrics.py"
+    "earnings_history"    = "load_yfinance_derived_metrics.py"
+    "earnings_calendar"   = "load_yfinance_derived_metrics.py"
     # Consolidated: Both metrics from single loader (Phase 5 optimization - single pass, unified watermark)
-    "stability_metrics"     = "load_risk_metrics_daily.py"
-    "momentum_metrics"      = "load_risk_metrics_daily.py"
-    "stock_scores"          = "load_stock_scores.py"
+    "stability_metrics" = "load_risk_metrics_daily.py"
+    "momentum_metrics"  = "load_risk_metrics_daily.py"
+    "stock_scores"      = "load_stock_scores.py"
 
     "market_constituents" = "load_market_constituents.py"
     "market_health_daily" = "load_market_health_daily.py"
@@ -321,7 +321,7 @@ locals {
     # ACTIVATED (2026-07-12): Loader now supports LOADER_STATEMENT_TYPE="all"
     # to load all 8 statement/period combinations in sequence within single container.
     # Single task replaces 8 parallel branches, saving $8-15/mo + 40-80s per execution
-    "financials_all"                = "load_financial_statements.py"
+    "financials_all" = "load_financial_statements.py"
 
     # Sector performance loader (optional, not in critical path)
     "sector_performance" = "load_sector_performance.py"
@@ -386,34 +386,34 @@ locals {
     "value_metrics"       = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
     "positioning_metrics" = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
     # Reduced memory from 1024 to 512 (actual peak usage <100MB for parsing metadata)
-    "company_profile"     = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
-    "earnings_history"    = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
-    "earnings_calendar"   = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
+    "company_profile"   = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
+    "earnings_history"  = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
+    "earnings_calendar" = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
     # Cost-optimized: Reduced from 1024 to 512 (dividend + payout ratio queries, <50MB actual)
     "stability_metrics" = { cpu = 512, memory = 512, timeout = 1800, parallelism = 2 }
     # Cost-optimized: Reduced from 1024 to 512 (return calculations on historical prices, <80MB actual)
     "momentum_metrics" = { cpu = 512, memory = 512, timeout = 1800, parallelism = 2 }
     # Cost-optimized: Reduced from 2048 to 1024 (score aggregation, vectorized SQL, moderate memory for DF ops)
-    "stock_scores"     = { cpu = 1024, memory = 1024, timeout = 3600, parallelism = 2 }
+    "stock_scores" = { cpu = 1024, memory = 1024, timeout = 3600, parallelism = 2 }
 
     "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
     "market_sentiment"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     # Consolidated economic data loader: FRED series + DXY (lightweight: API calls + DB writes)
-    "economic_data"       = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
+    "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
     # Cost-optimized: Reduced from 1024 to 512 (sector ranking DB queries, <50MB actual)
-    "sector_ranking"      = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
-    "industry_ranking"    = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
+    "sector_ranking"   = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
+    "industry_ranking" = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
     # Cost-optimized: Reduced timeout from 10800s (3h) to 1800s (30m) - actual execution ~5-10 min
-    "algo_metrics_daily"  = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
+    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
     # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
-    "buy_sell_daily"      = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
+    "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_yfinance_derived_metrics.py, not separate tasks
     # They share ECS task definition with other yfinance-derived metrics (value, positioning, company_profile, earnings*)
 
     # Consolidated: All 8 statement types in single task (runs sequentially, ~9600s total)
     # Provides 4.2h timeout (2.7x expected 60m) to detect hangs, saves $8-15/mo + 40-80s per run
-    "financials_all"                = { cpu = 512, memory = 512, timeout = 15000, parallelism = 1 }
+    "financials_all" = { cpu = 512, memory = 512, timeout = 15000, parallelism = 1 }
 
     # Cost-optimized: Reduced from 1024 to 512 (sector performance ranking, <50MB actual)
     "sector_performance" = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
@@ -427,8 +427,8 @@ locals {
     "stock_scores",
     "buy_sell_daily",
     "yfinance_snapshot",
-    "economic_data",        # Consolidated (FRED + DXY)
-    "financials_all",       # Consolidated financial statements (replaces 8 individual tasks)
+    "economic_data",  # Consolidated (FRED + DXY)
+    "financials_all", # Consolidated financial statements (replaces 8 individual tasks)
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
@@ -623,7 +623,7 @@ resource "aws_ecs_task_definition" "loader" {
             name  = "LOADER_STATEMENT_TYPE"
             value = "all"
           }
-        ] : strcontains(each.key, "annual") ? [
+          ] : strcontains(each.key, "annual") ? [
           {
             name  = "LOADER_PERIOD"
             value = "annual"

@@ -179,3 +179,20 @@ variable "alert_webhook_url" {
   default     = ""
   sensitive   = true
 }
+
+variable "rds_resource_id" {
+  description = "RDS resource ID for IAM database auth (e.g., cluster-ABCD1234)"
+  type        = string
+  default     = "stocks-cluster"
+}
+
+variable "rds_proxy_endpoint" {
+  description = "RDS Proxy endpoint for Lambda connections (connection pooling)"
+  type        = string
+  default     = ""
+}
+
+variable "db_security_group_id" {
+  description = "Security group ID for database access"
+  type        = string
+}

@@ -203,6 +203,7 @@ module "loaders" {
   disable_provenance_tracking = var.disable_provenance_tracking
   alert_email_to              = var.alert_email_to
   alert_webhook_url           = var.alert_webhook_url
+  db_security_group_id        = module.vpc.rds_security_group_id
 }
 
 module "lambda_layers" {

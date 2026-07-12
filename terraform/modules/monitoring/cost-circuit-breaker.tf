@@ -150,13 +150,13 @@ resource "aws_lambda_function" "cost_circuit_breaker" {
 
   environment {
     variables = {
-      PROJECT_NAME                = var.project_name
-      ENVIRONMENT                 = var.environment
-      ALERT_EMAIL_TO              = var.alert_email_address
-      ALERT_EMAIL_FROM            = var.alert_email_address
-      DAILY_COST_THRESHOLD_USD    = var.cost_threshold_daily_usd
-      ECS_CLUSTER_NAME            = "${var.project_name}-${var.environment}"
-      LOG_LEVEL                   = "INFO"
+      PROJECT_NAME             = var.project_name
+      ENVIRONMENT              = var.environment
+      ALERT_EMAIL_TO           = var.alert_email_address
+      ALERT_EMAIL_FROM         = var.alert_email_address
+      DAILY_COST_THRESHOLD_USD = var.cost_threshold_daily_usd
+      ECS_CLUSTER_NAME         = "${var.project_name}-${var.environment}"
+      LOG_LEVEL                = "INFO"
     }
   }
 

@@ -1955,6 +1955,7 @@ class PriceLoader(OptimalLoader):
                         "volume": None,
                         "data_unavailable": True,
                         "data_unavailable_reason": "no_price_data_after_validation",
+                        "reason_type": "loader_failed",
                     }
                     self._bulk_insert_mgr.bulk_insert(
                         [unavailable_marker],

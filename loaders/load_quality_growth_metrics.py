@@ -110,12 +110,14 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
                         "symbol": symbol,
                         "data_unavailable": True,
                         "reason": "No SEC filing data",
+                        "reason_type": "not_applicable",
                         "updated_at": date.today().isoformat(),
                     },
                     {
                         "symbol": symbol,
                         "data_unavailable": True,
                         "reason": "No SEC filing data",
+                        "reason_type": "not_applicable",
                         "updated_at": date.today().isoformat(),
                     },
                 )
@@ -180,6 +182,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
                 "symbol": symbol,
                 "data_unavailable": True,
                 "reason": "Insufficient historical data",
+                "reason_type": "not_applicable",
                 "updated_at": date.today().isoformat(),
             }
 
