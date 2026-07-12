@@ -79,6 +79,10 @@ disable_error_code = ["unused-ignore"]
 module = "loaders.load_prices"
 disable_error_code = ["unused-ignore"]
 
+[[tool.mypy.overrides]]
+module = "utils.decorators"
+disable_error_code = ["unused-ignore"]
+
 [tool.ruff]
 line-length = 120
 target-version = "py310"
