@@ -116,7 +116,7 @@ class SectorPerformanceLoader(BaseLoader):
 
         self.cur.connection.commit()
         logger.info(f"[{self.name}] Loaded/updated {rows} sector performance records for {target_date}")
-        return rows
+        return int(rows)  # type: ignore[return-value]
 
 
 def run(cur: cursor) -> dict[str, Any]:
