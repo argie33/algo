@@ -59,7 +59,6 @@ const statusRoutes = require("./routes/status");
 const performanceRoutes = require("./routes/performance");
 const logoutRoutes = require("./routes/logout");
 const settingsRoutes = require("./routes/settings");
-
 const app = express();
 
 // CRITICAL: Catch unhandled errors to prevent orphaned processes
