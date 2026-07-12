@@ -124,6 +124,8 @@ class PutCallRatioFetcher:
             recovery_timeout_sec=300,
             importance=DataImportance.OPTIONAL,
         )
+        self._cache: dict[str, float] = {}  # Cache put/call per trading day
+        self._cache_date: dict[str, date] = {}  # Track cached date
 
     def _is_transient_error(self, exc: Exception) -> bool:
         """Categorize exception as transient (retriable) or permanent.
@@ -167,7 +169,11 @@ class PutCallRatioFetcher:
         return True
 
     def fetch(self, eval_date: date) -> dict[str, Any] | float:
-        """Fetch put/call ratio with exponential backoff retry and circuit breaker protection.
+        """Fetch put/call ratio with trading-day caching to reduce API costs.
+
+        Cache strategy: Fetch once per trading day, reuse for both morning and evening runs.
+        Morning run (2:15 AM): fetches fresh data
+        Evening run (4:05 PM): reuses same day's cached value (~50% API reduction)
 
         Returns:
             float: Put/call ratio if successful
@@ -177,14 +183,24 @@ class PutCallRatioFetcher:
         Per CLAUDE.md governance: Optional enrichment must return explicit data_unavailable
         markers instead of raising exceptions, enabling graceful degradation.
         """
-        # Attempt direct fetch with retries first (before circuit breaker check)
+        eval_date_iso = eval_date.isoformat()
+
+        # Check cache - valid if same trading day
+        if (
+            eval_date_iso in self._cache
+            and self._cache_date.get(eval_date_iso) == eval_date
+        ):
+            logger.debug(f"[PUT_CALL_RATIO] Using cached value for {eval_date}")
+            return self._cache[eval_date_iso]
+
+        # Cache miss - attempt direct fetch with retries first (before circuit breaker check)
         result = self._fetch_with_retries(eval_date)
 
         if result is None:
             return {
                 "data_unavailable": True,
                 "reason": "unable to fetch after retries",
-                "eval_date": str(eval_date),
+                "eval_date": eval_date_iso,
             }
 
         # Validate result type
@@ -192,9 +208,13 @@ class PutCallRatioFetcher:
             return {
                 "data_unavailable": True,
                 "reason": "invalid response type",
-                "eval_date": str(eval_date),
+                "eval_date": eval_date_iso,
             }
 
+        # Cache successful result for rest of trading day
+        self._cache[eval_date_iso] = result
+        self._cache_date[eval_date_iso] = eval_date
+        logger.info(f"[PUT_CALL_RATIO] Cached {result:.3f} for {eval_date}")
         return result
 
     def _fetch_with_retries(self, eval_date: date) -> float | None:
@@ -253,76 +273,42 @@ class PutCallRatioFetcher:
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Internal put/call fetch implementation.
 
-        Finds nearest options expiration date to eval_date (yfinance requires actual expiration dates,
-        not arbitrary trading dates). Uses closest expiration <= eval_date, or if none exists, next available.
+        Fetches CBOE Put/Call Ratio Index (PCRX) from yfinance.
+        PCRX is the official CBOE-computed put/call ratio for broad market options sentiment.
+        Much simpler and more reliable than parsing options chains manually.
         """
         try:
             import yfinance
 
-            spx_options = yfinance.Ticker("^SPX")
+            # Fetch PCRX (CBOE Put/Call Ratio Index) - official source, simple API
+            # PCRX is updated daily by CBOE and is readily available via yfinance
+            pcrx_data = yfinance.download(
+                "PCRX",
+                start=eval_date,
+                end=eval_date,
+                progress=False,
+            )
 
-            # Get available expiration dates
-            if not hasattr(spx_options, "options") or not spx_options.options:
-                raise RuntimeError(f"[PUT_CALL_FETCHER] No options expirations available for ^SPX on {eval_date}")
-
-            expirations = spx_options.options
-            if not expirations:
-                raise RuntimeError(f"[PUT_CALL_FETCHER] Empty expirations list for ^SPX on {eval_date}")
-
-            # Convert expirations to dates
-            from datetime import datetime
-
-            exp_dates = []
-            for exp_str in expirations:
-                try:
-                    exp_date = datetime.strptime(exp_str, "%Y-%m-%d").date()
-                    exp_dates.append(exp_date)
-                except ValueError as e:
-                    # Log invalid dates so user knows which ones were skipped
-                    logger.warning(f"[PUT_CALL_FETCHER] Invalid expiration date format: {exp_str!r} - {e}")
-                    continue
-
-            if not exp_dates:
-                raise RuntimeError(f"[PUT_CALL_FETCHER] Could not parse any expiration dates from {expirations}")
-
-            # Find nearest expiration: prefer <= eval_date, otherwise next available
-            closest_exp = None
-            for exp_date in sorted(exp_dates):
-                if exp_date <= eval_date:
-                    closest_exp = exp_date
-                elif closest_exp is None:
-                    closest_exp = exp_date
-                    break
-
-            if closest_exp is None:
-                # No expiration found <= eval_date, and no future expiration either
-                # This indicates options data is unavailable for the eval_date
+            if pcrx_data is None or pcrx_data.empty:
                 raise RuntimeError(
-                    f"[PUT_CALL_FETCHER] No suitable options expiration found for eval_date {eval_date}. "
-                    f"Available: {sorted(exp_dates)}. Cannot compute put/call ratio without valid expiration."
+                    f"[PUT_CALL_FETCHER] No PCRX data available for {eval_date}. "
+                    f"CBOE put/call ratio index may not have been published yet (check after market close)."
                 )
 
-            logger.debug(f"[PUT_CALL_FETCHER] Using expiration {closest_exp} for eval_date {eval_date}")
+            # Extract close price (PCRX close value is the put/call ratio)
+            pcrx_close = float(pcrx_data["Close"].iloc[0])
 
-            options_chain = spx_options.option_chain(closest_exp.isoformat())
-
-            if options_chain.calls.empty or options_chain.puts.empty:
+            if pcrx_close <= 0:
                 raise RuntimeError(
-                    f"[PUT_CALL_FETCHER] Options data missing for {closest_exp}: "
-                    f"calls={options_chain.calls.empty}, puts={options_chain.puts.empty}"
+                    f"[PUT_CALL_FETCHER] Invalid PCRX value {pcrx_close} for {eval_date}. "
+                    f"Put/call ratio must be positive."
                 )
 
-            total_calls = float(options_chain.calls["openInterest"].sum())
-            total_puts = float(options_chain.puts["openInterest"].sum())
+            logger.debug(f"[PUT_CALL_FETCHER] PCRX (CBOE Put/Call Ratio) for {eval_date}: {pcrx_close:.3f}")
+            return pcrx_close
 
-            if total_calls == 0:
-                raise RuntimeError(f"[PUT_CALL_FETCHER] No call volume for {closest_exp}. Cannot calculate ratio.")
-
-            ratio = float(total_puts / total_calls)
-            logger.debug(f"[PUT_CALL_FETCHER] Put/call ratio for {eval_date} (using {closest_exp}): {ratio:.3f}")
-            return ratio
         except Exception as e:
-            raise RuntimeError(f"[PUT_CALL_FETCHER] Fetch failed for {eval_date}: {e}") from e
+            raise RuntimeError(f"[PUT_CALL_FETCHER] PCRX fetch failed for {eval_date}: {e}") from e
 
 
 class YieldCurveFetcher:
