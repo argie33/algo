@@ -573,6 +573,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # ── Step 8c: Sector ranking (depends on stock_scores) ──────────────
       # CRITICAL: Must run before orchestrator to ensure Phase 3 and Phase 5 have current sector data.
       # Runs after swing_trader_scores completes. Timeout 900 seconds (15 minutes).
+      # AUDIT FIX: Added industry_ranking and sector_performance loaders (2026-07-12)
       SectorRanking = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -615,6 +616,106 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Catch = [{
           ErrorEquals = ["States.ALL"]
           Next        = "MarketExposureDaily"
+          ResultPath  = "$.logError"
+        }]
+        Next = "IndustryRanking"
+      }
+
+      # ── Step 8c-bis: Industry Ranking ──
+      # Consolidation: sector_ranking and industry_ranking use same loader
+      # Runs after sector_ranking (depends on stock_scores)
+      IndustryRanking = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 900
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["industry_ranking"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogIndustryRankingFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "SectorPerformance"
+      }
+
+      LogIndustryRankingFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "industry_ranking"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "SectorPerformance"
+          ResultPath  = "$.logError"
+        }]
+        Next = "SectorPerformance"
+      }
+
+      # ── Step 8c-ter: Sector Performance ──
+      # Calculates daily sector returns from weighted stock prices
+      # Non-blocking: if timeout, continues to next stage
+      SectorPerformance = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 900
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["sector_performance"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogSectorPerformanceFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "FredEconomicData"
+      }
+
+      LogSectorPerformanceFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "sector_performance"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "FredEconomicData"
           ResultPath  = "$.logError"
         }]
         Next = "FredEconomicData"
@@ -711,6 +812,56 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           "error.$"          = "$.loaderError.Error"
           "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "DataPatrol"
+          ResultPath  = "$.logError"
+        }]
+        Next = "MarketSentiment"
+      }
+
+      # ── Step 8e-bis: Market Sentiment ──
+      # Fear/greed index from VIX (lightweight enrichment)
+      # Non-blocking: can timeout without affecting pipeline
+      MarketSentiment = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 300
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["market_sentiment"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogMarketSentimentFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "DataPatrol"
+      }
+
+      LogMarketSentimentFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "market_sentiment"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
         Retry = [{
