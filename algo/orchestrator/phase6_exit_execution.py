@@ -64,10 +64,13 @@ def run(
         alpaca_paper_trading = config.get("alpaca_paper_trading", False)
         is_paper_mode = execution_mode_check in ("paper", "auto") or alpaca_paper_trading
 
-        # Detect Phase 3 crash: if position monitor errored, position_recs is []
-        # but we may have real open positions. This is a critical data integrity error.
-        # SKIP THIS CHECK in paper mode since Phase 3 intentionally returns empty in paper mode
-        if not is_paper_mode:
+        # In paper mode, skip all position_recs validation - Phase 3 intentionally returns empty
+        if is_paper_mode:
+            logger.info("[PHASE 6] Paper trading mode active - skipping position monitor validation")
+            # Continue to exit engine execution (positions still need monitoring for circuit breakers)
+        else:
+            # Live mode: Detect Phase 3 crash - if position monitor errored, position_recs is []
+            # but we may have real open positions. This is a critical data integrity error.
             if position_recs is None:
                 msg = (
                     "[PHASE 6 CRITICAL] position_recs not set — Phase 3 did not execute properly. "
