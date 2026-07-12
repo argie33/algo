@@ -186,6 +186,7 @@ if "algo" in _AVAILABLE_ROUTES:
         "/api/algo/notifications",  # System notifications
         "/api/algo/patrol",  # Data patrol status
         "/api/algo/patrol-log",  # Patrol history
+        "/api/algo/audit-log",  # Activity audit log (required by dashboard)
     ]
     for endpoint in dashboard_endpoints:
         PUBLIC_HANDLERS[endpoint] = _AVAILABLE_ROUTES["algo"]
