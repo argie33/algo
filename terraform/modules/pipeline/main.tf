@@ -617,6 +617,57 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "MarketExposureDaily"
           ResultPath  = "$.logError"
         }]
+        Next = "FredEconomicData"
+      }
+
+      # ── Step 8c-bis: FRED economic data loader ──
+      # Fetches Treasury yields (T10Y2Y), Fed rate, credit spreads, jobless claims
+      # Used by market_exposure_daily for regime detection
+      FredEconomicData = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 600
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["economic_data"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogFredFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "MarketExposureDaily"
+      }
+
+      LogFredFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "economic_data"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "MarketExposureDaily"
+          ResultPath  = "$.logError"
+        }]
         Next = "MarketExposureDaily"
       }
 

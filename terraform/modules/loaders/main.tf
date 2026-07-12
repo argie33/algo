@@ -312,6 +312,10 @@ locals {
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
     "buy_sell_daily"     = "load_buy_sell_daily.py"
 
+    # FRED economic data: Treasury yields, Fed rates, credit spreads, jobless claims
+    # Feeds into market_exposure calculations for regime detection
+    "economic_data" = "load_fred_economic_data.py"
+
     # Consolidated financial statements loader (replaces 8 separate loaders)
     # ACTIVATED (2026-07-12): Loader now supports LOADER_STATEMENT_TYPE="all"
     # to load all 8 statement/period combinations in sequence within single container.
@@ -409,6 +413,8 @@ locals {
     "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
     "market_sentiment"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # FRED economic data loader (lightweight: FRED API calls + DB writes)
+    "economic_data"       = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     # Cost-optimized: Reduced from 1024 to 512 (sector ranking DB queries, <50MB actual)
     "sector_ranking"      = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
     "industry_ranking"    = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
