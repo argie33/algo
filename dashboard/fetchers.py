@@ -243,7 +243,7 @@ def load_all() -> dict[str, Any]:
 
     out: dict[str, Any] = {}
     max_retries = 3
-    batch_timeout = 300  # Increased from 200s to allow slow database queries to complete
+    batch_timeout = 300  # Total timeout for all batches combined
 
     # Per-fetcher timeout limits to prevent one slow endpoint from blocking refresh
     # DASHBOARD OPTIMIZATION: Increased timeouts to match actual API performance (~2.3s per request)
@@ -389,10 +389,11 @@ def load_all() -> dict[str, Any]:
         )
 
     critical_start_time = time.monotonic()
-    # DASHBOARD OPTIMIZATION: Reduce batch timeout to 10s for critical fetchers
-    # This prevents dashboard from hanging when API endpoints require auth or are slow
-    # Fetchers degrade gracefully: return empty/error data instead of blocking
-    critical_batch_timeout = min(15, batch_timeout)  # 15s for critical fetchers; graceful degradation if timeout
+    # DASHBOARD OPTIMIZATION: Reduce batch timeout to 60s for critical fetchers
+    # This provides enough time for all concurrent fetchers to complete.
+    # Per-fetcher timeout is 8s each, but with 12+ concurrent fetchers and limited RDS connections,
+    # some are serialized at the DB level, requiring higher batch timeout.
+    critical_batch_timeout = min(60, batch_timeout)  # 60s for critical fetchers to complete
     critical_out = _execute_fetcher_batch(
         critical_fetchers, 15, critical_batch_timeout, one, fetcher_timeout_seconds, "critical"
     )
