@@ -38,16 +38,16 @@ configure_socket_timeout(30)
 
 
 class YfinanceDerivedMetricsLoader(OptimalLoader):
-    """Read all yfinance-derived metrics from yfinance_snapshot table and persist to 7 tables.
+    """Read all yfinance-derived metrics from yfinance_snapshot table and persist to 3 tables.
 
-    Consolidates 6 separate loaders into one, writing to 7 output tables in parallel:
-      - value_metrics (1 table)
-      - positioning_metrics (1 table)
-      - company_profile (1 table)
-      - analyst_sentiment_analysis (1 table)
-      - analyst_upgrade_downgrade (1 table)
-      - earnings_calendar (1 table)
-      - earnings_history (1 table)
+    Consolidates 6 separate loaders into one, writing to 3 output tables in parallel:
+      - value_metrics (PE, PB, PS, PEG ratios, dividend yield, FCF yield, market cap)
+      - positioning_metrics (short interest, insider/institution holdings)
+      - company_profile (sector, industry, exchange, website, company name)
+
+    Note: Analyst sentiment, analyst upgrades/downgrades, and earnings data are not
+    populated from yfinance_snapshot as those tables require separate data sources
+    and have different schemas than yfinance provides.
     """
 
     table_name = "yfinance_derived_metrics"  # Meta table for watermarking & locking
@@ -59,10 +59,6 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
         "value_metrics",
         "positioning_metrics",
         "company_profile",
-        "analyst_sentiment_analysis",
-        "analyst_upgrade_downgrade",
-        "earnings_calendar",
-        "earnings_history",
     ]
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
@@ -239,75 +235,6 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                     (symbol, record.get("reason", "unknown"), updated_at),
                 )
 
-            # 4. analyst_sentiment_analysis
-            if not record.get("data_unavailable"):
-                cur.execute(
-                    """
-                    INSERT INTO analyst_sentiment_analysis (symbol, analyst_recommendation, number_of_analysts, updated_at)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                      analyst_recommendation = EXCLUDED.analyst_recommendation, number_of_analysts = EXCLUDED.number_of_analysts,
-                      updated_at = EXCLUDED.updated_at
-                    """,
-                    (symbol, record.get("analyst_recommendation"), record.get("number_of_analysts"), updated_at),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO analyst_sentiment_analysis (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, record.get("reason", "unknown"), updated_at),
-                )
-
-            # 5. analyst_upgrade_downgrade
-            if not record.get("data_unavailable"):
-                cur.execute(
-                    """
-                    INSERT INTO analyst_upgrade_downgrade (symbol, analyst_recommendation, number_of_analysts, updated_at)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                      analyst_recommendation = EXCLUDED.analyst_recommendation, number_of_analysts = EXCLUDED.number_of_analysts,
-                      updated_at = EXCLUDED.updated_at
-                    """,
-                    (symbol, record.get("analyst_recommendation"), record.get("number_of_analysts"), updated_at),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO analyst_upgrade_downgrade (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, record.get("reason", "unknown"), updated_at),
-                )
-
-            # 6. earnings_calendar
-            if not record.get("data_unavailable"):
-                cur.execute(
-                    """
-                    INSERT INTO earnings_calendar (symbol, earnings_date, updated_at)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                      earnings_date = EXCLUDED.earnings_date, updated_at = EXCLUDED.updated_at
-                    """,
-                    (symbol, record.get("earnings_date"), updated_at),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO earnings_calendar (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, record.get("reason", "unknown"), updated_at),
-                )
-
-            # 7. earnings_history
-            if not record.get("data_unavailable"):
-                cur.execute(
-                    """
-                    INSERT INTO earnings_history (symbol, earnings_dates, updated_at)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                      earnings_dates = EXCLUDED.earnings_dates, updated_at = EXCLUDED.updated_at
-                    """,
-                    (symbol, record.get("earnings_history_dates"), updated_at),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO earnings_history (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, record.get("reason", "unknown"), updated_at),
-                )
 
 
 def main() -> int:
@@ -327,10 +254,6 @@ def main() -> int:
                 "value_metrics",
                 "positioning_metrics",
                 "company_profile",
-                "analyst_sentiment_analysis",
-                "analyst_upgrade_downgrade",
-                "earnings_calendar",
-                "earnings_history",
             ]
 
             with DatabaseContext("write") as cur:
