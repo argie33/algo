@@ -34,8 +34,8 @@ from collections.abc import Iterable  # noqa: E402
 from datetime import date  # noqa: E402
 from typing import Any  # noqa: E402
 
-from loaders.runner import run_loader  # noqa: E402
 from loaders.helpers.sec_base import SecEdgarStatementLoader  # noqa: E402
+from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
 
 logger = logging.getLogger(__name__)
