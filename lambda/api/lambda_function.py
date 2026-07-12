@@ -1552,6 +1552,18 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         }
 
     logger.info(f"[HANDLER_INVOKED] Event received: {path} {method}")
+
+    # CRITICAL FIX: Clear thread-local cursor from previous request
+    # In dev_server, threads are reused between requests. Without clearing,
+    # the old (closed) cursor stays in thread-local storage, causing subsequent
+    # requests using the same thread to fail when safe_dict_convert tries to use it.
+    # This manifests as hangs on the 3rd+ request to endpoints.
+    try:
+        from routes.utils import clear_current_cursor
+        clear_current_cursor()
+    except ImportError:
+        pass  # If not available, continue anyway
+
     try:
         logger.info(f"Request: {method} {path}")
 

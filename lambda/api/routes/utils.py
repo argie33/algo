@@ -755,6 +755,20 @@ def set_current_cursor(cursor_or_service: Any) -> None:
         _thread_local.cursor = cursor_or_service
 
 
+def clear_current_cursor() -> None:
+    """Clear thread-local cursor (call after request completes).
+
+    CRITICAL FIX: In dev_server, threads are reused between requests.
+    Without clearing, the old (closed) cursor stays in thread-local storage,
+    causing safe_dict_convert to fail on subsequent requests using the same thread.
+
+    In production Lambda, each request gets its own context, so this is less critical,
+    but good practice to clean up regardless.
+    """
+    if hasattr(_thread_local, 'cursor'):
+        delattr(_thread_local, 'cursor')
+
+
 def safe_dict_convert(row: Any) -> Any:
     """Safely convert database row to dictionary, handling both DictCursor and tuple rows.
 

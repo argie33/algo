@@ -62,13 +62,12 @@ class IdleConnectionPool:
         """Get a connection from the pool.
 
         Returns:
-            Connection from pool, or None if cleanup removed it
-        """
-        with self._lock:
-            if self._idle_connections:
-                conn_info = self._idle_connections.popleft()
-                return conn_info["conn"]
+            Connection from pool
 
+        CRITICAL FIX: Removed local idle connection caching.
+        Now always get from underlying pool, which properly manages
+        connection availability and prevents pool exhaustion.
+        """
         return self._pool.getconn()
 
     def putconn(self, conn: Any, close: bool = False) -> None:
@@ -77,18 +76,24 @@ class IdleConnectionPool:
         Args:
             conn: Connection to return
             close: If True, close instead of returning to pool
+
+        CRITICAL FIX: Always return connections to the underlying pool immediately.
+        Storing them locally in _idle_connections was causing the underlying pool
+        to remain exhausted (all connections "checked out" but stored locally).
+        This manifested as hangs on the 3rd+ concurrent request.
         """
-        if close:
-            try:
-                self._pool.putconn(conn, close=True)
-            except Exception as e:
+        try:
+            self._pool.putconn(conn, close=close)
+            logger.debug(f"[IDLE_POOL] Connection returned to underlying pool")
+        except Exception as e:
+            if close:
                 logger.warning(f"[IDLE_POOL] Failed to close connection: {e}")
-            return
-
-        with self._lock:
-            self._idle_connections.append({"conn": conn, "idle_since": time.time()})
-
-        logger.debug(f"[IDLE_POOL] Connection returned to idle pool (idle connections: {len(self._idle_connections)})")
+            else:
+                logger.warning(f"[IDLE_POOL] Failed to return connection to pool: {e}, closing instead")
+                try:
+                    conn.close()
+                except Exception as close_err:
+                    logger.debug(f"[IDLE_POOL] Could not close connection: {close_err}")
 
     def _cleanup_stale_connections(self) -> None:
         """Close connections idle > max_idle_sec."""
