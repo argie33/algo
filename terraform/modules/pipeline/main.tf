@@ -304,7 +304,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
-                End = true
               }
             }
           }
@@ -1088,7 +1087,6 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
-                End = true
               }
             }
           },
@@ -1111,7 +1109,6 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
-                End = true
               }
             }
           }
@@ -1377,7 +1374,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsAnnualIncomeFailure"
                   ResultPath  = "$.loaderError"
                 }]
-                End = true
               }
               LogFinancialsAnnualIncomeFailure = {
                 Type     = "Task"
@@ -1396,10 +1392,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 }]
                 Catch = [{
                   ErrorEquals = ["States.ALL"]
-                  End         = true
                   ResultPath  = "$.logError"
                 }]
-                End = true
               }
             }
           },
@@ -1427,7 +1421,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsAnnualBalanceFailure"
                   ResultPath  = "$.loaderError"
                 }]
-                End = true
               }
               LogFinancialsAnnualBalanceFailure = {
                 Type     = "Task"
@@ -1446,10 +1439,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 }]
                 Catch = [{
                   ErrorEquals = ["States.ALL"]
-                  End         = true
                   ResultPath  = "$.logError"
                 }]
-                End = true
               }
             }
           },
@@ -1477,7 +1468,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsAnnualCashflowFailure"
                   ResultPath  = "$.loaderError"
                 }]
-                End = true
               }
               LogFinancialsAnnualCashflowFailure = {
                 Type     = "Task"
@@ -1496,10 +1486,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 }]
                 Catch = [{
                   ErrorEquals = ["States.ALL"]
-                  End         = true
                   ResultPath  = "$.logError"
                 }]
-                End = true
               }
             }
           },
@@ -1527,7 +1515,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsQuarterlyIncomeFailure"
                   ResultPath  = "$.loaderError"
                 }]
-                End = true
               }
               LogFinancialsQuarterlyIncomeFailure = {
                 Type     = "Task"
@@ -1546,10 +1533,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 }]
                 Catch = [{
                   ErrorEquals = ["States.ALL"]
-                  End         = true
                   ResultPath  = "$.logError"
                 }]
-                End = true
               }
             }
           },
@@ -1577,7 +1562,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsQuarterlyBalanceFailure"
                   ResultPath  = "$.loaderError"
                 }]
-                End = true
               }
               LogFinancialsQuarterlyBalanceFailure = {
                 Type     = "Task"
@@ -1596,10 +1580,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 }]
                 Catch = [{
                   ErrorEquals = ["States.ALL"]
-                  End         = true
                   ResultPath  = "$.logError"
                 }]
-                End = true
               }
             }
           },
@@ -1627,7 +1609,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsQuarterlyCashflowFailure"
                   ResultPath  = "$.loaderError"
                 }]
-                End = true
               }
               LogFinancialsQuarterlyCashflowFailure = {
                 Type     = "Task"
@@ -1646,10 +1627,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 }]
                 Catch = [{
                   ErrorEquals = ["States.ALL"]
-                  End         = true
                   ResultPath  = "$.logError"
                 }]
-                End = true
               }
             }
           },
@@ -1677,7 +1656,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsTTMIncomeFailure"
                   ResultPath  = "$.loaderError"
                 }]
-                End = true
               }
               LogFinancialsTTMIncomeFailure = {
                 Type     = "Task"
@@ -1696,10 +1674,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 }]
                 Catch = [{
                   ErrorEquals = ["States.ALL"]
-                  End         = true
                   ResultPath  = "$.logError"
                 }]
-                End = true
               }
             }
           },
@@ -1727,7 +1703,6 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   Next        = "LogFinancialsTTMCashflowFailure"
                   ResultPath  = "$.loaderError"
                 }]
-                End = true
               }
               LogFinancialsTTMCashflowFailure = {
                 Type     = "Task"
@@ -1746,10 +1721,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                 }]
                 Catch = [{
                   ErrorEquals = ["States.ALL"]
-                  End         = true
                   ResultPath  = "$.logError"
                 }]
-                End = true
               }
             }
           }
