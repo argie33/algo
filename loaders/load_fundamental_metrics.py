@@ -231,8 +231,8 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                 )
             else:
                 cur.execute(
-                    "INSERT INTO company_profile (ticker, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (ticker) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, record.get("reason", "unknown"), updated_at),
+                    "INSERT INTO company_profile (ticker, sector, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (ticker) DO UPDATE SET sector = EXCLUDED.sector, data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                    (symbol, "Unknown", record.get("reason", "unknown"), updated_at),
                 )
 
 
@@ -259,17 +259,31 @@ def main() -> int:
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
                     for table in tables:
-                        cur.execute(
-                            f"""
-                            INSERT INTO {table} (symbol, data_unavailable, reason, updated_at)
-                            VALUES (%s, TRUE, %s, NOW())
-                            ON CONFLICT (symbol) DO UPDATE SET
-                              data_unavailable = TRUE,
-                              reason = EXCLUDED.reason,
-                              updated_at = NOW()
-                            """,
-                            (symbol, f"loader_crash:{type(e).__name__}"),
-                        )
+                        if table == "company_profile":
+                            cur.execute(
+                                f"""
+                                INSERT INTO {table} (ticker, sector, data_unavailable, reason, updated_at)
+                                VALUES (%s, %s, TRUE, %s, NOW())
+                                ON CONFLICT (ticker) DO UPDATE SET
+                                  sector = EXCLUDED.sector,
+                                  data_unavailable = TRUE,
+                                  reason = EXCLUDED.reason,
+                                  updated_at = NOW()
+                                """,
+                                (symbol, "Unknown", f"loader_crash:{type(e).__name__}"),
+                            )
+                        else:
+                            cur.execute(
+                                f"""
+                                INSERT INTO {table} (symbol, data_unavailable, reason, updated_at)
+                                VALUES (%s, TRUE, %s, NOW())
+                                ON CONFLICT (symbol) DO UPDATE SET
+                                  data_unavailable = TRUE,
+                                  reason = EXCLUDED.reason,
+                                  updated_at = NOW()
+                                """,
+                                (symbol, f"loader_crash:{type(e).__name__}"),
+                            )
         except Exception as inner_e:
             logger.error(f"[YFINANCE_DERIVED] Failed to mark tables unavailable: {inner_e}", exc_info=True)
 
