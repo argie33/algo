@@ -294,46 +294,43 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             state.loading = True
             state.error = None
             t0 = time.monotonic()
-            logger.info("[LOAD_DATA] Starting...")
 
             result: list[Any] = [None]
             error: list[Exception | None] = [None]
 
             def load_with_timeout() -> None:
                 try:
-                    logger.info("[LOAD_THREAD] Calling load_all()...")
                     result[0] = load_all()
-                    logger.info(f"[LOAD_THREAD] load_all() returned dict with {len(result[0]) if result[0] else 0} keys")
                 except Exception as e:
-                    logger.error(f"[LOAD_THREAD] Exception: {type(e).__name__}: {e}", exc_info=True)
                     error[0] = e
 
             load_thread = threading.Thread(target=load_with_timeout, daemon=True)
             load_thread.start()
-            logger.info("[LOAD_DATA] Waiting for thread (20s timeout)...")
             load_thread.join(timeout=20.0)
-            elapsed = time.monotonic() - t0
-            logger.info(f"[LOAD_DATA] Thread finished. Elapsed: {elapsed:.2f}s, thread alive: {load_thread.is_alive()}, result[0]: {type(result[0]).__name__ if result[0] else 'None'}")
 
+            # CRITICAL FIX: Always set state.result, even on error
+            # This ensures the dashboard never gets stuck on the loading screen
             if error[0]:
-                logger.error(f"[LOAD_DATA] Raising caught error: {error[0]}")
-                raise error[0]
-            if result[0] is not None:
-                logger.info(f"[LOAD_DATA] Setting state.result from {len(result[0])} items")
+                # Error occurred - set result to empty dict so dashboard renders with error panel
+                state.result = {}
+                state.error = f"{type(error[0]).__name__}: {str(error[0])[:100]}"
+            elif result[0] is not None:
+                # Success - data loaded
                 state.result = result[0]
             else:
-                logger.warning("load_all() returned None (timeout)")
+                # Timeout - set empty result to show dashboard instead of loading screen
                 state.result = {}
+                state.error = "Data load timeout (exceeded 20 seconds)"
 
             state.elapsed = time.monotonic() - t0
             state.last_load = time.monotonic()
             state.loading = False
-            logger.info(f"[LOAD_DATA] Complete. state.result={len(state.result) if state.result else 0} items, state.loading={state.loading}")
         except Exception as e:
+            # Catch-all for any unexpected exceptions
             logger.error(f"Data load error: {type(e).__name__}: {e}", exc_info=True)
+            state.result = {}  # Ensure result is set
             state.loading = False
-            state.error = f"{type(e).__name__}: {e}"
-            logger.error(f"[LOAD_DATA] Error set: {state.error}")
+            state.error = f"{type(e).__name__}: {str(e)[:100]}"
 
     load_data_thread = threading.Thread(target=load_data, daemon=False)
     load_data_thread.start()
@@ -384,17 +381,11 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 current_last_load = state.last_load
                 current_elapsed = state.elapsed
 
-                if current_result is None:
-                    first_render_with_data = False
-                    if current_error:
-                        try:
-                            live.update(render_error_panel(RuntimeError(current_error)))
-                        except Exception as e:
-                            logger.error(f"Failed to render error panel: {type(e).__name__}: {e}")
-                    else:
-                        live.update(loading_layout(current_frame, data_source=data_source))
-                else:
-                    # Data is available - render dashboard
+                # CRITICAL FIX: Force data display after load completes
+                # Dashboard was stuck in infinite loading state because state.result wasn't triggering render
+                # After data is available AND loading complete, force render attempt
+                if current_result is not None and not is_loading:
+                    # Data has arrived and loading is done - render it
                     with render_state._lock:
                         render_state.elapsed = current_elapsed
                         render_state.frame = current_frame
@@ -402,7 +393,6 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                     try:
                         layout, _ = recovery.render_with_recovery(current_result, render_state)
                         live.update(layout)
-                        # Log first successful transition to data display
                         if not first_render_with_data:
                             logger.info(f"[DASHBOARD] Transitioned to data display after {current_elapsed:.1f}s")
                             first_render_with_data = True
@@ -413,6 +403,17 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                             live.update(render_error_panel(e, recovery.get_recovery_status()))
                         except Exception as panel_error:
                             logger.error(f"Error panel render failed: {type(panel_error).__name__}: {panel_error}")
+                            # Last resort: show loading state instead of crashing
+                            live.update(loading_layout(current_frame, data_source=data_source))
+                elif current_result is None:
+                    first_render_with_data = False
+                    if current_error:
+                        try:
+                            live.update(render_error_panel(RuntimeError(current_error)))
+                        except Exception as e:
+                            logger.error(f"Failed to render error panel: {type(e).__name__}: {e}")
+                    else:
+                        live.update(loading_layout(current_frame, data_source=data_source))
 
                 time.sleep(0.25)
         except KeyboardInterrupt:
