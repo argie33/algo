@@ -727,11 +727,16 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 computed_at = dt.combine(check_date, dt.min.time()).replace(tzinfo=et)
                 now_et = datetime.now(et)
                 data_age_seconds = int((now_et - computed_at).total_seconds())
-                data_stale = data_age_seconds > 86400  # 1 trading day (24 hours) staleness threshold
+
+                # On weekends/holidays, accept data from previous trading day
+                from algo.infrastructure.market_calendar import MarketCalendar
+                today_trading = MarketCalendar.is_trading_day(datetime.now().date())
+                threshold_seconds = 86400 if today_trading else 259200  # 1 day if trading, 3 days if market closed
+                data_stale = data_age_seconds > threshold_seconds
 
                 if data_stale:
                     logger.critical(
-                        f"[CIRCUIT_BREAKER_STALE] Data age {data_age_seconds}s (>{3600}s). "
+                        f"[CIRCUIT_BREAKER_STALE] Data age {data_age_seconds}s (>{threshold_seconds}s). "
                         f"Trading halted. Computed at: {computed_at.isoformat()}"
                     )
                     return json_response(
@@ -750,7 +755,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                             },
                             "errorType": "stale_circuit_breaker_data",
                             "message": (
-                                f"Circuit breaker data is {data_age_seconds}s old (>{3600}s threshold). "
+                                f"Circuit breaker data is {data_age_seconds}s old (>{threshold_seconds}s threshold). "
                                 "All trading halted until fresh metrics available."
                             ),
                             "_error": "Circuit breaker data stale. Trading disabled.",
