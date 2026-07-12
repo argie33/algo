@@ -771,6 +771,10 @@ def main() -> None:
             _configure_aws_and_auth(aws_url, pool_id, client_id)
             data_source = "AWS"
 
+        # Reset circuit breaker to ensure fresh session (clears stale state from previous runs)
+        from .api_data_layer import reset_circuit_breaker
+        reset_circuit_breaker()
+
         # Run dashboard with appropriate mode
         if args.watch is not None:
             run_watch(args.watch, args.compact, data_source)

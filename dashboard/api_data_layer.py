@@ -298,6 +298,21 @@ def _record_api_success() -> None:
             _circuit_breaker_failures = 0
 
 
+def reset_circuit_breaker() -> None:
+    """Manually reset circuit breaker to allow fresh attempts.
+
+    Called by dashboard on startup to clear any stale breaker state from previous session.
+    This ensures each dashboard session starts fresh without inheriting circuit breaker
+    state from previous runs or diagnostic attempts.
+    """
+    global _circuit_breaker_state, _circuit_breaker_failures, _circuit_breaker_reset_time
+    with _circuit_breaker_lock:
+        _circuit_breaker_state = "closed"
+        _circuit_breaker_failures = 0
+        _circuit_breaker_reset_time = None
+        logger.info("Circuit breaker manually reset for fresh session")
+
+
 def cache_response(endpoint: str, data: dict[str, Any]) -> None:
     """Cache successful API response for fallback during outages.
 
