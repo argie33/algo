@@ -39,6 +39,7 @@ import psycopg2  # noqa: E402
 
 from loaders.runner import run_loader  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
+from utils.loaders.marker_factory import DataUnavailableMarker  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
 from utils.type_conversion import safe_float  # noqa: E402
 
