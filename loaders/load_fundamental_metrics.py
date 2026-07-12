@@ -139,14 +139,18 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
         }
         return [record]
 
-    def load_symbol(self, symbol: str) -> None:
-        """Override to persist to all 7 output tables instead of single table."""
+    def load_symbol(self, symbol: str) -> int:
+        """Override to persist to all output tables instead of single table.
+
+        Returns the number of rows processed (1 if data available, 0 if unavailable).
+        """
         rows = self.fetch_incremental(symbol, self._batch_context.get("since") if self._batch_context else None)
         if not rows:
-            return
+            return 0
 
         for row in rows:
             self._persist_to_all_tables(row)
+        return 1
 
     def _persist_to_all_tables(self, record: dict[str, Any]) -> None:
         """Persist consolidated record to all 7 output tables."""
