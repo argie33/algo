@@ -50,8 +50,8 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
     and have different schemas than yfinance provides.
     """
 
-    table_name = "yfinance_derived_metrics"  # Meta table for watermarking & locking
-    primary_key = ("symbol",)
+    table_name = "company_profile"  # Meta table for watermarking & locking
+    primary_key = ("ticker",)
     watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
 
