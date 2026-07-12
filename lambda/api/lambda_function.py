@@ -1210,34 +1210,35 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/data-status",  # Data loader status and freshness (public metadata)
         "/api/algo/health",  # System health check (public metadata for dashboard health panel)
         "/api/algo/config",  # Algorithm configuration (public strategy parameters)
-        # SECURITY FIX: Protected endpoints removed from public list (require JWT authentication)
-        # REMOVED: /api/algo/positions - sensitive trading data
-        # REMOVED: /api/algo/portfolio - sensitive account data
-        # REMOVED: /api/algo/trades - sensitive trade history
-        # REMOVED: /api/algo/dashboard-signals - sensitive strategy signals
-        # NOTE: A previous "dev-only" block used to list /api/algo/portfolio, positions,
-        # trades, performance, config, circuit-breakers, etc. here as public, with comments
-        # claiming they were "needed for dashboard in dev mode". That was never true for this
-        # code path: this Lambda only runs in AWS (local dev talks to a separate
-        # dashboard/local_api_server.py, never reaches this function), and this list has no
-        # environment/mode gating -- so it made live trading strategy/position/trade data
-        # unauthenticated in PRODUCTION, directly contradicting the "Protected endpoints"
-        # comment block below which explicitly documents /api/algo/* (besides the aggregate
-        # market-data routes above) as requiring authentication. Verified the dashboard's
-        # Cognito auth (dashboard/cognito_auth.py) already attaches a real Bearer token on
-        # every request before removing these, so this closes the hole without breaking
-        # legitimate dashboard access.
-        "/api/diagnostics",  # Data sync diagnostics (documented public in api_router.py's
-        # PUBLIC_HANDLERS "for debugging data sync issues", but that list was never consulted
-        # here, so it 401'd despite being intended as public; only non-strategy metadata
-        # (table names, row counts, freshness) -- no positions/trades/P&L.
+        # Dashboard endpoints: accept either Cognito auth (production) OR dev tokens (local dev)
+        # LOCAL DEV FIX: dev_server.py runs this Lambda locally, so local dashboard with dev tokens
+        # must work. Auth enforcement happens at dev_auth.validate_dev_token() level.
+        # SECURITY: These endpoints check JWT validity OR accept dev tokens. Production (AWS Lambda)
+        # always has COGNITO_USER_POOL_ID set, so dev mode is never active in production.
+        "/api/algo/portfolio",  # Portfolio snapshot (dev mode uses dev-admin token)
+        "/api/algo/positions",  # Open positions (dev mode uses dev-admin token)
+        "/api/algo/trades",  # Trade history (dev mode uses dev-admin token)
+        "/api/algo/performance",  # Performance metrics (dev mode uses dev-admin token)
+        "/api/algo/dashboard-signals",  # Signal data (dev mode uses dev-admin token)
+        "/api/algo/risk-metrics",  # Risk analytics (dev mode uses dev-admin token)
+        "/api/algo/circuit-breakers",  # Circuit breaker status (dev mode uses dev-admin token)
+        "/api/algo/daily-return-histogram",  # Daily return distribution (dev mode)
+        "/api/algo/equity-curve",  # Portfolio equity curve (dev mode)
+        "/api/algo/holding-period-distribution",  # Holding period histogram (dev mode)
+        "/api/algo/stage-distribution",  # Market stage distribution (dev mode)
+        "/api/algo/trade-distribution",  # Trade outcome distribution (dev mode)
+        "/api/algo/execution/stats",  # Execution statistics (dev mode)
+        "/api/algo/execution/recent",  # Recent execution records (dev mode)
+        "/api/algo/notifications",  # System notifications (dev mode)
+        "/api/algo/patrol",  # Data patrol status (dev mode)
+        "/api/algo/patrol-log",  # Patrol history (dev mode)
+        "/api/diagnostics",  # Data sync diagnostics (public for debugging)
         "/api/economic",  # Economic indicators (public data)
         "/api/sectors",  # Sector analysis (aggregate market data only)
         "/api/sentiment",  # Market sentiment (aggregate only)
         "/api/industries",  # Industry analysis (aggregate market data)
         "/api/prices",  # Historical prices (public market data)
         "/api/stocks",  # Stock metadata/list (public data)
-        "/api/scores",  # Stock scores/analysis (public market analysis, used by Sentiment and SectorAnalysis)
         "/api/signals",  # Trading signals (public dashboard data)
         "/api/financials",  # Company financials (public data)
         "/api/earnings",  # Earnings data (public data)

@@ -26,6 +26,7 @@ import sys
 from datetime import date, datetime, timezone
 from typing import Any
 
+from loaders.helpers.yfinance_batcher import batch_tickers
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.db.context import DatabaseContext
@@ -48,6 +49,52 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
+        self._ticker_batch_cache: dict[str, Any] = {}  # Cache for batched ticker fetches
+        self._batch_prefetch_done = False  # Track if we've done the initial batch prefetch
+
+    def _do_batch_prefetch(self) -> None:
+        """Prefetch all active stock symbols in batches to reduce API calls 50x.
+
+        Gets all active symbols from database and fetches using batch_tickers,
+        storing results in cache for fetch_incremental() to use.
+        Reduces yfinance API calls from 5000+ to ~100 (one per 50 symbols).
+        """
+        logger.info("[YFINANCE_SNAPSHOT BATCH] Starting batch prefetch of all symbols...")
+
+        try:
+            # Get all active symbols
+            all_symbols = []
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE active = TRUE ORDER BY symbol")
+                all_symbols = [row[0] for row in cur.fetchall()]
+
+            if not all_symbols:
+                logger.warning("[YFINANCE_SNAPSHOT BATCH] No active symbols found to prefetch")
+                return
+
+            logger.info(f"[YFINANCE_SNAPSHOT BATCH] Prefetching {len(all_symbols)} symbols in batches of 50...")
+
+            prefetched_count = 0
+            failed_count = 0
+
+            # Fetch all symbols in batches of 50
+            for batch_result in batch_tickers(all_symbols, batch_size=50):
+                for symbol, ticker in batch_result.items():
+                    self._ticker_batch_cache[symbol] = ticker  # Store ticker or None
+                    if ticker:
+                        prefetched_count += 1
+                    else:
+                        failed_count += 1
+
+            logger.info(
+                f"[YFINANCE_SNAPSHOT BATCH] Prefetch complete: {prefetched_count} symbols cached, "
+                f"{failed_count} unavailable. "
+                f"API calls reduced from {len(all_symbols)} to {(len(all_symbols) + 49) // 50}"
+            )
+
+        except Exception as e:
+            logger.warning(f"[YFINANCE_SNAPSHOT BATCH] Prefetch failed, falling back to on-demand: {e}")
+            self._ticker_batch_cache.clear()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch all yfinance data for a symbol, store as single snapshot record.
@@ -57,8 +104,23 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
         Returns all metrics in one row to avoid 6 separate yfinance API calls.
         Returns data_unavailable marker if ticker unavailable or data fetch fails.
+
+        OPTIMIZATION (Phase 3): On first call, batch-prefetch all active symbols in groups of 50.
+        This reduces API calls from 5000+ to ~100 (one per 50 symbols), saving ~50x API calls.
+        Subsequent calls read from the prefetch cache, falling back to on-demand for updates.
         """
-        ticker = YFinanceWrapper.get_ticker(symbol)
+        # On first fetch, prefetch all symbols in batches (50 symbols per API call)
+        if not self._batch_prefetch_done:
+            self._do_batch_prefetch()
+            self._batch_prefetch_done = True
+
+        # Check batch cache first
+        if symbol in self._ticker_batch_cache:
+            ticker = self._ticker_batch_cache[symbol]
+        else:
+            # Fallback: fetch on-demand if not in batch (handles incremental updates)
+            ticker = YFinanceWrapper.get_ticker(symbol)
+
         if not ticker:
             # Ticker data unavailable (delisted, invalid, or yfinance API issue)
             logger.debug(f"[YFINANCE_SNAPSHOT] {symbol}: Ticker data unavailable (yfinance API or invalid symbol)")
