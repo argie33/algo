@@ -32,6 +32,7 @@ from psycopg2.extensions import cursor as pg_cursor
 
 from loaders.helpers.sec_base import SecFinancialsLoader
 from loaders.runner import run_loader
+from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 

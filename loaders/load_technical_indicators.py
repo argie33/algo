@@ -41,6 +41,7 @@ from utils.data.age_validator import DataAgeValidator
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
+from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
 
@@ -179,7 +180,7 @@ class VectorizedTechnicalLoader:
                 f"[TECHNICAL_DATA] Duration tracking failed: duration_sec={duration!r} is not numeric. "
                 "Cannot monitor loader performance without valid duration."
             )
-        return float(duration)
+        return safe_float(duration, "duration_sec", allow_none=False)
 
     def _fetch_all_prices(self, symbols: list[str], start_date: date, end_date: date) -> list[dict[str, Any]]:
         """Fetch ALL price data in ONE query (institutional-scale efficiency).
@@ -205,7 +206,7 @@ class VectorizedTechnicalLoader:
                 # Convert to list of dicts for easier processing
                 result = []
                 for r in rows:
-                    close = float(r[5]) if r[5] is not None else None
+                    close = safe_float(r[5], f"price_daily.close[{r[0]}]", allow_none=True)
                     volume = int(r[6]) if r[6] is not None else None
 
                     # Skip invalid rows
@@ -218,9 +219,9 @@ class VectorizedTechnicalLoader:
                         {
                             "symbol": r[0],
                             "date": r[1],
-                            "open": float(r[2]) if r[2] is not None else None,
-                            "high": float(r[3]) if r[3] is not None else None,
-                            "low": float(r[4]) if r[4] is not None else None,
+                            "open": safe_float(r[2], f"price_daily.open[{r[0]}]", allow_none=True),
+                            "high": safe_float(r[3], f"price_daily.high[{r[0]}]", allow_none=True),
+                            "low": safe_float(r[4], f"price_daily.low[{r[0]}]", allow_none=True),
                             "close": close,
                             "volume": volume,
                         }
@@ -428,7 +429,7 @@ class VectorizedTechnicalLoader:
                     "SELECT date, close FROM price_daily WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
                     ("SPY", start_date, end_date),
                 )
-                return [{"date": r[0], "close": float(r[1])} for r in cur.fetchall()]
+                return [{"date": r[0], "close": safe_float(r[1], f"SPY.close[{r[0]}]", allow_none=True)} for r in cur.fetchall()]
         except psycopg2.Error as e:
             raise RuntimeError(
                 f"[SPY_PRICES] Failed to fetch SPY prices for Mansfield RS [{start_date} to {end_date}]: {e}. "
@@ -498,8 +499,8 @@ class VectorizedTechnicalLoader:
                     return
 
                 # Current ATR is most recent
-                current_atr = float(atr_rows[0][1])
-                atrs = [float(row[1]) for row in atr_rows]
+                current_atr = safe_float(atr_rows[0][1], f"{symbol}.atr_current", allow_none=False)
+                atrs = [safe_float(row[1], f"{symbol}.atr[{i}]", allow_none=False) for i, row in enumerate(atr_rows)]
                 atr_30d_avg = sum(atrs) / len(atrs)
 
                 if atr_30d_avg == 0:
@@ -514,14 +515,18 @@ class VectorizedTechnicalLoader:
                     (symbol, end_date),
                 )
                 vol_row = cur.fetchone()
-                current_vol = float(vol_row[0]) if vol_row and vol_row[0] else 1.0
+                current_vol = safe_float(vol_row[0], f"{symbol}.volume", allow_none=True) if vol_row else 1.0
+                if current_vol is None:
+                    current_vol = 1.0
 
                 cur.execute(
                     "SELECT AVG(volume) FROM price_daily WHERE symbol = %s AND date >= %s AND date < %s AND volume > 0",
                     (symbol, end_date - timedelta(days=30), end_date),
                 )
                 avg_vol_row = cur.fetchone()
-                avg_vol = float(avg_vol_row[0]) if avg_vol_row and avg_vol_row[0] else 1.0
+                avg_vol = safe_float(avg_vol_row[0], f"{symbol}.avg_volume", allow_none=True) if avg_vol_row else 1.0
+                if avg_vol is None:
+                    avg_vol = 1.0
 
                 breakout_volume_ratio = current_vol / avg_vol if avg_vol > 0 else 1.0
 
