@@ -343,15 +343,14 @@ locals {
   # ============================================================
 
   scheduled_loaders = {
-    # Optional enrichment: Weekly on Wednesday 2:00 PM ET
-    # These loaders provide nice-to-have enrichment but are not critical for trading.
-    # Moved from daily to weekly to reduce costs and free up resources.
-
-    "market_sentiment" = {
-      description = "WEEKLY: Compute fear/greed index from VIX (optional enrichment)"
-      schedule    = "cron(5 18 ? * WED *)" # Wed 2:05 PM ET (was daily at 4:12 PM)
-    }
-    # NOTE: dxy_index moved to consolidated economic_data loader in Step Functions pipeline
+    # ALL LOADERS NOW RUN VIA STEP FUNCTIONS PIPELINE (modules/pipeline/main.tf)
+    # EventBridge has been fully consolidated into Step Functions for:
+    # - Explicit dependency ordering (not time-based guessing)
+    # - Single source of truth (readable in terraform)
+    # - No duplicate execution (was running same loaders via both systems)
+    # - Cost savings (eliminated ~$100-150/month in duplicates)
+    #
+    # This map is empty but kept for reference (infrastructure already provisioned)
   }
 }
 
