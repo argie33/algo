@@ -235,8 +235,8 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                 )
             else:
                 cur.execute(
-                    "INSERT INTO company_profile (ticker, sector, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (ticker) DO UPDATE SET sector = EXCLUDED.sector, data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, "Unknown", record.get("reason", "unknown"), updated_at),
+                    "INSERT INTO company_profile (ticker, symbol, sector, data_unavailable, reason, updated_at) VALUES (%s, %s, %s, TRUE, %s, %s) ON CONFLICT (ticker) DO UPDATE SET symbol = EXCLUDED.symbol, sector = EXCLUDED.sector, data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                    (symbol, symbol, "Unknown", record.get("reason", "unknown"), updated_at),
                 )
 
 
@@ -266,15 +266,16 @@ def main() -> int:
                         if table == "company_profile":
                             cur.execute(
                                 f"""
-                                INSERT INTO {table} (ticker, sector, data_unavailable, reason, updated_at)
-                                VALUES (%s, %s, TRUE, %s, NOW())
+                                INSERT INTO {table} (ticker, symbol, sector, data_unavailable, reason, updated_at)
+                                VALUES (%s, %s, %s, TRUE, %s, NOW())
                                 ON CONFLICT (ticker) DO UPDATE SET
+                                  symbol = EXCLUDED.symbol,
                                   sector = EXCLUDED.sector,
                                   data_unavailable = TRUE,
                                   reason = EXCLUDED.reason,
                                   updated_at = NOW()
                                 """,
-                                (symbol, "Unknown", f"loader_crash:{type(e).__name__}"),
+                                (symbol, symbol, "Unknown", f"loader_crash:{type(e).__name__}"),
                             )
                         else:
                             cur.execute(
