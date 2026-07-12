@@ -48,13 +48,25 @@ class PutCallRatioFactor(MarketFactorStrategy):
                 (eval_date,),
             )
             row = cur.fetchone()
-            if not row or row[0] is None:
+            if not row:
                 raise ValueError(
                     f"Put/call ratio factor: no data available for {eval_date} - "
                     f"market_health_daily missing put_call_ratio readings"
                 )
 
-            pcr = float(row[0])
+            # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
+            if isinstance(row, dict):
+                pcr_val = row.get('put_call_ratio')
+            else:
+                pcr_val = row[0]
+
+            if pcr_val is None:
+                raise ValueError(
+                    f"Put/call ratio factor: no data available for {eval_date} - "
+                    f"market_health_daily missing put_call_ratio readings"
+                )
+
+            pcr = float(pcr_val)
 
             # Contrarian scoring
             if pcr > 1.2:

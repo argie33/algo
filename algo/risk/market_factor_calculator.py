@@ -358,14 +358,29 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
-            if not row or row[0] is None:
+            if not row:
                 raise RuntimeError(
                     f"[PUT_CALL CRITICAL] Put/call ratio unavailable for {eval_date}. "
                     f"Cannot compute market exposure without sentiment data (put/call ratio is key to position sizing). "
                     f"Check: (1) market_health_daily has recent readings, (2) put_call_ratio column populated. "
                     f"Must have put/call data to proceed — no degraded scoring allowed."
                 )
-            pcr = float(row[0])
+
+            # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
+            if isinstance(row, dict):
+                pcr_val = row.get('put_call_ratio')
+            else:
+                pcr_val = row[0]
+
+            if pcr_val is None:
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] Put/call ratio unavailable for {eval_date}. "
+                    f"Cannot compute market exposure without sentiment data (put/call ratio is key to position sizing). "
+                    f"Check: (1) market_health_daily has recent readings, (2) put_call_ratio column populated. "
+                    f"Must have put/call data to proceed — no degraded scoring allowed."
+                )
+
+            pcr = float(pcr_val)
             if pcr <= 0:
                 raise RuntimeError(
                     f"[PUT_CALL CRITICAL] Put/call ratio invalid for {eval_date}: {pcr}. "
