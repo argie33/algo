@@ -304,6 +304,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
+                End = true
               }
             }
           }
@@ -1087,6 +1088,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
+                End = true
               }
             }
           },
@@ -1109,6 +1111,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
+                End = true
               }
             }
           }
