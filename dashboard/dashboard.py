@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """Algo Ops Terminal Dashboard
 
-Usage:
-  python dashboard/dashboard.py                       # live view (AWS endpoints, q or Ctrl+C to exit)
-  python dashboard/dashboard.py -w                    # watch mode, auto-refresh every 30s
+Usage (LOCAL DEVELOPMENT - RECOMMENDED):
+  python dashboard/dashboard.py --local               # use local API (localhost:3001)
+  python dashboard/dashboard.py --local -w 30         # watch mode, auto-refresh every 30s
+
+Usage (AWS/Production - requires Cognito):
+  python dashboard/dashboard.py                       # requires COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID env vars
   python dashboard/dashboard.py -w 60                 # watch mode, refresh every 60s
-  python dashboard/dashboard.py --compact             # narrow positions table
-  python dashboard/dashboard.py --local               # use local API (localhost:3001) instead of AWS
+
+IMPORTANT: For local development, ALWAYS use --local flag!
+Without it, dashboard tries to connect to AWS Lambda which requires Cognito authentication.
 
 Modes:
+  Local: Run local dev server first (python api-pkg/dev_server.py), then use --local flag
   AWS (default): Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID env vars
-  Local: Run local dev server on localhost:3001 first, then use --local flag
 """
 
 import os

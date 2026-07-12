@@ -103,7 +103,7 @@ def _get_api_base_url() -> str:
     if not _localhost_checked and _check_localhost_available():
         _api_base_url_cache = "http://localhost:3001"
         _localhost_checked = True
-        logger.debug("[API] Dev server detected on localhost:3001 - auto-switching to local mode")
+        logger.info("[API] Dev server detected on localhost:3001 - auto-switching to local mode (no --local flag needed)")
         return _api_base_url_cache
 
     _localhost_checked = True
@@ -111,12 +111,12 @@ def _get_api_base_url() -> str:
     # Priority 3: Use configured AWS URL
     if _dashboard_api_url:
         _api_base_url_cache = _dashboard_api_url
-        logger.debug(f"[API] Using configured DASHBOARD_API_URL: {_dashboard_api_url}")
+        logger.info(f"[API] Using configured DASHBOARD_API_URL: {_dashboard_api_url} (requires Cognito auth)")
         return _api_base_url_cache
 
     # Priority 4: Fallback to localhost
     _api_base_url_cache = "http://localhost:3001"
-    logger.debug("[API] No DASHBOARD_API_URL, falling back to localhost:3001")
+    logger.info("[API] No DASHBOARD_API_URL set and dev server not detected. Falling back to localhost:3001")
     return _api_base_url_cache
 
 # Set initial value (will be overridden on first API call if localhost is available)
@@ -640,8 +640,12 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 continue
             logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES + 1} attempts")
             _record_api_failure()
+            error_msg = f"API timeout - Lambda endpoint not responding"
+            # Provide helpful guidance if using AWS endpoint
+            if "execute-api" in api_url or "lambda" in api_url.lower():
+                error_msg += ". For local dev: Use --local flag (python -m dashboard --local)"
             return {
-                "_error": f"API timeout after {API_MAX_RETRIES + 1} attempts",
+                "_error": error_msg,
                 "_is_transient_503": True,
             }
         except requests.exceptions.ConnectionError:
