@@ -600,9 +600,7 @@ def _dispatch(  # noqa: C901
 
             return health_module.handle(cur, "/api/health", method, params, body, jwt_claims)
         except (ImportError, AttributeError) as e:
-            logger.warning(
-                f"[ALGO_HEALTH] Could not import health handler: {e} - returning degraded status"
-            )
+            logger.warning(f"[ALGO_HEALTH] Could not import health handler: {e} - returning degraded status")
             return json_response(
                 {
                     "statusCode": 503,
