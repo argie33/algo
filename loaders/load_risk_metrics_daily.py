@@ -192,8 +192,8 @@ class RiskMetricsLoader(OptimalLoader):
                     "beta": None,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": True,
-                    "reason": reason,,
-                        "reason_type": "loader_failed"
+                    "reason": reason,
+                    "reason_type": "loader_failed",
                 }
 
             prices = sorted(
@@ -223,8 +223,8 @@ class RiskMetricsLoader(OptimalLoader):
                     "beta": None,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": True,
-                    "reason": reason,,
-                        "reason_type": "loader_failed"
+                    "reason": reason,
+                    "reason_type": "loader_failed",
                 }
 
             # Calculate volatilities
@@ -280,8 +280,8 @@ class RiskMetricsLoader(OptimalLoader):
                 "beta": None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": True,
-                "reason": reason,,
-                        "reason_type": "loader_failed"
+                "reason": reason,
+                "reason_type": "loader_failed",
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
             logger.warning(f"[RISK_METRICS] Stability error for {symbol}: {type(e).__name__}: {e}")
@@ -391,8 +391,8 @@ class RiskMetricsLoader(OptimalLoader):
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,
-                    "reason": "spy_variance_zero",,
-                        "reason_type": "loader_failed"
+                    "reason": "spy_variance_zero",
+                    "reason_type": "loader_failed",
                 }
 
             cov_matrix = np.cov(stock_returns, spy_returns)

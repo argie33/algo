@@ -93,8 +93,8 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                     "symbol": symbol,
                     "data_unavailable": True,
                     "reason": "yfinance_snapshot_missing",
-                    "reason_type": "loader_failed",
                     "updated_at": now_et,
+                    "reason_type": "loader_failed",
                 }
             ]
 
@@ -108,8 +108,8 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                     "symbol": symbol,
                     "data_unavailable": True,
                     "reason": unavailable_reason or "yfinance_data_unavailable",
-                    "reason_type": "loader_failed",
                     "updated_at": now_et,
+                    "reason_type": "loader_failed",
                 }
             ]
 

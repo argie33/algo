@@ -1232,6 +1232,7 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/notifications",  # System notifications (dev mode)
         "/api/algo/patrol",  # Data patrol status (dev mode)
         "/api/algo/patrol-log",  # Patrol history (dev mode)
+        "/api/algo/audit-log",  # Activity audit log (dashboard)
         "/api/diagnostics",  # Data sync diagnostics (public for debugging)
         "/api/economic",  # Economic indicators (public data)
         "/api/sectors",  # Sector analysis (aggregate market data only)
