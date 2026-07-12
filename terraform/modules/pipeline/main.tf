@@ -1391,7 +1391,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]
+                  ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError"
                 }]
               }
@@ -1438,7 +1438,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]
+                  ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError"
                 }]
               }
@@ -1485,7 +1485,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]
+                  ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError"
                 }]
               }
@@ -1532,7 +1532,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]
+                  ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError"
                 }]
               }
@@ -1579,7 +1579,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]
+                  ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError"
                 }]
               }
@@ -1626,7 +1626,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]
+                  ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError"
                 }]
               }
@@ -1673,7 +1673,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]
+                  ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError"
                 }]
               }
@@ -1720,7 +1720,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
                   BackoffRate     = 2.0
                 }]
                 Catch = [{
-                  ErrorEquals = ["States.ALL"]
+                  ErrorEquals = ["States.ALL"],
                   ResultPath  = "$.logError"
                 }]
               }
