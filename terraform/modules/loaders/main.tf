@@ -284,7 +284,6 @@ locals {
     "trend_template_data"   = "load_trend_analysis.py"
     "market_exposure_daily" = "load_market_exposure_daily.py"
     "yfinance_snapshot"     = "load_yfinance_snapshot.py"
-    "dxy_index"             = "load_dxy_index.py"
     # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
     # Computed metrics from SEC financials (DEPENDS ON: financials_annual_income, financials_annual_balance)
     # Reads annual_income_statement & annual_balance_sheet tables populated by load_financial_statements.py
@@ -312,9 +311,11 @@ locals {
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
     "buy_sell_daily"     = "load_buy_sell_daily.py"
 
-    # FRED economic data: Treasury yields, Fed rates, credit spreads, jobless claims
+    # Consolidated economic data: FRED (T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA) + DXY
     # Feeds into market_exposure calculations for regime detection
-    "economic_data" = "load_fred_economic_data.py"
+    # CONSOLIDATION: Merged load_fred_economic_data.py + load_dxy_index.py to eliminate
+    # race condition (both were writing economic_data table with different schedules)
+    "economic_data" = "load_economic_data.py"
 
     # Consolidated financial statements loader (replaces 8 separate loaders)
     # ACTIVATED (2026-07-12): Loader now supports LOADER_STATEMENT_TYPE="all"
@@ -360,10 +361,7 @@ locals {
       description = "WEEKLY: Compute fear/greed index from VIX (optional enrichment)"
       schedule    = "cron(5 18 ? * WED *)" # Wed 2:05 PM ET (was daily at 4:12 PM)
     }
-    "dxy_index" = {
-      description = "WEEKLY: Load DXY/USD economic indicator (optional enrichment)"
-      schedule    = "cron(15 18 ? * WED *)" # Wed 2:15 PM ET (was daily at 4:15 PM)
-    }
+    # NOTE: dxy_index moved to consolidated economic_data loader in Step Functions pipeline
   }
 }
 
@@ -387,7 +385,6 @@ locals {
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
-    "dxy_index"             = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
     # Cost-optimized: Reduced from 2048 to 512 (yfinance API fetch + lightweight metric calc, <100MB actual)
     "growth_metrics" = { cpu = 512, memory = 512, timeout = 3600, parallelism = 2 }
     # Cost-optimized: Reduced from 2048 to 512 (SEC filing parse + DB insert, <100MB actual)
@@ -413,8 +410,8 @@ locals {
     "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
     "market_sentiment"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
-    # FRED economic data loader (lightweight: FRED API calls + DB writes)
-    "economic_data"       = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # Consolidated economic data loader: FRED series + DXY (lightweight: API calls + DB writes)
+    "economic_data"       = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
     # Cost-optimized: Reduced from 1024 to 512 (sector ranking DB queries, <50MB actual)
     "sector_ranking"      = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
     "industry_ranking"    = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
@@ -452,7 +449,7 @@ locals {
     "stock_scores",
     "buy_sell_daily",
     "yfinance_snapshot",
-    "dxy_index",
+    "economic_data",        # Consolidated (FRED + DXY)
     "financials_all",       # Consolidated financial statements (replaces 8 individual tasks)
     "growth_metrics",
     "quality_metrics",

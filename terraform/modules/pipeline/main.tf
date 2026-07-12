@@ -224,7 +224,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
             ContainerOverrides = [{
               Name = "algo-stock_prices_daily"
               Environment = [
-                { Name = "LOADER_INTERVALS", Value = "1d,1wk,1mo" },
+                { Name = "LOADER_INTERVALS", Value = "1d" },
                 { Name = "LOADER_ASSET_CLASSES", Value = "stock,etf" },
                 { Name = "LOADER_PARALLELISM", Value = "1" },
                 { Name = "LOADER_CHUNK_SIZE", Value = "100" }
@@ -1057,7 +1057,8 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
               Environment = [
                 { Name = "LOADER_INTERVALS", Value = "1d" },
                 { Name = "LOADER_ASSET_CLASSES", Value = "stock,etf" },
-                { Name = "LOADER_PARALLELISM", Value = "1" }
+                { Name = "LOADER_PARALLELISM", Value = "1" },
+                { Name = "LOADER_CHUNK_SIZE", Value = "100" }
               ]
             }]
           }
