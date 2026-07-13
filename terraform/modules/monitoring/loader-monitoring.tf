@@ -287,6 +287,78 @@ resource "aws_cloudwatch_metric_alarm" "morning_prep_slow" {
   tags = var.common_tags
 }
 
+# ============================================================
+# 8. EventBridge Scheduler Failure Detection (Critical for Loaders)
+# ============================================================
+# ALERT: Morning pipeline didn't execute at scheduled 2:00 AM ET
+# This catches situations where EventBridge Scheduler silently fails to trigger
+
+resource "aws_cloudwatch_metric_alarm" "morning_pipeline_no_execution" {
+  count               = var.ecs_log_group_name != "" ? 1 : 0
+  alarm_name          = "${var.project_name}-morning-pipeline-no-exec-${var.environment}"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "ExecutionCount"
+  namespace           = "AWS/States"
+  period              = "3600" # Check hourly (1 hour = 3600 sec)
+  statistic           = "Sum"
+  threshold           = "0"
+  alarm_description   = "Morning pipeline (Step Functions) did not execute at 2:00 AM ET. EventBridge Scheduler may have failed."
+  treat_missing_data  = "breaching" # Treat missing data as alarm (no executions = failed)
+
+  dimensions = {
+    StateMachineArn = "arn:aws:states:${var.aws_region}:${data.aws_caller_identity.current.account_id}:stateMachine:${var.project_name}-morning-prep-pipeline-${var.environment}"
+  }
+
+  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
+
+  tags = var.common_tags
+}
+
+# Data freshness alarm: price_daily not updated by 3 AM ET (1 hour after scheduled run)
+# If 2:00 AM pipeline executes successfully, prices should be loaded by 3 AM
+resource "aws_cloudwatch_metric_alarm" "price_data_not_fresh_after_morning_pipeline" {
+  count               = var.ecs_log_group_name != "" ? 1 : 0
+  alarm_name          = "${var.project_name}-prices-stale-after-morning-${var.environment}"
+  comparison_operator = "LessThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "PriceDailyRecordCount"
+  namespace           = "${var.project_name}/DataFreshness"
+  period              = "3600"
+  statistic           = "Average"
+  threshold           = "500" # Less than 500 records = data not loaded
+  alarm_description   = "price_daily has <500 rows after 3 AM ET. Morning pipeline may have failed silently."
+  treat_missing_data  = "breaching"
+
+  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
+
+  tags = var.common_tags
+}
+
+# Scheduler DLQ Alarm: Dead Letter Queue receiving failed invocations
+# If EventBridge Scheduler has a DLQ configured, messages here indicate trigger failures
+resource "aws_cloudwatch_metric_alarm" "scheduler_dlq_messages" {
+  count               = var.scheduler_dlq_arn != "" ? 1 : 0
+  alarm_name          = "${var.project_name}-scheduler-dlq-events-${var.environment}"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = "1"
+  metric_name         = "ApproximateNumberOfMessagesVisible"
+  namespace           = "AWS/SQS"
+  period              = "300"
+  statistic           = "Average"
+  threshold           = "1"
+  alarm_description   = "EventBridge Scheduler DLQ receiving messages. Pipeline trigger failures detected."
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    QueueName = element(split(":", var.scheduler_dlq_arn), length(split(":", var.scheduler_dlq_arn)) - 1)
+  }
+
+  alarm_actions = length(aws_sns_topic.loader_alerts) > 0 ? [aws_sns_topic.loader_alerts[0].arn] : []
+
+  tags = var.common_tags
+}
+
 # RDS Connection Pool Alarm: > 40 connections (warn threshold before 100 limit) — prod only
 resource "aws_cloudwatch_metric_alarm" "rds_connections_high_warning" {
   count               = var.ecs_log_group_name != "" && var.enable_resource_alarms ? 1 : 0
