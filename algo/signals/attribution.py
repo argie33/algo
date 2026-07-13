@@ -12,15 +12,6 @@ from typing import Any, cast
 
 import psycopg2
 
-try:
-    import numpy as np
-except ImportError:
-    np = None  # type: ignore[assignment]
-try:
-    from scipy import stats
-except ImportError:
-    stats = cast(Any, None)
-
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from utils.db import DatabaseContext
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from datetime import date as _date, datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 import psycopg2
 import requests
