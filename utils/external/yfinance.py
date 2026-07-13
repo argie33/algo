@@ -18,7 +18,6 @@ from typing import Any
 
 import requests
 import yfinance as yf
-from requests.adapters import HTTPAdapter
 
 from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 
@@ -26,22 +25,6 @@ logger = logging.getLogger(__name__)
 
 # Ensure socket timeout is configured globally to prevent indefinite hangs
 socket.setdefaulttimeout(30)
-
-
-class TimeoutHTTPAdapter(HTTPAdapter):  # type: ignore
-    """HTTP adapter that enforces timeout on all requests.
-
-    Prevents yfinance.Ticker.info from hanging indefinitely on certain symbols.
-    """
-
-    def __init__(self, timeout: tuple[int, int] | None = None, **kwargs: Any) -> None:
-        self.timeout = timeout
-        super().__init__(**kwargs)
-
-    def send(self, request: Any, **kwargs: Any) -> Any:
-        if self.timeout and "timeout" not in kwargs:
-            kwargs["timeout"] = self.timeout
-        return super().send(request, **kwargs)
 
 
 # Global per-process rate limiter: enforces minimum interval between requests
@@ -84,49 +67,9 @@ def _throttled_yf_request(fn: Any) -> Any:
 class YFinanceWrapper:
     """Wrapper for yfinance with AWS VPC compatibility."""
 
-    _session = None
-    _last_session_time: float = 0
-    SESSION_TIMEOUT = 3600  # Refresh session every hour
     _ticker_cache: dict[str, Any] = {}  # Cache ticker objects to reduce API calls
     _ticker_cache_lock = threading.Lock()
     TICKER_CACHE_TTL = 86400  # CRITICAL FIX: Cache ticker objects for 24 hours (stable data) instead of 1 hour. Reduces yfinance API calls under rate limit stress
-
-    @classmethod
-    def get_session(cls) -> Any:
-        current_time = time.time()
-
-        # Refresh session if expired
-        if cls._session is None or (current_time - cls._last_session_time) > cls.SESSION_TIMEOUT:
-            cls._session = cls._create_session()
-            cls._last_session_time = current_time
-
-        return cls._session
-
-    @classmethod
-    def _create_session(cls) -> Any:
-        """Create a new yfinance session with retries and request timeout.
-
-        CRITICAL: yfinance.Ticker.info can hang indefinitely on certain symbols.
-        We mount HTTP adapters with increased timeouts to handle serial processing.
-        Increased from (30, 60)s to (60, 120)s to allow proper data fetching when
-        parallelism=1 is used to prevent rate limiting on shared NAT IP.
-        """
-        max_retries = 3
-        for attempt in range(max_retries):
-            try:
-                session = requests.Session()
-                session.headers.update({"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
-                timeout_adapter = TimeoutHTTPAdapter(timeout=(60, 120))
-                session.mount("http://", timeout_adapter)
-                session.mount("https://", timeout_adapter)
-                logger.info(f"Created yfinance session with timeout=(60, 120)s (attempt {attempt + 1})")
-                return session
-            except (requests.RequestException, requests.Timeout) as e:
-                logger.warning(f"Failed to create session (attempt {attempt + 1}): {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2**attempt)
-
-        raise RuntimeError("Failed to create yfinance session after all retries")
 
     @classmethod
     def get_ticker(cls, symbol: str, max_retries: int = 5) -> Any:
@@ -162,8 +105,14 @@ class YFinanceWrapper:
             try:
 
                 def _make_ticker() -> Any:
-                    session = cls.get_session()
-                    t = yf.Ticker(symbol, session=session) if session else yf.Ticker(symbol)
+                    # yfinance 0.2.40+ manages its own curl_cffi session internally to
+                    # negotiate Yahoo's crumb/cookie handshake for the quoteSummary
+                    # endpoint (.info). Passing a plain requests.Session here (as this
+                    # used to) breaks that handshake and makes every .info call fail
+                    # with "Invalid Crumb" / 401 - confirmed via production logs where
+                    # 100% of requests failed this way. See utils/data/source_router.py
+                    # for the same fix already applied to yf.download().
+                    t = yf.Ticker(symbol)
                     _ = t.info  # trigger auth check early
                     return t
 
@@ -205,10 +154,6 @@ class YFinanceWrapper:
 
                     # Report to shared circuit breaker (notifies all ECS tasks)
                     circuit_breaker.report_rate_limit_error()
-
-                    # Reset session so next attempt gets a fresh crumb
-                    cls._session = None
-                    cls._last_session_time = 0
 
                     if attempt < max_retries - 1:
                         # Use shorter per-task backoff (shared circuit breaker handles IP-level coordination)
