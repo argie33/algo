@@ -96,8 +96,38 @@ class DailyReconciliation:
         PAPER TRADING: If broker is None (credentials missing but paper trading enabled),
         return success with no positions to allow orchestrator to continue with signal generation.
         """
-        # If broker not available (credentials missing for paper trading), use database state
+        # If broker not available (credentials missing for paper trading), use database state.
+        # This DB-only fallback fabricates a portfolio_value from config + open positions, which is
+        # only safe as a local-dev convenience when there's no broker to compare against. Persisting
+        # it to algo_portfolio_snapshots outside LOCAL_MODE corrupts the historical equity curve that
+        # circuit_breaker.py's drawdown/weekly-loss checks read live from this same table (see
+        # migration 1112) -- so outside LOCAL_MODE this must fail closed instead, matching the
+        # no-DB-only-fallback rule already enforced below for _fetch_account() returning None.
         if self.broker is None:
+            import os
+
+            if os.getenv("LOCAL_MODE") != "true":
+                logger.critical(
+                    "[RECONCILIATION] Broker unavailable (no Alpaca credentials) outside LOCAL_MODE. "
+                    "Refusing to fabricate a portfolio snapshot from initial_capital_paper_trading + "
+                    "DB positions -- this would silently corrupt algo_portfolio_snapshots with a fake "
+                    "equity value that circuit breaker checks later treat as real broker truth."
+                )
+                try:
+                    notify(
+                        "critical",
+                        title="Reconciliation Halted",
+                        message="Broker credentials unavailable outside LOCAL_MODE - reconciliation "
+                        "requires live account data and cannot fall back to a fabricated DB-only value.",
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to send critical notification (will still raise): {e}", exc_info=True)
+                raise ValueError(
+                    "Broker credentials unavailable outside LOCAL_MODE - cannot fabricate a portfolio "
+                    "snapshot. Set APCA_API_KEY_ID/APCA_API_SECRET_KEY, or run with LOCAL_MODE=true for "
+                    "the dev-only DB fallback."
+                )
+
             logger.warning(
                 "[RECONCILIATION] Broker not available - using database portfolio state (paper trading mode). "
                 "Orchestrator will continue with signal generation and exit execution."
