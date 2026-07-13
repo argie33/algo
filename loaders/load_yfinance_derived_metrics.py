@@ -321,7 +321,12 @@ def main() -> int:
         return run_loader(YfinanceDerivedMetricsLoader)
     except Exception as e:
         logger.error(f"[YFINANCE_DERIVED FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
-        # Mark all 6 output tables unavailable
+        # Backfill a placeholder unavailable row for symbols never reached this run.
+        # DO NOTHING (not DO UPDATE) is required here -- a crash/timeout partway
+        # through must not clobber symbols already fetched and committed earlier
+        # in this same run. The previous DO UPDATE unconditionally overwrote every
+        # active symbol across all 5 tables on any exception, silently destroying
+        # real data for whatever had already succeeded before the crash point.
         try:
             symbols = set()
             with DatabaseContext("read") as cur:
@@ -348,12 +353,7 @@ def main() -> int:
                                 f"""
                                 INSERT INTO {table} (ticker, symbol, sector, data_unavailable, reason, updated_at)
                                 VALUES (%s, %s, %s, TRUE, %s, NOW())
-                                ON CONFLICT (ticker) DO UPDATE SET
-                                  symbol = EXCLUDED.symbol,
-                                  sector = EXCLUDED.sector,
-                                  data_unavailable = TRUE,
-                                  reason = EXCLUDED.reason,
-                                  updated_at = NOW()
+                                ON CONFLICT (ticker) DO NOTHING
                                 """,
                                 (symbol, symbol, "Unknown", f"loader_crash:{type(e).__name__}"),
                             )
@@ -363,10 +363,7 @@ def main() -> int:
                                 f"""
                                 INSERT INTO {table} (symbol, date, data_unavailable, reason, updated_at)
                                 VALUES (%s, %s, TRUE, %s, NOW())
-                                ON CONFLICT (symbol, date) DO UPDATE SET
-                                  data_unavailable = TRUE,
-                                  reason = EXCLUDED.reason,
-                                  updated_at = NOW()
+                                ON CONFLICT (symbol, date) DO NOTHING
                                 """,
                                 (symbol, today, f"loader_crash:{type(e).__name__}"),
                             )
@@ -375,10 +372,7 @@ def main() -> int:
                                 f"""
                                 INSERT INTO {table} (symbol, data_unavailable, reason, updated_at)
                                 VALUES (%s, TRUE, %s, NOW())
-                                ON CONFLICT (symbol) DO UPDATE SET
-                                  data_unavailable = TRUE,
-                                  reason = EXCLUDED.reason,
-                                  updated_at = NOW()
+                                ON CONFLICT (symbol) DO NOTHING
                                 """,
                                 (symbol, f"loader_crash:{type(e).__name__}"),
                             )

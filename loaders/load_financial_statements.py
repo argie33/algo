@@ -341,16 +341,16 @@ def main() -> int:
                 cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE active = TRUE")
                 symbols = {row[0] for row in cur.fetchall()}
 
+            # DO NOTHING (not DO UPDATE): a crash/timeout partway through must not
+            # clobber symbols already fetched and committed earlier in this same
+            # run. Only backfill a placeholder row for symbols never reached.
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
                     cur.execute(
                         f"""
                         INSERT INTO {table_name} (symbol, data_unavailable, reason, updated_at)
                         VALUES (%s, TRUE, %s, NOW())
-                        ON CONFLICT {get_conflict_target(config["primary_key"])} DO UPDATE SET
-                          data_unavailable = TRUE,
-                          reason = EXCLUDED.reason,
-                          updated_at = NOW()
+                        ON CONFLICT {get_conflict_target(config["primary_key"])} DO NOTHING
                     """,
                         (symbol, f"loader_crash:{type(e).__name__}"),
                     )
