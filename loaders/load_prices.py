@@ -2357,11 +2357,23 @@ def main() -> int:
 
             atexit.register(_release_price_loader_lock)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
-        logger.warning(
-            "[MAIN] Advisory lock check failed (%s) - proceeding without lock",
-            _lock_err,
-        )
+        # Proceeding without the lock here is exactly the failure mode this lock
+        # exists to prevent: pool exhaustion (often CAUSED by an already-running
+        # duplicate instance) breaks the lock-acquisition connection, which used to
+        # be treated as "no lock available, run anyway" -- letting a second
+        # instance pile on and exhaust the pool further. Fail fast instead; the
+        # ECS/Step Functions schedule will retry once the pool recovers.
+        try:
+            if _lock_conn is not None:
+                _lock_conn.close()
+        except (psycopg2.DatabaseError, psycopg2.OperationalError):
+            pass
         _lock_conn = None
+        raise RuntimeError(
+            "[LOAD_PRICES] CRITICAL: Could not acquire advisory lock connection "
+            f"({_lock_err}). Refusing to proceed without mutual exclusion -- "
+            "another instance may already be running."
+        ) from _lock_err
 
     try:
         if symbols_str:
