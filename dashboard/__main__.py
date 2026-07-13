@@ -3,9 +3,10 @@
 Supports:
   python -m dashboard
   python -m dashboard.dashboard
+  python -m dashboard --local
 """
 
-from .dashboard import main
-
 if __name__ == "__main__":
+    import sys
+    from .dashboard import main
     main()
