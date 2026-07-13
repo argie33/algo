@@ -457,6 +457,29 @@ jobs:
           echo "[OK] data-freshness-monitor Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/lambda_function.zip | cut -f1)"
           unzip -l $TERRAFORM_LAMBDA/lambda_function.zip | head -20
 
+      - name: Build Loader Timeout Guardian Lambda
+        run: |
+          # Same pattern as Data Freshness Monitor above. Terraform looks for the ZIP at:
+          # modules/monitoring/../../lambda/loader-timeout-guardian/lambda_function.zip
+          # = terraform/lambda/loader-timeout-guardian/lambda_function.zip
+          SOURCE_LAMBDA=$GITHUB_WORKSPACE/lambda/loader-timeout-guardian
+          TERRAFORM_LAMBDA=$GITHUB_WORKSPACE/terraform/lambda/loader-timeout-guardian
+          PKG_DIR=/tmp/loader-timeout-guardian-pkg
+
+          mkdir -p $PKG_DIR $TERRAFORM_LAMBDA
+
+          cp $SOURCE_LAMBDA/lambda_function.py $PKG_DIR/
+
+          python3.12 -m pip install -r $SOURCE_LAMBDA/requirements.txt \
+            -t $PKG_DIR/ \
+            --no-cache-dir --quiet
+
+          rm -f $TERRAFORM_LAMBDA/lambda_function.zip
+          cd $PKG_DIR
+          zip -r $TERRAFORM_LAMBDA/lambda_function.zip . -q -x "*.pyc" "__pycache__/*" "*.dist-info/*"
+
+          echo "[OK] loader-timeout-guardian Lambda ZIP: $(du -sh $TERRAFORM_LAMBDA/lambda_function.zip | cut -f1)"
+
       - name: Build Algo Orchestrator Lambda
         run: |
           # Build orchestrator Lambda ZIP with all required modules (algo, config, utils)
