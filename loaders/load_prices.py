@@ -2300,6 +2300,14 @@ def main() -> int:
         from utils.db.connection import get_db_connection
 
         _lock_conn = get_db_connection(timeout=30)
+        # Belt-and-suspenders: get_db_connection()'s health check (_check_connection_health)
+        # already does its own SELECT-1-ping + rollback() to hand back a connection in READY
+        # state, but this loader failed live in production immediately after that fix landed
+        # with "set_session cannot be used inside a transaction" on the very next line -- the
+        # connection was still mid-transaction when .autocommit was set. Roll back explicitly
+        # here too (harmless no-op on an already-clean connection) so setting autocommit can
+        # never fail this way regardless of what state the pool handed back.
+        _lock_conn.rollback()
         _lock_conn.autocommit = True  # type: ignore[attr-defined]
         with _lock_conn.cursor() as _cur:
             _cur.execute(
