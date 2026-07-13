@@ -35,9 +35,6 @@ python3 -m dashboard --local
 | **AWS Mode** | `python -m dashboard` | ⚠️ Lambda timeout (VPC issue) |
 | **Raw test** | `curl -H "Authorization: Bearer dev-admin" http://localhost:3001/api/algo/portfolio` | ✅ Works |
 
-### Current Status (Session 85, 2026-07-12)
-- **Dev Server:** ✅ Running and responding on localhost:3001
-- **AWS Lambda:** ⚠️ Timing out (VPC cold-start issue, needs investigation)
 - **Data:** ✅ Fresh (today is Saturday, price data current through Friday)
 
 ## Health Check
@@ -75,22 +72,6 @@ Expected output:
 **Cause:** Usually a stale data warning  
 **Fix:** Run manual orchestrator trigger to load fresh data
 
-## System Status
-
-### Current Deployment (Session 75)
-- ✅ **Local dev mode:** Fully operational (all 26 dashboard fetchers working)
-- ✅ **Database:** 230k+ signals, fresh this morning
-- ✅ **Orchestrator:** Running on schedule (5.4h ago)
-- ✅ **Data loaders:** All executing successfully
-- ⚠️ **AWS mode:** Requires proper Cognito configuration
-
-### Data Freshness (as of 2026-07-11)
-| Table | Latest | Status |
-|-------|--------|--------|
-| price_daily | 2026-07-10 | ✅ Fresh |
-| technical_data_daily | 2026-07-10 | ✅ Fresh |
-| buy_sell_daily | 2026-07-11 08:06 | ✅ Very fresh |
-| stock_scores | 26 hours ago | ⚠️ Due for refresh |
 
 ## Troubleshooting Flowchart
 

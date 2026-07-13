@@ -1136,6 +1136,10 @@ class MarketExposure:
         Populated daily from SPY options chain via load_market_health_daily.
         Source: Pan & Poteshman (JoF, 2006) - statistically significant predictive
         power for subsequent returns from options flow data.
+
+        GRACEFUL DEGRADATION: If put_call_ratio is unavailable (PCRX delisted or loader failure),
+        return neutral score (0.5) instead of failing. Put/call is only 8pts of 100 - market can
+        operate without it. This prevents cascade failures when PCRX data becomes unavailable.
         """
         cur.execute(
             """
@@ -1147,10 +1151,11 @@ class MarketExposure:
         )
         row = cur.fetchone()
         if not row or len(row) < 1 or row[0] is None:
-            raise RuntimeError(
-                f"[MARKET EXPOSURE CRITICAL] No put/call ratio data for {eval_date} - "
-                f"required for options sentiment factor. Check market_health_daily loader."
+            logger.warning(
+                f"[MARKET EXPOSURE] Put/call ratio unavailable for {eval_date}. "
+                f"Using neutral sentiment score (0.5). Check if PCRX ticker is available or market_health_daily loader is running."
             )
+            return {"score_factor": 0.5, "value": None, "data_unavailable": True}
 
         pc = float(row[0])
 

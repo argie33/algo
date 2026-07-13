@@ -1,6 +1,6 @@
 # Secrets Management Playbook
 **Version:** 2.0  
-**Last Updated:** 2026-07-12  
+  
 **Maintainer:** DevOps/Security Team
 
 ---
@@ -657,6 +657,6 @@ aws sns subscribe --topic-arn arn:aws:sns:... \
 
 ---
 
-**Last Updated:** 2026-07-12  
+  
 **Next Review:** 2026-10-12  
 **Owner:** Security & DevOps Team
