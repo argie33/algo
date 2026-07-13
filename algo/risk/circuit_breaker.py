@@ -5,7 +5,7 @@ import logging
 import math
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 import psycopg2
@@ -148,10 +148,12 @@ class CircuitBreaker:
             raise ValueError(f"CRITICAL: Required circuit breaker config '{key}' is missing {context}")
         return value
 
-    def check_all(self, current_date: Any = None) -> dict[str, Any]:
+    def check_all(self, current_date: date | datetime | None = None) -> dict[str, Any]:
         """Run all circuit breakers. Returns dict with per-check status."""
-        if not current_date:
+        if current_date is None:
             current_date = _date.today()
+        elif isinstance(current_date, datetime):
+            current_date = current_date.date()
 
         with DatabaseContext("write") as cur:
             try:

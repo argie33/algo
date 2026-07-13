@@ -1418,17 +1418,55 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
     try:
         # Allow 25 seconds for query to complete (safe before API Gateway limit)
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
+        # PERFORMANCE: filter/sort/limit in a CTE first, then run per-symbol LATERAL
+        # lookups (price_daily/technical_data_daily) only against that small row set —
+        # joining before the LIMIT would pay for a per-symbol index scan on every row
+        # of stock_scores. See lambda/api/routes/scores.py for the same pattern.
         cur.execute(
             """
-            SELECT s.symbol, s.composite_score, s.growth_score, s.momentum_score,
-                   s.quality_score, s.value_score, s.stability_score, s.positioning_score,
-                   s.data_completeness, s.updated_at, COALESCE(c.short_name, s.symbol) as company_name
-            FROM stock_scores s
-            LEFT JOIN company_profile c ON s.symbol = c.symbol
-            WHERE s.composite_score > 0
-            AND s.data_completeness >= 70
-            ORDER BY s.composite_score DESC
-            LIMIT %s
+            WITH max_price_date AS (
+                SELECT MAX(date) AS max_date FROM price_daily
+            ),
+            filtered_scores AS (
+                SELECT s.*, COALESCE(c.short_name, s.symbol) as company_name, c.sector
+                FROM stock_scores s
+                LEFT JOIN company_profile c ON s.symbol = c.symbol
+                WHERE s.composite_score > 0
+                AND s.data_completeness >= 70
+                ORDER BY s.composite_score DESC
+                LIMIT %s
+            )
+            SELECT
+                fs.symbol, fs.composite_score, fs.growth_score, fs.momentum_score,
+                fs.quality_score, fs.value_score, fs.stability_score, fs.positioning_score,
+                fs.rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
+                pl.close AS current_price,
+                ROUND(CASE
+                    WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
+                    ELSE NULL
+                END, 2) AS change_percent,
+                ROUND(CASE WHEN tl.sma_50 IS NOT NULL AND tl.sma_50 > 0
+                    THEN ((pl.close - tl.sma_50) / tl.sma_50 * 100) ELSE NULL END, 2) AS price_vs_sma_50,
+                ROUND(CASE WHEN tl.sma_200 IS NOT NULL AND tl.sma_200 > 0
+                    THEN ((pl.close - tl.sma_200) / tl.sma_200 * 100) ELSE NULL END, 2) AS price_vs_sma_200
+            FROM filtered_scores fs
+            LEFT JOIN LATERAL (
+                SELECT close FROM price_daily
+                WHERE symbol = fs.symbol
+                ORDER BY date DESC LIMIT 1
+            ) pl ON true
+            LEFT JOIN LATERAL (
+                SELECT close FROM price_daily
+                WHERE symbol = fs.symbol
+                  AND date < (SELECT max_date FROM max_price_date)
+                ORDER BY date DESC LIMIT 1
+            ) pp ON true
+            LEFT JOIN LATERAL (
+                SELECT sma_50, sma_200 FROM technical_data_daily
+                WHERE symbol = fs.symbol
+                ORDER BY date DESC LIMIT 1
+            ) tl ON true
+            ORDER BY fs.composite_score DESC
         """,
             (limit,),
         )
