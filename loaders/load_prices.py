@@ -1443,6 +1443,31 @@ class PriceLoader(OptimalLoader):
                 emergency_mode_enabled = result.get("emergency_mode_enabled", emergency_mode_enabled)
 
         if failed_batches:
+            # One sequential retry pass before declaring the whole run failed. Confirmed
+            # live: a 36-minute, 8467-symbol EOD run that completed 8367/8467 (99%) hit
+            # "SSL connection has been closed unexpectedly" on its last 5 batches (100
+            # symbols) simultaneously -- a transient network blip, not a systemic data
+            # problem -- and the hard-fail-on-any-batch logic below discarded the entire
+            # run (zeroed symbols_loaded/rows_inserted in the summary) and halted the EOD
+            # pipeline. Retrying just the failed batches recovers that case without
+            # weakening the fail-closed guarantee: if a batch fails twice, it's still
+            # fatal.
+            still_failed: list[tuple[list[str], str]] = []
+            logger.warning(
+                f"[BATCH_RETRY] {len(failed_batches)} batch(es) failed, retrying once before giving up"
+            )
+            for batch, first_err in failed_batches:
+                try:
+                    self._load_batch(batch)
+                    logger.info(f"[BATCH_RETRY] Batch of {len(batch)} symbols succeeded on retry")
+                except Exception as e:
+                    logger.error(
+                        f"[BATCH_RETRY] Batch of {len(batch)} symbols failed again: {type(e).__name__}: {str(e)[:200]}"
+                    )
+                    still_failed.append((batch, f"{first_err} (retry: {str(e)[:100]})"))
+            failed_batches = still_failed
+
+        if failed_batches:
             failed_count = sum(len(batch) for batch, _ in failed_batches)
             batch_summary = "; ".join(
                 f"Batch {i + 1}: {len(b)} symbols, error={err}" for i, (b, err) in enumerate(failed_batches[:5])
@@ -1450,8 +1475,8 @@ class PriceLoader(OptimalLoader):
             if len(failed_batches) > 5:
                 batch_summary += f"; ... and {len(failed_batches) - 5} more batches failed"
             msg = (
-                f"[LOAD_PRICES CRITICAL] Price fetch failed for {failed_count} symbols across {len(failed_batches)} batches. "
-                f"Cannot load market prices without complete data. {batch_summary}"
+                f"[LOAD_PRICES CRITICAL] Price fetch failed for {failed_count} symbols across {len(failed_batches)} batches "
+                f"(after 1 retry). Cannot load market prices without complete data. {batch_summary}"
             )
             logger.critical(msg)
             raise RuntimeError(msg)
