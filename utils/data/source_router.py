@@ -118,11 +118,10 @@ def _yf_download_with_circuit_breaker(do_download: Callable[[], Any], timeout_se
     Ticker() calls), repeatedly re-triggering fresh 429s and preventing the ban from
     ever expiring. Mirrors the check/report pattern in utils/external/yfinance.py.
     """
+    # wait_or_raise() only blocks this (billed) task for short bans; long bans raise
+    # so the task fails fast instead of burning paid compute time asleep.
     circuit_breaker = get_circuit_breaker()
-    if circuit_breaker.is_banned():
-        backoff = circuit_breaker.get_backoff_seconds()
-        logger.warning(f"[yfinance] Shared IP banned across all ECS tasks. Waiting {backoff:.0f}s before retry...")
-        time.sleep(backoff)
+    circuit_breaker.wait_or_raise()
 
     try:
         result = _call_with_timeout(do_download, timeout_sec=timeout_sec, retries=retries)

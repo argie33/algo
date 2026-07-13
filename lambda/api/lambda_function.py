@@ -180,7 +180,19 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 logger.info(f"[STARTUP] Created table {table_name}")
             except Exception as e:
                 logger.warning(f"[STARTUP] Could not create table {table_name}: {e}")
-                conn.rollback()
+                try:
+                    conn.rollback()
+                except Exception:
+                    # Connection died mid-statement (e.g. transient RDS/network blip).
+                    # Reconnect so the remaining migrations and the validation step
+                    # below still run against a healthy connection instead of a single
+                    # transient failure aborting the entire Lambda cold start.
+                    logger.warning("[STARTUP] Connection lost during rollback - reconnecting")
+                    conn = psycopg2.connect(
+                        host=db_host, port=int(db_port), database=db_name, user=db_user,
+                        password=db_password, sslmode=sslmode,
+                    )
+                    cur = conn.cursor()
 
         # Apply migrations for data_unavailable and reason columns
         # Schema migration definitions: (table, column, type, description)
@@ -268,7 +280,15 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 logger.info(f"[STARTUP] Ensured {table}.{column} exists ({description})")
             except Exception as e:
                 logger.warning(f"[STARTUP] Could not update {table}.{column}: {e}")
-                conn.rollback()
+                try:
+                    conn.rollback()
+                except Exception:
+                    logger.warning("[STARTUP] Connection lost during rollback - reconnecting")
+                    conn = psycopg2.connect(
+                        host=db_host, port=int(db_port), database=db_name, user=db_user,
+                        password=db_password, sslmode=sslmode,
+                    )
+                    cur = conn.cursor()
 
         # NOTE: R-metrics columns (expectancy, avg_win_r, avg_loss_r) are created by lambda/db-init/lambda_function.py
         # DO NOT duplicate column creation here. The db-init Lambda is authoritative for schema initialization.
@@ -1601,7 +1621,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         if requires_auth and not is_authorized:
             logger.warning(f"Unauthorized access attempt to {path}: {auth_error}")
             log_api_request(event, 401, error_msg=auth_error)
-            return make_error_response(401, "unauthorized", auth_error, event)
+            return make_error_response(401, "unauthorized", auth_error or "Unauthorized", event)
 
         # Detailed and pipeline health checks are handled via api_router (routes/health.py)
         # They verify authentication through the normal flow and provide consistent response format

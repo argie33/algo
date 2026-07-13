@@ -15,6 +15,7 @@ Implementation:
 """
 
 import logging
+import random
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -26,16 +27,35 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
+class YFinanceStillBannedError(RuntimeError):
+    """Shared IP is still banned longer than a running task should block-wait for."""
+
+
 class YFinanceIPCircuitBreaker:
-    """Tracks shared IP ban state across all ECS tasks using PostgreSQL."""
+    """Tracks shared IP ban state across all ECS tasks using PostgreSQL.
+
+    All tasks read the same shared ban_until from PostgreSQL. Without jitter,
+    every task wakes up and retries at the exact same instant the ban clears,
+    causing a synchronized retry storm that immediately re-triggers Yahoo's
+    rate limit — a self-inflicted thundering herd that can keep the shared IP
+    banned indefinitely regardless of how long the real underlying block is.
+    JITTER_FRACTION spreads task wake-ups across a window instead of a point.
+    """
 
     # Ban state row key
     STATE_KEY = "shared"
 
     # Exponential backoff configuration
     INITIAL_BACKOFF_SECS = 10  # Start with 10s
-    MAX_BACKOFF_SECS = 300  # Cap at 5 minutes
+    MAX_BACKOFF_SECS = 1800  # Cap at 30 minutes — long enough to outlast sustained real bans
     BACKOFF_MULTIPLIER = 2  # Double on each failure
+    JITTER_FRACTION = 0.3  # +/- 30% randomization so ~70 concurrent tasks don't retry in lockstep
+
+    # A running ECS task is billed for wall-clock time. Blocking it in-process for the
+    # full shared backoff (now up to MAX_BACKOFF_SECS) would burn paid Fargate compute
+    # while doing nothing. Cap in-process waiting here; beyond this, fail fast and let
+    # the next scheduled loader run (EventBridge/Step Functions) pick it up for free.
+    MAX_IN_PROCESS_WAIT_SECS = 60
 
     def __init__(self) -> None:
         self._last_check_time: float = 0
@@ -80,6 +100,26 @@ class YFinanceIPCircuitBreaker:
             return False
         return True
 
+    def wait_or_raise(self) -> None:
+        """Block briefly if banned; raise YFinanceStillBannedError if the wait is too long.
+
+        Callers must use this instead of `time.sleep(get_backoff_seconds())` — a running
+        ECS task is billed for wall-clock time, so blocking it for the full shared ban
+        duration wastes paid compute. Short bans are waited out in-process; long ones
+        fail fast so the task exits and the next scheduled run retries at zero extra cost.
+        """
+        if not self.is_banned():
+            return
+        backoff = self.get_backoff_seconds()
+        if backoff <= self.MAX_IN_PROCESS_WAIT_SECS:
+            time.sleep(backoff)
+            return
+        raise YFinanceStillBannedError(
+            f"Shared IP rate limited and still banned for {backoff:.0f}s more "
+            f"(exceeds {self.MAX_IN_PROCESS_WAIT_SECS}s in-task wait budget) — "
+            f"failing fast instead of blocking a billed task; will retry on next scheduled run"
+        )
+
     def get_backoff_seconds(self) -> float:
         state = self._get_ban_state()
         if state is None or not self.is_banned():
@@ -105,7 +145,7 @@ class YFinanceIPCircuitBreaker:
         if state is None:
             # First rate limit error — create initial state
             failure_count = 1
-            backoff = self.INITIAL_BACKOFF_SECS
+            backoff: float = self.INITIAL_BACKOFF_SECS
         else:
             # Validate failure_count exists and is numeric
             if "failure_count" not in state or state["failure_count"] is None:
@@ -115,11 +155,14 @@ class YFinanceIPCircuitBreaker:
             except (ValueError, TypeError) as e:
                 raise ValueError(f"Circuit breaker failure_count is not numeric: {state['failure_count']}") from e
             failure_count = prev_count + 1
-            # Exponential backoff: initial 10s, then 20s, 40s, 80s, 160s, 300s, 300s, ...
+            # Exponential backoff: initial 10s, then 20s, 40s, ... up to MAX_BACKOFF_SECS
             backoff = min(
                 self.INITIAL_BACKOFF_SECS * (self.BACKOFF_MULTIPLIER ** (failure_count - 1)),
                 self.MAX_BACKOFF_SECS,
             )
+
+        # Jitter spreads concurrent tasks' retry times instead of all waking at once
+        backoff *= random.uniform(1 - self.JITTER_FRACTION, 1 + self.JITTER_FRACTION)
 
         ban_until = datetime.now(timezone.utc) + timedelta(seconds=backoff)
 

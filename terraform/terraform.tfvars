@@ -69,22 +69,19 @@ data_patrol_timeout_ms              = 60000 # FIXED: 30s too short for full data
 alpaca_paper_trading                = true  # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 40    # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
 api_lambda_reserved_concurrency     = 50    # Increased for dashboard + loader concurrent requests. Reserved concurrency alone (without provisioned) keeps Lambda warm for most requests.
-api_lambda_provisioned_concurrency  = 0     # TEMPORARILY DISABLED (Session 114): 8+ consecutive deploy failures tonight on
-                                             # "PutProvisionedConcurrencyConfig: Requested Provisioned Concurrency should not
-                                             # be greater than reservedConcurrentExecution" despite reserved(50) > provisioned(5)
-                                             # being internally consistent in this file. Root cause not confirmed (IAM blocks
-                                             # lambda:ListFunctions/GetAccountSettings needed to check account-wide concurrency
-                                             # pool exhaustion across ~20 functions); most likely many concurrent sessions
-                                             # racing to mutate the same function's concurrency settings simultaneously.
-                                             # Disabling unblocks the deploy so other resources (esp. Alpaca/JWT secrets) can
-                                             # apply; CloudWatch showed 0 API 503 errors in the last 3 days without this even
-                                             # active, so cold-starts alone aren't currently causing user-visible failures.
-                                             # Re-enable (restore to 5) once deploy contention settles - see operational_status
-                                             # memory for full investigation.
+api_lambda_provisioned_concurrency  = 5     # RE-ENABLED 2026-07-13 (was disabled Session 114 for deploy contention that has
+                                             # since resolved -- "Deploy All Infrastructure" runs have succeeded consistently
+                                             # for the last hour+). Confirmed live via API Gateway access logs: dashboard
+                                             # startup fires ~26 concurrent fetcher requests from a single client in the same
+                                             # second; with provisioned=0 every one of those is a simultaneous VPC cold start,
+                                             # measured at a 46% 503 rate (72/157 requests) in one 15-min window. Restoring to
+                                             # 5 keeps that many instances warm so a burst doesn't fan out into N cold starts.
 algo_lambda_timeout                 = 900  # AWS Lambda max timeout is 900s (15 min). ECS runs async so Lambda doesn't wait. 900s is sufficient since Lambda only invokes the task, doesn't wait for completion.
 algo_lambda_ephemeral_storage       = 512   # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
-algo_lambda_provisioned_concurrency = 0     # TEMPORARILY DISABLED (Session 114) - see api_lambda_provisioned_concurrency
-                                             # comment above for why. Re-enable (restore to 5) once deploy contention settles.
+algo_lambda_provisioned_concurrency = 0     # Left disabled 2026-07-13 (unlike api_lambda above): this Lambda only invokes
+                                             # the orchestrator ECS task and returns, isn't hit by concurrent dashboard
+                                             # fetcher bursts, and no cold-start-driven errors observed for it. Revisit if
+                                             # orchestrator-trigger latency/errors show up.
 algo_lambda_reserved_concurrency    = 50    # Increased to handle concurrent orchestrator runs + manual triggers. Prevents throttling (TooManyRequestsException).
 # Provisioned concurrency for API only (~$12/month) worth the 502 error fix.
 

@@ -47,12 +47,11 @@ def _throttled_yf_request(fn: Any) -> Any:
     First checks if the shared IP is banned (from any ECS task). If banned,
     waits for the exponential backoff period. Then applies per-process throttling.
     """
-    # Check shared IP ban state (coordinates across all ECS tasks)
+    # Check shared IP ban state (coordinates across all ECS tasks).
+    # wait_or_raise() only blocks this (billed) task for short bans; long bans raise
+    # so the task fails fast instead of burning paid compute time asleep.
     circuit_breaker = get_circuit_breaker()
-    if circuit_breaker.is_banned():
-        backoff = circuit_breaker.get_backoff_seconds()
-        logger.warning(f"Shared IP banned across all ECS tasks. Waiting {backoff:.0f}s before retry...")
-        time.sleep(backoff)
+    circuit_breaker.wait_or_raise()
 
     # Apply per-process rate limiting (throttles this specific task)
     with _yf_semaphore:
