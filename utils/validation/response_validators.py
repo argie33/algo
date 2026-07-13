@@ -252,7 +252,7 @@ def _validate_markets(data: dict[str, Any]) -> dict[str, Any]:
 
 
 # Factory-created validators for common response types
-validate_portfolio_response = _make_validator()
+validate_portfolio_response = _validate_portfolio
 validate_performance_response = _validate_performance
 validate_positions_response = _validate_positions
 validate_signals_response = _make_validator()

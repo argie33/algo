@@ -198,7 +198,10 @@ class DashboardDataExtractor:
 
     def notifications(self) -> list[Any]:
         """Extract notifications (fail-fast if missing or wrong type)."""
-        notifs = self.data.get("notifs")
+        if "notifs" not in self.data:
+            notifs = None
+        else:
+            notifs = self.data["notifs"]
         if notifs is None:
             raise DataExtractionError(
                 "Notifications field missing from API response. "
@@ -211,8 +214,10 @@ class DashboardDataExtractor:
 
     def risk(self) -> dict[str, Any]:
         """Extract risk metrics."""
-        return cast(dict[str, Any], extract_data_or_empty(self.data.get("risk"), dict))
+        data = self.data["risk"] if "risk" in self.data else None
+        return cast(dict[str, Any], extract_data_or_empty(data, dict))
 
     def perf_analytics(self) -> dict[str, Any]:
         """Extract performance analytics (rolling metrics)."""
-        return cast(dict[str, Any], extract_data_or_empty(self.data.get("perf_anl"), dict))
+        data = self.data["perf_anl"] if "perf_anl" in self.data else None
+        return cast(dict[str, Any], extract_data_or_empty(data, dict))
