@@ -15,6 +15,7 @@ import logging
 import os
 from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
+from collections.abc import Callable
 from typing import Any, cast
 
 import psycopg2
@@ -34,7 +35,7 @@ PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 
 
 class PositionSizer:
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: dict[str, Any]) -> None:
         if config is None:
             raise ValueError("PositionSizer config cannot be None")
         if not isinstance(config, dict):
@@ -58,12 +59,10 @@ class PositionSizer:
                 f"Cannot proceed with position sizing without explicit risk configuration."
             )
 
-    def _with_cursor(self, operation: Any) -> Any:
-        """Execute an operation with a cursor via DatabaseContext."""
+    def _with_cursor(self, operation: Callable[[Any], Any]) -> Any:
+        """Execute an operation with a database cursor."""
         with DatabaseContext("read") as cur:
             return operation(cur)
-
-    # Type: Any to accommodate various operation return types
 
     def get_portfolio_value(self) -> Decimal:
         """Get current portfolio value.
