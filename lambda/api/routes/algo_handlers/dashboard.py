@@ -93,15 +93,31 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     logger.info(f"[POSITIONS] Direct algo_positions query returned {len(positions)} positions")
 
     if not positions:
-        logger.error(
-            "[POSITIONS CRITICAL] algo_positions_with_risk returned 0 rows. "
-            "This indicates a data sync issue: either algo_positions table not synced with live Alpaca state, "
-            "or algo_positions was cleared but reconciliation incomplete, or view/table corruption. "
-            "Returning empty portfolio rather than silently switching to algo_trades (different schema). "
-            "Check: (1) algo_positions table populated? (2) Alpaca sync reconciliation completed? "
-            "(3) algo_positions_with_risk view valid?"
+        # 0 rows in algo_positions is NOT necessarily a sync failure: broker-held positions
+        # opened outside the algo's own entry execution (e.g. manually, or pre-dating algo
+        # tracking) are intentionally never INSERTed by sync_alpaca_positions (see
+        # algo/infrastructure/alpaca_sync_manager.py) -- inserting them with a synthetic
+        # asset_id-as-position_id created duplicate NULL-stop records that tripped the
+        # circuit breaker. Distinguish that expected case from a genuine sync problem by
+        # checking whether the broker-sourced portfolio snapshot also reports 0 positions.
+        cur.execute(
+            "SELECT position_count FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC, created_at DESC LIMIT 1"
         )
-        stale_alerts.append("Position data unavailable: algo_positions sync incomplete")
+        snap_row = cur.fetchone()
+        broker_position_count = safe_dict_convert(snap_row).get("position_count") if snap_row else None
+        if broker_position_count:
+            logger.info(
+                f"[POSITIONS] algo_positions has 0 open rows, but the broker holds "
+                f"{broker_position_count} position(s) not tracked by the algo (opened outside its own "
+                "entry execution). This is expected, not a sync failure -- see "
+                "alpaca_sync_manager.sync_alpaca_positions."
+            )
+            stale_alerts.append(
+                f"{broker_position_count} broker position(s) held outside algo tracking (not entered "
+                "by the algo's own execution path) — not shown in this list by design"
+            )
+        else:
+            logger.info("[POSITIONS] algo_positions has 0 open rows and broker also reports 0 — no open positions.")
 
     # FIX: Load sector/company_name from company_profile and technical scores from
     # trend_template_data for positions. algo_positions (the base table) does not carry
