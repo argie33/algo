@@ -372,6 +372,8 @@ module "pipeline" {
   loader_failure_handler_arn            = coalesce(module.services.loader_failure_handler_arn, "")
   ecs_log_group_name                    = module.compute.ecs_log_group_name
   patrol_task_definition_arn            = module.loaders.data_patrol_task_definition_arn
+  scheduler_dlq_arn                     = module.loaders.scheduler_dlq_arn
+  scheduler_log_group_arn               = module.loaders.scheduler_log_group_arn
   common_tags                           = local.common_tags
 }
 

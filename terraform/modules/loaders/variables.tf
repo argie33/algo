@@ -196,3 +196,9 @@ variable "db_security_group_id" {
   description = "Security group ID for database access"
   type        = string
 }
+
+variable "cloudwatch_log_retention_days" {
+  description = "CloudWatch log retention period in days"
+  type        = number
+  default     = 30
+}

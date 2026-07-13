@@ -226,6 +226,49 @@ resource "aws_sqs_queue_policy" "loader_dlq" {
   })
 }
 
+# ============================================================
+# SQS Dead-Letter Queue for EventBridge Scheduler (Step Functions)
+# ============================================================
+# Captures failed Step Functions invocations from EventBridge Scheduler
+# (Separate from loader_dlq which handles EventBridge Event Rules)
+
+resource "aws_sqs_queue" "scheduler_dlq" {
+  name                      = "${var.project_name}-scheduler-dlq-${var.environment}"
+  message_retention_seconds = 1209600  # 14 days
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-scheduler-dlq"
+  })
+}
+
+resource "aws_sqs_queue_policy" "scheduler_dlq" {
+  queue_url = aws_sqs_queue.scheduler_dlq.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "AllowSchedulerSend"
+      Effect    = "Allow"
+      Principal = { Service = "scheduler.amazonaws.com" }
+      Action    = "sqs:SendMessage"
+      Resource  = aws_sqs_queue.scheduler_dlq.arn
+    }]
+  })
+}
+
+# ============================================================
+# CloudWatch Log Group for EventBridge Scheduler Execution Logs
+# ============================================================
+
+resource "aws_cloudwatch_log_group" "scheduler_logs" {
+  name              = "/aws/scheduler/${var.project_name}-pipeline-${var.environment}"
+  retention_in_days = var.cloudwatch_log_retention_days
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-scheduler-logs"
+  })
+}
+
 # EventBridge IAM policy to run ECS tasks
 resource "aws_iam_role_policy" "eventbridge_run_task_policy" {
   name = "${var.project_name}-eventbridge-run-task-policy"

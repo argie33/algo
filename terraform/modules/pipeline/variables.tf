@@ -156,3 +156,15 @@ variable "patrol_task_definition_arn" {
   type        = string
   default     = ""
 }
+
+variable "scheduler_dlq_arn" {
+  description = "ARN of SQS queue for EventBridge Scheduler dead-letter config (failed invocations)"
+  type        = string
+  default     = ""
+}
+
+variable "scheduler_log_group_arn" {
+  description = "ARN of CloudWatch log group for EventBridge Scheduler execution logging"
+  type        = string
+  default     = ""
+}

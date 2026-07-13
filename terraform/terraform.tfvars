@@ -72,7 +72,7 @@ api_lambda_reserved_concurrency     = 50    # Increased for dashboard + loader c
 api_lambda_provisioned_concurrency  = 5     # Increased from 1→5: Sustained dashboard traffic needs multiple warm instances to prevent 503 timeouts. Cost: ~$60/month (vs $12 for 1 unit), but eliminates cold-start 503 errors completely. Session 86: Increased to ensure responsive API.
 algo_lambda_timeout                 = 900  # AWS Lambda max timeout is 900s (15 min). ECS runs async so Lambda doesn't wait. 900s is sufficient since Lambda only invokes the task, doesn't wait for completion.
 algo_lambda_ephemeral_storage       = 512   # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
-algo_lambda_provisioned_concurrency = 0     # FIXED: Provisioned concurrency requires named alias; scheduled execution doesn't need it. Orchestrator runs on EventBridge schedule (not always-on). Saves $2-3/month.
+algo_lambda_provisioned_concurrency = 5     # CRITICAL FIX: Prevent Lambda 503 timeouts. VPC cold-start (15-40s) can exceed API Gateway 29s timeout. Provisioned concurrency keeps instances warm. Cost: ~$150/mo but eliminates 503 errors. See steering/AWS_LAMBDA_503_FIX.md
 algo_lambda_reserved_concurrency    = 50    # Increased to handle concurrent orchestrator runs + manual triggers. Prevents throttling (TooManyRequestsException).
 # Provisioned concurrency for API only (~$12/month) worth the 502 error fix.
 

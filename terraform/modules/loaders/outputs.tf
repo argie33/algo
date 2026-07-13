@@ -103,3 +103,17 @@ output "loader_execution_status_table_name" {
   description = "DynamoDB table name for loader execution status tracking"
   value       = aws_dynamodb_table.loader_execution_status.name
 }
+
+# ============================================================
+# EventBridge Scheduler Logging & DLQ
+# ============================================================
+
+output "scheduler_dlq_arn" {
+  description = "ARN of SQS queue for EventBridge Scheduler dead-letter config"
+  value       = aws_sqs_queue.scheduler_dlq.arn
+}
+
+output "scheduler_log_group_arn" {
+  description = "ARN of CloudWatch log group for EventBridge Scheduler execution logging"
+  value       = aws_cloudwatch_log_group.scheduler_logs.arn
+}
