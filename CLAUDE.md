@@ -13,59 +13,56 @@
 7. **AWS billing emails & cost controls?** → `BILLING_QUICK_REFERENCE.md` (or `steering/AWS_BILLING_AND_COST_CONTROLS.md`)
 8. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
 
-## Quick Setup (LOCAL DEVELOPMENT)
+## Quick Setup (LOCAL DEVELOPMENT) - SIMPLIFIED ✨
 
-**CRITICAL: Follow these steps EXACTLY to avoid "data not available" errors**
+**NEW: Unified startup script (auto-starts both dev_server and dashboard)**
 
-**Step 1: Open TERMINAL 1** - Run the backend API (localhost:3001)
 ```bash
+# Recommended: Start with this ONE command
+python start_dashboard_dev.py
+
+# Or with auto-refresh every 30s
+python start_dashboard_dev.py -w 30
+```
+
+This handles everything automatically:
+- ✅ Detects if dev_server is running (localhost:3001)
+- ✅ Starts dev_server if needed
+- ✅ Waits for dev_server to be ready
+- ✅ Starts dashboard
+- ✅ Cleans up when you exit (Ctrl+C)
+
+**Manual Setup (if preferred)**
+
+```bash
+# Terminal 1: Run backend API
 python3 api-pkg/dev_server.py
-```
-Wait for this exact output:
-```
-[INFO] Starting API dev server on http://localhost:3001
-[INFO] Press Ctrl+C to stop
-```
-**Keep this terminal open and running.**
+# Wait for: [INFO] Starting API dev server on http://localhost:3001
 
-**Step 2: Open TERMINAL 2** - Run the dashboard (ONLY after Terminal 1 shows "running")
-```bash
-python3 -m dashboard
-```
-Or with watch mode for auto-refresh every 30 seconds:
-```bash
-python3 -m dashboard -w 30
+# Terminal 2: Run dashboard
+python3 -m dashboard              # No refresh
+python3 -m dashboard -w 30        # Auto-refresh every 30s
 ```
 
-**KEY REQUIREMENTS:**
-- ✅ **ALWAYS start Terminal 1 first** - Dashboard needs dev_server to fetch data
-- ✅ **Keep both terminals running** - If either crashes, restart it independently
-- ✅ **Dashboard takes 3-5 seconds to load** - Fetches data from all 26 sources, shows "Fetching..." spinner initially
-- ✅ **AUTO-DETECT**: Dashboard automatically detects localhost:3001 and uses it (no --local flag needed)
+## System Health Check
+
+Before starting dashboard, verify everything is working:
+
+```bash
+python check_system_health.py
+```
+
+This checks:
+- Database connectivity and data freshness
+- Dev server availability
+- Orchestrator execution status
+- Dashboard module imports
 
 **If you see "Data not available" on all panels:**
-- ❌ Is dev_server still running in Terminal 1? (check the window, it must stay open)
-- ❌ Is stock_scores data stale? (circuit breaker blocks trading if data >24h old)
-  - FIX: `python3 scripts/run_local_orchestrator.py --morning` to refresh data
-- ❌ Did you restart dashboard before dev_server was ready? (restart dashboard after dev_server prints "running")
-
-**Diagnostic commands:**
-```bash
-# Comprehensive dashboard setup check (recommended if data not loading)
-python3 scripts/diagnose_dashboard.py
-
-# System-wide diagnostic
-python3 scripts/diagnose_system.py
-```
-
-**Expected output from diagnose_dashboard.py:**
-```
-[OK] Dev Server: Dev server is running on localhost:3001
-[OK] Database: Database connected (8,600,000+ price records)
-[OK] API Endpoints: API responding with data (200 OK)
-[OK] Dashboard Module: Dashboard module can be imported
-[!] LOCAL_MODE env var: (OK if you're using --local flag)
-```
+1. Run: `python check_system_health.py` (diagnose issues)
+2. Verify dev_server is running: `curl http://localhost:3001/api/health`
+3. Refresh data: `python3 scripts/run_local_orchestrator.py --morning`
+4. Restart dashboard
 
 ## System Status
 

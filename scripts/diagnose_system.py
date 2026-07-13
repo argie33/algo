@@ -223,7 +223,8 @@ def main():
         print("\n[OK] All checks passed! System is ready.")
         print("\nTO USE DASHBOARD:")
         print("  1. Run: python api-pkg/dev_server.py")
-        print("  2. In another terminal: python -m dashboard --local")
+        print("  2. In another terminal: python -m dashboard")
+        print("     (Dashboard auto-detects localhost:3001 - no --local flag needed)")
     else:
         print("\n[FAIL] Some checks failed. Please review the errors above.")
 
