@@ -143,6 +143,22 @@ class SecEdgarStatementLoader(SecLoaderBase):
 
     watermark_field = "fiscal_year"
 
+    # statement_type ("income"/"balance"/"cashflow", used for table/config naming
+    # throughout load_financial_statements.py) does not match SecEdgarClient's actual
+    # method names (get_income_statement/get_balance_sheet/get_cash_flow) closely enough
+    # for f"get_{statement_type}" to resolve correctly. Confirmed live 2026-07-13, the
+    # first time the consolidated financials_all loader ever ran (previously blocked for
+    # its entire existence by an unrelated pipeline hang): every single symbol failed with
+    # AttributeError: 'SecEdgarClient' object has no attribute 'get_balance' -- and would
+    # have failed identically for "income" ("get_income" vs get_income_statement) and
+    # "cashflow" ("get_cashflow" vs get_cash_flow, missing the underscore) had the run
+    # gotten that far.
+    _STATEMENT_TYPE_TO_METHOD = {
+        "income": "get_income_statement",
+        "balance": "get_balance_sheet",
+        "cashflow": "get_cash_flow",
+    }
+
     def __init__(
         self,
         statement_type: str,
@@ -186,7 +202,13 @@ class SecEdgarStatementLoader(SecLoaderBase):
         logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
         try:
-            getter_method = getattr(self._sec_client, f"get_{self.statement_type}")
+            method_name = self._STATEMENT_TYPE_TO_METHOD.get(self.statement_type)
+            if method_name is None:
+                raise RuntimeError(
+                    f"[{self.statement_type.upper()}] Unknown statement_type {self.statement_type!r}. "
+                    f"Must be one of {sorted(self._STATEMENT_TYPE_TO_METHOD)}."
+                )
+            getter_method = getattr(self._sec_client, method_name)
             rows = getter_method(symbol, period=self.period)
 
             if not rows:
