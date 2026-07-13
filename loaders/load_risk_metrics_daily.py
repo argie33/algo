@@ -313,7 +313,8 @@ class RiskMetricsLoader(OptimalLoader):
                       beta = EXCLUDED.beta,
                       created_at = EXCLUDED.created_at,
                       data_unavailable = EXCLUDED.data_unavailable,
-                      reason = EXCLUDED.reason
+                      reason = EXCLUDED.reason,
+                      updated_at = CURRENT_TIMESTAMP
                     """,
                     (
                         row.get("symbol"),
