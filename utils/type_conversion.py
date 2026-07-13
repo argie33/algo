@@ -6,16 +6,16 @@ Provides fail-fast validation with clear error messages.
 
 import logging
 from decimal import Decimal
-from typing import Any, overload
+from typing import Any, Literal, overload
 
 logger = logging.getLogger(__name__)
 
 
 @overload
-def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | None: ...
+def safe_float(value: Any, field_name: str, allow_none: Literal[True] = True) -> float | None: ...
 
 @overload
-def safe_float(value: Any, field_name: str, allow_none: bool = False) -> float: ...
+def safe_float(value: Any, field_name: str, allow_none: Literal[False]) -> float: ...
 
 def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | None:
     """Safely convert value to float with fail-fast validation.
@@ -65,10 +65,10 @@ def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | 
 
 
 @overload
-def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None: ...
+def safe_int(value: Any, field_name: str, allow_none: Literal[True] = True) -> int | None: ...
 
 @overload
-def safe_int(value: Any, field_name: str, allow_none: bool = False) -> int: ...
+def safe_int(value: Any, field_name: str, allow_none: Literal[False]) -> int: ...
 
 def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None:
     """Safely convert value to int with fail-fast validation."""
