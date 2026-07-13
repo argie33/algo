@@ -23,6 +23,51 @@ logger = logging.getLogger()
 class TriggerLoadersHandler(LambdaHandler):
     """Triggers ECS loader tasks."""
 
+    @staticmethod
+    def _parse_task_count(task_count_raw: Any) -> int | LambdaResponse:
+        """Parse and validate task_count, returning either the int or a validation-error response."""
+        if task_count_raw is None:
+            return int(os.getenv("DEFAULT_LOADER_TASK_COUNT", "1"))
+        try:
+            task_count = int(task_count_raw)
+        except (ValueError, TypeError):
+            return LambdaResponse.validation_error(
+                "task_count",
+                f"task_count must be numeric, got {task_count_raw!r}",
+            )
+        if task_count < 1:
+            return LambdaResponse.validation_error("task_count", "task_count must be >= 1")
+        return task_count
+
+    @staticmethod
+    def _parse_backfill_days(backfill_days_raw: Any) -> int | None | LambdaResponse:
+        """Parse and validate backfill_days, returning the int, None, or a validation-error response."""
+        if backfill_days_raw is None:
+            return None
+        try:
+            backfill_days = int(backfill_days_raw)
+        except (ValueError, TypeError):
+            return LambdaResponse.validation_error(
+                "backfill_days",
+                f"backfill_days must be numeric, got {backfill_days_raw!r}",
+            )
+        if backfill_days < 1:
+            return LambdaResponse.validation_error("backfill_days", "backfill_days must be >= 1")
+        return backfill_days
+
+    @staticmethod
+    def _already_running_tasks(ecs: Any, cluster_arn: str, task_def_family: str) -> list[str]:
+        """Mutual exclusion: check for tasks already running for this loader family.
+
+        Without this, repeated triggers (manual retries, overlapping schedules,
+        concurrent callers) pile up multiple instances of the same loader racing
+        each other against the same DB/API rate limits -- observed in production
+        as 5 simultaneous stock_prices_daily tasks plus a 3h+ stuck yfinance_snapshot
+        task, which starved Phase 1's price-coverage check and halted the orchestrator.
+        """
+        existing = ecs.list_tasks(cluster=cluster_arn, family=task_def_family, desiredStatus="RUNNING")
+        return list(existing.get("taskArns") or [])
+
     def handle(self, event: dict[str, Any], context: Any) -> LambdaResponse:
         """Handle loader trigger request.
 
@@ -45,32 +90,13 @@ class TriggerLoadersHandler(LambdaHandler):
         if not loader_name:
             return LambdaResponse.validation_error("loader_name", "loader_name is required")
 
-        task_count_raw = event.get("task_count")
-        if task_count_raw is None:
-            task_count = int(os.getenv("DEFAULT_LOADER_TASK_COUNT", "1"))
-        else:
-            try:
-                task_count = int(task_count_raw)
-                if task_count < 1:
-                    return LambdaResponse.validation_error("task_count", "task_count must be >= 1")
-            except (ValueError, TypeError):
-                return LambdaResponse.validation_error(
-                    "task_count",
-                    f"task_count must be numeric, got {task_count_raw!r}",
-                )
+        task_count = self._parse_task_count(event.get("task_count"))
+        if isinstance(task_count, LambdaResponse):
+            return task_count
 
-        backfill_days_raw = event.get("backfill_days")
-        backfill_days: int | None = None
-        if backfill_days_raw is not None:
-            try:
-                backfill_days = int(backfill_days_raw)
-                if backfill_days < 1:
-                    return LambdaResponse.validation_error("backfill_days", "backfill_days must be >= 1")
-            except (ValueError, TypeError):
-                return LambdaResponse.validation_error(
-                    "backfill_days",
-                    f"backfill_days must be numeric, got {backfill_days_raw!r}",
-                )
+        backfill_days = self._parse_backfill_days(event.get("backfill_days"))
+        if isinstance(backfill_days, LambdaResponse):
+            return backfill_days
 
         project_name = os.getenv("PROJECT_NAME", "algo")
         cluster_arn = os.getenv("ECS_CLUSTER_ARN")
@@ -178,6 +204,22 @@ class TriggerLoadersHandler(LambdaHandler):
             ]
 
         ecs = boto3.client("ecs", region_name=os.getenv("AWS_REGION", "us-east-1"))
+
+        already_running = self._already_running_tasks(ecs, cluster_arn, task_def)
+        if already_running:
+            logger.warning(
+                f"[TRIGGER_LOADER] Skipping {loader_name}: {len(already_running)} task(s) already running "
+                f"for family {task_def}: {already_running}"
+            )
+            return LambdaResponse.success(
+                {
+                    "message": f"Skipped triggering {loader_name}: already running",
+                    "tasks": already_running,
+                    "already_running": True,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+
         response = ecs.run_task(**run_task_params)
 
         # CRITICAL: Never silently default task/failure lists from ECS response
