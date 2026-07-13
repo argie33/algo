@@ -265,7 +265,7 @@ class ExitHandler:
                 f"[EXECUTOR_EXIT] Trade {trade_id} not found in database — "
                 "cannot execute exit for non-existent trade. Check if trade was properly recorded."
             )
-        return row
+        return tuple(row)
 
     def _validate_and_convert_trade_data(
         self, cur: PsycopgCursor[Any], trade_id: int, row: tuple[Any, ...]
