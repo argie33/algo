@@ -2347,7 +2347,14 @@ def main() -> int:
             # Use 300s timeout (5 min) for symbol list query under EOD pipeline load
             # Multiple loaders running concurrently can exhaust connection pool; allow extra time
             try:
-                symbols = get_active_symbols(max_symbols=limit, timeout_secs=300)
+                # exclude_etfs=True: this list only ever feeds the "stock" asset_class branch
+                # below (the "etf" branch uses its own essential_etf_symbols list and never
+                # reads `symbols` at all) -- but without this flag, get_active_symbols() was
+                # pulling in ~5,250 ETFs alongside the ~5,344 real stocks, doubling API calls
+                # and DB writes for tickers that were already loaded via the essential-ETF pass
+                # and never used by stock_scores/signals anyway. Same pattern already used by
+                # growth/quality/positioning/income-statement loaders for the same reason.
+                symbols = get_active_symbols(max_symbols=limit, timeout_secs=300, exclude_etfs=True)
                 logger.info("[MAIN] Loaded %s symbols from database (max_limit=%s)", len(symbols), limit)
             except TimeoutError as e:
                 logger.critical(
