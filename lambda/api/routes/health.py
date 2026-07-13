@@ -413,37 +413,43 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
         return error_response(401, "unauthorized", "Authentication required")
 
     try:
-        # Query freshness of current pipeline critical tables (15s timeout)
+        # Query freshness of current pipeline critical tables (15s timeout).
+        # row_count uses pg_stat_user_tables.n_live_tup (catalog estimate, instant)
+        # instead of COUNT(*) -- an exact count forces a full sequential scan, which
+        # on price_daily (8.6M+ rows and growing) alone reliably blew the 15s
+        # statement_timeout on every call to this endpoint. An approximate count is
+        # fine here since callers only need "has data" / rough freshness, not an
+        # exact row total.
         # buy_sell_daily and technical_data_daily were removed from pipelines;
         # signal_quality_scores is computed on-the-fly by orchestrator, not a pipeline table.
         query = """
             SELECT
                 'price_daily' as table_name,
-                COUNT(*) as row_count,
+                (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'price_daily') as row_count,
                 EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 86400.0 as age_days
             FROM price_daily
             UNION ALL
             SELECT
                 'market_health_daily',
-                COUNT(*),
+                (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'market_health_daily'),
                 EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
             FROM market_health_daily
             UNION ALL
             SELECT
                 'trend_template_data',
-                COUNT(*),
+                (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'trend_template_data'),
                 EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
             FROM trend_template_data
             UNION ALL
             SELECT
                 'market_exposure_daily',
-                COUNT(*),
+                (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'market_exposure_daily'),
                 EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
             FROM market_exposure_daily
             UNION ALL
             SELECT
                 'sector_ranking',
-                COUNT(*),
+                (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'sector_ranking'),
                 EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
             FROM sector_ranking
         """
