@@ -13,7 +13,7 @@ resource "aws_budgets_budget" "monthly_cost" {
   limit_unit        = "USD"
 
   tags = merge(var.common_tags, {
-    Name = "Monthly budget 500 USD"
+    Name = "monthly-budget-500-usd"
   })
 }
 
@@ -36,7 +36,7 @@ resource "aws_budgets_budget" "daily_cost" {
   }
 
   tags = merge(var.common_tags, {
-    Name = "Daily budget threshold"
+    Name = "daily-budget-threshold"
   })
 }
 
