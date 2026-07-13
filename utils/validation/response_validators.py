@@ -123,6 +123,8 @@ def _validate_items_structure(data: dict[str, Any], item_key: str = "items") -> 
     FAIL-FAST: Raises ResponseValidationError if items field missing or wrong type.
     Never returns empty list as fallback - requires explicit 'items' field.
     """
+    from typing import cast
+
     if item_key not in data:
         raise ResponseValidationError(
             f"Response missing required '{item_key}' field. "
@@ -130,7 +132,7 @@ def _validate_items_structure(data: dict[str, Any], item_key: str = "items") -> 
         )
     if not isinstance(data[item_key], list):
         raise ResponseValidationError(f"Items field must be list, got {type(data[item_key])}")
-    return data[item_key]
+    return cast(list[Any], data[item_key])
 
 
 def _validate_position(i: int, pos: Any) -> None:
@@ -148,6 +150,10 @@ def _validate_signal(i: int, sig: Any) -> None:
 
 
 def _validate_portfolio(data: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Portfolio response not a dict: {type(data)}")
+    if has_error(data):
+        return data
     required_keys = ["total_portfolio_value", "total_cash", "position_count"]
     missing_keys = [k for k in required_keys if k not in data]
     if missing_keys:
@@ -251,6 +257,30 @@ def _validate_markets(data: dict[str, Any]) -> dict[str, Any]:
     return data
 
 
+def _validate_trades(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate trades response."""
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Trades response not a dict: {type(data)}")
+    if has_error(data):
+        return data
+    if "items" in data and data["items"] is not None:
+        if not isinstance(data["items"], list):
+            raise ResponseValidationError(f"Trades items field must be list, got {type(data['items'])}")
+    return data
+
+
+def _validate_circuit_breakers(data: dict[str, Any]) -> dict[str, Any]:
+    """Validate circuit breakers response."""
+    if not isinstance(data, dict):
+        raise ResponseValidationError(f"Circuit breakers response not a dict: {type(data)}")
+    if has_error(data):
+        return data
+    if "breakers" in data and data["breakers"] is not None:
+        if not isinstance(data["breakers"], list):
+            raise ResponseValidationError(f"Circuit breakers breakers field must be list, got {type(data['breakers'])}")
+    return data
+
+
 # Factory-created validators for common response types
 validate_portfolio_response = _validate_portfolio
 validate_performance_response = _validate_performance
@@ -262,10 +292,10 @@ validate_risk_response = _make_validator(
 validate_market_data_response = _make_validator()
 validate_health_response = _validate_health
 validate_last_run_response = _make_validator(required_fields=["run_id"])
-validate_trades_response = _make_validator()
+validate_trades_response = _validate_trades
 validate_markets_response = _validate_markets
 validate_dashboard_signals_response = _make_validator()
-validate_circuit_breakers_response = _make_validator()
+validate_circuit_breakers_response = _validate_circuit_breakers
 validate_sector_rotation_response = _make_validator()
 validate_generic_response = _make_validator()
 validate_config_response = _validate_config

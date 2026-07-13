@@ -17,6 +17,8 @@ from typing import Any
 import pandas as pd
 import psycopg2
 
+from collections.abc import Iterable
+
 from loaders.market_health_fetchers import (
     BreadthFetcher,
     PutCallRatioFetcher,
@@ -57,15 +59,16 @@ class MarketHealthDailyLoader(OptimalLoader):
         self._breadth_fetcher = BreadthFetcher()
 
     def run(
-        self, symbols: list[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
+        self, symbols: Iterable[str] | list[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
     ) -> dict[str, Any]:
         """Override run() to provide default symbol for market-wide loader.
 
         Market health is market-wide (not symbol-based), but OptimalLoader.run()
         expects a symbols list. Provide default "market" pseudo-symbol.
         """
-        actual_symbols: list[str] = symbols if symbols and len(symbols) > 0 else ["market"]
-        return super().run(symbols=actual_symbols, parallelism=parallelism, backfill_days=backfill_days)
+        if symbols is None or (isinstance(symbols, list) and len(symbols) == 0):
+            symbols = ["market"]
+        return super().run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)  # type: ignore[arg-type]
 
     def fetch_vix_with_breaker(self, start: date, end: date) -> dict[str, Any]:
         return self._vix_fetcher.fetch(start, end)
