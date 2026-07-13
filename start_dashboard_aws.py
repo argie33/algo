@@ -95,5 +95,4 @@ if __name__ == "__main__":
         logger.error("\nCannot start dashboard - missing or invalid credentials")
         sys.exit(1)
 
-    logger.info()
     start_dashboard()
