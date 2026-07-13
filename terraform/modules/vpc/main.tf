@@ -91,6 +91,16 @@ resource "aws_eip" "nat_v2" {
   })
 
   depends_on = [aws_internet_gateway.main]
+
+  # 2026-07-13 incident: renaming nat->nat_v2 without this made Terraform destroy
+  # the old EIP/NAT Gateway *before* creating the new ones. The new aws_eip create
+  # then hit the account's AddressLimitExceeded quota (needs 2 EIPs to exist briefly
+  # during a swap, not 1), leaving the VPC with NO NAT Gateway at all -- total egress
+  # outage for every Lambda/ECS task in the private subnets. create_before_destroy
+  # ensures a replacement is always provisioned first.
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # NAT Gateway in first public subnet
@@ -104,6 +114,10 @@ resource "aws_nat_gateway" "main_v2" {
   })
 
   depends_on = [aws_internet_gateway.main]
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # Route from private subnets to NAT Gateway (internet access)
