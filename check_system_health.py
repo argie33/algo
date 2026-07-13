@@ -183,24 +183,29 @@ def check_orchestrator() -> dict:
         )
         cur = conn.cursor()
 
-        # Check latest runs
+        # Check latest runs.
+        # NOTE: started_at is `timestamp without time zone` and this session's
+        # timezone is America/Chicago, so naive Python datetimes written here
+        # are silently stored as Chicago local time (not UTC) despite call
+        # sites using datetime.now(timezone.utc). Computing the age via NOW()
+        # in the same SQL session avoids relabeling that naive value as UTC
+        # (which previously inflated staleness by the UTC/Chicago offset).
         cur.execute(
             """
             SELECT COUNT(*) as runs_last_24h,
                    MAX(started_at) as latest_run,
-                   MAX(CASE WHEN overall_status = 'success' THEN 1 ELSE 0 END) as has_success
+                   MAX(CASE WHEN overall_status = 'success' THEN 1 ELSE 0 END) as has_success,
+                   EXTRACT(EPOCH FROM (NOW() - MAX(started_at))) / 60 as age_minutes
             FROM algo_orchestrator_runs
             WHERE started_at > NOW() - INTERVAL '24 hours'
             """
         )
 
         row = cur.fetchone()
-        runs_24h, latest_run, has_success = row
+        runs_24h, latest_run, has_success, age_minutes = row
 
         if runs_24h > 0:
-            if latest_run.tzinfo is None:
-                latest_run = latest_run.replace(tzinfo=timezone.utc)
-            age_minutes = (datetime.now(timezone.utc) - latest_run).total_seconds() / 60
+            age_minutes = float(age_minutes)
             if age_minutes < 120:
                 result["status"] = "OK"
                 result["details"].append(f"[OK] Latest run: {age_minutes:.0f} minutes ago")
