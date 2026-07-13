@@ -568,11 +568,13 @@ class DailyReconciliation:
                 # Real remaining cash = portfolio - positions
                 if execution_mode == "paper":
                     # Paper mode: Compute actual remaining cash from portfolio and positions
-                    cash_computed = pv - total_position_value
+                    # pv is a float (from the broker adapter's JSON response); total_position_value
+                    # is a Decimal (from PositionAnalyzer, for precision) - must align types before subtracting.
+                    cash_computed = Decimal(str(pv)) - total_position_value
                     logger.info(
                         f"[PAPER MODE] Computed cash: ${pv:,.2f} (portfolio) - ${total_position_value:,.2f} (positions) = ${cash_computed:,.2f}"
                     )
-                    cash_dec = Decimal(str(cash_computed))
+                    cash_dec = cash_computed
                 else:
                     # Live mode: Use actual cash from broker
                     cash_dec = Decimal(str(cash))

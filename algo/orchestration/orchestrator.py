@@ -168,10 +168,19 @@ class Orchestrator:
                 if is_paper_trading:
                     logger.info("[OK] Paper trading mode enabled - Alpaca credentials not required")
                 else:
-                    # Live trading requires credentials
-                    creds = CredentialManager()
-                    api_key = creds.get_password("APCA_API_KEY_ID", default=None)
-                    api_secret = creds.get_password("APCA_API_SECRET_KEY", default=None)
+                    # Live trading requires credentials. Alpaca creds are stored as
+                    # fields inside the algo/alpaca secret, not as their own top-level
+                    # Secrets Manager entries -- get_alpaca_credentials() is the
+                    # accessor that knows this (get_password("APCA_API_KEY_ID") would
+                    # look for a secret literally named that, which never exists).
+                    api_key = None
+                    api_secret = None
+                    try:
+                        alpaca_creds = CredentialManager().get_alpaca_credentials()
+                        api_key = alpaca_creds.get("key")
+                        api_secret = alpaca_creds.get("secret")
+                    except ValueError as e:
+                        logger.debug(f"[STARTUP] get_alpaca_credentials() failed: {e}")
 
                     # For LOCAL_MODE (development), also check algo_config table
                     if (not api_key or not api_secret) and os.getenv("LOCAL_MODE") == "true":

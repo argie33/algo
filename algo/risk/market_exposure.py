@@ -115,7 +115,7 @@ class MarketExposure:
         - If cached_date == eval_date but > 10 hours old, reject (computed too early, using stale market data)
         Stale cache causes incorrect risk allocation and must be detected + logged, not silently accepted.
         """
-        if not eval_date:
+        if eval_date is None:
             eval_date = _date.today()
 
         def fetch_cached(cur: PsycopgCursor[Any]) -> dict[str, Any] | None:  # noqa: C901
@@ -294,7 +294,7 @@ class MarketExposure:
             eval_date: Date to compute for (default: today)
             force_recompute: If True, always recompute (don't use cache)
         """
-        if not eval_date:
+        if eval_date is None:
             eval_date = _date.today()
 
         # Check cache first (unless force_recompute=True)

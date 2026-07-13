@@ -71,7 +71,7 @@ class PositionMonitor:
           - orders: list of order tuples
           - cancelled: list of cancelled order details (if auto_cancelled)
         """
-        if not current_date:
+        if current_date is None:
             current_date = _date.today()
 
         try:
@@ -233,7 +233,7 @@ class PositionMonitor:
         Raises:
             RuntimeError: If concentration check fails (fail-fast for risk management)
         """
-        if not current_date:
+        if current_date is None:
             current_date = _date.today()
 
         with DatabaseContext("read") as cur:
@@ -263,7 +263,7 @@ class PositionMonitor:
 
     def review_positions(self, current_date: _date | None = None) -> list[dict[str, Any]]:
         """Review every open position. Returns list of recommendations."""
-        if not current_date:
+        if current_date is None:
             current_date = _date.today()
 
         recs = []

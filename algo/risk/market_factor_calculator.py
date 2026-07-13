@@ -348,13 +348,11 @@ class MarketFactorCalculator:
         This prevents cascade failures when PCRX data becomes unavailable.
         """
         try:
-            cur.execute("SAVEPOINT sp_put_call")
             cur.execute(
                 "SELECT put_call_ratio FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
-            cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row:
                 logger.warning(f"[PUT_CALL RATIO] No data for {eval_date}. Using neutral score.")
                 return {"value": None, "score": 50, "data_unavailable": True}
@@ -378,11 +376,6 @@ class MarketFactorCalculator:
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT sp_put_call")
-                cur.execute("RELEASE SAVEPOINT sp_put_call")
-            except Exception as cleanup_err:
-                logger.error(f"Savepoint cleanup failed (put_call_ratio): {cleanup_err}", exc_info=True)
             raise RuntimeError(
                 f"[PUT_CALL CRITICAL] Put/call ratio query failed: {e}. "
                 f"Cannot proceed with position sizing without sentiment data."
@@ -395,7 +388,6 @@ class MarketFactorCalculator:
         New highs/lows is a 5pt factor. Missing leadership data is a data error, not a skip.
         """
         try:
-            cur.execute("SAVEPOINT sp_nhnl")
             cur.execute(
                 """
                 SELECT new_highs_count, new_lows_count FROM market_health_daily
@@ -404,7 +396,6 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
-            cur.execute("RELEASE SAVEPOINT sp_nhnl")
             if row and row[0] is not None and row[1] is not None:
                 nh = int(row[0])
                 nl = int(row[1])
@@ -425,11 +416,6 @@ class MarketFactorCalculator:
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT sp_nhnl")
-                cur.execute("RELEASE SAVEPOINT sp_nhnl")
-            except Exception as cleanup_err:
-                logger.error(f"Savepoint cleanup failed (new_highs_lows): {cleanup_err}", exc_info=True)
             raise RuntimeError(
                 f"[NEW_HIGHS_LOWS CRITICAL] New highs/lows query failed: {e}. "
                 f"Cannot proceed without leadership confirmation."
@@ -442,7 +428,6 @@ class MarketFactorCalculator:
         A/D line is a 5pt factor. Missing breadth direction data is a data error, not a skip.
         """
         try:
-            cur.execute("SAVEPOINT sp_ad_line")
             cur.execute(
                 """
                 WITH ad AS (
@@ -453,7 +438,6 @@ class MarketFactorCalculator:
                 (eval_date,),
             )
             row = cur.fetchone()
-            cur.execute("RELEASE SAVEPOINT sp_ad_line")
             if row is not None and row[0] is not None:
                 direction = row[0]
                 score = 100.0 if direction == "up" else 0.0
@@ -465,11 +449,6 @@ class MarketFactorCalculator:
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT sp_ad_line")
-                cur.execute("RELEASE SAVEPOINT sp_ad_line")
-            except Exception as cleanup_err:
-                logger.error(f"Savepoint cleanup failed (ad_line): {cleanup_err}", exc_info=True)
             raise RuntimeError(
                 f"[AD_LINE CRITICAL] A/D line query failed: {e}. Cannot proceed without breadth confirmation."
             ) from e
@@ -481,13 +460,11 @@ class MarketFactorCalculator:
         Credit spread is a 10pt factor. Missing credit data is a data error, not a skip.
         """
         try:
-            cur.execute("SAVEPOINT sp_credit")
             cur.execute(
                 "SELECT hy_oas FROM credit_spreads WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
-            cur.execute("RELEASE SAVEPOINT sp_credit")
             if row is not None and row[0] is not None:
                 oas = float(row[0])
                 score = max(0, min(100, 100 - (oas - 300) / 2))
@@ -499,11 +476,6 @@ class MarketFactorCalculator:
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT sp_credit")
-                cur.execute("RELEASE SAVEPOINT sp_credit")
-            except Exception as cleanup_err:
-                logger.error(f"Savepoint cleanup failed (credit_spread): {cleanup_err}", exc_info=True)
             raise RuntimeError(
                 f"[CREDIT_SPREAD CRITICAL] Credit spread query failed: {e}. "
                 f"Cannot proceed without systemic stress assessment."
@@ -516,13 +488,11 @@ class MarketFactorCalculator:
         AAII is a 3pt factor. Missing sentiment data is a data error, not a skip condition.
         """
         try:
-            cur.execute("SAVEPOINT sp_aaii")
             cur.execute(
                 "SELECT bullish, bearish FROM aaii_sentiment WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
-            cur.execute("RELEASE SAVEPOINT sp_aaii")
             if row and row[0] is not None and row[1] is not None:
                 bull = float(row[0])
                 bear = float(row[1])
@@ -543,11 +513,6 @@ class MarketFactorCalculator:
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT sp_aaii")
-                cur.execute("RELEASE SAVEPOINT sp_aaii")
-            except Exception as cleanup_err:
-                logger.error(f"Savepoint cleanup failed (aaii): {cleanup_err}", exc_info=True)
             raise RuntimeError(
                 f"[AAII CRITICAL] AAII sentiment query failed: {e}. Cannot proceed without contrarian sentiment data."
             ) from e

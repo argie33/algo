@@ -472,7 +472,7 @@ class ExitEngine:
 
     def check_and_execute_exits(self, current_date: _date | None = None) -> int:
 
-        if not current_date:
+        if current_date is None:
             # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
             # Market hours are 9:30 AM - 4:00 PM ET, not UTC
             current_date = datetime.now(EASTERN_TZ).date()
