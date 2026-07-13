@@ -53,34 +53,24 @@ class TestCircuitBreakerBasic:
         mock_cur.fetchone.return_value = None
         mock_cur.rowcount = 0  # Ensure rowcount is an int, not a Mock
         all_pass = {"halted": False, "passed": True}
-        check_methods = [
-            "_check_daily_loss",
-            "_check_drawdown",
-            "_check_drawdown_re_engagement",
-            "_check_consecutive_losses",
-            "_check_total_risk",
-            "_check_vix_spike",
-            "_check_market_stage",
-            "_check_weekly_loss",
-            "_check_sector_concentration",
-            "_check_intraday_market_health",
-            "_check_win_rate_floor",
-            "_check_daily_profit_cap",
-            "_check_data_freshness",
-        ]
-        with patch("algo.risk.circuit_breaker.DatabaseContext") as mock_db_ctx:
-            mock_db_ctx.return_value.__enter__.return_value = mock_cur
-            mock_db_ctx.return_value.__exit__.return_value = False
-            patches = [patch.object(circuit_breaker, m, return_value=all_pass) for m in check_methods]
-            for p in patches:
-                p.start()
-            try:
+        # check_all() dispatches via circuit_breaker._checks[name], a dict of bound
+        # methods captured at __init__ time (see circuit_breaker.py's comment on
+        # self._checks — deliberate, to keep these methods visible to dead-code
+        # tooling). patch.object(circuit_breaker, "_check_x", ...) only replaces the
+        # instance attribute, not the bound method already stored in that dict, so
+        # the dict entries must be patched directly instead.
+        original_checks = dict(circuit_breaker._checks)
+        for key in circuit_breaker._checks:
+            circuit_breaker._checks[key] = Mock(return_value=all_pass)
+        try:
+            with patch("algo.risk.circuit_breaker.DatabaseContext") as mock_db_ctx:
+                mock_db_ctx.return_value.__enter__.return_value = mock_cur
+                mock_db_ctx.return_value.__exit__.return_value = False
                 result = circuit_breaker.check_all()
                 assert isinstance(result, dict)
                 assert "halted" in result
-            finally:
-                for p in patches:
-                    p.stop()
+        finally:
+            circuit_breaker._checks.update(original_checks)
 
 
 class TestCircuitBreakerVIX:

@@ -113,7 +113,9 @@ def test_executor_allows_valid_dependency():
     def phase7_fn(**kwargs):
         nonlocal phase7_executed
         phase7_executed = True
-        return PhaseResult(phase_num=7, phase_name="SIGNAL GENERATION", status="ok", qualified_trades=[])
+        return PhaseResult(
+            phase_num=7, phase_name="SIGNAL GENERATION", status="ok", data={"qualified_trades": []}
+        )
 
     executor.register_phase(
         PhaseDefinition(
