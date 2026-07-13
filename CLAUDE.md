@@ -1,10 +1,10 @@
 # Project Quick Reference
 
-**Status:** ✅ Production Ready (Session 106 - Fixed dashboard localhost auto-detect. Dashboard now works WITHOUT --local flag. Manual orchestrator runner added for local dev data refresh. System operational.)
+**Status:** ✅ Production Ready (Session 107 - Fixed orchestrator Phase 9 AlgoConfig type mismatch + Windows Unicode issue. Dashboard auto-detects localhost. System fully operational.)
 
 ## Start Here
 
-1. **Dashboard "data not available"?** → `DASHBOARD_TROUBLESHOOTING.md` (MUST USE --local FLAG)
+1. **Dashboard "data not available"?** → `DASHBOARD_TROUBLESHOOTING.md` (Auto-detect works - no flag needed)
 2. **Local dev setup?** → `QUICKSTART_LOCAL.md`
 3. **Architecture & rules?** → `steering/GOVERNANCE.md`
 4. **AWS/deployment?** → `steering/OPERATIONS.md`
