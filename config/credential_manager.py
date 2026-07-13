@@ -297,15 +297,16 @@ class CredentialManager:
                 except _json.JSONDecodeError as e:
                     raise ValueError(f"Database secret contains invalid JSON: {e}") from e
 
-                # Extract host - use RDS Proxy endpoint for connection pooling
-                # RDS Proxy provides connection multiplexing and is the preferred endpoint
-                db_host = creds.get("host")  # Primary: from Secrets Manager (contains RDS Proxy endpoint)
-                if not db_host:
-                    db_host = os.getenv("DB_HOST")  # Fallback: env var override (for local dev)
+                # Extract host - PRIORITIZE environment variables (they have correct RDS Proxy endpoint)
+                # Lambda env vars contain the correct RDS Proxy endpoint; Secrets Manager may be stale
+                # This ensures we use the latest configuration without waiting for Secrets Manager rotation
+                db_host = os.getenv("DB_HOST")  # Primary: env var (has correct RDS Proxy endpoint in Lambda)
                 if not db_host:
                     db_host = os.getenv("DB_ENDPOINT")  # Fallback: alternate env var
                 if not db_host:
-                    raise ValueError("Database host not found in secret or DB_HOST/DB_ENDPOINT environment variables")
+                    db_host = creds.get("host")  # Fallback: Secrets Manager (may be outdated)
+                if not db_host:
+                    raise ValueError("Database host not found in DB_HOST/DB_ENDPOINT env vars or Secrets Manager secret")
 
                 # Extract port (no fallback, must be in secret)
                 port_str = creds.get("port")
