@@ -37,9 +37,9 @@ def _load_alpaca_credentials_from_secrets() -> None:
     CRITICAL: Must be called before orchestrator initialization to ensure
     credentials are available for live trading validation in phase 1.
 
-    The algo/alpaca secret contains:
-    - api_key: Alpaca API key
-    - api_secret: Alpaca API secret
+    The algo/alpaca secret contains (Terraform-managed, see config/credential_manager.py):
+    - APCA_API_KEY_ID: Alpaca API key
+    - APCA_API_SECRET_KEY: Alpaca API secret
 
     These are loaded into environment variables:
     - APCA_API_KEY_ID
@@ -59,13 +59,13 @@ def _load_alpaca_credentials_from_secrets() -> None:
         secret = sm.get_secret_value(SecretId="algo/alpaca")
         data = json.loads(secret["SecretString"])
 
-        os.environ["APCA_API_KEY_ID"] = data["api_key"]
-        os.environ["APCA_API_SECRET_KEY"] = data["api_secret"]
+        os.environ["APCA_API_KEY_ID"] = data["APCA_API_KEY_ID"]
+        os.environ["APCA_API_SECRET_KEY"] = data["APCA_API_SECRET_KEY"]
         logger.info("[CREDENTIALS] Loaded Alpaca API credentials from AWS Secrets Manager")
     except Exception as e:
         logger.warning(
             f"[CREDENTIALS] Could not load Alpaca credentials from AWS Secrets Manager: {type(e).__name__}. "
-            "Will fall back to environment variables or paper trading mode. Error: {e}"
+            f"Will fall back to environment variables or paper trading mode. Error: {e}"
         )
 
 
