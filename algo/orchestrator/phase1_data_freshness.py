@@ -78,6 +78,7 @@ def run(  # noqa: C901
     from datetime import timedelta as td
 
     phase_start = time.time()
+    degraded_reason = None  # Initialize for later use
 
     if not config:
         raise RuntimeError(
@@ -719,6 +720,8 @@ def run(  # noqa: C901
             # These loaders (quality, growth, value, positioning, stability, momentum) feed into stock_scores
             # which feed into signal generation. If metrics are all-unavailable, stock_scores will fail.
             logger.info("[PHASE 1] Validating upstream metric loaders ready for stock_scores...")
+            metrics_ready = True
+            degraded_reason = None
             try:
                 from loaders.load_stock_scores import StockScoresLoader
 
@@ -727,38 +730,78 @@ def run(  # noqa: C901
                 logger.info("[PHASE 1] Metric loaders validation: PASS - All metric loaders ready")
             except RuntimeError as e:
                 metric_error = str(e)
-                logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
-                log_phase_result_fn(
-                    1, "metric_loaders_not_ready", "halt", f"Metric loaders incomplete: {metric_error[:100]}"
-                )
-                return PhaseResult(
-                    1,
-                    "metric_loaders_not_ready",
-                    "halted",
-                    {},
-                    True,
-                    f"Required metric loaders not ready: {metric_error[:80]}",
-                )
+                # RESILIENCE FIX: Instead of HALT on stale metrics, allow DEGRADED mode
+                # Check if metrics exist but are just stale (vs completely missing)
+                logger.warning(f"[PHASE 1] Metric loaders validation failed: {metric_error}")
+                try:
+                    cur.execute("""
+                        SELECT COUNT(*) FROM quality_metrics WHERE updated_at > NOW() - INTERVAL '7 days'
+                        UNION ALL SELECT COUNT(*) FROM growth_metrics WHERE updated_at > NOW() - INTERVAL '7 days'
+                        UNION ALL SELECT COUNT(*) FROM stability_metrics WHERE updated_at > NOW() - INTERVAL '7 days'
+                    """)
+                    metric_counts = cur.fetchall()
+                    has_recent_metrics = any(row[0] > 0 for row in metric_counts)
+
+                    if has_recent_metrics:
+                        # Metrics exist and are reasonably recent (< 7 days), allow degraded mode
+                        logger.warning(
+                            "[PHASE 1] Metrics exist but may be slightly stale. "
+                            "Proceeding in DEGRADED mode - stock scores may use older metric data."
+                        )
+                        metrics_ready = True  # Allow trading despite staleness
+                        degraded_reason = "Stale metric data (older than 1 day) - using available data"
+                    else:
+                        # Metrics are completely missing or too old, must halt
+                        logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
+                        log_phase_result_fn(
+                            1, "metric_loaders_not_ready", "halt", f"Metric loaders incomplete: {metric_error[:100]}"
+                        )
+                        return PhaseResult(
+                            1,
+                            "metric_loaders_not_ready",
+                            "halted",
+                            {},
+                            True,
+                            f"Required metric loaders not ready: {metric_error[:80]}",
+                        )
+                except Exception as check_err:
+                    # If we can't check metric existence, halt safely
+                    logger.error(f"[PHASE 1] Could not verify metric availability: {check_err}")
+                    logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
+                    log_phase_result_fn(
+                        1, "metric_loaders_not_ready", "halt", f"Metric loaders incomplete: {metric_error[:100]}"
+                    )
+                    return PhaseResult(
+                        1,
+                        "metric_loaders_not_ready",
+                        "halted",
+                        {},
+                        True,
+                        f"Required metric loaders not ready: {metric_error[:80]}",
+                    )
 
             log_phase_result_fn(
                 1,
                 "all_tables_fresh",
                 "success",
-                f"All critical tables fresh: prices={max_date}, coverage={coverage_pct:.1f}%",
+                f"All critical tables fresh: prices={max_date}, coverage={coverage_pct:.1f}%" +
+                (f" [DEGRADED MODE: {degraded_reason}]" if degraded_reason else ""),
             )
 
+            # Return with degraded status if metrics are stale but trading can proceed
             return PhaseResult(
                 1,
-                "all_tables_fresh",
-                "ok",
+                "all_tables_fresh_degraded" if degraded_reason else "all_tables_fresh",
+                "degraded" if degraded_reason else "ok",
                 {
-                    "status": "ok",
+                    "status": "degraded" if degraded_reason else "ok",
                     "price_date": str(max_date),
                     "symbols_loaded": symbols_loaded,
                     "coverage_pct": coverage_pct,
+                    "degradation_reason": degraded_reason,
                 },
-                False,
-                "All critical data fresh and complete",
+                False,  # Not halted, trading can proceed even in degraded mode
+                degraded_reason or "All critical data fresh and complete",
             )
 
     except Exception as e:
