@@ -411,29 +411,24 @@ class WeightOptimizer:
             try:
                 optimal = self.optimize(report_date)
             except (RuntimeError, ValueError) as e:
-                logger.warning(f"Optimization failed on {report_date}: {e}, keeping current weights")
-                return {
-                    "old_weights": current,
-                    "new_weights": current,
-                    "optimal_weights": None,
-                    "changes": [],
-                    "blending_factor": 0,
-                    "reason": "optimization_failed",
-                    "error": str(e),
-                    "success": True,
-                }
+                logger.error(
+                    f"Optimization failed on {report_date}: {e}. "
+                    f"Cannot proceed with weight optimization—trading continues with prior weights."
+                )
+                raise ValueError(
+                    f"Weight optimization failed for {report_date}: {e}. "
+                    f"Reconciliation halts until weights can be reliably computed."
+                ) from e
 
             if not optimal:
-                logger.warning(f"Optimization returned None on {report_date}, keeping current weights")
-                return {
-                    "old_weights": current,
-                    "new_weights": current,
-                    "optimal_weights": None,
-                    "changes": [],
-                    "blending_factor": 0,
-                    "reason": "insufficient_data",
-                    "success": True,
-                }
+                logger.error(
+                    f"Optimization returned None on {report_date} (insufficient trade history). "
+                    f"Cannot proceed with weight optimization—trading continues with prior weights."
+                )
+                raise ValueError(
+                    f"Weight optimization failed for {report_date}: insufficient data. "
+                    f"Reconciliation halts until sufficient closed trades available for IC computation."
+                )
 
             # Validate optimal weights structure
             if not isinstance(optimal, dict):

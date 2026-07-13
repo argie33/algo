@@ -48,7 +48,7 @@ from .framework import (  # Validation classes & exceptions; Functional API - nu
     validate_field_types,
     validate_required_fields,
 )
-from .freshness_config import get_freshness_rule
+from .freshness_config import FRESHNESS_RULES, get_freshness_rule
 from .parallelism import ParallelismValidator
 from .rate_limit import RateLimitValidator
 from .response_validation import get_optional_field, get_required_field
@@ -81,6 +81,7 @@ __all__ = [
     "assert_safe_table",
     "create_default_registry",
     "format_decimal_string",
+    "FRESHNESS_RULES",
     "get_freshness_rule",
     "get_global_registry",
     "get_optional_field",

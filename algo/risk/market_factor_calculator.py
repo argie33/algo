@@ -340,12 +340,11 @@ class MarketFactorCalculator:
             ) from e
 
     def put_call_ratio(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Put/call ratio (contrarian indicator).
+        """Put/call ratio (contrarian indicator, 8pt factor).
 
-        Returns neutral score (50/100) when data unavailable — put/call data is enrichment from
-        a third-party feed that is often unavailable (PCRX delisted in yfinance).
-        GRACEFUL DEGRADATION: Return neutral score instead of raising. Put/call is only 8pts of 100.
-        This prevents cascade failures when PCRX data becomes unavailable.
+        Raises RuntimeError if data unavailable — put/call is part of composite market regime score.
+        While PCRX historical data may be unavailable in yfinance, current market sentiment is
+        required for accurate options-flow assessment. Missing data is a data error, not a skip.
         """
         try:
             cur.execute(
@@ -354,8 +353,10 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if not row:
-                logger.warning(f"[PUT_CALL RATIO] No data for {eval_date}. Using neutral score.")
-                return {"value": None, "score": 50, "data_unavailable": True}
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] No put/call ratio data for {eval_date}. "
+                    f"Check: (1) market_health_daily has recent records, (2) put_call_ratio column is populated"
+                )
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
             if isinstance(row, dict):
@@ -364,21 +365,27 @@ class MarketFactorCalculator:
                 pcr_val = row[0]
 
             if pcr_val is None:
-                logger.warning(f"[PUT_CALL RATIO] Value is None for {eval_date}. Using neutral score.")
-                return {"value": None, "score": 50, "data_unavailable": True}
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] Put/call ratio is NULL for {eval_date}. "
+                    f"Check: (1) loader populated put_call_ratio, (2) data freshness"
+                )
 
             pcr = float(pcr_val)
             if pcr <= 0:
-                logger.warning(f"[PUT_CALL RATIO] Invalid value {pcr} for {eval_date}. Using neutral score.")
-                return {"value": pcr, "score": 50, "data_unavailable": True}
+                raise ValueError(
+                    f"[PUT_CALL CRITICAL] Invalid put/call ratio {pcr} for {eval_date}. "
+                    f"Put/call must be positive; data corruption detected."
+                )
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
         except RuntimeError:
             raise
+        except ValueError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"[PUT_CALL CRITICAL] Put/call ratio query failed: {e}. "
-                f"Cannot proceed with position sizing without sentiment data."
+                f"Cannot proceed with position sizing without options sentiment data."
             ) from e
 
     def new_highs_lows(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:

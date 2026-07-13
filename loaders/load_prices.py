@@ -2301,6 +2301,34 @@ def main() -> int:
                 "[LOAD_PRICES] CRITICAL: Another stock_prices_daily instance already running (advisory lock held). "
                 "Price updates cannot proceed. Check for concurrent loader instances."
             )
+        else:
+            # Guarantee the lock is released no matter how this process exits
+            # (SIGALRM self-timeout raises TimeoutError, any other unhandled
+            # exception, etc.) -- previously the only release was a
+            # `_lock_conn.close()` at the very end of the success path, so any
+            # exception/timeout mid-run left the advisory lock held until the
+            # dead connection's TCP session was reaped, which could take far
+            # longer than one loader cycle and caused every subsequent run to
+            # immediately fail with "already running" even with no real
+            # concurrent instance.
+            import atexit
+
+            def _release_price_loader_lock(conn: Any = _lock_conn) -> None:
+                try:
+                    with conn.cursor() as _unlock_cur:
+                        _unlock_cur.execute(
+                            "SELECT pg_advisory_unlock(hashtext(%s)::bigint)",
+                            ("stock_prices_daily",),
+                        )
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as unlock_err:
+                    logger.debug("Could not explicitly unlock advisory lock: %s", unlock_err)
+                finally:
+                    try:
+                        conn.close()
+                    except (psycopg2.DatabaseError, psycopg2.OperationalError):
+                        pass
+
+            atexit.register(_release_price_loader_lock)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as _lock_err:
         logger.warning(
             "[MAIN] Advisory lock check failed (%s) - proceeding without lock",
