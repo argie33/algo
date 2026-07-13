@@ -106,7 +106,7 @@ class OrchestrationError(Exception):
     def __init__(self, error_code: ErrorCode, message: str, details: dict[str, Any] | None = None):
         self.error_code = error_code
         self.message = message
-        self.details = details or {}
+        self.details = details if details is not None else None
         self.severity = get_severity(error_code)
 
         super().__init__(f"[{error_code.value}] {message}")

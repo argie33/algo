@@ -143,7 +143,9 @@ def monitor_loader_recovery(loader_name: str, timeout_seconds: int = 600) -> tup
         time.sleep(check_interval)
 
     # Timeout
-    final_status = check_loader_status(loader_name) or {}
+    final_status = check_loader_status(loader_name)
+    if final_status is None:
+        raise RuntimeError(f"[RECOVERY] Could not retrieve final loader status for {loader_name} after timeout")
     final_pct = final_status.get('coverage_pct', 0.0)
     logger.warning(
         f"⏱️ Timeout: {loader_name} still running after {timeout_seconds}s "

@@ -152,7 +152,7 @@ class SignalScorer:
             "score": round(score, 1),
             "strength": strength,
             "pass": score >= threshold,
-            "details": details or {},
+            "details": details if details is not None else None,
         }
 
     @staticmethod

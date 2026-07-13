@@ -409,9 +409,15 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
             )
 
         payload_raw = response["Payload"].read().decode("utf-8")
-        payload_body = json.loads(payload_raw) if payload_raw else {}
-        body = payload_body.get("body")
-        body_obj = json.loads(body) if isinstance(body, str) else (body or {})
+        if not payload_raw:
+            raise ValueError("[PHASE 1 FAILSAFE] Lambda response body is empty")
+        payload_body = json.loads(payload_raw)
+        if "body" not in payload_body:
+            raise ValueError("[PHASE 1 FAILSAFE] Lambda response missing 'body' field")
+        body = payload_body["body"]
+        if body is None:
+            raise ValueError("[PHASE 1 FAILSAFE] Lambda body is None")
+        body_obj = json.loads(body) if isinstance(body, str) else body
 
         if status_code != 200 or payload_body.get("statusCode", status_code) != 200:
             raise RuntimeError(
