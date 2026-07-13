@@ -1715,8 +1715,25 @@ class AlgoConfig:
                 )
 
             # Loader rate limit thresholds: EOD < Morning (due to 85-min vs 450-min budget)
-            eod_threshold = int(self._config.get("loader_rate_limit_circuit_break_threshold_eod", 180))
-            morning_threshold = int(self._config.get("loader_rate_limit_circuit_break_threshold_morning", 480))
+            # FAIL-FAST: Rate limits must be explicitly configured for proper circuit breaker operation
+            eod_threshold_val = self._config.get("loader_rate_limit_circuit_break_threshold_eod")
+            morning_threshold_val = self._config.get("loader_rate_limit_circuit_break_threshold_morning")
+
+            if eod_threshold_val is None:
+                raise ValueError(
+                    "CRITICAL: loader_rate_limit_circuit_break_threshold_eod config missing. "
+                    "Circuit breaker requires explicit rate limit threshold for EOD pipeline. "
+                    "Check config and ensure this threshold is set."
+                )
+            if morning_threshold_val is None:
+                raise ValueError(
+                    "CRITICAL: loader_rate_limit_circuit_break_threshold_morning config missing. "
+                    "Circuit breaker requires explicit rate limit threshold for morning pipeline. "
+                    "Check config and ensure this threshold is set."
+                )
+
+            eod_threshold = int(eod_threshold_val)
+            morning_threshold = int(morning_threshold_val)
 
             if eod_threshold >= morning_threshold:
                 logger.warning(

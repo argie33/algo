@@ -1551,15 +1551,19 @@ class Orchestrator:
                     # Signal count from phase 7 (signal generation)
                     phase7_result = self.executor.get_result(7)
                     if phase7_result and hasattr(phase7_result, "data"):
-                        signals = phase7_result.data.get("liquidity_passed", 0)
-                        if isinstance(signals, int):
-                            m.put_signal_count(signals)
-                        else:
-                            logger.warning(
-                                f"Phase 7 returned non-int liquidity_passed: {type(signals)}, defaulting to 0"
+                        signals = phase7_result.data.get("liquidity_passed")
+                        if signals is None:
+                            raise ValueError(
+                                "CRITICAL: Phase 7 result missing 'liquidity_passed' field. "
+                                "Cannot report signal count without explicit data from signal generation. "
+                                "This indicates incomplete Phase 7 output."
                             )
-                            signals = 0
-                            m.put_signal_count(signals)
+                        if not isinstance(signals, int):
+                            raise ValueError(
+                                f"CRITICAL: Phase 7 'liquidity_passed' must be int, got {type(signals).__name__}: {signals!r}. "
+                                f"Signal count must be explicit integer, not {type(signals).__name__}."
+                            )
+                        m.put_signal_count(signals)
                     else:
                         logger.debug("Phase 7 result not found in executor")
 

@@ -111,8 +111,14 @@ class AlpacaSyncManager:
                 "APCA-API-SECRET-KEY": self._alpaca_secret,
                 "Accept": "application/json",
             }
-            # FIX: Use session for connection pooling + config timeout instead of hardcoded 10
-            timeout = self.config.get("api_request_timeout_seconds", 5)
+            # FAIL-FAST: API timeout must be explicitly configured, never guessed
+            timeout = self.config.get("api_request_timeout_seconds")
+            if timeout is None:
+                raise ValueError(
+                    "CRITICAL: api_request_timeout_seconds config missing. "
+                    "API requests require explicit timeout configuration. "
+                    "Check config and ensure api_request_timeout_seconds is set."
+                )
             response = self._session.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             return cast(dict[str, Any], response.json())
@@ -151,8 +157,14 @@ class AlpacaSyncManager:
                 "APCA-API-SECRET-KEY": self._alpaca_secret,
                 "Accept": "application/json",
             }
-            # FIX: Use session for connection pooling + config timeout instead of hardcoded 10
-            timeout = self.config.get("api_request_timeout_seconds", 5)
+            # FAIL-FAST: API timeout must be explicitly configured, never guessed
+            timeout = self.config.get("api_request_timeout_seconds")
+            if timeout is None:
+                raise ValueError(
+                    "CRITICAL: api_request_timeout_seconds config missing. "
+                    "API requests require explicit timeout configuration. "
+                    "Check config and ensure api_request_timeout_seconds is set."
+                )
             response = self._session.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             alpaca_positions = response.json()
