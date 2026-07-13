@@ -1887,7 +1887,20 @@ class AlgoConfig:
                     )
                     return fail_closed_value
                 else:
-                    # Return provided default for non-critical values
+                    # For non-critical values, fall back to DEFAULTS the same way the
+                    # missing-value branch above does -- previously this returned the
+                    # caller's raw `default` parameter (None unless the caller happened
+                    # to pass one explicitly), silently discarding a perfectly good
+                    # DEFAULTS entry just because the DB's raw text value didn't parse
+                    # to the expected Python type. Confirmed live: algo_config stores
+                    # all values as TEXT ("true"/"false" strings), so any bool key whose
+                    # DB row wasn't parsed into a real Python bool before reaching
+                    # self._config hit this exact path -- e.g. `alpaca_paper_trading`
+                    # returning None broke Phase 9 reconciliation's trading-mode check
+                    # on every run despite DEFAULTS having a correct fallback.
+                    if default is None and key in self.DEFAULTS:
+                        default_value, default_type = self.DEFAULTS[key][:2]
+                        return self._parse_value(default_value, default_type)
                     return default
 
             # Detect safety gate corruption at runtime (critical value set to zero after startup)
