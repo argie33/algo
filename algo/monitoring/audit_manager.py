@@ -58,7 +58,6 @@ class AuditManager:
             raise RuntimeError(f"Cannot retrieve position history for {symbol}: {e}") from e
 
     def _fetch_history(self, symbol: str, lookback_days: int, cur: Any) -> list[dict[str, Any]]:
-        """Helper to fetch history from cursor."""
         cur.execute(
             """
             SELECT review_date, data FROM position_monitor_audit

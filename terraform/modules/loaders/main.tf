@@ -420,32 +420,36 @@ locals {
     # run comfortably once deploys are unblocked and AWS_REGION is confirmed live.
     "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     # FIXED (2026-07-12): Reduced from 4096 to 1024 (actual peak ~300MB, 3-4x headroom sufficient)
-    "technical_data_daily"  = { cpu = 1024, memory = 1024, timeout = 2400, parallelism = 1 }
+    # FIXED (2026-07-13): memory=1024 is not a valid Fargate combo for cpu=1024 (min is 2048) -
+    # ECS RegisterTaskDefinition rejected this outright, blocking every terraform apply.
+    "technical_data_daily"  = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 1 }
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~10-30s, 2x headroom)
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
     "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
     # Cost-optimized: Reduced from 2048 to 512 (yfinance API fetch + lightweight metric calc, <100MB actual)
-    "growth_metrics" = { cpu = 512, memory = 512, timeout = 3600, parallelism = 2 }
+    "growth_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     # Cost-optimized: Reduced from 2048 to 512 (SEC filing parse + DB insert, <100MB actual)
-    "quality_metrics" = { cpu = 512, memory = 512, timeout = 3600, parallelism = 2 }
+    "quality_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     # Consolidated yfinance readers: All read from yfinance_snapshot, write to different tables
     # Previously 6 separate tasks (value, positioning, company_profile, analyst×2, earnings×2)
     # Now consolidated into 1 loader that reads snapshot once, writes to 6 tables in parallel
     # FIXED: Parallelism reduced from 4 to 1 to match config.py constraints and prevent yfinance rate limiting
     # Shared NAT IP across 6 ECS tasks causes cascade failures when parallelism > 1
-    "value_metrics"       = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
-    "positioning_metrics" = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
+    "value_metrics"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
     # Reduced memory from 1024 to 512 (actual peak usage <100MB for parsing metadata)
-    "company_profile"   = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
-    "earnings_history"  = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
-    "earnings_calendar" = { cpu = 512, memory = 512, timeout = 1800, parallelism = 1 }
+    "company_profile"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
     # Cost-optimized: Reduced from 1024 to 512 (dividend + payout ratio queries, <50MB actual)
-    "stability_metrics" = { cpu = 512, memory = 512, timeout = 1800, parallelism = 2 }
+    "stability_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     # Cost-optimized: Reduced from 1024 to 512 (return calculations on historical prices, <80MB actual)
-    "momentum_metrics" = { cpu = 512, memory = 512, timeout = 1800, parallelism = 2 }
+    "momentum_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     # Cost-optimized: Reduced from 2048 to 1024 (score aggregation, vectorized SQL, moderate memory for DF ops)
-    "stock_scores" = { cpu = 1024, memory = 1024, timeout = 3600, parallelism = 2 }
+    # FIXED (2026-07-13): memory=1024 is not a valid Fargate combo for cpu=1024 (min is 2048) -
+    # ECS RegisterTaskDefinition rejected this outright, blocking every terraform apply.
+    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~30-60s, 2x headroom)
     "market_constituents" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
@@ -455,10 +459,14 @@ locals {
     # Consolidated economic data loader: FRED series + DXY (lightweight: API calls + DB writes)
     "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
     # Cost-optimized: Reduced from 1024 to 512 (sector ranking DB queries, <50MB actual)
-    "sector_ranking"   = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
-    "industry_ranking" = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
+    "sector_ranking"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
+    "industry_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     # FIXED (2026-07-12): Reduced memory 2048→512 (actual ~150MB), timeout 10800s→600s (actual ~5-10m, 2x headroom)
-    "algo_metrics_daily" = { cpu = 1024, memory = 512, timeout = 600, parallelism = 1 }
+    # FIXED (2026-07-13): cpu=1024/memory=512 is not a valid Fargate combo (1024 cpu needs
+    # memory>=2048) - ECS RegisterTaskDefinition rejected this, blocking every terraform apply.
+    # Actual usage (~150MB) doesn't need 1024 cpu either, so drop to 256/512 (valid, cheaper,
+    # matches the other lightweight reporting loaders below) instead of bumping memory to 2048.
+    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
     # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
     "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_yfinance_derived_metrics.py, not separate tasks
@@ -466,10 +474,10 @@ locals {
 
     # FIXED (2026-07-12): Reduced timeout 15000s→3600s (actual ~16-20m, 3x headroom still generous)
     # Consolidated: All 8 statement types in single task (runs sequentially)
-    "financials_all" = { cpu = 512, memory = 512, timeout = 3600, parallelism = 1 }
+    "financials_all" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
     # Cost-optimized: Reduced from 1024 to 512 (sector performance ranking, <50MB actual)
-    "sector_performance" = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
+    "sector_performance" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 

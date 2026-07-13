@@ -45,6 +45,53 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
+def _validate_config(config: Any) -> tuple[int, int, int, int, int]:
+    """Extract and validate required configuration parameters.
+
+    Args:
+        config: Configuration dict from algo_config table
+
+    Returns:
+        Tuple of (min_coverage_pct, min_symbol_count, recent_cutoff, prior_cutoff, halt_tolerance)
+
+    Raises:
+        RuntimeError: If config is missing required keys
+    """
+    if not config:
+        raise RuntimeError(
+            "[PHASE 1] Config not provided: cannot proceed without phase1_min_coverage_pct "
+            "and phase1_min_symbol_count thresholds. Config must be passed from algo_config table."
+        )
+
+    try:
+        min_coverage_pct = config["phase1_min_coverage_pct"]
+    except KeyError as e:
+        raise RuntimeError(
+            "[PHASE 1] Config missing required key 'phase1_min_coverage_pct'. "
+            "Cannot proceed without explicit data freshness threshold (no hardcoded fallback)."
+        ) from e
+
+    try:
+        min_symbol_count = config["phase1_min_symbol_count"]
+    except KeyError as e:
+        raise RuntimeError(
+            "[PHASE 1] Config missing required key 'phase1_min_symbol_count'. "
+            "Cannot proceed without explicit symbol count threshold (no hardcoded fallback)."
+        ) from e
+
+    try:
+        phase1_recent_cutoff_days = config.get("phase1_recent_cutoff_days", 2)
+        phase1_prior_cutoff_days = config.get("phase1_prior_cutoff_days", 2)
+        phase1_halt_table_max_tolerance_days = config.get("phase1_halt_table_max_tolerance_days", 1)
+    except (KeyError, TypeError) as e:
+        raise RuntimeError(
+            f"[PHASE 1] Config error reading staleness thresholds: {e}. "
+            "Defaults: phase1_recent_cutoff_days=2, phase1_prior_cutoff_days=2, phase1_halt_table_max_tolerance_days=1"
+        ) from e
+
+    return min_coverage_pct, min_symbol_count, phase1_recent_cutoff_days, phase1_prior_cutoff_days, phase1_halt_table_max_tolerance_days
+
+
 def run(  # noqa: C901
     config: Any,
     run_date: _date,
@@ -78,40 +125,8 @@ def run(  # noqa: C901
     from datetime import timedelta as td
 
     phase_start = time.time()
-    degraded_reason = None  # Initialize for later use
-
-    if not config:
-        raise RuntimeError(
-            "[PHASE 1] Config not provided: cannot proceed without phase1_min_coverage_pct "
-            "and phase1_min_symbol_count thresholds. Config must be passed from algo_config table."
-        )
-
-    try:
-        min_coverage_pct = config["phase1_min_coverage_pct"]
-    except KeyError as e:
-        raise RuntimeError(
-            "[PHASE 1] Config missing required key 'phase1_min_coverage_pct'. "
-            "Cannot proceed without explicit data freshness threshold (no hardcoded fallback)."
-        ) from e
-
-    try:
-        min_symbol_count = config["phase1_min_symbol_count"]
-    except KeyError as e:
-        raise RuntimeError(
-            "[PHASE 1] Config missing required key 'phase1_min_symbol_count'. "
-            "Cannot proceed without explicit symbol count threshold (no hardcoded fallback)."
-        ) from e
-
-    # ISSUE #5 FIX: Read staleness thresholds from config instead of hardcoding
-    try:
-        phase1_recent_cutoff_days = config.get("phase1_recent_cutoff_days", 2)
-        phase1_prior_cutoff_days = config.get("phase1_prior_cutoff_days", 2)
-        phase1_halt_table_max_tolerance_days = config.get("phase1_halt_table_max_tolerance_days", 1)
-    except (KeyError, TypeError) as e:
-        raise RuntimeError(
-            f"[PHASE 1] Config error reading staleness thresholds: {e}. "
-            "Defaults: phase1_recent_cutoff_days=2, phase1_prior_cutoff_days=2, phase1_halt_table_max_tolerance_days=1"
-        ) from e
+    degraded_reason = None
+    min_coverage_pct, min_symbol_count, phase1_recent_cutoff_days, phase1_prior_cutoff_days, phase1_halt_table_max_tolerance_days = _validate_config(config)
 
     from datetime import datetime as dt
     from zoneinfo import ZoneInfo
