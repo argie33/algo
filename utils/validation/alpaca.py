@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class AlpacaResponseValidator:
-
     @staticmethod
     def validate_order_response(data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data, dict):

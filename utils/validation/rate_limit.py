@@ -32,7 +32,6 @@ DEFAULT_HEALTH_CHECK_TICKER = "SPY"
 
 
 class RateLimitValidator:
-
     def __init__(self) -> None:
         # Rate limit specifications
         self.yfinance_limit = {

@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import os
 import time
 from collections.abc import Callable
@@ -12,7 +11,6 @@ from typing import Any
 import psycopg2
 import requests
 
-from algo.infrastructure import get_api_timeout
 from algo.infrastructure.config import AlgoConfig
 from algo.reporting import TradeNotificationService, notify
 from algo.trading.check_handler_strategies import CheckHandlerRegistry
@@ -888,4 +886,3 @@ class TradeExecutor:
             new_stop_price=new_stop_price,
             cur=cur,
         )
-

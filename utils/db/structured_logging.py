@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 class StructuredDBLogger:
-
     @staticmethod
     def format_query_for_logs(query: str, max_length: int = 500) -> str:
         """Sanitize query for safe logging.

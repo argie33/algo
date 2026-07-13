@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class FinancialDataValidator:
-
     @staticmethod
     def validate_price(price: Any, context: str = "", allow_zero: bool = False) -> tuple[bool, float | None, str]:
         """Validate a price value (entry, exit, stop loss, etc).

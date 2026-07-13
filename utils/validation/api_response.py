@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class APIResponseValidator:
-
     @staticmethod
     @overload
     def sanitize_response(data: dict[str, Any], path: str = "root") -> dict[str, Any]: ...

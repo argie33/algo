@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class StalenessChecker(BaseCheck):
-
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute staleness checks."""
         self.results = []

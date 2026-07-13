@@ -442,7 +442,15 @@ class SignalsDailyLoader(OptimalLoader):
             # Truncate reason to 255 chars to fit VARCHAR(255) column
             reason = error_msg[:255] if len(error_msg) > 255 else error_msg
             logger.error(f"[BUY_SELL_DAILY] {symbol}: Signal generation failed: {error_msg}")
-            return [{"symbol": symbol, "date": end.isoformat(), "data_unavailable": True, "reason": reason, "reason_type": "loader_failed"}]
+            return [
+                {
+                    "symbol": symbol,
+                    "date": end.isoformat(),
+                    "data_unavailable": True,
+                    "reason": reason,
+                    "reason_type": "loader_failed",
+                }
+            ]
 
     def get_tech_data_age(self) -> float | None:
         """Return current batch tech_data_age for signal generation.

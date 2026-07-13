@@ -56,7 +56,7 @@ class PutCallRatioFactor(MarketFactorStrategy):
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
             if isinstance(row, dict):
-                pcr_val = row.get('put_call_ratio')
+                pcr_val = row.get("put_call_ratio")
             else:
                 pcr_val = row[0]
 

@@ -310,9 +310,7 @@ def handle(  # noqa: C901
                 is_fallback = s.get("_is_fallback")
                 sector_name = s.get("sector_name")
                 if is_fallback and sector_name and sector_name != "Unknown":
-                    logger.error(
-                        f"[SECTORS_API] Sector performance data missing for {sector_name} - using fallback"
-                    )
+                    logger.error(f"[SECTORS_API] Sector performance data missing for {sector_name} - using fallback")
                     return error_response(
                         503,
                         "sector_perf_fallback",

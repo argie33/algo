@@ -1281,7 +1281,9 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
 
         is_public = any(matches_prefix(path, prefix) for prefix in PUBLIC_PREFIXES)
         if path == "/api/algo/status":
-            logger.warning(f"[DEBUG_STATUS] /api/algo/status in PUBLIC_PREFIXES: {'/api/algo/status' in PUBLIC_PREFIXES}, is_public={is_public}")
+            logger.warning(
+                f"[DEBUG_STATUS] /api/algo/status in PUBLIC_PREFIXES: {'/api/algo/status' in PUBLIC_PREFIXES}, is_public={is_public}"
+            )
     logger.info(
         f"[AUTH_CHECK] path={path}, is_public={is_public}, in_prefixes={'/api/algo/equity-curve' in PUBLIC_PREFIXES}"
     )
@@ -1557,6 +1559,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     # This manifests as hangs on the 3rd+ request to endpoints.
     try:
         from routes.utils import clear_current_cursor
+
         clear_current_cursor()
     except ImportError:
         pass  # If not available, continue anyway

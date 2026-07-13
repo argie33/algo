@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class SpecializedChecker(BaseCheck):
-
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute specialized checks."""
         self.results = []

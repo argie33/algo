@@ -16,7 +16,6 @@ from algo.infrastructure.broker_adapter import BrokerAdapter
 from algo.infrastructure.position_analyzer import PositionAnalyzer
 from algo.reporting import notify
 from utils.db import DatabaseContext
-from utils.trading import PositionStatus
 
 logger = logging.getLogger(__name__)
 

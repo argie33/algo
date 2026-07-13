@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 class CognitoValidator:
-
     @staticmethod
     def validate_jwt_claims(jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
         if jwt_claims is None:
@@ -94,7 +93,6 @@ class CognitoValidator:
 
 
 class DynamoDBValidator:
-
     @staticmethod
     def validate_get_item_response(response: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(response, dict):
@@ -201,7 +199,6 @@ class DynamoDBValidator:
 
 
 class DatabaseResultValidator:
-
     @staticmethod
     def safe_get_float(
         row: dict[str, Any] | None, key: str, default: float | None = 0.0, strict: bool = False

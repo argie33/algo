@@ -11,8 +11,6 @@ Tracks:
 
 import json
 import logging
-from datetime import date as _date
-from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
@@ -67,4 +65,3 @@ class TradeAuditLogger:
             raise RuntimeError(
                 f"Portfolio snapshot audit log failed - cannot record snapshot (safety gate failed): {e}"
             ) from e
-

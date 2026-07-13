@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 
 class PositionSyncChecker:
-
     def check_consistency(self) -> dict[str, Any]:
         """Run full consistency check. Returns report dict."""
         with DatabaseContext("read") as cur:

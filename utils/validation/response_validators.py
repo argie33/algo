@@ -18,7 +18,8 @@ VALIDATION PATTERNS:
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, TypedDict
+from collections.abc import Callable
+from typing import Any, TypedDict
 
 from .framework import StrictValidationError, safe_float, safe_int
 
@@ -127,8 +128,7 @@ def _validate_items_structure(data: dict[str, Any], item_key: str = "items") -> 
 
     if item_key not in data:
         raise ResponseValidationError(
-            f"Response missing required '{item_key}' field. "
-            f"API structure may have changed or response is incomplete."
+            f"Response missing required '{item_key}' field. API structure may have changed or response is incomplete."
         )
     if not isinstance(data[item_key], list):
         raise ResponseValidationError(f"Items field must be list, got {type(data[item_key])}")
@@ -184,9 +184,7 @@ def _validate_positions(data: dict[str, Any]) -> dict[str, Any]:
         return data
     if "items" in data:
         if not isinstance(data["items"], list):
-            raise ResponseValidationError(
-                f"Positions items field must be list, got {type(data['items'])}"
-            )
+            raise ResponseValidationError(f"Positions items field must be list, got {type(data['items'])}")
         items = data["items"]
         if items is None:
             raise ResponseValidationError("Positions response 'items' field is None")

@@ -631,4 +631,3 @@ class MarketEventHandler:
             result["alerts"].append(f"CIRCUIT BREAKER LEVEL {cb['level']}: {cb['description']}")
 
         return result
-

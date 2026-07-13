@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class BuySignalGenerator:
-
     def __init__(self) -> None:
         pass
 

@@ -16,8 +16,7 @@ Validates:
 
 import logging
 import os
-from datetime import date, datetime
-from typing import Any
+from datetime import date
 
 import psycopg2
 
@@ -25,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 
 class AWSProductionConfigValidator:
-
     def __init__(self) -> None:
         self.checks_passed: list[str] = []
         self.checks_failed: list[str] = []
@@ -230,4 +228,3 @@ class AWSProductionConfigValidator:
             raise RuntimeError(
                 f"Error fallback monitoring validation failed: {e}. Cannot verify error fallback utilities."
             ) from e
-

@@ -12,8 +12,7 @@ class ExposureFactorStrategy(ABC):
     """Base strategy for market exposure factors."""
 
     @abstractmethod
-    def calculate(self, market_data: dict[str, Any]) -> float:
-        ...
+    def calculate(self, market_data: dict[str, Any]) -> float: ...
 
 
 class VolatilityFactor(ExposureFactorStrategy):
@@ -93,7 +92,6 @@ class DrawdownFactor(ExposureFactorStrategy):
 
 
 class ExposureFactorCalculator:
-
     def __init__(self) -> None:
         self.factors = {
             "volatility": VolatilityFactor(),

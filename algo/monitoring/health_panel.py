@@ -12,8 +12,7 @@ class HealthPanelStrategy(ABC):
     """Base strategy for health dashboard panels."""
 
     @abstractmethod
-    def fetch_data(self) -> dict[str, Any]:
-        ...
+    def fetch_data(self) -> dict[str, Any]: ...
 
 
 class SystemHealthPanel(HealthPanelStrategy):

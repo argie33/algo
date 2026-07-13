@@ -226,15 +226,9 @@ class RiskMetricsLoader(OptimalLoader):
                 }
 
             # Calculate volatilities
-            vol_30d = (
-                self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
-            )
-            vol_60d = (
-                self._calculate_volatility(returns[-60:]) if len(returns) >= 60 else None
-            )
-            vol_252d = (
-                self._calculate_volatility(returns) if len(returns) >= 2 else None
-            )
+            vol_30d = self._calculate_volatility(returns[-30:]) if len(returns) >= 30 else None
+            vol_60d = self._calculate_volatility(returns[-60:]) if len(returns) >= 60 else None
+            vol_252d = self._calculate_volatility(returns) if len(returns) >= 2 else None
             beta: float | dict[str, Any] | None = self._get_beta_from_db(symbol, prices, spy_rows)
 
             # Build unavailability reasons for any missing components

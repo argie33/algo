@@ -11,7 +11,6 @@ from algo.config.error_codes import ErrorCode, OrchestrationError
 
 
 class EnvironmentValidator:
-
     # Required environment variables for orchestrator execution
     REQUIRED_VARS = {
         # Database connection (host, port, name, user required; password loaded from Secrets Manager or env)

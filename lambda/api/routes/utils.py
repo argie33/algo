@@ -773,8 +773,8 @@ def clear_current_cursor() -> None:
     In production Lambda, each request gets its own context, so this is less critical,
     but good practice to clean up regardless.
     """
-    if hasattr(_thread_local, 'cursor'):
-        delattr(_thread_local, 'cursor')
+    if hasattr(_thread_local, "cursor"):
+        delattr(_thread_local, "cursor")
 
 
 def safe_dict_convert(row: Any) -> Any:

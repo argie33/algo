@@ -250,4 +250,3 @@ class SignalOptionsMixin:
             }
 
         return self._with_cursor(_fetch_implied_move)  # type: ignore[no-any-return]
-

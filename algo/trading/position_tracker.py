@@ -8,10 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 import psycopg2
-import requests
 
-from algo.infrastructure import get_api_timeout
-from algo.trading.exceptions import DataUnavailableError
 from utils.db import DatabaseContext, OptimisticLockRetry
 from utils.trading import PositionStatus
 

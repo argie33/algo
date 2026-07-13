@@ -69,7 +69,14 @@ def _check_failsafe_retry_result(
     )
 
     still_failing = failsafe_result.get("still_failing", [])
-    price_tables = {"price_daily", "price_weekly", "price_monthly", "etf_price_daily", "etf_price_weekly", "etf_price_monthly"}
+    price_tables = {
+        "price_daily",
+        "price_weekly",
+        "price_monthly",
+        "etf_price_daily",
+        "etf_price_weekly",
+        "etf_price_monthly",
+    }
     if any(table in price_tables for table in still_failing):
         price_coverage_pct = None
         try:
@@ -176,7 +183,13 @@ def _validate_config(config: Any) -> tuple[int, int, int, int, int]:
             "Defaults: phase1_recent_cutoff_days=2, phase1_prior_cutoff_days=2, phase1_halt_table_max_tolerance_days=1"
         ) from e
 
-    return min_coverage_pct, min_symbol_count, phase1_recent_cutoff_days, phase1_prior_cutoff_days, phase1_halt_table_max_tolerance_days
+    return (
+        min_coverage_pct,
+        min_symbol_count,
+        phase1_recent_cutoff_days,
+        phase1_prior_cutoff_days,
+        phase1_halt_table_max_tolerance_days,
+    )
 
 
 def run(  # noqa: C901
@@ -213,7 +226,13 @@ def run(  # noqa: C901
 
     phase_start = time.time()
     degraded_reason = None
-    min_coverage_pct, min_symbol_count, phase1_recent_cutoff_days, phase1_prior_cutoff_days, phase1_halt_table_max_tolerance_days = _validate_config(config)
+    (
+        min_coverage_pct,
+        min_symbol_count,
+        phase1_recent_cutoff_days,
+        phase1_prior_cutoff_days,
+        phase1_halt_table_max_tolerance_days,
+    ) = _validate_config(config)
 
     from datetime import datetime as dt
     from zoneinfo import ZoneInfo
@@ -630,6 +649,7 @@ def run(  # noqa: C901
                         if max_price_date:
                             from datetime import datetime as dt_now
                             from datetime import timezone
+
                             age_days = (dt_now.now(timezone.utc).date() - max_price_date).days
 
                             if age_days > 2:
@@ -642,30 +662,35 @@ def run(  # noqa: C901
                                 bootstrap_success = False
                                 try:
                                     from loaders.load_prices import PriceLoader
+
                                     price_loader = PriceLoader()
 
-                                    # Load all symbols in universe
-                                    import psycopg2
+                                    # Load all symbols in universe (psycopg2 imported at module level)
                                     try:
-                                        inner_conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+                                        inner_conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
                                         inner_cursor = inner_conn.cursor()
-                                        inner_cursor.execute('SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol')
+                                        inner_cursor.execute(
+                                            "SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol"
+                                        )
                                         symbols = [row[0] for row in inner_cursor.fetchall()]
                                         inner_cursor.close()
                                         inner_conn.close()
 
                                         if symbols:
-                                            logger.info(f"[PHASE 1] BOOTSTRAP: Loading prices for {len(symbols)} symbols...")
+                                            logger.info(
+                                                f"[PHASE 1] BOOTSTRAP: Loading prices for {len(symbols)} symbols..."
+                                            )
                                             result = price_loader.run(symbols=symbols, backfill_days=5)
-                                            logger.info(f"[PHASE 1] BOOTSTRAP: Loaded {result.get('rows_inserted', 0)} price records")
+                                            logger.info(
+                                                f"[PHASE 1] BOOTSTRAP: Loaded {result.get('rows_inserted', 0)} price records"
+                                            )
                                             bootstrap_success = True
                                     except Exception as loader_err:
-                                        logger.warning(f"[PHASE 1] BOOTSTRAP: Could not load universe: {loader_err}, using defaults")
-                                        # Fallback: load just test symbols
-                                        result = price_loader.run(
-                                            symbols=['AAPL', 'SPY', 'QQQ'],
-                                            backfill_days=5
+                                        logger.warning(
+                                            f"[PHASE 1] BOOTSTRAP: Could not load universe: {loader_err}, using defaults"
                                         )
+                                        # Fallback: load just test symbols
+                                        result = price_loader.run(symbols=["AAPL", "SPY", "QQQ"], backfill_days=5)
                                         bootstrap_success = True
                                 except Exception as bootstrap_err:
                                     logger.error(f"[PHASE 1] EMERGENCY_BOOTSTRAP failed: {bootstrap_err}")
@@ -693,7 +718,9 @@ def run(  # noqa: C901
                                     )
                             else:
                                 # Data is recent (<2 days), should not be stale
-                                logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
+                                logger.critical(
+                                    f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}"
+                                )
                                 log_phase_result_fn(
                                     1,
                                     "signal_tables_stale",
@@ -701,6 +728,7 @@ def run(  # noqa: C901
                                     f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
                                 )
                                 from algo.reporting.notifications import notify_signal_staleness
+
                                 notify_signal_staleness(halt_stale)
                                 return PhaseResult(
                                     1,
@@ -745,7 +773,6 @@ def run(  # noqa: C901
             # These loaders (quality, growth, value, positioning, stability, momentum) feed into stock_scores
             # which feed into signal generation. If metrics are all-unavailable, stock_scores will fail.
             logger.info("[PHASE 1] Validating upstream metric loaders ready for stock_scores...")
-            metrics_ready = True
             degraded_reason = None
             try:
                 from loaders.load_stock_scores import StockScoresLoader
@@ -773,7 +800,6 @@ def run(  # noqa: C901
                             "[PHASE 1] Metrics exist but may be slightly stale. "
                             "Proceeding in DEGRADED mode - stock scores may use older metric data."
                         )
-                        metrics_ready = True  # Allow trading despite staleness
                         degraded_reason = "Stale metric data (older than 1 day) - using available data"
                     else:
                         # Metrics are completely missing or too old, must halt
@@ -809,8 +835,8 @@ def run(  # noqa: C901
                 1,
                 "all_tables_fresh",
                 "success",
-                f"All critical tables fresh: prices={max_date}, coverage={coverage_pct:.1f}%" +
-                (f" [DEGRADED MODE: {degraded_reason}]" if degraded_reason else ""),
+                f"All critical tables fresh: prices={max_date}, coverage={coverage_pct:.1f}%"
+                + (f" [DEGRADED MODE: {degraded_reason}]" if degraded_reason else ""),
             )
 
             # Return with degraded status if metrics are stale but trading can proceed

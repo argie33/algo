@@ -16,8 +16,7 @@ class SignalBase(ABC):
         self.signal_type = self.__class__.__name__
 
     @abstractmethod
-    def generate(self, symbol: str, data: dict[str, Any]) -> dict[str, Any] | None:
-        ...
+    def generate(self, symbol: str, data: dict[str, Any]) -> dict[str, Any] | None: ...
 
     def format_signal(self, symbol: str, strength: float, reason: str) -> dict[str, Any]:
         """Standard signal formatting."""

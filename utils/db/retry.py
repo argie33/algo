@@ -28,7 +28,6 @@ def _get_retry_delay(attempt: int, base_delay_ms: int = 100, max_delay_ms: int =
 
 
 class OptimisticLockRetry:
-
     @staticmethod
     def retry_on_race_condition(
         operation: Callable[[], bool],

@@ -120,8 +120,10 @@ class VectorizedTechnicalLoader:
             # With 10K symbols, this takes 60+ seconds and causes orchestrator timeout.
             # VCP patterns are optional enrichment; orchestrator must complete on time.
             # If VCP is needed, implement vectorized computation using in-memory indicators_df.
-            logger.info("[VCP] VCP pattern computation disabled - was causing 60s+ timeouts. " +
-                       "Implement vectorized computation if needed.")
+            logger.info(
+                "[VCP] VCP pattern computation disabled - was causing 60s+ timeouts. "
+                + "Implement vectorized computation if needed."
+            )
             # self._compute_and_insert_vcp_patterns(indicators_df)
 
             # Get the latest date in the computed indicators
@@ -442,7 +444,10 @@ class VectorizedTechnicalLoader:
                     "SELECT date, close FROM price_daily WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
                     ("SPY", start_date, end_date),
                 )
-                return [{"date": r[0], "close": safe_float(r[1], f"SPY.close[{r[0]}]", allow_none=True)} for r in cur.fetchall()]
+                return [
+                    {"date": r[0], "close": safe_float(r[1], f"SPY.close[{r[0]}]", allow_none=True)}
+                    for r in cur.fetchall()
+                ]
         except psycopg2.Error as e:
             raise RuntimeError(
                 f"[SPY_PRICES] Failed to fetch SPY prices for Mansfield RS [{start_date} to {end_date}]: {e}. "

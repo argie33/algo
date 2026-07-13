@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class DataValidator:
-
     def __init__(self, conn: Any):
         self.conn = conn
         self.errors: list[str] = []

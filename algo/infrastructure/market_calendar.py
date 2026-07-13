@@ -67,7 +67,6 @@ EARLY_CLOSES = {
 
 
 class MarketCalendar:
-
     @staticmethod
     @lru_cache(maxsize=1024)
     def _is_trading_day_cached(check_date: _date) -> bool:

@@ -34,7 +34,6 @@ PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 
 
 class PositionSizer:
-
     def __init__(self, config: Any) -> None:
         if config is None:
             raise ValueError("PositionSizer config cannot be None")

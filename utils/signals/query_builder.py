@@ -12,7 +12,6 @@ from typing import Any
 
 
 class SignalQueryBuilder:
-
     SOURCES = {
         "buy_sell_daily": {
             "type": "primary",

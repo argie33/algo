@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class PriceSanityChecker(BaseCheck):
-
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute all price sanity checks."""
         self.results = []

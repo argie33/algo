@@ -255,7 +255,6 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
             if not record.get("data_unavailable"):
                 earnings_date_unix = record.get("earnings_date")
                 if earnings_date_unix:
-                    from datetime import datetime
                     try:
                         earnings_date_py = datetime.fromtimestamp(earnings_date_unix).date()
                         cur.execute(
@@ -314,7 +313,6 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                     "INSERT INTO analyst_sentiment_analysis (symbol, date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
                     (symbol, updated_at.date(), record.get("reason", "no_analyst_data"), updated_at),
                 )
-
 
 
 def main() -> int:

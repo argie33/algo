@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class CoverageChecker(BaseCheck):
-
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute coverage checks."""
         self.results = []

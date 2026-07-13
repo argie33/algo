@@ -6,7 +6,6 @@ from .base import DataValidator
 
 
 class SchemaValidator(DataValidator):
-
     def __init__(
         self,
         expected_columns: list[str],

@@ -40,7 +40,6 @@ configure_socket_timeout(30)
 
 
 class YFinanceSnapshotLoader(OptimalLoader):
-
     table_name = "yfinance_snapshot"
     primary_key = ("symbol",)
     watermark_field = "fetched_at"

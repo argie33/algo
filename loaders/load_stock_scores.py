@@ -47,7 +47,6 @@ logger = logging.getLogger(__name__)
 
 
 class StockScoresLoader(OptimalLoader):
-
     table_name = "stock_scores"
     primary_key = ("symbol",)
     watermark_field: str = "updated_at"

@@ -7,7 +7,6 @@ from .base import DataValidator
 
 
 class NumericValidator(DataValidator):
-
     def __init__(
         self,
         fields: dict[str, dict[str, Any]] | None = None,

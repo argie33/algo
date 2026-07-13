@@ -14,8 +14,10 @@ logger = logging.getLogger(__name__)
 @overload
 def safe_float(value: Any, field_name: str, allow_none: Literal[True] = True) -> float | None: ...
 
+
 @overload
 def safe_float(value: Any, field_name: str, allow_none: Literal[False]) -> float: ...
+
 
 def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | None:
     """Safely convert value to float with fail-fast validation.
@@ -67,8 +69,10 @@ def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | 
 @overload
 def safe_int(value: Any, field_name: str, allow_none: Literal[True] = True) -> int | None: ...
 
+
 @overload
 def safe_int(value: Any, field_name: str, allow_none: Literal[False]) -> int: ...
+
 
 def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None:
     """Safely convert value to int with fail-fast validation."""
@@ -101,8 +105,10 @@ def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None
 @overload
 def safe_bool(value: Any, field_name: str, allow_none: Literal[True] = True) -> bool | None: ...
 
+
 @overload
 def safe_bool(value: Any, field_name: str, allow_none: Literal[False]) -> bool: ...
+
 
 def safe_bool(value: Any, field_name: str, allow_none: bool = True) -> bool | None:
     """Safely convert value to bool with fail-fast validation."""
@@ -133,10 +139,14 @@ def safe_bool(value: Any, field_name: str, allow_none: bool = True) -> bool | No
 
 
 @overload
-def safe_string(value: Any, field_name: str, allow_none: Literal[True] = True, max_len: int | None = None) -> str | None: ...
+def safe_string(
+    value: Any, field_name: str, allow_none: Literal[True] = True, max_len: int | None = None
+) -> str | None: ...
+
 
 @overload
 def safe_string(value: Any, field_name: str, allow_none: Literal[False], max_len: int | None = None) -> str: ...
+
 
 def safe_string(value: Any, field_name: str, allow_none: bool = True, max_len: int | None = None) -> str | None:
     """Safely convert value to string with optional length validation."""

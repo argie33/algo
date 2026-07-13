@@ -15,7 +15,7 @@ This module sends alerts to SNS topic when data is stale, enabling:
 """
 
 import logging
-from datetime import date, datetime
+from datetime import datetime
 
 import boto3
 import psycopg2
@@ -36,11 +36,10 @@ FRESHNESS_THRESHOLDS = {
 
 
 def check_data_freshness() -> dict[str, tuple[int, bool]]:
-    conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+    conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
     cur = conn.cursor()
 
     results = {}
-    today = date.today()
 
     try:
         for table, threshold_hours in FRESHNESS_THRESHOLDS.items():
@@ -74,7 +73,7 @@ def check_data_freshness() -> dict[str, tuple[int, bool]]:
 
 def send_staleness_alert(stale_tables: dict[str, tuple[int, bool]]) -> None:
     """Send SNS alert for stale data."""
-    sns = boto3.client('sns', region_name='us-east-1')
+    sns = boto3.client("sns", region_name="us-east-1")
 
     # Build alert message
     alert_lines = [
@@ -86,19 +85,19 @@ def send_staleness_alert(stale_tables: dict[str, tuple[int, bool]]) -> None:
     for table, (hours_old, is_fresh) in stale_tables.items():
         if not is_fresh:
             threshold = FRESHNESS_THRESHOLDS[table]
-            alert_lines.append(
-                f"  - {table}: {hours_old:.1f} hours old (threshold: {threshold}h)"
-            )
+            alert_lines.append(f"  - {table}: {hours_old:.1f} hours old (threshold: {threshold}h)")
 
-    alert_lines.extend([
-        "",
-        "ACTION REQUIRED:",
-        "1. Check if loaders are running: aws stepfunctions list-executions --state-machine-arn ...",
-        "2. If not, trigger recovery: python3 scripts/monitor_loader_pipeline.py",
-        "3. Monitor data to confirm freshness restored",
-        "",
-        "For details, see: steering/DATA_LOADERS.md",
-    ])
+    alert_lines.extend(
+        [
+            "",
+            "ACTION REQUIRED:",
+            "1. Check if loaders are running: aws stepfunctions list-executions --state-machine-arn ...",
+            "2. If not, trigger recovery: python3 scripts/monitor_loader_pipeline.py",
+            "3. Monitor data to confirm freshness restored",
+            "",
+            "For details, see: steering/DATA_LOADERS.md",
+        ]
+    )
 
     message = "\n".join(alert_lines)
 

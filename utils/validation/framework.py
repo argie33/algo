@@ -68,7 +68,6 @@ class Validator(ABC):
 
 
 class TypeValidator(Validator):
-
     def __init__(
         self,
         expected_type: str,
@@ -141,7 +140,6 @@ class TypeValidator(Validator):
 
 
 class EnumValidator(Validator):
-
     def __init__(self, allowed_values: list[str], case_sensitive: bool = False) -> None:
         super().__init__()
         self.allowed_values = [str(v) for v in allowed_values]
@@ -165,7 +163,6 @@ class EnumValidator(Validator):
 
 
 class PhaseValidator(Validator):
-
     VALID_STATUSES = {
         "ok",
         "success",

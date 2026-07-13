@@ -60,7 +60,7 @@ def test_phase7_data_extraction():
         "max_new_positions_today": 5,
         "halt_new_entries": False,
     }
-    phase5_result = Phase5Result(status="ok", constraints=constraints, actions=[])
+    phase5_result = PhaseResult(status="ok", data={"constraints": constraints, "actions": []})
     executor.phase_results[5] = phase5_result
 
     extracted_constraints = executor.get_phase_data_required(5, "constraints")

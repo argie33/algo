@@ -56,6 +56,7 @@ class DatabaseResultValidator:
             return default
         try:
             from utils.type_conversion import safe_int as canonical_safe_int
+
             return canonical_safe_int(value, key, allow_none=False)
         except (ValueError, TypeError):
             return default
@@ -87,6 +88,7 @@ class DatabaseResultValidator:
             return default
         try:
             from utils.type_conversion import safe_float as canonical_safe_float
+
             return canonical_safe_float(value, key, allow_none=False)
         except (ValueError, TypeError) as e:
             if strict:
@@ -145,7 +147,6 @@ class DatabaseResultValidator:
 
 
 class APIResponseValidator:
-
     @staticmethod
     def sanitize_response(data: Any) -> Any:
         """Sanitize response data to ensure it's JSON-serializable.

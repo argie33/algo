@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class DailyFinanceReport:
-
     def __init__(self) -> None:
         from algo.orchestration import RegimeManager
 

@@ -42,9 +42,7 @@ def safe_get(data: dict[str, Any], key: str, required: bool = False, field_name:
     return data[key]
 
 
-def safe_get_int(
-    data: dict[str, Any], key: str, required: bool = False, field_name: str | None = None
-) -> int | None:
+def safe_get_int(data: dict[str, Any], key: str, required: bool = False, field_name: str | None = None) -> int | None:
     """Safely get int field with type validation.
 
     Args:
@@ -90,14 +88,12 @@ def safe_get_float(
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as e:
         context = f" ({field_name})" if field_name else ""
-        raise SafeDictAccessError(f"Field {key}{context} must be numeric, got {type(value).__name__}: {value}")
+        raise SafeDictAccessError(f"Field {key}{context} must be numeric, got {type(value).__name__}: {value}") from e
 
 
-def safe_get_str(
-    data: dict[str, Any], key: str, required: bool = False, field_name: str | None = None
-) -> str | None:
+def safe_get_str(data: dict[str, Any], key: str, required: bool = False, field_name: str | None = None) -> str | None:
     """Safely get string field with type validation.
 
     Args:

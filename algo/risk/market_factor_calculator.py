@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class MarketFactorCalculator:
-
     def __init__(self) -> None:
         pass
 
@@ -359,28 +358,22 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row:
-                logger.warning(
-                    f"[PUT_CALL RATIO] No data for {eval_date}. Using neutral score."
-                )
+                logger.warning(f"[PUT_CALL RATIO] No data for {eval_date}. Using neutral score.")
                 return {"value": None, "score": 50, "data_unavailable": True}
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
             if isinstance(row, dict):
-                pcr_val = row.get('put_call_ratio')
+                pcr_val = row.get("put_call_ratio")
             else:
                 pcr_val = row[0]
 
             if pcr_val is None:
-                logger.warning(
-                    f"[PUT_CALL RATIO] Value is None for {eval_date}. Using neutral score."
-                )
+                logger.warning(f"[PUT_CALL RATIO] Value is None for {eval_date}. Using neutral score.")
                 return {"value": None, "score": 50, "data_unavailable": True}
 
             pcr = float(pcr_val)
             if pcr <= 0:
-                logger.warning(
-                    f"[PUT_CALL RATIO] Invalid value {pcr} for {eval_date}. Using neutral score."
-                )
+                logger.warning(f"[PUT_CALL RATIO] Invalid value {pcr} for {eval_date}. Using neutral score.")
                 return {"value": pcr, "score": 50, "data_unavailable": True}
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}

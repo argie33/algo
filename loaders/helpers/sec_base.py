@@ -397,9 +397,7 @@ class SecFinancialsLoader(SecLoaderBase):
             logger.error(f"[{self.table_name}] Failed to fetch balance sheet for {symbol}: {e}")
             raise RuntimeError(f"Cannot fetch balance sheet for {symbol}: {e}") from e
 
-    def _fetch_annual_income_statement_history(
-        self, symbol: str, years: int = 10
-    ) -> list[tuple[Any, Any, Any]] | None:
+    def _fetch_annual_income_statement_history(self, symbol: str, years: int = 10) -> list[tuple[Any, Any, Any]] | None:
         """Fetch historical annual income statements for multi-year analysis.
 
         Args:

@@ -44,7 +44,6 @@ def _dec_round(val: Any, places: int) -> float:
 
 
 class LivePerformance:
-
     def __init__(self, config: Any) -> None:
         self.config = config
 

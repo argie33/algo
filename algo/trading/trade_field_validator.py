@@ -5,7 +5,6 @@ from typing import Any
 
 
 class TradeFieldValidator:
-
     REQUIRED_FIELDS = {
         "symbol",
         "entry_price",

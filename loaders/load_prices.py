@@ -84,7 +84,7 @@ class PriceLoader(OptimalLoader):
         self.asset_class = asset_class
         self._correlation_id = _correlation_id
         # CRITICAL FIX (Session 112): Reduce initial batch size to avoid yfinance rate limit cascade
-        # yfinance rate limit: 200 API calls/min (strict). Batching 50 symbols × 10 parallelism = 500 calls/burst.
+        # yfinance rate limit: 200 API calls/min (strict). Batching 50 symbols x 10 parallelism = 500 calls/burst.
         # Result: Hit limit immediately, loader fails with only 6 symbols loaded.
         # Solution: Start very conservative batch=20 (200 calls/burst, well under limit).
         # If successful, batch size increases adaptively. If 429 (rate limit), cuts in half.
@@ -2319,7 +2319,7 @@ def main() -> int:
                 logger.critical(
                     "[MAIN] CRITICAL: Symbol query timed out after 300s. "
                     "This can cause truncation where partial results are returned. Error: %s",
-                    e
+                    e,
                 )
                 raise
             except Exception as e:
@@ -2327,7 +2327,7 @@ def main() -> int:
                     "[MAIN] CRITICAL: Failed to load symbols from database. Error: %s. "
                     "Cannot proceed without symbol list.",
                     e,
-                    exc_info=True
+                    exc_info=True,
                 )
                 raise
 
@@ -2337,10 +2337,11 @@ def main() -> int:
             expected_symbol_count = 5000 if not limit else limit
             if len(symbols) < 100 and max_symbols_limit == 0:
                 logger.critical(
-                    "[MAIN] CRITICAL: Only %d symbols loaded (expected 5,000+). "
+                    "[MAIN] CRITICAL: Only %d symbols loaded (expected %d+). "
                     "This indicates a database connection issue or query timeout. "
                     "Symbol list truncation causes Phase 1 data freshness checks to fail, halting trading.",
-                    len(symbols)
+                    len(symbols),
+                    expected_symbol_count,
                 )
                 try:
                     log_loader_execution(

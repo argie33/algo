@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class ParallelismValidator:
-
     # Expected parallelism ranges for different loaders with full 5000+ symbols
     EXPECTED_PARALLELISM = {
         "stock_prices_daily": (1, 3),  # Limited by yfinance rate limiting

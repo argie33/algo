@@ -187,10 +187,7 @@ class PutCallRatioFetcher:
         eval_date_iso = eval_date.isoformat()
 
         # Check cache - valid if same trading day
-        if (
-            eval_date_iso in self._cache
-            and self._cache_date.get(eval_date_iso) == eval_date
-        ):
+        if eval_date_iso in self._cache and self._cache_date.get(eval_date_iso) == eval_date:
             logger.debug(f"[PUT_CALL_RATIO] Using cached value for {eval_date}")
             return self._cache[eval_date_iso]
 

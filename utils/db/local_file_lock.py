@@ -7,8 +7,8 @@ Used in LOCAL_MODE to avoid AWS DynamoDB permissions issues.
 
 import logging
 import os
-import time
 import tempfile
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -102,8 +102,7 @@ class FileLockManager:
                             logger.debug(f"[FILE_LOCK] Lock held by another instance: {lock_file.name}")
                             if attempt == 1:
                                 logger.warning(
-                                    f"[LOCK] Another instance already running (lock: {lock_key}). "
-                                    f"Skipping: {lock_key}"
+                                    f"[LOCK] Another instance already running (lock: {lock_key}). Skipping: {lock_key}"
                                 )
             except FileNotFoundError:
                 lock_is_valid = False  # Lock file deleted, treat as available

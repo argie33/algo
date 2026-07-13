@@ -147,6 +147,7 @@ class BulkInsertManager:
         if symbol and new_watermark and watermark_mgr:
             try:
                 from utils.data.watermark import WatermarkManager
+
                 if isinstance(watermark_mgr, WatermarkManager):
                     success = watermark_mgr.advance_watermark(
                         new_watermark=new_watermark,
@@ -163,8 +164,7 @@ class BulkInsertManager:
                     watermark_mgr.set(symbol, new_watermark, inserted)
                 else:
                     raise RuntimeError(
-                        f"watermark_mgr is neither Watermark nor has set() method. "
-                        f"Type: {type(watermark_mgr).__name__}"
+                        f"watermark_mgr is neither Watermark nor has set() method. Type: {type(watermark_mgr).__name__}"
                     )
             except Exception as e:
                 raise RuntimeError(

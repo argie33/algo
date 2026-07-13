@@ -118,7 +118,6 @@ class AlpacaOrderValidator(Validator):
 
 
 class AlpacaOrderStatusValidator(Validator):
-
     def __init__(self) -> None:
         super().__init__("AlpacaOrderStatusValidator")
 
@@ -183,7 +182,6 @@ class AlpacaOrderStatusValidator(Validator):
 
 
 class AlpacaAccountValidator(Validator):
-
     def __init__(self) -> None:
         super().__init__("AlpacaAccountValidator")
 
@@ -233,7 +231,6 @@ class AlpacaAccountValidator(Validator):
 
 
 class AlpacaPositionValidator(Validator):
-
     def __init__(self) -> None:
         super().__init__("AlpacaPositionValidator")
 

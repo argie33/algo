@@ -220,7 +220,9 @@ def _compute_consecutive_losses(cur: Any) -> int:
     """)
     rows = cur.fetchall()
     if not rows:
-        logger.info("[CIRCUIT_BREAKER] No closed trades available for consecutive loss calculation (CB3) - new account, returning 0")
+        logger.info(
+            "[CIRCUIT_BREAKER] No closed trades available for consecutive loss calculation (CB3) - new account, returning 0"
+        )
         return 0
     streak = 0
     for row in rows:

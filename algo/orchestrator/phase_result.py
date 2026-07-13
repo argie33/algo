@@ -63,4 +63,3 @@ class PhaseResult:
     @property
     def ok(self) -> bool:
         return self.status == "ok"
-

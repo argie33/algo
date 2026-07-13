@@ -144,4 +144,3 @@ class TradingConfig:
             "move_be_at_r": self.get("move_be_at_r"),
             "max_stop_distance_pct": self.get("max_stop_distance_pct"),
         }
-

@@ -306,18 +306,22 @@ class CredentialManager:
                 else:
                     db_host = os.getenv("DB_ENDPOINT")  # Fallback: alternate env var name
                     if db_host:
-                        logger.debug(f"[CREDENTIALS] DB_HOST not set, using DB_ENDPOINT from environment: {db_host[:20]}...")
+                        logger.debug(
+                            f"[CREDENTIALS] DB_HOST not set, using DB_ENDPOINT from environment: {db_host[:20]}..."
+                        )
                     else:
                         # Last resort: Secrets Manager value (which may be outdated)
                         db_host = creds.get("host")
                         if db_host:
                             logger.warning(
-                                f"[CREDENTIALS] DB_HOST/DB_ENDPOINT env vars not set, using Secrets Manager value. "
-                                f"This may be outdated if RDS Proxy endpoint changed recently."
+                                "[CREDENTIALS] DB_HOST/DB_ENDPOINT env vars not set, using Secrets Manager value. "
+                                "This may be outdated if RDS Proxy endpoint changed recently."
                             )
 
                 if not db_host:
-                    raise ValueError("Database host not found in DB_HOST/DB_ENDPOINT env vars or Secrets Manager secret")
+                    raise ValueError(
+                        "Database host not found in DB_HOST/DB_ENDPOINT env vars or Secrets Manager secret"
+                    )
 
                 # Extract port (no fallback, must be in secret)
                 port_str = creds.get("port")

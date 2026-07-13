@@ -43,18 +43,18 @@ def log_sanitizer(operation: str = "operation") -> Any:
 def classify_exception(error: Exception) -> tuple[int, str, str]:
     """Classify an exception and return HTTP status code, error type, and message."""
     if isinstance(error, psycopg2.errors.UndefinedTable):
-        return 404, "not_found", f"Database table not found"
+        return 404, "not_found", "Database table not found"
     if isinstance(error, psycopg2.errors.UndefinedColumn):
-        return 404, "not_found", f"Database column not found"
+        return 404, "not_found", "Database column not found"
     if isinstance(error, psycopg2.OperationalError):
-        return 503, "service_unavailable", f"Database connection error"
+        return 503, "service_unavailable", "Database connection error"
     if isinstance(error, psycopg2.DatabaseError):
-        return 500, "database_error", f"Database error"
+        return 500, "database_error", "Database error"
     if isinstance(error, psycopg2.IntegrityError):
-        return 409, "conflict", f"Data integrity error"
+        return 409, "conflict", "Data integrity error"
     if isinstance(error, psycopg2.ProgrammingError):
-        return 400, "bad_request", f"Invalid SQL"
-    return 500, "internal_error", f"Unexpected error"
+        return 400, "bad_request", "Invalid SQL"
+    return 500, "internal_error", "Unexpected error"
 
 
 def sanitize_error_message(msg: str) -> str:
@@ -92,7 +92,7 @@ def extract_error_context(e: Exception) -> dict[str, Any]:
 
 def log_error_with_context(e: Exception, context: dict[str, Any] | None = None) -> None:
     """Log an error with context."""
-    msg = f"Error: {type(e).__name__}: {str(e)}"
+    msg = f"Error: {type(e).__name__}: {e!s}"
     if context:
         msg += f" | {context}"
     logger.error(msg)
@@ -111,13 +111,14 @@ def make_error_response(status_code: int, error_type: str, message: str) -> dict
 def retry_with_backoff(func: Any, max_attempts: int = 3, backoff_base: float = 1.0) -> Any:
     """Retry a function with exponential backoff."""
     import time
+
     for attempt in range(max_attempts):
         try:
             return func()
-        except Exception as e:
+        except Exception:
             if attempt == max_attempts - 1:
                 raise
-            wait_time = backoff_base ** attempt
+            wait_time = backoff_base**attempt
             time.sleep(wait_time)
 
 

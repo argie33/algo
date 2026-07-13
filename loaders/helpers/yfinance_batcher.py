@@ -71,7 +71,7 @@ def batch_tickers(symbols: list[str], batch_size: int = 50) -> Generator[dict[st
                 # Rate limit or network error
                 if "429" in str(e) or "Too Many Requests" in str(e):
                     if retry_attempt < max_retries - 1:
-                        wait_time = backoff_base ** retry_attempt
+                        wait_time = backoff_base**retry_attempt
                         logger.warning(
                             f"[YFINANCE_BATCHER] Rate limited. "
                             f"Retrying batch {batch_idx // batch_size + 1} after {wait_time}s "

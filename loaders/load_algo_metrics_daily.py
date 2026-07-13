@@ -19,7 +19,6 @@ configure_socket_timeout(30)
 
 
 class AlgoMetricsDailyLoader(OptimalLoader):
-
     table_name = "algo_metrics_daily"
     primary_key = ("date",)
     watermark_field = "date"

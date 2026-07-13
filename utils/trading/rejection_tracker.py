@@ -3,7 +3,7 @@
 import logging
 from collections.abc import Callable
 from datetime import date
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 

@@ -155,6 +155,7 @@ class OptimalLoader:
                 if isinstance(field_value, str):
                     try:
                         from datetime import datetime as dt
+
                         field_value = dt.fromisoformat(field_value).date()
                     except (ValueError, AttributeError) as e:
                         raise ValueError(

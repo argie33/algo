@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class QualityChecker(BaseCheck):
-
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute all quality checks."""
         self.results = []

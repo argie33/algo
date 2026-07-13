@@ -76,6 +76,7 @@ def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
     atr_pct = (atr_14 / close) * 100
     return max(0.0, min(100.0, 100.0 - (atr_pct * 5)))
 
+
 # ISSUE #6 FIX: Define required signal fields for Phase 6 execution
 _REQUIRED_SIGNAL_FIELDS = {
     "symbol": str,
@@ -379,9 +380,7 @@ def _get_candidates_from_stock_scores_fallback(
                     "volume_surge_pct": None,
                     "market_stage": 0,
                     "signal_date": str(run_date),
-                    "risk_score": _compute_risk_score(
-                        float(r[10]) if r[10] is not None else None, close
-                    ),
+                    "risk_score": _compute_risk_score(float(r[10]) if r[10] is not None else None, close),
                 }
             )
 
@@ -568,9 +567,7 @@ def _get_candidates_from_buysell(
                     "volume_surge_pct": float(r[16]) if r[16] is not None else None,
                     "market_stage": r[17],
                     "signal_date": str(r[18]) if r[18] is not None else None,
-                    "risk_score": _compute_risk_score(
-                        float(r[10]) if r[10] is not None else None, close
-                    ),
+                    "risk_score": _compute_risk_score(float(r[10]) if r[10] is not None else None, close),
                 }
             )
 

@@ -10,14 +10,13 @@ Run: python3 load_market_health_daily.py [--parallelism 1]
 import argparse
 import logging
 import sys
+from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 import pandas as pd
 import psycopg2
-
-from collections.abc import Iterable
 
 from loaders.market_health_fetchers import (
     BreadthFetcher,
@@ -1012,7 +1011,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         df["prev_close"] = df["close"].shift(1)
         df["prev_volume"] = df["volume"].shift(1)
         # Distribution day: close down >= 0.2% AND volume > previous day (IBD canonical definition)
-        df["distribution_day"] = ((df["close"] < df["prev_close"] * 0.998) & (df["volume"] > df["prev_volume"])).astype(int)
+        df["distribution_day"] = ((df["close"] < df["prev_close"] * 0.998) & (df["volume"] > df["prev_volume"])).astype(
+            int
+        )
 
         mas = compute_moving_averages(df["close"])
         df["sma_50"] = mas["sma_50"]
@@ -1062,7 +1063,9 @@ class MarketHealthDailyLoader(OptimalLoader):
             else:
                 return "consolidation", 1
 
-    def _build_health_record(self, row: pd.Series, idx: int, df: pd.DataFrame, close: float, sma_50: float | None, sma_200: float | None) -> dict[str, Any]:
+    def _build_health_record(
+        self, row: pd.Series, idx: int, df: pd.DataFrame, close: float, sma_50: float | None, sma_200: float | None
+    ) -> dict[str, Any]:
         """Build a single market health metric record for one date.
 
         Computes: distribution days, price change %, volume metrics, breadth metrics.
@@ -1208,12 +1211,10 @@ def _extract_ohlcv(row: Any, col: str, symbol: str, d: date) -> float:
         raise
     except (TypeError, ValueError) as e:
         logger.warning(f"[MARKET_HEALTH] Price conversion failed for {col} {symbol} {d}: {val!r}")
-        raise RuntimeError(
-            f"[PRICE_EXTRACTION] Failed to parse {col}={val!r} for {symbol}: {e}"
-        ) from e
+        raise RuntimeError(f"[PRICE_EXTRACTION] Failed to parse {col}={val!r} for {symbol}: {e}") from e
 
 
-def _write_vix_family_prices(start: date, end: date) -> int:  # noqa: C901
+def _write_vix_family_prices(start: date, end: date) -> int:
     """Download VIX-family and market-index prices via wrapper and upsert into price_daily.
 
     Supplies data for:

@@ -88,9 +88,7 @@ class Orchestrator:
             # OrchestratorConfig doesn't have get() method - it's static class attributes
             # Default to paper trading for local/test environments
             self.execution_mode = "paper"
-            logger.info(
-                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, defaulting to: {self.execution_mode}"
-            )
+            logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, defaulting to: {self.execution_mode}")
 
         # Explicitly default run_date to today if not provided
         self.run_date = run_date if run_date is not None else datetime.now(EASTERN_TZ).date()
@@ -134,7 +132,7 @@ class Orchestrator:
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
 
-    def _validate_startup_configuration(self) -> None:
+    def _validate_startup_configuration(self) -> None:  # noqa: C901
         """CRITICAL: Validate all required configuration at startup.
 
         Checks:
@@ -175,12 +173,12 @@ class Orchestrator:
                         logger.info("[LOCAL_MODE] Checking algo_config for Alpaca credentials...")
                         try:
                             with DatabaseContext("read") as cur:
-                                cur.execute('SELECT value FROM algo_config WHERE key = %s', ['alpaca_api_key'])
+                                cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_key"])
                                 result = cur.fetchone()
                                 if result and result[0]:
                                     api_key = result[0]
 
-                                cur.execute('SELECT value FROM algo_config WHERE key = %s', ['alpaca_api_secret'])
+                                cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_secret"])
                                 result = cur.fetchone()
                                 if result and result[0]:
                                     api_secret = result[0]

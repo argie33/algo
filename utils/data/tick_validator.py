@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 class TickValidator:
-
     def __init__(
         self,
         symbol: str,
@@ -202,7 +201,6 @@ class TickValidator:
 
 
 class TickValidationBatch:
-
     def __init__(self, symbol: str, is_etf: bool = False):
         self.symbol = symbol
         self.is_etf = is_etf
