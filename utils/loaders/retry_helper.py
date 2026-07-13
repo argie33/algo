@@ -86,9 +86,9 @@ class RetryHelper:
                 )
                 time.sleep(wait_time)
 
-        # Should not reach here, but just in case
-        if last_exception:
-            raise last_exception
+        # Should not reach here (loop always exits via return or raise above)
+        # but add explicit error handling to satisfy type checker
+        raise RuntimeError(f"[{context}] Unexpected: retry loop completed without result. Last error: {last_exception}")
 
     def with_retries_silent(
         self,
