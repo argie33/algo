@@ -89,10 +89,15 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
 @db_route_handler("get last run")  # type: ignore[untyped-decorator]
 @validate_api_response("run")  # type: ignore[untyped-decorator]
 def _get_last_run(cur: cursor) -> Any:
+    # Phase-level detail lives in orchestrator_execution_log (written by
+    # OrchestratorExecutionTracker with the same run_id) -- the orchestrator's own
+    # INSERT into algo_orchestrator_runs never populates its phase_results column.
     cur.execute("""
-        SELECT run_id, run_date, overall_status, halt_reason, started_at, completed_at
-        FROM algo_orchestrator_runs
-        ORDER BY started_at DESC
+        SELECT r.run_id, r.run_date, r.overall_status, r.halt_reason, r.started_at, r.completed_at,
+               l.phase_results, l.phases_completed
+        FROM algo_orchestrator_runs r
+        LEFT JOIN orchestrator_execution_log l ON l.run_id = r.run_id
+        ORDER BY r.started_at DESC
         LIMIT 1
     """)
     latest = cur.fetchone()
@@ -117,18 +122,20 @@ def _get_last_run(cur: cursor) -> Any:
     completed_at = latest_dict.get("completed_at")
     phase_results = latest_dict.get("phase_results")
 
-    # Compute phases_completed from phase_results JSONB
-    phases_completed = 0
+    # Compute phases_completed: prefer the tracker's own count (it counts status
+    # "ok", which is what OrchestratorExecutionTracker records per phase), falling
+    # back to counting phase_results directly.
+    phases_completed = latest_dict.get("phases_completed") or 0
     if phase_results:
         try:
             if isinstance(phase_results, str):
                 import json
 
                 phase_results = json.loads(phase_results)
-            if isinstance(phase_results, list):
-                phases_completed = len([p for p in phase_results if p.get("status") == "success"])
+            if not phases_completed and isinstance(phase_results, list):
+                phases_completed = len([p for p in phase_results if p.get("status") in ("ok", "success")])
         except (ValueError, TypeError, KeyError):
-            phases_completed = 0
+            pass
 
     if not run_id:
         return error_response(503, "invalid_data", "Run ID missing from latest orchestrator run")
