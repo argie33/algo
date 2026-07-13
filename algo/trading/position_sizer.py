@@ -13,9 +13,9 @@ Rules:
 import decimal
 import logging
 import os
+from collections.abc import Callable
 from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
-from collections.abc import Callable
 from typing import Any, cast
 
 import psycopg2

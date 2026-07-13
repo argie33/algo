@@ -4,8 +4,8 @@ import json
 import logging
 import math
 from collections.abc import Callable
-from datetime import date as _date
 from datetime import date, datetime, timedelta
+from datetime import date as _date
 from typing import TYPE_CHECKING, Any
 
 import psycopg2
