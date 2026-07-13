@@ -6,7 +6,7 @@ import pytest
 from algo.exceptions import DataContractError, MissingPhaseDataError
 from algo.orchestrator.phase_data_contract import validate_phase_5_constraints
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor
-from algo.orchestrator.phase_result import Phase5Result
+from algo.orchestrator.phase_result import PhaseResult
 
 
 def test_phase_5_constraints_validation():

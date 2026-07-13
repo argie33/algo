@@ -64,7 +64,7 @@ except:
 
 # 6. run_dashboard Script
 try:
-    with open("run_dashboard.py") as f:
+    with open("run_dashboard.py", encoding="utf-8") as f:
         test("RUN_DASHBOARD", "from dashboard.dashboard import main" in f.read())
 except:
     test("RUN_DASHBOARD", False)
@@ -94,7 +94,7 @@ except:
 
 # 9. Pre-commit
 try:
-    with open(".pre-commit-config.yaml") as f:
+    with open(".pre-commit-config.yaml", encoding="utf-8") as f:
         test("PRE_COMMIT", "mypy" in f.read())
 except:
     test("PRE_COMMIT", False)

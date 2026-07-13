@@ -77,8 +77,8 @@ class BulkInsertManager:
                         psycopg2.sql.Identifier(self.table_name),
                     )
                 )
-            except psycopg2.Error as e:
-                if "duplicate" in str(e).lower() or "already exists" in str(e).lower():
+            except psycopg2.ProgrammingError as e:
+                if e.pgcode == "42P07":  # relation already exists (PostgreSQL error code)
                     try:
                         cur.execute(
                             psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(psycopg2.sql.Identifier(staging))
@@ -146,8 +146,8 @@ class BulkInsertManager:
         # Update watermark if provided (OUTSIDE transaction to avoid nested DatabaseContext)
         if symbol and new_watermark and watermark_mgr:
             try:
-                # Support both Watermark and WatermarkManager classes
-                if hasattr(watermark_mgr, "advance_watermark"):
+                from utils.data.watermark import Watermark
+                if isinstance(watermark_mgr, Watermark):
                     success = watermark_mgr.advance_watermark(
                         new_watermark=new_watermark,
                         symbol=symbol,
@@ -159,9 +159,13 @@ class BulkInsertManager:
                             f"Watermark advance returned False for {self.table_name}/{symbol}. "
                             f"Data was inserted but watermark did not advance, causing infinite re-loading."
                         )
-                else:
-                    # WatermarkManager.set() only updates in-memory cache
+                elif hasattr(watermark_mgr, "set"):
                     watermark_mgr.set(symbol, new_watermark, inserted)
+                else:
+                    raise RuntimeError(
+                        f"watermark_mgr is neither Watermark nor has set() method. "
+                        f"Type: {type(watermark_mgr).__name__}"
+                    )
             except Exception as e:
                 raise RuntimeError(
                     f"CRITICAL: Failed to advance watermark for {self.table_name}/{symbol} after inserting {inserted} rows: {e}. "
@@ -256,7 +260,7 @@ class BulkInsertManager:
             except psycopg2.IntegrityError as e:
                 logger.warning(f"Cannot create constraint (duplicates exist): {e}")
             except psycopg2.ProgrammingError as e:
-                if "already exists" in str(e):
+                if e.pgcode == "42710":  # object already exists (PostgreSQL error code)
                     logger.debug(f"Constraint already exists: {e}")
                 else:
                     logger.warning(f"Cannot create constraint: {e}")

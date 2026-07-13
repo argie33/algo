@@ -156,8 +156,8 @@ class FileLockManager:
         if self.current_lock_file and self.current_lock_file.exists():
             try:
                 self.current_lock_file.unlink()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"[FILE_LOCK] Failed to cleanup lock file {self.current_lock_file}: {e}")
 
 
 def get_lock_manager(

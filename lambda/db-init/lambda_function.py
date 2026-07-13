@@ -445,13 +445,15 @@ def lambda_handler(event, context):  # noqa: C901
             try:
                 cursor.execute(statement)
                 ok_count += 1
-            except (json.JSONDecodeError, ValueError) as e:
-                err = str(e)
-                if "already exists" in err or "does not exist" in err:
+            except psycopg2.ProgrammingError as e:
+                if e.pgcode in ("42P07", "42704"):  # relation/object already exists or does not exist
                     skip_count += 1
                 else:
-                    logger.warning(f"Statement failed: {statement[:100]}... -> {err[:120]}")
+                    logger.warning(f"Statement failed: {statement[:100]}... -> {e}")
                     skip_count += 1
+            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                logger.warning(f"Statement failed: {statement[:100]}... -> {e}")
+                skip_count += 1
 
         cursor.close()
         conn.close()

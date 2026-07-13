@@ -2,7 +2,7 @@
 """Test Phase Executor Dependency Validation: Verify the executor enforces dependencies."""
 
 from algo.orchestrator.phase_executor import OrchestratorPhaseExecutor, PhaseDefinition
-from algo.orchestrator.phase_result import Phase5Result, Phase7Result, PhaseResult
+from algo.orchestrator.phase_result import PhaseResult
 
 
 def test_executor_detects_missing_dependency():
