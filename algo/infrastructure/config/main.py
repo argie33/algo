@@ -956,7 +956,7 @@ class AlgoConfig:
         "enable_advanced_filters": ("false", "bool", "Enable advanced signal filters", "Advanced Filters"),
         # Pyramid Trading Configuration
         "pyramid_enabled": ("false", "bool", "Enable pyramid position sizing", "Position Sizing"),
-        "pyramid_split_pct": ("50", "float", "Initial position size %", "Position Sizing"),
+        "pyramid_split_pct": ("50,33,17", "string", "Entry size split % (comma-separated)", "Position Sizing"),
         "pyramid_add_1_gain_pct": ("3", "float", "Gain % to trigger add 1", "Position Sizing"),
         "pyramid_add_2_gain_pct": ("6", "float", "Gain % to trigger add 2", "Position Sizing"),
         # Data Patrol Staleness Thresholds (per-table granularity)

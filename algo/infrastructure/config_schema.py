@@ -280,7 +280,9 @@ VALIDATION_SCHEMA = {
     "alpaca_api_secret_key": ("string", None, None, False, None),
     "alpaca_api_base_url": ("string", None, None, False, "https://paper-api.alpaca.markets"),
     # yfinance Timeout Configuration
-    "yfinance_market_close_timeout_eod_sec": ("int", 1, 600, False, 30),
+    # EOD deadline is intentionally 1800s (30 min total budget, see
+    # migrations/versions/111_add_yfinance_market_close_timeout_config.sql)
+    "yfinance_market_close_timeout_eod_sec": ("int", 1, 1800, False, 30),
     "yfinance_market_close_timeout_morning_sec": ("int", 1, 600, False, 30),
     # Signal and Score Thresholds
     "signal_score_threshold": ("int", 1, 100, False, 60),
@@ -310,7 +312,9 @@ VALIDATION_SCHEMA = {
     "swing_weight_multi_timeframe": ("int", 0, 100, False, 5),
     # Corporate Action Configuration
     "patrol_corporate_action_lookback_days": ("int", 1, 365, False, 30),
-    "patrol_corporate_action_drop_ratio": ("float", 0.0, 1.0, False, 0.10),
+    # Negative: a single-day price drop signaling a likely split/reverse-split (see
+    # algo/infrastructure/config/data_patrol_config.py's -0.30 documented default).
+    "patrol_corporate_action_drop_ratio": ("float", -1.0, 0.0, False, -0.30),
     # Historical Price Lookback Periods (for comparative calculations in scores/rankings)
     # These replace hardcoded INTERVAL values in SQL queries throughout loaders
     "lookback_price_1m": ("int", 20, 60, False, 30),  # ~1 month
