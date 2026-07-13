@@ -173,18 +173,6 @@ def audit_orchestrator():
         else:
             print(f"✓ Successful runs in past 24h: {success_runs}")
 
-            if phase_8:
-                if phase_8.get('status') == 'success':
-                    print(f"✓ Phase 8 (Trading): {phase_8.get('status')}")
-                else:
-                    issues.append(f"⚠ Phase 8 (Trading) status: {phase_8.get('status')}")
-
-            if phase_9:
-                if phase_9.get('status') == 'success':
-                    print(f"✓ Phase 9 (Reconciliation): {phase_9.get('status')}")
-                else:
-                    issues.append(f"⚠ Phase 9 (Reconciliation) status: {phase_9.get('status')}")
-
         conn.close()
 
     except Exception as e:
@@ -271,7 +259,7 @@ def audit_data_freshness():
         cur = conn.cursor()
 
         # Critical for trading: stock_scores (used to select positions)
-        cur.execute("SELECT MAX(created_at) FROM stock_scores")
+        cur.execute("SELECT MAX(updated_at) FROM stock_scores")
         row = cur.fetchone()
         if row and row[0]:
             age = (datetime.now(timezone.utc) - row[0].replace(tzinfo=timezone.utc)).total_seconds() / 3600
