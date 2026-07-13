@@ -159,25 +159,60 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             "data_unavailable": False,
         }
 
-        # Operating margin
+        # Operating margin - validate result is reasonable (margins typically -100% to +100%)
         if revenue and revenue > 0 and operating_income is not None:
-            metrics["operating_margin"] = float(round((operating_income / revenue) * 100, 2))
+            om = float(round((operating_income / revenue) * 100, 2))
+            if -1000 <= om <= 1000:  # Reasonable range for any margin
+                metrics["operating_margin"] = om
+            else:
+                logger.warning(f"[{symbol}] Operating margin {om}% out of range, marking unavailable")
+                metrics["data_unavailable"] = True
+                metrics["reason"] = f"Operating margin calculation invalid: {om}%"
+                return metrics
 
-        # Net margin
+        # Net margin - validate result is reasonable
         if revenue and revenue > 0 and net_income is not None:
-            metrics["net_margin"] = float(round((net_income / revenue) * 100, 2))
+            nm = float(round((net_income / revenue) * 100, 2))
+            if -1000 <= nm <= 1000:
+                metrics["net_margin"] = nm
+            else:
+                logger.warning(f"[{symbol}] Net margin {nm}% out of range, marking unavailable")
+                metrics["data_unavailable"] = True
+                metrics["reason"] = f"Net margin calculation invalid: {nm}%"
+                return metrics
 
-        # ROE
+        # ROE - validate result is reasonable (ROE typically -300% to +300%)
         if stockholders_equity and stockholders_equity > 0 and net_income is not None:
-            metrics["roe"] = float(round((net_income / stockholders_equity) * 100, 2))
+            roe = float(round((net_income / stockholders_equity) * 100, 2))
+            if -1000 <= roe <= 1000:
+                metrics["roe"] = roe
+            else:
+                logger.warning(f"[{symbol}] ROE {roe}% out of range, marking unavailable")
+                metrics["data_unavailable"] = True
+                metrics["reason"] = f"ROE calculation invalid: {roe}%"
+                return metrics
 
-        # ROA
+        # ROA - validate result is reasonable (ROA typically -100% to +100%)
         if total_assets and total_assets > 0 and net_income is not None:
-            metrics["roa"] = float(round((net_income / total_assets) * 100, 2))
+            roa = float(round((net_income / total_assets) * 100, 2))
+            if -1000 <= roa <= 1000:
+                metrics["roa"] = roa
+            else:
+                logger.warning(f"[{symbol}] ROA {roa}% out of range, marking unavailable")
+                metrics["data_unavailable"] = True
+                metrics["reason"] = f"ROA calculation invalid: {roa}%"
+                return metrics
 
-        # Debt to Equity
+        # Debt to Equity - validate result is reasonable (D/E typically 0 to 10)
         if stockholders_equity and stockholders_equity > 0 and total_liabilities is not None:
-            metrics["debt_to_equity"] = float(round(total_liabilities / stockholders_equity, 2))
+            de = float(round(total_liabilities / stockholders_equity, 2))
+            if 0 <= de <= 100:  # Reasonable range for debt-to-equity
+                metrics["debt_to_equity"] = de
+            else:
+                logger.warning(f"[{symbol}] Debt/Equity {de} out of range, marking unavailable")
+                metrics["data_unavailable"] = True
+                metrics["reason"] = f"Debt/Equity calculation invalid: {de}"
+                return metrics
 
         return metrics
 
