@@ -83,6 +83,18 @@ class ExitStrategy(ABC):
         """
         ...
 
+    def _validate_decision(self, decision: dict[str, Any]) -> None:
+        """Validate exit decision has required fields."""
+        if not decision:
+            return
+        required_fields = ["stage", "reason", "fraction"]
+        missing = [f for f in required_fields if f not in decision or decision[f] is None]
+        if missing:
+            raise ValueError(
+                f"Exit decision incomplete: missing {missing}. "
+                f"Cannot process exit without all required fields."
+            )
+
     def _get_config(self, key: str) -> Any:
         """Get config value (supports both AlgoConfig and dict).
 
@@ -130,13 +142,7 @@ class MinerviniBreakStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_minervini_break(engine)
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"Minervini break exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
@@ -156,13 +162,7 @@ class RSLineBreakStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_rs_line_break(engine)
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"RS line break exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
@@ -182,13 +182,7 @@ class TimeBasedExitStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_time_exit(engine)
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"Time-based exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
@@ -219,13 +213,7 @@ class ProfitTargetStrategy(ExitStrategy):
             return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"Profit target T{self.target_level} exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
@@ -267,13 +255,7 @@ class ChandelierTrailStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_chandelier_trail(engine)
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"Chandelier trail exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
@@ -294,13 +276,7 @@ class TDSequentialStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_td_sequential(engine)
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"TD Sequential exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
@@ -320,13 +296,7 @@ class FirstRedDayStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_first_red_day(engine)
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"First red day exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
@@ -346,13 +316,7 @@ class ClimaxExhaustionStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_climax_exhaustion(engine)
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"Climax exhaustion exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
@@ -369,13 +333,7 @@ class DistributionStrategy(ExitStrategy):
         _should_exit, decision = ctx.check_distribution()
 
         if _should_exit and decision:
-            required_fields = ["stage", "reason", "fraction"]
-            missing = [f for f in required_fields if f not in decision or decision[f] is None]
-            if missing:
-                raise ValueError(
-                    f"Distribution exit decision incomplete: missing {missing}. "
-                    f"Cannot process exit without all required fields."
-                )
+            self._validate_decision(decision)
             return ExitSignal(
                 triggered=True,
                 stage=decision["stage"],
