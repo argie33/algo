@@ -794,7 +794,9 @@ def main() -> None:
 
     try:
         # Configure data source
-        if args.local:
+        # Check both: explicit --local flag OR auto-detected LOCAL_MODE from environment
+        use_local = args.local or os.environ.get("LOCAL_MODE") == "true"
+        if use_local:
             data_source = _setup_local_api()
         else:
             # AWS mode: fetch and validate credentials
