@@ -73,30 +73,31 @@ class PriceValidator:
             raise RuntimeError(msg) from e
 
     def validate_price_row(self, row: dict[str, Any]) -> bool:
-        # Check required fields
+        # Check required fields - explicit key checking (no silent .get() fallbacks)
         if self.validation_rules.get("close_required") and row.get("close") is None:
             return False
-        if self.validation_rules.get("date_required") and row.get("date") is None:
+        if self.validation_rules.get("date_required") and (row["date"] if "date" in row else None) is None:
             return False
-        if self.validation_rules.get("symbol_required") and row.get("symbol") is None:
+        if self.validation_rules.get("symbol_required") and (row["symbol"] if "symbol" in row else None) is None:
             return False
 
         # Check OHLC reasonableness
         if self.validation_rules.get("ohlc_reasonable"):
-            close = row.get("close")
-            high = row.get("high")
-            low = row.get("low")
+            close = row["close"] if "close" in row else None
+            high = row["high"] if "high" in row else None
+            low = row["low"] if "low" in row else None
 
             if close is not None and high is not None and low is not None:
                 if not (low <= close <= high):
-                    logger.warning(f"Price out of range for {row.get('symbol')}: close={close}, high={high}, low={low}")
+                    symbol = row["symbol"] if "symbol" in row else "unknown"
+                    logger.warning(f"Price out of range for {symbol}: close={close}, high={high}, low={low}")
                     return False
                 if not (high >= low):
                     return False
 
         # Check volume non-negative
         if self.validation_rules.get("volume_non_negative"):
-            volume = row.get("volume")
+            volume = row["volume"] if "volume" in row else None
             if volume is not None and volume < 0:
                 return False
 
