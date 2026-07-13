@@ -332,7 +332,7 @@ class TestNewEndpointValidators:
 
     def test_sector_rotation_valid(self):
         """Valid sector rotation response passes."""
-        from dashboard.response_validators import (
+        from utils.validation.response_validators import (
             validate_sector_rotation_response,
         )
 
@@ -348,7 +348,7 @@ class TestNewEndpointValidators:
 
     def test_validation_with_error_flag_passes(self):
         """Any response with _error flag passes through without validation."""
-        from dashboard.response_validators import (
+        from utils.validation.response_validators import (
             validate_last_run_response,
             validate_markets_response,
             validate_trades_response,

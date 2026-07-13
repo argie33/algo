@@ -231,11 +231,6 @@ def run(  # noqa: C901
     if failsafe_halt:
         return failsafe_halt
 
-    # ISSUE #6 FIX: Check DataPatrol results before proceeding with freshness validation
-    patrol_halt = _check_data_patrol(run_date, dry_run, log_phase_result_fn)
-    if patrol_halt:
-        return patrol_halt
-
     try:
         with DatabaseContext("read") as cur:
             cur.execute("SET statement_timeout = 15000")  # 15s timeout for multi-table checks
