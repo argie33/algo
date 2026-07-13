@@ -21,7 +21,8 @@ class ReconciliationAnalytics:
     """
 
     def __init__(self) -> None:
-        """Initialize analytics computer."""
+        """Initialize reconciliation analytics."""
+        pass
 
     def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
         """Compute daily analytics: Information Coefficient (IC) and expectancy.
