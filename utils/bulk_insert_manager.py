@@ -146,8 +146,8 @@ class BulkInsertManager:
         # Update watermark if provided (OUTSIDE transaction to avoid nested DatabaseContext)
         if symbol and new_watermark and watermark_mgr:
             try:
-                from utils.data.watermark import Watermark
-                if isinstance(watermark_mgr, Watermark):
+                from utils.data.watermark import WatermarkManager
+                if isinstance(watermark_mgr, WatermarkManager):
                     success = watermark_mgr.advance_watermark(
                         new_watermark=new_watermark,
                         symbol=symbol,
