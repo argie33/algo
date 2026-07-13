@@ -86,7 +86,7 @@ class AdvancedFilters:
 
     # ---------- Pre-load: market context ----------
 
-    def load_market_context(self, eval_date: Any) -> dict[str, Any]:
+    def load_market_context(self, eval_date: _date) -> dict[str, Any]:
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
@@ -160,7 +160,7 @@ class AdvancedFilters:
     def evaluate_candidate(  # noqa: C901
         self,
         symbol: str,
-        signal_date: Any,
+        signal_date: _date,
         entry_price: float,
         sector: str | None,
         industry: str | None,
@@ -368,7 +368,7 @@ class AdvancedFilters:
 
     # ============= MOMENTUM =============
 
-    def _mansfield_rs_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, float]:
+    def _mansfield_rs_score(self, symbol: str, signal_date: _date, cur: Any) -> tuple[float, float]:
         """Compute Mansfield-style RS percentile vs SPY.
 
         Raises:
@@ -414,7 +414,7 @@ class AdvancedFilters:
             )
         return FilterRegistry.get_weight("momentum_industry")
 
-    def _volume_confirmation_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, float]:
+    def _volume_confirmation_score(self, symbol: str, signal_date: _date, cur: Any) -> tuple[float, float]:
         cur.execute(
             """
             WITH d AS (
@@ -449,7 +449,7 @@ class AdvancedFilters:
         )
         return pts, round(ratio, 2)
 
-    def _price_trend_score(self, symbol: str, signal_date: Any, cur: Any) -> float:
+    def _price_trend_score(self, symbol: str, signal_date: _date, cur: Any) -> float:
         """Multi-timeframe alignment (Elder Triple Screen):
         +2 pts each if 5d return positive, 20d return positive,
         +1 pt if also a BUY signal on weekly timeframe (very strong combo).
@@ -486,7 +486,7 @@ class AdvancedFilters:
 
         return min(score, FilterRegistry.get_weight("momentum_price_trend"))
 
-    def _setup_quality_score(self, symbol: str, signal_date: Any) -> tuple[float, dict[str, Any]]:
+    def _setup_quality_score(self, symbol: str, signal_date: _date) -> tuple[float, dict[str, Any]]:
         """Bonus pts for entering on a real base breakout / VCP (canonical swing setup).
 
         +3 pts: in identified base AND breakout imminent (within 2% of pivot)
@@ -536,7 +536,7 @@ class AdvancedFilters:
             "return_21d": power.get("return_21d"),
         }
 
-    def _period_return(self, symbol: str, end_date: Any, lookback_days: int, cur: Any) -> float:
+    def _period_return(self, symbol: str, end_date: _date, lookback_days: int, cur: Any) -> float:
         """Compute simple return over a lookback period.
 
         Raises:
@@ -723,7 +723,7 @@ class AdvancedFilters:
             "momentum": round(mom, 1),
         }
 
-    def _analyst_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, int]:
+    def _analyst_score(self, symbol: str, signal_date: _date, cur: Any) -> tuple[float, int]:
         interval_90d = get_interval_sql("90d")
         cur.execute(
             f"""
@@ -766,7 +766,7 @@ class AdvancedFilters:
         )
         return pts, net
 
-    def _insider_score(self, symbol: str, signal_date: Any, cur: Any) -> tuple[float, float]:
+    def _insider_score(self, symbol: str, signal_date: _date, cur: Any) -> tuple[float, float]:
         interval_60d = get_interval_sql("60d")
         cur.execute(
             f"""
@@ -806,7 +806,7 @@ class AdvancedFilters:
 
     # ============= RISK =============
 
-    def _extension_pct(self, symbol: str, signal_date: Any, entry_price: float, cur: Any) -> float:
+    def _extension_pct(self, symbol: str, signal_date: _date, entry_price: float, cur: Any) -> float:
         """Calculate entry price extension above 50-day SMA.
 
         Raises:
@@ -857,7 +857,7 @@ class AdvancedFilters:
             return risk_earnings_prox_weight
         return risk_earnings_prox_weight * (days_to_earnings - block_window) / (safe_days - block_window)
 
-    def _avg_dollar_volume(self, symbol: str, signal_date: Any, cur: Any) -> float:
+    def _avg_dollar_volume(self, symbol: str, signal_date: _date, cur: Any) -> float:
         """Calculate average daily dollar volume (close * volume) over 50 days.
 
         Raises:
@@ -880,7 +880,7 @@ class AdvancedFilters:
             )
         return float(row[0])
 
-    def _estimate_days_to_earnings(self, symbol: str, signal_date: Any, cur: Any) -> int:
+    def _estimate_days_to_earnings(self, symbol: str, signal_date: _date, cur: Any) -> int:
         """Estimate days until next earnings. Tries calendar -> estimates -> quarterly estimate.
 
         Raises:
