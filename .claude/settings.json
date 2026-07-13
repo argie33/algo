@@ -8,6 +8,8 @@
       "Bash(git *)",
       "PowerShell(git *)",
       "Bash(npm *)",
+      "Bash(terraform *)",
+      "PowerShell(terraform *)",
       "Bash(python *)",
       "PowerShell(python *)",
       "Bash(node *)",
