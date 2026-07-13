@@ -2312,6 +2312,14 @@ def main() -> int:
                     "[CRITICAL] Advisory lock query returned no rows - database connection may be corrupted"
                 )
             acquired = row[0]
+            _cur.execute("SELECT pg_backend_pid(), inet_server_addr()")
+            _pid_row = _cur.fetchone()
+            logger.info(
+                "[LOCK] pg_try_advisory_lock('stock_prices_daily') acquired=%s backend_pid=%s server=%s",
+                acquired,
+                _pid_row[0] if _pid_row else None,
+                _pid_row[1] if _pid_row else None,
+            )
         if not acquired:
             try:
                 _lock_conn.close()

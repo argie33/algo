@@ -134,6 +134,18 @@ class TrackedConnection:
     def __getattr__(self, name: str) -> Any:
         return getattr(self._conn, name)
 
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Forward attribute writes (e.g. `conn.autocommit = True`) to the wrapped
+        # psycopg2 connection. Without this, `__getattr__` (only invoked for missing
+        # attributes) never fires on assignment, so `conn.autocommit = True` silently
+        # creates a phantom attribute on this wrapper instead of the real connection --
+        # confirmed live: loaders/load_prices.py's advisory-lock connection sets
+        # autocommit=True this way and it never actually took effect.
+        if name in ("_conn", "_pool"):
+            object.__setattr__(self, name, value)
+        else:
+            setattr(self._conn, name, value)
+
     def __enter__(self) -> Any:
         return self._conn.__enter__()
 
