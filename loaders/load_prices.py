@@ -2235,9 +2235,15 @@ def main() -> int:
     intervals = [x.strip() for x in intervals_str.split(",")]
     asset_classes = [x.strip() for x in asset_classes_str.split(",")]
 
-    # Set execution timeout (ECS task timeout for price loader is 1800s = 30m per terraform config)
-    # Use 1700s to allow 100s buffer before ECS force-kill to ensure graceful shutdown
-    execution_timeout_sec = 1700
+    # Set execution timeout from the LOADER_TIMEOUT env var terraform already passes per-loader
+    # (terraform/modules/loaders/main.tf sets it to each.value.timeout, e.g. 5400s for
+    # stock_prices_daily) -- this was previously hardcoded to 1700s (a stale 1800s-ECS-timeout
+    # assumption) even after the real ECS timeout was raised to 5400s for the full ~10k-symbol
+    # universe, so this self-imposed alarm fired at 28min every run regardless of the extra
+    # headroom, killing the process mid-batch (surfacing elsewhere as "cannot schedule new
+    # futures after interpreter shutdown" from in-flight ThreadPoolExecutor submissions).
+    # 100s buffer before ECS force-kill to allow graceful shutdown.
+    execution_timeout_sec = int(os.getenv("LOADER_TIMEOUT", "1800")) - 100
 
     import signal
 
