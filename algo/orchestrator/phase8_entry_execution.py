@@ -603,26 +603,43 @@ def run(
             log_phase_result_fn(8, "entry_execution", "halt", error_msg)
             return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
-    # Get Alpaca credentials if available, but don't fail if missing (TradeExecutor handles paper mode)
+    # CRITICAL: Get Alpaca credentials - FAIL LOUD if missing and trades are queued
+    # Previously: silent fallback would skip trades without any indication (WRONG!)
+    # Now: explicit validation with actionable error messages
     alpaca_key = None
     alpaca_secret = None
     execution_mode = config.get("execution_mode", "paper")
 
-    try:
-        from config.credential_manager import get_credential_manager
+    from config.credential_manager import get_credential_manager
 
+    try:
         creds = get_credential_manager().get_alpaca_credentials()
         if creds and creds.get("key") and creds.get("secret"):
             alpaca_key = creds["key"]
             alpaca_secret = creds["secret"]
+            logger.info("[PHASE 8] Alpaca credentials loaded successfully")
         else:
-            logger.warning("[PHASE 8] Alpaca credentials not configured - will use paper trading mode")
-    except (RuntimeError, ValueError, KeyError) as e:
-        # Credentials unavailable - will use paper trading mode
-        logger.warning(
-            f"[PHASE 8] Could not fetch Alpaca credentials ({type(e).__name__}): {e}. "
-            f"Proceeding with {execution_mode} mode (will skip live broker calls)"
+            # Credentials returned but missing key/secret fields
+            raise ValueError(
+                "[PHASE 8 CRITICAL] Alpaca credentials object is missing key/secret fields. "
+                "Credential manager returned invalid data."
+            )
+    except (RuntimeError, ValueError) as e:
+        # FAIL HARD: Credentials missing or invalid, and we have trades to execute
+        error_msg = (
+            f"[PHASE 8 CRITICAL] Alpaca credentials not available: {e}\n"
+            f"Cannot execute {len(qualified_trades)} qualified trades without credentials.\n"
+            f"\nTO FIX:\n"
+            f"1. LOCAL DEV: Run: source scripts/setup_local_alpaca_credentials.sh\n"
+            f"2. AWS DEPLOYMENT: Set GitHub Secrets:\n"
+            f"   - ALPACA_API_KEY_ID (e.g., PK_PAPER_xxxxx)\n"
+            f"   - ALPACA_API_SECRET_KEY\n"
+            f"   See: https://github.com/argie33/algo/settings/secrets/actions\n"
+            f"3. Then run: terraform apply (or push to main for GitHub Actions)"
         )
+        logger.critical(error_msg)
+        log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
     pretrade = PreTradeChecks(
         config=config,

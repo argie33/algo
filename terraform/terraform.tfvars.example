@@ -1,0 +1,80 @@
+# ============================================================
+# Terraform Variables - COPY TO terraform.tfvars AND FILL IN
+# ============================================================
+#
+# This file shows required variables for deploying the algo system.
+# To use locally: cp terraform.tfvars.example terraform.tfvars
+# Then fill in the values below.
+#
+# FOR GITHUB ACTIONS DEPLOYMENT:
+# Do NOT use terraform.tfvars - instead set GitHub Secrets:
+#   - ALPACA_API_KEY_ID
+#   - ALPACA_API_SECRET_KEY
+#   - JWT_SECRET
+#   - FRED_API_KEY
+# See: https://github.com/argie33/algo/settings/secrets/actions
+#
+# GitHub Actions will automatically read these secrets and pass
+# them to Terraform as TF_VAR_* environment variables.
+
+# ============================================================
+# ALPACA TRADING CREDENTIALS (REQUIRED)
+# ============================================================
+# Paper trading API credentials from https://alpaca.markets
+# These are used by Phase 8 (Entry Execution) to place trades
+alpaca_api_key = "PK_PAPER_YOUR_KEY_HERE"
+alpaca_api_secret = "YOUR_SECRET_KEY_HERE"
+
+# ============================================================
+# AWS CONFIGURATION (REQUIRED)
+# ============================================================
+aws_account_id = "626216981288"
+aws_region     = "us-east-1"
+
+# ============================================================
+# DATABASE CREDENTIALS (REQUIRED)
+# ============================================================
+# PostgreSQL RDS connection details
+db_host     = "algo-db.c1234567890.us-east-1.rds.amazonaws.com"
+db_name     = "stocks"
+db_user     = "postgres"
+db_password = "YOUR_DB_PASSWORD_HERE"
+db_port     = 5432
+
+# ============================================================
+# API CREDENTIALS (REQUIRED)
+# ============================================================
+# FRED (Federal Reserve Economic Data) API key from https://fred.stlouisfed.org/
+fred_api_key = "YOUR_FRED_API_KEY_HERE"
+
+# ============================================================
+# JWT SECRET (REQUIRED)
+# ============================================================
+# Used for signing JWT tokens in the API
+# Generate: openssl rand -base64 32
+jwt_secret = "YOUR_JWT_SECRET_HERE"
+
+# ============================================================
+# EMAIL NOTIFICATIONS (OPTIONAL)
+# ============================================================
+# Alert email address for system notifications
+notification_email = "your-email@example.com"
+
+# ============================================================
+# SMTP SETTINGS (OPTIONAL)
+# ============================================================
+# For sending email alerts
+alert_smtp_host     = "smtp.example.com"
+alert_smtp_port     = 587
+alert_smtp_user     = "your-email@example.com"
+alert_smtp_password = "YOUR_SMTP_PASSWORD_HERE"
+
+# ============================================================
+# TAGS (OPTIONAL)
+# ============================================================
+# Applied to all AWS resources
+common_tags = {
+  Environment = "dev"
+  Project     = "algo"
+  ManagedBy   = "Terraform"
+}
