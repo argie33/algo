@@ -88,20 +88,38 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         # Validate snapshot_date field (API returns snapshot_date, not last_run)
-        snapshot_date = port.get("snapshot_date") or port.get("last_run")
+        # EXPLICIT CHECK: Try primary field first, then fallback field
+        snapshot_date = port.get("snapshot_date")
         if not snapshot_date:
-            logger.error("Portfolio missing snapshot_date/last_run field")
-            record_data_quality_issue("portfolio", "snapshot_date", "missing_required_field")
-            return FetcherValidator.build_error_response("Portfolio snapshot_date/last_run field missing")
+            # Try secondary field with explicit logging
+            snapshot_date = port.get("last_run")
+            if not snapshot_date:
+                logger.error("Portfolio missing snapshot_date/last_run field")
+                record_data_quality_issue("portfolio", "snapshot_date", "missing_required_field")
+                return FetcherValidator.build_error_response("Portfolio snapshot_date/last_run field missing")
 
         # Check if API reports stale data in data_freshness field
-        data_freshness = port.get("data_freshness", {})
-        is_stale_from_api = data_freshness.get("is_stale", False)
+        # EXPLICIT CHECK: data_freshness field may not exist (optional reporting)
+        data_freshness = port.get("data_freshness")
+        is_stale_from_api = None
+        if data_freshness is None:
+            # No freshness data available — continue without freshness check
+            logger.debug("Portfolio API did not provide data_freshness field; skipping freshness validation")
+        else:
+            # data_freshness field exists; extract is_stale flag
+            is_stale_from_api = data_freshness.get("is_stale")  # May be None or bool
 
         # Use the is_stale flag from API if available (more reliable than calculating here)
         # The API has direct database access and can timestamp accurately
         if is_stale_from_api:
-            data_age = data_freshness.get("age_seconds", port.get("data_age_seconds", "unknown"))
+            # EXPLICIT FALLBACK: Try data_freshness.age_seconds first, then port.data_age_seconds
+            data_age = data_freshness.get("age_seconds") if data_freshness else None
+            if data_age is None:
+                # Fallback to port-level age field
+                data_age = port.get("data_age_seconds")
+            if data_age is None:
+                # Last resort: use generic placeholder
+                data_age = "unknown"
             error_msg = (
                 f"Portfolio data is stale ({data_age}s old). "
                 f"Phase 9 orchestration may not be running or may have failed. "

@@ -434,12 +434,24 @@ def _get_rejection_funnel(cur: cursor) -> Any:
             )
 
         result_dict = safe_dict_convert(result)
-        total = int(result_dict.get("total", 0) or 0)
-        t1 = int(result_dict.get("t1", 0) or 0)
-        t2 = int(result_dict.get("t2", 0) or 0)
-        t3 = int(result_dict.get("t3", 0) or 0)
-        t4 = int(result_dict.get("t4", 0) or 0)
-        t5 = int(result_dict.get("t5", 0) or 0)
+
+        # Validate all required count fields exist (SQL COUNT always returns non-None)
+        required_fields = ["total", "t1", "t2", "t3", "t4", "t5"]
+        for field in required_fields:
+            if field not in result_dict:
+                raise ValueError(
+                    f"Signal funnel query missing required field '{field}' - possible database schema change"
+                )
+
+        # Direct access (already validated fields exist)
+        total = int(result_dict["total"])
+        t1 = int(result_dict["t1"])
+        t2 = int(result_dict["t2"])
+        t3 = int(result_dict["t3"])
+        t4 = int(result_dict["t4"])
+        t5 = int(result_dict["t5"])
+
+        # Derived/optional fields may be None (avg_score and signal_date)
         avg_score = result_dict.get("avg_score")
         signal_date = result_dict.get("signal_date")
 

@@ -101,10 +101,19 @@ def _get_last_run(cur: cursor) -> Any:
 
     latest_dict = safe_json_serialize(safe_dict_convert(latest))
 
-    run_id = latest_dict.get("run_id")
-    overall_status = latest_dict.get("overall_status")
+    # Validate required fields exist in orchestrator run record
+    required_fields = ["run_id", "overall_status", "started_at"]
+    for field in required_fields:
+        if field not in latest_dict or latest_dict[field] is None:
+            raise ValueError(f"Orchestrator run missing required field '{field}'")
+
+    # Extract required fields (guaranteed non-None by validation above)
+    run_id = latest_dict["run_id"]
+    overall_status = latest_dict["overall_status"]
+    started_at = latest_dict["started_at"]
+
+    # Optional fields may be None
     halt_reason = latest_dict.get("halt_reason")
-    started_at = latest_dict.get("started_at")
     completed_at = latest_dict.get("completed_at")
     phase_results = latest_dict.get("phase_results")
 

@@ -221,16 +221,36 @@ class APIHandler(BaseHTTPRequestHandler):
                     "error": "No portfolio snapshot available. Run orchestrator first."
                 })
 
+            # CRITICAL: Validate required portfolio fields (no silent 0 defaults)
+            required_fields = ["total_portfolio_value", "position_count"]
+            for field in required_fields:
+                if field not in snapshot or snapshot[field] is None:
+                    raise ValueError(
+                        f"[PORTFOLIO_DATA_ERROR] Portfolio snapshot missing '{field}'. "
+                        f"Orchestrator may not have run or Phase 9 failed. "
+                        f"Cannot return portfolio data with missing required field."
+                    )
+
+            # Extract with explicit None checking for optional fields
+            total_portfolio_value = float(snapshot["total_portfolio_value"])
+            position_count = int(snapshot["position_count"])
+
+            # Optional fields (may be None on first run)
+            total_cash = float(snapshot.get("cash_balance") or 0) if snapshot.get("cash_balance") is not None else 0
+            daily_return_pct = float(snapshot.get("daily_return_pct") or 0) if snapshot.get("daily_return_pct") is not None else None
+            unrealized_pnl_total = float(snapshot.get("unrealized_pnl") or 0) if snapshot.get("unrealized_pnl") is not None else None
+            snapshot_date = snapshot.get("snapshot_date")
+
             response = {
                 "statusCode": 200,
                 "data": {
-                    "total_portfolio_value": float(snapshot.get("total_portfolio_value") or 0),
-                    "total_cash": float(snapshot.get("cash_balance") or 0),
-                    "position_count": int(snapshot.get("position_count") or 0),
-                    "daily_return_pct": float(snapshot.get("daily_return_pct") or 0),
-                    "unrealized_pnl_total": float(snapshot.get("unrealized_pnl") or 0),
-                    "last_run": snapshot.get("snapshot_date", datetime.now(timezone.utc)).isoformat() if hasattr(snapshot.get("snapshot_date"), "isoformat") else str(snapshot.get("snapshot_date")),
-                    "data_age_seconds": int((datetime.now(timezone.utc) - snapshot.get("snapshot_date").replace(tzinfo=timezone.utc)).total_seconds()) if snapshot.get("snapshot_date") else 0,
+                    "total_portfolio_value": total_portfolio_value,
+                    "total_cash": total_cash,
+                    "position_count": position_count,
+                    "daily_return_pct": daily_return_pct,
+                    "unrealized_pnl_total": unrealized_pnl_total,
+                    "last_run": snapshot_date.isoformat() if snapshot_date and hasattr(snapshot_date, "isoformat") else str(snapshot_date),
+                    "data_age_seconds": int((datetime.now(timezone.utc) - snapshot_date.replace(tzinfo=timezone.utc)).total_seconds()) if snapshot_date else None,
                 },
             }
             self._send_json(200, response)
@@ -613,15 +633,34 @@ class APIHandler(BaseHTTPRequestHandler):
             if spy_change_row and spy_change_row.get("close") and spy_change_row.get("prev_close"):
                 sp500_change = ((spy_change_row.get("close") - spy_change_row.get("prev_close")) / spy_change_row.get("prev_close")) * 100
 
+            # CRITICAL: Validate required market data exists (no hardcoded fallback prices)
+            if not spy or "close" not in spy or spy["close"] is None:
+                raise ValueError(
+                    "[MARKET_DATA_ERROR] SPY close price unavailable. "
+                    "Cannot return market dashboard without current S&P 500 price. "
+                    "Check: (1) price_daily loader ran successfully, (2) market data freshness, (3) database connection."
+                )
+
+            if not market or "vix" not in market or market["vix"] is None:
+                raise ValueError(
+                    "[MARKET_DATA_ERROR] VIX data unavailable. "
+                    "Cannot return market dashboard without volatility index. "
+                    "Check: (1) market_health loader ran successfully, (2) data freshness, (3) database connection."
+                )
+
+            # Extract market_regime (optional - can be unknown)
+            market_regime = market.get("market_regime") if market else "unknown"
+            market_regime_confidence = market.get("market_regime_confidence", 0.5) if market else 0.5
+
             response = {
                 "statusCode": 200,
                 "data": {
                     "market_status": "open",  # Infer from current time (simple heuristic)
-                    "sp500_price": float(spy.get("close") if spy else 5500.0),
+                    "sp500_price": float(spy["close"]),  # Validated non-None above
                     "sp500_change": float(sp500_change),
-                    "vix": float(market.get("vix") if market and market.get("vix") else 15.5),
-                    "market_regime": market.get("market_regime") if market else "unknown",
-                    "market_regime_confidence": float(market.get("market_regime_confidence") if market and market.get("market_regime_confidence") else 0.5),
+                    "vix": float(market["vix"]),  # Validated non-None above
+                    "market_regime": market_regime,
+                    "market_regime_confidence": float(market_regime_confidence),
                     "exposure_factors": {"sector": 0.65, "market": 0.85, "equity": 0.75, "volatility": 0.45},
                 },
             }

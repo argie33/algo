@@ -273,9 +273,26 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         """
         if not self.alpaca_sync.alpaca_key or not self.alpaca_sync.alpaca_secret:
             # Paper trading without Alpaca credentials - use database state only
-            is_paper_trading = (
-                self.config.get("alpaca_paper_trading", False) if isinstance(self.config, dict) else False
-            )
+            # CRITICAL: Must explicitly check alpaca_paper_trading config (NO FALLBACK TO LIVE TRADING)
+            if not isinstance(self.config, dict):
+                raise ValueError(
+                    "[CONFIG_ERROR] alpaca_paper_trading configuration missing or invalid. "
+                    "CRITICAL: Alpaca broker adapter requires explicit paper_trading flag to prevent accidental live trading."
+                )
+
+            if "alpaca_paper_trading" not in self.config:
+                raise ValueError(
+                    "[CONFIG_ERROR] alpaca_paper_trading key missing from configuration. "
+                    "CRITICAL: Must explicitly set alpaca_paper_trading=True or False. "
+                    "Refusing to default to False (would enable live trading)."
+                )
+
+            is_paper_trading = self.config["alpaca_paper_trading"]
+            if not isinstance(is_paper_trading, bool):
+                raise ValueError(
+                    f"[CONFIG_ERROR] alpaca_paper_trading must be bool, got {type(is_paper_trading).__name__}={is_paper_trading}"
+                )
+
             if is_paper_trading:
                 logger.warning(
                     "[CLOSED_ORDERS] Alpaca credentials missing (paper mode). "
