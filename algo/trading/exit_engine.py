@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+from datetime import date as _date, datetime
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, cast
 
@@ -72,7 +72,7 @@ class PositionContext:
     def __init__(
         self,
         symbol: str,
-        current_date: datetime,
+        current_date: _date,
         cur_price: Decimal,
         prev_close: Decimal | None,
         entry_price: Decimal,
@@ -86,9 +86,9 @@ class PositionContext:
         dist_days_today: int | None,
         config: Any = None,
         cur: Any = None,
-        t1_hit_time: Any | None = None,
-        t2_hit_time: Any | None = None,
-        t3_hit_time: Any | None = None,
+        t1_hit_time: datetime | None = None,
+        t2_hit_time: datetime | None = None,
+        t3_hit_time: datetime | None = None,
     ) -> None:
         self.symbol = symbol
         self.current_date = current_date
@@ -207,11 +207,11 @@ class PositionContext:
             )
         return False, None
 
-    def _was_target_hit_today(self, hit_time: Any | None) -> bool:
+    def _was_target_hit_today(self, hit_time: datetime | None) -> bool:
         if hit_time is None:
             return False
-        hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
-        return cast(bool, hit_date == self.current_date.date())
+        hit_date = hit_time.date() if isinstance(hit_time, datetime) else hit_time
+        return hit_date == self.current_date
 
     def check_target_t1(self, engine: ExitEngine) -> tuple[bool, dict[str, Any] | None]:
         """T1 target exit (1.5R): 50% position reduction."""
@@ -468,7 +468,7 @@ class ExitEngine:
                 f"Cannot initialize exit engine without these values."
             )
 
-    def check_and_execute_exits(self, current_date: Any = None) -> int:
+    def check_and_execute_exits(self, current_date: _date | None = None) -> int:
 
         if not current_date:
             # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
@@ -765,7 +765,7 @@ class ExitEngine:
         self,
         cur: Any,
         symbol: str,
-        current_date: Any,
+        current_date: _date,
         cur_price: Decimal | float | None,
         prev_close: Decimal | float | None,
         entry_price: Decimal | float,
@@ -777,9 +777,9 @@ class ExitEngine:
         target_hits: int,
         days_held: int,
         dist_days_today: int | None,
-        t1_hit_time: Any = None,
-        t2_hit_time: Any = None,
-        t3_hit_time: Any = None,
+        t1_hit_time: datetime | None = None,
+        t2_hit_time: datetime | None = None,
+        t3_hit_time: datetime | None = None,
     ) -> dict[str, Any]:
         """Decide what exit to take (or hold decision).
 
@@ -1188,7 +1188,7 @@ class ExitEngine:
         self,
         cur: Any,
         symbol: str,
-        current_date: Any,
+        current_date: _date,
         entry_price: float,
         days_held: int,
         threshold_pct: float,
