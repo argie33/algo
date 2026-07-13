@@ -21,17 +21,22 @@ TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 
 import json
 import logging
+from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import psycopg2
 import requests
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from config.api_endpoints import get_alpaca_base_url
 from config.credential_manager import get_alpaca_credentials, get_credential_manager
 from utils.db import DatabaseContext
+
+if TYPE_CHECKING:
+    from algo.infrastructure.config import AlgoConfig
 
 logger = logging.getLogger(__name__)
 
@@ -43,12 +48,12 @@ class PositionValidationError(Exception):
 class PositionMonitor:
     """Daily position health checker and stop adjuster."""
 
-    def _with_cursor(self, operation: Any, mode: str = "read") -> Any:
+    def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], Any], mode: str = "read") -> Any:
         """Execute operation with cursor via DatabaseContext."""
         with DatabaseContext(mode) as cur:
             return operation(cur)
 
-    def __init__(self, config: Any) -> None:
+    def __init__(self, config: AlgoConfig) -> None:
         self.config = config
 
     def check_stale_orders(self, current_date: _date | None = None) -> dict[str, Any]:
@@ -401,7 +406,7 @@ class PositionMonitor:
 
             return recs
 
-    def _evaluate_position(self, row: Any, current_date: Any, cur: Any) -> dict[str, Any]:  # noqa: C901
+    def _evaluate_position(self, row: Any, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> dict[str, Any]:  # noqa: C901
         (
             trade_id,
             symbol,
@@ -736,7 +741,7 @@ class PositionMonitor:
             raise RuntimeError(f"Failed to cancel and update {trade_id}: {db_e}") from db_e
 
     def _fetch_current_market(
-        self, symbol: str, current_date: Any, cur: Any
+        self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]
     ) -> tuple[float, float | None, float | None, float | None]:
         """Fetch current price and technical indicators for a symbol.
 
@@ -832,7 +837,7 @@ class PositionMonitor:
         # NEVER lower the trailing stop below its prior level
         return round(max(new_stop, active_stop), 2)
 
-    def _check_relative_strength(self, symbol: str, current_date: Any, cur: Any) -> str:
+    def _check_relative_strength(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> str:
         """20-day relative return vs SPY: weakening / neutral / strong."""
         try:
             stock = self._period_return(symbol, current_date, 20, cur)
@@ -856,7 +861,7 @@ class PositionMonitor:
             return "strong"
         return "neutral"
 
-    def _check_sector_health(self, symbol: str, current_date: Any, cur: Any) -> str:
+    def _check_sector_health(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> str:
         """Is the symbol's sector currently weakening?"""
         # Skip sector checks for ETFs/indices
         if symbol in (
@@ -939,7 +944,7 @@ class PositionMonitor:
         return "stable"
 
     def _max_unrealized_pct(
-        self, symbol: str, trade_date: _date, current_date: Any, entry_price: float, cur: Any
+        self, symbol: str, trade_date: _date, current_date: _date | datetime, entry_price: float, cur: PsycopgCursor[Any]
     ) -> float:
         """Highest closing price since entry, expressed as % gain."""
         if entry_price <= 0:
@@ -965,7 +970,7 @@ class PositionMonitor:
             raise PositionValidationError(f"Invalid price data for {symbol}: max close {max_close} <= 0")
         return ((max_close - entry_price) / entry_price) * 100.0
 
-    def _days_to_earnings(self, symbol: str, current_date: Any, cur: Any) -> int:
+    def _days_to_earnings(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
         """Get days until next earnings from earnings_calendar or earnings_history.
 
         Raises:
@@ -1019,7 +1024,7 @@ class PositionMonitor:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Earnings query failed for {symbol}: {e}") from e
 
-    def _fetch_market_dist_days(self, current_date: Any, cur: Any) -> int:
+    def _fetch_market_dist_days(self, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
         """Get market distribution days from health data.
 
         Raises:
@@ -1036,7 +1041,7 @@ class PositionMonitor:
             )
         return int(row[0])
 
-    def _period_return(self, symbol: str, end_date: _date, lookback_days: int, cur: Any) -> float:
+    def _period_return(self, symbol: str, end_date: _date, lookback_days: int, cur: PsycopgCursor[Any]) -> float:
         """Compute simple return over a lookback period.
 
         Raises:
@@ -1069,7 +1074,7 @@ class PositionMonitor:
             raise ValueError(f"Invalid historical price for {symbol}: oldest close {oldest} <= 0")
         return (recent - oldest) / oldest
 
-    def _persist_review(self, rec: dict[str, Any], cur: Any, position_index: int) -> None:
+    def _persist_review(self, rec: dict[str, Any], cur: PsycopgCursor[Any], position_index: int) -> None:
         """Update algo_positions with current price/PnL and log a monitoring audit row (atomic).
 
         Uses savepoint to ensure both position update and audit log succeed together.
@@ -1250,11 +1255,11 @@ class PositionMonitor:
 
     def _handle_qty_variance(
         self,
-        cur: Any,
-        pos_id: Any,
+        cur: PsycopgCursor[Any],
+        pos_id: int,
         symbol: str,
-        db_qty: Any,
-        db_stop: Any,
+        db_qty: int,
+        db_stop: float,
         alpaca_qty: int,
         adjustments: list[dict[str, Any]],
     ) -> None:
@@ -1291,11 +1296,11 @@ class PositionMonitor:
 
     def _apply_split_adjustment(
         self,
-        cur: Any,
-        pos_id: Any,
+        cur: PsycopgCursor[Any],
+        pos_id: int,
         symbol: str,
-        db_qty: Any,
-        db_stop: Any,
+        db_qty: int,
+        db_stop: float,
         alpaca_qty: int,
         adjustments: list[dict[str, Any]],
     ) -> None:

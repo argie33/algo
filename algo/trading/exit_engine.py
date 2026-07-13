@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import psycopg2
 import requests
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.infrastructure import get_alpaca_timeout
 from algo.infrastructure.config.sql_intervals import get_interval_sql
@@ -85,8 +86,8 @@ class PositionContext:
         target_hits: int,
         days_held: int,
         dist_days_today: int | None,
-        config: Any = None,
-        cur: Any = None,
+        config: AlgoConfig | dict[str, Any],
+        cur: PsycopgCursor[Any] | None = None,
         t1_hit_time: datetime | None = None,
         t2_hit_time: datetime | None = None,
         t3_hit_time: datetime | None = None,
@@ -764,7 +765,7 @@ class ExitEngine:
 
     def _evaluate_position(
         self,
-        cur: Any,
+        cur: PsycopgCursor[Any],
         symbol: str,
         current_date: _date,
         cur_price: Decimal | float | None,
@@ -957,7 +958,7 @@ class ExitEngine:
         except (RuntimeError, ValueError):
             raise
 
-    def _fetch_recent_prices(self, cur: Any, symbol: str, current_date: Any) -> tuple[float | None, float | None]:
+    def _fetch_recent_prices(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> tuple[float | None, float | None]:
         """Return (current_price, previous_close) with intraday support.
 
 
@@ -1057,7 +1058,7 @@ class ExitEngine:
 
         return cur_price, prev_close
 
-    def _fetch_market_dist_days(self, cur: Any, current_date: Any) -> int | None:
+    def _fetch_market_dist_days(self, cur: PsycopgCursor[Any], current_date: _date | datetime) -> int | None:
 
         cur.execute(
             """
@@ -1079,7 +1080,7 @@ class ExitEngine:
             )
         return int(row[0])
 
-    def _is_pulling_back(self, cur: Any, symbol: str, current_date: Any) -> bool:
+    def _is_pulling_back(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> bool:
         """Requires either 2-3% decline from recent high OR 2+ days below 5-day high.
 
 
@@ -1136,7 +1137,7 @@ class ExitEngine:
 
         return days_below_high >= 2
 
-    def _rs_line_breaking(self, cur: Any, symbol: str, current_date: Any) -> bool:
+    def _rs_line_breaking(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> bool:
         """RS line (stock/SPY ratio) breaking below its 50-day MA = exit signal."""
 
         cur.execute(
@@ -1187,7 +1188,7 @@ class ExitEngine:
 
     def _eight_week_rule_active(
         self,
-        cur: Any,
+        cur: PsycopgCursor[Any],
         symbol: str,
         current_date: _date,
         entry_price: float,
@@ -1239,7 +1240,7 @@ class ExitEngine:
 
         return gain_pct >= threshold_pct
 
-    def _chandelier_or_ema_stop(self, cur: Any, symbol: str, current_date: Any, days_held: int) -> float | None:
+    def _chandelier_or_ema_stop(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, days_held: int) -> float | None:
         """Trailing stop: chandelier (3xATR from highest high) for first 10d,
 
         then 21-EMA after."""
@@ -1341,7 +1342,7 @@ class ExitEngine:
 
             return round(hh - (mult * atr), 2)
 
-    def _get_td_state(self, cur: Any, symbol: str, current_date: Any) -> dict[str, Any]:
+    def _get_td_state(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> dict[str, Any]:
         """Return full TD state dict (for both 9 and 13 detection).
 
 
@@ -1370,7 +1371,7 @@ class ExitEngine:
 
         return td_state
 
-    def _is_minervini_break(self, cur: Any, symbol: str, current_date: Any, cur_price: float) -> bool:
+    def _is_minervini_break(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, cur_price: float) -> bool:
         """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
 
         interval_50d = get_interval_sql("50d")
@@ -1434,7 +1435,7 @@ class ExitEngine:
 
         return False
 
-    def _check_volume_spike(self, cur: Any, symbol: str, current_date: Any, volume_multiplier: float) -> bool:
+    def _check_volume_spike(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, volume_multiplier: float) -> bool:
 
         interval_50d = get_interval_sql("50d")
         cur.execute(
@@ -1469,7 +1470,7 @@ class ExitEngine:
 
         return today_vol >= avg_vol * volume_multiplier
 
-    def _compute_gain_last_n_days(self, cur: Any, symbol: str, current_date: Any, n_days: int) -> float | None:
+    def _compute_gain_last_n_days(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, n_days: int) -> float | None:
 
         cur.execute(
             """
