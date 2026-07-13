@@ -404,6 +404,22 @@ CREATE TABLE IF NOT EXISTS earnings_calendar (
 CREATE INDEX IF NOT EXISTS idx_earnings_calendar_symbol ON earnings_calendar(symbol);
 CREATE INDEX IF NOT EXISTS idx_earnings_calendar_date ON earnings_calendar(earnings_date DESC);
 
+CREATE TABLE IF NOT EXISTS analyst_sentiment_analysis (
+    symbol VARCHAR(20) NOT NULL,
+    date DATE NOT NULL,
+    analyst_count INT,
+    bullish_count INT,
+    bearish_count INT,
+    hold_count INT,
+    recommendation_key VARCHAR(50),
+    data_unavailable BOOLEAN DEFAULT FALSE,
+    reason VARCHAR(500),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (symbol, date)
+);
+CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_analysis_symbol ON analyst_sentiment_analysis(symbol);
+CREATE INDEX IF NOT EXISTS idx_analyst_sentiment_analysis_date ON analyst_sentiment_analysis(date DESC);
+
 CREATE TABLE IF NOT EXISTS analyst_upgrade_downgrade (
     symbol VARCHAR(20) NOT NULL,
     action_date DATE NOT NULL,

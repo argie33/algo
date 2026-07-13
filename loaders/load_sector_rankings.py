@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Sector Rankings Loader - compute sector rankings from stock scores."""
+"""Sector & Industry Rankings Loader - compute rankings from stock scores in single pass."""
 
 import logging
 import sys
@@ -12,20 +12,30 @@ logger = logging.getLogger(__name__)
 
 
 class SectorRankingLoader(OptimalLoader):
-    """Compute sector rankings from stock scores."""
+    """Compute sector and industry rankings from stock scores in single SQL pass.
 
-    table_name = "sector_ranking"
+    Consolidates sector + industry ranking into one loader (both read same company_profile+stock_scores).
+    Writes to both sector_ranking and industry_ranking tables in parallel.
+    """
+
+    table_name = "sector_ranking"  # Primary table for watermarking
     primary_key = ("sector_name", "date")
     watermark_field = "date"
 
     def load_global(self) -> int:
-        """Compute and load sector rankings for today."""
+        """Compute and load sector and industry rankings for today."""
         try:
             with DatabaseContext("write") as cur:
-                # Delete stale data (keep last 90 days)
+                # Delete stale data (keep last 90 days) for both tables
                 cur.execute(
                     """
                     DELETE FROM sector_ranking
+                    WHERE date < NOW()::date - INTERVAL '90 days'
+                    """
+                )
+                cur.execute(
+                    """
+                    DELETE FROM industry_ranking
                     WHERE date < NOW()::date - INTERVAL '90 days'
                     """
                 )
@@ -70,10 +80,52 @@ class SectorRankingLoader(OptimalLoader):
                         updated_at = NOW()
                     """
                 )
-                inserted = cur.rowcount
+                sector_count = cur.rowcount
 
-            logger.info(f"[SECTOR_RANKING] Loaded {inserted} sector rankings")
-            return inserted
+                # Compute industry rankings (same pattern as sector rankings)
+                cur.execute(
+                    """
+                    WITH industry_stats AS (
+                        SELECT
+                            cp.industry AS industry_name,
+                            COUNT(DISTINCT ss.symbol) AS stock_count,
+                            AVG(COALESCE(ss.composite_score, 50)) AS avg_score,
+                            RANK() OVER (ORDER BY AVG(COALESCE(ss.composite_score, 50)) DESC) AS current_rank
+                        FROM company_profile cp
+                        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+                        WHERE cp.industry IS NOT NULL
+                          AND cp.industry != ''
+                          AND cp.industry != 'Unknown'
+                        GROUP BY cp.industry
+                    ),
+                    prior_ranks AS (
+                        SELECT
+                            industry_name,
+                            current_rank AS rank_1w_ago
+                        FROM industry_ranking
+                        WHERE date = NOW()::date - INTERVAL '7 days'
+                    )
+                    INSERT INTO industry_ranking
+                      (industry_name, date, current_rank, momentum_score, rank_1w_ago)
+                    SELECT
+                        ist.industry_name,
+                        NOW()::date,
+                        ist.current_rank,
+                        COALESCE(ist.current_rank - COALESCE(pr.rank_1w_ago, ist.current_rank), 0),
+                        COALESCE(pr.rank_1w_ago, ist.current_rank)
+                    FROM industry_stats ist
+                    LEFT JOIN prior_ranks pr ON ist.industry_name = pr.industry_name
+                    ON CONFLICT (industry_name, date) DO UPDATE SET
+                        current_rank = EXCLUDED.current_rank,
+                        momentum_score = EXCLUDED.momentum_score,
+                        rank_1w_ago = EXCLUDED.rank_1w_ago,
+                        updated_at = NOW()
+                    """
+                )
+                industry_count = cur.rowcount
+
+            logger.info(f"[SECTOR_RANKING] Loaded {sector_count} sector + {industry_count} industry rankings")
+            return sector_count + industry_count
 
         except Exception as e:
             logger.error(f"[SECTOR_RANKING] Failed: {type(e).__name__}: {e!s}")

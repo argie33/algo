@@ -38,16 +38,18 @@ configure_socket_timeout(30)
 
 
 class YfinanceDerivedMetricsLoader(OptimalLoader):
-    """Read all yfinance-derived metrics from yfinance_snapshot table and persist to 3 tables.
+    """Read all yfinance-derived metrics from yfinance_snapshot table and persist to 5 tables.
 
-    Consolidates 6 separate loaders into one, writing to 3 output tables in parallel:
+    Consolidates 6 separate loaders into one, writing to 5 output tables in parallel:
       - value_metrics (PE, PB, PS, PEG ratios, dividend yield, FCF yield, market cap)
       - positioning_metrics (short interest, insider/institution holdings)
       - company_profile (sector, industry, exchange, website, company name)
+      - earnings_calendar (next earnings date for risk management)
+      - analyst_sentiment_analysis (analyst counts, recommendation key)
 
-    Note: Analyst sentiment, analyst upgrades/downgrades, and earnings data are not
-    populated from yfinance_snapshot as those tables require separate data sources
-    and have different schemas than yfinance provides.
+    Note: Analyst upgrades/downgrades require specialized data source (Bloomberg/Seeking Alpha).
+    Earnings history requires SEC data (EPS actuals, estimates, surprise %). Skipped for now.
+    See IMPLEMENTATION_PLAN.md for roadmap.
     """
 
     table_name = "company_profile"  # Meta table for watermarking & locking
@@ -59,6 +61,8 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
         "value_metrics",
         "positioning_metrics",
         "company_profile",
+        "earnings_calendar",
+        "analyst_sentiment_analysis",
     ]
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
@@ -241,6 +245,70 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                     (symbol, symbol, "Unknown", record.get("reason", "unknown"), updated_at),
                 )
 
+            # 4. earnings_calendar (next earnings date for risk management)
+            if not record.get("data_unavailable"):
+                earnings_date_unix = record.get("earnings_date")
+                if earnings_date_unix:
+                    from datetime import datetime
+                    try:
+                        earnings_date_py = datetime.fromtimestamp(earnings_date_unix).date()
+                        cur.execute(
+                            """
+                            INSERT INTO earnings_calendar (symbol, earnings_date, market_cap, updated_at)
+                            VALUES (%s, %s, %s, %s)
+                            ON CONFLICT (symbol, earnings_date) DO UPDATE SET
+                              market_cap = EXCLUDED.market_cap, updated_at = EXCLUDED.updated_at
+                            """,
+                            (symbol, earnings_date_py, record.get("market_cap"), updated_at),
+                        )
+                    except (ValueError, OSError, OverflowError):
+                        cur.execute(
+                            "INSERT INTO earnings_calendar (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                            (symbol, "invalid_earnings_timestamp", updated_at),
+                        )
+                else:
+                    cur.execute(
+                        "INSERT INTO earnings_calendar (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                        (symbol, "no_next_earnings_available", updated_at),
+                    )
+            else:
+                cur.execute(
+                    "INSERT INTO earnings_calendar (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                    (symbol, record.get("reason", "unknown"), updated_at),
+                )
+
+            # 5. analyst_sentiment_analysis (analyst counts and recommendation)
+            if not record.get("data_unavailable") and record.get("analyst_count"):
+                cur.execute(
+                    """
+                    INSERT INTO analyst_sentiment_analysis
+                    (symbol, date, analyst_count, bullish_count, bearish_count, hold_count, recommendation_key, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (symbol, date) DO UPDATE SET
+                      analyst_count = EXCLUDED.analyst_count,
+                      bullish_count = EXCLUDED.bullish_count,
+                      bearish_count = EXCLUDED.bearish_count,
+                      hold_count = EXCLUDED.hold_count,
+                      recommendation_key = EXCLUDED.recommendation_key,
+                      updated_at = EXCLUDED.updated_at
+                    """,
+                    (
+                        symbol,
+                        updated_at.date(),
+                        record.get("analyst_count"),
+                        record.get("bullish_count"),
+                        record.get("bearish_count"),
+                        record.get("hold_count"),
+                        record.get("recommendation_key"),
+                        updated_at,
+                    ),
+                )
+            else:
+                cur.execute(
+                    "INSERT INTO analyst_sentiment_analysis (symbol, date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                    (symbol, updated_at.date(), record.get("reason", "no_analyst_data"), updated_at),
+                )
+
 
 
 def main() -> int:
@@ -260,7 +328,12 @@ def main() -> int:
                 "value_metrics",
                 "positioning_metrics",
                 "company_profile",
+                "earnings_calendar",
+                "analyst_sentiment_analysis",
             ]
+
+            from datetime import datetime
+            from utils.infrastructure.timezone import EASTERN_TZ
 
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
@@ -278,6 +351,19 @@ def main() -> int:
                                   updated_at = NOW()
                                 """,
                                 (symbol, symbol, "Unknown", f"loader_crash:{type(e).__name__}"),
+                            )
+                        elif table == "analyst_sentiment_analysis":
+                            today = datetime.now(EASTERN_TZ).date()
+                            cur.execute(
+                                f"""
+                                INSERT INTO {table} (symbol, date, data_unavailable, reason, updated_at)
+                                VALUES (%s, %s, TRUE, %s, NOW())
+                                ON CONFLICT (symbol, date) DO UPDATE SET
+                                  data_unavailable = TRUE,
+                                  reason = EXCLUDED.reason,
+                                  updated_at = NOW()
+                                """,
+                                (symbol, today, f"loader_crash:{type(e).__name__}"),
                             )
                         else:
                             cur.execute(

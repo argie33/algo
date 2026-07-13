@@ -369,10 +369,11 @@ locals {
   all_loaders = {
     # Cost-optimized: Reduced from 1024/2048 (price fetch is I/O bound, not compute intensive)
     "stock_prices_daily" = { cpu = 512, memory = 1024, timeout = 5400, parallelism = 1 }
-    # FIXED: Increased from 2048 to 4096 (vectorized SQL + pandas operations on 10k rows, OOM on 2048)
-    "technical_data_daily"  = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
+    # FIXED (2026-07-12): Reduced from 4096 to 1024 (actual peak ~300MB, 3-4x headroom sufficient)
+    "technical_data_daily"  = { cpu = 1024, memory = 1024, timeout = 2400, parallelism = 1 }
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-    "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~10-30s, 2x headroom)
+    "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
     "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
     # Cost-optimized: Reduced from 2048 to 512 (yfinance API fetch + lightweight metric calc, <100MB actual)
     "growth_metrics" = { cpu = 512, memory = 512, timeout = 3600, parallelism = 2 }
@@ -396,24 +397,26 @@ locals {
     # Cost-optimized: Reduced from 2048 to 1024 (score aggregation, vectorized SQL, moderate memory for DF ops)
     "stock_scores" = { cpu = 1024, memory = 1024, timeout = 3600, parallelism = 2 }
 
-    "market_constituents" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
+    # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~30-60s, 2x headroom)
+    "market_constituents" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
-    "market_sentiment"    = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # FIXED (2026-07-12): Reduced timeout 300s→60s (actual runtime ~3-5s, 10x+ over-provisioned)
+    "market_sentiment"    = { cpu = 256, memory = 512, timeout = 60, parallelism = 1 }
     # Consolidated economic data loader: FRED series + DXY (lightweight: API calls + DB writes)
     "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
     # Cost-optimized: Reduced from 1024 to 512 (sector ranking DB queries, <50MB actual)
     "sector_ranking"   = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
     "industry_ranking" = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
-    # Cost-optimized: Reduced timeout from 10800s (3h) to 1800s (30m) - actual execution ~5-10 min
-    "algo_metrics_daily" = { cpu = 1024, memory = 2048, timeout = 10800, parallelism = 1 }
+    # FIXED (2026-07-12): Reduced memory 2048→512 (actual ~150MB), timeout 10800s→600s (actual ~5-10m, 2x headroom)
+    "algo_metrics_daily" = { cpu = 1024, memory = 512, timeout = 600, parallelism = 1 }
     # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
     "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_yfinance_derived_metrics.py, not separate tasks
     # They share ECS task definition with other yfinance-derived metrics (value, positioning, company_profile, earnings*)
 
-    # Consolidated: All 8 statement types in single task (runs sequentially, ~9600s total)
-    # Provides 4.2h timeout (2.7x expected 60m) to detect hangs, saves $8-15/mo + 40-80s per run
-    "financials_all" = { cpu = 512, memory = 512, timeout = 15000, parallelism = 1 }
+    # FIXED (2026-07-12): Reduced timeout 15000s→3600s (actual ~16-20m, 3x headroom still generous)
+    # Consolidated: All 8 statement types in single task (runs sequentially)
+    "financials_all" = { cpu = 512, memory = 512, timeout = 3600, parallelism = 1 }
 
     # Cost-optimized: Reduced from 1024 to 512 (sector performance ranking, <50MB actual)
     "sector_performance" = { cpu = 512, memory = 512, timeout = 900, parallelism = 1 }
