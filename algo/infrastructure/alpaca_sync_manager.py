@@ -247,15 +247,23 @@ class AlpacaSyncManager:
                 logger.error(f"[POSITION_SYNC] Failed to update position {symbol}: {e}")
                 raise RuntimeError(f"[POSITION_SYNC] Database error updating position {symbol}: {e}") from e
 
-        # Mark positions as closed if they exist in DB but not in Alpaca
+        # Mark positions as closed if they exist in DB but not in Alpaca.
+        # BUG FIX: `symbol NOT IN %s` with the empty-set placeholder `(None,)` is a SQL
+        # NULL-trap -- `x NOT IN (NULL)` is never TRUE (it's UNKNOWN) for any x, so this
+        # silently closed zero rows every time Alpaca legitimately had zero open
+        # positions, leaving stale "open" rows in algo_positions forever (confirmed live:
+        # a position closed at the broker weeks ago was still "open" in our DB, 7+ days
+        # stale). Use `!= ALL(%s)` with a real list instead -- psycopg2 adapts a list to
+        # a SQL array, and `col != ALL(ARRAY[])` correctly matches every row when the
+        # array is empty.
         try:
             cur.execute(
                 """
                 UPDATE algo_positions
                 SET status = 'closed', closed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                WHERE symbol NOT IN %s AND status = 'open'
+                WHERE symbol != ALL(%s) AND status = 'open'
             """,
-                (tuple(alpaca_symbols) if alpaca_symbols else (None,),),
+                (list(alpaca_symbols),),
             )
             closed_count = cur.rowcount
         except Exception as e:
