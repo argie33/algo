@@ -35,7 +35,7 @@ class SectorRankingLoader(OptimalLoader):
                 cur.execute(
                     """
                     DELETE FROM industry_ranking
-                    WHERE date < NOW()::date - INTERVAL '90 days'
+                    WHERE date_recorded < NOW()::date - INTERVAL '90 days'
                     """
                 )
 
@@ -99,13 +99,13 @@ class SectorRankingLoader(OptimalLoader):
                     ),
                     prior_ranks AS (
                         SELECT
-                            industry_name,
+                            industry AS industry_name,
                             current_rank AS rank_1w_ago
                         FROM industry_ranking
-                        WHERE date = NOW()::date - INTERVAL '7 days'
+                        WHERE date_recorded = NOW()::date - INTERVAL '7 days'
                     )
                     INSERT INTO industry_ranking
-                      (industry_name, date, current_rank, momentum_score, rank_1w_ago)
+                      (industry, date_recorded, current_rank, momentum_score, rank_1w_ago)
                     SELECT
                         ist.industry_name,
                         NOW()::date,
@@ -114,7 +114,7 @@ class SectorRankingLoader(OptimalLoader):
                         COALESCE(pr.rank_1w_ago, ist.current_rank)
                     FROM industry_stats ist
                     LEFT JOIN prior_ranks pr ON ist.industry_name = pr.industry_name
-                    ON CONFLICT (industry_name, date) DO UPDATE SET
+                    ON CONFLICT (industry, date_recorded) DO UPDATE SET
                         current_rank = EXCLUDED.current_rank,
                         momentum_score = EXCLUDED.momentum_score,
                         rank_1w_ago = EXCLUDED.rank_1w_ago,

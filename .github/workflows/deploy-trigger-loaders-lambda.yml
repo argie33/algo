@@ -4,6 +4,10 @@ name: Deploy Trigger-Loaders Lambda
 # Use when base_handler.py or trigger-loaders/lambda_function.py changes.
 
 on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
   workflow_dispatch:
 
 env:
@@ -14,6 +18,7 @@ jobs:
   # GOVERNANCE: Validate code before deploying
   validate:
     name: Validate Code (Lint, Type Check, Tests)
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
