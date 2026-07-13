@@ -6,7 +6,6 @@ Used in LOCAL_MODE to avoid AWS DynamoDB permissions issues.
 """
 
 import logging
-import os
 import tempfile
 import time
 from datetime import datetime, timedelta

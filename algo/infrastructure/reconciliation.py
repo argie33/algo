@@ -54,7 +54,7 @@ class DailyReconciliation:
                     "Trading mode must be explicitly set. "
                     "Check: (1) algo_config table has alpaca_paper_trading row, "
                     "(2) AlgoConfig.get() returns complete config dict"
-                )
+                ) from e
             is_paper_trading = config.get("alpaca_paper_trading")
 
             if is_paper_trading and not has_alpaca_creds:

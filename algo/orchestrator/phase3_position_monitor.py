@@ -212,7 +212,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 "[PHASE 3] Config missing 'is_paper_trading'. "
                 "Trading mode must be explicit (paper vs live). "
                 "Check algo_config table has this key."
-            )
+            ) from e
         if config["is_paper_trading"]:
             logger.warning(
                 f"[PHASE 3 PAPER MODE] Position monitor failed but continuing paper trading: {type(e).__name__}: {e}"
