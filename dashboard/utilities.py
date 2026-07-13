@@ -3,6 +3,7 @@
 import hashlib
 import json
 import logging
+import logging.handlers
 import os
 import threading
 from collections import OrderedDict
@@ -96,7 +97,11 @@ _log_file = os.path.join(_log_dir, "dashboard.log")
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler(_log_file, encoding="utf-8")],
+    handlers=[
+        logging.handlers.RotatingFileHandler(
+            _log_file, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8"
+        )
+    ],
 )
 logger = logging.getLogger(__name__)
 
