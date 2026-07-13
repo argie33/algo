@@ -11,6 +11,7 @@ from typing import Any
 
 import psycopg2
 import requests
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.infrastructure.config import AlgoConfig
 from algo.reporting import TradeNotificationService, notify
@@ -506,7 +507,7 @@ class TradeExecutor:
 
     def _validate_entry_conditions(
         self,
-        cur: Any,
+        cur: PsycopgCursor[Any],
         symbol: str,
         signal_date: _date,
         entry_price: Decimal,
@@ -573,7 +574,7 @@ class TradeExecutor:
             logger.error(f"[VALIDATION] Unknown check type: {check_name}: {e}")
             raise
 
-    def _with_cursor(self, operation: Any, acquire_locks: bool = False) -> Any:
+    def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], Any], acquire_locks: bool = False) -> Any:
         """Execute an operation with a cursor via DatabaseContext.
 
         Args:
@@ -760,7 +761,7 @@ class TradeExecutor:
 
     def _update_position_with_retry(
         self,
-        cur: Any,
+        cur: PsycopgCursor[Any],
         position_id: int,
         new_qty: float,
         new_stop_price: float | None = None,
@@ -861,7 +862,7 @@ class TradeExecutor:
         exit_fraction: float = 1.0,
         exit_stage: str | None = None,
         new_stop_price: float | None = None,
-        cur: Any | None = None,
+        cur: PsycopgCursor[Any] | None = None,
     ) -> dict[str, Any]:
         """Exit all or part of a position with guaranteed transaction atomicity.
 

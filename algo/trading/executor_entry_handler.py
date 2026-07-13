@@ -14,11 +14,15 @@ import json
 import logging
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
+import psycopg2
 import requests
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.reporting import TradeNotificationService, notify
 from algo.trading.exceptions import (
@@ -26,6 +30,7 @@ from algo.trading.exceptions import (
     NotificationError,
     OrderExecutionError,
 )
+from algo.trading.handler_context import HandlerContext
 from algo.trading.trade_context import TradeContext
 
 logger = logging.getLogger(__name__)
@@ -38,8 +43,8 @@ class TradeInsertionRequest:
     trade_id: str
     idempotency_key: str
     symbol: str
-    signal_date: Any
-    entry_date: Any
+    signal_date: _date | None
+    entry_date: _date | None
     executed_price: Decimal | None
     shares: Decimal
     entry_reason: str
@@ -89,7 +94,7 @@ def _redact_for_logs(message: str) -> str:
 class EntryHandler:
     """Handles entry trade execution logic."""
 
-    def __init__(self, context: Any) -> None:
+    def __init__(self, context: HandlerContext) -> None:
         self.context = context
         self.config = context.config
         self.validator = context.validator
@@ -183,7 +188,7 @@ class EntryHandler:
             target_3_price = validation_result["target_3_price"]
 
         # Check for duplicate position via database
-        def _check_dup_pos(cur: Any) -> dict[str, str] | None:
+        def _check_dup_pos(cur: PsycopgCursor[Any]) -> dict[str, str] | None:
             is_dup, msg = self.validator.check_duplicate_position(cur, symbol)
             if is_dup:
                 return {"error": msg}
@@ -211,7 +216,7 @@ class EntryHandler:
         idempotency_key = hashlib.sha256(key_source.encode()).hexdigest()
 
         # Execute entry in database transaction with locks
-        def _execute_entry_txn(cur: Any) -> dict[str, Any]:
+        def _execute_entry_txn(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             """Execute entry transaction through 4 phases with database locks."""
             # Convert targets to Decimal for type safety
             tgt_1_price: Decimal | None = Decimal(str(target_1_price)) if target_1_price else None
@@ -427,7 +432,7 @@ class EntryHandler:
 
     def _insert_trade_record(
         self,
-        cur: Any,
+        cur: PsycopgCursor[Any],
         request: TradeInsertionRequest,
     ) -> None:
         """Insert trade record into database."""
@@ -520,7 +525,7 @@ class EntryHandler:
         """Record trade cost analysis (execution quality)."""
         try:
             # _order_send_time is set by the order submission logic
-            execution_latency_ms = int((time.time() - self.context._order_send_time) * 1000)
+            execution_latency_ms = int((time.time() - self.context._order_send_time) * 1000)  # type: ignore[attr-defined]
             if execution_latency_ms < 0:
                 raise ValueError(f"[TCA CRITICAL] {symbol}: negative latency {execution_latency_ms}ms")
 
@@ -557,7 +562,7 @@ class EntryHandler:
             ) from e
 
     def _validate_entry_phase(
-        self, cur: Any, symbol: str, signal_date: Any, entry_price: Decimal, stop_loss_price: Decimal
+        self, cur: PsycopgCursor[Any], symbol: str, signal_date: _date | None, entry_price: Decimal, stop_loss_price: Decimal
     ) -> tuple[bool, str, dict[str, Any]]:
         """PHASE 1: Validate entry conditions within transaction.
 
@@ -583,7 +588,7 @@ class EntryHandler:
 
     def _submit_entry_phase(
         self,
-        cur: Any,
+        cur: PsycopgCursor[Any],
         symbol: str,
         trade_id: str,
         shares: Decimal,
@@ -611,7 +616,7 @@ class EntryHandler:
         # Verify bracket orders in auto mode
         if execution_mode == "auto":
             # _last_order_result is set by order submission logic
-            order_result = self.context._last_order_result
+            order_result = self.context._last_order_result  # type: ignore[attr-defined]
             if order_result is None:
                 return (
                     False,
@@ -680,7 +685,7 @@ class EntryHandler:
 
     def _record_entry_phase(
         self,
-        cur: Any,
+        cur: PsycopgCursor[Any],
         trade_id: str,
         symbol: str,
         shares: Decimal,
