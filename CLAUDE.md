@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ Production Ready (Session 110 - Fixed AWS dashboard authentication. Dashboard defaults to AWS, respects --local flag. Credentials auto-loaded from Secrets Manager. System fully operational.)
+**Status:** ✅ Production Ready (Session 110 - Added data staleness monitoring & loader recovery guide. EventBridge scheduler properly configured (MON-FRI 2AM/4:05PM ET). System operational.)
 
 ## Start Here
 
@@ -9,9 +9,11 @@
 3. **Architecture & rules?** → `steering/GOVERNANCE.md`
 4. **AWS/deployment?** → `steering/OPERATIONS.md`
 5. **Data loading system?** → `steering/DATA_LOADERS.md`
-6. **Lambda 503 errors?** → `steering/AWS_LAMBDA_503_FIX.md`
-7. **AWS billing emails & cost controls?** → `BILLING_QUICK_REFERENCE.md` (or `steering/AWS_BILLING_AND_COST_CONTROLS.md`)
-8. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
+6. **Data is stale (prices old)?** → `steering/LOADER_RECOVERY_GUIDE.md` + `python scripts/monitor_data_staleness.py`
+7. **Lambda 503 errors?** → `steering/AWS_LAMBDA_503_FIX.md`
+8. **AWS credentials rotation & cleanup?** → `IaC_CLEANUP_STATUS.md` (Automated via GitHub Actions + Terraform)
+9. **AWS billing emails & cost controls?** → `BILLING_QUICK_REFERENCE.md` (or `steering/AWS_BILLING_AND_COST_CONTROLS.md`)
+10. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
 
 ## Quick Setup - AWS or LOCAL
 
@@ -134,6 +136,31 @@ WHERE started_at > NOW() - INTERVAL '1 hour';
 | **Code fails pre-commit hooks** | Type errors or formatting issues | Run: `make format && make type-check` |
 | **Orchestrator not executing** | Step Functions not triggered or EventBridge broken | Check: `aws stepfunctions describe-execution` + EventBridge Scheduler logs |
 | **Data older than 4 hours** | Loaders not running per schedule | Check EventBridge Scheduler + CloudWatch logs for loader tasks |
+
+## Data Monitoring (Session 110+)
+
+**Check data staleness:**
+```bash
+python scripts/monitor_data_staleness.py              # One-time check (exit code = # of stale tables)
+python scripts/monitor_data_staleness.py --watch 60   # Poll every 60 seconds (Ctrl+C to exit)
+```
+
+**Verify EventBridge Scheduler is running:**
+```bash
+python scripts/verify_eventbridge_scheduler.py        # Check morning/EOD pipeline schedules
+python scripts/verify_eventbridge_scheduler.py --fix  # Auto-enable if disabled
+```
+
+**Loader schedules:**
+- Morning: MON-FRI 2:00 AM ET (prices + technical indicators)
+- EOD: MON-FRI 4:05 PM ET (quality/growth/value metrics)
+- Weekends/holidays: No loaders run (expected behavior)
+
+**If data is stale during trading hours:**
+1. Run: `python scripts/monitor_data_staleness.py` (diagnose)
+2. Check: `python scripts/verify_eventbridge_scheduler.py` (verify schedules enabled)
+3. Fix: `python scripts/run_local_orchestrator.py --morning` (manual refresh)
+4. See: `steering/LOADER_RECOVERY_GUIDE.md` (detailed recovery steps)
 
 ## Non-Negotiable Rules
 
