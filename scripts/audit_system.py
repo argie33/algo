@@ -11,7 +11,6 @@ repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(repo_root))
 
 def check_orchestrator_status():
-    """Check if orchestrator has run recently."""
     import psycopg2
 
     try:
@@ -47,7 +46,6 @@ def check_orchestrator_status():
         return "ERROR", str(e)
 
 def check_data_freshness():
-    """Check if critical data tables are fresh."""
     import psycopg2
 
     try:
@@ -131,7 +129,6 @@ def check_api_endpoints():
     return "OK", "All endpoints responding"
 
 def check_alpaca_integration():
-    """Check if Alpaca credentials and connection work."""
     try:
         from config.alpaca_config import get_alpaca_config
         from utils.external.alpaca import AlpacaClient

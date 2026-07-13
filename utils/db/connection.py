@@ -141,7 +141,6 @@ class TrackedConnection:
         self.close()
 
     def close(self) -> None:
-        """Return connection to pool (if managed) or close it."""
         if _on_disconnect:
             _on_disconnect()
         if self._pool:

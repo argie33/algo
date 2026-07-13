@@ -189,5 +189,4 @@ class DataPatrol:
         """Run all data patrol checks."""
 
     def get_issues(self) -> list[CheckResult]:
-        """Get all issues found by patrol."""
         return self.results

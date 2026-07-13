@@ -43,5 +43,4 @@ def get_pooled_connection() -> psycopg2.extensions.connection | None:
 
 
 def has_pooled_connection() -> bool:
-    """Check if a pooled connection is active in this thread."""
     return _pooled_connection.get() is not None

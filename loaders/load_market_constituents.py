@@ -60,7 +60,6 @@ EXCLUSION_PATTERNS = [
 
 
 def should_exclude(name: str) -> bool:
-    """Check if security should be excluded from tradable list."""
     return any(re.search(p, name, flags=re.IGNORECASE) for p in EXCLUSION_PATTERNS)
 
 

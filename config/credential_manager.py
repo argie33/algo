@@ -297,14 +297,25 @@ class CredentialManager:
                 except _json.JSONDecodeError as e:
                     raise ValueError(f"Database secret contains invalid JSON: {e}") from e
 
-                # Extract host - PRIORITIZE environment variables (they have correct RDS Proxy endpoint)
-                # Lambda env vars contain the correct RDS Proxy endpoint; Secrets Manager may be stale
-                # This ensures we use the latest configuration without waiting for Secrets Manager rotation
-                db_host = os.getenv("DB_HOST")  # Primary: env var (has correct RDS Proxy endpoint in Lambda)
-                if not db_host:
-                    db_host = os.getenv("DB_ENDPOINT")  # Fallback: alternate env var
-                if not db_host:
-                    db_host = creds.get("host")  # Fallback: Secrets Manager (may be outdated)
+                # Extract host - explicit priority with fallback logging
+                # NOTE: Environment variables in Lambda take priority because they contain RDS Proxy endpoint
+                # which can change independently of the Secrets Manager secret (which may become stale).
+                db_host = os.getenv("DB_HOST")  # Primary: env var (RDS Proxy endpoint in Lambda)
+                if db_host:
+                    logger.debug(f"[CREDENTIALS] Using DB_HOST from environment: {db_host[:20]}...")
+                else:
+                    db_host = os.getenv("DB_ENDPOINT")  # Fallback: alternate env var name
+                    if db_host:
+                        logger.debug(f"[CREDENTIALS] DB_HOST not set, using DB_ENDPOINT from environment: {db_host[:20]}...")
+                    else:
+                        # Last resort: Secrets Manager value (which may be outdated)
+                        db_host = creds.get("host")
+                        if db_host:
+                            logger.warning(
+                                f"[CREDENTIALS] DB_HOST/DB_ENDPOINT env vars not set, using Secrets Manager value. "
+                                f"This may be outdated if RDS Proxy endpoint changed recently."
+                            )
+
                 if not db_host:
                     raise ValueError("Database host not found in DB_HOST/DB_ENDPOINT env vars or Secrets Manager secret")
 

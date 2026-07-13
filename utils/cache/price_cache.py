@@ -112,7 +112,6 @@ class PriceCache:
         logger.info("[PRICE_CACHE] Cleared local price cache")
 
     def stats(self) -> dict[str, Any]:
-        """Return cache statistics."""
         return {
             "local_cache_size": len(self._local_cache),
             "redis_available": self.redis is not None,

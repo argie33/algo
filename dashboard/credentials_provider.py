@@ -142,7 +142,6 @@ class CredentialsProvider:
 
     @staticmethod
     def _check_terraform_installed() -> bool:
-        """Check if Terraform is installed."""
         try:
             subprocess.run(["terraform", "--version"], capture_output=True, check=True, timeout=5)
             return True

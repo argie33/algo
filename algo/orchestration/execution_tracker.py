@@ -85,5 +85,4 @@ class ExecutionTracker:
             ) from e
 
     def get_phase_results(self) -> dict[int | str, Any]:
-        """Get phase results."""
         return self.phase_results.copy()

@@ -230,7 +230,6 @@ class QueryCache(Generic[T]):
         logger.debug(f"[{self.cache_name}] LRU eviction: {lru_key}")
 
     def stats(self) -> CacheStats:
-        """Get cache performance statistics."""
         stats = CacheStats(
             hits=self._stats.hits,
             misses=self._stats.misses,
@@ -242,7 +241,6 @@ class QueryCache(Generic[T]):
         return stats
 
     def report_stats(self) -> str:
-        """Get human-readable statistics."""
         stats = self.stats()
         return (
             f"[{self.cache_name}] "
@@ -284,7 +282,6 @@ def get_or_create_cache(
 
 
 def report_all_caches() -> str:
-    """Get statistics for all active caches."""
     if not _GLOBAL_CACHES:
         return "[CACHE] No active caches"
 

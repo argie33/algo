@@ -18,7 +18,6 @@ class LoadState:
 
     @property
     def result(self) -> dict[str, Any] | None:
-        """Get current result snapshot with lock protection."""
         with self._lock:
             return self._result
 
@@ -30,7 +29,6 @@ class LoadState:
 
     @property
     def elapsed(self) -> float:
-        """Get elapsed time with lock protection."""
         with self._lock:
             return self._elapsed
 
@@ -59,7 +57,6 @@ class WatchState:
 
     @property
     def result(self) -> dict[str, Any] | None:
-        """Get current result snapshot with lock protection."""
         with self._lock:
             return self._result
 
@@ -71,7 +68,6 @@ class WatchState:
 
     @property
     def elapsed(self) -> float:
-        """Get elapsed time with lock protection."""
         with self._lock:
             return self._elapsed
 
@@ -83,7 +79,6 @@ class WatchState:
 
     @property
     def loading(self) -> bool:
-        """Get loading state with lock protection."""
         with self._lock:
             return self._loading
 
@@ -95,7 +90,6 @@ class WatchState:
 
     @property
     def last_load(self) -> float:
-        """Get last load time with lock protection."""
         with self._lock:
             return self._last_load
 
@@ -107,7 +101,6 @@ class WatchState:
 
     @property
     def frame(self) -> int:
-        """Get frame count with lock protection."""
         with self._lock:
             return self._frame
 
@@ -119,7 +112,6 @@ class WatchState:
 
     @property
     def error(self) -> str | None:
-        """Get error message with lock protection."""
         with self._lock:
             return self._error
 

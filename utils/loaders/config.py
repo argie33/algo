@@ -420,12 +420,10 @@ def get_config_manager() -> LoaderConfigManager:
 
 
 def get_parallelism(loader_name: str) -> int:
-    """Get adaptive parallelism for a loader (convenience function)."""
     return get_config_manager().get_parallelism(loader_name)
 
 
 def is_enabled(loader_name: str) -> bool:
-    """Check if a loader is enabled (convenience function)."""
     return get_config_manager().is_enabled(loader_name)
 
 

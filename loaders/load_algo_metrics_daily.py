@@ -19,14 +19,12 @@ configure_socket_timeout(30)
 
 
 class AlgoMetricsDailyLoader(OptimalLoader):
-    """Compute and store daily algo performance metrics."""
 
     table_name = "algo_metrics_daily"
     primary_key = ("date",)
     watermark_field = "date"
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
-        """Compute daily algo metrics from audit log."""
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
         run_date = now_et.date()

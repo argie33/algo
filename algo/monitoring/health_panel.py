@@ -81,12 +81,10 @@ class HealthPanelFactory:
 
     @classmethod
     def get_panel(cls, panel_type: str) -> HealthPanelStrategy:
-        """Get health panel."""
         return cls._panels.get(panel_type.lower(), cls._panels["system"])
 
     @classmethod
     def get_all_panels(cls) -> dict[str, HealthPanelStrategy]:
-        """Get all health panels."""
         return cls._panels.copy()
 
 
@@ -99,11 +97,9 @@ class HealthPanel:
         self.history: list[dict[str, Any]] = []
 
     def get_status(self) -> str:
-        """Get overall system status."""
         return "healthy"
 
     def get_components(self) -> dict[str, str]:
-        """Get status of each component."""
         return {
             "system": "healthy",
             "database": "healthy",
@@ -120,11 +116,9 @@ class HealthPanel:
         return "healthy"
 
     def get_history(self) -> list[dict[str, Any]]:
-        """Get historical health metrics."""
         return self.history.copy()
 
     def get_metrics(self) -> dict[str, Any]:
-        """Get current health metrics."""
         return {
             "status": "healthy",
             "score": 95.0,

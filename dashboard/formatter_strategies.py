@@ -71,7 +71,6 @@ class SignFormatter(FormatterStrategy):
     """Formats numeric value with sign prefix."""
 
     def format(self, value: Any) -> str:
-        """Return '+' for non-negative, '' for negative."""
         try:
             v = float(value)
             return "+" if v >= 0 else "-"  # Always return explicit +/- sign, not empty

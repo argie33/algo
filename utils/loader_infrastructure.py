@@ -190,12 +190,10 @@ class LoaderInfrastructure:
             raise RuntimeError(f"[{self.table_name}] CRITICAL: Failed to update loader status to {status}: {e}") from e
 
     def check_shutdown_requested(self) -> bool:
-        """Check if graceful shutdown was requested."""
         with self._shutdown_lock:
             return self._shutdown_requested
 
     def get_rds_connection_count(self) -> int | None:
-        """Get current RDS active connection count from CloudWatch metrics."""
         try:
             from datetime import datetime, timedelta
 

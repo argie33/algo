@@ -34,7 +34,6 @@ class DataValidator:
         raise NotImplementedError("Subclasses must implement check()")
 
     def get_errors(self) -> list[str]:
-        """Return all collected errors (when fail_fast=False)."""
         return self.errors
 
     def clear_errors(self) -> None:

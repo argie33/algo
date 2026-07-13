@@ -121,7 +121,6 @@ def time_until_next_run(target_hour, target_minute):
 
 
 def is_trading_day(date_obj):
-    """Check if date is a trading day (Mon-Fri, not holiday)."""
     # Simple check: Mon-Fri only (not considering holidays for now)
     return date_obj.weekday() < 5  # 0-4 = Mon-Fri
 

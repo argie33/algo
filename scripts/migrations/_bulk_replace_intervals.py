@@ -20,7 +20,6 @@ INTERVAL_REPLACEMENTS = {
 }
 
 def needs_import(file_content: str) -> bool:
-    """Check if file already imports get_interval_sql."""
     return 'get_interval_sql' in file_content or 'from algo.infrastructure.config.sql_intervals' in file_content
 
 def add_import(file_content: str) -> str:

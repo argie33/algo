@@ -58,7 +58,6 @@ MIGRATIONS = [
 
 
 def check_migration_needed(conn: Any, check_query: str) -> bool:
-    """Check if a migration has already been applied."""
     try:
         with conn.cursor() as cur:
             cur.execute(check_query)

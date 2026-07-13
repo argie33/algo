@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 
 
 def get_price_coverage(cur: cursor) -> Any:
-    """Get price_daily coverage metrics."""
     try:
         interval_7d = get_interval_sql("7d")
         rows = execute_with_timeout(
@@ -111,7 +110,6 @@ def get_price_coverage(cur: cursor) -> Any:
 
 
 def get_technical_coverage(cur: cursor) -> Any:
-    """Get technical_data_daily coverage and completeness."""
     try:
         cur.execute("SET LOCAL statement_timeout = '20s'")
         interval_7d = get_interval_sql("7d")
@@ -174,7 +172,6 @@ def get_technical_coverage(cur: cursor) -> Any:
 
 
 def get_market_data_coverage(cur: cursor) -> Any:
-    """Get market_health_daily and other market data coverage."""
     try:
         # Market health
         interval_7d = get_interval_sql("7d")
@@ -229,7 +226,6 @@ def get_market_data_coverage(cur: cursor) -> Any:
 
 
 def get_loader_health(cur: cursor) -> Any:
-    """Get recent loader execution health from patrol log or direct table freshness checks."""
     try:
         # Try to get patrol data first
         interval_7d = get_interval_sql("7d")
@@ -300,7 +296,6 @@ def _safe_call(cur: cursor, fn: Any) -> Any:
 
 
 def get_overall_coverage_summary(cur: cursor) -> Any:
-    """Get overall data coverage summary."""
     summary = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "price_data": _safe_call(cur, get_price_coverage),

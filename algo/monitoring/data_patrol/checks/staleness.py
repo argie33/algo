@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class StalenessChecker(BaseCheck):
-    """Check that latest data is within expected staleness windows."""
 
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute staleness checks."""

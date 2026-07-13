@@ -47,7 +47,6 @@ _temp_args, _ = _args_temp.parse_known_args()
 
 
 def _is_dev_server_available() -> bool:
-    """Check if dev server is running on localhost:3001."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(0.5)

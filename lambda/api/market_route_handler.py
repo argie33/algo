@@ -56,5 +56,4 @@ class MarketHandlerFactory:
 
     @classmethod
     def get_handler(cls, endpoint: str) -> MarketHandlerStrategy:
-        """Get handler for market endpoint."""
         return cls._handlers.get(endpoint.lower(), cls._handlers["status"])

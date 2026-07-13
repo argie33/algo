@@ -67,7 +67,6 @@ EARLY_CLOSES = {
 
 
 class MarketCalendar:
-    """Check market status and trading hours."""
 
     @staticmethod
     @lru_cache(maxsize=1024)
@@ -178,7 +177,6 @@ class MarketCalendar:
 
     @staticmethod
     def market_status(check_datetime: datetime | None = None) -> dict[str, Any]:
-        """Get detailed market status."""
         if not check_datetime:
             check_datetime = datetime.now(_ET)
 
@@ -242,7 +240,6 @@ class MarketCalendar:
 
     @staticmethod
     def get_next_trading_day(from_date: _date | None = None) -> _date | None:
-        """Get next trading day after given date."""
         if not from_date:
             from_date = _date.today()
 

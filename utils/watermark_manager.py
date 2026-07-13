@@ -25,7 +25,6 @@ class WatermarkManager:
         self._marks: dict[str, Any] = {}  # in-memory cache
 
     def get(self, symbol: str) -> date | None:
-        """Get cached watermark for a symbol."""
         return self._marks.get(symbol)
 
     def set(self, symbol: str, value: date | None, rows_loaded: int = 0) -> None:

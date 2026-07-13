@@ -144,7 +144,6 @@ _tracker: OrchestratorExecutionTracker | None = None
 
 
 def get_tracker() -> OrchestratorExecutionTracker:
-    """Get or create the global execution tracker."""
     global _tracker
     if _tracker is None:
         _tracker = OrchestratorExecutionTracker()

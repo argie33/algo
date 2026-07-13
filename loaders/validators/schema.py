@@ -6,7 +6,6 @@ from .base import DataValidator
 
 
 class SchemaValidator(DataValidator):
-    """Check that row has expected columns and types."""
 
     def __init__(
         self,

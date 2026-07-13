@@ -82,7 +82,6 @@ def _update_loader_status(status: str, error_message: str | None = None, symbol_
 
 
 def _fetch_latest_dates(cur: psycopg2.extensions.cursor) -> list[date]:
-    """Return the most recent N trading dates from price_daily."""
     cur.execute(
         "SELECT DISTINCT date FROM price_daily ORDER BY date DESC LIMIT %s",
         (_LOOKBACK_DAYS,),
@@ -123,7 +122,6 @@ def _fetch_price_data(cur: psycopg2.extensions.cursor, dates: list[date]) -> pd.
 
 
 def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
-    """Compute Minervini scores, Weinstein stages, trend direction, and price_above_sma50 on the full DataFrame at once."""
     # Cast to float for vectorized comparisons; NaN propagates safely for fillna
     close = pd.to_numeric(merged["close"], errors="coerce")
     sma50 = pd.to_numeric(merged["sma_50"], errors="coerce")
@@ -198,7 +196,6 @@ def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list) -> int:  # type: 
 
 
 def run() -> dict:  # type: ignore[type-arg]
-    """Compute and persist trend template data for recent trading dates."""
     _update_loader_status("RUNNING")
     start = time.time()
 

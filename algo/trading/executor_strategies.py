@@ -155,7 +155,6 @@ class AutoExecutionMode(ExecutionModeStrategy):
             )
 
     def _check_live_intent(self, configured_url: str | None) -> bool:
-        """Check if all guards pass for live trading intent."""
         live_ack = os.getenv("ALGO_LIVE_TRADING", "").strip()
         paper_flag = os.getenv("ALPACA_PAPER_TRADING", "true").strip().lower()
         url_says_paper = "paper" in (configured_url or "").lower()

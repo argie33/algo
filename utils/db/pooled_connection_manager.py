@@ -173,7 +173,6 @@ class IdleConnectionPool:
             logger.warning(f"[IDLE_POOL] Error closing underlying pool: {e}")
 
     def status(self) -> dict[str, Any]:
-        """Return current idle connection status."""
         with self._lock:
             return {
                 "idle_connections": len(self._idle_connections),
@@ -239,7 +238,6 @@ class PoolSemaphore:
         )
 
     def status(self) -> dict[str, Any]:
-        """Return current semaphore status."""
         with self._lock:
             return {
                 "active_count": self._active_count,
@@ -393,7 +391,6 @@ class PooledConnectionManager:
         return self._conn
 
     def is_acquired(self) -> bool:
-        """Check if a connection is currently held."""
         return self._conn is not None
 
     def __enter__(self) -> Any:
@@ -407,7 +404,6 @@ class PooledConnectionManager:
 
 
 def get_pool_status() -> dict[str, Any]:
-    """Get current pool and semaphore status for monitoring."""
     from utils.db.connection import _get_connection_pool
 
     pool = _get_connection_pool()

@@ -12,7 +12,6 @@ import requests
 
 
 def check_local_db():
-    """Check local PostgreSQL database state."""
     print("\n" + "="*70)
     print("LOCAL DATABASE STATE")
     print("="*70)
@@ -55,7 +54,6 @@ def check_local_db():
         return None
 
 def check_aws_lambda_response():
-    """Check AWS Lambda response data."""
     print("\n" + "="*70)
     print("AWS LAMBDA RESPONSE STATE")
     print("="*70)

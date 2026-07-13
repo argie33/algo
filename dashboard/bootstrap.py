@@ -28,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 
 def _is_aws_environment() -> bool:
-    """Check if running in AWS Lambda/ECS or forced via FORCE_AWS."""
     if os.getenv("FORCE_AWS", "").lower() in ("true", "1", "yes"):
         return True
     return bool(os.getenv("AWS_EXECUTION_ENV"))

@@ -11,7 +11,6 @@ import boto3
 
 
 def check_pipeline_execution(execution_arn: str) -> dict:
-    """Get current execution status."""
     sfn = boto3.client('stepfunctions', region_name='us-east-1')
 
     try:
@@ -27,7 +26,6 @@ def check_pipeline_execution(execution_arn: str) -> dict:
         return {'error': str(e)}
 
 def check_data_freshness() -> dict:
-    """Check if loader data is fresh."""
     from datetime import date
 
     import psycopg2

@@ -32,7 +32,6 @@ class ResponseValidationError(Exception):
 
 
 def _check_required_fields(data: dict[str, Any], required_fields: list[str], source: str) -> None:
-    """Check if data has all required fields; raise error if any missing."""
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
         raise ResponseValidationError(f"Missing critical fields in {source}: {missing}")

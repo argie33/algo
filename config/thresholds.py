@@ -93,7 +93,6 @@ class ThresholdConfig:
 
     @staticmethod
     def get_signal_strength_thresholds() -> dict[str, float]:
-        """Get all signal strength thresholds as dict."""
         return {
             "weak": ThresholdConfig.signal_weak_threshold(),
             "medium": ThresholdConfig.signal_medium_threshold(),
@@ -106,7 +105,6 @@ class ThresholdConfig:
 
     @staticmethod
     def advanced_filters_grade_thresholds() -> dict[str, int]:
-        """Get advanced filters (IBD composite) grade thresholds. CRITICAL: all must be configured."""
         return {
             "aplus": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_aplus")),
             "a": int(ThresholdConfig._get_config_value("advanced_filters_grade_threshold_a")),
@@ -117,7 +115,6 @@ class ThresholdConfig:
 
     @staticmethod
     def dashboard_grade_thresholds() -> dict[str, int]:
-        """Get dashboard signals grade thresholds. CRITICAL: all must be configured."""
         return {
             "a": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_a")),
             "b": int(ThresholdConfig._get_config_value("dashboard_grade_threshold_b")),

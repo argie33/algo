@@ -10,6 +10,9 @@ to eliminate race condition (both were writing economic_data table with differen
 
 Uses FRED API (FREE): https://fred.stlouisfed.org/docs/api/
 API key from AWS Secrets Manager (algo/fred) or FRED_API_KEY env var.
+
+FAIL-FAST GOVERNANCE: All fetch functions raise RuntimeError on failures instead of silently
+returning empty arrays. Callers must handle exceptions explicitly.
 """
 
 import logging
@@ -51,7 +54,7 @@ def get_fred_api_key() -> str:
     """
     key = get_api_key("algo/fred", "FRED_API_KEY", required=False)
     if not key:
-        logger.warning("[ECONOMIC] FRED API key not found - will mark FRED data unavailable")
+        logger.warning("[ECONOMIC] FRED API key not found")
         return ""
     return key
 
@@ -60,16 +63,19 @@ def fetch_from_fred(api_key: str, series_id: str, start_date: date, end_date: da
     """Fetch single FRED series via REST API.
 
     Args:
-        api_key: FRED API key
+        api_key: FRED API key (must not be empty)
         series_id: FRED series ID (e.g., "T10Y2Y")
         start_date: Start date
         end_date: End date
 
     Returns:
         List of {"date": "2026-01-01", "value": 1.23} dicts
+
+    Raises:
+        RuntimeError: If API key empty, API fails, or response invalid
     """
     if not api_key:
-        return []
+        raise RuntimeError("[ECONOMIC/FRED] API key is empty - cannot fetch data")
 
     try:
         fred_url = f"{get_fred_url()}/series/observations"
@@ -87,7 +93,9 @@ def fetch_from_fred(api_key: str, series_id: str, start_date: date, end_date: da
         response.raise_for_status()
 
         data = response.json()
-        observations = data.get("observations", [])
+        if "observations" not in data:
+            raise ValueError(f"FRED response missing 'observations' field for {series_id}")
+        observations = data["observations"]
 
         # Filter out missing values (FRED uses "." for missing)
         records = []
@@ -95,15 +103,14 @@ def fetch_from_fred(api_key: str, series_id: str, start_date: date, end_date: da
             if obs.get("value", ".") != ".":
                 try:
                     records.append({"date": obs["date"], "value": float(obs["value"])})
-                except (ValueError, KeyError):
-                    pass
+                except (ValueError, KeyError) as e:
+                    logger.warning(f"[ECONOMIC/FRED] Skipping malformed observation in {series_id}: {e}")
 
         logger.info(f"[ECONOMIC/FRED] {series_id}: fetched {len(records)} observations")
         return records
 
     except Exception as e:
-        logger.warning(f"[ECONOMIC/FRED] {series_id} fetch failed: {e}")
-        return []
+        raise RuntimeError(f"[ECONOMIC/FRED] {series_id} fetch failed: {e}") from e
 
 
 def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
@@ -112,56 +119,55 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
     Uses ticker DX-Y.NYB (Intercontinental Exchange listing on Yahoo Finance).
 
     Returns:
-        list: [{"date": "2026-06-29", "value": 101.13}, ...] or empty list if unavailable
+        list: [{"date": "2026-06-29", "value": 101.13}, ...]
+
+    Raises:
+        RuntimeError: If yfinance unavailable, API fails, or no data returned
     """
     try:
         import yfinance as yf
-
-        logger.debug("[ECONOMIC/DXY] Attempting to fetch DXY (DX-Y.NYB) from Yahoo Finance...")
-
-        end_date = date.today()
-        start_date = end_date - timedelta(days=365)
-
-        http_timeout = get_http_timeout()
-
-        try:
-            dxy = yf.download(
-                "DX-Y.NYB",
-                start=start_date,
-                end=end_date,
-                progress=False,
-                timeout=http_timeout[1],
-            )
-        except TimeoutError as e:
-            raise RuntimeError(f"[ECONOMIC/DXY] Yahoo Finance fetch timed out: {e}") from e
-
-        if dxy is None or len(dxy) == 0:
-            logger.warning("[ECONOMIC/DXY] Yahoo Finance returned no data for DX-Y.NYB ticker.")
-            raise RuntimeError("[ECONOMIC/DXY] No data available from Yahoo Finance for DX-Y.NYB")
-
-        rows = []
-        for idx, row in dxy.iterrows():
-            # idx is a pandas Timestamp; convert to date string
-            if hasattr(idx, "tz") and idx.tz is not None:
-                date_str = idx.tz_localize(None).date().isoformat()
-            else:
-                date_str = idx.date().isoformat()
-
-            value = float(row["Close"])
-            rows.append({"date": date_str, "value": value})
-
-        logger.info(f"[ECONOMIC/DXY] Fetched {len(rows)} DXY values from Yahoo Finance (DX-Y.NYB)")
-        return rows
-
     except ImportError as e:
-        logger.error(
+        raise RuntimeError(
             f"[ECONOMIC/DXY] Required 'yfinance' library not available: {e}. "
-            f"Cannot fetch DXY data. This is a dependency error, not a transient API failure."
+            f"This is a deployment-time dependency error."
+        ) from e
+
+    logger.debug("[ECONOMIC/DXY] Attempting to fetch DXY (DX-Y.NYB) from Yahoo Finance...")
+
+    end_date = date.today()
+    start_date = end_date - timedelta(days=365)
+
+    http_timeout = get_http_timeout()
+
+    try:
+        dxy = yf.download(
+            "DX-Y.NYB",
+            start=start_date,
+            end=end_date,
+            progress=False,
+            timeout=http_timeout[1],
         )
-        return []
+    except TimeoutError as e:
+        raise RuntimeError(f"[ECONOMIC/DXY] Yahoo Finance fetch timed out: {e}") from e
     except Exception as e:
-        logger.error(f"[ECONOMIC/DXY] Failed to fetch from Yahoo Finance: {e}")
-        return []
+        raise RuntimeError(f"[ECONOMIC/DXY] Failed to fetch from Yahoo Finance: {e}") from e
+
+    if dxy is None or len(dxy) == 0:
+        raise RuntimeError("[ECONOMIC/DXY] No data available from Yahoo Finance for DX-Y.NYB")
+
+    rows = []
+    for idx, row in dxy.iterrows():
+        # idx is a pandas Timestamp; convert to date string
+        if hasattr(idx, "tz") and idx.tz is not None:
+            date_str = idx.tz_localize(None).date().isoformat()
+        else:
+            date_str = idx.date().isoformat()
+
+        value = float(row["Close"])
+        rows.append({"date": date_str, "value": value})
+
+    logger.info(f"[ECONOMIC/DXY] Fetched {len(rows)} DXY values from Yahoo Finance (DX-Y.NYB)")
+    return rows
 
 
 def store_economic_data(series_id: str, records: list[dict[str, Any]]) -> int:
@@ -216,7 +222,6 @@ def load() -> dict[str, Any]:
     """
     logger.info("[ECONOMIC] Starting consolidated economic data load (FRED + DXY)...")
 
-    # Fetch FRED data
     fred_api_key = get_fred_api_key()
     end_date = date.today()
     start_date = end_date - timedelta(days=365)
@@ -225,38 +230,39 @@ def load() -> dict[str, Any]:
 
     socket.setdefaulttimeout(30.0)
 
-    if fred_api_key:
+    if not fred_api_key:
+        logger.warning("[ECONOMIC/FRED] No API key available")
+        for series_id in FRED_SERIES:
+            mark_unavailable(series_id, "FRED_API_KEY not configured")
+            fred_results[series_id] = "unavailable (no API key)"
+    else:
         for i, series_id in enumerate(FRED_SERIES):
             # Rate limiting: 5s between requests
             if i > 0:
                 time.sleep(5.0)
 
             logger.info(f"[ECONOMIC/FRED] Processing {series_id}...")
-            records = fetch_from_fred(fred_api_key, series_id, start_date, end_date)
-
-            if records:
+            try:
+                records = fetch_from_fred(fred_api_key, series_id, start_date, end_date)
                 inserted = store_economic_data(series_id, records)
                 total_inserted += inserted
                 fred_results[series_id] = f"{inserted} records"
-            else:
-                mark_unavailable(series_id, "No data from FRED API")
-                fred_results[series_id] = "unavailable"
-    else:
-        logger.warning("[ECONOMIC/FRED] No API key - marking all FRED series unavailable")
-        for series_id in FRED_SERIES:
-            mark_unavailable(series_id, "FRED_API_KEY not configured in Secrets Manager or environment")
-            fred_results[series_id] = "unavailable (no API key)"
+            except RuntimeError as e:
+                logger.error(f"[ECONOMIC/FRED] {series_id} failed: {e}")
+                mark_unavailable(series_id, str(e))
+                fred_results[series_id] = "unavailable (fetch error)"
 
     # Fetch DXY data
     logger.info("[ECONOMIC] Fetching DXY (US Dollar Index)...")
-    dxy_records = fetch_dxy_from_yahoo()
-    if dxy_records:
+    try:
+        dxy_records = fetch_dxy_from_yahoo()
         inserted = store_economic_data("DXY_ICE", dxy_records)
         total_inserted += inserted
         dxy_result = f"{inserted} records"
-    else:
-        mark_unavailable("DXY_ICE", "No data available from Yahoo Finance")
-        dxy_result = "unavailable"
+    except RuntimeError as e:
+        logger.error(f"[ECONOMIC/DXY] Failed: {e}")
+        mark_unavailable("DXY_ICE", str(e))
+        dxy_result = "unavailable (fetch error)"
 
     logger.info(f"[ECONOMIC] Load complete: {total_inserted} total records inserted")
     return {

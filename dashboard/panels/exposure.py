@@ -111,7 +111,6 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
     tc = TIER_COLOR.get(tier, "dim")
 
     def factor_detail(key: Any) -> str:  # noqa: C901 - key dispatch lookup table is inherently complex
-        """Return a short value string for a factor key."""
         # Early return if factors dict has error markers
         if error_boundary.has_error(factors):
             return "[yellow]⚠[/]"  # Mark as unavailable, not empty

@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 def is_private_ip(ip_str: str) -> bool:
-    """Check if IP address is private/reserved."""
     try:
         ip = ipaddress.ip_address(ip_str)
         # Check for private, loopback, reserved ranges
@@ -27,7 +26,6 @@ def is_private_ip(ip_str: str) -> bool:
 
 
 def _check_url_format(url: str) -> tuple[bool, str | None]:
-    """Check URL format: empty, length, and protocol."""
     if not url:
         return False, "URL is empty"
     if len(url) > 2048:
@@ -50,7 +48,6 @@ def _extract_hostname(url: str) -> tuple[str | None, str | None]:
 
 
 def _check_hostname_safety(hostname: str) -> tuple[bool, str | None]:
-    """Check if hostname is safe (not localhost/private IP)."""
     if hostname.lower() in ("localhost", "127.0.0.1", "::1", "[::1]"):
         return False, "Localhost URLs not allowed"
     if is_private_ip(hostname):
@@ -59,7 +56,6 @@ def _check_hostname_safety(hostname: str) -> tuple[bool, str | None]:
 
 
 def _check_domain_whitelist(hostname: str, allowed_domains: list[str]) -> tuple[bool, str | None]:
-    """Check if hostname matches allowed domains."""
     for allowed in allowed_domains:
         if hostname.endswith(allowed) or hostname == allowed:
             return True, None
@@ -67,7 +63,6 @@ def _check_domain_whitelist(hostname: str, allowed_domains: list[str]) -> tuple[
 
 
 def _check_path_traversal(url: str) -> bool:
-    """Check for suspicious URL patterns (directory traversal, etc.)."""
     return any(char in url for char in ["../", "..\\", "%2e%2e"])
 
 

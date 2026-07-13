@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 def check_loader_status(loader_name: str = "price_daily"):
-    """Check current loader status from database."""
     try:
         from utils.db.context import DatabaseContext
 

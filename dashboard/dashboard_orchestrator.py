@@ -52,7 +52,6 @@ class DashboardOrchestrator:
                 self.view_mode = "normal" if self.view_mode == target else target
 
     def get_snapshot(self) -> dict[str, Any]:
-        """Get thread-safe snapshot of state."""
         with self._state_lock:
             return {
                 "frame": self.frame,

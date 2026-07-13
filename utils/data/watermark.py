@@ -264,7 +264,6 @@ class WatermarkManager:
             raise RuntimeError(f"Failed to record error for watermark: {e}") from e
 
     def get_status(self) -> dict[str, Any]:
-        """Get status of all watermarks for this loader."""
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(

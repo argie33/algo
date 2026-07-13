@@ -94,7 +94,6 @@ class EarningsBlackout:
             raise ValueError(f"Earnings blackout check error for {symbol}: {str(e)[:50]} — explicit halt") from e
 
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list[Any]:
-        """Get upcoming earnings for symbol."""
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(

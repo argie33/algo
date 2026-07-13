@@ -31,7 +31,6 @@ def get_open_positions(cur: cursor, limit: int = 1000) -> list[dict[str, Any]]:
 
 
 def get_closed_positions(cur: cursor, limit: int = 100) -> list[dict[str, Any]]:
-    """Get recent closed positions."""
     cur.execute(
         """
         SELECT * FROM algo_positions_with_risk
@@ -176,7 +175,6 @@ def get_open_portfolio_totals(cur: cursor) -> dict[str, float | None]:
 
 
 def get_all_positions(cur: cursor, limit: int = 1000) -> list[dict[str, Any]]:
-    """Get all positions (open and closed)."""
     cur.execute(
         """
         SELECT * FROM algo_positions_with_risk
@@ -262,7 +260,6 @@ def count_trades_by_status(cur: cursor, status: str | None = None) -> int:
 
 
 def get_recent_trades(cur: cursor, days_back: int = 30, limit: int = 100) -> list[dict[str, Any]]:
-    """Get closed trades from the last N days."""
     cur.execute(
         """
         SELECT * FROM algo_trades
@@ -277,14 +274,12 @@ def get_recent_trades(cur: cursor, days_back: int = 30, limit: int = 100) -> lis
 
 
 def count_open_positions(cur: cursor) -> int:
-    """Get count of open positions. Single source of truth."""
     cur.execute("SELECT COUNT(*) as count FROM algo_positions WHERE status = 'open'")
     row = cur.fetchone()
     return int(row["count"]) if row else 0
 
 
 def sum_open_position_value(cur: cursor) -> float:
-    """Get total portfolio value of open positions. Single source of truth."""
     cur.execute(
         """
         SELECT SUM(position_value) as total
@@ -297,7 +292,6 @@ def sum_open_position_value(cur: cursor) -> float:
 
 
 def get_positions_by_symbol(cur: cursor, symbol: str) -> list[dict[str, Any]]:
-    """Get all positions (open and closed) for a specific symbol."""
     cur.execute(
         """
         SELECT * FROM algo_positions_with_risk

@@ -23,7 +23,6 @@ class SectorRankingLoader(OptimalLoader):
     watermark_field = "date"
 
     def load_global(self) -> int:
-        """Compute and load sector and industry rankings for today."""
         try:
             with DatabaseContext("write") as cur:
                 # Delete stale data (keep last 90 days) for both tables

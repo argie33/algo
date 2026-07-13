@@ -44,7 +44,6 @@ class LoaderStats:
             self._stats[key] = value
 
     def get(self, key: str, default: Any = None) -> Any:
-        """Get a stat value."""
         with self._lock:
             return self._stats.get(key, default)
 
@@ -61,6 +60,5 @@ class LoaderStats:
             return key in self._stats
 
     def to_dict(self) -> dict[str, Any]:
-        """Get a snapshot of all stats."""
         with self._lock:
             return dict(self._stats)

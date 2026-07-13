@@ -1959,7 +1959,6 @@ class AlgoConfig:
         return key in self._config
 
     def _check_type(self, value: Any, expected_type: str) -> bool:
-        """Check if value has the expected type without coercion."""
         if expected_type == "int":
             return isinstance(value, int) and not isinstance(value, bool)
         elif expected_type == "float":

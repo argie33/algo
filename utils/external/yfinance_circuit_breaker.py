@@ -289,7 +289,6 @@ class YFinanceIPCircuitBreaker:
             ) from e
 
     def get_diagnostics(self) -> dict[str, Any]:
-        """Get current circuit breaker state for diagnostics."""
         state = self._get_ban_state()
 
         if state is None:
@@ -341,5 +340,4 @@ _circuit_breaker = YFinanceIPCircuitBreaker()
 
 
 def get_circuit_breaker() -> YFinanceIPCircuitBreaker:
-    """Get the global circuit breaker instance."""
     return _circuit_breaker

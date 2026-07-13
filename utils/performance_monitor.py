@@ -138,5 +138,4 @@ _global_monitor = PerformanceMonitor()
 
 
 def get_monitor() -> PerformanceMonitor:
-    """Get the global performance monitor instance."""
     return _global_monitor

@@ -227,7 +227,6 @@ def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) 
 
 
 def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
-    """Compute signal attribution IC."""
     from algo.signals.attribution import SignalAttributionEngine
 
     attr_result = {}
@@ -362,7 +361,6 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
 
 
 def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
-    """Compute and log live performance metrics. Degrades gracefully if Sharpe ratio unavailable."""
     from algo.reporting import LivePerformance
 
     perf_status = "warn"
@@ -414,7 +412,6 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
 
 
 def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
-    """Compute and log risk metrics."""
     from algo.risk import ValueAtRisk
 
     risk_status = "warn"

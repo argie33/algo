@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 def compute_market_sentiment() -> None:
-    """Compute and upsert market sentiment data for today."""
     today = datetime.now(EASTERN_TZ).date()
 
     with DatabaseContext("write", cursor_factory=psycopg2.extras.RealDictCursor) as cur:

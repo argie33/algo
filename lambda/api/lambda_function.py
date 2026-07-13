@@ -757,12 +757,10 @@ def get_cors_headers(event: dict[str, Any]) -> dict[str, str]:
 
 
 def get_json_content_type() -> str:
-    """Return JSON content-type with proper UTF-8 charset declaration."""
     return "application/json; charset=utf-8"
 
 
 def get_security_headers() -> dict[str, str]:
-    """Return security headers for all responses."""
     from routes.utils import get_api_version_headers
 
     return {

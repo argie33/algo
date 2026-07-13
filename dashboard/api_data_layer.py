@@ -75,7 +75,6 @@ _api_base_url_cache = None
 _localhost_checked = False
 
 def _check_localhost_available() -> bool:
-    """Check if dev_server is running on localhost:3001."""
     import socket
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -181,7 +180,6 @@ def set_api_url(url: str) -> None:
 
 
 def get_api_url() -> str:
-    """Get the current API base URL."""
     return API_BASE_URL
 
 
@@ -254,13 +252,11 @@ def set_cognito_auth(auth: Any) -> None:
 
 
 def get_cognito_auth() -> Any:
-    """Get the current Cognito authentication instance."""
     with _cognito_auth_lock:
         return _cognito_auth
 
 
 def _check_circuit_breaker() -> bool:
-    """Check if circuit breaker is open; attempt half-open state after reset time."""
     global _circuit_breaker_state
     global _circuit_breaker_failures
     with _circuit_breaker_lock:

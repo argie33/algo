@@ -87,7 +87,6 @@ class SLAStatus:
 
     @property
     def status_emoji(self) -> str:
-        """Return emoji indicator of SLA status."""
         if self.is_critical:
             return "🔴"
         elif self.is_breaching:
@@ -99,7 +98,6 @@ class SLAStatus:
 
     @property
     def status_text(self) -> str:
-        """Return human-readable status."""
         if self.is_critical:
             return "CRITICAL"
         elif self.is_breaching:
@@ -278,7 +276,6 @@ class PipelineSLAMonitor:
         logger.info(f"[PIPELINE] {self.pipeline_name} started, SLA budget: {self.sla_config[2] / 60:.0f} min")
 
     def get_status(self) -> SLAStatus:
-        """Get current SLA status of the pipeline."""
         if self.start_time is None:
             return SLAStatus(
                 loader_name=self.pipeline_name,

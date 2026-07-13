@@ -79,7 +79,6 @@ class CircuitBreaker:
         self.success_count_in_half_open = 0
 
     def is_open(self) -> bool:
-        """Check if circuit is open (rejecting requests)."""
         if self.state == CircuitBreakerState.CLOSED:
             return False
 

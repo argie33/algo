@@ -194,7 +194,6 @@ class SectorRotationDetector:
     def _compute_sector_metrics(
         self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        """Compute all sector rotation metrics."""
         def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(defensive)
         cyc_imp_4w = sum(d["rank_improvement_4w"] for d in cyclical) / len(cyclical)
         spread = def_imp_4w - cyc_imp_4w
@@ -223,7 +222,6 @@ class SectorRotationDetector:
     def _compute_weeks_persistent(
         self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]], def_imp_4w: float, cyc_imp_4w: float
     ) -> int:
-        """Compute how many weeks defensive has outperformed across different time windows."""
         return sum(
             [
                 (

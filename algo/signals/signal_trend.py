@@ -31,7 +31,6 @@ class SignalTrendMixin:
 
     @staticmethod
     def _is_valid_float(v: Any) -> bool:
-        """Check if a value can be safely converted to float."""
         try:
             float(v)
             return True

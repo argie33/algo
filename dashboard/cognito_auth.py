@@ -133,7 +133,6 @@ class CognitoAuth:
             return False
 
     def is_token_expired(self) -> bool:
-        """Check if access token is expired or about to expire (5 min buffer)."""
         if not self.token_expires_at:
             return True
         now = time.time()
@@ -222,11 +221,9 @@ class CognitoAuth:
             raise
 
     def is_authenticated(self) -> bool:
-        """Check if user has valid credentials."""
         return bool(self.access_token) and not self.is_token_expired()
 
     def has_lost_authentication(self) -> bool:
-        """Check if authentication was recently lost due to token failure."""
         return self._auth_lost_time is not None
 
 

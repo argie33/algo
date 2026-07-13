@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 def check_database():
-    """Check PostgreSQL database connectivity."""
     try:
         conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
         cur = conn.cursor()
@@ -69,7 +68,6 @@ def check_database():
 
 
 def check_dev_server():
-    """Check if dev_server is running on :3001."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
@@ -89,7 +87,6 @@ def check_dev_server():
 
 
 def check_api_endpoints():
-    """Check key API endpoints."""
     base_url = "http://localhost:3001"
     endpoints = {
         "/health": "System health",
@@ -121,7 +118,6 @@ def check_api_endpoints():
 
 
 def check_dashboard():
-    """Check dashboard startup."""
     try:
         # Ensure dashboard is on sys.path
         import os

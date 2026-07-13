@@ -50,7 +50,6 @@ PIPELINE_LAYERS = {
 }
 
 def check_table_exists(cur: Any, table: str) -> bool:
-    """Check if table exists."""
     try:
         cur.execute(f"""
             SELECT EXISTS (
@@ -63,7 +62,6 @@ def check_table_exists(cur: Any, table: str) -> bool:
         return False
 
 def get_table_stats(cur: Any, table: str) -> dict[str, Any]:
-    """Get statistics for a table."""
     try:
         cur.execute(f"SELECT COUNT(*) FROM {table}")
         count = cur.fetchone()[0]

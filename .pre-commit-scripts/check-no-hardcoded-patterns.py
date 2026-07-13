@@ -15,7 +15,6 @@ import sys
 
 
 def check_file(filepath: str) -> list[str]:
-    """Check a Python file for violations. Returns list of violations."""
     violations = []
 
     try:

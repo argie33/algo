@@ -71,7 +71,6 @@ class SignalQueryBuilder:
         return self
 
     def source_hierarchy(self) -> str:
-        """Return description of source hierarchy."""
         lines = [
             "SIGNAL DATA SOURCES (Issue #7: Unified Query)",
             f"PRIMARY: {self.primary_source}",

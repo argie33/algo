@@ -132,7 +132,6 @@ class LambdaHandler(ABC):
         ssl_mode: str = "require",
         timeout: int = 10,
     ) -> Any:
-        """Get a database connection with proper error handling."""
         if psycopg2 is None:
             raise RuntimeError(
                 "psycopg2 is not installed in this Lambda environment. "
@@ -185,7 +184,6 @@ class LambdaHandler(ABC):
 
     @staticmethod
     def get_dynamodb_table(table_name: str, region: str = "us-east-1") -> Any:
-        """Get a DynamoDB table resource."""
         dynamodb = boto3.resource("dynamodb", region_name=region)
         return dynamodb.Table(table_name)
 

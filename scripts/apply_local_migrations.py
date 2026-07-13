@@ -13,7 +13,6 @@ import psycopg2
 
 
 def get_db_connection():
-    """Get connection to local database."""
     try:
         conn = psycopg2.connect(
             host=os.environ.get('DB_HOST', 'localhost'),

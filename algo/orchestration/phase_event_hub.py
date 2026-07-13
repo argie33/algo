@@ -247,7 +247,6 @@ _event_hub: PhaseEventHub | None = None
 
 
 def get_event_hub() -> PhaseEventHub:
-    """Get or create the global event hub singleton."""
     global _event_hub
     if _event_hub is None:
         _event_hub = PhaseEventHub()

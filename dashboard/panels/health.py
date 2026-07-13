@@ -667,7 +667,6 @@ def panel_orch(  # noqa: C901
 
 
 def _get_status_safe(run: dict[str, Any]) -> str:
-    """Get overall_status with explicit validation (fail-fast on missing field)."""
     status = run.get("overall_status")
     if status is None:
         logger.error(

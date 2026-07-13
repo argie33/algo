@@ -136,23 +136,18 @@ class PanelRegistry:
         self._render_functions[name] = render_fn
 
     def get_panel(self, name: str) -> PanelDefinition | None:
-        """Get a panel definition by name."""
         return self._panels.get(name)
 
     def get_all_panels(self) -> dict[str, PanelDefinition]:
-        """Get all registered panels."""
         return self._panels.copy()
 
     def get_panel_names(self) -> list[str]:
-        """Get all registered panel names."""
         return list(self._panels.keys())
 
     def get_render_function(self, name: str) -> Callable[..., Any] | None:
-        """Get the rendering function for a panel."""
         return self._render_functions.get(name)
 
     def get_panel_dependencies(self, name: str) -> list[str]:
-        """Get list of endpoint dependencies for a panel."""
         panel = self._panels.get(name)
         if not panel:
             raise ValueError(
@@ -161,7 +156,6 @@ class PanelRegistry:
         return panel.endpoint_deps
 
     def is_panel_optional(self, name: str) -> bool:
-        """Check if a panel is optional (ok to skip if endpoint missing)."""
         panel = self._panels.get(name)
         if not panel:
             raise ValueError(
@@ -246,11 +240,9 @@ class PanelRegistry:
         return result if result is not None else []
 
     def get_critical_panels(self) -> list[str]:
-        """Get panels that are not optional (dashboard won't fully render without them)."""
         return [name for name, panel in self._panels.items() if not panel.optional]
 
     def get_optional_panels(self) -> list[str]:
-        """Get optional panels (dashboard can render without them)."""
         return [name for name, panel in self._panels.items() if panel.optional]
 
 
@@ -259,7 +251,6 @@ _registry = PanelRegistry()
 
 
 def get_panel_registry() -> PanelRegistry:
-    """Get the global panel registry instance."""
     return _registry
 
 

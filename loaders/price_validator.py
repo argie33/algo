@@ -219,7 +219,6 @@ class PriceValidator:
         return True
 
     def _check_market_close_available(self, max_wait_sec: int = 10) -> bool:
-        """Check if market close data is available (for EOD pipeline validation)."""
         from datetime import datetime
 
         from algo.infrastructure import MarketCalendar

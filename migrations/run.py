@@ -49,7 +49,6 @@ logger = logging.getLogger(__name__)
 
 
 def _has_sql_content(stmt: str) -> bool:
-    """Return True if stmt has any SQL beyond whitespace and -- line comments."""
     for line in stmt.splitlines():
         s = line.strip()
         if s and not s.startswith("--"):
@@ -256,7 +255,6 @@ class MigrationRunner:
             raise
 
     def get_applied_migrations(self) -> list[str]:
-        """Get list of applied migrations that haven't been rolled back."""
         query = "SELECT version FROM schema_version WHERE rolled_back_at IS NULL ORDER BY applied_at"
         try:
             self.cursor.execute(query)
@@ -269,7 +267,6 @@ class MigrationRunner:
             ) from e
 
     def get_pending_migrations(self) -> list[tuple[str, Path]]:
-        """Get list of migration files that haven't been applied."""
         applied = set(self.get_applied_migrations())
 
         # Find all .sql and .py migration files (exclude __init__.py)

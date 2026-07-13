@@ -143,7 +143,6 @@ class RejectionTracker:
             logger.error(f"Failed to log pre-tier rejection for {symbol}: {e}")
 
     def get_rejection_reasons(self, eval_date: date, tier: int, limit: int = 20) -> list[dict[str, Any]]:
-        """Get top rejection reasons for a specific tier."""
 
         def _get_reasons(cur: Any) -> list[dict[str, Any]]:
             col_name = f"tier_{tier}_reason"
@@ -184,7 +183,6 @@ class RejectionTracker:
         return result
 
     def get_signals_by_rejection_status(self, eval_date: date) -> dict[str, Any]:
-        """Get summary of signals by whether they were rejected and at which tier."""
 
         def _get_status(cur: Any) -> dict[str, Any]:
             cur.execute(

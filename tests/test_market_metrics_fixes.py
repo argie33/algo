@@ -63,7 +63,6 @@ class TestBreadthFetcherValidation:
         assert any("252-day history" in record.message for record in caplog.records)
 
     def test_succeeds_with_valid_data(self):
-        """Returns dict with dates when valid data exists."""
         fetcher = BreadthFetcher()
 
         mock_cur = Mock()

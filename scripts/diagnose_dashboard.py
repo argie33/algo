@@ -15,7 +15,6 @@ if sys.platform.startswith('win'):
         pass
 
 def check_dev_server() -> tuple[bool, str]:
-    """Check if dev_server is running on localhost:3001."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)
@@ -29,7 +28,6 @@ def check_dev_server() -> tuple[bool, str]:
         return False, f"Error checking dev_server: {e}"
 
 def check_database() -> tuple[bool, str]:
-    """Check if database is accessible."""
     try:
         import psycopg2
         conn = psycopg2.connect(
@@ -46,7 +44,6 @@ def check_database() -> tuple[bool, str]:
         return False, f"Database error: {e}"
 
 def check_api_endpoints() -> tuple[bool, str]:
-    """Check if dev_server is responding to API calls."""
     try:
         import requests
         headers = {"Authorization": "Bearer dev-admin"}
@@ -65,7 +62,6 @@ def check_api_endpoints() -> tuple[bool, str]:
         return False, f"API error: {e}"
 
 def check_dashboard_import() -> tuple[bool, str]:
-    """Check if dashboard module can be imported."""
     try:
         # Make sure we're running from repo root
         import sys
@@ -79,7 +75,6 @@ def check_dashboard_import() -> tuple[bool, str]:
         return False, f"Cannot import dashboard: {type(e).__name__}: {str(e)[:60]}"
 
 def check_local_mode() -> tuple[bool, str]:
-    """Check if LOCAL_MODE is set."""
     local_mode = os.environ.get('LOCAL_MODE')
     if local_mode:
         return True, f"LOCAL_MODE is set: {local_mode}"

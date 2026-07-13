@@ -73,11 +73,9 @@ class DryRunBrokerAdapter(BrokerAdapter):
         }
 
     def fetch_portfolio_history(self) -> list[float]:
-        """Return empty portfolio history (no historical data in dry-run mode)."""
         return []
 
     def fetch_closed_orders(self, since: Any | None = None) -> list[dict[str, Any]]:
-        """Return empty closed orders (no order history in dry-run mode)."""
         return []
 
     def fetch_initial_capital(self) -> float | dict[str, Any]:
@@ -89,5 +87,4 @@ class DryRunBrokerAdapter(BrokerAdapter):
         return {"error": "empty_portfolio_history", "initial_capital": None}
 
     def sync_positions(self, cur: Any) -> dict[str, Any]:
-        """Return empty position sync result (no positions in dry-run mode)."""
         return {"imported": 0, "updated": 0, "closed": 0}

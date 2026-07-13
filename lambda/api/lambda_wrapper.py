@@ -33,7 +33,6 @@ class LambdaAPIClient:
         self.client = None
 
     def _get_client(self) -> Any:
-        """Get or create Lambda client."""
         if self.client is None:
             try:
                 config = Config(
@@ -109,7 +108,6 @@ _client_lock = threading.Lock()
 
 
 def get_lambda_client() -> LambdaAPIClient:
-    """Get the global Lambda API client (thread-safe)."""
     global _client
     with _client_lock:
         if _client is None:

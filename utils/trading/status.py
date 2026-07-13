@@ -23,12 +23,10 @@ class TradeStatus(Enum):
 
     @classmethod
     def all_open(cls) -> tuple[str, ...]:
-        """Returns tuple of statuses where position is still active."""
         return (cls.OPEN.value, cls.FILLED.value, cls.ACTIVE.value, cls.PARTIAL.value)
 
     @classmethod
     def all_closed(cls) -> tuple[str, ...]:
-        """Returns tuple of statuses where position is done."""
         return (cls.CLOSED.value, cls.CANCELLED.value, cls.ORPHANED.value)
 
     @classmethod
@@ -73,12 +71,10 @@ class PositionStatus(Enum):
 
     @classmethod
     def all_active(cls) -> tuple[str, ...]:
-        """Returns tuple of statuses where position is still exposed."""
         return (cls.OPEN.value, cls.PARTIAL.value, cls.PENDING_CLOSE.value)
 
     @classmethod
     def is_active(cls, status: str) -> bool:
-        """Check if position is still exposed to market movement."""
         return status in cls.all_active()
 
 

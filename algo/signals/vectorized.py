@@ -257,7 +257,6 @@ class VectorizedSignalGenerator:
     def compute_weinstein_stage_parallel(
         self, data_by_symbol: dict[str, Any], eval_date: _date
     ) -> dict[str, dict[str, Any]]:
-        """Compute Weinstein 4-stage classification for all symbols."""
         results = {}
 
         for symbol, rows in data_by_symbol.items():
@@ -312,7 +311,6 @@ class VectorizedSignalGenerator:
     def compute_power_trend_parallel(
         self, data_by_symbol: dict[str, Any], eval_date: _date
     ) -> dict[str, dict[str, Any]]:
-        """Compute power trend: 20%+ gain in 21 days."""
         results = {}
 
         for symbol, rows in data_by_symbol.items():
@@ -358,7 +356,6 @@ class VectorizedSignalGenerator:
 
     @staticmethod
     def _rolling_mean(arr: np.ndarray[Any, Any], window: int) -> np.ndarray[Any, Any]:
-        """Compute rolling mean. Handles NaNs, pads with NaN for short windows."""
         if len(arr) < window:
             return np.full(len(arr), np.nan)
         result = np.full(len(arr), np.nan)

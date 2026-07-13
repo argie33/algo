@@ -78,7 +78,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self.send_error(404, "Not Found")
 
     def _handle_positions(self) -> None:
-        """Return corrected positions data."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -160,7 +159,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"statusCode": 500, "error": str(e)})
 
     def _handle_metrics(self) -> None:
-        """Return algo metrics."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -198,7 +196,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_portfolio(self) -> None:
-        """Return portfolio snapshot from latest database snapshot."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -238,7 +235,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_performance(self) -> None:
-        """Return performance metrics from database."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -319,7 +315,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_trades(self) -> None:
-        """Return recent trades."""
         response = {
             "statusCode": 200,
             "data": {"items": [], "total_count": 0, "pagination": {"limit": 50, "offset": 0}},
@@ -327,7 +322,6 @@ class APIHandler(BaseHTTPRequestHandler):
         self._send_json(200, response)
 
     def _handle_dashboard_signals(self) -> None:
-        """Return dashboard signals."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -394,7 +388,6 @@ class APIHandler(BaseHTTPRequestHandler):
         self._send_json(200, response)
 
     def _handle_data_status(self) -> None:
-        """Return data loader health status from loader_status table."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -443,7 +436,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_circuit_breakers(self) -> None:
-        """Return circuit breaker status from database."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -492,7 +484,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_last_run(self) -> None:
-        """Return last orchestrator run from database."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -536,7 +527,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_config(self) -> None:
-        """Return algo configuration from database."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -573,7 +563,6 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_markets(self) -> None:
-        """Return market data from database."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
@@ -630,12 +619,10 @@ class APIHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"statusCode": 503, "error": str(e)})
 
     def _handle_optional_empty(self) -> None:
-        """Return empty response for optional endpoints."""
         response = {"statusCode": 200, "data": {"items": [] if "items" not in self.path else [], "total_count": 0}}
         self._send_json(200, response)
 
     def _handle_health(self) -> None:
-        """Return health status."""
         self._send_json(200, {"statusCode": 200, "status": "healthy"})
 
     def _send_json(self, status_code: int, data: dict[str, object]) -> None:

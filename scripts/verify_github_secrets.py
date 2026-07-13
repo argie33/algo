@@ -52,7 +52,6 @@ def get_repo() -> str:
     return os.getenv("GITHUB_REPO", "argie33/algo")
 
 def get_github_secrets():
-    """Get all GitHub secrets for the repository."""
     try:
         repo = get_repo()
         result = subprocess.run(

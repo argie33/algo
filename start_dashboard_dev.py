@@ -20,7 +20,6 @@ from pathlib import Path
 
 
 def is_port_open(port: int, timeout: float = 1.0) -> bool:
-    """Check if port is open and accepting connections."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)

@@ -30,7 +30,6 @@ class LoaderHealthMonitor:
         self.checks: list[dict[str, Any]] = []
 
     def check_loader_execution_rate(self, hours: int = 24) -> dict[str, Any]:
-        """Check if loaders are executing at expected frequency."""
         cur = self.conn.cursor()
         cur.execute(f"""
             SELECT
@@ -60,7 +59,6 @@ class LoaderHealthMonitor:
         return check
 
     def check_data_freshness(self) -> dict[str, Any]:
-        """Check if critical output tables have fresh data."""
         cur = self.conn.cursor()
 
         tables_to_check = {
@@ -106,7 +104,6 @@ class LoaderHealthMonitor:
         return check
 
     def check_orchestrator_health(self) -> dict[str, Any]:
-        """Check orchestrator execution health."""
         cur = self.conn.cursor()
         cur.execute("""
             SELECT
@@ -138,7 +135,6 @@ class LoaderHealthMonitor:
         return check
 
     def check_database_health(self) -> dict[str, Any]:
-        """Check database connectivity and performance."""
         try:
             cur = self.conn.cursor()
             cur.execute("SELECT COUNT(*) FROM pg_tables WHERE table_schema = 'public'")
@@ -166,7 +162,6 @@ class LoaderHealthMonitor:
             return check
 
     def _get_table_row_count(self, table: str) -> int:
-        """Get row count for a table."""
         try:
             cur = self.conn.cursor()
             cur.execute(f"SELECT COUNT(*) FROM {table}")
@@ -176,7 +171,6 @@ class LoaderHealthMonitor:
             return 0
 
     def get_health_report(self) -> dict[str, Any]:
-        """Get comprehensive health report."""
         self.checks = [
             self.check_database_health(),
             self.check_loader_execution_rate(),

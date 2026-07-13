@@ -388,7 +388,6 @@ class DatabaseSchemaValidator(Validator):
         )
 
     def _type_family_matches(self, actual: str, expected: str) -> bool:
-        """Check if actual type belongs to expected family."""
         if expected == "numeric":
             return any(
                 t in actual

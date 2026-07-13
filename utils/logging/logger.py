@@ -51,7 +51,6 @@ def set_trace_id(trace_id: str) -> None:
 
 
 def get_trace_id() -> str:
-    """Get current trace ID, or generate one."""
     global _trace_id
     if _trace_id is None:
         _trace_id = f"TRACE-{uuid.uuid4().hex[:8]}"
@@ -118,7 +117,6 @@ class StructuredFormatter(logging.Formatter):
 
 
 def get_logger(name: str, level: int = logging.INFO) -> logging.Logger:
-    """Get a structured logger."""
     logger = logging.getLogger(name)
     logger.setLevel(level)
 

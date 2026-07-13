@@ -81,7 +81,6 @@ def run_aws_cli(args: list) -> dict | None:
 
 
 def check_schedule(name: str, expected: dict) -> dict:
-    """Check if a schedule exists and is configured correctly."""
     # get-schedule returns fields at the top level (no "Schedule" wrapper key);
     # a nonexistent schedule is a nonzero exit + ResourceNotFoundException on
     # stderr, not a missing key in a successful response.
@@ -160,7 +159,6 @@ def enable_schedule(name: str) -> bool:
 
 
 def check_all_schedules() -> dict:
-    """Check all expected schedules."""
     print("\n" + "=" * 70)
     print("EVENTBRIDGE SCHEDULER VERIFICATION")
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")

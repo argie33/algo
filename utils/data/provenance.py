@@ -387,6 +387,5 @@ class DataProvenanceTracker:
 
     @staticmethod
     def _compute_checksum(data: dict[str, Any]) -> str:
-        """Compute a checksum of the data for integrity verification."""
         data_str = json.dumps(data, default=str, sort_keys=True)
         return hashlib.md5(data_str.encode(), usedforsecurity=False).hexdigest()

@@ -70,30 +70,24 @@ def get_priority(table_name: str) -> LoaderPriority:
 
 
 def is_phase1_critical(table_name: str) -> bool:
-    """Returns True if this loader must complete before Phase 1."""
     return get_priority(table_name) == LoaderPriority.PHASE_1_CRITICAL
 
 
 def is_phase1_optional(table_name: str) -> bool:
-    """Returns True if this loader should complete by Phase 1 but won't block."""
     return get_priority(table_name) == LoaderPriority.PHASE_1_OPTIONAL
 
 
 def is_background(table_name: str) -> bool:
-    """Returns True if this loader can run anytime without blocking."""
     return get_priority(table_name) == LoaderPriority.BACKGROUND
 
 
 def get_critical_loaders() -> set[str]:
-    """Get all Phase 1 critical loaders (must complete before orchestrator phases)."""
     return {name for name, priority in LOADER_PRIORITY_MAP.items() if priority == LoaderPriority.PHASE_1_CRITICAL}
 
 
 def get_optional_loaders() -> set[str]:
-    """Get all Phase 1 optional loaders (nice-to-have enrichment)."""
     return {name for name, priority in LOADER_PRIORITY_MAP.items() if priority == LoaderPriority.PHASE_1_OPTIONAL}
 
 
 def get_background_loaders() -> set[str]:
-    """Get all background loaders (can run anytime)."""
     return {name for name, priority in LOADER_PRIORITY_MAP.items() if priority == LoaderPriority.BACKGROUND}

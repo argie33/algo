@@ -34,7 +34,6 @@ if sys.platform.startswith('win'):
 
 
 def check_database() -> dict:
-    """Check database connectivity and data freshness."""
     print("[*] Database: Connecting...")
     try:
         import psycopg2
@@ -72,7 +71,6 @@ def check_database() -> dict:
 
 
 def check_dev_server() -> dict:
-    """Check if dev_server is running on localhost:3001."""
     print("[*] Dev Server: Checking localhost:3001...")
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -102,7 +100,6 @@ def check_dev_server() -> dict:
 
 
 def check_dashboard_fetchers() -> dict:
-    """Check if dashboard can load fetchers."""
     print("[*] Dashboard: Loading fetchers...")
     try:
         os.environ['LOCAL_MODE'] = 'true'
@@ -130,7 +127,6 @@ def check_dashboard_fetchers() -> dict:
 
 
 def check_alpaca_credentials() -> dict:
-    """Check if Alpaca credentials are configured."""
     print("[*] Alpaca: Checking credentials...")
     try:
         from config.credential_manager import get_credential_manager
@@ -165,7 +161,6 @@ def check_alpaca_credentials() -> dict:
 
 
 def check_lambda_deployment() -> dict:
-    """Check Lambda deployment status (AWS configuration only)."""
     print("[*] Lambda: Checking AWS deployment...")
     try:
         import boto3

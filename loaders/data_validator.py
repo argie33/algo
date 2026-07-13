@@ -21,7 +21,6 @@ class DataValidator:
         self.warnings: list[str] = []
 
     def validate_table_not_empty(self, table_name: str, min_rows: int = 1) -> bool:
-        """Check table has minimum rows."""
         cur = self.conn.cursor()
         cur.execute(f"SELECT COUNT(*) FROM {table_name}")
         count = cur.fetchone()[0]
@@ -33,7 +32,6 @@ class DataValidator:
         return True
 
     def validate_no_duplicates(self, table_name: str, key_columns: list[str]) -> bool:
-        """Check for duplicate records on key columns."""
         cur = self.conn.cursor()
         cols = ", ".join(key_columns)
         query = f"""
@@ -54,7 +52,6 @@ class DataValidator:
         return True
 
     def validate_data_freshness(self, table_name: str, date_column: str, max_age_hours: int = 24) -> bool:
-        """Check data is fresh (updated within max_age_hours)."""
         cur = self.conn.cursor()
         query = f"""
             SELECT COUNT(*) FROM {table_name}
@@ -75,7 +72,6 @@ class DataValidator:
         return True
 
     def validate_no_null_columns(self, table_name: str, critical_columns: list[str]) -> bool:
-        """Check critical columns have no NULL values."""
         cur = self.conn.cursor()
         has_nulls = False
 
@@ -92,7 +88,6 @@ class DataValidator:
         return not has_nulls
 
     def validate_value_range(self, table_name: str, column: str, min_val: float, max_val: float) -> bool:
-        """Check numeric values are within expected range."""
         cur = self.conn.cursor()
         query = f"""
             SELECT COUNT(*) FROM {table_name}
@@ -157,7 +152,6 @@ class DataValidator:
             return False
 
     def get_report(self) -> dict[str, Any]:
-        """Get validation report."""
         return {
             "timestamp": datetime.now().isoformat(),
             "valid": len(self.errors) == 0,

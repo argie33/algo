@@ -1038,17 +1038,14 @@ class EndpointRegistry:
 
     @staticmethod
     def get_endpoint(name: str) -> dict[str, Any] | None:
-        """Get endpoint definition by name."""
         return DASHBOARD_ENDPOINTS.get(name)
 
     @staticmethod
     def get_all_endpoints() -> dict[str, dict[str, Any]]:
-        """Get all endpoint definitions."""
         return DASHBOARD_ENDPOINTS.copy()
 
     @staticmethod
     def get_endpoint_path(name: str) -> str | None:
-        """Get endpoint path by name."""
         endpoint = DASHBOARD_ENDPOINTS.get(name)
         return cast(str | None, endpoint.get("path") if endpoint else None)
 
@@ -1072,12 +1069,10 @@ class EndpointRegistry:
 
     @staticmethod
     def validate_endpoint_exists(name: str) -> bool:
-        """Check if endpoint is defined in contract."""
         return name in DASHBOARD_ENDPOINTS
 
     @staticmethod
     def get_endpoint_freshness(name: str) -> int | None:
-        """Get data freshness threshold in seconds for endpoint."""
         endpoint = DASHBOARD_ENDPOINTS.get(name)
         return cast(int | None, endpoint.get("freshness_max_age_seconds") if endpoint else None)
 
@@ -1087,12 +1082,10 @@ class PanelRegistry:
 
     @staticmethod
     def get_panel(name: str) -> dict[str, Any] | None:
-        """Get panel definition by name."""
         return DASHBOARD_PANELS.get(name)
 
     @staticmethod
     def get_all_panels() -> dict[str, dict[str, Any]]:
-        """Get all panel definitions."""
         return DASHBOARD_PANELS.copy()
 
     @staticmethod

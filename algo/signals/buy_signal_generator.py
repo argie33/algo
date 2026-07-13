@@ -300,7 +300,6 @@ class BuySignalGenerator:
     def _compute_volume_surge(
         self, volume: float | None, rows: list[dict[str, Any]], i: int
     ) -> tuple[float | None, bool]:
-        """Compute volume surge: compare to 20-bar average volume."""
         vol_surge = None
         volume_surge_capped = False
         decimal84_max = 9999.9999

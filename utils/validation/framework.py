@@ -654,7 +654,6 @@ def safe_json_parse(
 
 
 def validate_required_fields(data: dict[str, Any], required_fields: list[str], source: str | None = None) -> bool:
-    """Check if required fields exist in data dict. Log warnings for missing fields."""
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
         source_str = f" from {source}" if source else ""

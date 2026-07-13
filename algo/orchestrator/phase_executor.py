@@ -74,7 +74,6 @@ class OrchestratorPhaseExecutor:
             self.register_phase(definition)
 
     def get_result(self, phase_num: int | str) -> PhaseResult | None:
-        """Get result from a previously executed phase."""
         return self.phase_results.get(phase_num)
 
     def get_phase_data_required(self, phase_num: int | str, *keys: str) -> Any:

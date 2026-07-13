@@ -143,7 +143,6 @@ class SecretsManager:
             return {"status": "error", "message": str(e)}
 
     def audit_credential_freshness(self) -> Dict[str, Any]:
-        """Check if credentials are fresh and can be loaded."""
         logger.info("Auditing credential freshness...")
 
         try:

@@ -66,7 +66,6 @@ class HaltFlagManager:
             self._circuit_breaker_open = False
 
     def _is_circuit_breaker_open(self) -> bool:
-        """Check if circuit breaker is open (skip DynamoDB reads)."""
         # Clean up old failures first
         now = datetime.now(timezone.utc)
         cutoff = now - timedelta(seconds=DYNAMODB_FAILURE_WINDOW_SEC)
@@ -125,7 +124,6 @@ class HaltFlagManager:
         raise RuntimeError(error_msg)
 
     def _check_halt_flag_dynamodb(self) -> tuple[bool | None, str | None]:
-        """Check halt flag in DynamoDB. Returns (halt_flag, reason) or (None, None) on timeout/error."""
         try:
             import boto3
 
@@ -194,7 +192,6 @@ class HaltFlagManager:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _check_halt_flag_rds(self) -> tuple[bool | None, str | None]:
-        """Check halt flag in RDS. Returns (halt_flag, reason) or (None, None) on error."""
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -405,7 +402,6 @@ _halt_flag_manager = None
 
 
 def get_halt_flag_manager() -> HaltFlagManager:
-    """Get singleton instance of halt flag manager."""
     global _halt_flag_manager
     if _halt_flag_manager is None:
         _halt_flag_manager = HaltFlagManager()

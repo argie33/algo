@@ -7,7 +7,6 @@ from .base import DataValidator
 
 
 class NumericValidator(DataValidator):
-    """Check that numeric fields are valid (not NaN, Infinity, within optional range)."""
 
     def __init__(
         self,

@@ -25,7 +25,6 @@ import psycopg2
 
 
 def get_rds_credentials():
-    """Get RDS credentials from AWS Secrets Manager."""
     try:
         client = boto3.client('secretsmanager', region_name='us-east-1')
         response = client.get_secret_value(SecretId='algo-db-credentials-dev')

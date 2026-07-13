@@ -6,7 +6,6 @@ from .base import DataValidator
 
 
 class CompletenessValidator(DataValidator):
-    """Check that required fields exist and are not None/empty."""
 
     def __init__(self, required_fields: list[str], fail_fast: bool = True) -> None:
         """Initialize with list of required field names.

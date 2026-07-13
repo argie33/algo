@@ -29,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 
 class PositionSyncChecker:
-    """Check data consistency between algo_trades and algo_positions."""
 
     def check_consistency(self) -> dict[str, Any]:
         """Run full consistency check. Returns report dict."""

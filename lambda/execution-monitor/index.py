@@ -21,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def get_rds_credentials():
-    """Get RDS credentials from credential_manager."""
     try:
         from config.credential_manager import get_db_credentials
 
@@ -72,7 +71,6 @@ def query_rds_signals(credentials):
 
 
 def get_alpaca_credentials():
-    """Get Alpaca credentials from credential_manager."""
     from config.api_endpoints import get_alpaca_base_url
     from config.credential_manager import get_alpaca_credentials as get_alpaca_creds
 
@@ -95,7 +93,6 @@ def get_alpaca_credentials():
 
 
 def get_alpaca_trades():
-    """Get Alpaca trades (paper account)."""
     try:
         import alpaca_trade_api as tradeapi
     except ImportError as e:

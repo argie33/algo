@@ -152,7 +152,6 @@ class RegimeManager:
         )
 
     def get_position_size_multiplier(self, as_of_date: _date | None = None) -> float:
-        """Get position size multiplier (0.0 - 1.0)."""
         params = self.get_regime_params(as_of_date)
         return float(params["position_size_mult"])
 

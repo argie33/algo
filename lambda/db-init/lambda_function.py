@@ -26,7 +26,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def get_credentials():
-    """Get DB credentials from Secrets Manager or env vars via credential_manager."""
     try:
         from config.credential_manager import get_db_credentials
 

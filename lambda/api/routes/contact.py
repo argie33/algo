@@ -249,7 +249,6 @@ def _submit_contact(cur: cursor, body: dict[str, Any]) -> Any:
 
 
 def _get_submissions(cur: cursor, params: dict[str, Any]) -> Any:
-    """Get contact submissions (admin-only)."""
     try:
         limit = safe_limit(extract_param(params, "limit"), default=100)
         try:

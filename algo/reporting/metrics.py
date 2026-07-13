@@ -20,7 +20,6 @@ class MetricsPublisher:
         self._batch: list[dict[str, Any]] = []
 
     def _cw(self) -> Any:
-        """Get or initialize CloudWatch client. Raises on initialization failure."""
         if self._client is None:
             try:
                 import boto3

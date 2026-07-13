@@ -22,7 +22,6 @@ def run_command(cmd, description):
         return None
 
 def check_lambda_vpc_config():
-    """Check if Lambda has proper VPC configuration."""
     print("\n=== LAMBDA VPC CONFIGURATION ===")
 
     cmd = "aws lambda get-function-configuration --function-name algo-api-dev --region us-east-1 --query 'VpcConfig'"
@@ -42,7 +41,6 @@ def check_lambda_vpc_config():
     return True
 
 def check_provisioned_concurrency():
-    """Check if provisioned concurrency is enabled."""
     print("\n=== PROVISIONED CONCURRENCY ===")
 
     cmd = "aws lambda get-provisioned-concurrency-config --function-name algo-api-dev --region us-east-1 --qualifier LIVE"
@@ -63,7 +61,6 @@ def check_provisioned_concurrency():
     return True
 
 def check_lambda_errors():
-    """Check Lambda CloudWatch logs for errors."""
     print("\n=== LAMBDA ERROR LOGS (Last 10 min) ===")
 
     # Get logs from the last 10 minutes
@@ -87,7 +84,6 @@ def check_lambda_errors():
             pass
 
 def check_api_gateway_errors():
-    """Check API Gateway logs for 503 errors."""
     print("\n=== API GATEWAY 5XX ERRORS (Last hour) ===")
 
     start_time = int((datetime.now() - timedelta(hours=1)).timestamp() * 1000)
@@ -111,7 +107,6 @@ def check_api_gateway_errors():
             pass
 
 def check_database_connectivity():
-    """Check if Lambda can reach RDS database."""
     print("\n=== DATABASE CONNECTIVITY ===")
 
     # Query Lambda logs to see if there are connection errors
@@ -130,7 +125,6 @@ def check_database_connectivity():
     return True
 
 def check_reserved_concurrency():
-    """Check Lambda reserved concurrency."""
     print("\n=== RESERVED CONCURRENCY ===")
 
     cmd = "aws lambda get-function-concurrency --function-name algo-api-dev --region us-east-1"
@@ -144,7 +138,6 @@ def check_reserved_concurrency():
             pass
 
 def check_lambda_code_size():
-    """Check Lambda code size."""
     print("\n=== LAMBDA CODE SIZE ===")
 
     cmd = "aws lambda get-function --function-name algo-api-dev --region us-east-1 --query 'Configuration.CodeSize'"

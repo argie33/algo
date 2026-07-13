@@ -124,7 +124,6 @@ def success_response(data: Any = None, **extra_fields: Any) -> dict[str, Any]:
 
 
 def is_error_response(response: dict[str, Any]) -> bool:
-    """Check if a response dict is an error response."""
     return "_error" in response or "error" in response
 
 

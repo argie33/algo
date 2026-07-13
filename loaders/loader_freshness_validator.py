@@ -57,7 +57,6 @@ def validate_snapshot_freshness(
 
 
 def get_stale_message(row: dict[str, Any] | None, max_age_hours: int = 24) -> str:
-    """Get human-readable message for stale data."""
     if not row or not row.get("updated_at"):
         return "Snapshot data missing or unverifiable"
 

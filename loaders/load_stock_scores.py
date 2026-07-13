@@ -47,7 +47,6 @@ logger = logging.getLogger(__name__)
 
 
 class StockScoresLoader(OptimalLoader):
-    """Compute and load multi-factor stock scores."""
 
     table_name = "stock_scores"
     primary_key = ("symbol",)

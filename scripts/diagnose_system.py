@@ -12,7 +12,6 @@ _repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(_repo_root))
 
 def check_environment():
-    """Check environment variables."""
     print("=" * 70)
     print("ENVIRONMENT CHECK")
     print("=" * 70)
@@ -44,7 +43,6 @@ def check_environment():
     return True
 
 def check_database():
-    """Check database connectivity."""
     print("\n" + "=" * 70)
     print("DATABASE CHECK")
     print("=" * 70)
@@ -79,7 +77,6 @@ def check_database():
         return False
 
 def check_dev_server():
-    """Check if dev server can start and respond."""
     print("\n" + "=" * 70)
     print("DEV SERVER CHECK")
     print("=" * 70)
@@ -130,7 +127,6 @@ def check_dev_server():
         return False
 
 def check_fetchers():
-    """Check if dashboard fetchers work."""
     print("\n" + "=" * 70)
     print("DASHBOARD FETCHERS CHECK")
     print("=" * 70)

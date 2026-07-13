@@ -598,7 +598,6 @@ class TradeExecutor:
             raise
 
     def _get_portfolio_value(self) -> Decimal | None:
-        """Get current portfolio value from Alpaca or database snapshot."""
         from algo.trading import PositionSizer
 
         try:

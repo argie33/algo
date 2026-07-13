@@ -25,7 +25,6 @@ class _RenderCache:
         self.loading_layout_data_source: str | None = None
 
     def get_mascot_panel(self, pose_index: int, data: dict[str, Any]) -> Panel:
-        """Return cached Panel if pose hasn't changed, otherwise render new one."""
         if self.mascot_compact_pose_index == pose_index:
             return cast(Panel, self.mascot_compact_panel)
 
@@ -47,7 +46,6 @@ class _RenderCache:
         return self.mascot_compact_panel
 
     def get_loading_layout(self, pose_index: int, dots_idx: int, data_source: str) -> Layout:
-        """Return cached Layout if pose and dots haven't changed."""
         if (
             self.loading_layout_pose_index == pose_index
             and self.loading_layout_dots_idx == dots_idx

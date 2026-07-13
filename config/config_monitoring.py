@@ -28,7 +28,6 @@ class ConfigSourceMonitor:
         self._sources: dict[str, str] = getattr(config, "_sources", {})
 
     def get_source(self, key: str) -> str:
-        """Get source of a config value."""
         return self._sources.get(key, "unknown")
 
     def print_config_sources(self) -> None:

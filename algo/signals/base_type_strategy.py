@@ -170,5 +170,4 @@ BASE_TYPE_STRATEGIES = {
 
 
 def get_strategy(base_type: str) -> BaseTypeStrategy | None:
-    """Get strategy for base type, or None if not found."""
     return BASE_TYPE_STRATEGIES.get(base_type)

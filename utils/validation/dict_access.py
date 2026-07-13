@@ -352,7 +352,6 @@ class SafeDict:
         return f"[{self._context}]" if self._context else ""
 
     def keys(self) -> list[str]:
-        """Get list of top-level keys."""
         return list(self._data.keys()) if isinstance(self._data, dict) else []
 
     def has(self, *keys: str) -> bool:
@@ -372,5 +371,4 @@ class SafeDict:
         return current is not None
 
     def raw(self) -> dict[str, Any]:
-        """Get underlying dict (for direct access when needed)."""
         return self._data if isinstance(self._data, dict) else {}

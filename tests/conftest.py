@@ -42,11 +42,9 @@ def _create_mock_cursor():
     ]
 
     def mock_fetchall():
-        """Return mock config data on SELECT from algo_config."""
         return mock_config_rows
 
     def mock_fetchone():
-        """Return single row for specific queries."""
         return ("max_positions", "50", "int")
 
     cursor.fetchall.side_effect = mock_fetchall

@@ -29,39 +29,30 @@ class PatrolConfig:
         self._config.reload()
 
     def get(self, key: str, default: int | float | str | None = None) -> int | float | str | None:
-        """Get config value with fallback to default."""
         return cast(int | float | str | None, self._config.get(key, default))
 
     def get_staleness_windows(self) -> dict[str, Any]:
-        """Get all staleness thresholds in days."""
         return cast(dict[str, Any], self._config.data_patrol.get_staleness_windows())
 
     def get_coverage_thresholds(self) -> dict[str, Any]:
-        """Get coverage ratio thresholds."""
         return cast(dict[str, Any], self._config.data_patrol.get_coverage_thresholds())
 
     def get_price_sanity_config(self) -> dict[str, Any]:
-        """Get OHLC/price sanity thresholds."""
         return cast(dict[str, Any], self._config.data_patrol.get_price_sanity_config())
 
     def get_volume_config(self) -> dict[str, Any]:
-        """Get volume sanity thresholds."""
         return cast(dict[str, Any], self._config.data_patrol.get_volume_config())
 
     def get_quality_config(self) -> dict[str, Any]:
-        """Get data quality thresholds."""
         return cast(dict[str, Any], self._config.data_patrol.get_quality_config())
 
     def get_cross_validation_config(self) -> dict[str, Any]:
-        """Get cross-validation thresholds."""
         return cast(dict[str, Any], self._config.data_patrol.get_cross_validation_config())
 
     def get_corporate_actions_config(self) -> dict[str, Any]:
-        """Get corporate actions detection config."""
         return cast(dict[str, Any], self._config.data_patrol.get_corporate_actions_config())
 
     def get_loader_contracts(self) -> dict[str, dict[str, Any]]:
-        """Get loader contracts with expected output thresholds."""
         return cast(dict[str, dict[str, Any]], self._config.data_patrol.get_loader_contracts())
 
     def as_dict(self) -> dict[str, Any]:

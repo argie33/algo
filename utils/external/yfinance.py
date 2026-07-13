@@ -93,7 +93,6 @@ class YFinanceWrapper:
 
     @classmethod
     def get_session(cls) -> Any:
-        """Get or create a yfinance session with retries."""
         current_time = time.time()
 
         # Refresh session if expired

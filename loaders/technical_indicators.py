@@ -28,7 +28,6 @@ def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
 def compute_macd(
     closes: pd.Series, fast: int = 12, slow: int = 26, signal_period: int = 9
 ) -> tuple[pd.Series, pd.Series]:
-    """Compute MACD line and signal line."""
     ema_fast = closes.ewm(span=fast).mean()
     ema_slow = closes.ewm(span=slow).mean()
     macd_line = ema_fast - ema_slow
@@ -37,7 +36,6 @@ def compute_macd(
 
 
 def compute_moving_averages(closes: pd.Series) -> dict[str, pd.Series]:
-    """Compute all standard moving averages."""
     return {
         "sma_20": closes.rolling(20).mean(),
         "sma_50": closes.rolling(50).mean(),
@@ -75,7 +73,6 @@ def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int =
 
 
 def compute_bollinger_bands(closes: pd.Series, period: int = 20, std_dev: float = 2.0) -> dict[str, pd.Series]:
-    """Compute Bollinger Bands."""
     sma = closes.rolling(period).mean()
     std = closes.rolling(period).std()
     return {
@@ -86,7 +83,6 @@ def compute_bollinger_bands(closes: pd.Series, period: int = 20, std_dev: float 
 
 
 def compute_volume_ma(volume: pd.Series, period: int = 50) -> pd.Series:
-    """Compute volume moving average."""
     return volume.rolling(period).mean()
 
 

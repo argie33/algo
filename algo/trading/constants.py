@@ -17,7 +17,6 @@ class PositionStatus(str, Enum):
 
     @classmethod
     def is_valid(cls, value: str) -> bool:
-        """Check if a string is a valid position status."""
         return value.lower() in {s.value for s in cls}
 
     @classmethod

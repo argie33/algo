@@ -118,7 +118,6 @@ def get_table_age_minutes(table_name: str) -> float | None:
 
 
 def get_status_emoji(age_minutes: float, thresholds: dict) -> str:
-    """Get status emoji based on age."""
     if age_minutes < thresholds["fresh"]:
         return "✅"
     elif age_minutes < thresholds["stale"]:
@@ -141,7 +140,6 @@ def format_age(minutes: float) -> str:
 
 
 def check_all_tables() -> dict:
-    """Check freshness of all tables."""
     results = {}
 
     for table, thresholds in THRESHOLDS.items():

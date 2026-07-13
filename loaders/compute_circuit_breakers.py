@@ -240,7 +240,6 @@ def _compute_consecutive_losses(cur: Any) -> int:
 
 
 def _compute_vix_level(cur: Any) -> float | None:
-    """Get latest VIX level from market_health_daily. Raises if not available."""
     cur.execute("""
         SELECT vix_level FROM market_health_daily
         WHERE vix_level IS NOT NULL
@@ -294,7 +293,6 @@ def _compute_weekly_loss(cur: Any, today: date) -> float:
 
 
 def _compute_market_stage(cur: Any) -> int:
-    """Get latest market stage from market_health_daily. Raises if not available."""
     cur.execute("""
         SELECT market_stage FROM market_health_daily
         WHERE market_stage IS NOT NULL

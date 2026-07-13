@@ -243,7 +243,6 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
 def _check_liquidity_parallel(
     candidate: dict[str, Any], run_date: _date, config: dict[str, Any] | None = None
 ) -> tuple[dict[str, Any], bool]:
-    """Check liquidity for a single candidate. Returns (candidate, passed)."""
     try:
         # CRITICAL: config must be present. Liquidity thresholds (min_adv_shares, min_adv_dollars) are
         # non-negotiable safety gates. Empty dict fallback bypasses these filters, allowing undercapitalized

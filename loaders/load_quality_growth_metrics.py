@@ -138,7 +138,6 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
     def _compute_quality_metrics(
         self, symbol: str, income_row: tuple[Any, ...], balance_row: tuple[Any, ...] | None
     ) -> dict[str, Any]:
-        """Compute quality metrics from current year financials."""
         revenue, operating_income, net_income = income_row[0:3] if income_row else (None, None, None)
 
         if balance_row:
@@ -217,7 +216,6 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         return metrics
 
     def _compute_growth_metrics(self, symbol: str, income_rows: list[tuple[Any, ...]]) -> dict[str, Any]:
-        """Compute growth metrics from historical financials."""
         if not income_rows or len(income_rows) < 2:
             return {
                 "symbol": symbol,
