@@ -11,6 +11,10 @@ import time
 import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from utils.db.dynamo_lock import DynamoDBLockManager
 
 logger = logging.getLogger(__name__)
 
@@ -154,7 +158,7 @@ class FileLockManager:
 
         return False
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Clean up lock file on deletion."""
         if self.current_lock_file and self.current_lock_file.exists():
             try:
@@ -167,7 +171,7 @@ def get_lock_manager(
     table_name: str | None = None,
     lock_duration_seconds: int = 600,
     enable_auto_cleanup: bool = True,
-):
+) -> "FileLockManager | DynamoDBLockManager":
     """Factory function that returns appropriate lock manager based on LOCAL_MODE.
 
     Returns:

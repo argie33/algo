@@ -15,6 +15,9 @@ Integration:
 - Uses safe_float()/safe_int() from utils.safe_data_conversion for type conversion (consolidated from dashboard)
 - Uses error_boundary utilities for error detection
 - Raises ResponseValidationError for critical validation failures
+
+FAIL-FAST GOVERNANCE: Never returns empty collections as fallback. Missing required fields
+raise ResponseValidationError instead of silently defaulting to empty arrays.
 """
 
 import logging
@@ -32,6 +35,7 @@ class ResponseValidationError(Exception):
 
 
 def _check_required_fields(data: dict[str, Any], required_fields: list[str], source: str) -> None:
+    """Check if data has all required fields; raise error if any missing."""
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
         raise ResponseValidationError(f"Missing critical fields in {source}: {missing}")
@@ -86,9 +90,16 @@ def _make_validator(
 
 
 def _validate_items_structure(data: dict[str, Any], item_key: str = "items") -> list[Any]:
-    """Validate and return items array if present."""
+    """Validate and return items array.
+
+    FAIL-FAST: Raises ResponseValidationError if items field missing or wrong type.
+    Never returns empty list as fallback - requires explicit 'items' field.
+    """
     if item_key not in data:
-        return []
+        raise ResponseValidationError(
+            f"Response missing required '{item_key}' field. "
+            f"API structure may have changed or response is incomplete."
+        )
     if not isinstance(data[item_key], list):
         raise ResponseValidationError(
             f"Items field must be list, got {type(data[item_key])}"
@@ -149,7 +160,7 @@ def _validate_positions(data: dict[str, Any]) -> dict[str, Any]:
             raise ResponseValidationError(
                 f"Positions items field must be list, got {type(data['items'])}"
             )
-        items = data.get("items")
+        items = data["items"]
         if items is None:
             raise ResponseValidationError("Positions response 'items' field is None")
         for i, pos in enumerate(items):
