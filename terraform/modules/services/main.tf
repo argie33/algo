@@ -253,13 +253,15 @@ resource "aws_lambda_function" "api" {
 resource "null_resource" "api_concurrency_propagation_delay" {
   count = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
 
-  # Keyed on last_modified (not reserved_concurrency) so the delay reruns on every
-  # apply that touches the function - including code-only deploys, which is when
-  # the provisioned-concurrency-vs-reserved-concurrency race actually reproduces.
-  # Keying on reserved_concurrency alone meant the sleep silently no-op'd whenever
-  # only the code changed, since that value stays constant across code deploys.
+  # Must always rerun so the delay isn't silently skipped on code-only deploys
+  # (reserved_concurrency doesn't change then) - and must NOT reference a
+  # computed/AWS-assigned attribute of a resource modified in the same apply
+  # (e.g. last_modified), since that value isn't known until apply itself
+  # completes and Terraform will fail with "provider produced inconsistent
+  # final plan" trying to reconcile the planned vs. actual trigger value.
+  # timestamp() is the standard idiom for "always run this on apply".
   triggers = {
-    last_modified = aws_lambda_function.api.last_modified
+    always_run = timestamp()
   }
 
   provisioner "local-exec" {
@@ -895,10 +897,11 @@ resource "aws_lambda_function" "algo" {
 resource "null_resource" "algo_concurrency_propagation_delay" {
   count = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
 
-  # See api_concurrency_propagation_delay above for why this is keyed on
-  # last_modified rather than reserved_concurrency.
+  # See api_concurrency_propagation_delay above for why this always reruns
+  # via timestamp() rather than keying on reserved_concurrency or a
+  # computed/AWS-assigned attribute like last_modified.
   triggers = {
-    last_modified = aws_lambda_function.algo.last_modified
+    always_run = timestamp()
   }
 
   provisioner "local-exec" {
