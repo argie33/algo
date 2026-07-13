@@ -1272,3 +1272,15 @@ variable "ecr_image_count" {
 # ============================================================
 # Database Initialization Lambda
 # ============================================================
+
+variable "sns_alerts_enabled" {
+  description = "Enable SNS alerts for Redis cache operations"
+  type        = bool
+  default     = false
+}
+
+variable "sns_alerts_topic_arn" {
+  description = "SNS topic ARN for Redis cache alerts"
+  type        = string
+  default     = ""
+}
