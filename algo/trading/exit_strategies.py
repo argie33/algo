@@ -253,40 +253,14 @@ class FirstRedDayStrategy(ExitStrategy):
     """Exit 50% after 2.5R+ gain on first big down day with heavy volume."""
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        from algo.trading.exit_engine import ExitEngine
-
-        engine = ExitEngine(self.config)
-        _should_exit, decision = ctx.check_first_red_day(engine)
-
-        if _should_exit and decision:
-            self._validate_decision(decision)
-            return ExitSignal(
-                triggered=True,
-                stage=decision["stage"],
-                reason=decision["reason"],
-                fraction=decision["fraction"],
-            )
-        return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_first_red_day(engine))
 
 
 class ClimaxExhaustionStrategy(ExitStrategy):
     """Exit 50% after 30+ days, 5R+ gain, 20%+ in last 10 days (climax run exhaustion)."""
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        from algo.trading.exit_engine import ExitEngine
-
-        engine = ExitEngine(self.config)
-        _should_exit, decision = ctx.check_climax_exhaustion(engine)
-
-        if _should_exit and decision:
-            self._validate_decision(decision)
-            return ExitSignal(
-                triggered=True,
-                stage=decision["stage"],
-                reason=decision["reason"],
-                fraction=decision["fraction"],
-            )
-        return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_climax_exhaustion(engine))
 
 
 class DistributionStrategy(ExitStrategy):
@@ -294,7 +268,6 @@ class DistributionStrategy(ExitStrategy):
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         _should_exit, decision = ctx.check_distribution()
-
         if _should_exit and decision:
             self._validate_decision(decision)
             return ExitSignal(
