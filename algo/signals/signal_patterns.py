@@ -9,7 +9,6 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any, cast
 
-import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor
 
 from utils.db.context import DatabaseContext

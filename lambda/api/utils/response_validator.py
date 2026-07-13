@@ -6,7 +6,6 @@ This module re-exports the validators from the shared api-pkg module.
 # Direct import from api-pkg location
 # (test adds lambda/api to sys.path, so this resolves relative to there)
 import sys
-import os
 from pathlib import Path
 
 # Ensure we can find api-pkg modules

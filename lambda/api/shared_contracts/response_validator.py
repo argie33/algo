@@ -4,8 +4,6 @@ This module is kept for backward compatibility only.
 All new code should import from response_validator directly.
 """
 
-import sys
-from pathlib import Path
 
 # Handle both relative and absolute imports
 try:

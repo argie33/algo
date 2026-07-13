@@ -154,27 +154,12 @@ class TradeExecutor:
         self.pretrade = PreTradeChecks(config, self.alpaca_base_url, self.alpaca_key, self.alpaca_secret)
 
         # Wire trade validator for entry validation and duplicate detection
-        from algo.trading.trade_validator import TradeValidator
+        from algo.trading.trade_validator import TradeValidator, _validate_and_load_r_multiples
 
         self.validator = TradeValidator(config, self.pretrade)
 
-        # Validate R-multiple config values at init time (fail-fast) — must come before
-        # handler initializations since EntryHandler and ExitHandler read these attributes
-        required_r_multiples = [
-            "t1_target_r_multiple",
-            "t2_target_r_multiple",
-            "t3_target_r_multiple",
-        ]
-        for r_key in required_r_multiples:
-            if r_key not in config or config[r_key] is None:
-                raise ValueError(
-                    f"CRITICAL: '{r_key}' config missing or None. "
-                    f"Cannot execute trades without explicit R-multiple configuration. "
-                    f"Required: {required_r_multiples}"
-                )
-        self.t1_target_r_multiple = float(config["t1_target_r_multiple"])
-        self.t2_target_r_multiple = float(config["t2_target_r_multiple"])
-        self.t3_target_r_multiple = float(config["t3_target_r_multiple"])
+        # Validate and load R-multiple config (fail-fast, no defaults)
+        self.t1_target_r_multiple, self.t2_target_r_multiple, self.t3_target_r_multiple = _validate_and_load_r_multiples(config)
 
         # Resolve Alpaca base URL using execution mode strategy
         self.alpaca_base_url = self.execution_mode_strategy.resolve_base_url(self.alpaca_base_url)

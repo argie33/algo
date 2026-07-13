@@ -28,7 +28,6 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor
 
 if TYPE_CHECKING:

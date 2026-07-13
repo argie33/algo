@@ -22,6 +22,30 @@ Validates trade preconditions and risk parameters before execution.
 logger = logging.getLogger(__name__)
 
 
+def _validate_and_load_r_multiples(config: AlgoConfig | dict[str, Any]) -> tuple[float, float, float]:
+    """Validate R-multiple config values and return as tuple.
+
+    Raises ValueError if any required R-multiple is missing or None.
+    """
+    required_r_multiples = [
+        "t1_target_r_multiple",
+        "t2_target_r_multiple",
+        "t3_target_r_multiple",
+    ]
+    for r_key in required_r_multiples:
+        if r_key not in config or config[r_key] is None:
+            raise ValueError(
+                f"CRITICAL: '{r_key}' config missing or None. "
+                f"Cannot execute trades without explicit R-multiple configuration. "
+                f"Required: {required_r_multiples}"
+            )
+    return (
+        float(config["t1_target_r_multiple"]),
+        float(config["t2_target_r_multiple"]),
+        float(config["t3_target_r_multiple"]),
+    )
+
+
 class TradeValidator:
     """Validates trades against risk and operational constraints.
 
@@ -43,21 +67,8 @@ class TradeValidator:
         self.config = config
         self.pretrade_checks = pretrade_checks
 
-        # Validate critical trading config values at init time (fail-fast)
-        required_r_multiples = [
-            "t1_target_r_multiple",
-            "t2_target_r_multiple",
-            "t3_target_r_multiple",
-        ]
-        for r_key in required_r_multiples:
-            if r_key not in config or config[r_key] is None:
-                raise ValueError(
-                    f"CRITICAL: '{r_key}' config missing or None. "
-                    f"TradeValidator requires explicit R-multiple configuration."
-                )
-        self.t1_target_r_multiple = float(config["t1_target_r_multiple"])
-        self.t2_target_r_multiple = float(config["t2_target_r_multiple"])
-        self.t3_target_r_multiple = float(config["t3_target_r_multiple"])
+        # Load and validate R-multiples (fail-fast)
+        self.t1_target_r_multiple, self.t2_target_r_multiple, self.t3_target_r_multiple = _validate_and_load_r_multiples(config)
 
         # Validate re-entry config values
         if "max_reentries_per_name" not in config or config["max_reentries_per_name"] is None:

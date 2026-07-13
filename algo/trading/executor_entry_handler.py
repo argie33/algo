@@ -16,13 +16,11 @@ import json
 import logging
 import time
 import uuid
-from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
-import psycopg2
 import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
