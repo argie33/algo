@@ -28,6 +28,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+import psycopg2
+from psycopg2.extensions import cursor as PsycopgCursor
+
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
     from algo.trading.exit_engine import PositionContext
@@ -68,7 +71,7 @@ class ExitStrategy(ABC):
         self.config = config
 
     @abstractmethod
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         """Evaluate if this exit condition is triggered.
 
         Args:
@@ -106,7 +109,7 @@ class ExitStrategy(ABC):
 class StopLossStrategy(ExitStrategy):
     """Exit if current price <= active stop-loss."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         if ctx.cur_price <= ctx.active_stop:
             return ExitSignal(
                 triggered=True,
@@ -120,7 +123,7 @@ class StopLossStrategy(ExitStrategy):
 class MinerviniBreakStrategy(ExitStrategy):
     """Exit on Minervini break: close < 21-EMA on volume > 50d avg (or cleanly below 50-DMA)."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
@@ -146,7 +149,7 @@ class MinerviniBreakStrategy(ExitStrategy):
 class RSLineBreakStrategy(ExitStrategy):
     """Exit on RS line breaking below support."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
@@ -172,7 +175,7 @@ class RSLineBreakStrategy(ExitStrategy):
 class TimeBasedExitStrategy(ExitStrategy):
     """Exit if position held >= max_hold_days."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
@@ -201,7 +204,7 @@ class ProfitTargetStrategy(ExitStrategy):
     target_level: int
     default_fraction: float
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
@@ -257,7 +260,7 @@ class T3Strategy(ProfitTargetStrategy):
 class ChandelierTrailStrategy(ExitStrategy):
     """Exit on chandelier stop trail (3xATR from highest high or 21-EMA after 10d)."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
@@ -284,7 +287,7 @@ class ChandelierTrailStrategy(ExitStrategy):
 class TDSequentialStrategy(ExitStrategy):
     """Exit on TD Sequential exhaustion (9-count 50%, 13-count 100%)."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
@@ -310,7 +313,7 @@ class TDSequentialStrategy(ExitStrategy):
 class FirstRedDayStrategy(ExitStrategy):
     """Exit 50% after 2.5R+ gain on first big down day with heavy volume."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
@@ -336,7 +339,7 @@ class FirstRedDayStrategy(ExitStrategy):
 class ClimaxExhaustionStrategy(ExitStrategy):
     """Exit 50% after 30+ days, 5R+ gain, 20%+ in last 10 days (climax run exhaustion)."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         from algo.trading.exit_engine import ExitEngine
 
         engine = ExitEngine(self.config)
@@ -362,7 +365,7 @@ class ClimaxExhaustionStrategy(ExitStrategy):
 class DistributionStrategy(ExitStrategy):
     """Exit if market distribution day count exceeds configured limit."""
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         _should_exit, decision = ctx.check_distribution()
 
         if _should_exit and decision:
@@ -412,7 +415,7 @@ class ExitStrategyChain:
             DistributionStrategy(config),
         ]
 
-    def evaluate(self, ctx: PositionContext, cur: Any) -> ExitSignal:
+    def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
         """Evaluate all strategies in priority order; return first triggered signal.
 
         Args:
