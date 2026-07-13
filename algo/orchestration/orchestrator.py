@@ -1239,10 +1239,12 @@ class Orchestrator:
         return self._phase9_result
 
     def _handle_concurrency_lock(self) -> dict[str, Any] | None:
-        is_paper_trading = self.config.get("execution_mode") == "paper"
-        skip_lock_check = (
-            self.dry_run or is_paper_trading or os.getenv("SKIP_ORCHESTRATOR_LOCK", "").lower() in ("true", "1", "yes")
-        )
+        # NOTE: Paper trading is NOT exempt from locking. Paper runs still write
+        # shared production state (DB rows, live Alpaca paper-account orders), so
+        # concurrent unlocked runs corrupt that state exactly like live trading would
+        # (duplicate signals/orders, inconsistent portfolio snapshots). Only dry-run
+        # (no writes) and the explicit env override are safe to skip.
+        skip_lock_check = self.dry_run or os.getenv("SKIP_ORCHESTRATOR_LOCK", "").lower() in ("true", "1", "yes")
 
         if not skip_lock_check:
             lock_acquired = self._acquire_run_lock()
@@ -1260,12 +1262,7 @@ class Orchestrator:
                         "error": "Distributed lock system unavailable. Cannot proceed with trading.",
                     }
         else:
-            if self.dry_run:
-                reason = "dry-run mode"
-            elif is_paper_trading:
-                reason = "paper trading mode (no live order risk)"
-            else:
-                reason = "SKIP_ORCHESTRATOR_LOCK environment variable"
+            reason = "dry-run mode" if self.dry_run else "SKIP_ORCHESTRATOR_LOCK environment variable"
             logger.info(f"[LOCK-SKIP] Skipping distributed lock check ({reason})")
         return None
 

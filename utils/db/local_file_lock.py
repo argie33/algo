@@ -171,23 +171,32 @@ def get_lock_manager(
     lock_duration_seconds: int = 600,
     enable_auto_cleanup: bool = True,
 ) -> "FileLockManager | DynamoDBLockManager":
-    """Factory function that returns appropriate lock manager based on LOCAL_MODE.
+    """Factory function that returns a distributed lock manager.
 
-    Returns:
-        FileLockManager in LOCAL_MODE, DynamoDBLockManager otherwise
+    LOCAL_MODE ("run orchestrator directly instead of via Lambda") is NOT the
+    same thing as "isolated sandbox with no shared state": LOCAL_MODE runs still
+    connect to the same shared production DB and the same live Alpaca paper
+    account as every other instance. A filesystem lock file only protects
+    against contention within one machine's temp dir, so it does nothing to
+    prevent two concurrent LOCAL_MODE processes (e.g. separate dev sessions)
+    from racing on shared state. Always try the real distributed (DynamoDB)
+    lock first; only fall back to file locks if DynamoDB truly can't be
+    constructed (e.g. boto3 missing). A runtime AccessDenied on the DynamoDB
+    lock is handled separately by DynamoDBLockManager itself (is_available)
+    and causes callers to fail closed rather than silently degrading.
     """
-    if os.getenv("LOCAL_MODE", "").lower() == "true":
-        logger.info("[LOCK_FACTORY] LOCAL_MODE detected - using file-based locks")
-        return FileLockManager(
+    from utils.db.dynamo_lock import DynamoDBLockManager
+
+    try:
+        logger.info("[LOCK_FACTORY] Using DynamoDB locks")
+        return DynamoDBLockManager(
             table_name=table_name,
             lock_duration_seconds=lock_duration_seconds,
             enable_auto_cleanup=enable_auto_cleanup,
         )
-    else:
-        logger.info("[LOCK_FACTORY] Using DynamoDB locks")
-        from utils.db.dynamo_lock import DynamoDBLockManager
-
-        return DynamoDBLockManager(
+    except Exception as e:
+        logger.warning(f"[LOCK_FACTORY] DynamoDB lock manager unavailable ({e}) - falling back to file-based locks")
+        return FileLockManager(
             table_name=table_name,
             lock_duration_seconds=lock_duration_seconds,
             enable_auto_cleanup=enable_auto_cleanup,

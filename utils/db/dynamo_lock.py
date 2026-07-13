@@ -46,9 +46,18 @@ class DynamoDBLockManager:
         # Default table name construction: project-orchestrator-locks-environment
         # ORCHESTRATOR_LOCK_TABLE env var overrides if set (used in Lambda)
         # Fallback includes environment suffix for local dev: algo-orchestrator-locks-dev
+        #
+        # ENVIRONMENT is an overloaded app-level sentinel: "development"/"local" mean
+        # "running on a developer machine" (used by credential_validator, dev_auth,
+        # etc.), but the Terraform-deployed AWS environment is always one of
+        # dev/staging/prod (terraform/variables.tf validation) - the DynamoDB table
+        # is provisioned as "<project>-orchestrator-locks-dev", never "-development".
+        # Normalize here so LOCAL_MODE runs resolve to the table that actually exists.
+        raw_env = os.getenv("ENVIRONMENT", "dev")
+        table_env = "dev" if raw_env in ("development", "local") else raw_env
         default_name = os.getenv(
             "ORCHESTRATOR_LOCK_TABLE",
-            f"{os.getenv('PROJECT_NAME', 'algo')}-orchestrator-locks-{os.getenv('ENVIRONMENT', 'dev')}",
+            f"{os.getenv('PROJECT_NAME', 'algo')}-orchestrator-locks-{table_env}",
         )
         self.table_name = table_name or default_name
         self.lock_duration_seconds = lock_duration_seconds
