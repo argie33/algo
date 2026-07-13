@@ -996,17 +996,12 @@ class MarketHealthDailyLoader(OptimalLoader):
                 "Cannot compute market health without SPY price data."
             ) from e
 
-    def _compute_market_health(self, rows: list[dict[str, float | int | None | str]]) -> list[dict[str, Any]]:  # noqa: C901
-        if not rows:
-            raise RuntimeError(
-                "[MARKET_HEALTH] Cannot compute market health: no price data available. "
-                "Market health metrics are CRITICAL for circuit breaker decisions. "
-                "Check that price_daily table has recent SPY data loaded."
-            )
-        # Warn if we have fewer than 20 rows but still process them (can happen at startup)
-        if len(rows) < 20:
-            logger.warning(f"Computing market health with only {len(rows)} rows (< 20 recommended)")
+    def _transform_price_dataframe(self, rows: list[dict[str, float | int | None | str]]) -> pd.DataFrame:
+        """Transform raw price data into DataFrame with computed indicators.
 
+        Computes: price changes, up/down days, distribution days, moving averages, breadth metrics.
+        Returns sorted DataFrame ready for per-row health metric calculations.
+        """
         df = pd.DataFrame(rows)
         df["date"] = pd.to_datetime(df["date"])
         df = df.sort_values("date").reset_index(drop=True)
@@ -1014,153 +1009,138 @@ class MarketHealthDailyLoader(OptimalLoader):
         df["price_change"] = df["close"].diff()
         df["up_day"] = (df["price_change"] > 0).astype(int)
 
-        # Use shared indicator computation
         df["prev_close"] = df["close"].shift(1)
         df["prev_volume"] = df["volume"].shift(1)
         # Distribution day: close down >= 0.2% AND volume > previous day (IBD canonical definition)
-        df["distribution_day"] = ((df["close"] < df["prev_close"] * 0.998) & (df["volume"] > df["prev_volume"])).astype(
-            int
-        )
+        df["distribution_day"] = ((df["close"] < df["prev_close"] * 0.998) & (df["volume"] > df["prev_volume"])).astype(int)
 
-        # Calculate moving averages using shared function
         mas = compute_moving_averages(df["close"])
         df["sma_50"] = mas["sma_50"]
         df["sma_200"] = mas["sma_200"]
-        df["breadth_10d"] = df["up_day"].rolling(10, min_periods=1).mean() * 100  # % up days in last 10
+        df["breadth_10d"] = df["up_day"].rolling(10, min_periods=1).mean() * 100
+
+        return df
+
+    def _should_skip_row(self, row: pd.Series, idx: int) -> tuple[bool, str | None]:
+        """Check if row should be skipped and return skip reason.
+
+        Skips rows with: invalid close price, missing SMA_200 (insufficient history).
+        Returns (should_skip, reason_for_logging).
+        """
+        if not pd.notna(row["close"]) or row["close"] <= 0:
+            if "date" not in row or row.get("date") is None:
+                raise ValueError("[MARKET_HEALTH_CRITICAL] Market health row missing required 'date' field")
+            return True, f"Invalid close price {row['close']}"
+
+        if not pd.notna(row.get("sma_200")) or row["sma_200"] is None:
+            return True, "SMA_200 not yet computed (insufficient history)"
+
+        return False, None
+
+    def _classify_market_stage(self, close: float, sma_50: float | None, sma_200: float | None) -> tuple[str, int]:
+        """Classify market trend and stage based on price and moving averages.
+
+        Returns (market_trend, market_stage) where stage is 1-4.
+        """
+        if sma_200 is None:
+            return "unknown", 0
+
+        if sma_50 is not None and sma_200:
+            if close > sma_50 > sma_200:
+                return "uptrend", 2
+            elif close < sma_50 < sma_200:
+                return "downtrend", 4
+            elif close > sma_200 and sma_50 < sma_200:
+                return "topping", 3
+            else:
+                return "mixed", 1
+        else:
+            if close > sma_200 * 1.05:
+                return "uptrend", 2
+            elif close < sma_200 * 0.95:
+                return "downtrend", 4
+            else:
+                return "consolidation", 1
+
+    def _build_health_record(self, row: pd.Series, idx: int, df: pd.DataFrame, close: float, sma_50: float | None, sma_200: float | None) -> dict[str, Any]:
+        """Build a single market health metric record for one date.
+
+        Computes: distribution days, price change %, volume metrics, breadth metrics.
+        """
+        market_trend, market_stage = self._classify_market_stage(close, sma_50, sma_200)
+
+        dist_days_25d = int(df["distribution_day"].iloc[max(0, idx - 24) : idx + 1].sum())
+        dist_days_20d = int(df["distribution_day"].iloc[max(0, idx - 19) : idx + 1].sum())
+
+        spy_change_pct = None
+        if idx > 0:
+            prev_close = float(df.iloc[idx - 1]["close"])
+            if prev_close > 0:
+                spy_change_pct = round((close - prev_close) / prev_close * 100, 2)
+
+        up_volume_pct = float(df["up_day"].iloc[max(0, idx - 10) : idx + 1].mean() * 100)
+        if pd.isna(up_volume_pct):
+            raise RuntimeError(f"Cannot compute up_volume_percent for {row.get('date', 'unknown')}")
+
+        if pd.isna(row["breadth_10d"]):
+            raise RuntimeError(f"Breadth_momentum_10d is NaN for {row.get('date', 'unknown')}")
+
+        return {
+            "date": row["date"].date().isoformat(),
+            "market_trend": market_trend,
+            "market_stage": market_stage,
+            "distribution_days_4w": dist_days_25d,
+            "distribution_days_20d": dist_days_20d,
+            "up_volume_percent": up_volume_pct,
+            "advance_decline_ratio": None,
+            "new_highs_count": None,
+            "new_lows_count": None,
+            "breadth_momentum_10d": float(row["breadth_10d"]),
+            "spy_change_pct": spy_change_pct,
+            "vix_level": None,
+            "put_call_ratio": None,
+            "put_call_ratio_available": False,
+            "put_call_ratio_data_unavailable": True,
+            "yield_curve_slope": None,
+            "yield_curve_data_unavailable": True,
+            "yield_curve_unavailable_reason": "not_yet_fetched",
+            "fed_rate_environment": None,
+            "fed_rate_data_unavailable": True,
+            "fed_rate_unavailable_reason": "not_yet_fetched",
+        }
+
+    def _compute_market_health(self, rows: list[dict[str, float | int | None | str]]) -> list[dict[str, Any]]:
+        """Compute market health metrics from historical price data.
+
+        Orchestrates: data transformation, per-row validation, stage classification, record building.
+        """
+        if not rows:
+            raise RuntimeError(
+                "[MARKET_HEALTH] Cannot compute market health: no price data available. "
+                "Market health metrics are CRITICAL for circuit breaker decisions. "
+                "Check that price_daily table has recent SPY data loaded."
+            )
+        if len(rows) < 20:
+            logger.warning(f"Computing market health with only {len(rows)} rows (< 20 recommended)")
+
+        df = self._transform_price_dataframe(rows)
 
         results = []
         skipped_rows = []
         for idx, row in df.iterrows():
-            if not pd.notna(row["close"]) or row["close"] <= 0:
-                logger.debug(f"[MARKET_HEALTH] Row {idx}: invalid close price {row.get('close')}")
-                if "date" not in row or row.get("date") is None:
-                    raise ValueError(
-                        "[MARKET_HEALTH_CRITICAL] Market health row missing required 'date' field. "
-                        "Cannot process market data without date. Row keys: " + str(list(row.index.tolist()))
-                    )
-                # Explicit validation before bracket access to date field
-                if "date" not in row:
-                    logger.error(
-                        f"[MARKET_HEALTH] Market health row {idx} missing 'date' key. "
-                        f"Available keys: {list(row.index.tolist())}. Full row: {row.to_dict()}"
-                    )
-                    raise ValueError(
-                        f"Market health data missing required field 'date' for row {idx}, "
-                        f"data structure corrupted. Available keys: {list(row.index.tolist())}"
-                    )
+            should_skip, skip_reason = self._should_skip_row(row, idx)
+            if should_skip:
                 row_date = row["date"]
-                logger.warning(
-                    f"[MARKET_HEALTH_DATA_GAP] Invalid close price for {row_date}: {row['close']}. "
-                    f"Critical price data unavailable. Skipping row - this creates gap in distribution day counts and market health metrics."
-                )
+                logger.debug(f"[MARKET_HEALTH] Skipping row {row_date}: {skip_reason}")
                 skipped_rows.append(row_date)
                 continue
+
             close = float(row["close"])
             sma_200 = float(row["sma_200"]) if pd.notna(row["sma_200"]) else None
             sma_50 = float(row["sma_50"]) if pd.notna(row["sma_50"]) else None
 
-            # Skip rows with missing SMA (first ~200 rows when computing from historical backfill).
-            # These rows lack sufficient history for moving average calculation.
-            # Only store rows with valid SMA data for circuit breaker decisions.
-            if not sma_200:
-                # CRITICAL: Validate date field exists in row (fail-fast if missing)
-                row_date = row.get("date")
-                if row_date is None:
-                    raise ValueError(
-                        f"[MARKET_HEALTH] Row missing required 'date' field. "
-                        f"Cannot skip or audit row without date. Row: {row}"
-                    )
-                logger.debug(
-                    f"[MARKET_HEALTH] Skipping row {row_date}: SMA_200 not yet computed (insufficient history)"
-                )
-                skipped_rows.append(row_date)
-                continue
-
-            # Determine market trend and stage
-            market_trend = "neutral"
-            market_stage: int = 0
-
-            if sma_200 and sma_50:
-                if close > sma_50 > sma_200:
-                    market_trend = "uptrend"
-                    market_stage = 2
-                elif close < sma_50 < sma_200:
-                    market_trend = "downtrend"
-                    market_stage = 4
-                elif close > sma_200 and sma_50 < sma_200:
-                    market_trend = "topping"
-                    market_stage = 3
-                else:
-                    market_trend = "mixed"
-                    market_stage = 1
-            elif sma_200:
-                if close > sma_200 * 1.05:
-                    market_trend = "uptrend"
-                    market_stage = 2
-                elif close < sma_200 * 0.95:
-                    market_trend = "downtrend"
-                    market_stage = 4
-                else:
-                    market_trend = "consolidation"
-                    market_stage = 1
-
-            # Count distribution days (4w = 25 trading days, 20d = 20 trading days per IBD)
-            # idx-24:idx+1 = 25 rows (today + 24 prior sessions)
-            if idx < 0:
-                raise RuntimeError(
-                    f"Market health computation failed: invalid index {idx}. "
-                    "Cannot compute distribution days without valid row index."
-                )
-            dist_days_25d = int(df["distribution_day"].iloc[max(0, idx - 24) : idx + 1].sum())
-            dist_days_20d = int(df["distribution_day"].iloc[max(0, idx - 19) : idx + 1].sum())
-
-            spy_change_pct = None
-            if idx > 0:
-                prev_close = float(df.iloc[idx - 1]["close"])
-                if prev_close > 0:
-                    spy_change_pct = round((close - prev_close) / prev_close * 100, 2)
-
-            up_volume_pct = float(df["up_day"].iloc[max(0, idx - 10) : idx + 1].mean() * 100)
-            if pd.isna(up_volume_pct):
-                raise RuntimeError(
-                    f"Market health computation failed for {row.get('date', 'unknown')}: "
-                    "cannot compute up_volume_percent (NaN result). Data quality issue in up_day calculation."
-                )
-
-            if pd.isna(row["breadth_10d"]):
-                raise RuntimeError(
-                    f"Market health computation failed for {row.get('date', 'unknown')}: "
-                    "breadth_momentum_10d is NaN. Cannot proceed without valid breadth data."
-                )
-
-            results.append(
-                {
-                    "date": row["date"].date().isoformat(),
-                    "market_trend": market_trend,
-                    "market_stage": market_stage,
-                    "distribution_days_4w": dist_days_25d,
-                    "distribution_days_20d": dist_days_20d,
-                    "up_volume_percent": up_volume_pct,
-                    # CRITICAL breadth data (filled from _merge_breadth_data, no fallback)
-                    "advance_decline_ratio": None,
-                    "new_highs_count": None,
-                    "new_lows_count": None,
-                    "breadth_momentum_10d": float(row["breadth_10d"]),
-                    "spy_change_pct": spy_change_pct,
-                    # CRITICAL VIX data (filled from _merge_vix_data, must be present)
-                    "vix_level": None,
-                    # OPTIONAL enrichment data (marked as initially unavailable, may be filled by merge operations)
-                    "put_call_ratio": None,
-                    "put_call_ratio_available": False,
-                    "put_call_ratio_data_unavailable": True,
-                    "yield_curve_slope": None,
-                    "yield_curve_data_unavailable": True,
-                    "yield_curve_unavailable_reason": "not_yet_fetched",
-                    "fed_rate_environment": None,
-                    "fed_rate_data_unavailable": True,
-                    "fed_rate_unavailable_reason": "not_yet_fetched",
-                }
-            )
+            record = self._build_health_record(row, idx, df, close, sma_50, sma_200)
+            results.append(record)
 
         # Return results with metadata about skipped dates for audit trail and orchestrator visibility
         if skipped_rows:
