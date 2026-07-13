@@ -69,10 +69,22 @@ data_patrol_timeout_ms              = 60000 # FIXED: 30s too short for full data
 alpaca_paper_trading                = true  # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 40    # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
 api_lambda_reserved_concurrency     = 50    # Increased for dashboard + loader concurrent requests. Reserved concurrency alone (without provisioned) keeps Lambda warm for most requests.
-api_lambda_provisioned_concurrency  = 5     # Increased from 1→5: Sustained dashboard traffic needs multiple warm instances to prevent 503 timeouts. Cost: ~$60/month (vs $12 for 1 unit), but eliminates cold-start 503 errors completely. Session 86: Increased to ensure responsive API.
+api_lambda_provisioned_concurrency  = 0     # TEMPORARILY DISABLED (Session 114): 8+ consecutive deploy failures tonight on
+                                             # "PutProvisionedConcurrencyConfig: Requested Provisioned Concurrency should not
+                                             # be greater than reservedConcurrentExecution" despite reserved(50) > provisioned(5)
+                                             # being internally consistent in this file. Root cause not confirmed (IAM blocks
+                                             # lambda:ListFunctions/GetAccountSettings needed to check account-wide concurrency
+                                             # pool exhaustion across ~20 functions); most likely many concurrent sessions
+                                             # racing to mutate the same function's concurrency settings simultaneously.
+                                             # Disabling unblocks the deploy so other resources (esp. Alpaca/JWT secrets) can
+                                             # apply; CloudWatch showed 0 API 503 errors in the last 3 days without this even
+                                             # active, so cold-starts alone aren't currently causing user-visible failures.
+                                             # Re-enable (restore to 5) once deploy contention settles - see operational_status
+                                             # memory for full investigation.
 algo_lambda_timeout                 = 900  # AWS Lambda max timeout is 900s (15 min). ECS runs async so Lambda doesn't wait. 900s is sufficient since Lambda only invokes the task, doesn't wait for completion.
 algo_lambda_ephemeral_storage       = 512   # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
-algo_lambda_provisioned_concurrency = 5     # CRITICAL FIX: Prevent Lambda 503 timeouts. VPC cold-start (15-40s) can exceed API Gateway 29s timeout. Provisioned concurrency keeps instances warm. Cost: ~$150/mo but eliminates 503 errors. See steering/AWS_LAMBDA_503_FIX.md
+algo_lambda_provisioned_concurrency = 0     # TEMPORARILY DISABLED (Session 114) - see api_lambda_provisioned_concurrency
+                                             # comment above for why. Re-enable (restore to 5) once deploy contention settles.
 algo_lambda_reserved_concurrency    = 50    # Increased to handle concurrent orchestrator runs + manual triggers. Prevents throttling (TooManyRequestsException).
 # Provisioned concurrency for API only (~$12/month) worth the 502 error fix.
 
