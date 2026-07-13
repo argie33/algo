@@ -40,8 +40,11 @@ def fetch_signals(c: None) -> dict[str, Any]:
         thread.join(timeout=5)
 
         if thread.is_alive():
-            # Timeout - return empty signals
-            logger.warning("Signals API timeout (5s limit) - returning empty signals")
+            # Timeout - return explicit unavailability marker
+            logger.critical(
+                "[SIGNALS_FETCHER] CRITICAL: API timeout (5s limit). "
+                "Cannot fetch signals. Dashboard will show data unavailable state."
+            )
             record_data_quality_issue("sig", "timeout", "dashboard_timeout")
             return {
                 "n": 0,
@@ -52,7 +55,9 @@ def fetch_signals(c: None) -> dict[str, Any]:
                 "trend": [],
                 "grades": {},
                 "data_unavailable": True,
-                "reason": "Signals service slow - dashboard will render without signals",
+                "reason": "Signals API unavailable (timeout)",
+                "reason_type": "service_timeout",
+                "severity": "high",
                 "unavailability_type": "dashboard_timeout",
             }
 

@@ -50,12 +50,15 @@ FRED_SERIES = [
 def get_fred_api_key() -> str:
     """Get FRED API key from Secrets Manager or environment variable.
 
-    Tries AWS Secrets Manager first (algo/fred), falls back to FRED_API_KEY env var.
+    CRITICAL: FRED fetch requires valid API key. Fails fast if missing - never returns empty string.
+    Empty key causes all downstream FRED fetches to fail silently. Must raise explicitly.
     """
-    key = get_api_key("algo/fred", "FRED_API_KEY", required=False)
+    key = get_api_key("algo/fred", "FRED_API_KEY", required=True)
     if not key:
-        logger.warning("[ECONOMIC] FRED API key not found")
-        return ""
+        raise RuntimeError(
+            "[ECONOMIC] CRITICAL: FRED API key not configured. "
+            "Economic data enrichment requires FRED access. Set FRED_API_KEY in secrets."
+        )
     return key
 
 

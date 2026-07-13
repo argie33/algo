@@ -108,7 +108,12 @@ class DailyReconciliation:
 
                 # Portfolio value = base capital + unrealized P&L
                 # FIX: Provide default fallback for initial_capital_paper_trading in case config doesn't have it
-                initial_capital = self.config.get("initial_capital_paper_trading", 100000.0)
+                initial_capital = self.config.get("initial_capital_paper_trading")
+                if initial_capital is None:
+                    raise RuntimeError(
+                        "[RECONCILIATION] CRITICAL: initial_capital_paper_trading not configured. "
+                        "Never assume default portfolio value ($100k). Set explicit value in algo_config table."
+                    )
 
                 if not isinstance(initial_capital, (int, float)) or initial_capital <= 0:
                     raise ValueError(
