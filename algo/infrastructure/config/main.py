@@ -622,6 +622,24 @@ class AlgoConfig:
             "Phase 1: Minimum symbol count for healthy coverage",
             "Advanced Filters",
         ),
+        "phase1_recent_cutoff_days": (
+            "2",
+            "int",
+            "Phase 1: lookback window (days) for 'recent' symbol coverage count",
+            "Advanced Filters",
+        ),
+        "phase1_prior_cutoff_days": (
+            "2",
+            "int",
+            "Phase 1: additional lookback window (days) for the prior-period coverage baseline",
+            "Advanced Filters",
+        ),
+        "phase1_halt_table_max_tolerance_days": (
+            "1",
+            "int",
+            "Phase 1: max days a halt-critical table may lag before halting",
+            "Advanced Filters",
+        ),
         "phase7_min_composite_score": (
             "50",
             "int",
