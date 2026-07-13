@@ -32,11 +32,12 @@ def test_executor_detects_failed_dependency():
     """Executor must fail phase if dependency failed."""
     executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: False)
 
-    phase5_result = PhaseResult(phase_num=5, phase_name="EXPOSURE POLICY",
+    phase5_result = PhaseResult(
+        phase_num=5,
+        phase_name="EXPOSURE POLICY",
         status="error",
+        data={},
         error="Phase 5 failed due to bad constraints",
-        constraints=None,
-        actions=[],
     )
     executor.phase_results[5] = phase5_result
 
@@ -99,10 +100,11 @@ def test_executor_allows_valid_dependency():
         "risk_multiplier": 1.0,
         "max_new_positions_today": 5,
     }
-    phase5_result = PhaseResult(phase_num=5, phase_name="EXPOSURE POLICY",
+    phase5_result = PhaseResult(
+        phase_num=5,
+        phase_name="EXPOSURE POLICY",
         status="ok",
-        constraints=constraints,
-        actions=[],
+        data={"constraints": constraints},
     )
     executor.phase_results[5] = phase5_result
 
@@ -143,14 +145,17 @@ def test_executor_validates_all_dependencies():
         )
     )
 
-    phase5_result = PhaseResult(phase_num=5, phase_name="EXPOSURE POLICY",
+    phase5_result = PhaseResult(
+        phase_num=5,
+        phase_name="EXPOSURE POLICY",
         status="ok",
-        constraints={
-            "tier_name": "NORMAL",
-            "risk_multiplier": 1.0,
-            "max_new_positions_today": 5,
+        data={
+            "constraints": {
+                "tier_name": "NORMAL",
+                "risk_multiplier": 1.0,
+                "max_new_positions_today": 5,
+            }
         },
-        actions=[],
     )
     executor.phase_results[5] = phase5_result
 

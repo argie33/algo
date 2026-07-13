@@ -18,7 +18,7 @@ Integration:
 """
 
 import logging
-from typing import Any
+from typing import Any, Callable
 
 from utils.validation.framework import StrictValidationError, safe_float, safe_int
 
@@ -36,6 +36,54 @@ def _check_required_fields(data: dict[str, Any], required_fields: list[str], sou
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
         raise ResponseValidationError(f"Missing critical fields in {source}: {missing}")
+
+
+def _make_validator(
+    required_fields: list[str] | None = None,
+    numeric_fields: dict[str, type] | None = None,
+    item_validators: list[Callable[[Any], None]] | None = None,
+) -> Callable[[dict[str, Any]], dict[str, Any]]:
+    """Factory function to create response validators with common patterns.
+
+    Args:
+        required_fields: Fields that must be present in response
+        numeric_fields: Map of field names to their expected types (int or float)
+        item_validators: List of validation functions for array items
+
+    Returns:
+        Validator function that takes data dict and returns validated data
+    """
+
+    def validator(data: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(data, dict):
+            raise ResponseValidationError(f"Response not a dict: {type(data)}")
+
+        if has_error(data):
+            return data
+
+        if required_fields:
+            _check_required_fields(data, required_fields, "response")
+
+        if numeric_fields:
+            for field, field_type in numeric_fields.items():
+                if field in data and data[field] is not None:
+                    try:
+                        if field_type is int:
+                            safe_int(data[field], strict=True, field_name=field)
+                        else:
+                            safe_float(data[field], strict=True, field_name=field)
+                    except StrictValidationError as e:
+                        raise ResponseValidationError(f"Field {field} validation failed: {e}") from e
+
+        if item_validators:
+            if "items" in data and isinstance(data["items"], list):
+                for i, item in enumerate(data["items"]):
+                    for item_validator in item_validators:
+                        item_validator(i, item)
+
+        return data
+
+    return validator
 
 
 def validate_portfolio_response(data: dict[str, Any]) -> dict[str, Any]:
