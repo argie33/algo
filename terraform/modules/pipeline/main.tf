@@ -318,7 +318,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogEnrichmentFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "AlgoMetrics"
+        Next = "TechnicalDataDaily"
       }
 
       # Log enrichment (market health + trend template + market exposure) failures
@@ -327,57 +327,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "parallel_enrichment"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "AlgoMetrics"
-          ResultPath  = "$.logError"
-        }]
-        Next = "AlgoMetrics"
-      }
-
-
-      # ── Step 7: Summarize signal quality metrics ──────────────────────────
-      # parallelism=4: ~12 min expected, 2h timeout for safety.
-      # FIXED Issue #4: Graceful degradation — if metrics fail, continue with available data
-      AlgoMetrics = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 7200
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["algo_metrics_daily"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogMetricsFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "TechnicalDataDaily"
-      }
-
-      LogMetricsFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "algo_metrics_daily"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
@@ -543,7 +492,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogBuySellFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "SectorRanking"
+        Next = "AlgoMetricsAfterSignals"
       }
 
       LogBuySellFailure = {
@@ -554,6 +503,58 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           "error.$"          = "$.loaderError.Error"
           "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "AlgoMetricsAfterSignals"
+          ResultPath  = "$.logError"
+        }]
+        Next = "AlgoMetricsAfterSignals"
+      }
+
+      # ── NEW: AlgoMetrics moved to non-critical path ──────────────────────────
+      # OPTIMIZATION: Dashboard-only loader (computes portfolio stats from audit log)
+      # Moved from Step 5 (blocking) to here (after signals generated)
+      # No impact on trading; Phase 7 signal generation already complete
+      # Timeout: 7200s (120 min) for full portfolio stat computation
+      AlgoMetricsAfterSignals = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 7200
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["algo_metrics_daily"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogMetricsFailureAfterSignals"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "SectorRanking"
+      }
+
+      LogMetricsFailureAfterSignals = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "algo_metrics_daily"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
         }
         ResultPath = "$.failureLog"
         Retry = [{
@@ -2036,7 +2037,7 @@ resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
   }
 
   logging_configuration {
-    log_destination = "${var.scheduler_log_group_arn}:*"
+    log_destination        = "${var.scheduler_log_group_arn}:*"
     include_execution_data = true
   }
 }
@@ -2144,7 +2145,7 @@ resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
   }
 
   logging_configuration {
-    log_destination = "${var.scheduler_log_group_arn}:*"
+    log_destination        = "${var.scheduler_log_group_arn}:*"
     include_execution_data = true
   }
 }
