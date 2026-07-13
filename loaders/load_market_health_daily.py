@@ -56,7 +56,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         self._yield_curve_fetcher = YieldCurveFetcher()
         self._breadth_fetcher = BreadthFetcher()
 
-    def run(self, symbols: list[str] | None = None, **kwargs: Any) -> dict[str, Any]:
+    def run(
+        self, symbols: list[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
+    ) -> dict[str, Any]:
         """Override run() to provide default symbol for market-wide loader.
 
         Market health is market-wide (not symbol-based), but OptimalLoader.run()
@@ -64,7 +66,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         """
         if symbols is None or len(symbols) == 0:
             symbols = ["market"]
-        return super().run(symbols=symbols, **kwargs)
+        return super().run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)
 
     def fetch_vix_with_breaker(self, start: date, end: date) -> dict[str, Any]:
         """Fetch VIX data with circuit breaker protection."""
