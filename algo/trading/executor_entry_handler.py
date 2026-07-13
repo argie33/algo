@@ -290,7 +290,7 @@ class EntryHandler:
                     f"Cannot record position without actual fill price for accurate cost basis."
                 )
             if executed_price != entry_price:
-                slippage_pct = abs((float(executed_price) - float(entry_price)) / float(entry_price) * 100)
+                slippage_pct = abs((executed_price - entry_price) / entry_price * 100)
                 if slippage_pct > 5.0:
                     logger.warning(
                         f"[SLIPPAGE ALERT] {symbol}: excessive slippage {slippage_pct:.2f}% "
@@ -534,8 +534,8 @@ class EntryHandler:
             tca_result = self.tca.record_fill(
                 trade_id=trade_id,
                 symbol=symbol,
-                signal_price=float(entry_price),
-                fill_price=(float(executed_price) if executed_price else float(entry_price)),
+                signal_price=entry_price,
+                fill_price=(executed_price if executed_price else entry_price),
                 shares_requested=1,
                 shares_filled=1,
                 side="BUY",
@@ -819,7 +819,7 @@ class EntryHandler:
             # Calculate R-multiple for risk metrics (entry - stop) for accurate risk assessment
             r_multiple = None
             if stop_loss_price and executed_price:
-                risk_per_share = float(executed_price) - float(stop_loss_price)
+                risk_per_share = executed_price - stop_loss_price
                 if risk_per_share > 0:
                     r_multiple = 1.0  # 1R baseline; actual targets provide specific R values
 
