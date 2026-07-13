@@ -65,10 +65,15 @@ _args_temp = argparse.ArgumentParser(add_help=False)
 _args_temp.add_argument('--local', action='store_true', help='Use local API (localhost:3001)')
 _temp_args, _ = _args_temp.parse_known_args()
 
+# CRITICAL FIX: Only auto-detect localhost if AWS config is NOT explicitly set
+# This ensures AWS configuration is never overridden by localhost auto-detection.
+# Respects explicit AWS setup while still providing convenience for dev-only scenarios.
+_has_aws_config = _os_auto.environ.get('DASHBOARD_API_URL') is not None
+
 # Enable local mode if:
 # 1. User explicitly passes --local flag, OR
-# 2. Dev server is running on localhost:3001
-if _temp_args.local or _is_dev_server_available():
+# 2. Dev server is running on localhost:3001 AND no AWS config is explicitly set
+if _temp_args.local or (_is_dev_server_available() and not _has_aws_config):
     _os_auto.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
     _os_auto.environ['LOCAL_MODE'] = 'true'
     print("[DASHBOARD_STARTUP] LOCAL MODE DETECTED/ENABLED - Using localhost:3001", flush=True)
