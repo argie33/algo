@@ -91,13 +91,12 @@ def _get_api_base_url() -> str:
 
     Priority:
     1. Explicit LOCAL_MODE flag
-    2. Auto-detect localhost (dev_server available)
-    3. Configured AWS URL (requires Cognito auth)
+    2. Configured AWS URL (requires Cognito auth) - NEVER overridden by auto-detection
+    3. Auto-detect localhost (dev_server available) - ONLY if no AWS config
     4. Fallback to localhost
 
-    This ensures local dev always works without auth setup, while AWS mode
-    requires explicit configuration. Prevents "data not available" errors
-    when dev_server is running but AWS credentials are missing.
+    CRITICAL: AWS configuration is NEVER overridden by localhost auto-detection.
+    This ensures AWS setup is respected and not accidentally bypassed.
     """
     global _api_base_url_cache, _localhost_checked
 
@@ -110,7 +109,14 @@ def _get_api_base_url() -> str:
         logger.debug("[API] LOCAL_MODE enabled - using local dev_server")
         return _api_base_url_cache
 
-    # Priority 2: Auto-detect localhost (lazy check - only on first use)
+    # Priority 2: Use configured AWS URL - NEVER override this with auto-detection
+    if _dashboard_api_url:
+        _api_base_url_cache = _dashboard_api_url
+        logger.info(f"[API] Using configured DASHBOARD_API_URL: {_dashboard_api_url} (requires Cognito auth)")
+        _localhost_checked = True
+        return _api_base_url_cache
+
+    # Priority 3: Auto-detect localhost ONLY if no AWS config is set
     if not _localhost_checked and _check_localhost_available():
         _api_base_url_cache = "http://localhost:3001"
         _localhost_checked = True
@@ -118,12 +124,6 @@ def _get_api_base_url() -> str:
         return _api_base_url_cache
 
     _localhost_checked = True
-
-    # Priority 3: Use configured AWS URL
-    if _dashboard_api_url:
-        _api_base_url_cache = _dashboard_api_url
-        logger.info(f"[API] Using configured DASHBOARD_API_URL: {_dashboard_api_url} (requires Cognito auth)")
-        return _api_base_url_cache
 
     # Priority 4: Fallback to localhost
     _api_base_url_cache = "http://localhost:3001"
