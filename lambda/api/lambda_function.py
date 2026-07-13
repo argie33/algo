@@ -769,6 +769,41 @@ def get_security_headers() -> dict[str, str]:
     }
 
 
+def make_error_response(code: int, error_type: str, message: str, event: dict[str, Any]) -> dict[str, Any]:
+    """Build standardized error response with CORS and security headers.
+
+    Eliminates repetitive error response building throughout lambda_handler.
+    All 11 parameters (statusCode, errorType, message, _error, Content-Type, CORS, security headers)
+    bundled into one call.
+
+    Args:
+        code: HTTP status code (400, 401, 500, etc.)
+        error_type: Error classification for client (e.g., "invalid_json", "unauthorized")
+        message: Human-readable error message (sanitized)
+        event: Lambda event dict (used to extract CORS headers)
+
+    Returns:
+        Standardized Lambda response dict with statusCode, headers, body
+    """
+    cors_headers = get_cors_headers(event)
+    return {
+        "statusCode": code,
+        "headers": {
+            "Content-Type": get_json_content_type(),
+            **cors_headers,
+            **get_security_headers(),
+        },
+        "body": json.dumps(
+            {
+                "statusCode": code,
+                "errorType": error_type,
+                "message": message,
+                "_error": message,
+            }
+        ),
+    }
+
+
 def get_cache_headers(cache_type: str = "no-cache") -> dict[str, str]:
     """Return cache control headers based on content type.
 
@@ -1501,19 +1536,8 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
     # Import error check (after health so health always works despite missing modules)
     if IMPORT_ERROR:
-        cors_headers = get_cors_headers(event)
-        # SECURITY FIX: Don't expose internal error details to clients; log server-side
         logger.error(f"[IMPORT_ERROR] {IMPORT_ERROR}")
-        return {
-            "statusCode": 500,
-            "headers": {"Content-Type": get_json_content_type(), **cors_headers},
-            "body": json.dumps(
-                {
-                    "error": "service_unavailable",
-                    "message": "Service temporarily unavailable",
-                }
-            ),
-        }
+        return make_error_response(500, "service_unavailable", "Service temporarily unavailable", event)
 
     # Environment validation and DB test are now run once at module load (not on every request)
     # This check ensures that if there were initialization errors, we return them
@@ -1575,25 +1599,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         )
 
         if requires_auth and not is_authorized:
-            cors_headers = get_cors_headers(event)
             logger.warning(f"Unauthorized access attempt to {path}: {auth_error}")
             log_api_request(event, 401, error_msg=auth_error)
-            return {
-                "statusCode": 401,
-                "headers": {
-                    "Content-Type": get_json_content_type(),
-                    **cors_headers,
-                    **get_security_headers(),
-                },
-                "body": json.dumps(
-                    {
-                        "statusCode": 401,
-                        "errorType": "unauthorized",
-                        "message": auth_error,
-                        "_error": auth_error,
-                    }
-                ),
-            }
+            return make_error_response(401, "unauthorized", auth_error, event)
 
         # Detailed and pipeline health checks are handled via api_router (routes/health.py)
         # They verify authentication through the normal flow and provide consistent response format
@@ -1613,49 +1621,15 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 if event.get("body"):
                     body_str = event["body"]
                     if len(body_str) > MAX_REQUEST_BODY_SIZE:
-                        cors_headers = get_cors_headers(event)
                         logger.warning(f"Request body exceeds max size: {len(body_str)} > {MAX_REQUEST_BODY_SIZE}")
                         log_api_request(event, 413, error_msg="request_entity_too_large")
-                        msg = "Request body too large"
-                        return {
-                            "statusCode": 413,
-                            "headers": {
-                                "Content-Type": get_json_content_type(),
-                                **cors_headers,
-                                **get_security_headers(),
-                            },
-                            "body": json.dumps(
-                                {
-                                    "statusCode": 413,
-                                    "errorType": "request_entity_too_large",
-                                    "message": msg,
-                                    "_error": msg,
-                                }
-                            ),
-                        }
+                        return make_error_response(413, "request_entity_too_large", "Request body too large", event)
                     try:
                         body = json.loads(body_str)
                     except (json.JSONDecodeError, Exception) as e:
-                        cors_headers = get_cors_headers(event)
                         logger.warning(f"Failed to parse JSON body: {e}")
                         log_api_request(event, 400, error_msg="invalid_json")
-                        msg = "Request body must be valid JSON"
-                        return {
-                            "statusCode": 400,
-                            "headers": {
-                                "Content-Type": get_json_content_type(),
-                                **cors_headers,
-                                **get_security_headers(),
-                            },
-                            "body": json.dumps(
-                                {
-                                    "statusCode": 400,
-                                    "errorType": "invalid_json",
-                                    "message": msg,
-                                    "_error": msg,
-                                }
-                            ),
-                        }
+                        return make_error_response(400, "invalid_json", "Request body must be valid JSON", event)
 
                 # O-1: POST /api/logout — revoke current token server-side
                 if method == "POST" and path == "/api/logout":
