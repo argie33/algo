@@ -2029,6 +2029,15 @@ resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
       maximum_event_age_in_seconds = 3600
       maximum_retry_attempts       = 2
     }
+
+    dead_letter_config {
+      arn = var.scheduler_dlq_arn
+    }
+  }
+
+  logging_configuration {
+    log_destination = "${var.scheduler_log_group_arn}:*"
+    include_execution_data = true
   }
 }
 
@@ -2128,6 +2137,15 @@ resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
       maximum_event_age_in_seconds = 3600
       maximum_retry_attempts       = 2
     }
+
+    dead_letter_config {
+      arn = var.scheduler_dlq_arn
+    }
+  }
+
+  logging_configuration {
+    log_destination = "${var.scheduler_log_group_arn}:*"
+    include_execution_data = true
   }
 }
 
