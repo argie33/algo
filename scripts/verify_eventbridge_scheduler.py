@@ -15,18 +15,33 @@ import subprocess
 import json
 from datetime import datetime, timezone
 
+# Windows encoding fix (emoji output crashes cp1252 console otherwise)
+if sys.platform.startswith("win"):
+    import io
+
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.logging import logger
 
+# Schedule names include a project/environment suffix, e.g. "algo-morning-pipeline-dev".
+# CI/CD (deploy-all-infrastructure.yml) only ever deploys via terraform.tfvars, so
+# ENVIRONMENT should match that file's `environment` value, not assume "prod".
+PROJECT_NAME = os.environ.get("TF_PROJECT_NAME", "algo")
+ENVIRONMENT = os.environ.get("TF_ENVIRONMENT", "dev")
 
 EXPECTED_SCHEDULES = {
-    "algo-morning-pipeline": {
+    f"{PROJECT_NAME}-morning-pipeline-{ENVIRONMENT}": {
         "schedule": "cron(0 2 ? * MON-FRI *)",
         "timezone": "America/New_York",
         "description": "Morning data prep: load prices + technicals (2:00 AM ET)",
     },
-    "algo-eod-pipeline": {
+    f"{PROJECT_NAME}-eod-pipeline-{ENVIRONMENT}": {
         "schedule": "cron(5 16 ? * MON-FRI *)",
         "timezone": "America/New_York",
         "description": "End-of-day analysis & swing scores (4:05 PM ET)",
@@ -36,46 +51,48 @@ EXPECTED_SCHEDULES = {
 
 def run_aws_cli(args: list) -> dict | None:
     """Run AWS CLI command and return JSON result."""
+    import shutil
+
+    # On Windows, "aws" resolves to aws.cmd/aws.exe via PATHEXT, which
+    # subprocess.run() only honors if the executable is pre-resolved
+    # (shutil.which) or shell=True is used. Without this, subprocess raises
+    # FileNotFoundError even though `aws` works fine from an interactive shell.
+    aws_path = shutil.which("aws") or "aws"
     try:
         result = subprocess.run(
-            ["aws"] + args,
+            [aws_path] + args,
             capture_output=True,
             text=True,
             timeout=30,
         )
         if result.returncode == 0:
             return json.loads(result.stdout) if result.stdout else {}
+        elif "ResourceNotFoundException" in result.stderr:
+            return None
         else:
             print(f"❌ AWS CLI Error: {result.stderr}", file=sys.stderr)
-            return None
+            return {"_cli_error": result.stderr}
     except FileNotFoundError:
         print("❌ AWS CLI not installed. Install with: pip install awscli", file=sys.stderr)
-        return None
+        return {"_cli_error": "AWS CLI not found on PATH"}
     except Exception as e:
         print(f"❌ Error running AWS CLI: {e}", file=sys.stderr)
-        return None
+        return {"_cli_error": str(e)}
 
 
 def check_schedule(name: str, expected: dict) -> dict:
     """Check if a schedule exists and is configured correctly."""
-    result = run_aws_cli([
+    # get-schedule returns fields at the top level (no "Schedule" wrapper key);
+    # a nonexistent schedule is a nonzero exit + ResourceNotFoundException on
+    # stderr, not a missing key in a successful response.
+    schedule = run_aws_cli([
         "scheduler",
         "get-schedule",
         "--name", name,
         "--region", "us-east-1",
     ])
 
-    if result is None:
-        return {
-            "name": name,
-            "status": "ERROR",
-            "message": "Failed to query (AWS CLI error)",
-            "exists": False,
-            "enabled": False,
-            "correct": False,
-        }
-
-    if "Schedule" not in result:
+    if schedule is None:
         return {
             "name": name,
             "status": "MISSING",
@@ -85,10 +102,19 @@ def check_schedule(name: str, expected: dict) -> dict:
             "correct": False,
         }
 
-    schedule = result["Schedule"]
+    if "_cli_error" in schedule:
+        return {
+            "name": name,
+            "status": "ERROR",
+            "message": f"Failed to query (AWS CLI error): {schedule['_cli_error']}",
+            "exists": False,
+            "enabled": False,
+            "correct": False,
+        }
+
     enabled = schedule.get("State") == "ENABLED"
     correct_expr = schedule.get("ScheduleExpression") == expected["schedule"]
-    correct_tz = schedule.get("Timezone") == expected["timezone"]
+    correct_tz = schedule.get("ScheduleExpressionTimezone") == expected["timezone"]
     correct = correct_expr and correct_tz
 
     if not enabled:

@@ -42,7 +42,7 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
-def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_date: _date, dry_run: bool) -> None:
+def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_date: _date, dry_run: bool) -> int:
     """Persist Phase 7 generated signals to algo_signals table for dashboard display.
 
     CRITICAL FIX: Signals were being generated but never saved, causing:
@@ -56,7 +56,7 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
     - Historical backtesting reports
     """
     if not qualified_trades:
-        return
+        return 0
 
     inserted_count = 0
     skipped_count = 0
@@ -129,6 +129,7 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
             )
         else:
             logger.info(f"[PERSIST SIGNALS] Inserted {inserted_count} signals for {run_date}")
+        return inserted_count
     except psycopg2.DatabaseError as e:
         logger.error(f"[PERSIST SIGNALS] Database error: {e}", exc_info=True)
         raise
@@ -391,8 +392,8 @@ def run(
     # CRITICAL: Persist signals to database (previously missing - this caused zero signals in dashboard)
     # This is the essential link between Phase 7 signal generation and dashboard display
     try:
-        _persist_signals_to_database(qualified_trades, run_date, dry_run)
-        logger.info(f"[PHASE 8] Persisted {len(qualified_trades)} signals to database")
+        _persisted = _persist_signals_to_database(qualified_trades, run_date, dry_run)
+        logger.info(f"[PHASE 8] Persisted {_persisted}/{len(qualified_trades)} signals to database")
     except Exception as e:
         logger.error(f"[PHASE 8] Failed to persist signals: {e}", exc_info=True)
         # Non-blocking - continue execution even if signal persistence fails
