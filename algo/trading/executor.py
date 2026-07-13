@@ -5,6 +5,7 @@ import logging
 import os
 import time
 from collections.abc import Callable
+from datetime import date as _date
 from decimal import Decimal
 from typing import Any
 
@@ -507,7 +508,7 @@ class TradeExecutor:
         self,
         cur: Any,
         symbol: str,
-        signal_date: Any,
+        signal_date: _date,
         entry_price: Decimal,
         stop_loss_price: Decimal,
     ) -> tuple[bool, str, dict[str, Any] | None]:
@@ -635,8 +636,8 @@ class TradeExecutor:
         target_1_price: Decimal | float | None = None,
         target_2_price: Decimal | float | None = None,
         target_3_price: Decimal | float | None = None,
-        signal_date: Any | None = None,
-        entry_date: Any | None = None,
+        signal_date: _date | None = None,
+        entry_date: _date | None = None,
         sqs: Any | None = None,
         trend_score: float | None = None,
         composite_score: float | None = None,
