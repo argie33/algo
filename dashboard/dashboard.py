@@ -71,6 +71,7 @@ _temp_args, _ = _args_temp.parse_known_args()
 if _temp_args.local or _is_dev_server_available():
     _os_auto.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
     _os_auto.environ['LOCAL_MODE'] = 'true'
+    print("[DASHBOARD_STARTUP] LOCAL MODE DETECTED/ENABLED - Using localhost:3001", flush=True)
 
 try:
     import msvcrt
@@ -635,12 +636,15 @@ def _setup_local_api() -> str:
         if result != 0:
             # Dev server not running
             try:
-                CONSOLE.print("\n[bold red]ERROR: Dev server not running on localhost:3001[/]")
-                CONSOLE.print("[yellow]The dashboard requires dev_server to be running in another terminal[/]\n")
-                CONSOLE.print("[bold cyan]TO FIX (in another terminal):[/]")
-                CONSOLE.print("  python3 api-pkg/dev_server.py\n")
-                CONSOLE.print("[bold cyan]THEN (after dev_server starts):[/]")
-                CONSOLE.print("  python3 -m dashboard --local\n")
+                CONSOLE.print("\n[bold red]✗ FATAL: Dev server not running on localhost:3001[/]")
+                CONSOLE.print("[yellow]The dashboard REQUIRES dev_server to be running in another terminal[/]\n")
+                CONSOLE.print("[bold cyan]STEP 1: Start the API server (in a NEW terminal):[/]")
+                CONSOLE.print("  [bright_black]$[/] python3 api-pkg/dev_server.py\n")
+                CONSOLE.print("[bold cyan]STEP 2: Wait for this message:[/]")
+                CONSOLE.print("  [bright_green][INFO] Starting API dev server on http://localhost:3001[/]\n")
+                CONSOLE.print("[bold cyan]STEP 3: Start dashboard (in this terminal):[/]")
+                CONSOLE.print("  [bright_black]$[/] python3 -m dashboard\n")
+                CONSOLE.print("[dim]Note: Dashboard auto-detects dev_server, no --local flag needed[/]\n")
             except Exception as display_err:
                 logger.error(f"Failed to display error: {type(display_err).__name__}: {display_err}")
             sys.exit(1)
@@ -650,7 +654,7 @@ def _setup_local_api() -> str:
     set_api_url(local_url)
     # Clear Cognito auth for local dev mode so dashboard injects dev-admin token
     set_cognito_auth(None)
-    logger.info("[DASHBOARD] LOCAL MODE: Using localhost:3001 dev server")
+    logger.info("[DASHBOARD] ✓ LOCAL MODE: Using localhost:3001 dev server")
     return "LOCAL"
 
 
@@ -796,6 +800,13 @@ def main() -> None:
         # Configure data source
         # Check both: explicit --local flag OR auto-detected LOCAL_MODE from environment
         use_local = args.local or os.environ.get("LOCAL_MODE") == "true"
+
+        # Log startup mode
+        if use_local:
+            logger.info("[DASHBOARD_STARTUP] LOCAL MODE enabled - using dev_server on localhost:3001")
+        else:
+            logger.info("[DASHBOARD_STARTUP] AWS MODE - requires Cognito credentials")
+
         if use_local:
             data_source = _setup_local_api()
         else:
