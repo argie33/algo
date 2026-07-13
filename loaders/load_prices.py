@@ -2307,8 +2307,51 @@ def main() -> int:
             limit = max_symbols_limit if max_symbols_limit > 0 else None
             # Use 300s timeout (5 min) for symbol list query under EOD pipeline load
             # Multiple loaders running concurrently can exhaust connection pool; allow extra time
-            symbols = get_active_symbols(max_symbols=limit, timeout_secs=300)
-            logger.info("[MAIN] Loaded %s symbols from database", len(symbols))
+            try:
+                symbols = get_active_symbols(max_symbols=limit, timeout_secs=300)
+                logger.info("[MAIN] Loaded %s symbols from database (max_limit=%s)", len(symbols), limit)
+            except TimeoutError as e:
+                logger.critical(
+                    "[MAIN] CRITICAL: Symbol query timed out after 300s. "
+                    "This can cause truncation where partial results are returned. Error: %s",
+                    e
+                )
+                raise
+            except Exception as e:
+                logger.critical(
+                    "[MAIN] CRITICAL: Failed to load symbols from database. Error: %s. "
+                    "Cannot proceed without symbol list.",
+                    e,
+                    exc_info=True
+                )
+                raise
+
+            # CRITICAL SAFETY CHECK: Ensure we loaded a reasonable number of symbols
+            # Session 102 found that only 27 symbols were being loaded (should be 10,000+)
+            # This check prevents silent data truncation that causes trading to halt
+            expected_symbol_count = 5000 if not limit else limit
+            if len(symbols) < 100 and max_symbols_limit == 0:
+                logger.critical(
+                    "[MAIN] CRITICAL: Only %d symbols loaded (expected 5,000+). "
+                    "This indicates a database connection issue or query timeout. "
+                    "Symbol list truncation causes Phase 1 data freshness checks to fail, halting trading.",
+                    len(symbols)
+                )
+                try:
+                    log_loader_execution(
+                        "loadpricedaily",
+                        "price_daily",
+                        "failed",
+                        error_msg=f"Symbol truncation: only {len(symbols)} symbols loaded (expected 5000+)",
+                        duration_seconds=round(time.time() - start_time, 2),
+                    )
+                except (ValueError, ZeroDivisionError, TypeError) as log_err:
+                    logger.critical(
+                        "[MAIN] Could not log symbol truncation to audit trail: %s",
+                        log_err,
+                    )
+                return 1
+
             if len(symbols) == 0:
                 logger.warning("[MAIN] No symbols found in stock_symbols table - exiting")
                 try:
@@ -2391,8 +2434,14 @@ def main() -> int:
                         if asset_class == "stock":
                             run_symbols = list(dict.fromkeys(symbols + essential_stock_price_daily))
                             logger.info(
-                                f"[MAIN] stock symbols: {len(symbols)} from DB + {len(essential_stock_price_daily)} essential ETFs = {len(run_symbols)} total"
+                                f"[MAIN] stock symbols: {len(symbols)} from DB + {len(essential_stock_price_daily)} essential = {len(run_symbols)} total"
                             )
+                            # Safety check: stock loader should have most of the symbols
+                            if len(run_symbols) < 1000:
+                                logger.critical(
+                                    f"[MAIN] WARNING: stock asset class has only {len(run_symbols)} symbols (expected 5000+). "
+                                    f"Data truncation detected. Sample symbols: {run_symbols[:5] if run_symbols else 'none'}"
+                                )
                         else:  # etf
                             # ETF tables (etf_price_daily/weekly/monthly) should only contain ETF symbols,
                             # not the 5000+ non-ETF stocks. Loading all non-ETF stocks into ETF tables
@@ -2405,7 +2454,7 @@ def main() -> int:
 
                         loader = PriceLoader(interval=interval, asset_class=asset_class)
                         logger.info(
-                            f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={parallelism}"
+                            f"[MAIN] Starting: interval={interval}, asset_class={asset_class}, parallelism={parallelism}, symbols={len(run_symbols)}"
                         )
                         with TimeBlock(f"loadpricedaily_{asset_class}_{interval}"):
                             stats = loader.run(run_symbols, parallelism=parallelism)
