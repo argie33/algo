@@ -84,18 +84,6 @@ class HaltFlagManager:
         return False
 
     def check_halt_flag(self) -> tuple[bool | None, str | None]:
-        """Check if halt flag is set.
-
-        Returns:
-            Tuple[halt_flag_set, reason]
-            - halt_flag_set: True if halt is active, False if not, None if unable to determine
-            - reason: String explaining why halt is set (or None if no halt)
-
-        Strategy:
-        1. If circuit breaker open: read RDS only
-        2. Otherwise: try DynamoDB first, fall back to RDS
-        3. If both fail: return None (conservative: assume halt for safety)
-        """
         # If circuit breaker is open, skip DynamoDB and use RDS only
         if self._is_circuit_breaker_open():
             logger.debug("[HALT_FLAG] Circuit breaker open, reading from RDS only")

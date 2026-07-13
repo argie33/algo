@@ -57,11 +57,6 @@ class EnvironmentValidator:
 
     @classmethod
     def validate_required(cls) -> tuple[bool, list[str]]:
-        """Validate all required environment variables are set.
-
-        Returns:
-            (is_valid, missing_vars): True if all set, False + list of missing vars
-        """
         missing = []
 
         for var_name, description in cls.REQUIRED_VARS.items():
@@ -95,11 +90,6 @@ class EnvironmentValidator:
 
     @classmethod
     def validate_optional(cls) -> dict[str, str]:
-        """Check optional variables and log which ones are missing.
-
-        Returns:
-            dict of missing optional vars
-        """
         missing = {}
 
         for var_name, description in cls.RECOMMENDED_VARS.items():
@@ -111,11 +101,6 @@ class EnvironmentValidator:
 
     @classmethod
     def get_status(cls) -> dict[str, Any]:
-        """Get environment validation status.
-
-        Returns:
-            dict with required_ok, missing_required, missing_optional
-        """
         required_ok, missing_required = cls.validate_required()
         missing_optional = cls.validate_optional()
 

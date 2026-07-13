@@ -232,14 +232,6 @@ class LivePerformance:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def max_drawdown(self) -> float | None:
-        """Compute maximum drawdown from peak portfolio value. FAIL-FAST on insufficient data.
-
-        Returns:
-            Max drawdown as percentage (e.g., -15.5 = 15.5% down from peak)
-
-        Raises:
-            ValueError: If insufficient snapshots (< 2). Max drawdown is critical risk metric.
-        """
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("""

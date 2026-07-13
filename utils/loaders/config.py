@@ -89,12 +89,6 @@ class LoaderConfigManager:
 
     @classmethod
     def _get_cache(cls, loader_name: str) -> dict[str, Any] | None:
-        """Get cached configuration (thread-safe).
-
-        Returns:
-            dict: cached config if available and fresh
-            None: if cache expired or loader_name not in cache (cache miss expected)
-        """
         with cls._cache_lock:
             now = time.time()
             if now - cls._cache_timestamp > cls._cache_ttl_seconds:
@@ -111,12 +105,6 @@ class LoaderConfigManager:
             cls._cache_timestamp = time.time()
 
     def _get_rds_connection_count(self) -> int | None:
-        """Get current RDS active connection count from CloudWatch metrics (cached).
-
-        Returns:
-            int: Current active connections count from CloudWatch
-            None: if CloudWatch metrics unavailable (no datapoints, or cache miss but metrics unavailable)
-        """
         now = time.time()
         if self._rds_connection_cache is not None and (now - self._rds_connection_cache_time) < self._rds_cache_ttl:
             return self._rds_connection_cache

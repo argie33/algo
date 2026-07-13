@@ -196,12 +196,6 @@ class ExitHandler:
             return {"success": False, "message": f"Stop raise failed: {e}"}
 
     def _validate_exit_params(self, exit_fraction: float, exit_price: float | None) -> dict[str, Any] | None:
-        """Validate exit parameters.
-
-        Returns:
-            dict: error dict with success=False and message if parameters invalid
-            None: if all parameters valid (can proceed with exit)
-        """
         if not (0 < exit_fraction <= 1.0):
             return {
                 "success": False,

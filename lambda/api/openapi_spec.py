@@ -16,11 +16,6 @@ from api_utils.config import API_VERSION
 
 
 def generate_openapi_spec() -> dict[str, Any]:
-    """Generate complete OpenAPI 3.0 specification.
-
-    Returns:
-        dict: OpenAPI spec with all routes, schemas, and documentation
-    """
     spec = {
         "openapi": "3.0.0",
         "info": {

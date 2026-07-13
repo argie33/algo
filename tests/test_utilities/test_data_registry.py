@@ -52,11 +52,6 @@ class TestDataRegistry:
 
     @staticmethod
     def get_all_test_entry_points() -> dict[str, dict]:
-        """Get all test data entry points with detailed information.
-
-        Returns:
-            Dict of entry point name → details
-        """
         return TestDataRegistry.TEST_ENTRY_POINTS.copy()
 
     @staticmethod
@@ -124,11 +119,6 @@ class TestDataRegistry:
 
     @staticmethod
     def get_all_markers() -> set[str]:
-        """Get all test data markers used across all entry points.
-
-        Returns:
-            Set of unique marker strings
-        """
         all_markers = set()
         for entry in TestDataRegistry.TEST_ENTRY_POINTS.values():
             # CRITICAL FIX: Explicit check for markers field instead of empty list default

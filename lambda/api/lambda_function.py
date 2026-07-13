@@ -415,13 +415,6 @@ def fetch_cloudfront_domain_from_secrets() -> tuple[str | None, str | None]:
 
 
 def validate_environment() -> tuple[bool, list[str], list[str]]:
-    """Validate critical environment variables at cold start.
-
-    Returns: (valid: bool, errors: List[str], warnings: List[str])
-
-    Errors = must-have config (DB_HOST, DB_PORT, credentials)
-    Warnings = config that degrades service gracefully (FRONTEND_URL, Cognito optional vars)
-    """
     errors = []
     warnings = []
 
@@ -882,10 +875,6 @@ def _get_cognito_jwks() -> dict[str, Any] | None:
 
 
 def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | None, str | None]:
-    """Validate JWT token: format, signature, expiration, audience.
-
-    Returns: (is_valid: bool, claims: dict or None, error: str or None)
-    """
     if not token:
         return (False, None, "No token provided")
 
@@ -1183,10 +1172,6 @@ def log_api_request(
 
 
 def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | None, dict[str, Any] | None]:
-    """
-    Check if path requires authentication.
-    Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None, jwt_claims: dict or None)
-    """
     if path == "/api/algo/status":
         logger.warning(f"[STATUS_ENDPOINT_CHECK] Processing /api/algo/status, file={__file__}")
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)

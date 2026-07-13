@@ -22,12 +22,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def check_price_coverage():
-    """Check price_daily coverage.
-
-    Returns:
-        (success: bool, coverage_pct: float, symbols_loaded: int, total: int,
-         status: str, error_msg: str | None)
-    """
     try:
         from utils.db.context import DatabaseContext
 

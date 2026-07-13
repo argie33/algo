@@ -76,12 +76,6 @@ class ContactSubmissionRequest(BaseModel):
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v: str | None) -> str | None:
-        """Validate phone number format.
-
-        Returns:
-            str: Valid phone number if non-empty and matches pattern
-            None: If phone is None or empty string (phone is optional field)
-        """
         if v is not None and v.strip():
             # Pattern: +1-800-555-0123, (800) 555-0123, etc.
             if not re.match(r"^\+?[\d\s\-\(\)]{10,15}$", v):
@@ -253,12 +247,6 @@ class PositionUpdateRequest(BaseModel):
     @field_validator("position_type")
     @classmethod
     def validate_position_type(cls, v: str | None) -> str | None:
-        """Validate position type field.
-
-        Returns:
-            str: Lowercase position type ("buy", "sell", "long", "short")
-            None: If position_type is None (optional field not provided)
-        """
         if v is not None:
             v_lower = v.lower()
             if v_lower not in ("buy", "sell", "long", "short"):

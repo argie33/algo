@@ -113,23 +113,6 @@ def time_operation(operation_name: str, log_level: str = "info") -> Generator[Ti
 
 
 def get_metrics_summary() -> dict[str, dict[str, Any]]:
-    """
-    Get summary statistics of all recorded operations.
-
-    Returns:
-        {
-            'operation_name': {
-                'count': int,
-                'total_ms': float,
-                'avg_ms': float,
-                'min_ms': float,
-                'max_ms': float,
-                'slow_count': int,
-                'slow_pct': float,
-            },
-            ...
-        }
-    """
     summary = {}
     for op_name, samples in _metrics_buffer.items():
         if not samples:

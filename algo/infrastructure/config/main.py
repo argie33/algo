@@ -1117,15 +1117,6 @@ class AlgoConfig:
 
     @property
     def risk(self) -> Any:
-        """Get RiskConfig specialist (lazy-loaded on first access).
-
-        Returns:
-            RiskConfig instance (cached after first access)
-
-        Usage:
-            config = get_config()
-            risk_sizing = config.risk.get_position_sizing_config()
-        """
         if not hasattr(self, "_risk_config"):
             from .risk_config import RiskConfig
 
@@ -1134,15 +1125,6 @@ class AlgoConfig:
 
     @property
     def circuit_breaker(self) -> Any:
-        """Get CircuitBreakerConfig specialist (lazy-loaded on first access).
-
-        Returns:
-            CircuitBreakerConfig instance (cached after first access)
-
-        Usage:
-            config = get_config()
-            daily_limit = config.circuit_breaker.get("max_daily_loss_pct")
-        """
         if not hasattr(self, "_circuit_breaker_config"):
             from .circuit_breaker_config import CircuitBreakerConfig
 
@@ -1151,15 +1133,6 @@ class AlgoConfig:
 
     @property
     def data_patrol(self) -> Any:
-        """Get DataPatrolConfig specialist (lazy-loaded on first access).
-
-        Returns:
-            DataPatrolConfig instance (cached after first access)
-
-        Usage:
-            config = get_config()
-            staleness = config.data_patrol.get_staleness_windows()
-        """
         if not hasattr(self, "_data_patrol_config"):
             from .data_patrol_config import DataPatrolConfig
 
@@ -1168,16 +1141,6 @@ class AlgoConfig:
 
     @property
     def timeout(self) -> Any:
-        """Get TimeoutConfig specialist (lazy-loaded on first access).
-
-        Returns:
-            TimeoutConfig instance (cached after first access)
-
-        Usage:
-            config = get_config()
-            api_timeout = config.timeout.get_api_timeout()
-            all_timeouts = config.timeout.get_all_timeouts()
-        """
         if not hasattr(self, "_timeout_config"):
             from .timeout_config import TimeoutConfig
 
@@ -1186,16 +1149,6 @@ class AlgoConfig:
 
     @property
     def execution(self) -> Any:
-        """Get ExecutionConfig specialist (lazy-loaded on first access).
-
-        Returns:
-            ExecutionConfig instance (cached after first access)
-
-        Usage:
-            config = get_config()
-            mode = config.execution.get_execution_mode()
-            all_exec = config.execution.get_execution_config()
-        """
         if not hasattr(self, "_execution_config"):
             from .execution_config import ExecutionConfig
 
@@ -1204,16 +1157,6 @@ class AlgoConfig:
 
     @property
     def economic_stress(self) -> Any:
-        """Get EconomicStressConfig specialist (lazy-loaded on first access).
-
-        Returns:
-            EconomicStressConfig instance (cached after first access)
-
-        Usage:
-            config = get_config()
-            hy_spreads = config.economic_stress.get_hy_spread_stress()
-            all_stress = config.economic_stress.get_all_stress_scores()
-        """
         if not hasattr(self, "_economic_stress_config"):
             from .economic_stress_config import EconomicStressConfig
 
@@ -1222,17 +1165,6 @@ class AlgoConfig:
 
     @property
     def trading(self) -> Any:
-        """Get TradingConfig specialist (lazy-loaded on first access).
-
-        Returns:
-            TradingConfig instance (cached after first access)
-
-        Usage:
-            config = get_config()
-            entry_rules = config.trading.get_entry_rules_config()
-            exit_rules = config.trading.get_exit_rules_config()
-            stock_filters = config.trading.get_stock_filter_config()
-        """
         if not hasattr(self, "_trading_config"):
             from .trading_config import TradingConfig
 

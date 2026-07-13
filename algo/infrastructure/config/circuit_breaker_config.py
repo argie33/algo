@@ -82,15 +82,6 @@ class CircuitBreakerConfig:
         return self.parent.set(key, value, value_type, description, changed_by)
 
     def get_loss_limits_config(self) -> dict[str, Any]:
-        """Get daily/weekly loss limit thresholds.
-
-        Returns:
-            {
-                "max_daily_loss_pct": 2.0,     # Halt at -2% daily loss
-                "max_weekly_loss_pct": 5.0,    # Halt at -5% weekly loss
-                "daily_profit_cap_pct": 2.0,   # Cap at +2% daily profit
-            }
-        """
         return {
             "max_daily_loss_pct": self.get("max_daily_loss_pct"),
             "max_weekly_loss_pct": self.get("max_weekly_loss_pct"),
@@ -98,14 +89,6 @@ class CircuitBreakerConfig:
         }
 
     def get_trade_quality_limits_config(self) -> dict[str, Any]:
-        """Get consecutive loss & win rate floor limits.
-
-        Returns:
-            {
-                "max_consecutive_losses": 3,   # Halt after 3 losing trades
-                "min_win_rate_pct": 40.0,      # Halt if win rate <40%
-            }
-        """
         return {
             "max_consecutive_losses": self.get("max_consecutive_losses"),
             "min_win_rate_pct": self.get("min_win_rate_pct"),

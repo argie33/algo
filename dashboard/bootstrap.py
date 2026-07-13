@@ -155,14 +155,6 @@ def _is_already_initialized() -> bool:
 
 
 def get_dashboard_database_config() -> dict[str, Any]:
-    """Get current database configuration from environment variables.
-
-    Returns:
-        Dictionary with host, port, user, password, database, or empty dict if not initialized
-
-    Raises:
-        RuntimeError: If configuration is partially set (some vars missing)
-    """
     host = os.getenv("DB_HOST")
     port = os.getenv("DB_PORT")
     user = os.getenv("DB_USER")
@@ -202,14 +194,6 @@ def get_dashboard_database_config() -> dict[str, Any]:
 
 
 def check_database_connectivity() -> bool:
-    """Check if database connection is currently valid.
-
-    Returns:
-        True if connection works, False if no credentials set
-
-    Raises:
-        RuntimeError: If credentials set but connection fails
-    """
     try:
         import psycopg2
 

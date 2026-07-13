@@ -36,11 +36,6 @@ class PortfolioDataValidator:
 
     @staticmethod
     def validate_portfolio_data(portfolio: dict[str, Any]) -> tuple[bool, str]:
-        """Validate portfolio dict has all critical metrics.
-
-        Returns:
-            (is_valid, message)
-        """
         if not portfolio:
             return False, "Portfolio data is None/empty"
 
@@ -92,11 +87,6 @@ class PortfolioDataValidator:
 
     @staticmethod
     def validate_position_data(positions: list[dict[str, Any]]) -> tuple[bool, str]:
-        """Validate each position has required fields.
-
-        Returns:
-            (is_valid, message)
-        """
         if not positions:
             return True, "No positions (empty list acceptable)"
 
@@ -128,11 +118,6 @@ class PortfolioDataValidator:
 
     @staticmethod
     def validate_performance_metrics(perf: dict[str, Any]) -> tuple[bool, str]:
-        """Validate performance metrics are reasonable.
-
-        Returns:
-            (is_valid, message)
-        """
         if not perf:
             return True, "No performance data"
 

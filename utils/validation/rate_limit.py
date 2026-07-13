@@ -148,15 +148,6 @@ class RateLimitValidator:
         return health
 
     def validate_rate_limit_handling(self) -> dict[str, Any]:
-        """Validate that loaders handle rate limiting gracefully.
-
-        Returns:
-            {
-                'test_passed': bool,
-                'issues': [str],
-                'recommendations': [str]
-            }
-        """
         try:
             from loaders.load_prices import PriceLoader
 

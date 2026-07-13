@@ -75,18 +75,6 @@ class EconomicStressConfig:
         return self.parent.set(key, value, value_type, description, changed_by)
 
     def get_yield_curve_stress(self) -> dict[str, int]:
-        """Get yield curve inversion stress scores.
-
-        Returns:
-            {
-                "severe": 40,      # Severe inversion
-                "moderate": 25,    # Moderate inversion
-                "flat": 15,        # Flat curve
-            }
-
-        Raises:
-            ValueError if any critical config keys are missing (requires explicit configuration)
-        """
         severe = self.get("econ_stress_curve_inverted_severe")
         moderate = self.get("econ_stress_curve_inverted_moderate")
         flat = self.get("econ_stress_curve_flat")
@@ -113,18 +101,6 @@ class EconomicStressConfig:
         }
 
     def get_hy_spread_stress(self) -> dict[str, int]:
-        """Get high-yield spread stress scores.
-
-        Returns:
-            {
-                "severe": 35,      # Severe widening (>600 bps)
-                "elevated": 20,    # Elevated spread (400-600 bps)
-                "widening": 10,    # Widening trend
-            }
-
-        Raises:
-            ValueError if any critical config keys are missing
-        """
         severe = self.get("econ_stress_hy_spread_severe")
         elevated = self.get("econ_stress_hy_spread_elevated")
         widening = self.get("econ_stress_hy_widening")
@@ -150,17 +126,6 @@ class EconomicStressConfig:
         }
 
     def get_claims_stress(self) -> dict[str, int]:
-        """Get jobless claims stress scores.
-
-        Returns:
-            {
-                "severe": 30,      # Severe spike (>400k initial claims)
-                "elevated": 15,    # Elevated claims (350-400k)
-            }
-
-        Raises:
-            ValueError if any critical config keys are missing
-        """
         severe = self.get("econ_stress_claims_severe")
         elevated = self.get("econ_stress_claims_elevated")
 
@@ -182,17 +147,6 @@ class EconomicStressConfig:
         }
 
     def get_financial_stress(self) -> dict[str, int]:
-        """Get financial stress scores.
-
-        Returns:
-            {
-                "severe": 40,      # Severe financial stress (>1.5 std dev)
-                "elevated": 20,    # Elevated stress (>0.8 std dev)
-            }
-
-        Raises:
-            ValueError if any critical config keys are missing
-        """
         severe = self.get("econ_stress_financial_severe")
         elevated = self.get("econ_stress_financial_elevated")
 
@@ -214,17 +168,6 @@ class EconomicStressConfig:
         }
 
     def get_regime_thresholds(self) -> dict[str, int]:
-        """Get economic regime severity thresholds.
-
-        Returns:
-            {
-                "moderate_threshold": 30,   # Stress level for moderate penalty (4 pts)
-                "severe_threshold": 60,    # Stress level for severe penalty (7 pts)
-            }
-
-        Raises:
-            ValueError if any critical config keys are missing
-        """
         moderate = self.get("econ_stress_moderate_threshold")
         severe = self.get("econ_stress_severe_threshold")
 
@@ -273,18 +216,6 @@ class EconomicStressConfig:
         return cap_pct
 
     def get_all_stress_scores(self) -> dict[str, Any]:
-        """Get all economic stress configuration for debugging/logging.
-
-        Returns:
-            {
-                "yield_curve": {...},
-                "hy_spreads": {...},
-                "claims": {...},
-                "financial": {...},
-                "regime_thresholds": {...},
-                "severe_exposure_cap_pct": 40.0,
-            }
-        """
         return {
             "yield_curve": self.get_yield_curve_stress(),
             "hy_spreads": self.get_hy_spread_stress(),

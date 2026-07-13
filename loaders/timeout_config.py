@@ -154,11 +154,6 @@ def get_http_timeout(api_type: str = "default") -> tuple[float, float]:
 
 
 def get_database_timeout() -> float:
-    """Get database timeout in seconds from config or default.
-
-    Returns:
-        Timeout in seconds (default 30)
-    """
     timeout_str = os.getenv("DATABASE_TIMEOUT_SECONDS", "30")
     try:
         return float(timeout_str)

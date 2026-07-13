@@ -195,11 +195,6 @@ class SignalAttributionEngine:
             logger.error(f"Failed to persist IC: {e}")
 
     def get_trailing_ic(self, component: str, days: int = 60) -> list[tuple[_date, float]]:
-        """
-        Get rolling IC for a component over last N days.
-
-        Returns: [(date, ic_value), ...]
-        """
         try:
             with DatabaseContext("read") as cur:
                 interval_1d = get_interval_sql("1d")

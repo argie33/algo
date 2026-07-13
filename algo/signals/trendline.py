@@ -163,17 +163,6 @@ class TrendlineSupport:
         return best_trendline
 
     def validate_entry_near_trendline(self, symbol: str, eval_date: date, entry_price: float) -> dict[str, Any]:
-        """
-        Check if entry_price is near (above) the support trendline.
-
-        Returns:
-            {
-                'near_trendline': True/False,
-                'trendline_support': float or None,
-                'distance_pct': float,    # % above trendline
-                'reason': str,
-            }
-        """
         try:
             trendline = self.find_support_line(symbol, eval_date)
         except ValueError as e:

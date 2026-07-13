@@ -222,10 +222,6 @@ class LoaderInfrastructure:
             return None
 
     def should_reduce_parallelism(self, parallelism: int) -> tuple[int, bool]:
-        """Check if RDS pool is saturated and adjust parallelism if needed.
-
-        Returns: (adjusted_parallelism, was_reduced)
-        """
         if parallelism <= 1:
             return parallelism, False
 

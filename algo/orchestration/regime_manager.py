@@ -212,20 +212,6 @@ class RegimeManager:
         return config
 
     def regime_history(self, days: int = 30) -> list[dict[str, Any]]:
-        """
-        Get regime history and transitions.
-
-        Returns:
-            [
-                {
-                    'date': date,
-                    'regime': str,
-                    'days_in_regime': int,
-                    'transition': bool (True if regime changed from prior day),
-                },
-                ...
-            ]
-        """
         try:
             start_date = _date.today() - timedelta(days=days)
 

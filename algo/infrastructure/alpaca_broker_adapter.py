@@ -105,14 +105,6 @@ class AlpacaBrokerAdapter(BrokerAdapter):
         return self.alpaca_sync.alpaca_base_url
 
     def _get_api_timeout(self) -> float:
-        """Get API request timeout from config. Fail-fast if not configured.
-
-        Returns:
-            Timeout in seconds (float).
-
-        Raises:
-            ValueError: If timeout not configured in config object.
-        """
         timeout = self.config.get("api_request_timeout_seconds")
         if timeout is None:
             raise ValueError(

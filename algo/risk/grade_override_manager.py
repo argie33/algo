@@ -20,10 +20,6 @@ _override_enabled_at: datetime | None = None
 
 
 def is_grade_override_enabled() -> bool:
-    """Check if grade override is currently enabled.
-
-    Returns: bool (True if override is active and enabled)
-    """
     config = get_config()
     grade_override_val = config.get("grade_override_enabled")
     if grade_override_val is None:
@@ -54,10 +50,6 @@ def get_override_duration_minutes() -> int:
 
 
 def get_override_state() -> tuple[bool, datetime | None, int | None]:
-    """Get current override state.
-
-    Returns: (is_enabled, enabled_at_time, minutes_active)
-    """
     global _override_enabled_at
 
     with _override_state_lock:
@@ -111,10 +103,6 @@ def reset_override() -> None:
 
 
 def check_and_alert_on_long_duration() -> bool:
-    """Check if override has been active too long and log alert.
-
-    Returns: bool (True if alert was triggered)
-    """
     is_enabled, enabled_at, minutes_active = get_override_state()
 
     if not is_enabled or minutes_active is None:

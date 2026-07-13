@@ -11,11 +11,6 @@ from typing import Any
 
 
 def is_test_mode_enabled() -> bool:
-    """Check if test mode is currently enabled.
-
-    Returns:
-        True if any of the test mode flags are set (ORCHESTRATOR_DRY_RUN, TEST_MODE_ENABLED)
-    """
     dry_run = os.getenv("ORCHESTRATOR_DRY_RUN", "false").lower() in ("true", "1", "yes")
     test_mode = os.getenv("TEST_MODE_ENABLED", "false").lower() in ("true", "1", "yes")
     return dry_run or test_mode
@@ -32,11 +27,6 @@ def is_dev_environment() -> bool:
 
 
 def get_test_mode_config() -> dict[str, Any]:
-    """Get current test mode configuration.
-
-    Returns:
-        Dict with all test mode flags and their current values
-    """
     return {
         "test_mode_enabled": is_test_mode_enabled(),
         "environment": os.getenv("ENVIRONMENT", "unknown"),

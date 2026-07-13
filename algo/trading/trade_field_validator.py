@@ -28,11 +28,6 @@ class TradeFieldValidator:
 
     @classmethod
     def validate_trade_entry(cls, trade_data: dict[str, Any]) -> tuple[bool, str]:
-        """Validate trade entry fields.
-
-        Returns:
-            (is_valid, error_message)
-        """
         missing = cls.REQUIRED_FIELDS - set(trade_data.keys())
         if missing:
             return False, f"Missing required fields: {missing}"

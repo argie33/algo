@@ -57,12 +57,6 @@ class LiquidityChecks:
             )
 
     def _check_adv(self, symbol: str, signal_date: _date) -> tuple[bool, str]:
-        """
-        Check average daily volume (20-day average).
-
-        Returns:
-            Tuple[bool, str]: (passed, reason)
-        """
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -104,12 +98,6 @@ class LiquidityChecks:
             )
 
     def _check_dollar_volume(self, symbol: str, signal_date: _date) -> tuple[bool, str]:
-        """
-        Check average dollar volume (volume * price) for position sizing.
-
-        Returns:
-            Tuple[bool, str]: (passed, reason)
-        """
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(

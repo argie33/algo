@@ -31,11 +31,6 @@ class SectorPerformanceLoader(BaseLoader):  # type: ignore[misc]
         self.phase = LoaderPhase.METRICS
 
     def load(self) -> int:
-        """Calculate and load daily sector performance.
-
-        Returns:
-            Number of sector-date records loaded
-        """
         try:
             target_date = date.today()
             rows_inserted = self._load_sector_performance(target_date)

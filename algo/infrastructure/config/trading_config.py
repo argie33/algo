@@ -80,22 +80,6 @@ class TradingConfig:
         return self.parent.set(key, value, value_type, description, changed_by)
 
     def get_stock_filter_config(self) -> dict[str, Any]:
-        """Get all stock quality gates (liquidity, price, volume).
-
-        Returns:
-            {
-                "min_stock_price": 5.0,
-                "min_volume_ma_50d": 300000,
-                "min_avg_daily_dollar_volume": 500000.0,
-                "min_completeness_score": 70,
-                "max_spread_pct": 0.5,
-                "min_market_cap_millions": 300.0,
-                "min_float_millions": 50.0,
-                "max_short_interest_pct": 30.0,
-                "min_daily_volume_shares": 500000,
-                "min_price_history_days": 200,
-            }
-        """
         return {
             "min_stock_price": self.get("min_stock_price"),
             "min_volume_ma_50d": self.get("min_volume_ma_50d"),
@@ -110,18 +94,6 @@ class TradingConfig:
         }
 
     def get_entry_rules_config(self) -> dict[str, Any]:
-        """Get Minervini entry technical requirements.
-
-        Returns:
-            {
-                "require_sma50_above_sma200": True,
-                "min_percent_from_52w_low": 0.0,
-                "max_percent_from_52w_high": 25.0,
-                "min_trend_template_score": 6,
-                "require_stock_stage_2": True,
-                "require_weekly_stage_2": False,
-            }
-        """
         return {
             "require_sma50_above_sma200": self.get("require_sma50_above_sma200"),
             "min_percent_from_52w_low": self.get("min_percent_from_52w_low"),

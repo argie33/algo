@@ -127,11 +127,6 @@ class SLAMonitor:
         logger.debug(f"[{self.loader_name}] SLA monitoring started")
 
     def get_status(self) -> SLAStatus:
-        """Get current SLA status of the loader.
-
-        Returns:
-            SLAStatus with current metrics and compliance status
-        """
         if self.start_time is None:
             return SLAStatus(
                 loader_name=self.loader_name,
@@ -307,11 +302,6 @@ class PipelineSLAMonitor:
         )
 
     def check_and_alert(self) -> bool:
-        """Check SLA status and alert if needed.
-
-        Returns:
-            True if SLA compliant, False if breaching
-        """
         status = self.get_status()
 
         if status.is_critical:

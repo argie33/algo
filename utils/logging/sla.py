@@ -31,25 +31,6 @@ class SLAMonitor:
 
     @classmethod
     def get_current_sla_window(cls) -> dict[str, Any]:
-        """Get current SLA window if in one, otherwise return unavailable marker.
-
-        Returns:
-            {
-                'name': 'morning_prep',
-                'start_time': datetime,
-                'end_time': datetime,
-                'budget_minutes': 450,
-                'elapsed_minutes': 45,
-                'remaining_minutes': 405,
-                'percent_complete': 10,
-                'is_critical': False (True if >80% elapsed)
-            }
-            or marker dict if not in any SLA window:
-            {
-                'data_unavailable': True,
-                'reason': 'not_in_sla_window'
-            }
-        """
         now = datetime.now(cls.EASTERN_TZ)
         current_hour = now.hour
         current_min = now.minute

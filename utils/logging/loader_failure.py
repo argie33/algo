@@ -213,10 +213,6 @@ def check_chronic_failures(
 
 
 def get_failure_alert_summary() -> str:
-    """Generate a summary of loader failure trends for alerting.
-
-    Returns: Formatted string summarizing chronic failures, or empty string if all healthy
-    """
     chronic, _ = check_chronic_failures()
 
     if not chronic:

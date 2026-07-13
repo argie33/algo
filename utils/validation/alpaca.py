@@ -18,18 +18,6 @@ class AlpacaResponseValidator:
 
     @staticmethod
     def validate_order_response(data: dict[str, Any]) -> dict[str, Any]:
-        """Validate order creation response from POST /v2/orders.
-
-        Returns: {
-            'valid': bool,
-            'errors': [str] or [],
-            'order_id': str or None,
-            'status': str or None,
-            'filled_avg_price': float or None,
-            'order_class': str ('simple' or 'bracket'),
-            'legs': [dict] or [],
-        }
-        """
         if not isinstance(data, dict):
             return {
                 "valid": False,
@@ -110,17 +98,6 @@ class AlpacaResponseValidator:
 
     @staticmethod
     def validate_order_status_response(data: dict[str, Any]) -> dict[str, Any]:
-        """Validate order status response from GET /v2/orders/{order_id}.
-
-        Returns: {
-            'valid': bool,
-            'errors': [str] or [],
-            'status': str or None,
-            'filled_qty': int or None,
-            'filled_avg_price': float or None,
-            'qty': int or None,
-        }
-        """
         if not isinstance(data, dict):
             return {
                 "valid": False,
@@ -179,16 +156,6 @@ class AlpacaResponseValidator:
 
     @staticmethod
     def validate_position_response(data: dict[str, Any]) -> dict[str, Any]:
-        """Validate single position response from GET /v2/positions/{symbol}.
-
-        Returns: {
-            'valid': bool,
-            'errors': [str] or [],
-            'symbol': str or None,
-            'qty': int or None,
-            'current_price': float or None,
-        }
-        """
         if not isinstance(data, dict):
             return {
                 "valid": False,

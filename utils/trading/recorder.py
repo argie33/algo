@@ -251,11 +251,6 @@ class TradeRecorder:
             ) from e
 
     def get_open_positions(self) -> list[dict[str, Any]]:
-        """Get all currently open positions.
-
-        Returns:
-            List of dicts with symbol, quantity, entry_price, current_price, etc.
-        """
         try:
             with DatabaseContext("read") as cursor:
                 cursor.execute("""

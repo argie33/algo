@@ -89,10 +89,6 @@ def compute_volume_ma(volume: pd.Series, period: int = 50) -> pd.Series:
 def compute_adx(
     high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14
 ) -> tuple[pd.Series, pd.Series, pd.Series]:
-    """Compute Plus DI, Minus DI, and ADX using Wilder's smoothing.
-
-    Returns: (plus_di, minus_di, adx)
-    """
     # Reset frequency to avoid pandas frequency mismatch errors during operations
     high_reset = high.copy()
     low_reset = low.copy()

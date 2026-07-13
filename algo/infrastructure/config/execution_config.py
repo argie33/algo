@@ -172,16 +172,6 @@ class ExecutionConfig:
         return float(value)
 
     def get_execution_config(self) -> dict[str, Any]:
-        """Get all execution configuration as a dictionary.
-
-        Returns:
-            {
-                "mode": "auto",
-                "paper_trading": False,
-                "max_trades_per_day": 5,
-                "default_portfolio_value": 100000.0,
-            }
-        """
         return {
             "mode": self.get_execution_mode(),
             "paper_trading": self.is_paper_trading(),

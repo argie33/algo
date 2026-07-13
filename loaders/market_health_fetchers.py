@@ -524,13 +524,6 @@ class BreadthFetcher:
         pass
 
     def _compute_new_highs_lows(self, cur: Any, start: date, end: date) -> dict[str, Any]:
-        """Compute new 52-week highs and lows for each date.
-
-        Returns: dict[date_str] -> (new_highs_count, new_lows_count)
-
-        For each symbol in price_daily, checks if close is highest/lowest in past 252 trading days.
-        Uses window function to efficiently compute 52-week highs/lows across all symbols.
-        """
         cur.execute("SELECT COUNT(*) FROM price_daily WHERE date >= %s AND date <= %s", (start, end))
         price_count_row = cur.fetchone()
         if price_count_row is None:

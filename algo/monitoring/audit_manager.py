@@ -93,14 +93,6 @@ class AuditManager:
         logger.info(f"Halt logged: {reason}")
 
     def get_history(self) -> list[dict[str, Any]]:
-        """Get audit history.
-
-        Returns:
-            List of audit entries
-
-        Raises:
-            NotImplementedError: Use get_position_history() instead, which requires symbol and lookback_days parameters
-        """
         raise NotImplementedError(
             "AuditManager.get_history() requires explicit parameters. "
             "Use get_position_history(symbol, lookback_days, cur) instead to retrieve position review history. "

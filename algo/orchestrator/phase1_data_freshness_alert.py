@@ -36,13 +36,6 @@ FRESHNESS_THRESHOLDS = {
 
 
 def check_data_freshness() -> dict[str, tuple[int, bool]]:
-    """
-    Check freshness of critical data tables.
-
-    Returns:
-        {table_name: (hours_old, is_fresh)}
-        is_fresh=True if within threshold, False if stale
-    """
     conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
     cur = conn.cursor()
 
@@ -121,13 +114,6 @@ def send_staleness_alert(stale_tables: dict[str, tuple[int, bool]]) -> None:
 
 
 def validate_data_freshness() -> bool:
-    """
-    Check if data is fresh enough for orchestrator to proceed.
-
-    Returns:
-        True if all critical data is fresh
-        False if any data is stale (orchestrator should halt and alert)
-    """
     stale_tables = check_data_freshness()
 
     # Check if any table is stale

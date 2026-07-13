@@ -56,10 +56,6 @@ class PatrolConfig:
         return cast(dict[str, dict[str, Any]], self._config.data_patrol.get_loader_contracts())
 
     def as_dict(self) -> dict[str, Any]:
-        """Return patrol config as a dict (for logging).
-
-        Raises: ValueError if any config getter fails (fail-fast on config errors)
-        """
         return {
             "staleness_windows": self.get_staleness_windows(),
             "coverage_thresholds": self.get_coverage_thresholds(),

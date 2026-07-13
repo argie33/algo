@@ -104,11 +104,6 @@ class VectorizedSignalGenerator:
             raise RuntimeError(error_msg) from e
 
     def compute_minervini_parallel(self, data_by_symbol: dict[str, Any], eval_date: _date) -> dict[str, dict[str, Any]]:
-        """
-        Compute Minervini 8-point trend template for all symbols.
-
-        Returns: {symbol: {score: 0-8, pass: bool, ...}}
-        """
         results = {}
 
         for symbol, rows in data_by_symbol.items():

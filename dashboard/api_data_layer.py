@@ -45,19 +45,13 @@ if _dashboard_dir not in sys.path:
     sys.path.insert(0, _dashboard_dir)
 
 try:
-    from .response_validators import ResponseValidationError, validate_response
-except ImportError:
-    try:
-        from response_validators import (  # type: ignore
-            ResponseValidationError,
-            validate_response,
-        )
-    except ImportError as e:
-        raise ImportError(
-            "Cannot import response_validators module. "
-            "API response validation is critical for data integrity. "
-            "This indicates a deployment/installation issue."
-        ) from e
+    from utils.validation.response_validators import ResponseValidationError, validate_response
+except ImportError as e:
+    raise ImportError(
+        "Cannot import response_validators module. "
+        "API response validation is critical for data integrity. "
+        "This indicates a deployment/installation issue."
+    ) from e
 
 
 try:

@@ -59,15 +59,6 @@ class IdleConnectionPool:
         self._start_cleanup_thread()
 
     def getconn(self) -> Any:
-        """Get a connection from the pool.
-
-        Returns:
-            Connection from pool
-
-        CRITICAL FIX: Removed local idle connection caching.
-        Now always get from underlying pool, which properly manages
-        connection availability and prevents pool exhaustion.
-        """
         return self._pool.getconn()
 
     def putconn(self, conn: Any, close: bool = False) -> None:
@@ -383,11 +374,6 @@ class PooledConnectionManager:
                 _pool_semaphore.release(self.loader_name)
 
     def get_connection(self) -> psycopg2.extensions.connection | None:
-        """Get the currently-held connection (if any).
-
-        Returns:
-            Connection object or None if not currently acquired
-        """
         return self._conn
 
     def is_acquired(self) -> bool:

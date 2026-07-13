@@ -99,11 +99,6 @@ def initialize_validators() -> None:
 
 
 def get_validators() -> ValidatorRegistry:
-    """Get the global validator registry, initializing if needed.
-
-    Returns:
-        ValidatorRegistry with all registered validators
-    """
     if not _initialized:
         initialize_validators()
 

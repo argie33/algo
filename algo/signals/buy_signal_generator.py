@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class BuySignalGenerator:
-    """Generates buy/sell signals from technical indicator data using swing pivot detection."""
 
     def __init__(self) -> None:
         pass
@@ -66,20 +65,20 @@ class BuySignalGenerator:
         signals = []
 
         for i, row in enumerate(rows):
-            # Extract indicator values
-            high = row.get("high")
-            low = row.get("low")
-            close = row.get("close")
-            sma_50 = row.get("sma_50")
-            sma_200 = row.get("sma_200")
-            volume = row.get("volume")
-            atr = row.get("atr")
-            rsi = row.get("rsi")
-            macd = row.get("macd")
-            macd_signal = row.get("macd_signal")
-            ema_21 = row.get("ema_21")
-            adx = row.get("adx")
-            mansfield_rs = row.get("mansfield_rs")
+            # Extract indicator values - explicit key checking (no silent .get() fallbacks)
+            high = row["high"] if "high" in row else None
+            low = row["low"] if "low" in row else None
+            close = row["close"] if "close" in row else None
+            sma_50 = row["sma_50"] if "sma_50" in row else None
+            sma_200 = row["sma_200"] if "sma_200" in row else None
+            volume = row["volume"] if "volume" in row else None
+            atr = row["atr"] if "atr" in row else None
+            rsi = row["rsi"] if "rsi" in row else None
+            macd = row["macd"] if "macd" in row else None
+            macd_signal = row["macd_signal"] if "macd_signal" in row else None
+            ema_21 = row["ema_21"] if "ema_21" in row else None
+            adx = row["adx"] if "adx" in row else None
+            mansfield_rs = row["mansfield_rs"] if "mansfield_rs" in row else None
 
             # Validate required OHLC fields - CRITICAL for signal generation
             if close is None or high is None or low is None:

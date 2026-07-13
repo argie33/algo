@@ -56,12 +56,6 @@ class RenderState:
     error_log: list[tuple[datetime, str, str]] = field(default_factory=list)  # Track all errors for diagnostics
 
     def get_recovery_status(self) -> str:
-        """Generate human-readable recovery status.
-
-        Returns:
-            Status string describing current recovery state, or empty string if no error.
-            Empty string indicates no active errors.
-        """
         if not self.error_category:
             # No error state: dashboard should render normally
             logger.debug("No active error category - rendering normally")
@@ -212,12 +206,6 @@ class RenderRecovery:
             return should_reload
 
     def get_recovery_status(self) -> str:
-        """Get recovery status message (thread-safe).
-
-        Returns:
-            Human-readable recovery status string. Empty string if no active error.
-            Empty string explicitly means dashboard should render normally.
-        """
         with self._lock:
             status = self.state.get_recovery_status()
             if not status:

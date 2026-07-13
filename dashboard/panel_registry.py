@@ -163,11 +163,6 @@ class PanelRegistry:
         return panel.optional
 
     def validate_panel_dependencies(self, name: str) -> tuple[bool, list[str]]:
-        """Check if all required endpoints for a panel are defined in contract.
-
-        Returns:
-            (is_valid, missing_endpoints) tuple
-        """
         panel = self._panels.get(name)
         if not panel:
             return False, [name]
@@ -183,13 +178,6 @@ class PanelRegistry:
         return len(missing) == 0, missing
 
     def can_render_panel(self, name: str, data: dict[str, Any]) -> tuple[bool, str | None]:
-        """Check if a panel can be rendered with the given data.
-
-        Returns:
-            (can_render, error_reason) tuple
-            - (True, None) if panel has all required data
-            - (False, reason) if data is missing or invalid
-        """
         panel = self._panels.get(name)
         if not panel:
             return False, f"Panel {name} not registered"

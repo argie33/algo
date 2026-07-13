@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+from collections.abc import Callable
 from datetime import date as _date
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
@@ -115,6 +116,26 @@ class CircuitBreaker:
 
     def __init__(self, config: AlgoConfig | dict[str, Any]) -> None:
         self.config = config
+        # Explicit name -> bound-method map (NOT getattr(self, f"_check_{name}")).
+        # check_all() previously resolved these dynamically by string, which made every
+        # _check_* method look unused to static "dead code" analysis and get deleted by
+        # automated cleanup passes multiple times. Referencing each method directly here
+        # is a real, greppable usage that keeps them from being flagged as dead code.
+        self._checks: dict[str, Callable[[Any, Any], dict[str, Any]]] = {
+            "daily_loss": self._check_daily_loss,
+            "drawdown": self._check_drawdown,
+            "drawdown_re_engagement": self._check_drawdown_re_engagement,
+            "consecutive_losses": self._check_consecutive_losses,
+            "total_risk": self._check_total_risk,
+            "vix_spike": self._check_vix_spike,
+            "market_stage": self._check_market_stage,
+            "weekly_loss": self._check_weekly_loss,
+            "sector_concentration": self._check_sector_concentration,
+            "intraday_market_health": self._check_intraday_market_health,
+            "win_rate_floor": self._check_win_rate_floor,
+            "daily_profit_cap": self._check_daily_profit_cap,
+            "data_freshness": self._check_data_freshness,
+        }
 
     def _get_required_config(self, key: str, context: str = "") -> Any:
         """Get a required config value. Raises ValueError if missing.
@@ -159,7 +180,7 @@ class CircuitBreaker:
 
                 for check_name in self._check_registry:
                     try:
-                        fn = getattr(self, f"_check_{check_name}")
+                        fn = self._checks[check_name]
                         state = fn(current_date, cur)
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         import traceback
@@ -258,6 +279,91 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
+    def _check_drawdown_re_engagement(self, current_date: Any, cur: Any) -> dict[str, Any]:
+        """C2: Drawdown Re-engagement Protocol.
+
+        After a drawdown halt, require conditions to resume:
+        1. Portfolio recovered to within N% of peak (not at peak)
+        2. Market shows Follow-Through Day signal (optional)
+        3. At least N days have passed since halt
+        """
+        halt_dd_val = self._get_required_config("halt_drawdown_pct", "in re-engagement check")
+        threshold = float(halt_dd_val)
+
+        # First check: is current drawdown >= threshold? If not, no re-engagement needed
+        cur.execute("""
+            SELECT MAX(total_portfolio_value),
+                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
+            FROM algo_portfolio_snapshots
+            """)
+        row = cur.fetchone()
+        if row is None or row[0] is None or row[1] is None:
+            return {"halted": False, "reason": "No halt history"}
+
+        peak = float(row[0])
+        cur_val = float(row[1])
+        if peak <= 0 or cur_val <= 0:
+            return {"halted": False, "reason": "Invalid values"}
+
+        dd = (peak - cur_val) / peak * 100.0
+        halt_threshold_abs = abs(threshold)
+
+        # If NOT currently halted due to drawdown, no re-engagement check needed
+        if dd < halt_threshold_abs:
+            return {"halted": False, "reason": "Not in drawdown halt"}
+
+        recovery_val = self._get_required_config("re_engage_recovery_pct", "in re-engagement recovery check")
+        min_days_val = self._get_required_config("re_engage_min_days", "in re-engagement timing check")
+        require_ftd_val = self._get_required_config("require_ftd_to_re_engage", "in re-engagement FTD check")
+        recovery_threshold = float(recovery_val)
+        min_days_elapsed = int(min_days_val)
+        require_ftd = bool(require_ftd_val)
+
+        recovery_pct = (peak - cur_val) / peak * 100.0  # Current distance from peak
+        if recovery_pct > recovery_threshold:
+            return {
+                "halted": True,
+                "reason": f"Drawdown {dd:.1f}%, need recovery to {recovery_threshold:.1f}% to resume (currently {recovery_pct:.1f}%)",
+            }
+
+        # Find the date of the latest drawdown halt event
+        days_elapsed = 0
+        cur.execute("""
+            SELECT created_at FROM algo_audit_log
+            WHERE action_type = 'circuit_breaker_halt' AND details::text ILIKE '%drawdown%'
+            ORDER BY created_at DESC LIMIT 1
+            """)
+        halt_row = cur.fetchone()
+        if halt_row is not None:
+            halt_date = halt_row[0]
+            days_elapsed = (
+                (current_date - halt_date.date()).days
+                if isinstance(halt_date, datetime)
+                else (current_date - halt_date).days
+            )
+            if days_elapsed < min_days_elapsed:
+                return {
+                    "halted": True,
+                    "reason": f"Halt occurred {days_elapsed}d ago, need {min_days_elapsed}d to elapse before resume",
+                }
+
+        if require_ftd:
+            # A Follow-Through Day is when SPY up 1.25%+ on higher volume after a pullback/correction
+            # For now, simplified check: market is in Stage 2
+            cur.execute("SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
+            market_row = cur.fetchone()
+            if market_row is None or market_row[0] != 2:
+                return {
+                    "halted": True,
+                    "reason": "Recovery conditions met, but market not in Stage 2 uptrend (waiting for Follow-Through Day)",
+                }
+
+        # All conditions met — re-engagement approved
+        return {
+            "halted": False,
+            "reason": f"Re-engagement approved: recovered to {recovery_pct:.1f}%, {days_elapsed}d elapsed, market Stage 2",
+        }
+
     def _check_daily_loss(self, current_date: Any, cur: Any) -> dict[str, Any]:
         cur.execute(
             "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
@@ -323,6 +429,175 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
+    def _check_win_rate_floor(self, current_date: Any, cur: Any) -> dict[str, Any]:
+        """Halt if recent win rate drops below floor (includes both closed and open positions at risk).
+
+        Win rate = wins / (wins + losses), where losses include both closed losses and open positions
+        with negative unrealized P&L. Excluding break-even trades to avoid dilution.
+        """
+        # Include both closed trades (confirmed exits) and open positions (unrealized losses).
+        # This prevents masked deterioration where closed trades look good but open positions bleed.
+        cur.execute(
+            """
+            SELECT COUNT(*) FILTER (WHERE pnl_pct > 0) as wins,
+                   COUNT(*) FILTER (WHERE pnl_pct < 0) as losses,
+                   COUNT(*) FILTER (WHERE pnl_pct = 0) as breakeven,
+                   COUNT(*) as total
+            FROM (
+                -- Closed trades with confirmed exits
+                SELECT profit_loss_pct as pnl_pct
+                FROM algo_trades
+                WHERE status = %s AND exit_date IS NOT NULL
+                  AND exit_r_multiple IS NOT NULL
+                  AND trade_id NOT LIKE 'EXT-%%'
+                UNION ALL
+                -- Open positions with unrealized P&L (show current risk)
+                SELECT unrealized_pnl_pct as pnl_pct
+                FROM algo_positions
+                WHERE status = 'open'
+                  AND quantity > 0
+            ) all_trades
+            """,
+            (TradeStatus.CLOSED.value,),
+        )
+        row = cur.fetchone()
+        if row is None or row[3] is None or int(row[3]) < 10:
+            return {"halted": False, "reason": "Insufficient closed trades (< 10)"}
+
+        if row[0] is None or row[1] is None:
+            logger.critical(
+                "Circuit breaker win/loss counts missing from database — cannot evaluate win-rate threshold"
+            )
+            return {"halted": True, "reason": "Trade count data unavailable — halting as safety precaution"}
+        wins = int(row[0])
+        losses = int(row[1])
+        total = int(row[3])
+
+        # Win rate based on wins vs (wins + losses), excluding break-even trades
+        # This avoids dilution where many break-even trades inflate the denominator
+        decisive_trades = wins + losses
+        if decisive_trades <= 0:
+            logger.critical("CRITICAL: No decisive trades (wins + losses = 0) — cannot calculate win rate")
+            return {"halted": True, "reason": "Insufficient decisive trades for win rate threshold check"}
+        win_rate = wins / decisive_trades * 100.0
+        win_rate_val = self._get_required_config("min_win_rate_pct", "in win rate check")
+        threshold = float(win_rate_val)
+        if (
+            not isinstance(threshold, float)
+            or (threshold != threshold)
+            or threshold == float("inf")
+            or threshold == float("-inf")
+        ):  # NaN/Inf check
+            logger.critical("CRITICAL: min_win_rate_pct is invalid (NaN/Inf) — circuit breaker cannot function")
+            return {"halted": True, "reason": "CRITICAL: min_win_rate_pct invalid (NaN/Inf)"}
+        return {
+            "halted": win_rate < threshold,
+            "reason": (
+                f"Win rate {win_rate:.1f}% < {threshold:.0f}%" if win_rate < threshold else f"Win rate {win_rate:.1f}%"
+            ),
+            "value": round(win_rate, 1),
+            "threshold": threshold,
+            "trades_sampled": total,
+        }
+
+    def _check_total_risk(self, current_date: Any, cur: Any) -> dict[str, Any]:
+        """Sum of (entry - stop) * qty across open positions vs portfolio value."""
+        cur.execute(
+            "SELECT COUNT(*) FROM algo_positions WHERE status = %s AND current_stop_price IS NULL",
+            (PositionStatus.OPEN.value,),
+        )
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("Circuit breaker total_risk check: algo_positions query returned no rows")
+        missing_stops_count = result[0]
+        if missing_stops_count > 0:
+            logger.critical(
+                f"[TOTAL_RISK_CHECK] {missing_stops_count} open positions have NULL current_stop_price. "
+                "Cannot calculate risk with missing current stops. Halting to prevent blind risk-taking."
+            )
+            return {
+                "halted": True,
+                "reason": f"{missing_stops_count} positions missing current stops — fail-closed halt",
+            }
+
+        cur.execute(
+            """
+            SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity)),
+                   COUNT(*) as position_count
+            FROM algo_positions p
+            JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+            WHERE p.status = %s
+            """,
+            (PositionStatus.OPEN.value,),
+        )
+        result = cur.fetchone()
+        if result is None:
+            logger.error(
+                "Position count query failed (no result). Cannot determine position count. "
+                "Position monitoring unsafe — halting to prevent blind trading."
+            )
+            raise RuntimeError(
+                "Cannot determine position count: query failed. Position monitoring unsafe. "
+                "Zero positions must be explicitly confirmed, not defaulted."
+            )
+        total_open_risk_raw = result[0]
+        position_count = result[1]
+
+        # If there are open positions but SUM returns NULL, that's data corruption
+        if position_count > 0 and total_open_risk_raw is None:
+            logger.critical(
+                f"[TOTAL_RISK_CHECK] {position_count} open positions exist but risk calculation returned NULL. "
+                "Missing or corrupted entry_price or stop_price data detected. Halting to prevent blind trading."
+            )
+            return {
+                "halted": True,
+                "reason": f"Risk calculation failed on {position_count} positions — data corruption",
+            }
+
+        # If no positions, risk is legitimately 0; if positions exist and calculation succeeded, use result
+        total_open_risk = _float(total_open_risk_raw, 0.0, context="total_open_risk")
+        if total_open_risk is None:
+            logger.critical("Cannot calculate total open risk — risk calculation failed")
+            return {"halted": True, "reason": "Risk calculation failed — fail-closed"}
+
+        cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
+        row = cur.fetchone()
+        if row is None or row[0] is None:
+            # First run (no portfolio snapshots yet) — skip risk check but log
+            logger.info("[TOTAL_RISK_CHECK] Skipping (no portfolio snapshot yet; expected on first run)")
+            return {"halted": False, "reason": "No portfolio snapshot (first run?)"}
+
+        portfolio = _float(row[0], None, context="portfolio_value")
+        # CRITICAL: Portfolio value missing/invalid -> risk calculation impossible.
+        # Fail-closed: cannot assess total risk without portfolio value.
+        if portfolio is None or portfolio <= 0:
+            logger.critical(
+                f"[TOTAL_RISK_CHECK] Portfolio value invalid ({portfolio}) — cannot calculate risk. "
+                "Halting trading to prevent blind risk-taking."
+            )
+            return {
+                "halted": True,
+                "reason": f"Portfolio value invalid ({portfolio}) — risk calculation impossible. Fail-closed halt.",
+            }
+
+        risk_pct = total_open_risk / portfolio * 100.0
+        max_risk_val = self._get_required_config("max_total_risk_pct", "in total risk check")
+        threshold = _float(
+            max_risk_val,
+            None,
+            context="max_total_risk_pct",
+        )
+        return {
+            "halted": risk_pct >= threshold,
+            "reason": (
+                f"Total open risk {risk_pct:.2f}% >= {threshold:.0f}%"
+                if risk_pct >= threshold
+                else f"Risk {risk_pct:.2f}%"
+            ),
+            "value": round(risk_pct, 2),
+            "threshold": threshold,
+        }
+
     def _check_vix_spike(self, current_date: Any, cur: Any) -> dict[str, Any]:
         cur.execute(
             "SELECT vix_level FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
@@ -368,6 +643,90 @@ class CircuitBreaker:
             "reason": (f"VIX {vix:.1f} > {threshold:.0f}" if vix > threshold else f"VIX {vix:.1f}"),
             "value": vix,
             "threshold": threshold,
+        }
+
+    def _check_market_stage(self, current_date: Any, cur: Any) -> dict[str, Any]:
+        """H7 FIX: Market stage validation with data freshness check.
+
+        Ensures we don't use stale market stage data from days ago.
+        CRITICAL: MarketCalendar must succeed to ensure holiday accuracy.
+        """
+        cur.execute(
+            "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+            (current_date,),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return {
+                "halted": True,
+                "reason": "Market health data missing — fail-closed",
+            }
+
+        data_date = row[0]
+        if isinstance(data_date, datetime):
+            data_date = data_date.date()
+        days_stale = (current_date - data_date).days
+
+        # Use trading-day-aware staleness check (same pattern as _check_data_freshness and Phase 1).
+        # Hardcoded calendar-day thresholds cause false halts after 3-day holiday weekends when
+        # the market_health_daily record is from Friday but current_date is Tuesday (4 days gap).
+        # Root causes for stale data now fixed: RDS Proxy removed (cfb3f01f), failsafe verification in place (a2a8a654).
+        # Revert to 1 trading day of staleness tolerance for tighter data freshness.
+        expected_date = current_date - timedelta(days=1)
+        min_acceptable_date = current_date - timedelta(days=2)  # 1 trading day back
+        try:
+            from algo.infrastructure import MarketCalendar
+
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(expected_date):
+                    break
+                expected_date -= timedelta(days=1)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(min_acceptable_date):
+                    break
+                min_acceptable_date -= timedelta(days=1)
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
+            logger.critical(
+                f"MarketCalendar check failed: {cal_e}. "
+                "Cannot fall back to weekday logic — holidays would be misclassified. "
+                "Failing closed to prevent trading with incorrect market regime classification."
+            )
+            return {
+                "halted": True,
+                "reason": f"Market calendar unavailable ({type(cal_e).__name__}). Cannot determine trading days accurately. Fail-closed halt.",
+                "value": None,
+            }
+
+        if data_date < min_acceptable_date:
+            # Fail-closed: Market stage is required to determine trading conditions.
+            # Even though stage is advisory (stage 4 = halt, 1-3 = allow), we cannot
+            # proceed when market classification data is stale. Stale market data may not
+            # reflect current regime changes (e.g., market recovered to Stage 2 but we don't know).
+            # Risk: Entering positions based on outdated market regime classification.
+            logger.critical(
+                f"Market stage data stale ({days_stale}d old, expected {expected_date}). "
+                "Cannot determine current market regime. Trading halted until market health data refreshes."
+            )
+            return {
+                "halted": True,
+                "reason": f"Market stage data stale ({days_stale}d old) — cannot determine regime. Fail-closed halt.",
+                "value": None,
+            }
+
+        if row[1] is None:
+            return {
+                "halted": True,
+                "reason": "Market stage NULL — fail-closed to prevent trading in unknown stage",
+            }
+
+        stage = int(row[1])
+        trend = row[2] if row[2] is not None else "unknown"
+        # Stage 4 = halt new entries (full downtrend). Stage 3 = caution but allow.
+        halted = stage == 4
+        return {
+            "halted": halted,
+            "reason": (f"Stage 4 downtrend (trend={trend})" if halted else f"Stage {stage} ({trend})"),
+            "value": stage,
         }
 
     def _check_weekly_loss(self, current_date: Any, cur: Any) -> dict[str, Any]:
@@ -469,6 +828,70 @@ class CircuitBreaker:
             ),
             "value": days_stale,
         }
+
+    def _check_intraday_market_health(self, current_date: Any, cur: Any) -> dict[str, Any]:
+        """Prior-day market drop check: did SPY fall >2% yesterday?
+
+        The orchestrator runs pre-market (9:30 AM ET). price_daily contains yesterday's
+        EOD prices, so the two most recent rows are yesterday vs the day before. This
+        checks the prior day's return, not a live intraday reading. Blocking on a >2%
+        decline yesterday is intentional: entering new swing positions the morning after
+        a significant sell-off is poor risk management (Minervini: wait for market to
+        stabilize before adding exposure).
+        CRITICAL: Missing or invalid SPY prices must halt trading (fail-closed).
+        """
+        try:
+            cur.execute(
+                """
+                SELECT close FROM price_daily
+                WHERE symbol = 'SPY'
+                  AND date <= %s
+                ORDER BY date DESC LIMIT 2
+                """,
+                (current_date,),
+            )
+            rows = cur.fetchall()
+            if len(rows) < 2:
+                logger.critical(
+                    f"CIRCUIT BREAKER: Insufficient SPY price history (got {len(rows)}, need 2). "
+                    "Cannot determine prior-day market movement. Halting to prevent trading in unknown market conditions."
+                )
+                return {"halted": True, "reason": "Insufficient SPY price history — cannot assess market stability"}
+
+            latest = float(rows[0][0]) if rows[0][0] is not None else None
+            prior = float(rows[1][0]) if rows[1][0] is not None else None
+
+            if latest is None or prior is None or prior <= 0:
+                logger.critical(
+                    f"CIRCUIT BREAKER: Invalid SPY price data (latest={latest}, prior={prior}). "
+                    "Cannot calculate prior-day market change. Halting to prevent trading with missing market data."
+                )
+                return {
+                    "halted": True,
+                    "reason": "Invalid SPY price data — cannot assess market stability. Fail-closed halt.",
+                }
+
+            prior_day_change = (latest - prior) / prior * 100.0
+
+            # Halt if SPY dropped >2% yesterday — significant sell-off, wait for stability
+            if prior_day_change <= -2.0:
+                return {
+                    "halted": True,
+                    "reason": f"Market down {prior_day_change:.2f}% yesterday (await stability)",
+                    "market_change_pct": round(prior_day_change, 2),
+                }
+
+            return {
+                "halted": False,
+                "reason": f"SPY prior day {prior_day_change:+.2f}%",
+                "market_change_pct": round(prior_day_change, 2),
+            }
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.critical(f"CIRCUIT BREAKER: Prior-day market health check failed: {e}")
+            return {
+                "halted": True,
+                "reason": f"Market health check unavailable (data error): {type(e).__name__}. Cannot proceed without market data.",
+            }
 
     def _check_sector_concentration(self, current_date: Any, cur: Any) -> dict[str, Any]:
         """Log warning if any sector exceeds max position cap — advisory only, no halt.

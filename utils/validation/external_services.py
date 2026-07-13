@@ -20,16 +20,6 @@ class CognitoValidator:
 
     @staticmethod
     def validate_jwt_claims(jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
-        """Validate Cognito JWT claims structure.
-
-        Returns: {
-            'valid': bool,
-            'errors': [str] or [],
-            'sub': str or None,
-            'cognito_groups': list or [],
-            'email': str or None,
-        }
-        """
         if jwt_claims is None:
             return {
                 "valid": False,
@@ -107,15 +97,6 @@ class DynamoDBValidator:
 
     @staticmethod
     def validate_get_item_response(response: dict[str, Any]) -> dict[str, Any]:
-        """Validate response from table.get_item().
-
-        Returns: {
-            'valid': bool,
-            'errors': [str] or [],
-            'item': dict or None,
-            'found': bool,
-        }
-        """
         if not isinstance(response, dict):
             return {
                 "valid": False,
@@ -151,14 +132,6 @@ class DynamoDBValidator:
 
     @staticmethod
     def validate_put_item_response(response: dict[str, Any]) -> dict[str, Any]:
-        """Validate response from table.put_item().
-
-        Returns: {
-            'valid': bool,
-            'errors': [str] or [],
-            'status_code': int or None,
-        }
-        """
         if not isinstance(response, dict):
             return {
                 "valid": False,
@@ -192,14 +165,6 @@ class DynamoDBValidator:
 
     @staticmethod
     def validate_update_item_response(response: dict[str, Any]) -> dict[str, Any]:
-        """Validate response from table.update_item().
-
-        Returns: {
-            'valid': bool,
-            'errors': [str] or [],
-            'attributes': dict or None,
-        }
-        """
         if not isinstance(response, dict):
             return {
                 "valid": False,

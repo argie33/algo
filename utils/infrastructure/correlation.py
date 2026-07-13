@@ -40,11 +40,6 @@ def set_correlation_id(correlation_id: str) -> None:
 
 
 def get_correlation_id() -> str:
-    """Get the current correlation ID, or generate a new one if not set.
-
-    Returns:
-        Current correlation_id or a freshly generated one
-    """
     cid = _correlation_id_var.get()
     if cid is None:
         cid = f"GEN-{str(uuid.uuid4())[:8]}"

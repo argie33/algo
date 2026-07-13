@@ -42,12 +42,13 @@ class PriceTransformer:
             ValueError: If any OHLCV field is invalid or missing (fail-fast for data integrity)
         """
         try:
-            open_price = self._normalize_numeric(row.get("Open"))
-            high_price = self._normalize_numeric(row.get("High"))
-            low_price = self._normalize_numeric(row.get("Low"))
-            close_price = self._normalize_numeric(row.get("Close"))
-            volume = self._normalize_volume(row.get("Volume"))
-            adj_close = self._normalize_numeric(row.get("Adj Close"))
+            # Explicit key checking (no silent .get() fallbacks on OHLCV data)
+            open_price = self._normalize_numeric(row["Open"] if "Open" in row else None)
+            high_price = self._normalize_numeric(row["High"] if "High" in row else None)
+            low_price = self._normalize_numeric(row["Low"] if "Low" in row else None)
+            close_price = self._normalize_numeric(row["Close"] if "Close" in row else None)
+            volume = self._normalize_volume(row["Volume"] if "Volume" in row else None)
+            adj_close = self._normalize_numeric(row["Adj Close"] if "Adj Close" in row else None)
 
             transformed = {
                 "symbol": symbol,
@@ -224,11 +225,12 @@ class PriceTransformer:
     ) -> tuple[bool, str | None]:
         from utils.data.tick_validator import validate_price_tick
 
-        open_val: float | None = row.get("open")
-        high_val: float | None = row.get("high")
-        low_val: float | None = row.get("low")
-        close_val: float | None = row.get("close")
-        volume_val: int | None = row.get("volume")
+        # Explicit key checking (no silent .get() fallbacks on validation data)
+        open_val: float | None = row["open"] if "open" in row else None
+        high_val: float | None = row["high"] if "high" in row else None
+        low_val: float | None = row["low"] if "low" in row else None
+        close_val: float | None = row["close"] if "close" in row else None
+        volume_val: int | None = row["volume"] if "volume" in row else None
 
         if open_val is None or high_val is None or low_val is None or close_val is None or volume_val is None:
             return False, None
@@ -236,7 +238,8 @@ class PriceTransformer:
         if symbol is None:
             return False, None
 
-        symbol_prior_close = prior_close_by_symbol.get(symbol)
+        # Explicit check for symbol in prior close dict
+        symbol_prior_close = prior_close_by_symbol[symbol] if symbol in prior_close_by_symbol else None
         is_valid, errors = validate_price_tick(
             symbol=symbol,
             open_price=open_val,

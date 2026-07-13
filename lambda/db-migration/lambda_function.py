@@ -36,16 +36,6 @@ except ImportError:
 
 
 def get_credentials() -> dict[str, Any]:
-    """Get DB credentials from Secrets Manager via credential_manager.
-
-    Returns:
-        dict[str, Any]: Always returns a dict with keys: host, port, database, user, password.
-                       Never returns None. Raises ValueError if any required credential is missing.
-
-    Raises:
-        ValueError: If any required credential is missing or invalid.
-        ImportError: If credential_manager cannot be imported and no fallback available.
-    """
     try:
         from config.credential_manager import get_db_credentials
 

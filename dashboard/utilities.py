@@ -359,11 +359,6 @@ def record_data_quality_issue(fetcher: str, field: str, issue: str, value: Any =
 
 
 def get_data_quality_report(max_age_minutes: int = 30) -> list[dict[str, Any]]:
-    """Get data quality issues from the last N minutes.
-
-    Returns:
-        List of issue dicts with timestamp, fetcher, field, issue, value
-    """
     cutoff = datetime.now(ET) - timedelta(minutes=max_age_minutes)
     with _data_quality_lock:
         recent = [i for i in _data_quality_issues if i["timestamp"] >= cutoff]

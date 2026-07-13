@@ -19,21 +19,6 @@ class DailyFinanceReport:
         self.regime_mgr = RegimeManager()
 
     def generate(self, report_date: _date | None = None) -> dict[str, Any]:
-        """
-        Generate comprehensive daily report.
-
-        Returns:
-            {
-                'date': str,
-                'portfolio': {...},
-                'risk': {...},
-                'strategy': {...},
-                'components': {...},
-                'regime': {...},
-                'signals': {...},
-                'warnings': [...],
-            }
-        """
         if report_date is None:
             report_date = _date.today()
 

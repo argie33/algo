@@ -184,12 +184,6 @@ class EntryHandler:
 
         # Check for duplicate position via database
         def _check_dup_pos(cur: Any) -> dict[str, str] | None:
-            """Check if position already exists for symbol.
-
-            Returns:
-                dict: error dict if duplicate found (error key with message)
-                None: if no duplicate (normal state, can proceed with entry)
-            """
             is_dup, msg = self.validator.check_duplicate_position(cur, symbol)
             if is_dup:
                 return {"error": msg}

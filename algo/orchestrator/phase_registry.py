@@ -174,11 +174,6 @@ class PhaseRegistry:
 
     @classmethod
     def get_all_phases(cls) -> list[PhaseRegistryEntry]:
-        """Get all registered phases in execution order.
-
-        Returns:
-            List of PhaseRegistryEntry objects in declared order
-        """
         return cls.PHASES
 
     @classmethod

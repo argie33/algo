@@ -319,11 +319,6 @@ class ValueAtRisk:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def beta_exposure(self) -> dict[str, Any]:
-        """Compute portfolio beta exposure vs. S&P 500.
-
-        Returns:
-            dict with portfolio beta and per-position beta. If no positions exist, returns zero-exposure response.
-        """
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("""
@@ -522,11 +517,6 @@ class ValueAtRisk:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def concentration_report(self) -> dict[str, Any]:
-        """Generate concentration report: top holdings, sectors, industries.
-
-        Returns:
-            dict with concentration metrics. If no positions exist, returns zero-concentration response.
-        """
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("""

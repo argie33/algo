@@ -229,11 +229,6 @@ class FinancialDataValidator:
 def validate_trade_entry_prices(
     symbol: str, entry_price: Any, stop_loss_price: Any
 ) -> tuple[bool, float | None, float | None, str]:
-    """Validate entry and stop loss prices for a trade entry.
-
-    Returns:
-        (is_valid, entry_float, stop_loss_float, error_message)
-    """
     valid, entry_f, err1 = FinancialDataValidator.validate_price(
         entry_price, context=f"entry_price for {symbol}", allow_zero=False
     )

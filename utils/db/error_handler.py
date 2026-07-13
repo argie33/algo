@@ -120,12 +120,6 @@ def execute_with_savepoint(
 
 
 def validate_connection_state(cursor: Any) -> bool:
-    """Check if connection/transaction is in a valid state.
-
-    Returns:
-        True if connection is OK
-        False if transaction is aborted or connection is bad
-    """
     try:
         # Try a simple query that should always succeed
         cursor.execute("SELECT 1")

@@ -78,16 +78,6 @@ class RiskConfig:
         return self.parent.set(key, value, value_type, description, changed_by)
 
     def get_position_sizing_config(self) -> dict[str, Any]:
-        """Get all position sizing thresholds (for risk team).
-
-        Returns:
-            {
-                "base_risk_pct": 0.75,          # Base risk per trade
-                "max_position_size_pct": 6.3,   # Max single position size
-                "max_positions": 15,             # Max concurrent positions
-                "max_concentration_pct": 50.0,   # Max concentration in top position
-            }
-        """
         return {
             "base_risk_pct": self.get("base_risk_pct"),
             "max_position_size_pct": self.get("max_position_size_pct"),

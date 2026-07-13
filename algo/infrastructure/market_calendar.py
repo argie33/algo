@@ -132,11 +132,6 @@ class MarketCalendar:
 
     @staticmethod
     def is_early_close(check_date: _date | None = None) -> bool:
-        """Check if market has early close on given date (1 PM ET instead of 4 PM).
-
-        Returns:
-            bool: True if early close, False otherwise
-        """
         if not check_date:
             check_date = _date.today()
 

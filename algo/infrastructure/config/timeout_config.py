@@ -274,19 +274,6 @@ class TimeoutConfig:
         )
 
     def get_all_timeouts(self) -> dict[str, int]:
-        """Get all timeout values for debugging/logging.
-
-        Returns:
-            {
-                "api": 5,
-                "db": 15,
-                "market_data": 10,
-                "alpaca": 5,
-                "webhook": 5,
-                "subprocess": 60,
-                "loader": 300,
-            }
-        """
         return {
             "api": self.get_api_timeout(),
             "db": self.get_db_timeout(),

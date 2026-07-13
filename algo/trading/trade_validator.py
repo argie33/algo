@@ -230,11 +230,6 @@ class TradeValidator:
         return True, None, result_dict
 
     def check_duplicate_position(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
-        """Check if position for this symbol already exists.
-
-        Returns:
-            (is_duplicate: bool, error_message: str|None)
-        """
         cur.execute(
             """
             SELECT symbol FROM algo_positions
@@ -282,11 +277,6 @@ class TradeValidator:
         return False, None, None
 
     def check_open_position_in_symbol(self, cur: Any, symbol: str) -> tuple[bool, str | None]:
-        """Check if symbol has an open position in the transaction.
-
-        Returns:
-            (is_duplicate: bool, error_message: str|None)
-        """
         cur.execute(
             "SELECT 1 FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
             (symbol, PositionStatus.OPEN.value),
@@ -337,14 +327,6 @@ class TradeValidator:
         return False, None, None
 
     def check_pending_trades(self, cur: Any, symbol: Any) -> tuple[bool, str | None, int]:
-        """Check for pending or open trades in the last 30 days.
-
-        Returns:
-            (has_pending: bool, error_message: str|None, pending_count: int)
-
-        Raises:
-            RuntimeError: If database query returns no result (data integrity failure).
-        """
         from algo.infrastructure.config.sql_intervals import get_interval_sql
 
         interval_sql = get_interval_sql("30d")
@@ -372,11 +354,6 @@ class TradeValidator:
         return False, None, 0
 
     def check_reentry_rules(self, cur: Any, symbol: Any) -> tuple[bool, str | None, int]:
-        """Check re-entry rules: max reentries and cooldown period.
-
-        Returns:
-            (valid: bool, error_message: str|None, reentry_count: int for database)
-        """
         from algo.infrastructure.config.sql_intervals import get_interval_sql
 
         interval_sql = get_interval_sql("30d")

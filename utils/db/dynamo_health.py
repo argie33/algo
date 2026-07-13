@@ -44,21 +44,6 @@ class DynamoDBHealthCheck:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def get_halt_flag_status(self) -> dict[str, Any]:
-        """Get current halt flag state from DynamoDB.
-
-        Returns:
-            {
-                'halt_flag_active': bool,
-                'set_time': datetime or None,
-                'reason': str or None,
-                'auto_clear_time': datetime or None,
-                'available': bool,
-                'last_checked': datetime
-            }
-
-        Raises:
-            KeyError: If halt_flag field is missing or Item not found
-        """
         try:
             import boto3
 
@@ -122,20 +107,6 @@ class DynamoDBHealthCheck:
             }
 
     def get_phase1_degraded_mode_status(self) -> dict[str, Any]:
-        """Get Phase 1 degraded mode status.
-
-        Returns:
-            {
-                'degraded_mode_active': bool,
-                'reason': str or None,
-                'set_time': datetime or None,
-                'available': bool
-            }
-
-        Note:
-            If key not found, defaults to False (no degraded mode).
-            If degraded field is missing/None, treats as False (EXPLICIT INTENT).
-        """
         try:
             import boto3
 
@@ -184,21 +155,6 @@ class DynamoDBHealthCheck:
             }
 
     def check_lock_status(self) -> dict[str, Any]:
-        """Check distributed lock status (orchestrator-run-lock).
-
-        Returns:
-            {
-                'lock_active': bool,
-                'owner_run_id': str or None,
-                'acquired_at': datetime or None,
-                'expires_at': datetime or None,
-                'available': bool
-            }
-
-        Note:
-            If key not found, returns lock_active=False.
-            If lock_owner field missing, treats as not held (lock_active=False).
-        """
         try:
             import boto3
 

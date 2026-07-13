@@ -52,15 +52,6 @@ def safe_extract(data: dict[str, Any], *keys: str, defaults: dict[str, Any] | No
 
 
 def safe_get_dict(data: Any) -> dict[str, Any]:
-    """Get dict from data if not error. Returns marker dict if data is None (optional field).
-
-    Returns:
-        dict: validated non-error dict OR marker dict with data_unavailable=True
-
-    Raises:
-        TypeError: if data is not dict, list, or None
-        ValueError: if data is error dict
-    """
     if data is None:
         logger.debug("safe_get_dict: data is None (optional field not present), returning unavailability marker")
         return {
@@ -75,17 +66,6 @@ def safe_get_dict(data: Any) -> dict[str, Any]:
 
 
 def safe_get_list(data: Any) -> list[Any] | dict[str, Any]:
-    """Get list from data if not error. Returns marker dict if data is None or dict without list (optional field).
-
-    Returns:
-        list: extracted list from data or data.items or data.data
-        dict: marker dict with data_unavailable=True if data is None or dict without list/items/data fields (optional field not present)
-
-    Raises:
-        ValueError: if data is error dict
-
-    Note: Returns unavailability marker instead of raising on type mismatch to handle gracefully
-    """
     if data is None:
         logger.debug("safe_get_list: data is None (optional field not present), returning unavailability marker")
         return {

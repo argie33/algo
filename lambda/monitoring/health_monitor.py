@@ -30,12 +30,6 @@ sns = boto3.client("sns")
 
 
 def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
-    """Check if critical loaders have run recently.
-
-    Returns: (status, issues_list)
-      status: 'healthy' | 'degraded' | 'unhealthy'
-      issues: [{'loader': 'name', 'last_run_hours_ago': 25, 'status': 'FAILED'}, ...]
-    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()
@@ -127,14 +121,6 @@ def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
 
 
 def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
-    """Check if critical data tables have recent data.
-
-    Returns: (status, stale_tables)
-      status: 'healthy' | 'degraded' | 'unhealthy'
-      stale_tables: [{'table': 'name', 'age_hours': 25.5}, ...]
-
-    CRITICAL: Detects stale data that causes trading halts and dashboard failures.
-    """
     try:
         conn = get_db_connection()
         cur = conn.cursor()

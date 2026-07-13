@@ -258,7 +258,6 @@ def _validate_markets(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_trades(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate trades response."""
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Trades response not a dict: {type(data)}")
     if has_error(data):
@@ -270,7 +269,6 @@ def _validate_trades(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_circuit_breakers(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate circuit breakers response."""
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Circuit breakers response not a dict: {type(data)}")
     if has_error(data):

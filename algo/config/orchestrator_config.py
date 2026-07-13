@@ -72,11 +72,6 @@ class OrchestratorConfig:
 
     @classmethod
     def validate(cls) -> tuple[bool, list[str]]:
-        """Validate configuration values are in acceptable ranges.
-
-        Returns:
-            (is_valid, error_messages): True if all valid, False + list of errors otherwise
-        """
         errors = []
 
         # Validate timeouts (must be positive)

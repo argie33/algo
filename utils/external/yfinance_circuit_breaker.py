@@ -43,11 +43,6 @@ class YFinanceIPCircuitBreaker:
         self._cached_state: dict[str, Any] | None = None
 
     def is_banned(self) -> bool:
-        """Check if the IP is currently banned (with local caching).
-
-        Returns:
-            True if IP is banned and we should back off, False otherwise
-        """
         # Use cached state if recent
         now = time.time()
         if self._cached_state is not None and (now - self._last_check_time) < self._check_cache_duration_secs:
@@ -86,11 +81,6 @@ class YFinanceIPCircuitBreaker:
         return True
 
     def get_backoff_seconds(self) -> float:
-        """Get how long to wait before the next request attempt.
-
-        Returns:
-            Number of seconds to wait (0 if not banned)
-        """
         state = self._get_ban_state()
         if state is None or not self.is_banned():
             return 0.0
@@ -176,16 +166,6 @@ class YFinanceIPCircuitBreaker:
         )
 
     def _get_ban_state(self) -> dict[str, Any] | None:
-        """Get current ban state from PostgreSQL.
-
-        Returns:
-            dict: ban state with is_banned, failure_count, ban_until, etc.
-            None: if no ban state record exists yet (initial state, not banned)
-
-        CRITICAL: All fields must be non-None when row exists. Missing fields
-        indicate corrupted state which must be detected and raised, not silently
-        filled with defaults.
-        """
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(

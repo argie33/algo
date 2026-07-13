@@ -73,13 +73,6 @@ class MarketEventHandler:
         self.alpaca_secret = creds["secret"]
 
     def check_single_stock_halt(self, symbol: str) -> dict[str, Any] | None:
-        """Check if symbol is currently halted from trading.
-
-        Returns:
-            dict with halt_status, reason if halted (halted=True, status, tradable fields)
-            None: if symbol is tradable and not halted (normal trading state)
-
-        """
         # In paper mode, if credentials unavailable, skip halt check and assume tradable
         if self.alpaca_key is None or self.alpaca_secret is None:
             logger.debug(f"[HALT_CHECK] Paper mode: credentials unavailable, assuming {symbol} is tradable")

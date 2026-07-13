@@ -126,12 +126,6 @@ class TCAEngine:
             raise
 
     def _check_slippage_alert(self, symbol: str, slippage_bps: Decimal | float, side: str) -> dict[str, Any] | None:
-        """Check if slippage exceeds alert thresholds.
-
-        Returns:
-            dict with severity, message if alert triggered (adverse slippage >= 100 bps)
-            None: if slippage is favorable or below threshold (no alert needed)
-        """
         # Only alert on adverse slippage (positive for buy)
         if side == "BUY" and slippage_bps <= 0:
             logger.debug(f"[TCA] {symbol} favorable slippage on BUY: {slippage_bps:.1f} bps")

@@ -158,17 +158,6 @@ class RDSPoolMonitor:
             raise
 
     def get_connection_by_state(self) -> dict[str, int]:
-        """Get breakdown of connections by state.
-
-        Returns:
-            {
-                'active': 5,
-                'idle': 12,
-                'idle_in_transaction': 2,
-                'fastpath_function_call': 0,
-                'other': 1
-            }
-        """
         try:
             from utils.db import DatabaseContext
 
@@ -230,17 +219,6 @@ class RDSPoolMonitor:
                 logger.error(f"[RDS-POOL] Failed to query slow queries: {e}")
 
     def check_eod_readiness(self) -> dict[str, Any]:
-        """Check if RDS is ready for EOD pipeline (4:05 PM).
-
-        Returns:
-            {
-                'ready_for_eod': bool,
-                'pool_status': 'HEALTHY' | 'WARNING' | 'CRITICAL',
-                'active_connections': int,
-                'max_parallelism': int,  # Recommended max parallel loaders
-                'recommendations': [str]
-            }
-        """
         status = self.get_connection_pool_status()
 
         if "_error" in status:

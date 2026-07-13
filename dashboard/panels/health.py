@@ -1212,11 +1212,6 @@ def _extract_phase_metrics_from_pdata(pdata: dict[str, Any] | None) -> tuple[int
 
 
 def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, Any]:
-    """Parse phase data field (may be string or dict).
-
-    Returns:
-        dict: Parsed phase data OR marker dict with data_unavailable=True
-    """
     if isinstance(pdata_raw, str):
         try:
             return cast(dict[str, Any], json.loads(pdata_raw))
@@ -1280,11 +1275,6 @@ def _format_health_data_fresh_section(
 
 
 def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any]) -> tuple[list[str], int, int, int]:
-    """Build phase badges and extract aggregated metrics from phase results.
-
-    Returns:
-        (phase_badges_list, signals_gen, entries_exec, exits_exec)
-    """
     phase_badges = []
     signals_gen = 0
     entries_exec = 0

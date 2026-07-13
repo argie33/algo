@@ -189,12 +189,6 @@ class SignalTradePerformancePopulator:
     )
 
     def get_trailing_ic(self, component: str, days: int = 60) -> list[dict[str, Any]]:
-        """
-        Get rolling IC for a component over trailing period.
-
-        Returns:
-            [{'date': date, 'ic': float, 'sample_size': int, 'pvalue': float}, ...]
-        """
         if component not in self._VALID_COMPONENTS:
             raise ValueError(f"Unknown component '{component}' — must be one of {self._VALID_COMPONENTS}")
         try:
