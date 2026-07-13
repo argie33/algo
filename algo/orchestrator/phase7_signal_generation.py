@@ -77,8 +77,7 @@ def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
         )
     if close is None or close <= 0:
         raise ValueError(
-            f"Close price invalid or unavailable ({close!r}) for risk scoring. "
-            "Cannot proceed with signal generation."
+            f"Close price invalid or unavailable ({close!r}) for risk scoring. Cannot proceed with signal generation."
         )
     atr_pct = (atr_14 / close) * 100
     return max(0.0, min(100.0, 100.0 - (atr_pct * 5)))

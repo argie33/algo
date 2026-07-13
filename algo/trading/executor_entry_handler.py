@@ -749,7 +749,12 @@ class EntryHandler:
             stop_reasoning=context.execution.stop_reasoning,
             advanced_components=context.signals.advanced_components,
             rejection_reason=rejection_reason,
-            position_id=position_id,  # FIXED: Link trades to positions
+            # Only link to a position when one will actually be created below (order_status
+            # in filled/partially_filled/paper_pending) - the FK is DEFERRABLE INITIALLY
+            # DEFERRED so the position row (inserted after this trade row, same transaction)
+            # satisfies it by commit time, but a trade whose order didn't fill has no
+            # corresponding position ever, so position_id must stay NULL for those.
+            position_id=position_id if order_status in ("filled", "partially_filled", "paper_pending") else None,
         )
         self._insert_trade_record(cur, trade_request)
 
