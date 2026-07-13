@@ -36,7 +36,10 @@ class DatabaseResultValidator:
 
     @staticmethod
     def safe_get_int(data: dict[str, Any], key: str, default: int | None = None) -> int | None:
-        """Safely extract an int value from a database result.
+        """Safely extract an int value from a database result (lenient mode).
+
+        Uses centralized utils.type_conversion.safe_int for consistent conversion.
+        Returns default on any error (lenient for API responses).
 
         Args:
             data: Dictionary of database result
@@ -52,7 +55,8 @@ class DatabaseResultValidator:
         if value is None:
             return default
         try:
-            return int(value)
+            from utils.type_conversion import safe_int as canonical_safe_int
+            return canonical_safe_int(value, key, allow_none=False)
         except (ValueError, TypeError):
             return default
 
@@ -60,7 +64,10 @@ class DatabaseResultValidator:
     def safe_get_float(
         data: dict[str, Any], key: str, default: float | None = None, strict: bool = False
     ) -> float | None:
-        """Safely extract a float value from a database result.
+        """Safely extract a float value from a database result (lenient mode).
+
+        Uses centralized utils.type_conversion.safe_float for consistent conversion.
+        Returns default on any error (lenient for API responses).
 
         Args:
             data: Dictionary of database result
@@ -79,7 +86,8 @@ class DatabaseResultValidator:
         if value is None:
             return default
         try:
-            return float(value)
+            from utils.type_conversion import safe_float as canonical_safe_float
+            return canonical_safe_float(value, key, allow_none=False)
         except (ValueError, TypeError) as e:
             if strict:
                 raise ValueError(f"Cannot convert {key}={value} to float") from e

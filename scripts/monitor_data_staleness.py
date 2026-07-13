@@ -62,7 +62,14 @@ THRESHOLDS = {
 
 
 def get_table_age_minutes(table_name: str) -> float | None:
-    """Get age of latest data in table (minutes)."""
+    """Get age of latest data in table (minutes).
+
+    DATE columns (no time component) are compared by calendar day, not
+    wall-clock time: same-day data is fresh regardless of what time it is
+    right now. Comparing `NOW() - MAX(date_col)` directly would falsely
+    report same-day data as increasingly stale as the day progresses,
+    since DATE values are implicitly midnight.
+    """
     try:
         with DatabaseContext("read") as cur:
             # Map table names to their timestamp columns
@@ -78,6 +85,24 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 return None
 
             ts_col = timestamp_cols[table_name]
+
+            cur.execute(
+                "SELECT data_type FROM information_schema.columns "
+                "WHERE table_name = %s AND column_name = %s",
+                (table_name, ts_col),
+            )
+            col_row = cur.fetchone()
+            is_date_col = bool(col_row and col_row[0] == "date")
+
+            if is_date_col:
+                cur.execute(f"""
+                    SELECT GREATEST(CURRENT_DATE - MAX({ts_col}), 0)
+                    FROM {table_name}
+                """)
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    return float(row[0]) * 1440
+                return None
 
             cur.execute(f"""
                 SELECT EXTRACT(EPOCH FROM (NOW() - MAX({ts_col}))) / 60 as age_minutes

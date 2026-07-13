@@ -59,11 +59,6 @@ class ErrorCode(Enum):
     # Unknown Errors (999)
     UNKNOWN = "UNKNOWN_001"
 
-    @property
-    def error_number(self) -> str:
-        """Get the numeric error code."""
-        return self.value
-
 
 class ErrorSeverity(Enum):
     """Error severity levels for routing and alerting."""

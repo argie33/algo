@@ -111,45 +111,5 @@ class CircuitBreakerConfig:
             "min_win_rate_pct": self.get("min_win_rate_pct"),
         }
 
-    def get_risk_limits_config(self) -> dict[str, Any]:
-        """Get total open risk & sector concentration limits.
-
-        Returns:
-            {
-                "max_total_risk_pct": 4.0,           # Halt if total open risk >4%
-                "sector_drawdown_halt_pct": -12.0,   # Halt if sector DD <-12%
-            }
-        """
-        return {
-            "max_total_risk_pct": self.get("max_total_risk_pct"),
-            "sector_drawdown_halt_pct": self.get("sector_drawdown_halt_pct"),
-        }
-
-    def get_data_freshness_config(self) -> dict[str, Any]:
-        """Get data staleness threshold.
-
-        Returns:
-            {
-                "max_data_staleness_days": 3,  # Halt if data >3 days old
-            }
-        """
-        return {
-            "max_data_staleness_days": self.get("max_data_staleness_days"),
-        }
-
-    def get_failsafe_config(self) -> dict[str, Any]:
-        """Get failsafe ECS & grace period configuration.
-
-        Returns:
-            {
-                "failsafe_ecs_timeout_sec": 180,     # Max 180s to start ECS task
-                "failsafe_grace_period_minutes": 240, # Grace period before retry
-            }
-        """
-        return {
-            "failsafe_ecs_timeout_sec": self.get("failsafe_ecs_timeout_sec"),
-            "failsafe_grace_period_minutes": self.get("failsafe_grace_period_minutes"),
-        }
-
     def __repr__(self) -> str:
         return f"<CircuitBreakerConfig {sum(len(d) for d in [self.get_loss_limits_config(), self.get_trade_quality_limits_config()])} keys>"

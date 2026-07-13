@@ -127,9 +127,60 @@ def run(  # noqa: C901
     # This prevents cascading failures when upstream loaders are incomplete
     failsafe_result = check_and_retry_incomplete_loaders(dry_run=dry_run)
 
+    # Log detailed failsafe retry results for operator visibility
+    logger.info(
+        f"[PHASE 1] Failsafe retry check: "
+        f"incomplete={len(failsafe_result.get('incomplete_loaders', []))} "
+        f"retried={len(failsafe_result.get('retried', []))} "
+        f"recovered={len(failsafe_result.get('recovered', []))} "
+        f"still_failing={len(failsafe_result.get('still_failing', []))} "
+        f"halt_required={failsafe_result.get('halt_required', False)}"
+    )
+
+    # CRITICAL FIX (Session 112): If price_daily still incomplete after retry, HALT immediately
+    # Before: partial prices (6 symbols) → Phase 1 continues → Dashboard shows "--" → Silent failure
+    # After: partial prices → Phase 1 detects → Halts immediately → Operator knows to recover
+    still_failing = failsafe_result.get("still_failing", [])
+    price_tables = {"price_daily", "price_weekly", "price_monthly", "etf_price_daily", "etf_price_weekly", "etf_price_monthly"}
+    if any(table in price_tables for table in still_failing):
+        # Check actual coverage
+        price_coverage_pct = None
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """SELECT completion_pct FROM data_loader_status
+                       WHERE table_name='price_daily' ORDER BY last_updated DESC LIMIT 1"""
+                )
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    price_coverage_pct = row[0]
+        except Exception as e:
+            logger.warning(f"[PHASE 1] Could not check price coverage: {e}")
+
+        coverage_str = f"{price_coverage_pct:.1f}%" if price_coverage_pct else "unknown"
+        logger.critical(
+            f"[PHASE 1] CRITICAL: price_daily still incomplete after retry ({coverage_str} coverage). "
+            f"Cannot proceed without complete price data. "
+            f"Dashboard would show '--' for all {10500 - int(price_coverage_pct * 10500 / 100 if price_coverage_pct else 0)} missing symbols."
+        )
+        log_phase_result_fn(
+            1,
+            "incomplete_price_data_after_retry",
+            "halt",
+            f"price_daily {coverage_str} coverage after retry—cannot proceed with {coverage_str}% data",
+        )
+        return PhaseResult(
+            1,
+            "incomplete_price_data_after_retry",
+            "halted",
+            failsafe_result,
+            True,
+            f"Price data incomplete after retry ({coverage_str}). Run recovery script: python scripts/recover_incomplete_loader.py",
+        )
+
     if failsafe_result.get("halt_required") is True:
         logger.critical(
-            "[PHASE 1] CRITICAL: Incomplete critical loaders even after failsafe retry. "
+            "[PHASE 1] CRITICAL: Other critical loaders incomplete even after failsafe retry. "
             "Cannot proceed with data processing."
         )
         still_failing = failsafe_result.get("still_failing")

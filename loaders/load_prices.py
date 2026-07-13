@@ -84,11 +84,15 @@ class PriceLoader(OptimalLoader):
         self.interval = interval
         self.asset_class = asset_class
         self._correlation_id = _correlation_id
-        # CRITICAL FIX (Session 111): Reduce initial batch size in production to avoid yfinance rate limits
-        # AWS production: Start conservative with batch=50 (allows 200/min rate limit * 1 min = ~200 calls)
+        # CRITICAL FIX (Session 112): Reduce initial batch size to avoid yfinance rate limit cascade
+        # yfinance rate limit: 200 API calls/min (strict). Batching 50 symbols × 10 parallelism = 500 calls/burst.
+        # Result: Hit limit immediately, loader fails with only 6 symbols loaded.
+        # Solution: Start very conservative batch=20 (200 calls/burst, well under limit).
+        # If successful, batch size increases adaptively. If 429 (rate limit), cuts in half.
+        # AWS production: Start conservative with batch=20 (prevents rate limit cascade)
         # Local dev: Can use larger batch_size if needed (no public rate limits)
         # Allow override via PRICE_LOADER_BATCH_SIZE for tuning
-        default_batch = 50 if os.getenv("AWS_REGION") is not None else 500
+        default_batch = 20 if os.getenv("AWS_REGION") is not None else 500
         self.batch_size = int(os.getenv("PRICE_LOADER_BATCH_SIZE", str(default_batch)))
 
         # Circuit breaker for data loader outage handling

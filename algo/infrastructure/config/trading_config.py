@@ -109,26 +109,6 @@ class TradingConfig:
             "min_price_history_days": self.get("min_price_history_days"),
         }
 
-    def get_signal_quality_config(self) -> dict[str, Any]:
-        """Get signal quality gates (scoring and acceptance thresholds).
-
-        Returns:
-            {
-                "min_signal_quality_score": 60,
-                "signal_weak_threshold": 40.0,
-                "signal_medium_threshold": 60.0,
-                "signal_strong_threshold": 80.0,
-                "max_signal_age_days": 3,
-            }
-        """
-        return {
-            "min_signal_quality_score": self.get("min_signal_quality_score"),
-            "signal_weak_threshold": self.get("signal_weak_threshold"),
-            "signal_medium_threshold": self.get("signal_medium_threshold"),
-            "signal_strong_threshold": self.get("signal_strong_threshold"),
-            "max_signal_age_days": self.get("max_signal_age_days"),
-        }
-
     def get_entry_rules_config(self) -> dict[str, Any]:
         """Get Minervini entry technical requirements.
 
@@ -149,28 +129,6 @@ class TradingConfig:
             "min_trend_template_score": self.get("min_trend_template_score"),
             "require_stock_stage_2": self.get("require_stock_stage_2"),
             "require_weekly_stage_2": self.get("require_weekly_stage_2"),
-        }
-
-    def get_entry_quality_gates_config(self) -> dict[str, Any]:
-        """Get entry quality gates (volume, close quality, RS line, etc.).
-
-        Returns:
-            {
-                "min_close_quality_pct": 40.0,
-                "min_breakout_volume_ratio": 1.25,
-                "min_rs_line_slope_days": 10,
-                "max_rs_pct_from_60d_high": 15.0,
-                "rs_slope_gate_enabled": False,
-                "volume_decay_gate_enabled": False,
-            }
-        """
-        return {
-            "min_close_quality_pct": self.get("min_close_quality_pct"),
-            "min_breakout_volume_ratio": self.get("min_breakout_volume_ratio"),
-            "min_rs_line_slope_days": self.get("min_rs_line_slope_days"),
-            "max_rs_pct_from_60d_high": self.get("max_rs_pct_from_60d_high"),
-            "rs_slope_gate_enabled": self.get("rs_slope_gate_enabled"),
-            "volume_decay_gate_enabled": self.get("volume_decay_gate_enabled"),
         }
 
     def get_exit_rules_config(self) -> dict[str, Any]:
@@ -215,115 +173,3 @@ class TradingConfig:
             "max_stop_distance_pct": self.get("max_stop_distance_pct"),
         }
 
-    def get_position_reentry_config(self) -> dict[str, Any]:
-        """Get position monitoring and re-entry thresholds.
-
-        Returns:
-            {
-                "position_halt_flag_count": 2,
-                "max_reentries_per_name": 2,
-                "min_days_before_reentry_same_symbol": 5,
-            }
-        """
-        return {
-            "position_halt_flag_count": self.get("position_halt_flag_count"),
-            "max_reentries_per_name": self.get("max_reentries_per_name"),
-            "min_days_before_reentry_same_symbol": self.get("min_days_before_reentry_same_symbol"),
-        }
-
-    def get_advanced_filters_config(self) -> dict[str, Any]:
-        """Get advanced trading filters (sector, extensions, ADV).
-
-        Returns:
-            {
-                "max_extension_above_50ma_pct": 15.0,
-                "strong_sector_top_n": 5,
-                "require_strong_sector": False,
-                "min_adv_shares": 50000,
-                "min_adv_dollars": 500000.0,
-                "min_order_size_dollars": 100.0,
-                "max_positions_per_sector": 10,
-                "max_positions_per_industry": 8,
-            }
-        """
-        return {
-            "max_extension_above_50ma_pct": self.get("max_extension_above_50ma_pct"),
-            "strong_sector_top_n": self.get("strong_sector_top_n"),
-            "require_strong_sector": self.get("require_strong_sector"),
-            "min_adv_shares": self.get("min_adv_shares"),
-            "min_adv_dollars": self.get("min_adv_dollars"),
-            "min_order_size_dollars": self.get("min_order_size_dollars"),
-            "max_positions_per_sector": self.get("max_positions_per_sector"),
-            "max_positions_per_industry": self.get("max_positions_per_industry"),
-        }
-
-    def get_composite_score_thresholds(self) -> dict[str, Any]:
-        """Get composite score quality thresholds (Phase 7 signal filtering).
-
-        Composite score = weighted combination of quality, growth, value, momentum, sector, market factors.
-        Used by Phase 7 signal generation to filter and rank signals by quality.
-
-        Returns:
-            {
-                "phase7_min_composite_score": 50,
-            }
-        """
-        return {
-            "phase7_min_composite_score": self.get("phase7_min_composite_score"),
-        }
-
-    def get_advanced_filters_grades(self) -> dict[str, int]:
-        """Get advanced filters signal grading thresholds.
-
-        Returns:
-            {
-                "advanced_filters_grade_threshold_aplus": 90,
-                "advanced_filters_grade_threshold_a": 80,
-                "advanced_filters_grade_threshold_b": 70,
-                "advanced_filters_grade_threshold_c": 60,
-                "advanced_filters_grade_threshold_d": 50,
-            }
-        """
-        return {
-            "advanced_filters_grade_threshold_aplus": self.get("advanced_filters_grade_threshold_aplus"),
-            "advanced_filters_grade_threshold_a": self.get("advanced_filters_grade_threshold_a"),
-            "advanced_filters_grade_threshold_b": self.get("advanced_filters_grade_threshold_b"),
-            "advanced_filters_grade_threshold_c": self.get("advanced_filters_grade_threshold_c"),
-            "advanced_filters_grade_threshold_d": self.get("advanced_filters_grade_threshold_d"),
-        }
-
-    def get_earnings_blackout_config(self) -> dict[str, Any]:
-        """Get earnings blackout and economic calendar settings.
-
-        Returns:
-            {
-                "earnings_blackout_days_before": 7,
-                "earnings_blackout_days_after": 3,
-                "block_days_before_earnings": 5,
-                "halt_entries_before_major_release_minutes": 60,
-            }
-        """
-        return {
-            "earnings_blackout_days_before": self.get("earnings_blackout_days_before"),
-            "earnings_blackout_days_after": self.get("earnings_blackout_days_after"),
-            "block_days_before_earnings": self.get("block_days_before_earnings"),
-            "halt_entries_before_major_release_minutes": self.get("halt_entries_before_major_release_minutes"),
-        }
-
-    def get_imported_position_defaults(self) -> dict[str, float]:
-        """Get default stop/target levels for imported positions (when ATR unavailable).
-
-        Returns:
-            {
-                "imported_position_default_stop_loss_pct": 5.0,
-                "imported_position_default_target_1_pct": 5.0,
-                "imported_position_default_target_2_pct": 10.0,
-                "imported_position_default_target_3_pct": 15.0,
-            }
-        """
-        return {
-            "imported_position_default_stop_loss_pct": self.get("imported_position_default_stop_loss_pct"),
-            "imported_position_default_target_1_pct": self.get("imported_position_default_target_1_pct"),
-            "imported_position_default_target_2_pct": self.get("imported_position_default_target_2_pct"),
-            "imported_position_default_target_3_pct": self.get("imported_position_default_target_3_pct"),
-        }

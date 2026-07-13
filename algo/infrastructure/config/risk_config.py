@@ -77,22 +77,6 @@ class RiskConfig:
         """
         return self.parent.set(key, value, value_type, description, changed_by)
 
-    def get_base_risk(self) -> float:
-        """Get base risk % per trade.
-
-        CRITICAL: Raises RuntimeError if base_risk_pct is missing from configuration.
-        This parameter controls position sizing and must never silently default.
-        See config_schema.py for fail-closed default (0.5%) that applies on missing config.
-        """
-        value = self.get("base_risk_pct")  # No default - raise if missing
-        if value is None:
-            raise ValueError(
-                "[CONFIG CRITICAL] base_risk_pct is missing from configuration. "
-                "This parameter is required for position sizing calculations. "
-                "Set via config.set() or verify database configuration is loaded."
-            )
-        return cast(float, value)
-
     def get_position_sizing_config(self) -> dict[str, Any]:
         """Get all position sizing thresholds (for risk team).
 
@@ -109,64 +93,6 @@ class RiskConfig:
             "max_position_size_pct": self.get("max_position_size_pct"),
             "max_positions": self.get("max_positions"),
             "max_concentration_pct": self.get("max_concentration_pct"),
-        }
-
-    def get_drawdown_defense_config(self) -> dict[str, Any]:
-        """Get all drawdown defense thresholds and recovery rules.
-
-        Returns:
-            {
-                "halt_drawdown_pct": -20.0,              # Halt at -20% DD
-                "risk_reduction_at_minus_5": 0.75,      # 75% risk at -5% DD
-                "risk_reduction_at_minus_10": 0.5,      # 50% risk at -10% DD
-                "risk_reduction_at_minus_15": 0.25,     # 25% risk at -15% DD
-                "risk_reduction_at_minus_20": 0.0,      # 0% (halt) at -20% DD
-                "re_engage_recovery_pct": 8.0,          # Resume at +8% recovery
-                "re_engage_min_days": 5,                 # Min 5 days after halt
-                "require_ftd_to_re_engage": True,        # Require Follow-Through Day
-            }
-        """
-        return {
-            "halt_drawdown_pct": self.get("halt_drawdown_pct"),
-            "risk_reduction_at_minus_5": self.get("risk_reduction_at_minus_5"),
-            "risk_reduction_at_minus_10": self.get("risk_reduction_at_minus_10"),
-            "risk_reduction_at_minus_15": self.get("risk_reduction_at_minus_15"),
-            "risk_reduction_at_minus_20": self.get("risk_reduction_at_minus_20"),
-            "re_engage_recovery_pct": self.get("re_engage_recovery_pct"),
-            "re_engage_min_days": self.get("re_engage_min_days"),
-            "require_ftd_to_re_engage": self.get("require_ftd_to_re_engage"),
-        }
-
-    def get_position_monitoring_config(self) -> dict[str, Any]:
-        """Get position monitoring & re-entry rules.
-
-        Returns:
-            {
-                "position_halt_flag_count": 2,                   # Flags to exit
-                "max_reentries_per_name": 2,                     # Max re-entries
-                "min_days_before_reentry_same_symbol": 5,        # Days between entries
-            }
-        """
-        return {
-            "position_halt_flag_count": self.get("position_halt_flag_count"),
-            "max_reentries_per_name": self.get("max_reentries_per_name"),
-            "min_days_before_reentry_same_symbol": self.get("min_days_before_reentry_same_symbol"),
-        }
-
-    def get_risk_metrics_config(self) -> dict[str, Any]:
-        """Get risk metrics thresholds (VaR, CVaR, etc.).
-
-        Returns:
-            {
-                "var_percentile": 5,            # 95% confidence
-                "cvar_percentile": 5,           # Worst 5% of days
-                "stressed_var_percentile": 10,  # Worst 10% of days
-            }
-        """
-        return {
-            "var_percentile": self.get("var_percentile"),
-            "cvar_percentile": self.get("cvar_percentile"),
-            "stressed_var_percentile": self.get("stressed_var_percentile"),
         }
 
     def __repr__(self) -> str:

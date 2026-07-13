@@ -95,17 +95,6 @@ class EnvironmentValidator:
         return len(missing) == 0, missing
 
     @classmethod
-    def has_alpaca_credentials(cls) -> bool:
-        """Check if Alpaca credentials are available (from environment or to be loaded from Secrets Manager).
-
-        Returns:
-            True if both APCA_API_KEY_ID and APCA_API_SECRET_KEY are set in environment
-        """
-        api_key = os.getenv("APCA_API_KEY_ID")
-        api_secret = os.getenv("APCA_API_SECRET_KEY")
-        return bool(api_key and api_key.strip()) and bool(api_secret and api_secret.strip())
-
-    @classmethod
     def validate_optional(cls) -> dict[str, str]:
         """Check optional variables and log which ones are missing.
 

@@ -14,25 +14,6 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-class ConnectionMonitor:
-    """Simplified connection monitor for monitoring and testing."""
-
-    def __init__(self) -> None:
-        """Initialize connection monitor."""
-
-    def check_database(self) -> bool:
-        """Check database connectivity."""
-        return True
-
-    def is_connected(self) -> bool:
-        """Check if connected."""
-        return True
-
-    def get_failure_count(self) -> int:
-        """Get connection failure count."""
-        return 0
-
-
 class ConnectionPoolMonitor:
     """Monitor RDS connection pool utilization and emit alerts."""
 

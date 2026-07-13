@@ -1067,19 +1067,6 @@ class AlgoConfig:
         ),
     }
 
-    @classmethod
-    def get_config_category(cls, key: str) -> str:
-        """Get category for a config key from metadata in DEFAULTS dict.
-
-        Returns the category from the 4th element of the DEFAULTS tuple,
-        or 'Other' if key not found or category not set.
-        """
-        if key in cls.DEFAULTS:
-            entry = cls.DEFAULTS[key]
-            if len(entry) >= 4:
-                return entry[3]
-        return "Other"
-
     def __init__(self) -> None:
         import os
         import time

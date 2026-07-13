@@ -144,23 +144,6 @@ class MarketCalendar:
         return check_date in EARLY_CLOSES
 
     @staticmethod
-    def get_market_close_time(check_date: _date | None = None) -> str:
-        """Get market close time for given date.
-
-        Returns:
-            str: '14:00' for half-days (early close), '16:00' for normal days
-        """
-        if not check_date:
-            check_date = _date.today()
-
-        # Early close (half-day): 2:00 PM ET
-        if check_date in EARLY_CLOSES:
-            return "14:00"
-
-        # Normal close: 4:00 PM ET
-        return "16:00"
-
-    @staticmethod
     def is_market_open(check_datetime: datetime | None = None) -> bool:
         """Check if market is currently open.
 
@@ -272,26 +255,6 @@ class MarketCalendar:
             iterations += 1
 
         return next_date if iterations < max_iterations else None
-
-    @staticmethod
-    def get_latest_trading_day(from_date: _date | None = None) -> _date | None:
-        """Get latest trading day on or before given date (going backwards).
-
-        Used by loaders to determine end_date for incremental data extraction.
-        Eliminates the duplicated "skip back to trading day" logic across loaders.
-        """
-        if not from_date:
-            from_date = _date.today()
-
-        prev_date = from_date
-        max_iterations = 10  # prevent infinite loop
-        iterations = 0
-
-        while not MarketCalendar.is_trading_day(prev_date) and iterations < max_iterations:
-            prev_date = _date.fromordinal(prev_date.toordinal() - 1)
-            iterations += 1
-
-        return prev_date if iterations < max_iterations else None
 
 
 if __name__ == "__main__":
