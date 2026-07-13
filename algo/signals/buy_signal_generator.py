@@ -155,7 +155,7 @@ class BuySignalGenerator:
                     "macd_signal": (float(macd_signal) if macd_signal is not None else None),
                     "stage_number": None,
                     "market_stage": market_stage,
-                    "open": row.get("open"),
+                    "open": float(open_price) if open_price is not None else None,
                     "high": float(high) if high is not None else None,
                     "low": float(low) if low is not None else None,
                     "close": float(close) if close is not None else None,
