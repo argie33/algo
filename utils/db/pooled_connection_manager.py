@@ -251,7 +251,11 @@ class PoolSemaphore:
 # Global pool semaphore - enforces max concurrent loaders
 # Dynamically scale based on ECS task parallelism: allow up to 60 concurrent loaders
 # RDS max_connections=200, minus 20 for API/orchestrator/internal = 180 available
-_pool_semaphore = PoolSemaphore(max_concurrent=int(os.getenv("LOADER_POOL_MAX_CONCURRENT", "60")), timeout_sec=30)
+# CRITICAL FIX (Session 101): Reduce timeout in ECS to prevent cascading timeouts
+# ECS loaders were failing at 58s (30s semaphore + 30s context + error handling)
+# In ECS environment, reduce to 15s to fail fast and leave time for error handling
+_ecs_timeout_sec = 15 if os.getenv("AWS_REGION") else 30  # ECS=15s, local=30s
+_pool_semaphore = PoolSemaphore(max_concurrent=int(os.getenv("LOADER_POOL_MAX_CONCURRENT", "60")), timeout_sec=_ecs_timeout_sec)
 
 
 class PooledConnectionManager:

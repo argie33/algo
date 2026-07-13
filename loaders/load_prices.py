@@ -39,6 +39,20 @@ from utils.validation.data_freshness import FreshnessValidator, StaleDataError
 
 logger = logging.getLogger(__name__)
 
+# CRITICAL FIX (Session 101): Reduce timeout cascade in ECS environment
+# Production ECS loaders were timing out after 58s due to:
+# - DatabaseContext default timeout: 30s
+# - PoolSemaphore default timeout: 30s
+# - Error handling/logging: ~28s
+# Result: ECS task killed before health check could run (started at 60s)
+# Solution: Use shorter timeout for production to fail fast if there's an issue
+import socket
+if os.getenv("ENVIRONMENT") == "dev" and os.getenv("AWS_REGION"):
+    # Production ECS environment detected: reduce timeout to 15s
+    # This allows loader to start+initialize within 30s grace period
+    socket.setdefaulttimeout(15)
+    logger.info("[PRICE_LOADER] Production ECS: set socket timeout to 15s")
+
 # Correlation ID for tracing - Phase 1 passes PHASE1_CORRELATION_ID via environment
 # Initialize correlation_context with the environment-provided ID or auto-generate
 _correlation_id = os.getenv("PHASE1_CORRELATION_ID")

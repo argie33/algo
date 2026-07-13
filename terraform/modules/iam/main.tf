@@ -1579,7 +1579,7 @@ data "aws_iam_policy_document" "developer" {
     condition {
       test     = "StringEquals"
       variable = "cloudwatch:namespace"
-      values   = ["${var.project_name}/loaders", "${var.project_name}/diagnostics"]
+      values   = ["${var.project_name}/loaders", "${var.project_name}/diagnostics", "Algo/DataLoading", "AlgoTrading"]
     }
   }
 
@@ -1709,7 +1709,7 @@ data "aws_iam_policy_document" "developer" {
     resources = ["*"]
   }
 
-  # DynamoDB (read/write orchestrator state and locks for testing/debugging)
+  # DynamoDB (read/write orchestrator state, locks, and cache tables for testing/debugging)
   statement {
     sid    = "DynamoDBOrchestration"
     effect = "Allow"
@@ -1727,7 +1727,9 @@ data "aws_iam_policy_document" "developer" {
     resources = [
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/algo_orchestrator_state",
       "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-orchestrator-locks-${var.environment}",
-      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-locks-${var.environment}"
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}-loader-locks-${var.environment}",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}_phase1_cache",
+      "arn:aws:dynamodb:${var.aws_region}:${var.aws_account_id}:table/${var.project_name}_orchestrator_state"
     ]
   }
 
