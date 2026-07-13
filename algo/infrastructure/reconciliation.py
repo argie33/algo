@@ -47,15 +47,23 @@ class DailyReconciliation:
             # For paper trading without Alpaca credentials, allow graceful degradation
             has_alpaca_creds = bool(os.getenv("APCA_API_KEY_ID")) and bool(os.getenv("APCA_API_SECRET_KEY"))
             # CRITICAL FIX: Must require explicit config - no silent fallback to True
-            # If config missing this key, fail-fast so we know trading mode isn't determined
-            if not isinstance(config, dict) or "alpaca_paper_trading" not in config:
+            # If config missing this key, fail-fast so we know trading mode isn't determined.
+            # NOTE: `config` is an AlgoConfig instance in production, not a plain dict (the
+            # `dict[str, Any]` type hint on __init__ doesn't match real callers). Two bugs
+            # here previously: (1) `isinstance(config, dict)` was always False for it, so
+            # this raised unconditionally regardless of whether alpaca_paper_trading was
+            # actually configured. (2) AlgoConfig.__contains__ (`in`) only reflects
+            # DB-loaded rows, not AlgoConfig.DEFAULTS, but AlgoConfig.get() correctly falls
+            # back to DEFAULTS -- so presence must be checked via .get() returning
+            # non-None, not `in`.
+            is_paper_trading = config.get("alpaca_paper_trading")
+            if is_paper_trading is None:
                 raise ValueError(
                     "[RECONCILIATION INIT] Config missing required 'alpaca_paper_trading' key. "
                     "Trading mode must be explicitly set. "
                     "Check: (1) algo_config table has alpaca_paper_trading row, "
                     "(2) AlgoConfig.get() returns complete config dict"
                 ) from e
-            is_paper_trading = config.get("alpaca_paper_trading")
 
             if is_paper_trading and not has_alpaca_creds:
                 # Paper trading without credentials is acceptable - skip reconciliation

@@ -32,14 +32,23 @@ class AlpacaSyncManager:
         has_key = "key" in creds and bool(creds.get("key"))
         has_secret = "secret" in creds and bool(creds.get("secret"))
         # CRITICAL FIX: Require explicit config - fail-fast if missing
-        # No silent fallback to False (which would attempt live trading)
-        if not isinstance(config, dict) or "alpaca_paper_trading" not in config:
+        # No silent fallback to False (which would attempt live trading).
+        # NOTE: `config` is an AlgoConfig instance in production, not a plain dict.
+        # Two bugs here previously: (1) `isinstance(config, dict)` was always False for
+        # it, so this raised unconditionally regardless of whether alpaca_paper_trading
+        # was actually configured -- this was the real root cause of
+        # AlpacaSyncManager/AlpacaBrokerAdapter construction always failing, which
+        # reconciliation.py's __init__ then masked behind its own copy of the same bug.
+        # (2) AlgoConfig.__contains__ (`in`) only reflects DB-loaded rows, not
+        # AlgoConfig.DEFAULTS, but AlgoConfig.get() correctly falls back to DEFAULTS --
+        # so the presence check must be done via .get() returning non-None, not `in`.
+        is_paper_trading = config.get("alpaca_paper_trading")
+        if is_paper_trading is None:
             raise ValueError(
                 "[ALPACA_SYNC] Config missing 'alpaca_paper_trading'. "
                 "Trading mode must be explicit (paper vs live). "
                 "Check algo_config table has this key."
             )
-        is_paper_trading = config["alpaca_paper_trading"]
 
         if not has_key or not has_secret:
             if is_paper_trading:
