@@ -49,16 +49,23 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
     max_fail_rate = 50.0
 
     def run(self, symbols: list[str], since_date: date | None = None, parallelism: int | None = None) -> dict[str, Any]:  # type: ignore[override]
-        """Override run() to insert to TWO tables instead of one."""
+        """Override run() to insert to TWO tables instead of one.
+
+        CRITICAL FIX: Use per-symbol transactions to prevent cascade failures.
+        If one symbol's INSERT fails (data_unavailable etc), don't abort entire loader.
+        Each symbol gets its own transaction so failures don't cascade.
+        """
         quality_inserts = 0
         growth_inserts = 0
         symbols_succeeded = 0
         symbols_failed = 0
 
         try:
-            with self._db_write_context() as cur:
-                for symbol in symbols:
-                    try:
+            for symbol in symbols:
+                try:
+                    # Per-symbol transaction: commit/rollback independently
+                    # Prevents one bad symbol from failing all remaining symbols
+                    with self._db_write_context() as cur:
                         result = self.fetch_incremental(symbol, since_date)
                         if result and len(result) > 0:
                             # result is list[(quality_dict, growth_dict)], so unpack the tuple inside the list
@@ -74,9 +81,9 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
                                 growth_inserts += 1
 
                             symbols_succeeded += 1
-                    except Exception as e:
-                        logger.warning(f"Failed to compute metrics for {symbol}: {e}")
-                        symbols_failed += 1
+                except Exception as e:
+                    logger.warning(f"Failed to compute metrics for {symbol}: {e}")
+                    symbols_failed += 1
 
             logger.info(
                 f"[QUALITY_GROWTH] Consolidated load complete: {quality_inserts} quality, {growth_inserts} growth"
