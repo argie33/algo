@@ -1040,7 +1040,14 @@ def run(  # noqa: C901
         _compute_signal_attribution(run_date, log_phase_result_fn)
 
         # Step 3: Run weight optimization (if enough trades)
-        _optimize_weights(config, run_date, log_phase_result_fn)
+        # Not wrapping this would let a routine "insufficient trades" condition (which
+        # _optimize_weights treats as CRITICAL and re-raises) abort the rest of Phase 9,
+        # discarding the reconciliation/position-sync work already done in steps above.
+        try:
+            _optimize_weights(config, run_date, log_phase_result_fn)
+        except Exception as e:
+            logger.warning(f"[PHASE 9] Weight optimization failed: {e}")
+            log_phase_result_fn(9, "weight_optimization", "warn", f"optimization error: {str(e)[:60]}")
 
         # Step 4: Generate institutional daily report
         _generate_daily_report(run_date, log_phase_result_fn)
