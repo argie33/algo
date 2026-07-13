@@ -132,7 +132,7 @@ def audit_orchestrator():
 
         # Check last run
         cur.execute("""
-        SELECT started_at, status, summary
+        SELECT started_at, phase_results, summary
         FROM algo_orchestrator_runs
         ORDER BY started_at DESC LIMIT 1
         """)
