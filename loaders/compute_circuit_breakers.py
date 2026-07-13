@@ -338,10 +338,9 @@ def _compute_open_risk(cur: Any) -> float:
         )
 
     cur.execute("""
-        SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity))
+        SELECT SUM(GREATEST(0, (p.entry_price - p.current_stop_price) * p.quantity))
                AS total_risk
         FROM algo_positions p
-        JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
         WHERE LOWER(p.status) = 'open'
     """)
     risk_row = cur.fetchone()
