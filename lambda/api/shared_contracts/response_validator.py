@@ -1,13 +1,25 @@
-"""DEPRECATED: Use lambda/api/utils/response_validators.py instead.
+"""DEPRECATED: Use utils/response_validator.py instead.
 
 This module is kept for backward compatibility only.
-All new code should import from response_validators.
+All new code should import from response_validator directly.
 """
 
-from ..utils.response_validators import (
-    ResponseValidationError,
-    ResponseValidator,
-)
+import sys
+from pathlib import Path
+
+# Handle both relative and absolute imports
+try:
+    # Try relative import first (when used as part of lambda.api package)
+    from ..utils.response_validator import (
+        ResponseValidationError,
+        ResponseValidator,
+    )
+except (ImportError, ValueError):
+    # Fall back to absolute import (when lambda/api is in sys.path)
+    from utils.response_validator import (
+        ResponseValidationError,
+        ResponseValidator,
+    )
 
 __all__ = [
     "ResponseValidationError",

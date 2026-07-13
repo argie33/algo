@@ -325,6 +325,8 @@ CREATE TABLE IF NOT EXISTS market_sentiment (
     bullish_pct DECIMAL(8, 2),
     bearish_pct DECIMAL(8, 2),
     neutral_pct DECIMAL(8, 2),
+    data_unavailable BOOLEAN NOT NULL DEFAULT FALSE,
+    reason VARCHAR(200),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);

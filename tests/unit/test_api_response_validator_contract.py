@@ -12,8 +12,9 @@ from pathlib import Path
 
 import pytest
 
-# Add lambda/api to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "lambda" / "api"))
+# Add lambda/api to path for imports (use absolute path)
+lambda_api_path = str(Path(__file__).resolve().parent.parent.parent / "lambda" / "api")
+sys.path.insert(0, lambda_api_path)
 
 # DO NOT import at module level - import inside tests or fixture to ensure fresh state
 # Module-level imports get cached by Python and defeat test isolation

@@ -218,18 +218,12 @@ class ExitHandler:
         logger.debug(f"[EXIT_HANDLER] Exit parameters valid (fraction={exit_fraction}, price={exit_price})")
         return None
 
-    def _execute_exit(  # noqa: C901
-        self,
-        cur: PsycopgCursor[Any],
-        trade_id: int,
-        exit_price: float,
-        exit_reason: str,
-        exit_fraction: float,
-        exit_stage: str | None,
-        new_stop_price: float | None,
-    ) -> dict[str, Any]:
-        """Execute the core exit transaction with all safety guards."""
-        # TRANSACTION GUARD 1: Verify trade is not already closed (idempotency)
+    def _check_trade_not_already_closed(self, cur: PsycopgCursor[Any], trade_id: int) -> dict[str, Any] | None:
+        """Guard 1: Verify trade is not already closed (idempotency check).
+
+        Returns:
+            Error dict if trade already closed, None if guard passes.
+        """
         cur.execute(
             """SELECT status FROM algo_trades WHERE trade_id = %s FOR UPDATE""",
             (trade_id,),
@@ -241,10 +235,21 @@ class ExitHandler:
                 "message": f"Trade {trade_id} is already closed (idempotency guard)",
                 "duplicate": True,
             }
+        return None
 
-        # TRANSACTION GUARD 2: Fetch all trade and position data with row locks.
-        # Lock algo_trades (t) only — PostgreSQL forbids FOR UPDATE on the nullable side
-        # of a LEFT JOIN (p may be NULL if trade has no position yet).
+    def _fetch_and_lock_trade_data(self, cur: PsycopgCursor[Any], trade_id: int) -> tuple[Any, ...]:
+        """Guard 2: Fetch all trade and position data with row locks.
+
+        Lock algo_trades (t) only — PostgreSQL forbids FOR UPDATE on nullable side
+        of LEFT JOIN (p may be NULL if trade has no position yet).
+
+        Returns:
+            Tuple of (symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id,
+                     position_id, current_qty, target_hits, position_status)
+
+        Raises:
+            RuntimeError: If trade not found in database
+        """
         cur.execute(
             """SELECT t.symbol, t.entry_price, t.entry_quantity, t.stop_loss_price,
                        t.alpaca_order_id,
@@ -260,7 +265,104 @@ class ExitHandler:
                 f"[EXECUTOR_EXIT] Trade {trade_id} not found in database — "
                 "cannot execute exit for non-existent trade. Check if trade was properly recorded."
             )
+        return row
 
+    def _validate_and_convert_trade_data(
+        self, cur: PsycopgCursor[Any], trade_id: int, row: tuple[Any, ...]
+    ) -> tuple[str, float, int, float, str, int | None, float, int, str]:
+        """Validate and type-convert fetched trade data.
+
+        Args:
+            cur: Database cursor for locking positions
+            trade_id: Trade ID (for error messages)
+            row: Tuple from _fetch_and_lock_trade_data
+
+        Returns:
+            Tuple of (symbol, entry_price, entry_qty, stop_loss_price, alpaca_order_id,
+                     position_id, current_qty, target_hits, position_status)
+
+        Raises:
+            DataUnavailableError: If position quantity unavailable
+        """
+        (
+            symbol,
+            entry_price,
+            entry_qty,
+            stop_loss_price,
+            alpaca_order_id,
+            position_id,
+            current_qty,
+            target_hits,
+            position_status,
+        ) = row
+
+        # Lock algo_positions separately now that we have the position_id
+        if position_id is not None:
+            cur.execute(
+                "SELECT 1 FROM algo_positions WHERE position_id = %s FOR UPDATE",
+                (position_id,),
+            )
+
+        entry_price_f = float(entry_price)
+        entry_qty_i = int(entry_qty)
+        stop_loss_price_f = float(stop_loss_price)
+
+        if current_qty is None:
+            raise DataUnavailableError(
+                f"Position quantity unavailable for trade {trade_id} (symbol {symbol}). "
+                f"Cannot execute exit without known current position size."
+            )
+        current_qty_f = float(current_qty)  # float preserves fractional shares
+
+        return (symbol, entry_price_f, entry_qty_i, stop_loss_price_f, alpaca_order_id,
+                position_id, current_qty_f, target_hits, position_status)
+
+    def _calculate_exit_shares(self, current_qty: float, exit_fraction: float) -> tuple[float, bool]:
+        """Calculate number of shares to exit with proper rounding.
+
+        Args:
+            current_qty: Current position size
+            exit_fraction: Fraction of position to exit (0 < x <= 1)
+
+        Returns:
+            Tuple of (shares_to_exit, is_full_exit)
+        """
+        current_qty_dec = Decimal(str(current_qty))
+        exit_frac_dec = Decimal(str(exit_fraction))
+        shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
+        shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
+        shares_to_exit = float(shares_to_exit_dec)
+        full_exit = shares_to_exit >= current_qty
+
+        return shares_to_exit, full_exit
+
+    def _execute_exit(  # noqa: C901
+        self,
+        cur: PsycopgCursor[Any],
+        trade_id: int,
+        exit_price: float,
+        exit_reason: str,
+        exit_fraction: float,
+        exit_stage: str | None,
+        new_stop_price: float | None,
+    ) -> dict[str, Any]:
+        """Execute the core exit transaction with all safety guards.
+
+        Orchestrates exit flow: guard checks → data fetching → share calculation →
+        bracket cancellation → order submission → P&L recording.
+        """
+        # GUARD 1: Check if trade already closed (idempotency)
+        guard1_error = self._check_trade_not_already_closed(cur, trade_id)
+        if guard1_error:
+            return guard1_error
+
+        # GUARD 2: Fetch and lock trade/position data
+        row = self._fetch_and_lock_trade_data(cur, trade_id)
+
+        # Validate and convert data types
         (
             symbol,
             entry_price,
@@ -271,26 +373,9 @@ class ExitHandler:
             current_qty,
             _target_hits,
             position_status,
-        ) = row
+        ) = self._validate_and_convert_trade_data(cur, trade_id, row)
 
-        # Lock algo_positions separately now that we have the position_id.
-        if position_id is not None:
-            cur.execute(
-                "SELECT 1 FROM algo_positions WHERE position_id = %s FOR UPDATE",
-                (position_id,),
-            )
-
-        entry_price = float(entry_price)
-        entry_qty = int(entry_qty)
-        stop_loss_price = float(stop_loss_price)
-
-        if current_qty is None:
-            raise DataUnavailableError(
-                f"Position quantity unavailable for trade {trade_id} (symbol {symbol}). "
-                f"Cannot execute exit without known current position size."
-            )
-        current_qty = float(current_qty)  # float preserves fractional shares (int would truncate 0.5->0)
-
+        # GUARD 3: Check position status
         if position_status == "closed":
             return {
                 "success": False,
@@ -302,13 +387,7 @@ class ExitHandler:
             return {"success": False, "message": f"No open position for {trade_id}"}
 
         # Calculate shares to exit
-        current_qty_dec = Decimal(str(current_qty))
-        exit_frac_dec = Decimal(str(exit_fraction))
-        shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
-        shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
-        shares_to_exit = float(shares_to_exit_dec)
-        full_exit = shares_to_exit >= current_qty
+        shares_to_exit, full_exit = self._calculate_exit_shares(current_qty, exit_fraction)
 
         # Cancel bracket orders on full exit
         if full_exit and alpaca_order_id:
