@@ -39,7 +39,6 @@ class FileLockManager:
         self.lock_dir.mkdir(exist_ok=True, parents=True)
         self.lock_duration_seconds = lock_duration_seconds
         self.enable_auto_cleanup = enable_auto_cleanup
-        self.acquired = False
         self.current_lock_file: Path | None = None
         self.is_available = True
 
@@ -85,28 +84,32 @@ class FileLockManager:
         while time.time() - start_time < timeout_seconds:
             attempt += 1
 
-            # Check if lock file exists and is valid
-            if lock_file.exists():
-                try:
-                    with open(lock_file, encoding="utf-8") as f:
-                        content = f.read().strip()
-                        # Format: "lock_id|expiry_timestamp"
-                        parts = content.split("|")
-                        if len(parts) >= 2:
-                            expiry_str = parts[1]
-                            expiry = datetime.fromisoformat(expiry_str)
-                            if datetime.utcnow() < expiry:
-                                # Lock is still valid
-                                logger.debug(f"[FILE_LOCK] Lock held by another instance: {lock_file.name}")
-                                if attempt == 1:
-                                    logger.warning(
-                                        f"[LOCK] Another instance already running (lock: {lock_key}). "
-                                        f"Skipping: {lock_key}"
-                                    )
-                                time.sleep(0.1)
-                                continue
-                except Exception as e:
-                    logger.warning(f"[FILE_LOCK] Error reading lock file: {e}")
+            lock_is_valid = False
+            try:
+                with open(lock_file, encoding="utf-8") as f:
+                    content = f.read().strip()
+                    # Format: "lock_id|expiry_timestamp"
+                    parts = content.split("|")
+                    if len(parts) >= 2:
+                        expiry_str = parts[1]
+                        expiry = datetime.fromisoformat(expiry_str)
+                        if datetime.utcnow() < expiry:
+                            lock_is_valid = True
+                            logger.debug(f"[FILE_LOCK] Lock held by another instance: {lock_file.name}")
+                            if attempt == 1:
+                                logger.warning(
+                                    f"[LOCK] Another instance already running (lock: {lock_key}). "
+                                    f"Skipping: {lock_key}"
+                                )
+            except FileNotFoundError:
+                lock_is_valid = False  # Lock file deleted, treat as available
+            except Exception as e:
+                logger.warning(f"[FILE_LOCK] Error reading lock file: {e}")
+                lock_is_valid = False
+
+            if lock_is_valid:
+                time.sleep(0.1)
+                continue
 
             # Try to acquire lock
             try:
@@ -118,7 +121,6 @@ class FileLockManager:
                 with open(lock_file, "w", encoding="utf-8") as f:
                     f.write(lock_content)
 
-                self.acquired = True
                 self.current_lock_file = lock_file
                 logger.info(f"[FILE_LOCK] Lock acquired: {lock_file.name}")
                 return True
@@ -143,7 +145,8 @@ class FileLockManager:
         try:
             if lock_file.exists():
                 lock_file.unlink()
-                self.acquired = False
+                if lock_file == self.current_lock_file:
+                    self.current_lock_file = None
                 logger.info(f"[FILE_LOCK] Lock released: {lock_file.name}")
                 return True
         except Exception as e:
