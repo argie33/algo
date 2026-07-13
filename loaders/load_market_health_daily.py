@@ -68,7 +68,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         """
         if symbols is None or (isinstance(symbols, list) and len(symbols) == 0):
             symbols = ["market"]
-        return super().run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)  # type: ignore[arg-type]
+        return super().run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)
 
     def fetch_vix_with_breaker(self, start: date, end: date) -> dict[str, Any]:
         return self._vix_fetcher.fetch(start, end)
