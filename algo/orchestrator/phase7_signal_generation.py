@@ -180,15 +180,26 @@ def _detect_upstream_data_quality_drift(run_date: _date, signal_source: str) -> 
                     (lookback_date, run_date),
                 )
             else:
+                # For non-buysell sources: check if stock_scores has ANY data
                 cur.execute(
                     """
                     SELECT COUNT(DISTINCT symbol)
                     FROM stock_scores
-                    WHERE composite_score IS NOT NULL AND date <= %s LIMIT 1
+                    WHERE composite_score IS NOT NULL
                     """,
-                    (run_date,),
                 )
+                row = cur.fetchone()
+                if not row or not row[0] or row[0] == 0:
+                    # No stock_scores data = drift detected
+                    drift["has_drift"] = True
+                    drift["drift_message"] = (
+                        f"No stock_scores data available (source={signal_source}, date={run_date}). "
+                        f"Check stock_scores loader."
+                    )
+                    logger.warning(f"[PHASE 7] DATA QUALITY ALERT: {drift['drift_message']}")
+                return drift  # Early return for non-buysell branch
 
+            # buysell_breakout branch: check for missing stock_scores
             row = cur.fetchone()
             if row and row[0] and row[0] > 0:
                 drift["has_drift"] = True
