@@ -301,14 +301,11 @@ def _dispatch(  # noqa: C901
 
     # Dispatch to handler functions by path
     if path == "/api/algo/status":
-        if jwt_claims is not None and not check_admin_access(jwt_claims):
-            logger.warning(f"Unauthorized algo status access attempt by {user_id}")
-            raise_api_error(403, "forbidden", "Admin access required")
+        # PUBLIC ENDPOINT: Dashboard data, no auth required
+        # jwt_claims should be None for public access
         return _get_algo_status(cur)
     elif path == "/api/algo/trades":
-        if jwt_claims is not None and not check_admin_access(jwt_claims):
-            logger.warning(f"Unauthorized algo trades access attempt by {user_id}")
-            raise_api_error(403, "forbidden", "Admin access required")
+        # PUBLIC ENDPOINT: Trade history, no auth required
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
         status_filter = extract_param(params, "status")
         if status_filter and status_filter not in (
