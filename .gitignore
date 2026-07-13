@@ -202,6 +202,9 @@ LOADER_TESTING_*.md
 !steering/VIOLATIONS_FIX_SUMMARY.md
 !steering/ORCHESTRATOR_SCHEDULER_FIX.md
 !steering/ORCHESTRATOR_DATA_STALENESS_INCIDENT.md
+# EXCEPTION: Core infrastructure & performance analysis docs (not session-specific)
+!PRICING_LOADER_ANALYSIS.md
+!REDIS_SETUP_FOR_PRICE_CACHE.md
 *_REPORT.md
 *_PLAN.md
 CURRENT_SESSION_*.md
