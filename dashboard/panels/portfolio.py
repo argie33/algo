@@ -200,20 +200,19 @@ def panel_portfolio(
 
     lgpos = port.get("largest_position_pct")
     snap = port.get("snapshot_date")
+    # max_pos_n is a UI display limit (how many position slots to show), not financial
+    # data -- raising here would blank the entire portfolio panel (including real $ P&L)
+    # over a missing display threshold. Default it, same as the rest of this panel's
+    # optional fields, and log loudly so a genuinely missing config is still visible.
     max_n_val = cfg.get("max_pos_n") if cfg else None
     if max_n_val is None:
-        # FAIL-FAST: Configuration must be complete. Position limits come from config, never guess.
-        raise ValueError(
-            "CRITICAL: Position limit config (max_pos_n) is missing. "
-            "Dashboard cannot determine position limit without explicit config. "
-            "Check config loader and ensure max_pos_n is populated from database."
-        )
-    # Config should always provide valid int, trust it
+        logger.warning("[PORTFOLIO] Config max_pos_n missing, using fallback default value of 12")
+        max_n_val = 12
     try:
         max_n = int(max_n_val)
     except (ValueError, TypeError):
-        logger.error(f"Config max_pos_n is invalid: {max_n_val}")
-        raise RuntimeError("Config corruption: max_pos_n must be integer") from None
+        logger.error(f"Config max_pos_n is invalid: {max_n_val}, using fallback default value of 12")
+        max_n = 12
 
     # GOVERNANCE FIX: Check data freshness and warn if stale (>24h old)
     stale_warning = ""

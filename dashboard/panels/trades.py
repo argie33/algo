@@ -77,6 +77,25 @@ from ..utilities import (
 from .data_extractors import safe_get_field
 
 
+def _compute_trade_grade(rmul: float | None) -> str:
+    """Derive a letter grade for a closed trade from its R-multiple.
+
+    swing_grade (migration 103) was dropped from algo_trades because it was
+    never populated -- always NULL even before removal. R-multiple is real,
+    always-available closed-trade performance data, so grade off that instead
+    of displaying a column that can structurally never have data.
+    """
+    if rmul is None:
+        return "--"
+    if rmul >= 2:
+        return "A"
+    if rmul >= 1:
+        return "B"
+    if rmul >= 0:
+        return "C"
+    return "D"
+
+
 def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
     """Extract items list from various data structure formats.
 
@@ -284,9 +303,7 @@ def panel_recent_trades(trades: Any) -> Any:
         pnl_for_color = pnl_d if pnl_d is not None else pnl_p
         pc = G if (pnl_for_color is not None and pnl_for_color > 0) else R
         si = f"[{G}]▲[/]" if (pnl_p is not None and pnl_p > 0) else f"[{R}]▼[/]"
-        # MEDIUM FIX: Explicit None check instead of or operator for grade (expanded)
-        grade_val_exp = safe_get_field(tr, "swing_grade")
-        grade = grade_val_exp if grade_val_exp is not None else "--"
+        grade = _compute_trade_grade(rmul)
         grade_c = (
             G
             if grade in ("A", "A+", "A-")
@@ -452,9 +469,7 @@ def panel_trades_expanded(trades: Any) -> Any:
         exit_p = float(exit_raw) if exit_raw is not None else None
         dur_raw = safe_get_field(tr, "trade_duration_days")
         dur = int(dur_raw) if dur_raw is not None else None
-        # MEDIUM FIX: Explicit None check instead of or operator for grade display (full expanded)
-        grade_val_full = safe_get_field(tr, "swing_grade")
-        grade = grade_val_full if grade_val_full is not None else "--"
+        grade = _compute_trade_grade(rmul)
         mfe_raw = safe_get_field(tr, "mfe_pct")
         mae_raw = safe_get_field(tr, "mae_pct")
         mfe = float(mfe_raw) if mfe_raw is not None else None

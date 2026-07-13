@@ -162,14 +162,18 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            # FAIL-FAST: Auth errors must not fall back to defaults
-            # Missing config is a deployment issue that must be fixed, not silently worked around
+            # 'cfg' is a critical fetcher (dashboard/fetchers.py) -- raising here would take
+            # down the ENTIRE dashboard, not just the panels that use config. An auth error
+            # is a real problem worth surfacing loudly, but as a per-panel _error marker (the
+            # existing has_error(ctx.cfg) check in renderers/pipeline.py already degrades only
+            # the portfolio panel), not a RuntimeError that kills every other panel too.
             if data.get("_auth_error"):
-                raise RuntimeError(
+                logger.error(
                     "CRITICAL: Cannot fetch config due to auth error (401). "
-                    "Configuration is required for dashboard operation. "
                     "This indicates Cognito auth is not properly configured. Check credentials and retry."
                 )
+                record_data_quality_issue("cfg", "api_call", "auth_error", error_msg or "401 auth error")
+                return FetcherValidator.build_error_response(error_msg or "Cognito auth error (401)")
 
             record_data_quality_issue("cfg", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)

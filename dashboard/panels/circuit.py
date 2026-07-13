@@ -129,12 +129,6 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
             border_style="red",
             padding=(0, 1),
         )
-    if any_raw is None:
-        raise ValueError(
-            "CRITICAL: Circuit breaker status missing 'any' field. "
-            "Cannot display circuit breaker status without complete data. "
-            "This indicates missing data from circuit_breaker_status table - check data loader."
-        )
     any_f = any_raw if isinstance(any_raw, bool) else bool(any_raw)
     hc = R if any_f else G
     if not any_f:
