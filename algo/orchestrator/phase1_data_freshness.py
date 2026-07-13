@@ -173,14 +173,24 @@ def _validate_config(config: Any) -> tuple[int, int, int, int, int]:
             "Cannot proceed without explicit symbol count threshold (no hardcoded fallback)."
         ) from e
 
+    # CRITICAL FIX: Require explicit config for all timing parameters - no silent fallbacks
+    # These timing thresholds directly affect whether we halt trading for stale data
+    required_keys = ["phase1_recent_cutoff_days", "phase1_prior_cutoff_days", "phase1_halt_table_max_tolerance_days"]
+    missing = [k for k in required_keys if k not in config]
+    if missing:
+        raise RuntimeError(
+            f"[PHASE 1] Config missing required timing thresholds: {missing}. "
+            "Data staleness tolerance thresholds must be explicit in algo_config table. "
+            "Cannot use hardcoded fallbacks for trading safety decisions."
+        )
+
     try:
-        phase1_recent_cutoff_days = config.get("phase1_recent_cutoff_days", 2)
-        phase1_prior_cutoff_days = config.get("phase1_prior_cutoff_days", 2)
-        phase1_halt_table_max_tolerance_days = config.get("phase1_halt_table_max_tolerance_days", 1)
+        phase1_recent_cutoff_days = config["phase1_recent_cutoff_days"]
+        phase1_prior_cutoff_days = config["phase1_prior_cutoff_days"]
+        phase1_halt_table_max_tolerance_days = config["phase1_halt_table_max_tolerance_days"]
     except (KeyError, TypeError) as e:
         raise RuntimeError(
-            f"[PHASE 1] Config error reading staleness thresholds: {e}. "
-            "Defaults: phase1_recent_cutoff_days=2, phase1_prior_cutoff_days=2, phase1_halt_table_max_tolerance_days=1"
+            f"[PHASE 1] Config error reading staleness thresholds: {e}"
         ) from e
 
     return (

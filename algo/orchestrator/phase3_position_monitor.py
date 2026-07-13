@@ -206,7 +206,14 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
         # In paper trading mode, log the error but don't halt — allow phases 4-8 to continue
         # This allows testing of trading logic even if position monitoring fails
-        if config.get("is_paper_trading", False):
+        # CRITICAL FIX: Require explicit config - fail-fast if missing
+        if "is_paper_trading" not in config:
+            raise ValueError(
+                "[PHASE 3] Config missing 'is_paper_trading'. "
+                "Trading mode must be explicit (paper vs live). "
+                "Check algo_config table has this key."
+            )
+        if config["is_paper_trading"]:
             logger.warning(
                 f"[PHASE 3 PAPER MODE] Position monitor failed but continuing paper trading: {type(e).__name__}: {e}"
             )

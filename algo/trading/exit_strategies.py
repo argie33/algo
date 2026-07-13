@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -115,6 +116,36 @@ class ExitStrategy(ABC):
             )
         return value
 
+    def _evaluate_engine_strategy(
+        self, check_method: Callable[[Any], tuple[bool, dict[str, Any] | None]], include_new_stop: bool = False
+    ) -> ExitSignal:
+        """Common pattern: create engine, call check method, validate and return signal.
+
+        Args:
+            check_method: Callable that takes engine and returns (should_exit, decision)
+            include_new_stop: Whether to include new_stop from decision in result
+
+        Returns:
+            ExitSignal with decision fields or no-exit signal if not triggered
+        """
+        from algo.trading.exit_engine import ExitEngine
+
+        engine = ExitEngine(self.config)
+        _should_exit, decision = check_method(engine)
+
+        if _should_exit and decision:
+            self._validate_decision(decision)
+            kwargs = {
+                "triggered": True,
+                "stage": decision["stage"],
+                "reason": decision["reason"],
+                "fraction": decision["fraction"],
+            }
+            if include_new_stop:
+                kwargs["new_stop"] = decision.get("new_stop")
+            return ExitSignal(**kwargs)
+        return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
+
 
 class StopLossStrategy(ExitStrategy):
     """Exit if current price <= active stop-loss."""
@@ -134,60 +165,21 @@ class MinerviniBreakStrategy(ExitStrategy):
     """Exit on Minervini break: close < 21-EMA on volume > 50d avg (or cleanly below 50-DMA)."""
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        from algo.trading.exit_engine import ExitEngine
-
-        engine = ExitEngine(self.config)
-        _should_exit, decision = ctx.check_minervini_break(engine)
-
-        if _should_exit and decision:
-            self._validate_decision(decision)
-            return ExitSignal(
-                triggered=True,
-                stage=decision["stage"],
-                reason=decision["reason"],
-                fraction=decision["fraction"],
-            )
-        return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_minervini_break(engine))
 
 
 class RSLineBreakStrategy(ExitStrategy):
     """Exit on RS line breaking below support."""
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        from algo.trading.exit_engine import ExitEngine
-
-        engine = ExitEngine(self.config)
-        _should_exit, decision = ctx.check_rs_line_break(engine)
-
-        if _should_exit and decision:
-            self._validate_decision(decision)
-            return ExitSignal(
-                triggered=True,
-                stage=decision["stage"],
-                reason=decision["reason"],
-                fraction=decision["fraction"],
-            )
-        return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_rs_line_break(engine))
 
 
 class TimeBasedExitStrategy(ExitStrategy):
     """Exit if position held >= max_hold_days."""
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        from algo.trading.exit_engine import ExitEngine
-
-        engine = ExitEngine(self.config)
-        _should_exit, decision = ctx.check_time_exit(engine)
-
-        if _should_exit and decision:
-            self._validate_decision(decision)
-            return ExitSignal(
-                triggered=True,
-                stage=decision["stage"],
-                reason=decision["reason"],
-                fraction=decision["fraction"],
-            )
-        return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_time_exit(engine))
 
 
 class ProfitTargetStrategy(ExitStrategy):
@@ -247,41 +239,14 @@ class ChandelierTrailStrategy(ExitStrategy):
     """Exit on chandelier stop trail (3xATR from highest high or 21-EMA after 10d)."""
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        from algo.trading.exit_engine import ExitEngine
-
-        engine = ExitEngine(self.config)
-        _should_exit, decision = ctx.check_chandelier_trail(engine)
-
-        if _should_exit and decision:
-            self._validate_decision(decision)
-            return ExitSignal(
-                triggered=True,
-                stage=decision["stage"],
-                reason=decision["reason"],
-                fraction=decision["fraction"],
-                new_stop=decision.get("new_stop"),
-            )
-        return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_chandelier_trail(engine), include_new_stop=True)
 
 
 class TDSequentialStrategy(ExitStrategy):
     """Exit on TD Sequential exhaustion (9-count 50%, 13-count 100%)."""
 
     def evaluate(self, ctx: PositionContext, cur: PsycopgCursor[Any]) -> ExitSignal:
-        from algo.trading.exit_engine import ExitEngine
-
-        engine = ExitEngine(self.config)
-        _should_exit, decision = ctx.check_td_sequential(engine)
-
-        if _should_exit and decision:
-            self._validate_decision(decision)
-            return ExitSignal(
-                triggered=True,
-                stage=decision["stage"],
-                reason=decision["reason"],
-                fraction=decision["fraction"],
-            )
-        return ExitSignal(triggered=False, stage="hold", reason="", fraction=0.0)
+        return self._evaluate_engine_strategy(lambda engine: ctx.check_td_sequential(engine))
 
 
 class FirstRedDayStrategy(ExitStrategy):

@@ -46,7 +46,16 @@ class DailyReconciliation:
         except (KeyError, ValueError, AttributeError) as e:
             # For paper trading without Alpaca credentials, allow graceful degradation
             has_alpaca_creds = bool(os.getenv("APCA_API_KEY_ID")) and bool(os.getenv("APCA_API_SECRET_KEY"))
-            is_paper_trading = config.get("alpaca_paper_trading", True) if isinstance(config, dict) else True
+            # CRITICAL FIX: Must require explicit config - no silent fallback to True
+            # If config missing this key, fail-fast so we know trading mode isn't determined
+            if not isinstance(config, dict) or "alpaca_paper_trading" not in config:
+                raise ValueError(
+                    "[RECONCILIATION INIT] Config missing required 'alpaca_paper_trading' key. "
+                    "Trading mode must be explicitly set. "
+                    "Check: (1) algo_config table has alpaca_paper_trading row, "
+                    "(2) AlgoConfig.get() returns complete config dict"
+                )
+            is_paper_trading = config.get("alpaca_paper_trading")
 
             if is_paper_trading and not has_alpaca_creds:
                 # Paper trading without credentials is acceptable - skip reconciliation

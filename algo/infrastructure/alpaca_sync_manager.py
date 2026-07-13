@@ -31,7 +31,15 @@ class AlpacaSyncManager:
         # Paper trading mode can degrade gracefully without valid Alpaca credentials
         has_key = "key" in creds and bool(creds.get("key"))
         has_secret = "secret" in creds and bool(creds.get("secret"))
-        is_paper_trading = config.get("alpaca_paper_trading", False) if isinstance(config, dict) else False
+        # CRITICAL FIX: Require explicit config - fail-fast if missing
+        # No silent fallback to False (which would attempt live trading)
+        if not isinstance(config, dict) or "alpaca_paper_trading" not in config:
+            raise ValueError(
+                "[ALPACA_SYNC] Config missing 'alpaca_paper_trading'. "
+                "Trading mode must be explicit (paper vs live). "
+                "Check algo_config table has this key."
+            )
+        is_paper_trading = config["alpaca_paper_trading"]
 
         if not has_key or not has_secret:
             if is_paper_trading:

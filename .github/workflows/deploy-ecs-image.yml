@@ -5,6 +5,10 @@ name: Deploy ECS Docker Image
 # tasks to pick up the new code without a full Terraform apply.
 
 on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
   workflow_dispatch:
     inputs:
       force_recreate:
@@ -26,6 +30,7 @@ jobs:
   # GOVERNANCE: Validate code before building Docker image
   validate:
     name: Validate Code (Lint, Type Check, Tests)
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
