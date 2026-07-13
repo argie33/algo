@@ -99,7 +99,6 @@ class MarketFactorCalculator:
         Level tiers: <15=100, 15-25=80, 25-35=40, 35+=0
         Term structure penalty if inverted (backwardation).
         """
-        level_score = 100.0
         if vix < 15:
             level_score = 100.0
         elif vix < 25:
@@ -192,8 +191,6 @@ class MarketFactorCalculator:
             if row and row[0] is not None and row[1] is not None:
                 spy = float(row[0])
                 sma = float(row[1])
-                if spy is None or sma is None:
-                    raise ValueError(f"SPY trend data not numeric: close={row[0]}, sma={row[1]}")
                 score = 100.0 if spy > sma else 0.0
                 return {"above_30wma": spy > sma, "score": score, "value": "bullish" if spy > sma else "bearish"}
             raise RuntimeError(
@@ -234,8 +231,6 @@ class MarketFactorCalculator:
             if row and row[0] is not None and row[1] is not None:
                 current = float(row[0])
                 year_ago = float(row[1])
-                if current is None or year_ago is None:
-                    raise ValueError(f"SPY momentum data not numeric: current={row[0]}, year_ago={row[1]}")
                 if year_ago <= 0:
                     raise ValueError(f"Year-ago price must be positive for momentum calculation: {year_ago}")
                 ret = (current - year_ago) / year_ago
@@ -274,15 +269,14 @@ class MarketFactorCalculator:
                 )
 
             most_recent_date = price_row[0]
-            if hasattr(eval_date, "__sub__"):
-                age = eval_date - most_recent_date
-                if hasattr(age, "days") and age.days > 0:
-                    raise RuntimeError(
-                        f"[SELLING_PRESSURE CRITICAL] SPY price data is stale: from {most_recent_date}, "
-                        f"but eval_date is {eval_date} ({age.days} days old). "
-                        f"Distribution day detection requires TODAY's market data (prices, volumes). "
-                        f"Cannot use yesterday's selling pressure for today's risk assessment."
-                    )
+            age = eval_date - most_recent_date
+            if age.days > 0:
+                raise RuntimeError(
+                    f"[SELLING_PRESSURE CRITICAL] SPY price data is stale: from {most_recent_date}, "
+                    f"but eval_date is {eval_date} ({age.days} days old). "
+                    f"Distribution day detection requires TODAY's market data (prices, volumes). "
+                    f"Cannot use yesterday's selling pressure for today's risk assessment."
+                )
 
             # Now calculate distribution days from last 25 sessions
             cur.execute(

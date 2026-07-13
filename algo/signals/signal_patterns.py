@@ -2,6 +2,8 @@
 
 """Pattern-based signal methods — base detection, VCP, 3WT, HTF."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
 from datetime import date as _date

@@ -12,6 +12,8 @@ Handles:
 - Exit notifications
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from decimal import ROUND_HALF_UP, Decimal

@@ -19,6 +19,8 @@ The monitor PROPOSES adjustments - actual stop-raising executes via
 TradeExecutor.exit_trade(new_stop_price=...) in the orchestrator.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from collections.abc import Callable

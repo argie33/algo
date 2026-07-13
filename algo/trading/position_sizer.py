@@ -10,6 +10,8 @@ Rules:
 - Max positions: 12 concurrent
 """
 
+from __future__ import annotations
+
 import decimal
 import logging
 import os
