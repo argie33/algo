@@ -524,13 +524,11 @@ class MarketFactorCalculator:
         NAAIM is a 3pt factor. Missing positioning data is a data error, not a skip condition.
         """
         try:
-            cur.execute("SAVEPOINT sp_naaim")
             cur.execute(
                 "SELECT naaim_number_mean FROM naaim WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
-            cur.execute("RELEASE SAVEPOINT sp_naaim")
             if row is not None and row[0] is not None:
                 exp = float(row[0])
                 score = min(100, max(0, 100 - exp / 2))
@@ -542,11 +540,6 @@ class MarketFactorCalculator:
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            try:
-                cur.execute("ROLLBACK TO SAVEPOINT sp_naaim")
-                cur.execute("RELEASE SAVEPOINT sp_naaim")
-            except Exception as cleanup_err:
-                logger.error(f"Savepoint cleanup failed (naaim): {cleanup_err}", exc_info=True)
             raise RuntimeError(
                 f"[NAAIM CRITICAL] NAAIM query failed: {e}. Cannot proceed without professional positioning data."
             ) from e
