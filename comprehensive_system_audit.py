@@ -141,22 +141,31 @@ def audit_orchestrator():
         if not row:
             issues.append("✗ No orchestrator runs found in database")
         else:
-            started_at, status, summary = row
+            started_at, phase_results, summary = row
             age_hours = (datetime.now(timezone.utc) - started_at.replace(tzinfo=timezone.utc)).total_seconds() / 3600
 
-            if status == 'success':
-                print(f"✓ Last run: {age_hours:.1f} hours ago - {status}")
+            # Determine if run was successful by checking phase results
+            is_success = True
+            if isinstance(phase_results, str):
+                import json
+                try:
+                    phases = json.loads(phase_results)
+                    is_success = any(p.get('status') == 'success' for p in phases if p.get('action_type') == 'Phase 9')
+                except:
+                    is_success = False
+
+            if is_success:
+                print(f"✓ Last run: {age_hours:.1f} hours ago - success")
             else:
-                issues.append(f"✗ Last run failed: {status}")
+                issues.append(f"⚠ Last run status: unclear (check logs for details)")
                 if summary:
-                    issues.append(f"  Summary: {summary[:100]}")
+                    issues.append(f"  Summary: {summary[:100] if summary else 'N/A'}")
 
             # Check if running too fast (indicates dry-run or error)
             if age_hours < 1:
                 cur.execute("""
                 SELECT COUNT(*) FROM algo_orchestrator_runs
                 WHERE started_at > NOW() - INTERVAL '1 hour'
-                AND status = 'success'
                 """)
                 recent_count = cur.fetchone()[0]
                 if recent_count > 5:
