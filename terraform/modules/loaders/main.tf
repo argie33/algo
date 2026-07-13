@@ -658,6 +658,7 @@ resource "aws_ecs_task_definition" "loader" {
         ],
         # Unified price loader: handles all intervals and asset classes
         # OPTIMIZATION 2026-07-10: Load daily only (removed unused weekly/monthly)
+        # SESSION 106 FIX: Load stocks only (no ETFs), parallelism=1 to prevent yfinance rate limiting
         each.key == "stock_prices_daily" ? [
           {
             name  = "LOADER_INTERVALS"
@@ -665,7 +666,11 @@ resource "aws_ecs_task_definition" "loader" {
           },
           {
             name  = "LOADER_ASSET_CLASSES"
-            value = "stock,etf"
+            value = "stock"
+          },
+          {
+            name  = "LOADER_PARALLELISM"
+            value = "1"
           }
         ] : [],
         # Financial loaders: determine period and statement type from task name
