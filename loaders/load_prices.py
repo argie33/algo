@@ -2294,8 +2294,26 @@ def main() -> int:
             logger.error("Invalid asset class: {a}. Must be one of: %s", valid_classes)
             return 1
 
-    # Advisory lock: only one price loader instance at a time.
+    # Row-based lock: only one price loader instance at a time.
+    #
+    # Previously used pg_try_advisory_lock(), which failed in production: advisory
+    # locks are held in server-local shared memory, visible only to sessions on the
+    # SAME physical backend connection. Confirmed live 2026-07-13: two concurrent
+    # stock_prices_daily ECS tasks (efe12da8..., f674f20d...) both logged
+    # "pg_try_advisory_lock acquired=True" with different backend_pid, and both
+    # actively processed symbols at the same time -- RDS Proxy's connection pinning/
+    # multiplexing under concurrent load broke the single-server assumption
+    # pg_try_advisory_lock depends on for correctness.
+    #
+    # A row-based lock (migration 1111: loader_execution_locks) sidesteps this
+    # entirely: its correctness depends only on standard MVCC row visibility and an
+    # atomic UPDATE...WHERE, which RDS Proxy preserves correctly regardless of which
+    # physical backend a session is pinned to -- any connection sees the same
+    # committed row. expires_at bounds how long a crashed/killed task can hold the
+    # lock without ever reaching its own release path.
     _lock_conn = None
+    _lock_token = str(uuid.uuid4())
+    _lock_expiry_sec = max(execution_timeout_sec + 300, 600)
     try:
         from utils.db.connection import get_db_connection
 
@@ -2311,22 +2329,25 @@ def main() -> int:
         _lock_conn.autocommit = True  # type: ignore[attr-defined]
         with _lock_conn.cursor() as _cur:
             _cur.execute(
-                "SELECT pg_try_advisory_lock(hashtext(%s)::bigint)",
-                ("stock_prices_daily",),
+                """
+                INSERT INTO loader_execution_locks (loader_name, locked_by, locked_at, expires_at)
+                VALUES (%s, %s, NOW(), NOW() + %s * INTERVAL '1 second')
+                ON CONFLICT (loader_name) DO UPDATE
+                    SET locked_by = EXCLUDED.locked_by,
+                        locked_at = EXCLUDED.locked_at,
+                        expires_at = EXCLUDED.expires_at
+                    WHERE loader_execution_locks.expires_at < NOW()
+                RETURNING locked_by
+                """,
+                ("stock_prices_daily", _lock_token, _lock_expiry_sec),
             )
             row = _cur.fetchone()
-            if row is None:
-                raise RuntimeError(
-                    "[CRITICAL] Advisory lock query returned no rows - database connection may be corrupted"
-                )
-            acquired = row[0]
-            _cur.execute("SELECT pg_backend_pid(), inet_server_addr()")
-            _pid_row = _cur.fetchone()
+            acquired = row is not None and row[0] == _lock_token
             logger.info(
-                "[LOCK] pg_try_advisory_lock('stock_prices_daily') acquired=%s backend_pid=%s server=%s",
+                "[LOCK] loader_execution_locks('stock_prices_daily') acquired=%s token=%s expiry_sec=%s",
                 acquired,
-                _pid_row[0] if _pid_row else None,
-                _pid_row[1] if _pid_row else None,
+                _lock_token,
+                _lock_expiry_sec,
             )
         if not acquired:
             try:
@@ -2335,36 +2356,35 @@ def main() -> int:
                 logger.debug("Could not close lock connection: %s", close_err)
             _lock_conn = None
             raise RuntimeError(
-                "[LOAD_PRICES] CRITICAL: Another stock_prices_daily instance already running (advisory lock held). "
-                "Price updates cannot proceed. Check for concurrent loader instances."
+                "[LOAD_PRICES] CRITICAL: Another stock_prices_daily instance already running (row lock held "
+                "and not expired). Price updates cannot proceed. Check for concurrent loader instances."
             )
         else:
             # Guarantee the lock is released no matter how this process exits
             # (SIGALRM self-timeout raises TimeoutError, any other unhandled
             # exception, etc.) -- previously the only release was a
             # `_lock_conn.close()` at the very end of the success path, so any
-            # exception/timeout mid-run left the advisory lock held until the
-            # dead connection's TCP session was reaped, which could take far
-            # longer than one loader cycle and caused every subsequent run to
-            # immediately fail with "already running" even with no real
-            # concurrent instance.
+            # exception/timeout mid-run left the lock held until expires_at, which
+            # could take far longer than one loader cycle and caused every
+            # subsequent run to immediately fail with "already running" even with
+            # no real concurrent instance.
             import atexit
 
-            def _release_price_loader_lock(conn: Any = _lock_conn) -> None:
+            def _release_price_loader_lock(conn: Any = _lock_conn, token: str = _lock_token) -> None:
                 try:
                     with conn.cursor() as _unlock_cur:
                         _unlock_cur.execute(
-                            "SELECT pg_advisory_unlock(hashtext(%s)::bigint)",
-                            ("stock_prices_daily",),
+                            "DELETE FROM loader_execution_locks WHERE loader_name = %s AND locked_by = %s",
+                            ("stock_prices_daily", token),
                         )
                 except psycopg2.Error as unlock_err:
                     # InterfaceError ("connection already closed") happens when the DB
                     # pool's own idle-connection cleanup beats atexit to closing this
-                    # connection -- harmless, the lock releases with the connection
-                    # either way, but psycopg2.Error (not just DatabaseError/
+                    # connection -- harmless, the lock releases via expires_at either
+                    # way, but psycopg2.Error (not just DatabaseError/
                     # OperationalError) is needed to actually catch it instead of
                     # leaking an "exception ignored in atexit callback" warning.
-                    logger.debug("Could not explicitly unlock advisory lock: %s", unlock_err)
+                    logger.debug("Could not explicitly release row lock: %s", unlock_err)
                 finally:
                     try:
                         conn.close()
