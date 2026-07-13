@@ -930,7 +930,38 @@ jobs:
         if: |
           steps.tf_plan.outputs.has_changes == 'true' &&
           github.event.inputs.skip_terraform != 'true'
-        run: terraform apply -auto-approve tfplan
+        run: |
+          # aws_lambda_provisioned_concurrency_config occasionally fails with
+          # "Requested Provisioned Concurrency should not be greater than the
+          # reservedConcurrentExecution for function" even though reserved
+          # concurrency was already applied and read back correctly earlier in
+          # this same run (see api_concurrency_propagation_delay comment in
+          # modules/services/main.tf) -- a genuine AWS-side eventual-consistency
+          # race on the newly-published function version, not a config bug.
+          # Re-applying the same saved plan is safe/idempotent: every resource
+          # that already succeeded matches the desired state and is a no-op,
+          # only the still-failing resource is retried.
+          attempt=1
+          max_attempts=3
+          while true; do
+            if terraform apply -auto-approve tfplan > /tmp/tf_apply_output.log 2>&1; then
+              cat /tmp/tf_apply_output.log
+              break
+            fi
+            status=$?
+            cat /tmp/tf_apply_output.log
+            if ! grep -q "Requested Provisioned Concurrency should not be greater than the reservedConcurrentExecution" /tmp/tf_apply_output.log; then
+              echo "Terraform apply failed with a non-transient error, not retrying."
+              exit "$status"
+            fi
+            if [ "$attempt" -ge "$max_attempts" ]; then
+              echo "Terraform apply failed after $max_attempts attempts (provisioned concurrency race did not clear)."
+              exit "$status"
+            fi
+            echo "Transient provisioned-concurrency race detected (attempt $attempt/$max_attempts) -- waiting 30s for AWS-side propagation and retrying..."
+            attempt=$((attempt + 1))
+            sleep 30
+          done
 
       - name: Skip Terraform Apply (User Input)
         if: github.event.inputs.skip_terraform == 'true'
