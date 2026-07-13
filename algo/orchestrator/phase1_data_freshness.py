@@ -45,6 +45,93 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
+def _check_failsafe_retry_result(
+    failsafe_result: dict[str, Any],
+    log_phase_result_fn: Callable[..., Any],
+) -> PhaseResult | None:
+    """Check failsafe retry result and return early if halt required.
+
+    Args:
+        failsafe_result: Result dict from check_and_retry_incomplete_loaders
+        log_phase_result_fn: Logging callback
+
+    Returns:
+        PhaseResult if halt required, None if can proceed
+    """
+    # Log failsafe results for visibility
+    logger.info(
+        f"[PHASE 1] Failsafe retry check: "
+        f"incomplete={len(failsafe_result.get('incomplete_loaders', []))} "
+        f"retried={len(failsafe_result.get('retried', []))} "
+        f"recovered={len(failsafe_result.get('recovered', []))} "
+        f"still_failing={len(failsafe_result.get('still_failing', []))} "
+        f"halt_required={failsafe_result.get('halt_required', False)}"
+    )
+
+    still_failing = failsafe_result.get("still_failing", [])
+    price_tables = {"price_daily", "price_weekly", "price_monthly", "etf_price_daily", "etf_price_weekly", "etf_price_monthly"}
+    if any(table in price_tables for table in still_failing):
+        price_coverage_pct = None
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """SELECT completion_pct FROM data_loader_status
+                       WHERE table_name='price_daily' ORDER BY last_updated DESC LIMIT 1"""
+                )
+                row = cur.fetchone()
+                if row and row[0] is not None:
+                    price_coverage_pct = row[0]
+        except Exception as e:
+            logger.warning(f"[PHASE 1] Could not check price coverage: {e}")
+
+        coverage_str = f"{price_coverage_pct:.1f}%" if price_coverage_pct else "unknown"
+        logger.critical(
+            f"[PHASE 1] CRITICAL: price_daily still incomplete after retry ({coverage_str} coverage). "
+            f"Cannot proceed without complete price data."
+        )
+        log_phase_result_fn(
+            1,
+            "incomplete_price_data_after_retry",
+            "halt",
+            f"price_daily {coverage_str} coverage after retry",
+        )
+        return PhaseResult(
+            1,
+            "incomplete_price_data_after_retry",
+            "halted",
+            failsafe_result,
+            True,
+            f"Price data incomplete after retry ({coverage_str}). Run recovery script: python scripts/recover_incomplete_loader.py",
+        )
+
+    if failsafe_result.get("halt_required") is True:
+        logger.critical(
+            "[PHASE 1] CRITICAL: Other critical loaders incomplete even after failsafe retry. "
+            "Cannot proceed with data processing."
+        )
+        still_failing = failsafe_result.get("still_failing")
+        if still_failing is None:
+            logger.error("[PHASE 1] failsafe_result missing 'still_failing' field — data quality issue")
+            still_failing = ["unknown"]
+        log_phase_result_fn(
+            1,
+            "incomplete_loaders_after_retry",
+            "halt",
+            f"Still incomplete after retry: {still_failing}",
+        )
+        still_failing_first = still_failing[0] if still_failing else "unknown"
+        return PhaseResult(
+            1,
+            "incomplete_loaders_after_retry",
+            "halted",
+            failsafe_result,
+            True,
+            f"Critical loaders incomplete after retry: {still_failing_first}",
+        )
+
+    return None
+
+
 def _validate_config(config: Any) -> tuple[int, int, int, int, int]:
     """Extract and validate required configuration parameters.
 
@@ -139,98 +226,10 @@ def run(  # noqa: C901
     )
 
     # PHASE 1 FAILSAFE: Check for and retry incomplete loaders before freshness check
-    # This prevents cascading failures when upstream loaders are incomplete
     failsafe_result = check_and_retry_incomplete_loaders(dry_run=dry_run)
-
-    # Log detailed failsafe retry results for operator visibility
-    logger.info(
-        f"[PHASE 1] Failsafe retry check: "
-        f"incomplete={len(failsafe_result.get('incomplete_loaders', []))} "
-        f"retried={len(failsafe_result.get('retried', []))} "
-        f"recovered={len(failsafe_result.get('recovered', []))} "
-        f"still_failing={len(failsafe_result.get('still_failing', []))} "
-        f"halt_required={failsafe_result.get('halt_required', False)}"
-    )
-
-    # CRITICAL FIX (Session 112): If price_daily still incomplete after retry, HALT immediately
-    # Before: partial prices (6 symbols) → Phase 1 continues → Dashboard shows "--" → Silent failure
-    # After: partial prices → Phase 1 detects → Halts immediately → Operator knows to recover
-    still_failing = failsafe_result.get("still_failing", [])
-    price_tables = {"price_daily", "price_weekly", "price_monthly", "etf_price_daily", "etf_price_weekly", "etf_price_monthly"}
-    if any(table in price_tables for table in still_failing):
-        # Check actual coverage
-        price_coverage_pct = None
-        try:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """SELECT completion_pct FROM data_loader_status
-                       WHERE table_name='price_daily' ORDER BY last_updated DESC LIMIT 1"""
-                )
-                row = cur.fetchone()
-                if row and row[0] is not None:
-                    price_coverage_pct = row[0]
-        except Exception as e:
-            logger.warning(f"[PHASE 1] Could not check price coverage: {e}")
-
-        coverage_str = f"{price_coverage_pct:.1f}%" if price_coverage_pct else "unknown"
-        logger.critical(
-            f"[PHASE 1] CRITICAL: price_daily still incomplete after retry ({coverage_str} coverage). "
-            f"Cannot proceed without complete price data. "
-            f"Dashboard would show '--' for all {10500 - int(price_coverage_pct * 10500 / 100 if price_coverage_pct else 0)} missing symbols."
-        )
-        log_phase_result_fn(
-            1,
-            "incomplete_price_data_after_retry",
-            "halt",
-            f"price_daily {coverage_str} coverage after retry—cannot proceed with {coverage_str}% data",
-        )
-        return PhaseResult(
-            1,
-            "incomplete_price_data_after_retry",
-            "halted",
-            failsafe_result,
-            True,
-            f"Price data incomplete after retry ({coverage_str}). Run recovery script: python scripts/recover_incomplete_loader.py",
-        )
-
-    if failsafe_result.get("halt_required") is True:
-        logger.critical(
-            "[PHASE 1] CRITICAL: Other critical loaders incomplete even after failsafe retry. "
-            "Cannot proceed with data processing."
-        )
-        still_failing = failsafe_result.get("still_failing")
-        if still_failing is None:
-            logger.error("[PHASE 1] failsafe_result missing 'still_failing' field — data quality issue")
-            still_failing = ["unknown"]
-        log_phase_result_fn(
-            1,
-            "incomplete_loaders_after_retry",
-            "halt",
-            f"Still incomplete after retry: {still_failing}",
-        )
-        still_failing_first = still_failing[0] if still_failing else "unknown"
-        return PhaseResult(
-            1,
-            "incomplete_loaders_after_retry",
-            "halted",
-            failsafe_result,
-            True,
-            f"Critical loaders incomplete after retry: {still_failing_first}",
-        )
-
-    if failsafe_result.get("incomplete_loaders") is True:
-        recovered = failsafe_result.get("recovered")
-        if recovered is None:
-            logger.error("[PHASE 1] failsafe_result missing 'recovered' field — data quality issue")
-            recovered = []
-        still_failing = failsafe_result.get("still_failing")
-        if still_failing is None:
-            logger.error("[PHASE 1] failsafe_result missing 'still_failing' field — data quality issue")
-            still_failing = []
-        logger.info(
-            f"[PHASE 1] Failsafe retry check: {len(recovered)} recovered, "
-            f"{len(still_failing)} still failing (auxiliary)"
-        )
+    failsafe_halt = _check_failsafe_retry_result(failsafe_result, log_phase_result_fn)
+    if failsafe_halt:
+        return failsafe_halt
 
     # ISSUE #6 FIX: Check DataPatrol results before proceeding with freshness validation
     # DataPatrol runs independently and validates data quality; Phase 1 must respect those findings
