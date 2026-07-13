@@ -15,12 +15,14 @@ from __future__ import annotations
 import decimal
 import logging
 import os
+import time
 from collections.abc import Callable
 from datetime import date as _date
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
 import psycopg2
+import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.infrastructure import get_alpaca_timeout
@@ -175,12 +177,6 @@ class PositionSizer:
         raise PortfolioValueError(error_msg)
 
     def _fetch_live_alpaca_equity(self) -> Decimal:
-        import logging
-        import time
-
-        import requests
-
-        logger = logging.getLogger(__name__)
         execution_mode = self.config.get("execution_mode", "paper")
 
         # In paper mode, skip Alpaca API and use database portfolio value

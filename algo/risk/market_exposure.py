@@ -72,7 +72,7 @@ from psycopg2.extensions import cursor as PsycopgCursor
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
-from utils.infrastructure.timezone import EASTERN_TZ  # noqa: F401
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -162,8 +162,6 @@ class MarketExposure:
             # CRITICAL: Also validate TTL - data computed > 10 hours ago uses stale market close prices
             # Position sizing must use fresh-enough data (ideally computed within 1 hour of market close)
             if updated_at:
-                from utils.infrastructure.timezone import EASTERN_TZ
-
                 now = datetime.now(EASTERN_TZ)
                 age = now - updated_at.replace(tzinfo=EASTERN_TZ) if not updated_at.tzinfo else now - updated_at
                 max_age = timedelta(hours=2)

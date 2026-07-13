@@ -30,6 +30,7 @@ Usage:
 
 import argparse
 import logging
+import statistics
 import sys
 from datetime import date, timedelta
 from typing import Any
@@ -408,8 +409,6 @@ def run_backtest(  # noqa: C901
             else:
                 logger.warning(f"[BACKTEST] Skipped return at {i}: equity={values[i - 1]:.0f} is not positive")
         if daily_returns:
-            import statistics
-
             if len(daily_returns) < 2:
                 raise ValueError(
                     f"CRITICAL: Insufficient daily returns ({len(daily_returns)}) for Sharpe calculation (need 2+). "
