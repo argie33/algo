@@ -74,7 +74,7 @@ def main() -> None:
         # Import and run orchestrator module
         try:
             from algo.orchestration.orchestrator import Orchestrator
-            from algo.config.orchestrator_config import OrchestratorConfig
+            from algo.infrastructure.config import get_config
 
             # Generate run_id
             run_id = f"LOCAL-{run_type.upper()}-{now.strftime('%Y%m%d-%H%M%S')}"
@@ -82,11 +82,9 @@ def main() -> None:
             print(f"  Run ID: {run_id}")
             print(f"  Mode: paper (local development)")
 
-            # Create config dict for orchestrator
-            config = {
-                "execution_mode": "paper",  # Always use paper trading for local dev
-                "max_runtime_seconds": 600,  # 10 minute timeout
-            }
+            # Get AlgoConfig singleton (required for WeightOptimizer.get/set methods)
+            config = get_config()
+            config.set("execution_mode", "paper", "string")  # Always use paper trading for local dev
 
             # Create and run orchestrator instance
             orchestrator_instance = Orchestrator(
@@ -97,9 +95,9 @@ def main() -> None:
             result = orchestrator_instance.run()
 
             if result and result.get("overall_status") == "success":
-                print(f"  Status: ✓ COMPLETED")
+                print(f"  Status: OK - COMPLETED")
             else:
-                print(f"  Status: ✗ FAILED or HALTED")
+                print(f"  Status: FAILED or HALTED")
                 if result:
                     print(f"  Details: {result.get('overall_status')}")
 
