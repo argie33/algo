@@ -79,28 +79,10 @@ class TriggerLoadersHandler(LambdaHandler):
             return LambdaResponse.error("ECS_CLUSTER_ARN not configured", status_code=500)
 
         critical_loaders = {
-            # SEC financial statements (MUST RUN FIRST - upstream for quality/growth/value metrics)
-            # NOTE: these must match the actual ECS task definition family names registered by
-            # Terraform (terraform state: aws_ecs_task_definition.loader["financials_annual_income"]
-            # etc, also visible in `all_loader_names` output) -- NOT the "income_statement" /
-            # "balance_sheet" / "cash_flow" names previously here, which don't correspond to any
-            # real task definition. Because of that mismatch, triggering the loader by its real,
-            # working name ("financials_annual_income") never matched this set, so use_fargate was
-            # always False and it silently ran on preemptible FARGATE_SPOT with only the default
-            # 300s timeout instead of guaranteed FARGATE + 600s -- for a multi-symbol SEC EDGAR
-            # multi-year history fetch, that's a plausible cause of tasks getting interrupted or
-            # timing out mid-run, leaving many symbols with only partial (single fiscal year)
-            # history in annual_income_statement (which breaks growth_score, since it needs >=2
-            # years; quality_score only needs the latest year so it wasn't affected).
-            "financials_annual_income",
-            "financials_annual_balance",
-            "financials_annual_cashflow",
-            "financials_quarterly_income",
-            "financials_quarterly_balance",
-            "financials_quarterly_cashflow",
-            "financials_ttm_income",
-            "financials_ttm_cashflow",
-            # Metric loaders (required before stock_scores; depend on SEC financials above)
+            # SEC financial statements (consolidated into single task - Phase 5 optimization)
+            # FIXED (2026-07-13): Replaced 8 individual financials_*_* tasks with single "financials_all"
+            "financials_all",
+            # Metric loaders (required before stock_scores; depend on financials_all above)
             "quality_metrics",
             "growth_metrics",
             "value_metrics",
@@ -108,42 +90,31 @@ class TriggerLoadersHandler(LambdaHandler):
             "stability_metrics",
             # Price data (fundamental for downstream processing)
             "stock_prices_daily",
-            "price_daily",
-            "price_weekly",
-            "price_monthly",
-            "etf_price_daily",
-            "etf_price_weekly",
-            "etf_price_monthly",
             # Market and regime (trading decisions)
             "market_health_daily",
             "market_exposure_daily",
-            # Economic data (API fallback when RDS Proxy unavailable)
-            "dxy_index",
+            # Economic data (consolidated FRED + DXY into single task)
+            # FIXED (2026-07-13): dxy_index merged into "economic_data"
+            "economic_data",
             # Signals and scoring (position sizing)
-            "signals_daily",
             "stock_scores",
             "technical_data_daily",
             # Portfolio and risk metrics
             "algo_metrics_daily",
-            "algo_risk_daily",
-            "economic_metrics_daily",
             # Industry and sector analysis (dashboard API data)
             "industry_ranking",
             "sector_ranking",
+            "market_sentiment",  # Re-enabled daily (was weekly)
+            "sector_performance",  # Re-enabled daily
         }
         # Use FARGATE for critical loaders (higher timeout, guaranteed resources)
         use_fargate = loader_name in critical_loaders
 
         # Set environment variables for ECS task
         sec_and_metric_loaders = {
-            "financials_annual_income",
-            "financials_annual_balance",
-            "financials_annual_cashflow",
-            "financials_quarterly_income",
-            "financials_quarterly_balance",
-            "financials_quarterly_cashflow",
-            "financials_ttm_income",
-            "financials_ttm_cashflow",
+            # Consolidated financial statements loader (Phase 5 - 2026-07-13)
+            "financials_all",
+            # Metric loaders that depend on financials_all
             "quality_metrics",
             "growth_metrics",
             "value_metrics",

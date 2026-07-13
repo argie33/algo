@@ -92,10 +92,9 @@ def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_t
 def _get_last_run(cur: cursor) -> Any:
     """Get the most recent orchestrator run with halt reason."""
     cur.execute("""
-        SELECT run_id, run_date, overall_status, halt_reason, started_at, completed_at,
-               phase_results
-        FROM orchestrator_execution_log
-        ORDER BY created_at DESC
+        SELECT run_id, run_date, overall_status, halt_reason, started_at, completed_at
+        FROM algo_orchestrator_runs
+        ORDER BY started_at DESC
         LIMIT 1
     """)
     latest = cur.fetchone()
@@ -125,9 +124,9 @@ def _get_last_run(cur: cursor) -> Any:
             phases_completed = 0
 
     if not run_id:
-        return error_response(503, "invalid_data", "Run ID missing from orchestrator execution log")
+        return error_response(503, "invalid_data", "Run ID missing from latest orchestrator run")
     if overall_status is None:
-        return error_response(503, "invalid_data", "Overall status missing from orchestrator execution log")
+        return error_response(503, "invalid_data", "Overall status missing from latest orchestrator run")
 
     # Determine success/halted/errored from overall_status
     success = overall_status == "success"

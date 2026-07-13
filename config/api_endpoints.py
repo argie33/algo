@@ -39,7 +39,7 @@ def get_alpaca_data_url() -> str:
 def get_fred_url() -> str:
     """Return FRED API base URL.
 
-    Used by: load_fred_economic_data loader
+    Used by: economic_data (consolidated FRED + DXY) loader
     Pattern: https://api.stlouisfed.org/fred
     Requires: FRED_API_KEY environment variable
     """
