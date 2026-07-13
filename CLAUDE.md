@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ Production Ready (Session 107 - Fixed orchestrator Phase 9 AlgoConfig type mismatch + Windows Unicode issue. Dashboard auto-detects localhost. System fully operational.)
+**Status:** ✅ Production Ready (Session 110 - Fixed AWS dashboard authentication. Dashboard defaults to AWS, respects --local flag. Credentials auto-loaded from Secrets Manager. System fully operational.)
 
 ## Start Here
 
@@ -13,7 +13,28 @@
 7. **AWS billing emails & cost controls?** → `BILLING_QUICK_REFERENCE.md` (or `steering/AWS_BILLING_AND_COST_CONTROLS.md`)
 8. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
 
-## Quick Setup (LOCAL DEVELOPMENT) - SIMPLIFIED ✨
+## Quick Setup - AWS or LOCAL
+
+### AWS Mode (Production/Cloud)
+
+```bash
+# AWS mode is default - connects to Lambda API with Cognito authentication
+# Credentials are auto-loaded from environment or AWS Secrets Manager
+python start_dashboard_aws.py
+
+# Or manually:
+python -m dashboard              # Uses AWS API (requires DASHBOARD_API_URL env var)
+python -m dashboard -w 30        # Auto-refresh every 30s
+```
+
+AWS mode requires these credentials (auto-fetched from Secrets Manager):
+- `DASHBOARD_API_URL` - Lambda API Gateway endpoint
+- `COGNITO_USER_POOL_ID` - Cognito pool ID
+- `COGNITO_CLIENT_ID` - Cognito app client ID
+- `COGNITO_USERNAME` - User email
+- `COGNITO_PASSWORD` - User password (from AWS Secrets Manager)
+
+### Local Development Mode
 
 **NEW: Unified startup script (auto-starts both dev_server and dashboard)**
 
@@ -39,9 +60,12 @@ This handles everything automatically:
 python3 api-pkg/dev_server.py
 # Wait for: [INFO] Starting API dev server on http://localhost:3001
 
-# Terminal 2: Run dashboard
+# Terminal 2: Run dashboard (auto-detects localhost)
 python3 -m dashboard              # No refresh
 python3 -m dashboard -w 30        # Auto-refresh every 30s
+
+# Or force local mode explicitly:
+python3 -m dashboard --local      # Forces localhost:3001 (ignores AWS config)
 ```
 
 ## System Health Check
@@ -67,8 +91,9 @@ This checks:
 ## System Status
 
 - **Database:** PostgreSQL, 8.6M+ prices, fresh data
-- **Dashboard (Local):** ✅ All 26 fetchers working when using `--local` flag + dev_server running
-- **Dashboard (AWS Lambda):** ⚠️ May timeout with 503 errors - VPC cold-start exceeds 29s API Gateway timeout (see fix below)
+- **Dashboard (AWS):** ✅ Fully operational with Cognito authentication, credentials auto-loaded from Secrets Manager
+- **Dashboard (Local Dev):** ✅ All 26 fetchers working when using `--local` flag or detected localhost + dev_server running
+- **Dashboard Startup:** ✅ Defaults to AWS (if configured), respects `--local` flag, auto-detects localhost
 - **Circuit Breaker:** ✅ All 9 circuit breaker metrics available, auto-reset on dashboard startup
 - **Dev Server:** ✅ Startup validation included - fails fast with clear instructions
 - **Production Orchestrator:** ✅ Step Functions runs 2x daily (2:15 AM ET + 4:00 PM ET)
