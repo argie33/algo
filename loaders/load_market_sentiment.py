@@ -73,11 +73,53 @@ def compute_market_sentiment() -> None:
         # VIX 10 = greed (80), VIX 50 = fear (20), VIX 20 = neutral (50)
         fear_greed = max(10, min(90, 100 - (vix * 2)))
 
-        # Upsert into market_sentiment with data quality flags
-        sentiment_score = Decimal("50.0000")  # Neutral sentiment (50% = neutral between greed/fear)
-        bullish_pct = Decimal("33.3333")
-        bearish_pct = Decimal("33.3333")
-        neutral_pct = Decimal("33.3334")
+        # Bull/bear/neutral percentages come from the AAII weekly investor survey
+        # (aaii_sentiment table). The survey is weekly, so accept the latest row up
+        # to 14 days old (one missed week of slack). If no fresh survey exists,
+        # these fields are NULL — never fabricated. (This loader previously wrote a
+        # hardcoded 33.33/33.33/33.34 split with data_unavailable=False, presenting
+        # invented neutrality as real survey data.)
+        sentiment_score: Decimal | None = None
+        bullish_pct: Decimal | None = None
+        bearish_pct: Decimal | None = None
+        neutral_pct: Decimal | None = None
+        reason: str | None = None
+        cur.execute(
+            """
+            SELECT date, bullish, bearish, neutral FROM aaii_sentiment
+            WHERE date >= %s - INTERVAL '14 days'
+              AND bullish IS NOT NULL AND bearish IS NOT NULL AND neutral IS NOT NULL
+            ORDER BY date DESC LIMIT 1
+            """,
+            (today,),
+        )
+        aaii = cur.fetchone()
+        if aaii is not None:
+            # aaii_sentiment stores bullish/bearish/neutral as fractions (0-1), not percentages
+            aaii_bullish = float(aaii["bullish"])
+            aaii_bearish = float(aaii["bearish"])
+            aaii_neutral = float(aaii["neutral"])
+            total = aaii_bullish + aaii_bearish + aaii_neutral
+            if 0.95 <= total <= 1.05:
+                bullish_pct = Decimal(str(round(aaii_bullish * 100, 4)))
+                bearish_pct = Decimal(str(round(aaii_bearish * 100, 4)))
+                neutral_pct = Decimal(str(round(aaii_neutral * 100, 4)))
+                # Standard bull-bear spread normalization onto a 0-100 scale:
+                # all-bullish -> 100, all-bearish -> 0, balanced -> 50.
+                spread_score = 50.0 + (aaii_bullish - aaii_bearish) * 50.0
+                sentiment_score = Decimal(str(round(max(0.0, min(100.0, spread_score)), 4)))
+            else:
+                reason = "aaii_survey_percentages_invalid"
+                logger.error(
+                    f"[DATA_QUALITY] aaii_sentiment row {aaii['date']} fractions sum to {total:.4f} "
+                    "(expected ~1.0) — refusing to publish invalid survey data"
+                )
+        else:
+            reason = "aaii_survey_data_unavailable"
+            logger.warning(
+                f"No AAII survey data within 14 days of {today} — "
+                "bullish/bearish/neutral published as NULL (fear/greed from VIX still real)"
+            )
 
         cur.execute(
             """
@@ -101,12 +143,15 @@ def compute_market_sentiment() -> None:
                 bullish_pct,
                 bearish_pct,
                 neutral_pct,
-                False,  # Data is available
-                None,  # No unavailability reason
+                False,  # fear/greed (the row's primary metric) is real VIX-derived data
+                reason,  # notes partial unavailability when AAII fields are NULL
             ),
         )
 
-        logger.info(f"Market sentiment loader completed for {today}: fear_greed={fear_greed}")
+        logger.info(
+            f"Market sentiment loader completed for {today}: fear_greed={fear_greed} "
+            f"sentiment_score={sentiment_score} (aaii={'present' if bullish_pct is not None else 'unavailable'})"
+        )
 
 
 def main() -> None:
