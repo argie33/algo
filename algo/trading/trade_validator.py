@@ -75,8 +75,8 @@ class TradeValidator:
         stop_loss_price: Decimal | float,
         shares: Decimal | float,
         portfolio_value: Decimal | float | None,
-        signal_date: Any | None = None,
-        entry_date: Any | None = None,
+        signal_date: _date | None = None,
+        entry_date: _date | None = None,
         target_1_price: Decimal | float | None = None,
         target_2_price: Decimal | float | None = None,
         target_3_price: Decimal | float | None = None,
@@ -249,7 +249,7 @@ class TradeValidator:
         self,
         cur: Any,
         symbol: str,
-        signal_date: Any,
+        signal_date: _date,
         entry_price: Decimal | float,
         stop_loss_price: Decimal | float,
     ) -> tuple[bool, str | None, str | None]:
@@ -289,9 +289,9 @@ class TradeValidator:
         self,
         cur: Any,
         symbol: str,
-        signal_date: Any,
-        entry_price: Any,
-        stop_loss_price: Any,
+        signal_date: _date,
+        entry_price: Decimal,
+        stop_loss_price: Decimal,
     ) -> tuple[bool, str | None, str | None]:
         """Check if same signal already exists as OPEN or PENDING trade.
 
@@ -326,7 +326,7 @@ class TradeValidator:
             )
         return False, None, None
 
-    def check_pending_trades(self, cur: Any, symbol: Any) -> tuple[bool, str | None, int]:
+    def check_pending_trades(self, cur: Any, symbol: str) -> tuple[bool, str | None, int]:
         from algo.infrastructure.config.sql_intervals import get_interval_sql
 
         interval_sql = get_interval_sql("30d")
@@ -353,7 +353,7 @@ class TradeValidator:
             )
         return False, None, 0
 
-    def check_reentry_rules(self, cur: Any, symbol: Any) -> tuple[bool, str | None, int]:
+    def check_reentry_rules(self, cur: Any, symbol: str) -> tuple[bool, str | None, int]:
         from algo.infrastructure.config.sql_intervals import get_interval_sql
 
         interval_sql = get_interval_sql("30d")
