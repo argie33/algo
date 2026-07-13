@@ -79,26 +79,22 @@ def check_database() -> dict:
                     cnt, latest = cur.fetchone()
                     age_hours = None
                     if latest:
-                        if hasattr(latest, "replace"):  # datetime
-                            age = datetime.now(timezone.utc) - latest.replace(tzinfo=timezone.utc)
+                        from datetime import date as date_type
+                        if isinstance(latest, date_type) and not isinstance(latest, datetime):
+                            # It's a date (not a datetime)
+                            age_days = (datetime.now(timezone.utc).date() - latest).days
+                            age_hours = age_days * 24
+                        elif isinstance(latest, datetime):
+                            # It's a datetime
+                            if latest.tzinfo is None:
+                                latest = latest.replace(tzinfo=timezone.utc)
+                            age = datetime.now(timezone.utc) - latest
+                            age_hours = age.total_seconds() / 3600
                         else:
-                            from datetime import date as date_type
-                            if isinstance(latest, date_type):
-                                age = datetime.now(timezone.utc).date() - latest
-                                age = age.total_seconds() / 3600
-                            else:
-                                age = None
-
-                        if isinstance(age, int):
-                            age_hours = age
-                        else:
-                            try:
-                                age_hours = age.total_seconds() / 3600
-                            except Exception:
-                                age_hours = None
+                            age_hours = None
 
                     fresh = age_hours is None or age_hours < 24
-                    status_icon = "✓" if fresh else "⚠"
+                    status_icon = "[OK]" if fresh else "[WARN]"
                     age_str = f"{age_hours:.1f}h" if age_hours is not None else "N/A"
 
                     result["details"].append(
@@ -109,18 +105,18 @@ def check_database() -> dict:
                         all_fresh = False
 
                 except Exception as e:
-                    result["details"].append(f"✗ {table_name}: {str(e)[:80]}")
+                    result["details"].append(f"[ERR] {table_name}: {str(e)[:80]}")
                     all_fresh = False
 
-            result["status"] = "✓" if all_fresh else "⚠"
+            result["status"] = "OK" if all_fresh else "WARN"
             conn.close()
 
         except psycopg2.OperationalError as e:
-            result["status"] = "✗"
+            result["status"] = "FAIL"
             result["details"].append(f"Connection failed: {e}")
 
     except ImportError:
-        result["status"] = "✗"
+        result["status"] = "FAIL"
         result["details"].append("psycopg2 not installed")
 
     return result
@@ -137,7 +133,7 @@ def check_dev_server() -> dict:
     is_open = check_port_open("127.0.0.1", 3001)
 
     if is_open:
-        result["status"] = "✓"
+        result["status"] = "OK"
         result["details"].append("Dev server is running and responding")
 
         # Try health check
@@ -151,7 +147,7 @@ def check_dev_server() -> dict:
         except Exception as e:
             result["details"].append(f"Health check failed: {str(e)[:60]}")
     else:
-        result["status"] = "✗"
+        result["status"] = "FAIL"
         result["details"].append("Dev server NOT responding on port 3001")
         result["details"].append("Fix: Run: python start_dashboard_dev.py")
 
@@ -182,9 +178,9 @@ def check_orchestrator() -> dict:
         # Check latest runs
         cur.execute(
             """
-            SELECT COUNT(*) as runs_last_hour,
+            SELECT COUNT(*) as runs_last_24h,
                    MAX(started_at) as latest_run,
-                   MAX(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as has_success
+                   MAX(CASE WHEN overall_status = 'success' THEN 1 ELSE 0 END) as has_success
             FROM algo_orchestrator_runs
             WHERE started_at > NOW() - INTERVAL '24 hours'
             """
@@ -194,23 +190,25 @@ def check_orchestrator() -> dict:
         runs_24h, latest_run, has_success = row
 
         if runs_24h > 0:
-            age_minutes = (datetime.now(timezone.utc) - latest_run.replace(tzinfo=timezone.utc)).total_seconds() / 60
+            if latest_run.tzinfo is None:
+                latest_run = latest_run.replace(tzinfo=timezone.utc)
+            age_minutes = (datetime.now(timezone.utc) - latest_run).total_seconds() / 60
             if age_minutes < 120:
-                result["status"] = "✓"
-                result["details"].append(f"✓ Latest run: {age_minutes:.0f} minutes ago")
+                result["status"] = "OK"
+                result["details"].append(f"[OK] Latest run: {age_minutes:.0f} minutes ago")
             else:
-                result["status"] = "⚠"
-                result["details"].append(f"⚠ Latest run: {age_minutes:.0f} minutes ago (stale)")
+                result["status"] = "WARN"
+                result["details"].append(f"[WARN] Latest run: {age_minutes:.0f} minutes ago (stale)")
 
             result["details"].append(f"  Runs in last 24h: {runs_24h}")
         else:
-            result["status"] = "✗"
-            result["details"].append("✗ No orchestrator runs in last 24 hours")
+            result["status"] = "FAIL"
+            result["details"].append("[FAIL] No orchestrator runs in last 24 hours")
 
         conn.close()
 
     except Exception as e:
-        result["status"] = "✗"
+        result["status"] = "FAIL"
         result["details"].append(f"Cannot query orchestrator status: {str(e)[:80]}")
 
     return result
@@ -226,13 +224,13 @@ def check_dashboard_module() -> dict:
 
     try:
         import dashboard
-        result["status"] = "✓"
+        result["status"] = "OK"
         result["details"].append("Dashboard module imports successfully")
     except ImportError as e:
-        result["status"] = "✗"
+        result["status"] = "FAIL"
         result["details"].append(f"Import error: {e}")
     except Exception as e:
-        result["status"] = "✗"
+        result["status"] = "FAIL"
         result["details"].append(f"Error: {e}")
 
     return result
@@ -257,36 +255,37 @@ def main() -> int:
             result = check_fn()
             results.append(result)
             status_icon = result.get("status", "?")
-            print(f"[{status_icon}] {result['name']}")
+            status_display = status_icon.replace("OK", "[OK]").replace("FAIL", "[FAIL]").replace("WARN", "[WARN]")
+            print(f"{status_display} {result['name']}")
             for detail in result.get("details", []):
                 print(f"    {detail}")
             print()
         except Exception as e:
-            print(f"[✗] {check_fn.__name__}: {e}\n")
+            print(f"[FAIL] {check_fn.__name__}: {e}\n")
 
     # Summary
     print("=" * 70)
     print("SUMMARY")
     print("=" * 70)
 
-    passed = sum(1 for r in results if r.get("status") == "✓")
-    failed = sum(1 for r in results if r.get("status") == "✗")
-    warning = sum(1 for r in results if r.get("status") == "⚠")
+    passed = sum(1 for r in results if r.get("status") == "OK")
+    failed = sum(1 for r in results if r.get("status") == "FAIL")
+    warning = sum(1 for r in results if r.get("status") == "WARN")
 
-    print(f"✓ Passed: {passed}")
-    print(f"⚠ Warning: {warning}")
-    print(f"✗ Failed: {failed}")
+    print(f"[OK]   Passed: {passed}")
+    print(f"[WARN] Warning: {warning}")
+    print(f"[FAIL] Failed: {failed}")
     print()
 
     if failed == 0 and warning == 0:
-        print("✓ ALL SYSTEMS OPERATIONAL")
+        print("[OK] ALL SYSTEMS OPERATIONAL")
         print("\nReady to run dashboard:")
         print("  python start_dashboard_dev.py")
         print("  or")
         print("  python start_dashboard_dev.py -w 30   (with auto-refresh)")
         return 0
     else:
-        print("⚠ ISSUES FOUND - See details above")
+        print("[WARN] ISSUES FOUND - See details above")
         return 1
 
 

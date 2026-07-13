@@ -499,8 +499,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
             # Fetch latest orchestrator run
             cur.execute("""
-                SELECT run_id, overall_status, started_at, completed_at, halt_reason, summary,
-                       phase_results, phases_completed, phases_halted, phases_errored
+                SELECT run_id, overall_status, started_at, completed_at, halt_reason, execution_time_seconds
                 FROM algo_orchestrator_runs
                 ORDER BY started_at DESC
                 LIMIT 1
@@ -526,12 +525,8 @@ class APIHandler(BaseHTTPRequestHandler):
                     "success": success,
                     "halted": halted,
                     "errored": errored,
-                    "halt_reason": run.get("halt_reason"),
-                    "summary": run.get("summary") or "Orchestrator run completed",
-                    "phase_results": run.get("phase_results") or [],
-                    "phases_completed": run.get("phases_completed") or 0,
-                    "phases_halted": run.get("phases_halted") or 0,
-                    "phases_errored": run.get("phases_errored") or 0,
+                    "halt_reason": run.get("halt_reason") or "",
+                    "summary": f"Orchestrator {run.get('overall_status')} ({run.get('execution_time_seconds', 0):.1f}s)",
                     "started_at": run.get("started_at", datetime.now(timezone.utc)).isoformat() if hasattr(run.get("started_at"), "isoformat") else str(run.get("started_at")),
                     "completed_at": run.get("completed_at", datetime.now(timezone.utc)).isoformat() if hasattr(run.get("completed_at"), "isoformat") else str(run.get("completed_at")),
                 },

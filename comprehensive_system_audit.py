@@ -132,7 +132,7 @@ def audit_orchestrator():
 
         # Check last run
         cur.execute("""
-        SELECT started_at, phase_results, summary
+        SELECT started_at, overall_status, halt_reason, completed_at
         FROM algo_orchestrator_runs
         ORDER BY started_at DESC LIMIT 1
         """)
@@ -141,25 +141,16 @@ def audit_orchestrator():
         if not row:
             issues.append("✗ No orchestrator runs found in database")
         else:
-            started_at, phase_results, summary = row
+            started_at, overall_status, halt_reason, completed_at = row
             age_hours = (datetime.now(timezone.utc) - started_at.replace(tzinfo=timezone.utc)).total_seconds() / 3600
-
-            # Determine if run was successful by checking phase results
-            is_success = True
-            if isinstance(phase_results, str):
-                import json
-                try:
-                    phases = json.loads(phase_results)
-                    is_success = any(p.get('status') == 'success' for p in phases if p.get('action_type') == 'Phase 9')
-                except:
-                    is_success = False
+            is_success = (overall_status == 'success')
 
             if is_success:
-                print(f"✓ Last run: {age_hours:.1f} hours ago - success")
+                print(f"✓ Last run: {age_hours:.1f} hours ago - {overall_status}")
             else:
-                issues.append(f"⚠ Last run status: unclear (check logs for details)")
-                if summary:
-                    issues.append(f"  Summary: {summary[:100] if summary else 'N/A'}")
+                issues.append(f"⚠ Last run status: {overall_status}")
+                if halt_reason:
+                    issues.append(f"  Halt reason: {halt_reason[:100]}")
 
             # Check if running too fast (indicates dry-run or error)
             if age_hours < 1:
@@ -171,22 +162,16 @@ def audit_orchestrator():
                 if recent_count > 5:
                     issues.append(f"⚠ {recent_count} runs in last hour (very frequent - check if DRY_RUN is enabled)")
 
-        # Check Phase 8 & 9 (trading & reconciliation)
+        # Check if orchestrator has run recently (past 24 hours)
         cur.execute("""
-        SELECT phases FROM algo_orchestrator_runs
-        ORDER BY started_at DESC LIMIT 1
+        SELECT COUNT(*) FROM algo_orchestrator_runs
+        WHERE overall_status = 'success' AND started_at > NOW() - INTERVAL '24 hours'
         """)
-        phases_row = cur.fetchone()
-        if phases_row:
-            phases_json = phases_row[0]
-            if isinstance(phases_json, str):
-                import json
-                phases = json.loads(phases_json)
-            else:
-                phases = phases_json
-
-            phase_8 = next((p for p in phases if p.get('action_type') == 'Phase 8'), None)
-            phase_9 = next((p for p in phases if p.get('action_type') == 'Phase 9'), None)
+        success_runs = cur.fetchone()[0]
+        if success_runs == 0:
+            issues.append("✗ No successful orchestrator runs in past 24 hours")
+        else:
+            print(f"✓ Successful runs in past 24h: {success_runs}")
 
             if phase_8:
                 if phase_8.get('status') == 'success':
