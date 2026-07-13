@@ -87,10 +87,14 @@ def main() -> None:
             config.set("execution_mode", "paper", "string")  # Always use paper trading for local dev
 
             # Create and run orchestrator instance
+            # Support ORCHESTRATOR_DRY_RUN env var for local development/testing
+            # Bypasses Phase 1 staleness checks when data is being loaded
+            dry_run = os.getenv("ORCHESTRATOR_DRY_RUN", "").lower() in ("1", "true", "yes")
+
             orchestrator_instance = Orchestrator(
                 config=config,
                 run_id=run_id,
-                dry_run=False,
+                dry_run=dry_run,
             )
             result = orchestrator_instance.run()
 
