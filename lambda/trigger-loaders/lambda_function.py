@@ -19,6 +19,42 @@ from base_handler import LambdaHandler, LambdaResponse, create_lambda_handler
 
 logger = logging.getLogger()
 
+# Mirrors terraform/modules/loaders/main.tf's `loader_file_map` keys -- the only
+# task-definition families Terraform actually provisions and keeps deployed.
+# Without this allowlist, an arbitrary/misremembered loader_name (e.g. the retired
+# "stock_symbols" alias for what's now "market_constituents") silently launches
+# whatever stale/orphaned ECS task definition still happens to exist by that name
+# instead of failing with a clear error.
+VALID_LOADER_NAMES = frozenset(
+    {
+        "stock_prices_daily",
+        "technical_data_daily",
+        "trend_template_data",
+        "market_exposure_daily",
+        "yfinance_snapshot",
+        "quality_metrics",
+        "growth_metrics",
+        "value_metrics",
+        "positioning_metrics",
+        "company_profile",
+        "earnings_history",
+        "earnings_calendar",
+        "stability_metrics",
+        "momentum_metrics",
+        "stock_scores",
+        "market_constituents",
+        "market_health_daily",
+        "market_sentiment",
+        "sector_ranking",
+        "industry_ranking",
+        "algo_metrics_daily",
+        "buy_sell_daily",
+        "economic_data",
+        "financials_all",
+        "sector_performance",
+    }
+)
+
 
 class TriggerLoadersHandler(LambdaHandler):
     """Triggers ECS loader tasks."""
@@ -89,6 +125,13 @@ class TriggerLoadersHandler(LambdaHandler):
 
         if not loader_name:
             return LambdaResponse.validation_error("loader_name", "loader_name is required")
+
+        if loader_name not in VALID_LOADER_NAMES:
+            return LambdaResponse.validation_error(
+                "loader_name",
+                f"Unknown loader_name {loader_name!r}. Must be one of the loaders defined in "
+                f"terraform/modules/loaders/main.tf's loader_file_map: {sorted(VALID_LOADER_NAMES)}",
+            )
 
         task_count = self._parse_task_count(event.get("task_count"))
         if isinstance(task_count, LambdaResponse):
