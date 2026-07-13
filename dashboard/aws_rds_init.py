@@ -36,6 +36,7 @@ class AWSRDSInitializationError(Exception):
 
 
 class RDSCredentialFetcher:
+    """Fetches and validates RDS credentials from AWS Secrets Manager."""
 
     def __init__(self, aws_region: str | None = None, force_aws: bool = False) -> None:
         """Initialize credential fetcher.
@@ -62,6 +63,14 @@ class RDSCredentialFetcher:
         return bool(os.getenv("AWS_EXECUTION_ENV"))
 
     def _get_secrets_client(self) -> Any:
+        """Get boto3 Secrets Manager client (lazy-loaded).
+
+        Returns:
+            boto3 SecretsManager client
+
+        Raises:
+            AWSRDSInitializationError: If boto3 unavailable and in AWS environment
+        """
         if self._secrets_client is not None:
             return self._secrets_client
 

@@ -86,6 +86,7 @@ class WatchModeController:
             self.view_mode = "normal" if self.view_mode == target else target
 
     def get_view_mode(self) -> str:
+        """Get current view mode."""
         return self.view_mode
 
     def should_reload(self, last_load_time: float, interval: int, is_loading: bool) -> bool:

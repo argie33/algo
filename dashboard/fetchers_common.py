@@ -36,22 +36,22 @@ FETCHER_METADATA = {
         "desc": "Economic macro indicators",
     },
     "notifs": {"endpoint": "/api/algo/notifications", "desc": "Notifications"},
-    "sentiment": {"endpoint": "/api/sentiment", "desc": "Market sentiment"},  # Public sentiment endpoint
+    "sentiment": {"endpoint": "/api/algo/sentiment", "desc": "Market sentiment"},
     "econ_cal": {
-        "endpoint": "/api/economic",  # Economic indicators endpoint
+        "endpoint": "/api/algo/economic-calendar",
         "desc": "Economic calendar",
     },
     "risk": {"endpoint": "/api/algo/risk-metrics", "desc": "Risk metrics"},
     "perf_anl": {
-        "endpoint": "/api/algo/performance",  # Reuse performance endpoint (same data)
+        "endpoint": "/api/algo/performance-analytics",
         "desc": "Performance analytics",
     },
-    "sig_eval": {"endpoint": "/api/algo/dashboard-signals", "desc": "Signal evaluation"},  # Reuse signals endpoint
+    "sig_eval": {"endpoint": "/api/algo/rejection-funnel", "desc": "Signal evaluation"},
     "sec_rot": {
         "endpoint": "/api/algo/sector-rotation",
         "desc": "Sector rotation signal",
     },
-    "algo_metrics": {"endpoint": "/api/algo/config", "desc": "Algo metrics"},  # Use config endpoint for algo metrics
+    "algo_metrics": {"endpoint": "/api/algo/metrics", "desc": "Algo metrics"},
     "irank": {"endpoint": "/api/industries", "desc": "Industry rankings"},
     "audit": {"endpoint": "/api/algo/audit-log", "desc": "Audit log"},
     "exec_hist": {

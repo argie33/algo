@@ -24,6 +24,11 @@ class FetcherValidator:
 
     @staticmethod
     def check_api_error(response: dict[str, Any]) -> tuple[bool, str | None]:
+        """Check if response indicates an API error.
+
+        Returns:
+            (is_error: bool, error_message: str|None)
+        """
         if isinstance(response, dict) and "_error" in response:
             error_msg = response["_error"]  # Explicit access, fail if missing
             # Ensure error message is always a non-empty string, never None
@@ -39,6 +44,11 @@ class FetcherValidator:
 
     @staticmethod
     def require_fields(data: dict[str, Any], required_fields: list[str], source: str) -> tuple[bool, str | None]:
+        """Validate that all required fields exist with non-None values.
+
+        Returns:
+            (valid: bool, error_message: str|None)
+        """
         if not isinstance(data, dict):
             return False, f"{source}: Expected dict, got {type(data).__name__}"
 
@@ -49,6 +59,11 @@ class FetcherValidator:
 
     @staticmethod
     def check_freshness(timestamp: datetime | None, max_age_seconds: int) -> tuple[bool, str | None]:
+        """Validate that data is not stale.
+
+        Returns:
+            (fresh: bool, error_message: str|None)
+        """
         if timestamp is None:
             return False, "Data timestamp is missing"
 
@@ -137,6 +152,22 @@ class FetcherValidator:
 
     @staticmethod
     def build_error_response(error_message: str | None) -> dict[str, str]:
+        """Build standardized error response dict.
+
+        Returns:
+            dict with _error key and message
+
+        Requires error message to contain actual error details — fails fast on None or empty messages.
+
+        Args:
+            error_message: Error message to include (must be non-empty)
+
+        Returns:
+            {"_error": "<message>"} — always includes detailed error text
+
+        Raises:
+            ValueError: If error_message is None or empty after strip
+        """
         if error_message is None:
             logger.error("build_error_response called with None message — this is a caller error")
             raise ValueError("build_error_response requires a non-None error message with actual error details")

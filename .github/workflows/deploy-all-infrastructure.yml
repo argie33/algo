@@ -860,6 +860,16 @@ jobs:
           terraform state rm "module.security_monitoring.aws_s3_bucket_policy.config_bucket[0]" 2>/dev/null || true
           echo "[OK] Orphaned config bucket state entries removed (if they existed)"
 
+      - name: Import Drifted Log Group
+        working-directory: terraform
+        run: |
+          # module.loaders.aws_cloudwatch_log_group.scheduler_logs exists in AWS (created by
+          # an earlier partial/manual run) but was never recorded in state, so every apply
+          # failed outright with ResourceAlreadyExistsException before reaching any real
+          # changes. Import is a no-op (harmless failure) once already tracked in state.
+          echo "Importing known-drifted scheduler log group (no-op if already in state)..."
+          terraform import -var-file=terraform.tfvars "module.loaders.aws_cloudwatch_log_group.scheduler_logs" "/aws/scheduler/algo-pipeline-dev" 2>/dev/null || echo "  (already in state or not found)"
+
       - name: Terraform Plan
         id: tf_plan
         run: |

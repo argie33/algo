@@ -91,9 +91,19 @@ class DashboardResponse:
         return errors
 
     def has_critical_errors(self) -> bool:
+        """Check if any critical fetchers failed.
+
+        Returns:
+            True if any critical fetcher returned error dict
+        """
         return len(self.critical_errors) > 0
 
     def has_errors(self) -> bool:
+        """Check if any errors occurred.
+
+        Returns:
+            True if any fetcher (critical or optional) returned error dict
+        """
         return self.has_critical_errors() or len(self.optional_errors) > 0
 
     def get_http_status_code(self) -> int:
@@ -114,6 +124,11 @@ class DashboardResponse:
         return 200  # OK
 
     def get_status_string(self) -> str:
+        """Get human-readable status for logging and response.
+
+        Returns:
+            "healthy", "degraded_partial", or "degraded_critical"
+        """
         if self.has_critical_errors():
             return "degraded_critical"
         if self.optional_errors:

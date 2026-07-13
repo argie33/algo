@@ -199,6 +199,7 @@ def _is_stale(item: Any, stale_threshold_hours: float = 24) -> bool:
 
 
 def _format_age(item: Any) -> str:
+    """Format age from data item for display."""
     age = _get_age_hours(item)
     if age is None:
         return "?"

@@ -21,10 +21,12 @@ class DashboardContext:
     """Context container for dashboard rendering with panel data."""
 
     def __init__(self, data: dict[str, Any]) -> None:
+        """Initialize context from orchestrator result."""
         self.data = data
         self._extractor = PanelDataExtractor()
 
     def get(self, key: str, default: Any = None) -> Any:
+        """Get panel data by key."""
         return self.data.get(key, default)
 
     def extract_items(self, raw_data: Any) -> list[Any] | dict[str, Any]:

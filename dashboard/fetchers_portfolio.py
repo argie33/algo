@@ -380,6 +380,8 @@ def fetch_perf(c: None) -> dict[str, Any]:
             "total_pnl_dollars",
             "sharpe_annualized",
             "max_drawdown_pct",
+            "avg_win_pct",
+            "avg_loss_pct",
         ]
         valid, validation_error = FetcherValidator.validate_response(
             response=perf,
@@ -457,12 +459,14 @@ def fetch_perf(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
         open_count = open_positions_count
 
-        # Validate core performance metrics (streak, expectancy, and avg win/loss are optional enrichment)
+        # Validate core performance metrics (streak and expectancy are optional enrichment)
         core_metrics = {
             "win_rate_pct": "wr",
             "total_pnl_dollars": "pnl",
             "sharpe_annualized": "sharpe",
             "max_drawdown_pct": "maxdd",
+            "avg_win_pct": "avg_win",
+            "avg_loss_pct": "avg_loss",
             "profit_factor": "profit_factor",
         }
         missing_core_metrics = [
@@ -474,9 +478,8 @@ def fetch_perf(c: None) -> dict[str, Any]:
             record_data_quality_issue("perf", "missing_metrics", "validation", error_msg)
             return FetcherValidator.build_error_response(error_msg)
 
-        # Optional enrichment metrics: legitimately null until enough closed trades exist
-        # (e.g. avg_win_pct/avg_loss_pct require at least one win/loss to average over)
-        optional_metrics = ["current_streak", "expectancy_r", "avg_win_pct", "avg_loss_pct"]
+        # Optional enrichment metrics (may not be available in all API versions)
+        optional_metrics = ["current_streak", "expectancy_r"]
         for field in optional_metrics:
             if field not in perf or perf.get(field) is None:
                 logger.debug(f"Performance data missing optional field '{field}' - using None")

@@ -45,13 +45,19 @@ if _dashboard_dir not in sys.path:
     sys.path.insert(0, _dashboard_dir)
 
 try:
-    from utils.validation.response_validators import ResponseValidationError, validate_response
-except ImportError as e:
-    raise ImportError(
-        "Cannot import response_validators module. "
-        "API response validation is critical for data integrity. "
-        "This indicates a deployment/installation issue."
-    ) from e
+    from .response_validators import ResponseValidationError, validate_response
+except ImportError:
+    try:
+        from response_validators import (  # type: ignore
+            ResponseValidationError,
+            validate_response,
+        )
+    except ImportError as e:
+        raise ImportError(
+            "Cannot import response_validators module. "
+            "API response validation is critical for data integrity. "
+            "This indicates a deployment/installation issue."
+        ) from e
 
 
 try:
@@ -69,6 +75,7 @@ _api_base_url_cache = None
 _localhost_checked = False
 
 def _check_localhost_available() -> bool:
+    """Check if dev_server is running on localhost:3001."""
     import socket
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -168,11 +175,13 @@ _validate_api_url_at_startup()
 
 
 def set_api_url(url: str) -> None:
+    """Set API base URL at runtime (used by -local mode)."""
     global API_BASE_URL
     API_BASE_URL = url
 
 
 def get_api_url() -> str:
+    """Get the current API base URL."""
     return API_BASE_URL
 
 
@@ -238,17 +247,20 @@ _cognito_auth_lock = threading.Lock()
 
 
 def set_cognito_auth(auth: Any) -> None:
+    """Set the Cognito authentication instance for API calls."""
     global _cognito_auth
     with _cognito_auth_lock:
         _cognito_auth = auth
 
 
 def get_cognito_auth() -> Any:
+    """Get the current Cognito authentication instance."""
     with _cognito_auth_lock:
         return _cognito_auth
 
 
 def _check_circuit_breaker() -> bool:
+    """Check if circuit breaker is open; attempt half-open state after reset time."""
     global _circuit_breaker_state
     global _circuit_breaker_failures
     with _circuit_breaker_lock:

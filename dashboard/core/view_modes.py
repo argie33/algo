@@ -21,6 +21,7 @@ class ViewMode(str, Enum):
 
     @classmethod
     def is_valid(cls, mode: str) -> bool:
+        """Check if mode string is a valid ViewMode."""
         try:
             cls(mode)
             return True
@@ -42,10 +43,12 @@ class ViewModeState:
         self.current = ViewMode.NORMAL.value
 
     def set(self, mode: str) -> None:
+        """Set view mode if valid."""
         if ViewMode.is_valid(mode):
             self.current = mode
 
     def get(self) -> str:
+        """Get current view mode."""
         return self.current
 
     def toggle_to(self, target: str) -> str:

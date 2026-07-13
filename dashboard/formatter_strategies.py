@@ -16,7 +16,8 @@ class FormatterStrategy(ABC):
     """Base class for all formatter strategies."""
 
     @abstractmethod
-    def format(self, value: Any) -> str: ...
+    def format(self, value: Any) -> str:
+        """Format a value according to strategy-specific rules."""
 
 
 class GradeFormatter(FormatterStrategy):
@@ -67,8 +68,10 @@ class TierFormatter(FormatterStrategy):
 
 
 class SignFormatter(FormatterStrategy):
+    """Formats numeric value with sign prefix."""
 
     def format(self, value: Any) -> str:
+        """Return '+' for non-negative, '' for negative."""
         try:
             v = float(value)
             return "+" if v >= 0 else "-"  # Always return explicit +/- sign, not empty
@@ -77,6 +80,7 @@ class SignFormatter(FormatterStrategy):
 
 
 class MarketHoursFormatter(FormatterStrategy):
+    """Formats time remaining until market status change as countdown string."""
 
     def format(self, minutes: int) -> str:
         """Convert minutes to human-readable countdown: '5h30m', '45m', etc."""
@@ -92,6 +96,7 @@ class MarketHoursFormatter(FormatterStrategy):
 
 
 class DataAgeFormatter(FormatterStrategy):
+    """Formats timestamp as age string."""
 
     def format(self, ts: Any) -> str:
         """Convert timestamp to age: '5m ago', '2h10m ago', '3d ago'."""
@@ -123,6 +128,7 @@ class DataAgeFormatter(FormatterStrategy):
 
 
 class MoneyFormatter(FormatterStrategy):
+    """Formats decimal value as currency string."""
 
     def __init__(self, short: bool = False) -> None:
         """Initialize formatter.
@@ -133,6 +139,7 @@ class MoneyFormatter(FormatterStrategy):
         self.short = short
 
     def format(self, value: Any) -> str:
+        """Format value as currency: $1.23, $12.34K, $1.23M."""
         if value is None:
             return "--"
 
@@ -161,6 +168,7 @@ class MoneyFormatter(FormatterStrategy):
         return f"{s}${av:.2f}"
 
     def _format_decimal(self, value: Decimal) -> str:
+        """Format Decimal type value."""
         is_neg = value < 0
         av = abs(value)
         s = "-" if is_neg else ""

@@ -129,79 +129,64 @@ class DashboardDataExtractor:
     """
 
     def __init__(self, aggregated_data: dict[str, Any]):
+        """Initialize with aggregated API response data."""
         self.data = aggregated_data
 
     def run(self) -> dict[str, Any]:
         """Extract run state (circuit breaker, orchestrator state)."""
-        data = self.data["run"] if "run" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("run"), dict))
 
     def config(self) -> dict[str, Any]:
         """Extract configuration."""
-        data = self.data["cfg"] if "cfg" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("cfg"), dict))
 
     def market(self) -> dict[str, Any]:
         """Extract market data."""
-        data = self.data["mkt"] if "mkt" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("mkt"), dict))
 
     def portfolio(self) -> dict[str, Any]:
         """Extract portfolio (critical financial data—fail if missing)."""
-        data = self.data["port"] if "port" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict, allow_empty=False))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("port"), dict, allow_empty=False))
 
     def performance(self) -> dict[str, Any]:
         """Extract performance metrics (critical financial data—fail if missing)."""
-        data = self.data["perf"] if "perf" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict, allow_empty=False))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("perf"), dict, allow_empty=False))
 
     def positions(self) -> dict[str, Any]:
         """Extract positions (critical financial data—fail if missing)."""
-        data = self.data["pos"] if "pos" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict, allow_empty=False))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("pos"), dict, allow_empty=False))
 
     def signals(self) -> dict[str, Any]:
         """Extract active signals (critical for trading—fail if missing)."""
-        data = self.data["sig"] if "sig" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict, allow_empty=False))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("sig"), dict, allow_empty=False))
 
     def health(self) -> dict[str, Any]:
         """Extract health/readiness status."""
-        data = self.data["health"] if "health" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("health"), dict))
 
     def circuit_breaker(self) -> dict[str, Any]:
         """Extract circuit breaker state."""
-        data = self.data["cb"] if "cb" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("cb"), dict))
 
     def trades(self) -> dict[str, Any]:
         """Extract recent trades."""
-        data = self.data["trades"] if "trades" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("trades"), dict))
 
     def activity(self) -> dict[str, Any]:
         """Extract activity log."""
-        data = self.data["activity"] if "activity" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("activity"), dict))
 
     def exposure(self) -> dict[str, Any]:
         """Extract exposure factors."""
-        data = self.data["exp_factors"] if "exp_factors" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("exp_factors"), dict))
 
     def economic(self) -> dict[str, Any]:
         """Extract economic indicators."""
-        data = self.data["eco"] if "eco" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("eco"), dict))
 
     def notifications(self) -> list[Any]:
         """Extract notifications (fail-fast if missing or wrong type)."""
-        if "notifs" not in self.data:
-            notifs = None
-        else:
-            notifs = self.data["notifs"]
+        notifs = self.data.get("notifs")
         if notifs is None:
             raise DataExtractionError(
                 "Notifications field missing from API response. "
@@ -214,10 +199,8 @@ class DashboardDataExtractor:
 
     def risk(self) -> dict[str, Any]:
         """Extract risk metrics."""
-        data = self.data["risk"] if "risk" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("risk"), dict))
 
     def perf_analytics(self) -> dict[str, Any]:
         """Extract performance analytics (rolling metrics)."""
-        data = self.data["perf_anl"] if "perf_anl" in self.data else None
-        return cast(dict[str, Any], extract_data_or_empty(data, dict))
+        return cast(dict[str, Any], extract_data_or_empty(self.data.get("perf_anl"), dict))

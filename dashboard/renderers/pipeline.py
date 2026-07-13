@@ -45,6 +45,7 @@ from dashboard.utilities import ET, logger
 
 
 def render_error_panel(e: Exception, recovery_status: str | None = None) -> Panel:
+    """Create an error panel for render failures."""
     logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
     logger.error(f"Traceback: {traceback.format_exc()}")
 
@@ -62,6 +63,12 @@ def render_error_panel(e: Exception, recovery_status: str | None = None) -> Pane
 
 
 def check_auth_lost() -> Panel | None:
+    """Check if authentication was lost and return error panel if needed.
+
+    Returns:
+        Panel: Error panel if authentication has been lost
+        None: If authentication is still valid (no error panel needed)
+    """
     from dashboard.api_data_layer import get_cognito_auth
 
     auth = get_cognito_auth()

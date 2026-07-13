@@ -32,6 +32,7 @@ class ModeRenderer(Renderer):
         )
 
     def set_mode(self, mode: str) -> None:
+        """Set the view mode."""
         if ViewMode.is_valid(mode):
             self.view_mode = mode
 

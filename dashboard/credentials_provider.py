@@ -142,6 +142,7 @@ class CredentialsProvider:
 
     @staticmethod
     def _check_terraform_installed() -> bool:
+        """Check if Terraform is installed."""
         try:
             subprocess.run(["terraform", "--version"], capture_output=True, check=True, timeout=5)
             return True
@@ -151,6 +152,7 @@ class CredentialsProvider:
 
     @staticmethod
     def _init_terraform(tf_dir: str) -> bool:
+        """Initialize Terraform directory."""
         try:
             subprocess.run(
                 ["terraform", "init"],
@@ -166,6 +168,10 @@ class CredentialsProvider:
 
     @staticmethod
     def _get_terraform_outputs(tf_dir: str) -> dict[str, object]:
+        """Get Terraform outputs as JSON.
+
+        Raises RuntimeError if outputs cannot be retrieved.
+        """
         try:
             result = subprocess.run(
                 ["terraform", "output", "-json"],
@@ -209,6 +215,7 @@ class CredentialsProvider:
 
     @staticmethod
     def validate_api_url(url: str) -> bool:
+        """Validate API URL format."""
         try:
             from urllib.parse import urlparse
 

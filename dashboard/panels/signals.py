@@ -87,6 +87,7 @@ from .data_extractors import (
 
 
 def _format_signal_date(date_val: Any) -> str:
+    """Format date value for display."""
     if hasattr(date_val, "strftime"):
         return cast(str, date_val.strftime("%b %d"))
     if date_val and isinstance(date_val, str) and len(date_val) >= 10:

@@ -37,10 +37,12 @@ _sign_formatter = SignFormatter()
 
 
 def fmt_age(ts: Any) -> str:
+    """Format timestamp as age string."""
     return _age_formatter.format(ts)
 
 
 def fmt_money(v: Any) -> str:
+    """Format value as currency: $1.23, $12.34K, $1.23M."""
     return _money_formatter.format(v)
 
 
@@ -50,6 +52,7 @@ def fmt_money_short(v: Any) -> str:
 
 
 def is_open() -> bool:
+    """Check if market is currently open. Uses MarketCalendar for accurate trading hours."""
     try:
         from algo.infrastructure import MarketCalendar
 
@@ -98,6 +101,7 @@ def mkt_hours_str() -> tuple[str, str]:
 
 
 def next_run_str() -> str:
+    """Return next orchestrator run time using configured schedule."""
     now = time.time()
     if (
         _schedule_cache["result"] is not None
@@ -117,6 +121,7 @@ def next_run_str() -> str:
 
 
 def _validate_schedule_entry(s: dict[str, Any]) -> tuple[int, int]:
+    """Validate schedule entry has required fields. Fail fast if corrupted."""
     if "hour" not in s or "minute" not in s:
         raise ValueError(
             f"Schedule entry missing required fields: {s}. "
@@ -303,6 +308,7 @@ def mini_bar(pts: Any, max_pts: Any, w: int = 5) -> str:
 
 
 def sign(v: Any) -> str:
+    """Return '+' for non-negative values, empty string for negative."""
     return _sign_formatter.format(v)
 
 

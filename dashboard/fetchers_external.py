@@ -384,6 +384,7 @@ def fetch_industry_ranking(c: None) -> dict[str, Any]:
 
 
 def fetch_activity(c: None) -> dict[str, Any]:
+    """Fetch activity from audit log API (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
     try:

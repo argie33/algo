@@ -261,6 +261,7 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
 
 
 def fetch_health(c: None) -> dict[str, Any]:
+    """Fetch data loader health status from API. Uses cached data-status (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -400,6 +401,7 @@ def fetch_health(c: None) -> dict[str, Any]:
 
 
 def fetch_circuit(c: None) -> dict[str, Any]:
+    """Fetch circuit breakers from API."""
     from dashboard.fetcher_validator import FetcherValidator
 
     try:

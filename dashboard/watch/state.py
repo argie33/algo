@@ -18,21 +18,25 @@ class LoadState:
 
     @property
     def result(self) -> dict[str, Any] | None:
+        """Get current result snapshot with lock protection."""
         with self._lock:
             return self._result
 
     @result.setter
     def result(self, value: dict[str, Any] | None) -> None:
+        """Set result with lock protection."""
         with self._lock:
             self._result = value
 
     @property
     def elapsed(self) -> float:
+        """Get elapsed time with lock protection."""
         with self._lock:
             return self._elapsed
 
     @elapsed.setter
     def elapsed(self, value: float) -> None:
+        """Set elapsed time with lock protection."""
         with self._lock:
             self._elapsed = value
 
@@ -55,60 +59,72 @@ class WatchState:
 
     @property
     def result(self) -> dict[str, Any] | None:
+        """Get current result snapshot with lock protection."""
         with self._lock:
             return self._result
 
     @result.setter
     def result(self, value: dict[str, Any] | None) -> None:
+        """Set result with lock protection."""
         with self._lock:
             self._result = value
 
     @property
     def elapsed(self) -> float:
+        """Get elapsed time with lock protection."""
         with self._lock:
             return self._elapsed
 
     @elapsed.setter
     def elapsed(self, value: float) -> None:
+        """Set elapsed time with lock protection."""
         with self._lock:
             self._elapsed = value
 
     @property
     def loading(self) -> bool:
+        """Get loading state with lock protection."""
         with self._lock:
             return self._loading
 
     @loading.setter
     def loading(self, value: bool) -> None:
+        """Set loading state with lock protection."""
         with self._lock:
             self._loading = value
 
     @property
     def last_load(self) -> float:
+        """Get last load time with lock protection."""
         with self._lock:
             return self._last_load
 
     @last_load.setter
     def last_load(self, value: float) -> None:
+        """Set last load time with lock protection."""
         with self._lock:
             self._last_load = value
 
     @property
     def frame(self) -> int:
+        """Get frame count with lock protection."""
         with self._lock:
             return self._frame
 
     @frame.setter
     def frame(self, value: int) -> None:
+        """Set frame count with lock protection."""
         with self._lock:
             self._frame = value
 
     @property
     def error(self) -> str | None:
+        """Get error message with lock protection."""
         with self._lock:
             return self._error
 
     @error.setter
     def error(self, value: str | None) -> None:
+        """Set error message with lock protection."""
         with self._lock:
             self._error = value
