@@ -11,7 +11,12 @@ This bypasses the full orchestrator and Step Functions to test individual loader
 
 import argparse
 import logging
+import os
 import sys
+
+# FIX: Configure Redis for price cache (reduces yfinance API calls by 90%)
+if "REDIS_URL" not in os.environ:
+    os.environ["REDIS_URL"] = "redis://localhost:6379/0"
 
 logging.basicConfig(level=logging.INFO, format='[%(name)s] %(message)s')
 logger = logging.getLogger(__name__)
