@@ -99,11 +99,12 @@ class PositionContext:
         self.entry_price = entry_price
         self.active_stop = active_stop
         self.init_stop = init_stop
-        for target_num, target_price in [(1, t1_price), (2, t2_price), (3, t3_price)]:
-            if target_price is None:
-                raise ValueError(
-                    f"CRITICAL: {symbol} position loaded without T{target_num} target price. Cannot execute position without exit plan."
-                )
+        if t1_price is None or t2_price is None or t3_price is None:
+            missing = [f"T{i}" for i, p in enumerate([t1_price, t2_price, t3_price], 1) if p is None]
+            raise ValueError(
+                f"CRITICAL: {symbol} position loaded without target prices: {', '.join(missing)}. "
+                "Cannot execute position without exit plan."
+            )
         self.t1_price = t1_price
         self.t2_price = t2_price
         self.t3_price = t3_price
