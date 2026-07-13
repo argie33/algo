@@ -84,7 +84,10 @@ class PriceLoader(OptimalLoader):
         self.interval = interval
         self.asset_class = asset_class
         self._correlation_id = _correlation_id
-        self.batch_size = 500
+        # CRITICAL FIX (Session 111): Reduce initial batch size in production to avoid yfinance rate limits
+        # AWS production: Start conservative with batch=50 (allows 200/min rate limit * 1 min = ~200 calls)
+        # Local dev: Can use larger batch_size if needed (no public rate limits)
+        self.batch_size = 50 if os.getenv("AWS_REGION") else 500
 
         # Circuit breaker for data loader outage handling
         self._circuit_breaker = CircuitBreaker(name="yfinance_prices", importance=DataImportance.CRITICAL)
