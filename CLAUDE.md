@@ -20,13 +20,12 @@
 ### AWS Mode (Production/Cloud)
 
 ```bash
-# AWS mode is default - connects to Lambda API with Cognito authentication
-# Credentials are auto-loaded from environment or AWS Secrets Manager
-python start_dashboard_aws.py
+# Simplest: Just run it (AWS by default if credentials set)
+python run_dashboard.py
+python run_dashboard.py -w 30    # Auto-refresh every 30s
 
-# Or manually:
-python -m dashboard              # Uses AWS API (requires DASHBOARD_API_URL env var)
-python -m dashboard -w 30        # Auto-refresh every 30s
+# Or with explicit AWS startup script:
+python start_dashboard_aws.py
 ```
 
 AWS mode requires these credentials (auto-fetched from Secrets Manager):
@@ -59,15 +58,15 @@ This handles everything automatically:
 
 ```bash
 # Terminal 1: Run backend API
-python3 api-pkg/dev_server.py
+python api-pkg/dev_server.py
 # Wait for: [INFO] Starting API dev server on http://localhost:3001
 
 # Terminal 2: Run dashboard (auto-detects localhost)
-python3 -m dashboard              # No refresh
-python3 -m dashboard -w 30        # Auto-refresh every 30s
+python run_dashboard.py              # Auto-connects to localhost
+python run_dashboard.py -w 30        # Auto-refresh every 30s
 
 # Or force local mode explicitly:
-python3 -m dashboard --local      # Forces localhost:3001 (ignores AWS config)
+python run_dashboard.py --local      # Forces localhost:3001 (ignores AWS config)
 ```
 
 ## System Health Check
