@@ -6,10 +6,16 @@ Provides fail-fast validation with clear error messages.
 
 import logging
 from decimal import Decimal
-from typing import Any
+from typing import Any, overload
 
 logger = logging.getLogger(__name__)
 
+
+@overload
+def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | None: ...
+
+@overload
+def safe_float(value: Any, field_name: str, allow_none: bool = False) -> float: ...
 
 def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | None:
     """Safely convert value to float with fail-fast validation.
@@ -58,6 +64,12 @@ def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | 
     )
 
 
+@overload
+def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None: ...
+
+@overload
+def safe_int(value: Any, field_name: str, allow_none: bool = False) -> int: ...
+
 def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None:
     """Safely convert value to int with fail-fast validation."""
     if isinstance(value, bool):
@@ -86,6 +98,12 @@ def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None
     )
 
 
+@overload
+def safe_bool(value: Any, field_name: str, allow_none: bool = True) -> bool | None: ...
+
+@overload
+def safe_bool(value: Any, field_name: str, allow_none: bool = False) -> bool: ...
+
 def safe_bool(value: Any, field_name: str, allow_none: bool = True) -> bool | None:
     """Safely convert value to bool with fail-fast validation."""
     if value is None:
@@ -113,6 +131,12 @@ def safe_bool(value: Any, field_name: str, allow_none: bool = True) -> bool | No
         f"Expected bool, 0/1, or string."
     )
 
+
+@overload
+def safe_string(value: Any, field_name: str, allow_none: bool = True, max_len: int | None = None) -> str | None: ...
+
+@overload
+def safe_string(value: Any, field_name: str, allow_none: bool = False, max_len: int | None = None) -> str: ...
 
 def safe_string(value: Any, field_name: str, allow_none: bool = True, max_len: int | None = None) -> str | None:
     """Safely convert value to string with optional length validation."""
