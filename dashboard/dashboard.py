@@ -43,16 +43,34 @@ import time
 from typing import Any
 from urllib.parse import urlparse
 
-# CRITICAL FIX: When --local flag is used, override DASHBOARD_API_URL to localhost:3001
-# This allows local development to work without AWS credentials
+# AUTO-DETECT LOCAL MODE: Check if localhost:3001 is available; if so, use it by default
+# This eliminates the need for users to remember --local flag
+# Also support explicit --local flag for backward compatibility
+import socket
+import os as _os_auto
+
+def _is_dev_server_available() -> bool:
+    """Check if dev server is running on localhost:3001."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(0.5)
+        result = sock.connect_ex(('localhost', 3001))
+        sock.close()
+        return result == 0
+    except Exception:
+        return False
+
 # Parse --local flag early before any dashboard/API modules are imported
 _args_temp = argparse.ArgumentParser(add_help=False)
 _args_temp.add_argument('--local', action='store_true', help='Use local API (localhost:3001)')
 _temp_args, _ = _args_temp.parse_known_args()
-if _temp_args.local:
-    import os
-    os.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
-    os.environ['LOCAL_MODE'] = 'true'
+
+# Enable local mode if:
+# 1. User explicitly passes --local flag, OR
+# 2. Dev server is running on localhost:3001
+if _temp_args.local or _is_dev_server_available():
+    _os_auto.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
+    _os_auto.environ['LOCAL_MODE'] = 'true'
 
 try:
     import msvcrt

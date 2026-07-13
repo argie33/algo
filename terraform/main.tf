@@ -146,22 +146,29 @@ resource "aws_cloudwatch_log_group" "redis_cache" {
   })
 }
 
-module "cache" {
-  source = "./modules/cache"
-
-  project_name                 = var.project_name
-  environment                  = var.environment
-  vpc_id                       = module.vpc.vpc_id
-  private_subnet_ids           = module.vpc.private_subnet_ids
-  ecs_task_security_group_id   = module.vpc.ecs_tasks_security_group_id
-  cloudwatch_log_group_name    = aws_cloudwatch_log_group.redis_cache.name
-  sns_alerts_enabled           = var.sns_alerts_enabled
-  sns_alerts_topic_arn         = var.sns_alerts_topic_arn
-  kms_key_id                   = var.s3_encryption_kms_key_id
-  common_tags                  = local.common_tags
-
-  depends_on = [module.vpc]
-}
+# DISABLED: Redis cache module from Session 105
+# Reason: Incomplete implementation with missing variables (sns_alerts_topic_arn)
+# and invalid AWS data source (aws_elasticache_engine_version)
+# Status: Requires completion in future session with proper variable definitions
+# and AWS provider compatibility fixes
+# TODO: Complete cache module implementation and uncomment when ready
+#
+# module "cache" {
+#   source = "./modules/cache"
+#
+#   project_name                 = var.project_name
+#   environment                  = var.environment
+#   vpc_id                       = module.vpc.vpc_id
+#   private_subnet_ids           = module.vpc.private_subnet_ids
+#   ecs_task_security_group_id   = module.vpc.ecs_tasks_security_group_id
+#   cloudwatch_log_group_name    = aws_cloudwatch_log_group.redis_cache.name
+#   sns_alerts_enabled           = var.sns_alerts_enabled
+#   sns_alerts_topic_arn         = var.sns_alerts_topic_arn
+#   kms_key_id                   = var.s3_encryption_kms_key_id
+#   common_tags                  = local.common_tags
+#
+#   depends_on = [module.vpc]
+# }
 
 module "compute" {
   source = "./modules/compute"
@@ -203,8 +210,9 @@ module "loaders" {
   aws_region                  = var.aws_region
   aws_account_id              = local.aws_account_id
   ecs_cluster_name            = module.compute.ecs_cluster_name
-  redis_endpoint_address      = module.cache.redis_endpoint_address
-  redis_port                  = module.cache.redis_port
+  # DISABLED: Redis cache references (cache module incomplete)
+  # redis_endpoint_address      = module.cache.redis_endpoint_address
+  # redis_port                  = module.cache.redis_port
   ecs_cluster_arn             = module.compute.ecs_cluster_arn
   task_execution_role_arn     = module.iam.ecs_task_execution_role_arn
   task_role_arn               = module.iam.ecs_task_role_arn
