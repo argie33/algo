@@ -39,6 +39,9 @@ class MarketHealthDailyLoader(OptimalLoader):
     Uses specialized fetchers for VIX, put/call, yield curve, breadth data.
     CRITICAL: SPY prices, VIX, yield curve (all required for regime detection)
     OPTIONAL: Put/call ratio (enrichment, non-critical)
+
+    NOTE: This is a market-wide loader, not symbol-based. It uses a single
+    pseudo-symbol "market" for internal tracking but loads market-wide data.
     """
 
     table_name = "market_health_daily"
@@ -52,6 +55,16 @@ class MarketHealthDailyLoader(OptimalLoader):
         self._put_call_fetcher = PutCallRatioFetcher()
         self._yield_curve_fetcher = YieldCurveFetcher()
         self._breadth_fetcher = BreadthFetcher()
+
+    def run(self, symbols: list[str] | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Override run() to provide default symbol for market-wide loader.
+
+        Market health is market-wide (not symbol-based), but OptimalLoader.run()
+        expects a symbols list. Provide default "market" pseudo-symbol.
+        """
+        if symbols is None or len(symbols) == 0:
+            symbols = ["market"]
+        return super().run(symbols=symbols, **kwargs)
 
     def fetch_vix_with_breaker(self, start: date, end: date) -> dict[str, Any]:
         """Fetch VIX data with circuit breaker protection."""
