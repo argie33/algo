@@ -157,8 +157,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource       = "arn:aws:states:::aws-sdk:sfn:listExecutions"
         TimeoutSeconds = 30
         Parameters = {
-          "stateMachineArn.$" = "$$.StateMachine.Id"
-          statusFilter        = "RUNNING"
+          "StateMachineArn.$" = "$$.StateMachine.Id"
+          StatusFilter        = "RUNNING"
         }
         ResultPath = "$.concurrencyCheck"
         Retry = [{
@@ -182,7 +182,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       ConcurrencyGate = {
         Type = "Choice"
         Choices = [{
-          Variable  = "$.concurrencyCheck.executions[1]"
+          Variable  = "$.concurrencyCheck.Executions[1]"
           IsPresent = true
           Next      = "SkipAlreadyRunning"
         }]
@@ -1150,8 +1150,8 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
         Resource       = "arn:aws:states:::aws-sdk:sfn:listExecutions"
         TimeoutSeconds = 30
         Parameters = {
-          "stateMachineArn.$" = "$$.StateMachine.Id"
-          statusFilter        = "RUNNING"
+          "StateMachineArn.$" = "$$.StateMachine.Id"
+          StatusFilter        = "RUNNING"
         }
         ResultPath = "$.concurrencyCheck"
         Retry = [{
@@ -1175,7 +1175,7 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
       ConcurrencyGate = {
         Type = "Choice"
         Choices = [{
-          Variable  = "$.concurrencyCheck.executions[1]"
+          Variable  = "$.concurrencyCheck.Executions[1]"
           IsPresent = true
           Next      = "SkipAlreadyRunning"
         }]
@@ -1287,8 +1287,8 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Resource       = "arn:aws:states:::aws-sdk:sfn:listExecutions"
         TimeoutSeconds = 30
         Parameters = {
-          "stateMachineArn.$" = "$$.StateMachine.Id"
-          statusFilter        = "RUNNING"
+          "StateMachineArn.$" = "$$.StateMachine.Id"
+          StatusFilter        = "RUNNING"
         }
         ResultPath = "$.concurrencyCheck"
         Retry = [{
@@ -1312,7 +1312,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       ConcurrencyGate = {
         Type = "Choice"
         Choices = [{
-          Variable  = "$.concurrencyCheck.executions[1]"
+          Variable  = "$.concurrencyCheck.Executions[1]"
           IsPresent = true
           Next      = "SkipAlreadyRunning"
         }]
@@ -1655,8 +1655,8 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource       = "arn:aws:states:::aws-sdk:sfn:listExecutions"
         TimeoutSeconds = 30
         Parameters = {
-          "stateMachineArn.$" = "$$.StateMachine.Id"
-          statusFilter        = "RUNNING"
+          "StateMachineArn.$" = "$$.StateMachine.Id"
+          StatusFilter        = "RUNNING"
         }
         ResultPath = "$.concurrencyCheck"
         Retry = [{
@@ -1680,7 +1680,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       ConcurrencyGate = {
         Type = "Choice"
         Choices = [{
-          Variable  = "$.concurrencyCheck.executions[1]"
+          Variable  = "$.concurrencyCheck.Executions[1]"
           IsPresent = true
           Next      = "SkipAlreadyRunning"
         }]
