@@ -106,7 +106,7 @@ class ValueAtRisk:
                 returns = []
                 for i, r in enumerate(returns_decimal):
                     try:
-                        ret = float(float(r))
+                        ret = float(r)
                         returns.append(ret)
                     except (ValueError, TypeError) as e:
                         raise RuntimeError(
@@ -230,7 +230,7 @@ class ValueAtRisk:
         returns = []
         for i, r in enumerate(returns_decimal):
             try:
-                ret = float(float(r))
+                ret = float(r)
                 returns.append(ret)
             except (ValueError, TypeError) as e:
                 raise RuntimeError(
@@ -282,7 +282,7 @@ class ValueAtRisk:
 
                 values = [Decimal(str(float(row[1]))) for i, row in enumerate(rows)]
                 returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
-                returns = np.array([float(float(r)) for i, r in enumerate(returns_decimal)])
+                returns = np.array([float(r) for i, r in enumerate(returns_decimal)])
 
                 worst_var = None
                 worst_start_idx = None
@@ -493,24 +493,22 @@ class ValueAtRisk:
                         {
                             "symbol": symbol,
                             "weight_pct": float(
-                                float(
-                                    (position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                                )
+                                (position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                             ),
-                            "estimated_beta": float(float(estimated_beta)),
+                            "estimated_beta": float(estimated_beta),
                             "contribution": float(
-                                float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP))
+                                weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
                             ),
                         }
                     )
 
                 return {
                     "portfolio_beta": float(
-                        float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                        total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     ),
-                    "interpretation": f"Portfolio is {float(float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP)))}x market risk",
+                    "interpretation": f"Portfolio is {float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP))}x market risk",
                     "positions": positions_list,
-                    "portfolio_value": float(float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))),
+                    "portfolio_value": float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                 }
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

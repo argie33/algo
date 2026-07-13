@@ -17,7 +17,6 @@ import logging
 from decimal import ROUND_HALF_UP, Decimal
 from typing import TYPE_CHECKING, Any, cast
 
-import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor
 
 if TYPE_CHECKING:
@@ -306,7 +305,7 @@ class ExitHandler:
         shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
         shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
-        shares_to_exit = float(float(shares_to_exit_dec))
+        shares_to_exit = float(shares_to_exit_dec)
         full_exit = shares_to_exit >= current_qty
 
         # Cancel bracket orders on full exit
@@ -343,10 +342,6 @@ class ExitHandler:
                     f"Cannot determine if exit order succeeded."
                 )
 
-            if exit_order_result is None or "success" not in exit_order_result:
-                raise RuntimeError(
-                    "[CRITICAL] Exit order result is None or missing 'success' field. Cannot proceed with exit."
-                )
             if exit_order_result["success"]:
                 actual_fill_price = exit_order_result.get("filled_price")
                 is_estimated_price = False
@@ -517,7 +512,7 @@ class ExitHandler:
         current_qty_dec = Decimal(str(current_qty))
         shares_exited_dec = Decimal(str(shares_to_exit))
         new_qty_dec = current_qty_dec - shares_exited_dec
-        new_qty = float(float(new_qty_dec))
+        new_qty = float(new_qty_dec)
 
         # TRANSACTION GUARD 4: Update position with safety checks
         effective_stop = new_stop_price if new_stop_price is not None else stop_loss_price

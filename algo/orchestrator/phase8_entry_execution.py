@@ -529,7 +529,7 @@ def run(
             )
 
         reason = exposure_constraints["halt_reason"]
-        if not reason or reason is None or (isinstance(reason, str) and not reason.strip()):
+        if not isinstance(reason, str) or not reason.strip():
             raise RuntimeError(
                 "[PHASE 8 CRITICAL] Exposure policy halted entries but halt_reason is empty/None/whitespace. "
                 f"Cannot determine why trading is halted. Got: {type(reason).__name__} = {reason!r}. "
