@@ -9,6 +9,7 @@ from typing import Any, cast
 
 import psycopg2
 import requests
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 from algo.infrastructure.audit_logger import TradeAuditLogger
@@ -65,7 +66,7 @@ class DailyReconciliation:
                     f"Reconciliation initialization failed: {e}. Live trading requires valid Alpaca credentials."
                 ) from e
 
-    def run_daily_reconciliation(self, reconcile_date: Any = None, dry_run: bool = False) -> dict[str, Any]:
+    def run_daily_reconciliation(self, reconcile_date: _date_type | None = None, dry_run: bool = False) -> dict[str, Any]:
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
 
         CRITICAL SAFETY: dry_run mode must be explicitly enabled via ORCHESTRATOR_DRY_RUN environment variable
@@ -920,7 +921,7 @@ class DailyReconciliation:
             logger.error(f"Error in reconciliation: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
 
-    def reconcile_exit_fills(self, cur: Any, reconcile_date: Any) -> dict[str, Any]:
+    def reconcile_exit_fills(self, cur: PsycopgCursor[Any], reconcile_date: _date_type | None) -> dict[str, Any]:
         """Update DB trade exit prices with actual Alpaca fill prices.
 
         Phase 4 marks trades 'closed' immediately using the last known market price
@@ -930,6 +931,8 @@ class DailyReconciliation:
         try:
             if not self.broker:
                 return {"updated": 0, "message": "No broker available (paper trading mode)", "no_broker": True}
+            if reconcile_date is None:
+                reconcile_date = datetime.now(timezone.utc).date()
             since = datetime.now(timezone.utc) - timedelta(days=2)
             orders = self.broker.fetch_closed_orders(since=since)
             if not orders:
@@ -1107,7 +1110,7 @@ class DailyReconciliation:
                 "Reconciliation requires accurate exit prices for P&L validation."
             ) from e
 
-    def audit_stale_estimated_prices(self, cur: Any) -> dict[str, Any]:
+    def audit_stale_estimated_prices(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Audit for trades with estimated exit prices.
 
         Returns dict with audit results. If not implemented, returns dict with
@@ -1131,13 +1134,13 @@ class DailyReconciliation:
             ],
         }
 
-    def sync_positions(self, cur: Any) -> dict[str, Any]:
+    def sync_positions(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Sync broker positions via BrokerAdapter."""
         if not self.broker:
             return {"synced": 0, "message": "No broker available (paper trading mode)", "no_broker": True}
         return self.broker.sync_positions(cur)
 
-    def compute_analytics_metrics(self, cur: Any) -> dict[str, Any]:
+    def compute_analytics_metrics(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Compute analytics metrics (Information Coefficient, expectancy).
 
         Delegates to ReconciliationAnalytics for actual computation.
@@ -1149,7 +1152,7 @@ class DailyReconciliation:
         analytics = ReconciliationAnalytics()
         return analytics.compute_analytics_metrics(cur)
 
-    def compute_closed_trade_metrics(self, cur: Any) -> dict[str, Any]:
+    def compute_closed_trade_metrics(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Compute closed trade metrics (win rate, R-multiples, profit factor).
 
         Delegates to ReconciliationAnalytics for actual computation.
@@ -1161,7 +1164,7 @@ class DailyReconciliation:
         analytics = ReconciliationAnalytics()
         return analytics.compute_closed_trade_metrics(cur)
 
-    def check_partial_fills(self, cur: Any) -> dict[str, Any]:
+    def check_partial_fills(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Check for partial fills that haven't been reconciled with Alpaca.
 
         Detects when orders were only partially filled but the local DB thinks
@@ -1289,7 +1292,7 @@ class DailyReconciliation:
                 f"Partial fills undetected could lead to position quantity mismatches. Check broker connection."
             ) from e
 
-    def check_pending_reconciliations(self, cur: Any) -> dict[str, Any]:
+    def check_pending_reconciliations(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Identify and report on trades pending Phase 7 price reconciliation.
 
         Trades with estimated exit prices (Phase 4 pre-market exits) that haven't
@@ -1378,7 +1381,7 @@ class DailyReconciliation:
             return {"error": "No broker available (paper trading mode)"}
         return self.broker.fetch_account()
 
-    def _fetch_initial_capital(self, cur: Any) -> float:
+    def _fetch_initial_capital(self, cur: PsycopgCursor[Any]) -> float:
         """Get the actual initial capital from broker account history (fail-fast).
 
         CRITICAL: Does NOT fall back to stale database snapshots. Initial capital is
