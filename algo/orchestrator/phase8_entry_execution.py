@@ -58,6 +58,9 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
     if not qualified_trades:
         return
 
+    inserted_count = 0
+    skipped_count = 0
+
     try:
         with DatabaseContext("write") as cur:
             for signal_data in qualified_trades:
@@ -65,11 +68,13 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                 symbol = signal_data.get("symbol")
                 if not symbol:
                     logger.warning("[PERSIST SIGNALS] Skipping signal with no symbol")
+                    skipped_count += 1
                     continue
 
                 # Explicitly validate required financial fields (fail-fast governance)
                 if "entry_price" not in signal_data or signal_data["entry_price"] is None:
                     logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing entry_price")
+                    skipped_count += 1
                     continue
                 entry_price = float(signal_data["entry_price"])
 
@@ -79,10 +84,12 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                     signal_quality_score = float(signal_data["signal_quality_score"])
                 else:
                     logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing signal quality score")
+                    skipped_count += 1
                     continue
 
                 if "risk_score" not in signal_data or signal_data["risk_score"] is None:
                     logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing risk_score")
+                    skipped_count += 1
                     continue
                 risk_score = float(signal_data["risk_score"])
 
@@ -113,8 +120,15 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                         risk_score,
                     ),
                 )
+                inserted_count += 1
 
-        logger.info(f"[PERSIST SIGNALS] Inserted {len(qualified_trades)} signals for {run_date}")
+        if skipped_count:
+            logger.warning(
+                f"[PERSIST SIGNALS] Inserted {inserted_count}/{len(qualified_trades)} signals for {run_date} "
+                f"({skipped_count} skipped — see warnings above)"
+            )
+        else:
+            logger.info(f"[PERSIST SIGNALS] Inserted {inserted_count} signals for {run_date}")
     except psycopg2.DatabaseError as e:
         logger.error(f"[PERSIST SIGNALS] Database error: {e}", exc_info=True)
         raise

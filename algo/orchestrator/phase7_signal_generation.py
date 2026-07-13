@@ -62,6 +62,20 @@ _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0-100 scale)
 _BUYSELL_LOOKBACK_DAYS = 7  # Calendar days; covers full prior week including weekends and missed EOD runs
 
+
+def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
+    """Risk score (0-100, 100 = very low risk) based on ATR volatility relative to price.
+
+    Phase 8 requires risk_score on every persisted signal (see phase8_entry_execution.py
+    _persist_signals_to_database) — signals without it are silently dropped from
+    algo_signals. ATR unavailable -> treat as moderate/unknown risk (neutral 50) rather
+    than blocking persistence entirely.
+    """
+    if atr_14 is None or close is None or close <= 0:
+        return 50.0
+    atr_pct = (atr_14 / close) * 100
+    return max(0.0, min(100.0, 100.0 - (atr_pct * 5)))
+
 # ISSUE #6 FIX: Define required signal fields for Phase 6 execution
 _REQUIRED_SIGNAL_FIELDS = {
     "symbol": str,
@@ -366,6 +380,9 @@ def _get_candidates_from_stock_scores_fallback(
                     "volume_surge_pct": None,
                     "market_stage": 0,
                     "signal_date": str(run_date),
+                    "risk_score": _compute_risk_score(
+                        float(r[10]) if r[10] is not None else None, close
+                    ),
                 }
             )
 
@@ -552,6 +569,9 @@ def _get_candidates_from_buysell(
                     "volume_surge_pct": float(r[16]) if r[16] is not None else None,
                     "market_stage": r[17],
                     "signal_date": str(r[18]) if r[18] is not None else None,
+                    "risk_score": _compute_risk_score(
+                        float(r[10]) if r[10] is not None else None, close
+                    ),
                 }
             )
 
