@@ -169,6 +169,31 @@ class Orchestrator:
                     creds = CredentialManager()
                     api_key = creds.get_password("APCA_API_KEY_ID", default=None)
                     api_secret = creds.get_password("APCA_API_SECRET_KEY", default=None)
+
+                    # For LOCAL_MODE (development), also check algo_config table
+                    if (not api_key or not api_secret) and os.getenv("LOCAL_MODE") == "true":
+                        logger.info("[LOCAL_MODE] Checking algo_config for Alpaca credentials...")
+                        try:
+                            from utils.db.context import DatabaseContext
+                            with DatabaseContext("read") as cur:
+                                cur.execute('SELECT value FROM algo_config WHERE key = %s', ['alpaca_api_key'])
+                                result = cur.fetchone()
+                                if result and result[0]:
+                                    api_key = result[0]
+
+                                cur.execute('SELECT value FROM algo_config WHERE key = %s', ['alpaca_api_secret'])
+                                result = cur.fetchone()
+                                if result and result[0]:
+                                    api_secret = result[0]
+
+                            if api_key and api_secret:
+                                logger.info("[LOCAL_MODE] Loaded Alpaca credentials from algo_config")
+                                # Set env vars so rest of code sees them
+                                os.environ["APCA_API_KEY_ID"] = api_key
+                                os.environ["APCA_API_SECRET_KEY"] = api_secret
+                        except Exception as e:
+                            logger.debug(f"[LOCAL_MODE] Could not load from algo_config: {e}")
+
                     if not api_key or not api_secret:
                         raise RuntimeError(
                             "[STARTUP] CRITICAL: Alpaca credentials missing for live trading. "
