@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ Production Ready (Session 105 - CRITICAL FIX applied: Disabled VCP computation in technical_data_daily loader causing 60s+ timeouts. Orchestrator Phase 1 now passes, all 8 phases execute. Dashboard works with --local flag. System operational.)
+**Status:** ✅ Production Ready (Session 106 - Fixed dashboard localhost auto-detect. Dashboard now works WITHOUT --local flag. Manual orchestrator runner added for local dev data refresh. System operational.)
 
 ## Start Here
 
@@ -30,23 +30,24 @@ Wait for this exact output:
 
 **Step 2: Open TERMINAL 2** - Run the dashboard (ONLY after Terminal 1 shows "running")
 ```bash
-python3 -m dashboard --local
+python3 -m dashboard
 ```
 Or with watch mode for auto-refresh every 30 seconds:
 ```bash
-python3 -m dashboard --local -w 30
+python3 -m dashboard -w 30
 ```
 
 **KEY REQUIREMENTS:**
-- ✅ **ALWAYS use `--local` flag** - Without it, tries AWS Lambda (requires Cognito auth + provisioned concurrency)
 - ✅ **ALWAYS start Terminal 1 first** - Dashboard needs dev_server to fetch data
 - ✅ **Keep both terminals running** - If either crashes, restart it independently
 - ✅ **Dashboard takes 3-5 seconds to load** - Fetches data from all 26 sources, shows "Fetching..." spinner initially
+- ✅ **AUTO-DETECT**: Dashboard automatically detects localhost:3001 and uses it (no --local flag needed)
 
 **If you see "Data not available" on all panels:**
-- ❌ Did you run dashboard WITHOUT --local flag? (tries AWS Lambda)
-- ❌ Did you run dashboard before dev_server was ready? (restart dashboard after dev_server prints "running")
 - ❌ Is dev_server still running in Terminal 1? (check the window, it must stay open)
+- ❌ Is stock_scores data stale? (circuit breaker blocks trading if data >24h old)
+  - FIX: `python3 scripts/run_local_orchestrator.py --morning` to refresh data
+- ❌ Did you restart dashboard before dev_server was ready? (restart dashboard after dev_server prints "running")
 
 **Diagnostic commands:**
 ```bash
@@ -77,12 +78,20 @@ python3 scripts/diagnose_system.py
 
 ## Running Orchestrator
 
-**Local/test:**
+**Local/dev (NEW - Session 106):** Use the local runner for development (no AWS Lambda/EventBridge needed)
+```bash
+python3 scripts/run_local_orchestrator.py              # morning run (default)
+python3 scripts/run_local_orchestrator.py --afternoon  # afternoon run
+python3 scripts/run_local_orchestrator.py --evening    # evening run
+python3 scripts/run_local_orchestrator.py --run-all    # all three runs
+```
+
+**Local/test (Legacy):** Via AWS Lambda (requires AWS credentials)
 ```bash
 python3 scripts/trigger_orchestrator.py --run morning --mode paper
 ```
 
-**Production:** Configured in `terraform/modules/services/2x-daily-orchestrator.tf`, runs via Step Functions (primary) + optional weekly enrichment via EventBridge.
+**Production:** Configured in `terraform/modules/services/2x-daily-orchestrator.tf`, runs via EventBridge Scheduler (4x daily: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET).
 
 **Check status:**
 ```sql
