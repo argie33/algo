@@ -244,6 +244,26 @@ resource "aws_lambda_function" "api" {
 # Use $LATEST version (like algo Lambda) — no alias required.
 # Provisioned concurrency works on function versions, and $LATEST is the default version.
 
+# AWS eventual consistency: reserved_concurrent_executions changes on aws_lambda_function.api
+# don't always propagate before the very next API call, so PutProvisionedConcurrencyConfig can
+# fail with "Requested Provisioned Concurrency should not be greater than the
+# reservedConcurrentExecution for function" even though terraform applied the reserved value
+# first (confirmed via repeated deploy failures - this is a genuine AWS-side race, not a config
+# bug: reserved_concurrent_executions is already computed as max(reserved, provisioned)).
+resource "null_resource" "api_concurrency_propagation_delay" {
+  count = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
+
+  triggers = {
+    reserved_concurrency = aws_lambda_function.api.reserved_concurrent_executions
+  }
+
+  provisioner "local-exec" {
+    command = "sleep 15"
+  }
+
+  depends_on = [aws_lambda_function.api]
+}
+
 resource "aws_lambda_provisioned_concurrency_config" "api" {
   count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.api.function_name
@@ -254,7 +274,7 @@ resource "aws_lambda_provisioned_concurrency_config" "api" {
     create_before_destroy = true
   }
 
-  depends_on = [aws_lambda_function.api]
+  depends_on = [aws_lambda_function.api, null_resource.api_concurrency_propagation_delay]
 }
 
 # ============================================================
@@ -865,6 +885,22 @@ resource "aws_lambda_function" "algo" {
   })
 }
 
+# Same AWS eventual-consistency race as api_concurrency_propagation_delay above, applied to
+# the orchestrator Lambda's reserved_concurrent_executions -> provisioned concurrency config.
+resource "null_resource" "algo_concurrency_propagation_delay" {
+  count = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
+
+  triggers = {
+    reserved_concurrency = aws_lambda_function.algo.reserved_concurrent_executions
+  }
+
+  provisioner "local-exec" {
+    command = "sleep 15"
+  }
+
+  depends_on = [aws_lambda_function.algo]
+}
+
 # Provisioned concurrency for Orchestrator Lambda (keep instances warm for scheduled runs)
 # When provisioned_concurrency > 0, enable with published version (not $LATEST)
 resource "aws_lambda_provisioned_concurrency_config" "algo" {
@@ -876,7 +912,7 @@ resource "aws_lambda_provisioned_concurrency_config" "algo" {
   lifecycle {
     create_before_destroy = true
   }
-  depends_on = [aws_lambda_function.algo]
+  depends_on = [aws_lambda_function.algo, null_resource.algo_concurrency_propagation_delay]
 }
 
 # ============================================================
