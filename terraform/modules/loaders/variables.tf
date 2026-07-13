@@ -202,3 +202,15 @@ variable "cloudwatch_log_retention_days" {
   type        = number
   default     = 30
 }
+
+variable "redis_endpoint_address" {
+  description = "ElastiCache Redis endpoint address (hostname only, no port)"
+  type        = string
+  default     = ""
+}
+
+variable "redis_port" {
+  description = "ElastiCache Redis port"
+  type        = number
+  default     = 6379
+}

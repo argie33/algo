@@ -649,6 +649,11 @@ resource "aws_ecs_task_definition" "loader" {
         {
           name  = "PYTHONPATH"
           value = "/app"
+        },
+        # Redis price cache endpoint (90% yfinance API reduction)
+        {
+          name  = "REDIS_URL"
+          value = var.redis_endpoint_address != "" ? "redis://${var.redis_endpoint_address}:${var.redis_port}/0" : ""
         }
         ],
         # Unified price loader: handles all intervals and asset classes
