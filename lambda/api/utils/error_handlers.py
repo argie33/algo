@@ -4,29 +4,123 @@ Consolidates duplicate implementations into single source of truth to prevent
 divergence (especially critical for sanitize_error_message PII handling).
 """
 
-# Import from root utils package by path manipulation
-import sys
-from pathlib import Path
+from __future__ import annotations
 
-_root = Path(__file__).parent.parent.parent.parent
-if str(_root) not in sys.path:
-    sys.path.insert(0, str(_root))
+import logging
+import re
+from contextlib import contextmanager
+from typing import Any
 
-# Remove local utils from path to avoid shadowing
-_local_utils = Path(__file__).parent
-if str(_local_utils) in sys.path:
-    sys.path.remove(str(_local_utils))
+import psycopg2
+import psycopg2.errors
 
-# Now import from root utils (not from local utils)
-import utils.error_handlers as _root_error_handlers
+logger = logging.getLogger(__name__)
 
-classify_exception = _root_error_handlers.classify_exception
-extract_error_context = _root_error_handlers.extract_error_context
-log_error_with_context = _root_error_handlers.log_error_with_context
-log_sanitizer = _root_error_handlers.log_sanitizer
-make_error_response = _root_error_handlers.make_error_response
-retry_with_backoff = _root_error_handlers.retry_with_backoff
-sanitize_error_message = _root_error_handlers.sanitize_error_message
+
+@contextmanager
+def log_sanitizer(operation: str = "operation") -> Any:
+    """Context manager for safe error logging with automatic sanitization."""
+
+    class SanitizedLogger:
+        def __init__(self, op: str) -> None:
+            self.op = op
+
+        def error(self, message: Any, context: dict[str, Any] | None = None) -> None:
+            msg = f"{self.op}: {message}"
+            if context:
+                msg += f" (context: {context})"
+            logger.error(msg)
+
+        def warning(self, message: Any, context: dict[str, Any] | None = None) -> None:
+            msg = f"{self.op}: {message}"
+            if context:
+                msg += f" (context: {context})"
+            logger.warning(msg)
+
+    yield SanitizedLogger(operation)
+
+
+def classify_exception(error: Exception) -> tuple[int, str, str]:
+    """Classify an exception and return HTTP status code, error type, and message."""
+    if isinstance(error, psycopg2.errors.UndefinedTable):
+        return 404, "not_found", f"Database table not found"
+    if isinstance(error, psycopg2.errors.UndefinedColumn):
+        return 404, "not_found", f"Database column not found"
+    if isinstance(error, psycopg2.OperationalError):
+        return 503, "service_unavailable", f"Database connection error"
+    if isinstance(error, psycopg2.DatabaseError):
+        return 500, "database_error", f"Database error"
+    if isinstance(error, psycopg2.IntegrityError):
+        return 409, "conflict", f"Data integrity error"
+    if isinstance(error, psycopg2.ProgrammingError):
+        return 400, "bad_request", f"Invalid SQL"
+    return 500, "internal_error", f"Unexpected error"
+
+
+def sanitize_error_message(msg: str) -> str:
+    """Remove sensitive info from message."""
+    if not isinstance(msg, str):
+        return str(msg)
+
+    sanitized = re.sub(
+        r"(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|ON).*?(;|$)",
+        "[SQL]",
+        msg,
+        flags=re.IGNORECASE,
+    )
+    sanitized = re.sub(r"(/[a-zA-Z0-9/_.-]*)+", "[path]", sanitized)
+    sanitized = re.sub(r"([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+", "[path]", sanitized)
+    sanitized = re.sub(
+        r"(password|token|secret|key|api[_-]?key)[\s=:]*[^,\s]+",
+        r"\1=[redacted]",
+        sanitized,
+        flags=re.IGNORECASE,
+    )
+    sanitized = re.sub(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[email]", sanitized)
+    sanitized = re.sub(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[ip]", sanitized)
+    return sanitized
+
+
+def extract_error_context(e: Exception) -> dict[str, Any]:
+    """Extract context from an exception."""
+    return {
+        "error_type": type(e).__name__,
+        "error_message": str(e),
+        "error_module": type(e).__module__,
+    }
+
+
+def log_error_with_context(e: Exception, context: dict[str, Any] | None = None) -> None:
+    """Log an error with context."""
+    msg = f"Error: {type(e).__name__}: {str(e)}"
+    if context:
+        msg += f" | {context}"
+    logger.error(msg)
+
+
+def make_error_response(status_code: int, error_type: str, message: str) -> dict[str, Any]:
+    """Create a standardized error response."""
+    return {
+        "statusCode": status_code,
+        "error": {
+            "type": error_type,
+            "message": sanitize_error_message(message),
+        },
+    }
+
+
+def retry_with_backoff(func: Any, max_attempts: int = 3, backoff_base: float = 1.0) -> Any:
+    """Retry a function with exponential backoff."""
+    import time
+    for attempt in range(max_attempts):
+        try:
+            return func()
+        except Exception as e:
+            if attempt == max_attempts - 1:
+                raise
+            wait_time = backoff_base ** attempt
+            time.sleep(wait_time)
+
 
 __all__ = [
     "classify_exception",

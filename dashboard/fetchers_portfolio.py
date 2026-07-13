@@ -380,8 +380,6 @@ def fetch_perf(c: None) -> dict[str, Any]:
             "total_pnl_dollars",
             "sharpe_annualized",
             "max_drawdown_pct",
-            "avg_win_pct",
-            "avg_loss_pct",
         ]
         valid, validation_error = FetcherValidator.validate_response(
             response=perf,
