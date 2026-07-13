@@ -5,6 +5,7 @@ Provides fail-fast validation with clear error messages.
 """
 
 import logging
+from decimal import Decimal
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -14,7 +15,7 @@ def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | 
     """Safely convert value to float with fail-fast validation.
 
     Args:
-        value: Value to convert (can be None, float, int, or string)
+        value: Value to convert (can be None, float, int, string, or Decimal)
         field_name: Name of field for error reporting (e.g., "AAPL.roe")
         allow_none: If True, returns None for None input; if False, raises error
 
@@ -42,6 +43,9 @@ def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | 
     if isinstance(value, int):
         return float(value)
 
+    if isinstance(value, Decimal):
+        return float(value)
+
     if isinstance(value, str):
         try:
             return float(value)
@@ -66,6 +70,9 @@ def safe_int(value: Any, field_name: str, allow_none: bool = True) -> int | None
 
     if isinstance(value, int):
         return value
+
+    if isinstance(value, Decimal):
+        return int(value)
 
     if isinstance(value, str):
         try:
