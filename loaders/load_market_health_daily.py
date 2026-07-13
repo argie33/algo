@@ -1171,6 +1171,48 @@ INDEX_SYMBOLS_FOR_PRICE_DAILY = [
 ]
 
 
+def _extract_ohlcv(row: Any, col: str, symbol: str, d: date) -> float:
+    """Extract and validate OHLCV value from dataframe row.
+
+    Handles Series values, None, NaN, and type conversion.
+    Raises RuntimeError if data invalid or missing.
+    """
+    val: Any = row.get(col) if hasattr(row, "get") else row[col]
+    if val is None:
+        logger.warning(f"[MARKET_HEALTH] Missing {col} for {symbol} on {d}")
+        raise RuntimeError(
+            f"[MARKET_HEALTH] Missing {col} data for {symbol} on {d} — "
+            "cannot compute market health metrics without complete OHLCV data"
+        )
+    if hasattr(val, "__len__"):
+        try:
+            val = val.iloc[0] if len(val) else None
+        except (IndexError, AttributeError):
+            val = None
+    if val is None:
+        logger.warning(f"[MARKET_HEALTH] Empty {col} for {symbol} on {d}")
+        raise RuntimeError(
+            f"[MARKET_HEALTH] Empty {col} data for {symbol} on {d} — "
+            "cannot compute market health metrics without complete OHLCV data"
+        )
+    try:
+        f = float(val)
+        if f != f:  # NaN check
+            logger.warning(f"[MARKET_HEALTH] NaN detected in {col} for {symbol} on {d}")
+            raise RuntimeError(
+                f"[MARKET_HEALTH] Invalid {col}={val!r} (NaN) for {symbol} on {d} — "
+                "cannot compute market health metrics with NaN values"
+            )
+        return round(f, 4)
+    except RuntimeError:
+        raise
+    except (TypeError, ValueError) as e:
+        logger.warning(f"[MARKET_HEALTH] Price conversion failed for {col} {symbol} {d}: {val!r}")
+        raise RuntimeError(
+            f"[PRICE_EXTRACTION] Failed to parse {col}={val!r} for {symbol}: {e}"
+        ) from e
+
+
 def _write_vix_family_prices(start: date, end: date) -> int:  # noqa: C901
     """Download VIX-family and market-index prices via wrapper and upsert into price_daily.
 
@@ -1252,48 +1294,11 @@ def _write_vix_family_prices(start: date, end: date) -> int:  # noqa: C901
                 for idx, row in df.iterrows():
                     d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
 
-                    def _v(col: str, row: Any = row, sym: str = sym, d: date = d) -> float:
-                        val: Any = row.get(col) if hasattr(row, "get") else row[col]
-                        if val is None:
-                            logger.warning(f"[MARKET_HEALTH] Missing {col} for {sym} on {d}")
-                            raise RuntimeError(
-                                f"[MARKET_HEALTH] Missing {col} data for {sym} on {d} — "
-                                "cannot compute market health metrics without complete OHLCV data"
-                            )
-                        if hasattr(val, "__len__"):
-                            try:
-                                val = val.iloc[0] if len(val) else None
-                            except (IndexError, AttributeError):
-                                val = None
-                        if val is None:
-                            logger.warning(f"[MARKET_HEALTH] Empty {col} for {sym} on {d}")
-                            raise RuntimeError(
-                                f"[MARKET_HEALTH] Empty {col} data for {sym} on {d} — "
-                                "cannot compute market health metrics without complete OHLCV data"
-                            )
-                        try:
-                            f = float(val)
-                            if f != f:  # NaN check
-                                logger.warning(f"[MARKET_HEALTH] NaN detected in {col} for {sym} on {d}")
-                                raise RuntimeError(
-                                    f"[MARKET_HEALTH] Invalid {col}={val!r} (NaN) for {sym} on {d} — "
-                                    "cannot compute market health metrics with NaN values"
-                                )
-                            return round(f, 4)
-                        except RuntimeError:
-                            raise
-                        except (TypeError, ValueError) as e:
-                            logger.warning(f"[MARKET_HEALTH] Price conversion failed for {col} {sym} {d}: {val!r}")
-                            raise RuntimeError(
-                                f"[PRICE_EXTRACTION] Failed to parse {col}={val!r} for {sym}: {e}"
-                            ) from e
-
-                    close = _v("Close")
-
-                    open_val = _v("Open")
-                    high_val = _v("High")
-                    low_val = _v("Low")
-                    volume_val = int(_v("Volume"))
+                    close = _extract_ohlcv(row, "Close", sym, d)
+                    open_val = _extract_ohlcv(row, "Open", sym, d)
+                    high_val = _extract_ohlcv(row, "High", sym, d)
+                    low_val = _extract_ohlcv(row, "Low", sym, d)
+                    volume_val = int(_extract_ohlcv(row, "Volume", sym, d))
 
                     records.append(
                         (
