@@ -20,6 +20,14 @@ on:
           - 'true'
           - 'false'
 
+# See deploy-api-lambda.yml for why this shares a group with the other three deploy
+# workflows: all fire on the same "CI completed" event, and this one's force_recreate
+# path updates ECS services/task definitions that terraform also manages -- same class
+# of live resource race already confirmed for the Lambda-focused deploys.
+concurrency:
+  group: deploy-shared-lambda-resources-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   AWS_REGION: us-east-1

@@ -11,6 +11,18 @@ on:
     types: [completed]
   workflow_dispatch:
 
+# Shares a group with deploy-all-infrastructure.yml, deploy-orchestrator-lambda.yml, and
+# deploy-ecs-image.yml: all four fire on the same "CI completed" event and mutate the same
+# Lambda functions (algo-api-dev) that terraform also manages, and were confirmed racing
+# live -- e.g. this workflow's UpdateFunctionCode call hitting algo-api-dev at the same
+# moment deploy-all-infrastructure's terraform apply was mid-update on it, producing
+# "ResourceConflictException: update is in progress" and provisioned-concurrency failures
+# that a per-workflow-only concurrency group (deploy-all-infrastructure had one; the other
+# three didn't) can't prevent. One shared group serializes all deploys against each other.
+concurrency:
+  group: deploy-shared-lambda-resources-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   PYTHON_VERSION: '3.12'

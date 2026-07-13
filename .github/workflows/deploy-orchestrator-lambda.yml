@@ -12,6 +12,14 @@ on:
     types: [completed]
   workflow_dispatch:
 
+# See deploy-api-lambda.yml for why this shares a group with the other three deploy
+# workflows: all fire on the same "CI completed" event and mutate Lambda resources
+# terraform also manages (this one: algo-algo-dev / algo-orchestrator), confirmed
+# racing live against deploy-all-infrastructure's terraform apply.
+concurrency:
+  group: deploy-shared-lambda-resources-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   PYTHON_VERSION: '3.12'

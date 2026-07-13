@@ -43,8 +43,18 @@ permissions:
 # cancel-in-progress is deliberately false — killing a live `terraform apply` mid-flight
 # can leave AWS resources and state partially applied; queuing is the safe way to
 # unblock a backlog of runs, not racing them.
+#
+# GROUP IS SHARED with deploy-api-lambda.yml, deploy-orchestrator-lambda.yml, and
+# deploy-ecs-image.yml (not just self-serialized): all four fire on the same "CI
+# completed" event, and the other three call the AWS Lambda/ECS APIs directly against
+# the exact same resources this workflow's terraform apply manages. A group scoped to
+# just this workflow's own name only prevented two runs of *this* workflow from
+# overlapping -- it did nothing to stop e.g. deploy-api-lambda's UpdateFunctionCode
+# call landing on algo-api-dev in the middle of this workflow's terraform apply, which
+# is what was still producing "ResourceConflictException: update is in progress" and
+# provisioned-concurrency failures after this guard was added.
 concurrency:
-  group: deploy-all-infrastructure-${{ github.ref }}
+  group: deploy-shared-lambda-resources-${{ github.ref }}
   cancel-in-progress: false
 
 env:
