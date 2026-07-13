@@ -10,6 +10,7 @@ import logging
 from datetime import date, datetime
 from typing import Any, cast
 
+import psycopg2
 from utils.db.context import DatabaseContext
 from utils.validation.freshness_config import get_freshness_rule
 
@@ -69,26 +70,28 @@ class DataAgeValidator:
                 max_date = result[0] if result else None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[{table_name}] Could not query {date_column}: {e}")
+            if "critical" not in rule or rule["critical"] is None:
+                raise ValueError(f"Rule for {table_name} missing required 'critical' flag")
             return {
                 "is_fresh": False,
                 "age_days": None,
                 "max_date": None,
                 "rule": rule,
                 "message": f"✗ {table_name}: Query failed — {e}",
-                "is_critical": rule.get("critical")
-                or False,  # CRITICAL: False default masks missing criticality flag - should validate,
+                "is_critical": rule["critical"],
             }
 
         # Parse and normalize date
         if max_date is None:
+            if "critical" not in rule or rule["critical"] is None:
+                raise ValueError(f"Rule for {table_name} missing required 'critical' flag")
             return {
                 "is_fresh": False,
                 "age_days": None,
                 "max_date": None,
                 "rule": rule,
                 "message": f"✗ {table_name}: No data in table",
-                "is_critical": rule.get("critical")
-                or False,  # CRITICAL: False default masks missing criticality flag - should validate,
+                "is_critical": rule["critical"],
             }
 
         if isinstance(max_date, datetime):
@@ -97,14 +100,15 @@ class DataAgeValidator:
             try:
                 max_date = datetime.fromisoformat(max_date).date()
             except (ValueError, AttributeError):
+                if "critical" not in rule or rule["critical"] is None:
+                    raise ValueError(f"Rule for {table_name} missing required 'critical' flag")
                 return {
                     "is_fresh": False,
                     "age_days": None,
                     "max_date": None,
                     "rule": rule,
                     "message": f"✗ {table_name}: Invalid date format {max_date}",
-                    "is_critical": rule.get("critical")
-                    or False,  # CRITICAL: False default masks missing criticality flag - should validate,
+                    "is_critical": rule["critical"],
                 }
 
         # Calculate age
@@ -151,6 +155,8 @@ class DataAgeValidator:
             applies_to_str = ", ".join(applies_to) if applies_to else ""
             message += f" [applies to: {applies_to_str}]"
 
+        if "critical" not in rule or rule["critical"] is None:
+            raise ValueError(f"Rule for {table_name} missing required 'critical' flag")
         return {
             "is_fresh": is_fresh,
             "age_days": age_days,
@@ -158,8 +164,7 @@ class DataAgeValidator:
             "threshold_days": adjusted_threshold,
             "rule": rule,
             "message": message,
-            "is_critical": rule.get("critical")
-            or False,  # CRITICAL: False default masks missing criticality flag - should validate,
+            "is_critical": rule["critical"],
         }
 
     @staticmethod

@@ -26,7 +26,9 @@ class PortfolioManager:
         self.alpaca_key = alpaca_key
         self.alpaca_secret = alpaca_secret
         self.alpaca_base_url = alpaca_base_url
-        self.config = config or {}
+        if config is None:
+            raise ValueError("[PORTFOLIO] Config required - cannot initialize portfolio manager without configuration")
+        self.config = config
 
     def get_portfolio_value(self) -> float | None:
         """Live Alpaca equity only — raise exception if unavailable (no fallback to stale data)."""

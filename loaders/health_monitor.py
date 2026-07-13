@@ -166,8 +166,8 @@ class LoaderHealthMonitor:
             cur.execute(f"SELECT COUNT(*) FROM {table}")
             result = cur.fetchone()
             return int(result[0]) if result else 0
-        except Exception:
-            return 0
+        except Exception as e:
+            raise RuntimeError(f"[HEALTH MONITOR] Could not get row count for {table}: {e!s}") from e
 
     def get_health_report(self) -> dict[str, Any]:
         self.checks = [

@@ -1,0 +1,24 @@
+DUPLICATE TYPE CONVERTER IMPLEMENTATIONS TO CONSOLIDATE
+
+Canonical: utils/type_conversion.py (has safe_float, safe_int, safe_bool, safe_string with overloads)
+
+Duplicates Found:
+1. utils/finance_data_validation.py:strict_get_float - separate impl (should use canonical)
+2. utils/finance_data_validation.py:strict_get_int - separate impl (should use canonical)
+3. utils/safe_dict_access.py:safe_get_float - separate impl
+4. utils/safe_dict_access.py:safe_get_int - separate impl
+5. utils/validation/external_services.py:safe_get_float - separate impl
+6. utils/validation/external_services.py:safe_get_int - separate impl
+7. utils/validation/framework.py:safe_float - separate impl
+8. utils/validation/framework.py:safe_int - separate impl
+9. lambda/api/routes/utils.py:safe_float - separate impl
+10. lambda/api/routes/utils.py:safe_int - separate impl
+11. lambda/api/utils/validation.py:safe_float - separate impl (with default param)
+12. lambda/api/utils/validation.py:safe_get_float/safe_get_int - inner function
+13. algo/risk/circuit_breaker.py:_float - private variant
+
+STRATEGY:
+- Replace all duplicates with unified imports from utils.type_conversion
+- For functions with different signatures (e.g., lambda default params), create thin wrappers
+- For lambda-specific validators, keep but delegate core logic
+- Verify no functional changes via pre-commit + tests

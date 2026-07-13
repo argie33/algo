@@ -120,11 +120,13 @@ class TestMessageSanitization:
     """Test that sensitive info is removed from error messages."""
 
     def test_sanitize_removes_password(self):
-        """Should remove password from connection strings."""
+        """Should remove the password VALUE from connection strings, keeping the
+        "password=" keyword itself so the message stays useful for debugging
+        (e.g. "password=[redacted]") without leaking the actual secret."""
         msg = "Failed: postgres://user:password=secret@host"
         sanitized = sanitize_error_message(msg)
         assert "secret" not in sanitized
-        assert "***" in sanitized or "password" not in sanitized
+        assert "[redacted]" in sanitized
 
     def test_sanitize_removes_api_key(self):
         """Should remove API keys from messages."""

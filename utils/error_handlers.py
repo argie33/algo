@@ -187,10 +187,12 @@ def log_error_with_context(
 
 
 def sanitize_error_message(msg: str) -> str:
-    """Remove sensitive info (credentials, SQL, PII, paths) from message.
+    """Remove sensitive info (credentials, SQL, IPs, paths) from message.
 
-    Prevents credential leaks, SQL injection details, email addresses, IPs,
-    and file paths from being exposed to clients or logs.
+    Prevents credential leaks, SQL injection details, IPs, and file paths from
+    being exposed to clients or logs. Does NOT redact email addresses — those
+    are frequently legitimate, non-sensitive content in user-facing messages
+    (e.g. validation errors echoing back a submitted value).
 
     Args:
         msg: Raw error message
@@ -201,9 +203,12 @@ def sanitize_error_message(msg: str) -> str:
     if not isinstance(msg, str):
         return str(msg)
 
-    # Remove SQL query details (anything between common SQL keywords)
+    # Remove SQL query details (anything between common SQL keywords).
+    # CRITICAL: keywords must be word-bounded — without \b, bare "ON" (IGNORECASE)
+    # matches the substring "on" inside ordinary words like "conn[on]ection",
+    # corrupting any message containing "connection", "on", "front", etc.
     sanitized = re.sub(
-        r"(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|ON).*?(;|$)",
+        r"\b(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|ON)\b.*?(;|$)",
         "[SQL]",
         msg,
         flags=re.IGNORECASE,
@@ -213,16 +218,15 @@ def sanitize_error_message(msg: str) -> str:
     sanitized = re.sub(r"(/[a-zA-Z0-9/_.-]*)+", "[path]", sanitized)
     sanitized = re.sub(r"([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+", "[path]", sanitized)
 
-    # Remove credentials (password, token, key, api_key, secret)
+    # Remove credential values (password, token, key, api_key, secret) — keeps the
+    # keyword itself (e.g. "password=[redacted]") so the message stays useful for
+    # debugging without leaking the actual secret value.
     sanitized = re.sub(
         r"(password|token|secret|key|api[_-]?key)[\s=:]*[^,\s]+",
         r"\1=[redacted]",
         sanitized,
         flags=re.IGNORECASE,
     )
-
-    # Remove email addresses
-    sanitized = re.sub(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[email]", sanitized)
 
     # Remove IP addresses
     sanitized = re.sub(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[ip]", sanitized)

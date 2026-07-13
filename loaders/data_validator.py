@@ -108,8 +108,7 @@ class DataValidator:
             self.validate_value_range("price_daily", "volume", 0, 1e12)
             return len(self.errors) == 0
         except Exception as e:
-            self.errors.append(f"price_daily validation error: {e!s}")
-            return False
+            raise RuntimeError(f"[DATA VALIDATOR] price_daily validation error: {e!s}") from e
 
     def validate_technical_data(self) -> bool:
         try:
@@ -119,8 +118,7 @@ class DataValidator:
             self.validate_value_range("technical_data_daily", "rsi", 0, 100)
             return len(self.errors) == 0
         except Exception as e:
-            self.errors.append(f"technical_data_daily validation error: {e!s}")
-            return False
+            raise RuntimeError(f"[DATA VALIDATOR] technical_data_daily validation error: {e!s}") from e
 
     def validate_stock_scores(self) -> bool:
         try:
@@ -129,8 +127,7 @@ class DataValidator:
             self.validate_value_range("stock_scores", "composite_score", 0, 100)
             return len(self.errors) == 0
         except Exception as e:
-            self.errors.append(f"stock_scores validation error: {e!s}")
-            return False
+            raise RuntimeError(f"[DATA VALIDATOR] stock_scores validation error: {e!s}") from e
 
     def validate_buy_sell_signals(self) -> bool:
         try:
@@ -141,8 +138,7 @@ class DataValidator:
             self.validate_value_range("buy_sell_daily", "strength", 0, 100)
             return len(self.errors) == 0
         except Exception as e:
-            self.errors.append(f"buy_sell_daily validation error: {e!s}")
-            return False
+            raise RuntimeError(f"[DATA VALIDATOR] buy_sell_daily validation error: {e!s}") from e
 
     def get_report(self) -> dict[str, Any]:
         return {

@@ -446,7 +446,7 @@ class TradeExecutor:
                     f"Cannot track order without status. OrderManager contract violated."
                 )
 
-            executed_price = order_result.get("executed_price")
+            executed_price = order_result["executed_price"] if "executed_price" in order_result else None
             if executed_price is None:
                 raise OrderExecutionError(
                     f"[ENTRY] {symbol}: OrderManager returned success=True but no executed_price. "

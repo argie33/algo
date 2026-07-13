@@ -163,7 +163,17 @@ class TestMarketPanelValidation:
         assert "MARKET" in text
 
     def test_panel_market_full_halts_as_string_raises_error(self):
-        """Halts as string - safe_get_list correctly fails-fast."""
+        """Halts as string - _get_market_halts fails-fast internally, but
+        panel_market_full catches it and renders an in-panel error instead of
+        propagating — same error-boundary pattern used by every other panel,
+        so one malformed field can't crash the whole dashboard render loop.
+
+        safe_get_list() itself degrades a bad type to a data_unavailable marker
+        (documented, intentional — an unmapped optional field shouldn't crash
+        rendering). _get_market_halts() then rejects that non-list marker and
+        raises RuntimeError, since halts is not optional for this panel; that
+        RuntimeError is what panel_market_full converts into the error panel.
+        """
         malformed_mkt = {
             "tier": "BULLISH",
             "pct": 65.5,
@@ -171,9 +181,9 @@ class TestMarketPanelValidation:
             "spy": 450.25,
             "halts": "AAPL MSFT",  # String instead of list - cannot coerce
         }
-        # safe_get_list should raise TypeError (fail-fast validation)
-        with pytest.raises(TypeError, match="Expected dict or list"):
-            panel_market_full(mkt=malformed_mkt)
+        panel = panel_market_full(mkt=malformed_mkt)
+        text = assert_panel_renders_without_crash(panel, "Should render halt data error panel")
+        assert "HALT DATA ERROR" in text
 
     def test_panel_market_full_vix_comparison_safe(self):
         """VIX comparisons (>= 30, >= 20) should be type-safe."""

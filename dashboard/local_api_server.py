@@ -318,8 +318,8 @@ class APIHandler(BaseHTTPRequestHandler):
                         "breakeven": 0,  # Would need separate query
                         "win_rate": float(metrics["win_rate"]) if ("win_rate" in metrics and metrics["win_rate"] is not None) else None,
                         "profit_factor": float(metrics["profit_factor"]) if ("profit_factor" in metrics and metrics["profit_factor"] is not None) else None,
-                        "total_pnl": float(metrics.get("total_pnl") or 0),
-                        "total_pnl_pct": float(metrics.get("total_pnl_pct") or 0),
+                        "total_pnl": float(metrics["total_pnl"]) if "total_pnl" in metrics and metrics["total_pnl"] is not None else None,
+                        "total_pnl_pct": float(metrics["total_pnl_pct"]) if "total_pnl_pct" in metrics and metrics["total_pnl_pct"] is not None else None,
                         "avg_trade_pct": 0.0,  # Computed separately
                         "best_trade": float(metrics.get("best_trade")) if metrics.get("best_trade") else None,
                         "worst_trade": float(metrics.get("worst_trade")) if metrics.get("worst_trade") else None,
@@ -330,7 +330,7 @@ class APIHandler(BaseHTTPRequestHandler):
                         "cagr": None,  # Computed separately
                         "best_streak": 0,  # Computed separately
                         "worst_streak": 0,  # Computed separately
-                        "current_streak": metrics.get("current_streak") or 0,
+                        "current_streak": int(metrics["current_streak"]) if "current_streak" in metrics and metrics["current_streak"] is not None else None,
                         "expectancy_r": None,  # Computed separately
                     },
                 }
@@ -371,14 +371,11 @@ class APIHandler(BaseHTTPRequestHandler):
                     risk_score = s.get("risk_score")
 
                     if entry_price is None:
-                        logger.error(f"[SIGNALS VALIDATION] Signal for {symbol} missing entry_price - cannot display")
-                        continue
+                        raise ValueError(f"[SIGNALS VALIDATION] Signal for {symbol} missing entry_price - data integrity error")
                     if quality_score is None:
-                        logger.error(f"[SIGNALS VALIDATION] Signal for {symbol} missing signal_quality_score - cannot display")
-                        continue
+                        raise ValueError(f"[SIGNALS VALIDATION] Signal for {symbol} missing signal_quality_score - data integrity error")
                     if risk_score is None:
-                        logger.error(f"[SIGNALS VALIDATION] Signal for {symbol} missing risk_score - cannot display")
-                        continue
+                        raise ValueError(f"[SIGNALS VALIDATION] Signal for {symbol} missing risk_score - data integrity error")
 
                     buy_sigs.append(
                         {
@@ -476,7 +473,9 @@ class APIHandler(BaseHTTPRequestHandler):
                 WHERE check_date = CURRENT_DATE
                 ORDER BY triggered_at DESC
             """)
-            breakers = cur.fetchall() or []
+            breakers = cur.fetchall()
+            if breakers is None:
+                raise RuntimeError("Circuit breaker query returned None instead of empty list")
 
             # Count triggered vs total
             triggered_count = len([b for b in breakers if b.get("is_triggered")])
@@ -484,11 +483,15 @@ class APIHandler(BaseHTTPRequestHandler):
             breaker_items = []
             for b in breakers:
                 if b.get("is_triggered"):
+                    if "current_value" not in b or b["current_value"] is None:
+                        raise ValueError(f"Circuit breaker {b.get('breaker_name')} missing current_value")
+                    if "threshold_value" not in b or b["threshold_value"] is None:
+                        raise ValueError(f"Circuit breaker {b.get('breaker_name')} missing threshold_value")
                     breaker_items.append({
                         "name": b.get("breaker_name"),
                         "triggered": True,
-                        "current_value": float(b.get("current_value") or 0),
-                        "threshold": float(b.get("threshold_value") or 0),
+                        "current_value": float(b["current_value"]),
+                        "threshold": float(b["threshold_value"]),
                         "reason": b.get("trigger_reason"),
                         "triggered_at": b.get("triggered_at", datetime.now(timezone.utc)).isoformat() if hasattr(b.get("triggered_at"), "isoformat") else str(b.get("triggered_at")),
                     })
@@ -575,17 +578,24 @@ class APIHandler(BaseHTTPRequestHandler):
             for row in config_rows:
                 config_dict[row.get("key")] = row.get("value")
 
+            # Validate all critical risk parameters are present
+            required_keys = ["execution_mode", "max_position_size_pct", "max_portfolio_exposure_pct",
+                           "sector_allocation_max_pct", "initial_capital_paper_trading"]
+            missing_keys = [k for k in required_keys if k not in config_dict or config_dict[k] is None]
+            if missing_keys:
+                raise ValueError(f"Critical config missing from database: {missing_keys}. Check algo_config table.")
+
             response = {
                 "statusCode": 200,
                 "data": {
-                    "enabled": True,  # Infer from presence of config
-                    "mode": config_dict.get("execution_mode", "paper"),
+                    "enabled": True,
+                    "mode": config_dict["execution_mode"],
                     "risk_config": {
-                        "max_position_size": float(config_dict.get("max_position_size_pct", 5.0)),
-                        "max_portfolio_exposure": float(config_dict.get("max_portfolio_exposure_pct", 80.0)),
-                        "max_sector_exposure": float(config_dict.get("sector_allocation_max_pct", 30.0)),
+                        "max_position_size": float(config_dict["max_position_size_pct"]),
+                        "max_portfolio_exposure": float(config_dict["max_portfolio_exposure_pct"]),
+                        "max_sector_exposure": float(config_dict["sector_allocation_max_pct"]),
                     },
-                    "initial_capital_paper_trading": float(config_dict.get("initial_capital_paper_trading", 100000.0)),
+                    "initial_capital_paper_trading": float(config_dict["initial_capital_paper_trading"]),
                 },
             }
             self._send_json(200, response)

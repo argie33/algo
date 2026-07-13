@@ -301,7 +301,7 @@ class OrderManager:
                         data = resp.json()
                     except (requests.RequestException, requests.Timeout) as e:
                         raise RuntimeError(f"Operation failed: {e}") from e
-                    filled_qty = data.get("filled_qty")
+                    filled_qty = data["filled_qty"] if "filled_qty" in data else None
                     if filled_qty is None:
                         logger.error(
                             f"[ORDER_MANAGER] Alpaca response missing 'filled_qty' for order {alpaca_order_id}"

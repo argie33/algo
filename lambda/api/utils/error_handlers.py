@@ -7,12 +7,13 @@ divergence (especially critical for sanitize_error_message PII handling).
 from __future__ import annotations
 
 import logging
-import re
 from contextlib import contextmanager
 from typing import Any
 
 import psycopg2
 import psycopg2.errors
+
+from utils.error_handlers import sanitize_error_message
 
 logger = logging.getLogger(__name__)
 
@@ -55,30 +56,6 @@ def classify_exception(error: Exception) -> tuple[int, str, str]:
     if isinstance(error, psycopg2.ProgrammingError):
         return 400, "bad_request", "Invalid SQL"
     return 500, "internal_error", "Unexpected error"
-
-
-def sanitize_error_message(msg: str) -> str:
-    """Remove sensitive info from message."""
-    if not isinstance(msg, str):
-        return str(msg)
-
-    sanitized = re.sub(
-        r"(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|ON).*?(;|$)",
-        "[SQL]",
-        msg,
-        flags=re.IGNORECASE,
-    )
-    sanitized = re.sub(r"(/[a-zA-Z0-9/_.-]*)+", "[path]", sanitized)
-    sanitized = re.sub(r"([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+", "[path]", sanitized)
-    sanitized = re.sub(
-        r"(password|token|secret|key|api[_-]?key)[\s=:]*[^,\s]+",
-        r"\1=[redacted]",
-        sanitized,
-        flags=re.IGNORECASE,
-    )
-    sanitized = re.sub(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[email]", sanitized)
-    sanitized = re.sub(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[ip]", sanitized)
-    return sanitized
 
 
 def extract_error_context(e: Exception) -> dict[str, Any]:

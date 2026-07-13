@@ -118,6 +118,10 @@ class ConnectionPoolMonitor:
             )
 
 
+# Alias: some callers refer to this as "ConnectionMonitor" (generic name) rather
+# than the more specific "ConnectionPoolMonitor" (tracks RDS Proxy pool usage).
+ConnectionMonitor = ConnectionPoolMonitor
+
 # Global monitor instance
 _monitor: ConnectionPoolMonitor | None = None
 _monitor_lock = threading.Lock()
