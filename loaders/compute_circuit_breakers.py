@@ -433,7 +433,12 @@ def _compute_win_rate(cur: Any) -> float:
     decisive = wins + losses
 
     if decisive == 0:
-        raise ValueError("No closed trades available for win rate calculation")
+        # No closed trades yet (e.g. fresh paper account) — CB9's trigger condition
+        # (v < threshold and v > 0) treats 0 as "not applicable", not "triggered".
+        # Raising here would block persistence of all 8 other circuit breaker
+        # metrics, which don't depend on trade history and can be computed fine.
+        logger.info("[CB9] No closed trades yet — win rate not applicable, defaulting to 0")
+        return 0.0
 
     win_rate = wins / decisive * 100
     return round(win_rate, 1)
