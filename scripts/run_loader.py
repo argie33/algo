@@ -24,23 +24,48 @@ def run_price_loader(symbols=None, backfill_days=1):
 
     loader = PriceLoader()
     if not symbols:
-        # Default: get from universe
-        symbols = ['AAPL', 'SPY', 'QQQ', 'MSFT', 'NVDA']  # Quick test
+        # Default: load all universe symbols (will be fetched from database)
+        import psycopg2
+        try:
+            conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+            cursor = conn.cursor()
+            cursor.execute('SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol')
+            symbols = [row[0] for row in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+            logger.info(f"Loaded {len(symbols)} symbols from universe")
+        except Exception as e:
+            logger.warning(f"Could not load universe, using default symbols: {e}")
+            symbols = ['AAPL', 'SPY', 'QQQ', 'MSFT', 'NVDA']
 
     result = loader.run(
-        since_date=date.today() - timedelta(days=backfill_days),
-        force=True
+        symbols=symbols,
+        backfill_days=backfill_days
     )
     logger.info(f"Price loader result: {result}")
     return result
 
 
-def run_technical_indicators_loader():
+def run_technical_indicators_loader(backfill_days=1):
     """Run technical indicators loader."""
     from loaders.load_technical_indicators import TechnicalIndicatorsLoader
 
+    # Load all symbols from universe
+    import psycopg2
+    try:
+        conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+        cursor = conn.cursor()
+        cursor.execute('SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol')
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols for technical indicators")
+    except Exception as e:
+        logger.warning(f"Could not load universe, using default symbols: {e}")
+        symbols = ['AAPL', 'SPY', 'QQQ', 'MSFT', 'NVDA']
+
     loader = TechnicalIndicatorsLoader()
-    result = loader.run(since_date=date.today() - timedelta(days=1), force=True)
+    result = loader.run(symbols=symbols, backfill_days=backfill_days)
     logger.info(f"Technical indicators loader result: {result}")
     return result
 
@@ -75,7 +100,7 @@ def main():
             run_price_loader(symbols=symbols, backfill_days=args.backfill)
 
         elif args.loader == 'technical':
-            run_technical_indicators_loader()
+            run_technical_indicators_loader(backfill_days=args.backfill)
 
         elif args.loader == 'scores':
             run_stock_scores_loader(limit=args.limit)
