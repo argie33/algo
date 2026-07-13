@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
@@ -280,10 +280,14 @@ class PutCallRatioFetcher:
 
             # Fetch PCRX (CBOE Put/Call Ratio Index) - official source, simple API
             # PCRX is updated daily by CBOE and is readily available via yfinance
+            # yfinance's end date is exclusive (like pandas date_range), so
+            # start=end=eval_date always returned an empty frame -- this made
+            # every PCRX fetch fail regardless of data availability, permanently
+            # leaving put_call_ratio NULL since this fetcher was introduced.
             pcrx_data = yfinance.download(
                 "PCRX",
                 start=eval_date,
-                end=eval_date,
+                end=eval_date + timedelta(days=1),
                 progress=False,
             )
 
