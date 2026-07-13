@@ -3,7 +3,12 @@
 """Pattern-based signal methods — base detection, VCP, 3WT, HTF."""
 
 import logging
+from collections.abc import Callable
+from datetime import date as _date
 from typing import Any, cast
+
+import psycopg2
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from utils.db.context import DatabaseContext
 
@@ -26,7 +31,7 @@ class SignalPatternsMixin:
     LOOKBACK_DAYS_DEFAULT = 60
     LOOKBACK_BARS_SHORT = 25
 
-    def _with_cursor(self, operation: Any) -> Any:
+    def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], Any]) -> Any:
         """Execute an operation with a cursor via DatabaseContext."""
         try:
             with DatabaseContext("read") as cur:
@@ -57,8 +62,8 @@ class SignalPatternsMixin:
             logger.debug(f"Could not load signal pattern thresholds: {e} — using defaults")
         return thresholds
 
-    def base_detection(self, symbol: str, eval_date: Any) -> dict[str, Any]:
-        def _fetch_and_analyze(cur: Any) -> dict[str, Any]:
+    def base_detection(self, symbol: str, eval_date: _date) -> dict[str, Any]:
+        def _fetch_and_analyze(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close, volume FROM price_daily
@@ -164,7 +169,7 @@ class SignalPatternsMixin:
             )
             raise  # Re-raise to propagate code bugs/configuration issues
 
-    def vcp_detection(self, symbol: str, eval_date: Any) -> dict[str, Any]:
+    def vcp_detection(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         Volatility Contraction Pattern (Minervini's signature setup).
 
@@ -180,7 +185,7 @@ class SignalPatternsMixin:
         }
         """
 
-        def _analyze_vcp(cur: Any) -> dict[str, Any]:
+        def _analyze_vcp(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close FROM price_daily
@@ -240,7 +245,7 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_analyze_vcp))
 
-    def classify_base_type(self, symbol: str, eval_date: Any) -> dict[str, Any]:  # noqa: C901
+    def classify_base_type(self, symbol: str, eval_date: _date) -> dict[str, Any]:  # noqa: C901
         """
         Classify the current base into canonical chart pattern types.
         """
@@ -264,7 +269,7 @@ class SignalPatternsMixin:
                 "characteristics": base_info,
             }
 
-        def _classify_with_cursor(cur: Any) -> dict[str, Any]:
+        def _classify_with_cursor(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close, volume FROM price_daily
@@ -435,7 +440,7 @@ class SignalPatternsMixin:
         return cast(dict[str, Any], self._with_cursor(_classify_with_cursor))
 
     def base_type_stop(
-        self, symbol: str, eval_date: Any, entry_price: float, atr: float | None = None
+        self, symbol: str, eval_date: _date, entry_price: float, atr: float | None = None
     ) -> dict[str, Any]:
         """Compute optimal stop loss based on the SPECIFIC base type detected.
 
@@ -464,7 +469,7 @@ class SignalPatternsMixin:
         if "is_ht" not in htf or htf["is_ht"] is None:
             raise ValueError(f"High-tight flag classification missing for {symbol}; cannot compute stop loss")
 
-        def _compute_stop(cur: Any) -> dict[str, Any]:
+        def _compute_stop(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             nonlocal atr
             if atr is None:
                 cur.execute(
@@ -556,7 +561,7 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_compute_stop))
 
-    def three_weeks_tight(self, symbol: str, eval_date: Any) -> dict[str, Any]:
+    def three_weeks_tight(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         IBD's "3-Weeks-Tight" (3WT) — high-probability continuation pattern.
 
@@ -577,7 +582,7 @@ class SignalPatternsMixin:
         }
         """
 
-        def _analyze_3wt(cur: Any) -> dict[str, Any]:
+        def _analyze_3wt(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close FROM price_weekly
@@ -642,7 +647,7 @@ class SignalPatternsMixin:
 
         return cast(dict[str, Any], self._with_cursor(_analyze_3wt))
 
-    def high_tight_flag(self, symbol: str, eval_date: Any) -> dict[str, Any]:
+    def high_tight_flag(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
         IBD's "High Tight Flag" (HTF) — rare but highly explosive continuation.
 
@@ -668,7 +673,7 @@ class SignalPatternsMixin:
         }
         """
 
-        def _analyze_htf(cur: Any) -> dict[str, Any]:
+        def _analyze_htf(cur: PsycopgCursor[Any]) -> dict[str, Any]:
             cur.execute(
                 """
                 SELECT date, high, low, close FROM price_weekly
