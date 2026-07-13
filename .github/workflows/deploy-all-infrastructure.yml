@@ -36,8 +36,16 @@ permissions:
   id-token: write
   contents: read
 
-# Concurrency disabled to allow pending runs to execute
-# Note: Multiple Terraform runs may cause state conflicts, but necessary to unblock queued deployments
+# Serialize deploys: overlapping `terraform apply` runs against the same state/AWS
+# resources were racing to mutate the same Lambda concurrency settings simultaneously,
+# causing repeated "Requested Provisioned Concurrency should not be greater than the
+# reservedConcurrentExecution" failures (confirmed via runs starting 12s apart).
+# cancel-in-progress is deliberately false — killing a live `terraform apply` mid-flight
+# can leave AWS resources and state partially applied; queuing is the safe way to
+# unblock a backlog of runs, not racing them.
+concurrency:
+  group: deploy-all-infrastructure-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
   AWS_REGION: us-east-1
