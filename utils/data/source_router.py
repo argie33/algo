@@ -41,6 +41,7 @@ import requests
 import yfinance as yf
 
 from algo.infrastructure import RateLimiter, retry
+from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 from utils.infrastructure import EASTERN_TZ
 from utils.loaders.transient_errors import TransientAPIError
 
@@ -97,6 +98,40 @@ def _call_with_timeout(fn: Callable[[], Any], timeout_sec: float = 30, retries: 
                 time.sleep(2**attempt)  # Exponential backoff: 1s, 2s, 4s
             continue
     raise TimeoutError(f"Function call exceeded {timeout_sec}s timeout after {retries} retries")
+
+
+_YF_RATE_LIMIT_KEYWORDS = ("429", "rate", "too many", "invalid crumb", "unauthorized")
+
+
+def _is_yf_rate_limit_error(e: Exception) -> bool:
+    error_str = str(e).lower()
+    return any(keyword in error_str for keyword in _YF_RATE_LIMIT_KEYWORDS)
+
+
+def _yf_download_with_circuit_breaker(do_download: Callable[[], Any], timeout_sec: float, retries: int) -> Any:
+    """Call yf.download() (via do_download) under the shared cross-ECS-task IP circuit breaker.
+
+    Every yf.download() call site in this module previously called _call_with_timeout()
+    directly, bypassing the shared circuit breaker that utils/external/yfinance.py's
+    Ticker-based path already respects. Loaders using this batch-download path could keep
+    hammering yfinance during an active shared-IP ban (set by any other ECS task hitting
+    Ticker() calls), repeatedly re-triggering fresh 429s and preventing the ban from
+    ever expiring. Mirrors the check/report pattern in utils/external/yfinance.py.
+    """
+    circuit_breaker = get_circuit_breaker()
+    if circuit_breaker.is_banned():
+        backoff = circuit_breaker.get_backoff_seconds()
+        logger.warning(f"[yfinance] Shared IP banned across all ECS tasks. Waiting {backoff:.0f}s before retry...")
+        time.sleep(backoff)
+
+    try:
+        result = _call_with_timeout(do_download, timeout_sec=timeout_sec, retries=retries)
+        circuit_breaker.report_success()
+        return result
+    except Exception as e:
+        if _is_yf_rate_limit_error(e):
+            circuit_breaker.report_rate_limit_error()
+        raise
 
 
 @dataclass
@@ -300,7 +335,7 @@ class DataSourceRouter:
                 )
 
             logger.debug(f"[yfinance] Calling yf.download for {yf_symbol} with 120s timeout (AWS VPC)")
-            hist = _call_with_timeout(do_download, timeout_sec=120, retries=3)
+            hist = _yf_download_with_circuit_breaker(do_download, timeout_sec=120, retries=3)
 
             if hist is None or hist.empty:
                 logger.debug(f"[yfinance] No data returned for {symbol}")
@@ -398,7 +433,7 @@ class DataSourceRouter:
 
             logger.info(f"[yfinance] Batch calling yf.download for {len(symbols)} symbols with 180s timeout")
             try:
-                hist = _call_with_timeout(do_download, timeout_sec=180, retries=3)
+                hist = _yf_download_with_circuit_breaker(do_download, timeout_sec=180, retries=3)
                 logger.debug("[yfinance] Batch download completed successfully")
             except TimeoutError as timeout_e:
                 logger.critical(f"[yfinance] BATCH TIMEOUT EXCEEDED: {timeout_e}")
@@ -798,7 +833,7 @@ class DataSourceRouter:
                 )
 
             # Use SHORT timeout for quick check (don't burn time waiting for API)
-            hist = _call_with_timeout(do_download, timeout_sec=timeout_sec, retries=1)
+            hist = _yf_download_with_circuit_breaker(do_download, timeout_sec=timeout_sec, retries=1)
 
             # Check if we got valid data with today's close
             if hist is None or hist.empty:
