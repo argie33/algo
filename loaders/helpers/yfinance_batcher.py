@@ -21,7 +21,6 @@ Usage:
 """
 
 import logging
-import time
 from collections.abc import Generator
 from typing import Any
 
@@ -32,7 +31,6 @@ def batch_tickers(symbols: list[str], batch_size: int = 50) -> Generator[dict[st
     """Batch yfinance.Ticker() fetches to reduce API calls.
 
     Yields dicts mapping symbols to fetched Ticker objects.
-    Implements exponential backoff for rate limiting.
 
     Args:
         symbols: List of stock symbols to fetch
@@ -41,51 +39,31 @@ def batch_tickers(symbols: list[str], batch_size: int = 50) -> Generator[dict[st
     Yields:
         Dict mapping each symbol to its Ticker object (or None if unavailable)
     """
-    import yfinance as yf
-
-    max_retries = 3
-    backoff_base = 2
+    # Delegate each symbol to YFinanceWrapper.get_ticker rather than calling
+    # yf.Ticker() directly. Confirmed live 2026-07-13: the previous inner
+    # try/except caught every per-symbol exception (including 401 "Invalid
+    # Crumb" bursts) and silently set result[symbol] = None with zero backoff,
+    # zero rate limiting, and zero participation in the shared cross-ECS-task
+    # circuit breaker every other yfinance call site uses -- which also made
+    # the outer retry_attempt loop dead code, since no exception ever escaped
+    # the inner loop to trigger it. This let yfinance_snapshot hammer Yahoo
+    # Finance unthrottled across 8000+ symbols, the likely actual driver of
+    # the shared-IP rate-limit storm that was starving every other loader.
+    from utils.external.yfinance import YFinanceWrapper
 
     for batch_idx in range(0, len(symbols), batch_size):
         batch = symbols[batch_idx : batch_idx + batch_size]
         logger.info(f"[YFINANCE_BATCHER] Fetching batch {batch_idx // batch_size + 1}: {len(batch)} symbols")
 
-        for retry_attempt in range(max_retries):
+        result: dict[str, Any] = {}
+        for symbol in batch:
             try:
-                # Fetch all symbols in batch
-                result = {}
-                for symbol in batch:
-                    try:
-                        ticker = yf.Ticker(symbol)
-                        # Test that ticker is valid by accessing info
-                        _ = ticker.info
-                        result[symbol] = ticker
-                    except Exception as e:
-                        logger.debug(f"[YFINANCE_BATCHER] {symbol}: {e}")
-                        result[symbol] = None
-
-                yield result
-                break  # Success, don't retry
-
+                result[symbol] = YFinanceWrapper.get_ticker(symbol)
             except Exception as e:
-                # Rate limit or network error
-                if "429" in str(e) or "Too Many Requests" in str(e):
-                    if retry_attempt < max_retries - 1:
-                        wait_time = backoff_base**retry_attempt
-                        logger.warning(
-                            f"[YFINANCE_BATCHER] Rate limited. "
-                            f"Retrying batch {batch_idx // batch_size + 1} after {wait_time}s "
-                            f"(attempt {retry_attempt + 1}/{max_retries})"
-                        )
-                        time.sleep(wait_time)
-                    else:
-                        logger.error("[YFINANCE_BATCHER] Rate limited, max retries exceeded. Skipping batch.")
-                        yield dict.fromkeys(batch)
-                        break
-                else:
-                    logger.error(f"[YFINANCE_BATCHER] Unexpected error: {e}")
-                    yield dict.fromkeys(batch)
-                    break
+                logger.debug(f"[YFINANCE_BATCHER] {symbol}: {e}")
+                result[symbol] = None
+
+        yield result
 
 
 def batch_download(
