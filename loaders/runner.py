@@ -134,6 +134,12 @@ def run_loader(
                 logger.error(f"Too many failures: {symbols_failed}/{len(symbols)} ({fail_rate * 100:.1f}%)")
                 return 1
 
+            # Some loaders define post-run steps (e.g. StockScoresLoader.post_run computes
+            # RS percentiles via a batch rank query) that must run after all per-symbol
+            # writes complete. This hook was previously defined but never invoked.
+            if hasattr(loader, "post_run"):
+                loader.post_run()
+
             return 0
     except Exception as e:
         loader_name = loader_class.table_name if hasattr(loader_class, "table_name") else loader_class.__name__
