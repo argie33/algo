@@ -66,10 +66,24 @@ make ci-local       # All checks (simulates full CI)
 
 | Workflow | File | Trigger | Purpose |
 |----------|------|---------|---------|
-| Deploy API Lambda | `.github/workflows/deploy-api-lambda.yml` | Manual (workflow_dispatch) | Update `algo-api-dev` function code |
-| Deploy Orchestrator Lambda | `.github/workflows/deploy-orchestrator-lambda.yml` | Manual (workflow_dispatch) | Update `algo-orchestrator` function code |
-| Deploy ECS Image | `.github/workflows/deploy-ecs-image.yml` | Manual (workflow_dispatch) | Build and push ECS task images |
-| Deploy All Infrastructure | `.github/workflows/deploy-all-infrastructure.yml` | Manual (workflow_dispatch) | Full Terraform apply + Lambda updates |
+| Deploy API Lambda | `.github/workflows/deploy-api-lambda.yml` | Auto (CI success on main) + manual | Update `algo-api-dev` function code |
+| Deploy Orchestrator Lambda | `.github/workflows/deploy-orchestrator-lambda.yml` | Auto (CI success on main) + manual | Update `algo-orchestrator` function code |
+| Deploy ECS Image | `.github/workflows/deploy-ecs-image.yml` | Auto (CI success on main) + manual | Build and push the shared Docker image used by ALL ECS loaders and the orchestrator |
+| Deploy All Infrastructure | `.github/workflows/deploy-all-infrastructure.yml` | Auto (CI success on main) + manual | Terraform apply + **DB migrations** + Lambda updates |
+
+**A fix is NOT live until its deploy workflow succeeds.** Pushing to main runs CI; only if CI succeeds do the deploy workflows fire (`workflow_run` trigger). A green push with a failed/skipped deploy silently leaves prod running old code — this has caused multi-day staleness before. Always confirm with `gh run list --limit 10` that the relevant deploy workflow completed after your push.
+
+**Database migrations (`migrations/versions/*.sql`):**
+- Applied ONLY by the `algo-db-migration-dev` Lambda, which `deploy-all-infrastructure.yml` (run-migrations job) re-packages with the current `migrations/versions/` and invokes. Committing a migration does nothing until that workflow runs.
+- Manual apply: `aws lambda invoke --function-name algo-db-migration-dev --payload '{}' out.json` — any payload runs all pending migrations. Note: the Lambda package must already contain your migration (i.e., deploy-all-infrastructure must have packaged it).
+- **NEVER edit an already-applied migration file** — the runner tracks applied state by version number only, never content, so edits are a silent no-op in every environment that already ran it. Ship a new version number instead.
+- Loader mutual exclusion uses the `loader_execution_locks` table (migration 1111), NOT `pg_try_advisory_lock` — advisory locks are unreliable through RDS Proxy connection pinning (two tasks can both "acquire" the same lock).
+
+**Production trigger chain (who runs what):**
+- EventBridge Scheduler → Step Functions pipelines (`algo-morning-prep-pipeline-dev`, `algo-eod-pipeline-dev`, `algo-computed-metrics-pipeline-dev`, `algo-reference-data-pipeline-dev`) → ECS loader tasks → orchestrator ECS task (logs: `/ecs/algo-algo-orchestrator`).
+- The EOD pipeline intentionally halts at `PriceLoadFailureHalt` if `stock_prices_daily` fails after retries — no trading on stale prices. When that happens the orchestrator never runs and everything downstream (scores, signals, positions view, risk metrics) goes stale together. Diagnose with `aws stepfunctions list-executions --state-machine-arn <eod-arn>`.
+- Pipelines have a concurrency gate (`CheckConcurrency` → `SkipAlreadyRunning`): an execution that "SUCCEEDED" in under a second is a normal skip because another execution of the same pipeline was still running, not a bug.
+- Orchestrator phase-level results live in `orchestrator_execution_log` (written by `OrchestratorExecutionTracker`, per-phase status `"ok"`), NOT in `algo_orchestrator_runs.phase_results` (which is never populated).
 
 **How to Trigger Deployment (Example: API Lambda):**
 
