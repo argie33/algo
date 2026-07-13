@@ -15,7 +15,13 @@ Handles:
 import json
 import logging
 from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+import psycopg2
+from psycopg2.extensions import cursor as PsycopgCursor
+
+if TYPE_CHECKING:
+    from algo.trading.handler_context import HandlerContext
 
 from algo.reporting import TradeNotificationService
 from algo.trading.exceptions import (
@@ -33,7 +39,7 @@ logger = logging.getLogger(__name__)
 class ExitHandler:
     """Handles exit trade execution logic with transaction safety guarantees."""
 
-    def __init__(self, context: Any) -> None:
+    def __init__(self, context: HandlerContext) -> None:
         self.context = context
         self.config = context.config
 
@@ -45,7 +51,7 @@ class ExitHandler:
         exit_fraction: float = 1.0,
         exit_stage: str | None = None,
         new_stop_price: float | None = None,
-        cur: Any | None = None,
+        cur: PsycopgCursor[Any] | None = None,
     ) -> dict[str, Any]:
         """Exit all or part of a position with guaranteed transaction atomicity.
 
@@ -126,7 +132,7 @@ class ExitHandler:
                 "message": f"Unexpected error: {type(e).__name__}",
             }
 
-    def _raise_stop_only(self, trade_id: int, new_stop_price: float | None, cur: Any | None) -> dict[str, Any]:
+    def _raise_stop_only(self, trade_id: int, new_stop_price: float | None, cur: PsycopgCursor[Any] | None) -> dict[str, Any]:
         """Raise stop on residual position without exiting shares."""
         if new_stop_price is None:
             return {
@@ -134,7 +140,7 @@ class ExitHandler:
                 "message": "stop-raise-only (fraction=0) requires new_stop_price",
             }
 
-        def _raise_stop(cursor: Any) -> dict[str, Any]:
+        def _raise_stop(cursor: PsycopgCursor[Any]) -> dict[str, Any]:
             # Validate position has existing stop price (cannot raise NULL stop)
             cursor.execute(
                 """SELECT p.current_stop_price FROM algo_positions p
@@ -213,7 +219,7 @@ class ExitHandler:
 
     def _execute_exit(  # noqa: C901
         self,
-        cur: Any,
+        cur: PsycopgCursor[Any],
         trade_id: int,
         exit_price: float,
         exit_reason: str,
