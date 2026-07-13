@@ -17,7 +17,6 @@ class FormatterStrategy(ABC):
 
     @abstractmethod
     def format(self, value: Any) -> str:
-        """Format a value according to strategy-specific rules."""
 
 
 class GradeFormatter(FormatterStrategy):
@@ -138,7 +137,6 @@ class MoneyFormatter(FormatterStrategy):
         self.short = short
 
     def format(self, value: Any) -> str:
-        """Format value as currency: $1.23, $12.34K, $1.23M."""
         if value is None:
             return "--"
 
@@ -167,7 +165,6 @@ class MoneyFormatter(FormatterStrategy):
         return f"{s}${av:.2f}"
 
     def _format_decimal(self, value: Decimal) -> str:
-        """Format Decimal type value."""
         is_neg = value < 0
         av = abs(value)
         s = "-" if is_neg else ""

@@ -128,7 +128,6 @@ def format_json_value(obj: Any) -> str | float:
 
 
 def build_error_response(status_code: int, error_type: str, message: str) -> dict[str, Any]:
-    """Build a standardized error response dict."""
     return {
         "statusCode": status_code,
         "errorType": error_type,

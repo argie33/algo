@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class SpecializedChecker(BaseCheck):
-    """Check specialized data tables: earnings, fundamentals, technical indicators."""
 
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute specialized checks."""
@@ -65,7 +64,6 @@ class SpecializedChecker(BaseCheck):
         return self.results
 
     def check_earnings_data(self, cur: Any) -> None:
-        """Check earnings data freshness and coverage."""
         today = _date.today()
         sources = [
             ("earnings_estimates", ["created_at", "quarter"], 7, WARN),
@@ -169,7 +167,6 @@ class SpecializedChecker(BaseCheck):
             )
 
     def check_fundamental_data(self, cur: Any) -> None:
-        """Check fundamental data freshness."""
         today = _date.today()
         table_checks = [
             ("quarterly_income_statement", "created_at", 45, WARN),
@@ -245,7 +242,6 @@ class SpecializedChecker(BaseCheck):
             logger.warning(f"Fundamental data checks failed: {e}")
 
     def check_derived_metrics(self, cur: Any) -> None:
-        """Check technical indicators for bounds violations."""
         try:
             interval_7d = get_interval_sql("7d")
             # RSI bounds check (should be 0-100)

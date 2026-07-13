@@ -1442,7 +1442,6 @@ class AlgoConfig:
         return type_mapping.get(db_type_lower, "string")
 
     def _parse_value(self, value: Any, dtype: str) -> Any:
-        """Parse configuration value to correct type."""
         if dtype == "int":
             return int(value)
         elif dtype == "float":
@@ -2078,7 +2077,6 @@ class AlgoConfig:
         return dict(self._config)
 
     def initialize_defaults(self) -> bool:
-        """Initialize all default configs in database."""
         try:
             with DatabaseContext("write") as cur:
                 for key, entry in self.DEFAULTS.items():
@@ -2164,50 +2162,26 @@ def reset_config() -> None:
 
 
 def get_api_timeout() -> int:
-    """Get API request timeout in seconds.
-
-    Delegates to TimeoutConfig.
-    """
     return cast(int, get_config().timeout.get_api_timeout())
 
 
 def get_db_timeout() -> int:
-    """Get database connection timeout in seconds.
-
-    Delegates to TimeoutConfig.
-    """
     return cast(int, get_config().timeout.get_db_timeout())
 
 
 def get_market_data_timeout() -> int:
-    """Get market data API timeout in seconds.
-
-    Delegates to TimeoutConfig.
-    """
     return cast(int, get_config().timeout.get_market_data_timeout())
 
 
 def get_alpaca_timeout() -> int:
-    """Get Alpaca API timeout in seconds.
-
-    Delegates to TimeoutConfig.
-    """
     return cast(int, get_config().timeout.get_alpaca_timeout())
 
 
 def get_webhook_timeout() -> int:
-    """Get webhook timeout in seconds.
-
-    Delegates to TimeoutConfig.
-    """
     return cast(int, get_config().timeout.get_webhook_timeout())
 
 
 def get_subprocess_timeout() -> int:
-    """Get subprocess timeout in seconds.
-
-    Delegates to TimeoutConfig.
-    """
     return cast(int, get_config().timeout.get_subprocess_timeout())
 
 

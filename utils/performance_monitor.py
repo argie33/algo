@@ -62,7 +62,6 @@ class PerformanceMonitor:
     """Monitor and track optimization performance metrics."""
 
     def __init__(self) -> None:
-        """Initialize performance monitor."""
         self.run_start_time: float = 0
         self.api_calls: int = 0
         self.cache_hits: int = 0

@@ -22,7 +22,6 @@ class TestEndpointsMissingData:
 
     @pytest.fixture
     def mock_cursor(self):
-        """Create a mock cursor that simulates database unavailability."""
         cursor = Mock()
         # Simulate database query error
         cursor.execute.side_effect = psycopg2.OperationalError("connection refused")

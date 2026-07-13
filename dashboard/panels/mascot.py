@@ -173,7 +173,6 @@ MASCOT_H = 8
 
 
 def _get_safe_frame_index(frame_index: int) -> int:
-    """Validate frame index is within bounds of MASCOT_FRAMES and MASCOT_COLORS."""
     max_index = len(MASCOT_FRAMES) - 1
     if frame_index < 0 or frame_index > max_index:
         logger.warning(

@@ -23,7 +23,6 @@ from dashboard.cognito_auth import CognitoAuth
 
 
 def create_jwt(exp: int, sub: str = "user-123") -> str:
-    """Create a properly encoded JWT for testing."""
     header = base64.urlsafe_b64encode(json.dumps({"alg": "HS256"}).encode()).decode().rstrip("=")
     payload = base64.urlsafe_b64encode(json.dumps({"exp": exp, "sub": sub}).encode()).decode().rstrip("=")
     signature = base64.urlsafe_b64encode(b"test-signature").decode().rstrip("=")

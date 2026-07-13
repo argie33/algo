@@ -78,7 +78,6 @@ class LoaderConfigManager:
     }
 
     def __init__(self) -> None:
-        """Initialize the configuration manager."""
         self.config_table = os.getenv(
             "LOADER_CONFIG_TABLE",
             f"{os.getenv('PROJECT_NAME', 'algo')}-loader-config-{os.getenv('ENVIRONMENT', 'dev')}",
@@ -107,7 +106,6 @@ class LoaderConfigManager:
 
     @classmethod
     def _set_cache(cls, loader_name: str, config: dict[str, Any]) -> None:
-        """Set cached configuration (thread-safe)."""
         with cls._cache_lock:
             cls._cache[loader_name] = config
             cls._cache_timestamp = time.time()

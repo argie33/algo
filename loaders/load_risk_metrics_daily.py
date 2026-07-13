@@ -65,7 +65,6 @@ class RiskMetricsLoader(OptimalLoader):
         return [momentum_row]
 
     def _compute_momentum_row(self, symbol: str) -> dict[str, Any]:
-        """Compute momentum metrics and return row dict for momentum_metrics table."""
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -160,7 +159,6 @@ class RiskMetricsLoader(OptimalLoader):
             }
 
     def _compute_stability_row(self, symbol: str) -> dict[str, Any]:
-        """Compute stability metrics and return row dict for stability_metrics table."""
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -332,7 +330,6 @@ class RiskMetricsLoader(OptimalLoader):
 
     @staticmethod
     def _calculate_volatility(returns: list[float]) -> float | None:
-        """Calculate annualized volatility from returns or return None if insufficient data."""
         if not returns or len(returns) < 2:
             return None
 
@@ -347,7 +344,6 @@ class RiskMetricsLoader(OptimalLoader):
         stock_prices: list[tuple[Any, float]],
         spy_rows: list[Any],
     ) -> float | dict[str, Any]:
-        """Compute beta from price_daily or return marker dict if unavailable."""
         import numpy as np
 
         min_spy_days = 5

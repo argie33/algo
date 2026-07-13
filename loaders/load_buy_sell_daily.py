@@ -203,7 +203,6 @@ class SignalsDailyLoader(OptimalLoader):
             ) from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
-        """Generate signals from technical data."""
         # Validate batch context was properly initialized
         if not self._batch_context or "end_date" not in self._batch_context:
             raise RuntimeError(
@@ -469,7 +468,6 @@ class SignalsDailyLoader(OptimalLoader):
         return tech_data_age
 
     def _fetch_signal_data(self, symbol: str, start: date, end: date) -> list[dict[str, Any]]:
-        """Fetch technical and price data needed for signal generation."""
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(

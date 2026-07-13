@@ -215,7 +215,6 @@ def _set_halt_flag_atomically(reason: str) -> bool:
 
 
 def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
-    """Set halt flag in RDS. Returns True if successful. Raises on failure."""
     try:
         conn = _get_db_connection()
         cur = conn.cursor()
@@ -261,7 +260,6 @@ def _set_halt_flag_rds(reason: str, now_utc: datetime) -> bool:
 
 
 def _set_halt_flag_dynamodb(reason: str, now_utc: datetime) -> bool:
-    """Set halt flag in DynamoDB (cache). Returns True if successful. Raises on failure."""
     table_name = os.environ.get("HALT_FLAG_TABLE", "algo_orchestrator_state")
     try:
         ddb = boto3.resource("dynamodb", region_name=os.environ.get("AWS_REGION", "us-east-1"))

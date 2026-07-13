@@ -174,7 +174,6 @@ def compute_circuit_breaker_metrics(cur: Any, today: date | None = None) -> dict
 
 
 def _compute_drawdown(cur: Any) -> float:
-    """Calculate portfolio drawdown from peak."""
     cur.execute("""
         SELECT MAX(total_portfolio_value) AS peak,
                (SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -194,7 +193,6 @@ def _compute_drawdown(cur: Any) -> float:
 
 
 def _compute_daily_loss(cur: Any, today: date) -> float:
-    """Calculate today's loss %."""
     cur.execute(
         """
         SELECT daily_return_pct FROM algo_portfolio_snapshots
@@ -214,7 +212,6 @@ def _compute_daily_loss(cur: Any, today: date) -> float:
 
 
 def _compute_consecutive_losses(cur: Any) -> int:
-    """Calculate consecutive losing trades from last 10 closed trades."""
     cur.execute("""
         SELECT profit_loss_pct FROM algo_trades
         WHERE status = 'closed' AND exit_date IS NOT NULL
@@ -256,7 +253,6 @@ def _compute_vix_level(cur: Any) -> float | None:
 
 
 def _compute_weekly_loss(cur: Any, today: date) -> float:
-    """Calculate 7-day portfolio loss %."""
     cur.execute(
         """
         SELECT total_portfolio_value FROM algo_portfolio_snapshots
@@ -386,7 +382,6 @@ def _compute_open_risk(cur: Any) -> float:
 
 
 def _compute_spy_change(cur: Any, today: date) -> float:
-    """Calculate SPY prior-day change %."""
     cur.execute(
         """
         SELECT close FROM price_daily
@@ -411,7 +406,6 @@ def _compute_spy_change(cur: Any, today: date) -> float:
 
 
 def _compute_win_rate(cur: Any) -> float:
-    """Calculate win rate from last 30 closed trades."""
     cur.execute("""
         SELECT COUNT(*) FILTER (WHERE profit_loss_pct > 0) as wins,
                COUNT(*) FILTER (WHERE profit_loss_pct < 0) as losses

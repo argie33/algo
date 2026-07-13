@@ -13,7 +13,6 @@ class ExposureFactorStrategy(ABC):
 
     @abstractmethod
     def calculate(self, market_data: dict[str, Any]) -> float:
-        """Calculate exposure factor."""
         ...
 
 
@@ -97,7 +96,6 @@ class ExposureFactorCalculator:
     """Calculates composite market exposure factors."""
 
     def __init__(self) -> None:
-        """Initialize calculator with default factors."""
         self.factors = {
             "volatility": VolatilityFactor(),
             "beta": BetaFactor(),

@@ -25,14 +25,12 @@ class PriceCache:
     """
 
     def __init__(self, redis_client: Any | None = None):
-        """Initialize cache with optional Redis client."""
         self.redis = redis_client
         self.cache_ttl_seconds = 82800  # 23 hours
         self._local_cache: dict[str, tuple[Any, float]] = {}  # (data, timestamp)
 
     @classmethod
     def from_env(cls) -> "PriceCache":
-        """Create cache from environment (Redis or local fallback)."""
         redis_url = os.getenv("REDIS_URL")
         if redis_url:
             try:

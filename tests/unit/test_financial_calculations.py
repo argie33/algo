@@ -35,7 +35,6 @@ class TestPositionSizer:
 
     @pytest.fixture
     def position_sizer(self, config):
-        """Create position sizer instance."""
         from algo.trading.position_sizer import PositionSizer
 
         return PositionSizer(config)
@@ -131,7 +130,6 @@ class TestValueAtRisk:
 
     @pytest.fixture
     def var_calculator(self, config):
-        """Create ValueAtRisk instance."""
         from algo.risk.var import ValueAtRisk
 
         return ValueAtRisk(config)
@@ -209,7 +207,6 @@ class TestPerformanceMetrics:
 
     @pytest.fixture
     def performance_calc(self, config):
-        """Create LivePerformance instance."""
         from algo.reporting.performance import LivePerformance
 
         return LivePerformance(config)

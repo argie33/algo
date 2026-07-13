@@ -16,7 +16,6 @@ DESCRIPTION = "Add ad_line_daily table for market breadth tracking"
 
 
 def up():
-    """Create ad_line_daily table."""
     with DatabaseContext("write") as cur:
         # Create table
         cur.execute("""

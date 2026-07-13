@@ -800,7 +800,6 @@ def _handle_naaim(cur: cursor) -> Any:
 
 @db_route_handler("get fear greed history")  # type: ignore[untyped-decorator]
 def _get_fear_greed_history(cur: cursor, days: int = 30) -> Any:
-    """Get fear/greed index history with signals."""
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
     cur.execute(
@@ -889,7 +888,6 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> Any:
 
 @db_route_handler("get market latest")  # type: ignore[untyped-decorator]
 def _get_market_latest(cur: cursor) -> Any:
-    """Get latest market data including indices, breadth, and sentiment."""
     cur.execute("""
         SELECT date, market_trend, market_stage, advance_decline_ratio,
                    new_highs_count, new_lows_count, vix_level, put_call_ratio,
@@ -1225,7 +1223,6 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
 
 @db_route_handler("get cap distribution")  # type: ignore[untyped-decorator]
 def _get_cap_distribution(cur: cursor) -> Any:
-    """Get market cap distribution across market cap buckets and sectors."""
     # market_cap is in key_metrics, sector is in company_profile — stock_symbols has neither
     cur.execute("""
         SELECT ss.symbol, cp.sector, km.market_cap,
@@ -1403,14 +1400,12 @@ def _get_cap_distribution(cur: cursor) -> Any:
 
 
 def _get_index_symbols() -> list[str]:
-    """Get market index symbols from configuration."""
     from utils.market_symbols_config import MarketSymbolsConfig
 
     return MarketSymbolsConfig.get_index_symbols()
 
 
 def _get_index_names() -> dict[str, str]:
-    """Get index symbol names from configuration."""
     from utils.market_symbols_config import MarketSymbolsConfig
 
     return MarketSymbolsConfig.get_index_names()
@@ -1557,7 +1552,6 @@ def _get_markets(cur: cursor) -> Any:
 
 @db_route_handler("get sector overview")  # type: ignore[untyped-decorator]
 def _get_sector_overview(cur: cursor) -> Any:
-    """Get latest sector performance overview from sectors table."""
     cur.execute("""
         SELECT sector_name, performance_ytd, performance_1y, pe_ratio,
                dividend_yield, market_cap, stock_count, metric_date
@@ -1608,7 +1602,6 @@ class _MarketHandlerRegistry:
         return _get_fear_greed_history(cur, range_days)
 
     def get_handler(self, path: str) -> Any:
-        """Get handler for path, handling aliases like /api/market → /api/market/status."""
         if path in ["/api/market", "/api/market/status"] or path.startswith("/api/market?"):
             return self._handlers["/api/market/status"]
         return self._handlers.get(path)

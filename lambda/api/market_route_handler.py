@@ -20,7 +20,6 @@ class MarketStatusHandler(MarketHandlerStrategy):
     """Handle /api/market/status endpoint."""
 
     def handle(self, cur: Any) -> dict[str, Any]:
-        """Fetch and return current market status."""
         cur.execute("""
             SELECT date, market_trend, market_stage, vix_level, put_call_ratio
             FROM market_health_daily ORDER BY date DESC LIMIT 1
@@ -38,7 +37,6 @@ class MarketBreadthHandler(MarketHandlerStrategy):
     """Handle /api/market/breadth endpoint."""
 
     def handle(self, cur: Any) -> dict[str, Any]:
-        """Fetch and return market breadth data."""
         cur.execute("""
             SELECT date, advances, declines, unchanged
             FROM breadth_daily ORDER BY date DESC LIMIT 12

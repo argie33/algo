@@ -49,7 +49,6 @@ class TradeFieldValidator:
 
     @classmethod
     def validate_trade_exit(cls, trade_data: dict[str, Any]) -> tuple[bool, str]:
-        """Validate trade exit fields."""
         if "exit_price" not in trade_data:
             return False, "exit_price required"
         if trade_data["exit_price"] <= 0:

@@ -27,7 +27,6 @@ class SectorPerformanceLoader(BaseLoader):  # type: ignore[misc]
     """Load daily sector performance (return %) from stock prices."""
 
     def __init__(self, cur: cursor) -> None:
-        """Initialize sector performance loader."""
         super().__init__(cur, "sector_performance")
         self.phase = LoaderPhase.METRICS
 

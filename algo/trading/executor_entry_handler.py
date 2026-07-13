@@ -90,7 +90,6 @@ class EntryHandler:
     """Handles entry trade execution logic."""
 
     def __init__(self, context: Any) -> None:
-        """Initialize with HandlerContext for access to dependencies (not whole executor)."""
         self.context = context
         self.config = context.config
         self.validator = context.validator

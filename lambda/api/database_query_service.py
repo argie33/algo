@@ -21,7 +21,6 @@ class DatabaseQueryService:
     """
 
     def __init__(self, cursor: Any):
-        """Initialize with psycopg2 cursor."""
         self.cursor = cursor
 
     def execute(self, query: str, params: tuple[Any, ...] | dict[str, Any] | None = None) -> Any:

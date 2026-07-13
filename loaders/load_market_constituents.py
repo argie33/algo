@@ -176,7 +176,6 @@ class MarketConstituentsLoader(OptimalLoader):
             raise RuntimeError(f"[MARKET_CONSTITUENTS] Failed to fetch constituent data: {e}") from e
 
     def _fetch_nasdaq_symbols(self) -> list[dict[str, Any]]:  # noqa: C901
-        """Fetch tradable symbols from NASDAQ/NYSE with security filtering."""
         # Validate URLs
         for url, url_name in [
             (NASDAQ_URL, "NASDAQ_SYMBOLS_URL"),
@@ -302,7 +301,6 @@ class MarketConstituentsLoader(OptimalLoader):
             ) from e
 
     def _fetch_sp500_symbols(self) -> list[str]:
-        """Fetch S&P 500 constituents from Wikipedia."""
         is_valid, error_msg = validate_url(SP500_URL, allowed_domains=["wikipedia.org"])
         if not is_valid:
             raise RuntimeError(

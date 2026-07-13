@@ -89,7 +89,6 @@ class RenderState:
             return self.retry_count < self.max_retries_permanent
 
     def next_backoff_delay(self) -> float:
-        """Calculate delay before next retry in seconds."""
         if self.error_category == ErrorCategory.PERMANENT:
             return 2.0  # Permanent errors: steady 2s (unlikely to help anyway)
 
@@ -226,14 +225,12 @@ class RenderRecovery:
             return status
 
     def _create_loading_panel(self, status: str) -> Layout:
-        """Create a loading panel for backoff periods."""
         layout = Layout()
         content = Text.from_markup(f"[dim]Recovering from transient error... waiting for next retry[/]\n\n{status}")
         layout.update(Panel(content, title="[yellow]RECOVERING[/]", border_style="yellow"))
         return layout
 
     def _create_error_panel(self, e: Exception, status: str) -> Layout:
-        """Create an error panel for display."""
         layout = Layout()
         error_line = escape(f"{type(e).__name__}: {str(e)[:80]}")
         if status:

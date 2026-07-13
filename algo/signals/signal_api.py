@@ -27,7 +27,6 @@ class SignalAPI:
     """
 
     def __init__(self) -> None:
-        """Initialize the signal API with a shared SignalComputer instance."""
         config = get_config()
         self._computer = SignalComputer(config)
 

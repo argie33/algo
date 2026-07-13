@@ -255,7 +255,6 @@ class APIHandler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def _set_cors_headers(self) -> None:
-        """Set CORS headers - accept any localhost origin in dev."""
         origin = self.headers.get("Origin", "")
         # In development, accept any localhost origin (5173, 5176, 5177, etc.)
         if origin and (origin.startswith(("http://localhost:", "http://127.0.0.1:"))):

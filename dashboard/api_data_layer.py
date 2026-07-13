@@ -174,7 +174,6 @@ _validate_api_url_at_startup()
 
 
 def set_api_url(url: str) -> None:
-    """Set API base URL at runtime (used by -local mode)."""
     global API_BASE_URL
     API_BASE_URL = url
 
@@ -245,7 +244,6 @@ _cognito_auth_lock = threading.Lock()
 
 
 def set_cognito_auth(auth: Any) -> None:
-    """Set the Cognito authentication instance for API calls."""
     global _cognito_auth
     with _cognito_auth_lock:
         _cognito_auth = auth

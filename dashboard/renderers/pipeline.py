@@ -45,7 +45,6 @@ from dashboard.utilities import ET, logger
 
 
 def render_error_panel(e: Exception, recovery_status: str | None = None) -> Panel:
-    """Create an error panel for render failures."""
     logger.error(f"Dashboard render error: {type(e).__name__}: {e}")
     logger.error(f"Traceback: {traceback.format_exc()}")
 

@@ -488,7 +488,6 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
 
 
 def fetch_sector_ranking(c: None) -> dict[str, Any]:
-    """Fetch per-sector rankings from /api/sectors (fail-fast: error if unavailable)."""
     from dashboard.fetcher_validator import FetcherValidator
 
     try:
@@ -532,7 +531,6 @@ def fetch_sector_ranking(c: None) -> dict[str, Any]:
 
 
 def fetch_sector_rotation(c: None) -> dict[str, Any]:
-    """Fetch sector rotation signal from API. Fail-fast: error only on failure."""
     from dashboard.fetcher_validator import FetcherValidator
 
     try:

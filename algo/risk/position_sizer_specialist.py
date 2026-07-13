@@ -11,7 +11,6 @@ class PositionSizerSpecialist:
     """Handles position sizing calculations independently."""
 
     def __init__(self, config: Any) -> None:
-        """Initialize with config."""
         self.config = config
         base_risk_val = config.get("base_risk_pct")
         if base_risk_val is None:
@@ -91,7 +90,6 @@ class PositionSizerSpecialist:
         return min(shares, max_shares)
 
     def validate_position_size(self, shares: int, portfolio_value: Decimal, entry_price: Decimal) -> bool:
-        """Validate position size against limits."""
         entry_price_float = float(entry_price)
         portfolio_value_float = float(portfolio_value)
 

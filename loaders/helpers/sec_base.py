@@ -175,7 +175,6 @@ class SecEdgarStatementLoader(SecLoaderBase):
         return os.getenv("LOADER_PERIOD", "annual")
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch financial data for a symbol, filtering by watermark (fiscal_year)."""
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
         except ValueError as e:

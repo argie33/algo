@@ -129,7 +129,6 @@ class DashboardDataExtractor:
     """
 
     def __init__(self, aggregated_data: dict[str, Any]):
-        """Initialize with aggregated API response data."""
         self.data = aggregated_data
 
     def run(self) -> dict[str, Any]:

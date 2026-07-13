@@ -75,7 +75,6 @@ ROOT_UTILITY_SCRIPT_PREFIXES = (
 
 
 def should_check_file(filepath: Path, repo_root: Path | None = None) -> bool:
-    """Check if file should be scanned for fallback patterns."""
     # Only check Python files
     if filepath.suffix != ".py":
         return False
@@ -355,7 +354,6 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
 
 
 def main() -> int:
-    """Check Python files for silent fallback patterns."""
     repo_root = Path.cwd()
     violations = []
 

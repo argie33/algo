@@ -39,7 +39,6 @@ class LoaderStats:
             self._stats["source_distribution"][source] = self._stats["source_distribution"][source] + count
 
     def set(self, key: str, value: Any) -> None:
-        """Set a stat value."""
         with self._lock:
             self._stats[key] = value
 

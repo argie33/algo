@@ -34,7 +34,6 @@ PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 
 
 class PositionSizer:
-    """Calculate position sizes based on risk parameters."""
 
     def __init__(self, config: Any) -> None:
         if config is None:
@@ -168,7 +167,6 @@ class PositionSizer:
         raise PortfolioValueError(error_msg)
 
     def _fetch_live_alpaca_equity(self) -> Decimal:
-        """Fetch live portfolio equity from Alpaca with retries. Raises on credential/API failure."""
         import logging
         import time
 
@@ -441,10 +439,6 @@ class PositionSizer:
             raise RuntimeError(f"Regime multiplier calculation failed: {type(e).__name__}: {e}") from e
 
     def get_active_positions_value(self) -> Decimal:
-        """Get sum of active position values.
-
-        Raises DataUnavailableError if database unavailable.
-        """
 
         def fetch_positions_value(cur: Any) -> Decimal:
             # Check for data integrity: all open positions must have non-NULL position_value

@@ -14,7 +14,6 @@ class ExecutionTracker:
     """Tracks orchestration execution and phase completion."""
 
     def __init__(self, run_id: str = "test", run_date: _date | None = None) -> None:
-        """Initialize execution tracker."""
         if run_date is None:
             run_date = _date.today()
         self.run_id = run_id

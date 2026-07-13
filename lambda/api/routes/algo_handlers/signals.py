@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 
 def _validate_portfolio_snapshot(cur: cursor) -> tuple[dict[str, Any], Any] | Any:
-    """Fetch and validate portfolio snapshot. Returns (portfolio_dict, error_response) or (portfolio_dict, None)."""
     cur.execute("""
         SELECT total_portfolio_value, position_count FROM algo_portfolio_snapshots
         ORDER BY snapshot_date DESC LIMIT 1
@@ -54,7 +53,6 @@ def _validate_portfolio_snapshot(cur: cursor) -> tuple[dict[str, Any], Any] | An
 
 
 def _get_symbol_sector(cur: cursor, symbol: str) -> str | Any:
-    """Get sector for symbol or return error_response."""
     cur.execute(
         """
         SELECT sector FROM company_profile WHERE ticker = %s LIMIT 1
@@ -75,7 +73,6 @@ def _get_symbol_sector(cur: cursor, symbol: str) -> str | Any:
 
 
 def _fetch_sector_exposure(cur: cursor) -> dict[str, Any] | Any:
-    """Fetch sector exposure data. Returns dict or error_response."""
     sector_exposure = {}
     try:
         cur.execute("""
@@ -527,7 +524,6 @@ _TIER_CONFIG = {
 
 
 def _get_rejection_reason_description(reason: str) -> str:
-    """Generate human-readable description for rejection reason."""
     # MEDIUM-FIX: Explicit None handling instead of OR fallback
     reason_lower = reason.lower() if reason is not None else ""
     descriptions = {
@@ -620,7 +616,6 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
 @db_route_handler("fetch stock scores history")  # type: ignore[untyped-decorator]
 @validate_api_response("scores")  # type: ignore[untyped-decorator]
 def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
-    """Get stock scores historical data (SWING SCORE MIGRATION: now uses stock_scores.composite_score)."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
         cur.execute(

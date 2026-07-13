@@ -145,7 +145,6 @@ class CompactPanelBase(PanelBase):
     """
 
     def __init__(self, name: str, title: str, border_style: str = "blue") -> None:
-        """Initialize compact panel."""
         super().__init__(name, title, border_style)
         self.compact = True
 
@@ -157,7 +156,6 @@ class ExpandedPanelBase(PanelBase):
     """
 
     def __init__(self, name: str, title: str, border_style: str = "blue") -> None:
-        """Initialize expanded panel."""
         super().__init__(name, title, border_style)
         self.compact = False
 
@@ -214,16 +212,13 @@ class MultiViewPanelBase(ABC):
 
     @abstractmethod
     def format_compact_content(self, **kwargs: Any) -> Panel:
-        """Format compact panel content."""
         ...
 
     @abstractmethod
     def format_expanded_content(self, **kwargs: Any) -> Panel:
-        """Format expanded panel content."""
         ...
 
     def _error_panel(self, message: str) -> Panel:
-        """Create error panel."""
         return Panel(
             Text.from_markup(f"[dim]{message}[/]"),
             title=f"[bold {self.border_style}]{self.base_title} (ERROR)[/]",

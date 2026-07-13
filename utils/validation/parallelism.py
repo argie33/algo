@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class ParallelismValidator:
-    """Validate loader parallelism configuration with full datasets."""
 
     # Expected parallelism ranges for different loaders with full 5000+ symbols
     EXPECTED_PARALLELISM = {

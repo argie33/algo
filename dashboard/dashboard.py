@@ -127,7 +127,6 @@ from dashboard.watch import ReloadManager, WatchModeController, WatchState
 
 
 def get_cli_args() -> argparse.Namespace:
-    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
         description="Algo Ops Terminal Dashboard",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -155,7 +154,6 @@ def setup_logging(debug: bool = False) -> None:
 
 
 def validate_config(args: argparse.Namespace) -> None:
-    """Validate dashboard configuration before starting."""
     is_local = bool(args.local or os.environ.get('LOCAL_MODE'))
     try:
         validate_api_config(allow_localhost=is_local)

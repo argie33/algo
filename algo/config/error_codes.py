@@ -97,7 +97,6 @@ ERROR_SEVERITY_MAP = {
 
 
 def get_severity(error_code: ErrorCode) -> ErrorSeverity:
-    """Get severity for an error code."""
     return ERROR_SEVERITY_MAP.get(error_code, ErrorSeverity.ERROR)
 
 

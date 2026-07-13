@@ -24,7 +24,6 @@ class PriceValidator:
     """
 
     def __init__(self, table_name: str = "", asset_class: str = "stock"):
-        """Initialize PriceValidator."""
         self.table_name = table_name
         self.asset_class = asset_class
         self.validation_rules = {
@@ -74,7 +73,6 @@ class PriceValidator:
             raise RuntimeError(msg) from e
 
     def validate_price_row(self, row: dict[str, Any]) -> bool:
-        """Validate a single price row."""
         # Check required fields
         if self.validation_rules.get("close_required") and row.get("close") is None:
             return False
@@ -120,11 +118,9 @@ class PriceValidator:
             raise RuntimeError(msg) from e
 
     def set_table_name(self, table_name: str) -> None:
-        """Set the table name for schema validation."""
         self.table_name = table_name
 
     def validate_schema_preflight(self, cur: Any) -> bool:
-        """Validate that price table schema exists and has required columns."""
         if not self.table_name:
             logger.error("Table name not set for schema validation")
             return False
@@ -192,7 +188,6 @@ class PriceValidator:
     def validate_and_check_preconditions(
         self, cur: Any, interval: str = "1d", check_market_close: bool = False
     ) -> bool:
-        """Validate preflight conditions: schema and market close availability."""
         # Always validate schema
         if not self.validate_schema_preflight(cur):
             return False
@@ -244,7 +239,6 @@ class PriceValidator:
             raise RuntimeError(msg) from e
 
     def validate_row(self, row: dict[str, Any]) -> bool:
-        """Validate a single price row for quality."""
         if not row:
             return False
 

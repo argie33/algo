@@ -436,7 +436,6 @@ class VectorizedTechnicalLoader:
         return pd.concat(results, ignore_index=True)
 
     def _fetch_spy_prices(self, start_date: date, end_date: date) -> list[dict[str, Any]]:
-        """Fetch SPY prices for Mansfield RS calculation."""
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -772,7 +771,6 @@ class VectorizedTechnicalLoader:
 
 
 def _update_tech_loader_status(status: str, error_message: str | None = None, latest_date: date | None = None) -> None:
-    """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
             cur.execute(

@@ -35,7 +35,6 @@ class ResponseValidationError(Exception):
 
 
 def _check_required_fields(data: dict[str, Any], required_fields: list[str], source: str) -> None:
-    """Check if data has all required fields; raise error if any missing."""
     missing = [f for f in required_fields if f not in data or data[f] is None]
     if missing:
         raise ResponseValidationError(f"Missing critical fields in {source}: {missing}")
@@ -108,7 +107,6 @@ def _validate_items_structure(data: dict[str, Any], item_key: str = "items") -> 
 
 
 def _validate_position(i: int, pos: Any) -> None:
-    """Validate a single position object."""
     if not isinstance(pos, dict):
         raise ResponseValidationError(f"Position {i} is not a dict: {type(pos)}")
     if "symbol" not in pos:
@@ -116,7 +114,6 @@ def _validate_position(i: int, pos: Any) -> None:
 
 
 def _validate_signal(i: int, sig: Any) -> None:
-    """Validate a single signal object."""
     if not isinstance(sig, dict):
         raise ResponseValidationError(f"Signal {i} is not a dict: {type(sig)}")
     if "symbol" not in sig:
@@ -124,7 +121,6 @@ def _validate_signal(i: int, sig: Any) -> None:
 
 
 def _validate_portfolio(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate portfolio endpoint response."""
     required_keys = ["total_portfolio_value", "total_cash", "position_count"]
     missing_keys = [k for k in required_keys if k not in data]
     if missing_keys:
@@ -138,7 +134,6 @@ def _validate_portfolio(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_performance(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate performance endpoint response."""
     if has_error(data):
         return data
     if "n" in data:
@@ -150,7 +145,6 @@ def _validate_performance(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_positions(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate positions endpoint response."""
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Positions response not a dict: {type(data)}")
     if has_error(data):
@@ -169,7 +163,6 @@ def _validate_positions(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_config(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate config endpoint response."""
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Config response not a dict: {type(data)}")
     if has_error(data):
@@ -211,7 +204,6 @@ def _validate_config(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_health(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate health endpoint response."""
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Health response not a dict: {type(data)}")
     if has_error(data):
@@ -222,7 +214,6 @@ def _validate_health(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_markets(data: dict[str, Any]) -> dict[str, Any]:
-    """Validate markets endpoint response."""
     if not isinstance(data, dict):
         raise ResponseValidationError(f"Markets response not a dict: {type(data)}")
     if has_error(data):

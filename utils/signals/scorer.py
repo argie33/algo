@@ -203,5 +203,4 @@ class SignalScorer:
 
     @staticmethod
     def validate_score(score: float, min_val: float = SCORE_MIN, max_val: float = SCORE_MAX) -> bool:
-        """Validate that a score is in the expected range."""
         return min_val <= score <= max_val

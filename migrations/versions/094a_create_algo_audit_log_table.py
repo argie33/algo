@@ -18,7 +18,6 @@ DESCRIPTION = "Create algo_audit_log table for trading activity audit trail"
 
 
 def up():
-    """Create algo_audit_log table with all required columns."""
     with DatabaseContext("write") as cur:
         # First drop the table if it exists to ensure clean schema
         # (If prior migration failed partway, table might exist in incomplete state)

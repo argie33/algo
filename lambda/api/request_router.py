@@ -11,7 +11,6 @@ class RequestRouter:
     """Routes incoming API requests to appropriate handlers."""
 
     def __init__(self) -> None:
-        """Initialize request router."""
         self.routes: dict[str, Callable[..., Any]] = {}
 
     def register(self, path: str, handler: Callable[..., Any]) -> None:

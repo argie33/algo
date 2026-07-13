@@ -42,7 +42,6 @@ class LambdaResponse:
 
     @staticmethod
     def success(data: dict[str, Any] | None = None, message: str = "Success") -> "LambdaResponse":
-        """Create a successful response."""
         body = {"status": "success", "message": message}
         if data is not None:
             body.update(data)
@@ -50,7 +49,6 @@ class LambdaResponse:
 
     @staticmethod
     def error(error_msg: str, status_code: int = 500, error_type: str | None = None) -> "LambdaResponse":
-        """Create an error response."""
         return LambdaResponse(
             status_code,
             {
@@ -63,7 +61,6 @@ class LambdaResponse:
 
     @staticmethod
     def validation_error(field: str, reason: str) -> "LambdaResponse":
-        """Create a validation error response."""
         return LambdaResponse(
             400,
             {
@@ -86,7 +83,6 @@ class LambdaHandler(ABC):
     """
 
     def __init__(self) -> None:
-        """Initialize handler with logging."""
         self._setup_logging()
 
     def _setup_logging(self) -> None:
@@ -172,7 +168,6 @@ class LambdaHandler(ABC):
 
     @staticmethod
     def get_secret(secret_arn: str, region: str = "us-east-1") -> dict[str, Any]:
-        """Fetch secret from AWS Secrets Manager."""
         try:
             client = boto3.client("secretsmanager", region_name=region)
             response = client.get_secret_value(SecretId=secret_arn)

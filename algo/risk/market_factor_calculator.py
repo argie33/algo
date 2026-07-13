@@ -19,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 
 class MarketFactorCalculator:
-    """Calculate individual market exposure factors."""
 
     def __init__(self) -> None:
         pass

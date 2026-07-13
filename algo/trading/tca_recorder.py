@@ -12,7 +12,6 @@ class TCARecorder:
     """Records trade cost analysis metrics for execution quality tracking."""
 
     def __init__(self, config: Any) -> None:
-        """Initialize TCA recorder."""
         self.config = config
         self.tca_records: list[dict[str, Any]] = []
 

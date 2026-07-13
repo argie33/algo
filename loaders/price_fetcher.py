@@ -152,7 +152,6 @@ class PriceFetcher:
         self._batch_size_performance[batch_size][1] += total_count - success_count
 
     def set_circuit_breaker(self, circuit_breaker: Any) -> None:
-        """Set circuit breaker for API call protection."""
         if circuit_breaker is None:
             logger.warning(
                 "[PRICE_FETCHER] Circuit breaker not configured. "

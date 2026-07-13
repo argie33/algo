@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class PriceSanityChecker(BaseCheck):
-    """Check price data for extreme moves, corporate actions, and sequence gaps."""
 
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute all price sanity checks."""
@@ -28,7 +27,6 @@ class PriceSanityChecker(BaseCheck):
         return self.results
 
     def check_price_moves(self, cur: Any) -> None:
-        """Check for extreme day-over-day price moves."""
         try:
             price_cfg = self.config.get_price_sanity_config()
             max_move_pct = price_cfg["max_daily_move_pct"]
@@ -157,7 +155,6 @@ class PriceSanityChecker(BaseCheck):
             self.log("corporate_action", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_sequence_continuity(self, cur: Any) -> None:
-        """Check trading-day sequence for gaps."""
         try:
             interval_60d = get_interval_sql("60d")
             cur.execute(f"""

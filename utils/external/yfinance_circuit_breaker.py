@@ -38,7 +38,6 @@ class YFinanceIPCircuitBreaker:
     BACKOFF_MULTIPLIER = 2  # Double on each failure
 
     def __init__(self) -> None:
-        """Initialize circuit breaker."""
         self._last_check_time: float = 0
         self._check_cache_duration_secs = 2  # Cache local checks for 2 seconds
         self._cached_state: dict[str, Any] | None = None

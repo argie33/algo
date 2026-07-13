@@ -34,7 +34,6 @@ class AWSProductionConfigValidator:
         self.checks_critical: list[str] = []
 
     def validate_cognito_config(self) -> bool:
-        """Validate Cognito configuration matches AWS setup."""
         client_id = os.getenv("COGNITO_CLIENT_ID", "").strip()
         user_pool_id = os.getenv("COGNITO_USER_POOL_ID", "").strip()
         region = os.getenv("AWS_REGION", "us-east-1").strip()
@@ -59,7 +58,6 @@ class AWSProductionConfigValidator:
         return True
 
     def validate_alpaca_config(self) -> bool:
-        """Validate Alpaca credentials configured using credential manager."""
         try:
             from config.credential_manager import get_credential_manager
 
@@ -79,7 +77,6 @@ class AWSProductionConfigValidator:
             return False
 
     def validate_circuit_breaker_thresholds(self) -> bool:
-        """Validate circuit breaker thresholds are configured."""
         try:
             from algo.infrastructure import get_config
 
@@ -115,7 +112,6 @@ class AWSProductionConfigValidator:
             ) from e
 
     def validate_data_patrol_config(self) -> bool:
-        """Validate data patrol thresholds for production data volume."""
         # Data patrol monitors staleness, coverage, sanity
         # For production with 5000+ symbols, thresholds should be:
         # - Staleness: >1 day old = alert
@@ -137,7 +133,6 @@ class AWSProductionConfigValidator:
             ) from e
 
     def validate_market_calendar(self) -> bool:
-        """Validate market calendar has current holidays/early closes."""
         try:
             from algo.infrastructure import MarketCalendar
 
@@ -155,7 +150,6 @@ class AWSProductionConfigValidator:
             raise RuntimeError(f"Market calendar issue: {e}. Cannot proceed without valid market calendar.") from e
 
     def validate_loader_status_tracking(self) -> bool:
-        """Validate loader status table is being used."""
         try:
             from utils.db import DatabaseContext
 
@@ -185,7 +179,6 @@ class AWSProductionConfigValidator:
             ) from e
 
     def validate_cloudwatch_readiness(self) -> bool:
-        """Validate CloudWatch is configured for monitoring."""
         try:
             import boto3
 
@@ -204,7 +197,6 @@ class AWSProductionConfigValidator:
             ) from e
 
     def validate_dynamodb_setup(self) -> bool:
-        """Validate DynamoDB is set up for state management."""
         try:
             from utils.db import DynamoDBHealthCheck
 
@@ -223,7 +215,6 @@ class AWSProductionConfigValidator:
             raise RuntimeError(f"DynamoDB setup validation failed: {e}. Cannot verify DynamoDB configured.") from e
 
     def validate_error_fallback_monitoring(self) -> bool:
-        """Validate error fallback monitoring is enabled."""
         try:
             # Import routes safely without using 'lambda' keyword
             from pathlib import Path

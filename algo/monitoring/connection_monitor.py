@@ -91,7 +91,6 @@ class ConnectionPoolMonitor:
                 self._high_usage_warned = False  # Reset warning once usage drops back
 
     def get_status(self) -> dict[str, Any]:
-        """Get current pool status."""
         with self._lock:
             usage_pct = (self._active_connections / self.max_connections) * 100
             stuck_connections = [
@@ -110,7 +109,6 @@ class ConnectionPoolMonitor:
             }
 
     def check_and_alert_stuck_connections(self) -> None:
-        """Check for stuck connections and log alerts if found."""
         status = self.get_status()
         if status["stuck_connections_count"] > 0:
             logger.error(
@@ -126,7 +124,6 @@ _monitor_lock = threading.Lock()
 
 
 def get_monitor() -> ConnectionPoolMonitor:
-    """Get or create the global connection monitor."""
     global _monitor
     if _monitor is None:
         with _monitor_lock:
@@ -151,10 +148,8 @@ def on_disconnect() -> None:
 
 
 def get_pool_status() -> dict[str, Any]:
-    """Get current RDS pool status (for monitoring/debugging)."""
     return get_monitor().get_status()
 
 
 def check_stuck_connections() -> None:
-    """Check for and alert on stuck connections."""
     get_monitor().check_and_alert_stuck_connections()

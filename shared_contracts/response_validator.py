@@ -25,7 +25,6 @@ class ResponseValidationError(Exception):
 
 
 class ResponseValidator:
-    """Validate API responses against contract schemas."""
 
     @staticmethod
     def validate_endpoint_response(endpoint_name: str, response: dict[str, Any]) -> tuple[bool, str | None]:

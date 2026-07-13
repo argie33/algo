@@ -12,13 +12,11 @@ class SignalBase(ABC):
     """Abstract base class for all signal types (momentum, patterns, options, swing)."""
 
     def __init__(self, config: Any) -> None:
-        """Initialize signal with config."""
         self.config = config
         self.signal_type = self.__class__.__name__
 
     @abstractmethod
     def generate(self, symbol: str, data: dict[str, Any]) -> dict[str, Any] | None:
-        """Generate signal for given symbol and data."""
         ...
 
     def format_signal(self, symbol: str, strength: float, reason: str) -> dict[str, Any]:

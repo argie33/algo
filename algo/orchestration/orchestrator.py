@@ -1368,7 +1368,6 @@ class Orchestrator:
         return executor_result
 
     def _handle_executor_result(self, executor_result: dict[str, Any]) -> dict[str, Any] | None:
-        """Validate and handle executor result. Returns None if execution succeeded, else early-exit response."""
         if "success" not in executor_result:
             raise RuntimeError(
                 f"Executor result missing 'success' field. "

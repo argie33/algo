@@ -23,7 +23,6 @@ class ConfigSourceMonitor:
     """Monitor and audit configuration sources."""
 
     def __init__(self, config: Any):
-        """Initialize with config object that has _sources dict."""
         self.config = config
         self._sources: dict[str, str] = getattr(config, "_sources", {})
 
@@ -57,7 +56,6 @@ class ConfigSourceMonitor:
         return [k for k, v in self._sources.items() if v == "database"]
 
     def validate_sources(self) -> list[str]:
-        """Validate all config sources are known. Returns issues found."""
         issues = []
         for key, source in self._sources.items():
             if source not in ("database", "override", "default_fallback", "default"):

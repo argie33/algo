@@ -102,7 +102,6 @@ class SectorRotationDetector:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _fetch_and_validate_sector_data(self, eval_date: _date) -> dict[str, dict[str, Any]]:
-        """Fetch sector ranking data and validate each row."""
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
@@ -152,7 +151,6 @@ class SectorRotationDetector:
     def _validate_sector_row(
         self, sector_name: str, r1w: Any, r4w: Any, r12w: Any, momentum: Any, eval_date: _date
     ) -> None:
-        """Validate a single sector row for missing data."""
         if r1w is None:
             logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 1w rank data for {eval_date}")
             raise ValueError(
@@ -178,7 +176,6 @@ class SectorRotationDetector:
             )
 
     def _validate_sector_coverage(self, sector_data: dict[str, dict[str, Any]], eval_date: _date) -> None:
-        """Validate that we have both defensive and cyclical sectors."""
         if not sector_data:
             raise ValueError(f"No sector ranking data found for {eval_date} — sector_ranking table may be empty")
         defensive = [d for d in sector_data.values() if d["is_defensive"]]

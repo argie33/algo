@@ -16,7 +16,6 @@ class TestProductionReadinessSchemaValidation(unittest.TestCase):
     """Test that production readiness check validates column types."""
 
     def _mock_cursor_with_schema(self, columns_data):
-        """Create a mock cursor that returns the given columns data."""
         mock_cur = Mock()
         self._columns_data = columns_data  # Store for fetchall
 

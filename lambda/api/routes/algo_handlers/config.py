@@ -142,7 +142,6 @@ def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> Any:
 
 @db_route_handler("update algo config key")  # type: ignore[untyped-decorator]
 def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: str) -> Any:
-    """Update a configuration key (TIER 4: Configuration Editing)."""
     if not body or "value" not in body:
         return error_response(400, "bad_request", "value required in request body")
 

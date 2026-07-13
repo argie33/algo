@@ -56,7 +56,6 @@ class TradeNotificationService:
             ) from e
 
     def _format_trade_entry_alert(self, event: dict[str, Any]) -> str | None:
-        """Format trade entry notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
             if event.get("symbol"):
@@ -113,7 +112,6 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _format_trade_exit_alert(self, event: dict[str, Any]) -> str | None:
-        """Format trade exit notification."""
         try:
             details = json.loads(event["details"]) if isinstance(event["details"], str) else event["details"]
             if event.get("symbol"):
@@ -184,7 +182,6 @@ Time:         {event["created_at"].strftime("%H:%M:%S")}
         return False
 
     def process_events(self, minutes: int = 5) -> int:
-        """Process recent events and send notifications."""
         if not self.enabled:
             return 0
 

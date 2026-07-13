@@ -65,7 +65,6 @@ def _ensure_portfolio_fields(data: dict[str, Any]) -> Any:
 
 @db_route_handler("get algo metrics")  # type: ignore[untyped-decorator]
 def _get_algo_metrics(cur: cursor) -> Any:
-    """Get daily algo metrics (total actions, entries, exits). Fail-fast if unavailable."""
     try:
         cur.execute("""
             SELECT date, total_actions, entries, exits, avg_signal_score
@@ -790,7 +789,6 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
 @db_route_handler("get performance analytics")  # type: ignore[untyped-decorator]
 @validate_api_response("perf_anl")  # type: ignore[untyped-decorator]
 def _get_performance_analytics(cur: cursor) -> Any:
-    """Get performance analytics data from algo_performance_metrics. Fail-fast if unavailable."""
     try:
         cur.execute("SAVEPOINT perf_analytics")
         cur.execute("""
@@ -985,7 +983,6 @@ def _get_portfolio_summary(cur: cursor) -> Any:
 @db_route_handler("get risk metrics")  # type: ignore[untyped-decorator]
 @validate_api_response("risk")  # type: ignore[untyped-decorator]
 def _get_risk_metrics(cur: cursor) -> Any:
-    """Get portfolio risk metrics. Fail-fast if unavailable."""
     try:
         cur.execute("SAVEPOINT risk_metrics")
         cur.execute("""

@@ -69,15 +69,12 @@ class MarketHealthDailyLoader(OptimalLoader):
         return super().run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)
 
     def fetch_vix_with_breaker(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch VIX data with circuit breaker protection."""
         return self._vix_fetcher.fetch(start, end)
 
     def fetch_put_call_with_breaker(self, eval_date: date) -> dict[str, Any] | float:
-        """Fetch put/call ratio with circuit breaker protection."""
         return self._put_call_fetcher.fetch(eval_date)
 
     def fetch_yield_curve_with_breaker(self, start: date, end: date) -> dict[str, Any]:
-        """Fetch yield curve data with circuit breaker protection."""
         return self._yield_curve_fetcher.fetch(start, end)
 
     def _get_end_date(self) -> date:
@@ -833,7 +830,6 @@ class MarketHealthDailyLoader(OptimalLoader):
                 m["fed_rate_unavailable_reason"] = "enrichment_exception"
 
     def fetch_incremental(self, symbol: str = "SPY", since: date | None = None) -> list[dict[str, Any]]:
-        """Fetch SPY price data and compute market health metrics."""
         end = self._get_end_date()
         start = self._get_start_date(end, since)
 

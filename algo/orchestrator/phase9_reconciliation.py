@@ -101,7 +101,6 @@ def _validate_pnl_step(
     result: dict[str, Any],
     log_phase_result_fn: Callable[..., Any],
 ) -> tuple[str, str]:
-    """Validate P&L and log results."""
     pnl_validation_status = "warn"
     pnl_validation_summary = "N/A"
     try:
@@ -278,7 +277,6 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
 
 
 def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
-    """Generate and validate daily finance report."""
     from algo.reporting import DailyFinanceReport
 
     try:
@@ -476,7 +474,6 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
 
 
 def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
-    """Update algo_metrics_daily with daily trade results."""
     try:
         row_data = None
         with DatabaseContext("read") as cur:

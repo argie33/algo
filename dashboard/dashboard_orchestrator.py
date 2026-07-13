@@ -32,7 +32,6 @@ class DashboardOrchestrator:
                 self.frame = 0
 
     def update_view_mode(self, key: str) -> None:
-        """Update view mode based on keyboard input."""
         key_map = {
             "p": "positions",
             "s": "signals",
@@ -65,7 +64,6 @@ class DashboardOrchestrator:
             }
 
     def set_state(self, **kwargs: Any) -> None:
-        """Set state values thread-safely."""
         with self._state_lock:
             for key, value in kwargs.items():
                 if hasattr(self, key):

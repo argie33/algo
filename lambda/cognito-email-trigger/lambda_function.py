@@ -115,7 +115,6 @@ def send_email(recipient: str, subject: str, html_body: str) -> None:
 
 
 def build_signup_email(email: str, code: str) -> tuple[str, str]:
-    """Build sign-up confirmation email."""
     subject = "Verify Your Bullseye Trading Account"
     html = """
     <html>
@@ -137,7 +136,6 @@ def build_signup_email(email: str, code: str) -> tuple[str, str]:
 
 
 def build_password_reset_email(email: str, code: str) -> tuple[str, str]:
-    """Build password reset email."""
     subject = "Reset Your Bullseye Trading Password"
     html = """
     <html>
@@ -159,7 +157,6 @@ def build_password_reset_email(email: str, code: str) -> tuple[str, str]:
 
 
 def build_resend_code_email(email: str, code: str) -> tuple[str, str]:
-    """Build resend confirmation code email."""
     subject = "Your Bullseye Trading Confirmation Code"
     html = """
     <html>
@@ -179,7 +176,6 @@ def build_resend_code_email(email: str, code: str) -> tuple[str, str]:
 
 
 def build_admin_create_user_email(email: str, code: str) -> tuple[str, str]:
-    """Build admin-created user welcome email."""
     subject = "Welcome to Bullseye Trading - Set Your Password"
     html = """
     <html>

@@ -11,7 +11,6 @@ DESCRIPTION = "Add pre-trade impact calculation function"
 
 
 def up():
-    """Create the pre-trade impact calculation function."""
     with DatabaseContext("write") as cur:
         # Drop existing function if it exists
         cur.execute("""

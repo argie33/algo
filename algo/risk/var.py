@@ -179,7 +179,6 @@ class ValueAtRisk:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _fetch_portfolio_snapshots(self, cur: Any, lookback_days: int) -> list[Any]:
-        """Fetch portfolio snapshots from database."""
         cur.execute(
             """
             SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
@@ -191,7 +190,6 @@ class ValueAtRisk:
         return list(cur.fetchall())
 
     def _validate_snapshot_count(self, rows: list[Any]) -> None:
-        """Validate that we have sufficient snapshot data."""
         if len(rows) < 5:
             logger.critical(f"CVaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required)")
             raise RuntimeError(f"Insufficient historical data for CVaR (only {len(rows)} snapshots, need 5+)")
@@ -222,7 +220,6 @@ class ValueAtRisk:
         return values
 
     def _compute_portfolio_returns(self, values: list[Decimal]) -> list[float]:
-        """Compute returns from portfolio values."""
         returns_decimal = [(values[i] - values[i - 1]) / values[i - 1] for i in range(1, len(values))]
         if not returns_decimal:
             logger.critical("Historical VaR calculation failed: no valid returns computed from portfolio snapshots")
@@ -247,7 +244,6 @@ class ValueAtRisk:
         return returns
 
     def _validate_tail_losses(self, tail_losses: list[Any]) -> None:
-        """Validate that we have tail loss events."""
         if not tail_losses:
             logger.critical("CVaR calculation failed: no tail loss events in historical data")
             raise RuntimeError("Cannot compute CVaR: no tail loss events found in historical returns")

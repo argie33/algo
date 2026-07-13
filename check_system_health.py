@@ -32,7 +32,6 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 
 def check_port_open(host: str, port: int, timeout: float = 2.0) -> bool:
-    """Check if port is open."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
@@ -44,7 +43,6 @@ def check_port_open(host: str, port: int, timeout: float = 2.0) -> bool:
 
 
 def check_database() -> dict:
-    """Check database connectivity and data freshness."""
     result = {
         "name": "Database",
         "status": "unknown",
@@ -131,7 +129,6 @@ def check_database() -> dict:
 
 
 def check_dev_server() -> dict:
-    """Check if dev_server is running."""
     result = {
         "name": "Dev Server (localhost:3001)",
         "status": "unknown",
@@ -163,7 +160,6 @@ def check_dev_server() -> dict:
 
 
 def check_orchestrator() -> dict:
-    """Check if orchestrator has run recently."""
     result = {
         "name": "Orchestrator Status",
         "status": "unknown",
@@ -228,7 +224,6 @@ def check_orchestrator() -> dict:
 
 
 def check_dashboard_module() -> dict:
-    """Check if dashboard module loads."""
     result = {
         "name": "Dashboard Module",
         "status": "unknown",

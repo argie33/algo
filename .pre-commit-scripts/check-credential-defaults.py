@@ -57,7 +57,6 @@ SKIP_PATHS = {
 
 
 def is_critical_credential(var_name: str) -> bool:
-    """Check if a variable name is a CRITICAL credential (password, token, API key)."""
     var_lower = var_name.lower()
     for pattern in CRITICAL_PATTERNS:
         if re.search(pattern, var_lower):
@@ -66,7 +65,6 @@ def is_critical_credential(var_name: str) -> bool:
 
 
 def check_file(filepath: Path) -> list[str]:
-    """Check a single file for critical credential .get() patterns with defaults."""
     violations = []
 
     try:

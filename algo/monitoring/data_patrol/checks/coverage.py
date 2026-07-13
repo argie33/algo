@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class CoverageChecker(BaseCheck):
-    """Check symbol coverage and loader contracts."""
 
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute coverage checks."""
@@ -242,7 +241,6 @@ class CoverageChecker(BaseCheck):
                 cur.execute(f"RELEASE SAVEPOINT {sp}")
 
     def check_signal_quality_ratio(self, cur: Any) -> None:
-        """Check buy_sell_daily signal cleanness."""
         try:
             interval_30d = get_interval_sql("30d")
             cur.execute(f"""

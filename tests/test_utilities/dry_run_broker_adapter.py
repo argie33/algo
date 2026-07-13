@@ -25,7 +25,6 @@ class DryRunBrokerAdapter(BrokerAdapter):
     """
 
     def __init__(self) -> None:
-        """Initialize adapter with test mode validation."""
         # CRITICAL SAFETY: Verify test mode is enabled before allowing instantiation
         dry_run_enabled = os.getenv("ORCHESTRATOR_DRY_RUN", "false").lower() in ("true", "1", "yes")
         if not dry_run_enabled:

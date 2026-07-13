@@ -23,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 def setup_imports() -> None:
-    """Set up sys.path for loader scripts to find utils, algo, and other packages."""
     # Loader files are at /loaders/*.py
     # Project root is at /
     loader_dir = Path(__file__).parent

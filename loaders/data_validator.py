@@ -15,7 +15,6 @@ class DataValidator:
     """Validates loader output tables for data quality."""
 
     def __init__(self, conn: Any):
-        """Initialize validator with database connection."""
         self.conn = conn
         self.errors: list[str] = []
         self.warnings: list[str] = []
@@ -103,7 +102,6 @@ class DataValidator:
         return True
 
     def validate_price_data(self) -> bool:
-        """Validate price_daily output."""
         try:
             self.validate_table_not_empty("price_daily", min_rows=100000)
             self.validate_no_duplicates("price_daily", ["symbol", "date"])
@@ -116,7 +114,6 @@ class DataValidator:
             return False
 
     def validate_technical_data(self) -> bool:
-        """Validate technical_data_daily output."""
         try:
             self.validate_table_not_empty("technical_data_daily", min_rows=10000)
             self.validate_no_duplicates("technical_data_daily", ["symbol", "date"])
@@ -128,7 +125,6 @@ class DataValidator:
             return False
 
     def validate_stock_scores(self) -> bool:
-        """Validate stock_scores output."""
         try:
             self.validate_table_not_empty("stock_scores", min_rows=1000)
             self.validate_no_duplicates("stock_scores", ["symbol"])
@@ -139,7 +135,6 @@ class DataValidator:
             return False
 
     def validate_buy_sell_signals(self) -> bool:
-        """Validate buy_sell_daily output."""
         try:
             self.validate_table_not_empty("buy_sell_daily", min_rows=1000)
             self.validate_no_duplicates("buy_sell_daily", ["symbol", "date", "signal"])

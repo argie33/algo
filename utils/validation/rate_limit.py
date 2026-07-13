@@ -32,7 +32,6 @@ DEFAULT_HEALTH_CHECK_TICKER = "SPY"
 
 
 class RateLimitValidator:
-    """Validate API rate limits and graceful degradation."""
 
     def __init__(self) -> None:
         # Rate limit specifications

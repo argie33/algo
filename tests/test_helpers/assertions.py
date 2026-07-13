@@ -127,7 +127,6 @@ class TestDataFactory:
 
     @staticmethod
     def well_formed_market_data() -> dict[str, Any]:
-        """Generate well-formed market data for tests."""
         return {
             "tier": "BULLISH",
             "pct": 65.5,
@@ -150,7 +149,6 @@ class TestDataFactory:
 
     @staticmethod
     def well_formed_risk_data() -> dict[str, Any]:
-        """Generate well-formed risk metrics for tests."""
         return {
             "var95": 2.5,
             "beta": 1.1,
@@ -161,7 +159,6 @@ class TestDataFactory:
 
     @staticmethod
     def well_formed_health_data() -> list[dict[str, Any]]:
-        """Generate well-formed health items for tests."""
         return [
             {
                 "tbl": "prices",
@@ -181,7 +178,6 @@ class TestDataFactory:
 
     @staticmethod
     def malformed_numeric_data() -> dict[str, Any]:
-        """Generate common malformed numeric field variants."""
         return {
             "string_number": "123.45",
             "dict_number": {"value": 123.45},
@@ -192,7 +188,6 @@ class TestDataFactory:
 
     @staticmethod
     def malformed_list_data() -> dict[str, Any]:
-        """Generate common malformed list field variants."""
         return {
             "string_list": "item1 item2",
             "dict_list": {"items": ["item1"]},

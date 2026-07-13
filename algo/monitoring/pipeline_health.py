@@ -131,7 +131,6 @@ class PipelineHealth:
     }
 
     def check_table_health(self, cur: Any, table_name: str, date_column: str, sla_days: int) -> TableHealth:
-        """Check health of a single table."""
         health = TableHealth(table_name=table_name, status=HealthStatus.ERROR, sla_days=sla_days)
 
         try:
@@ -194,7 +193,6 @@ class PipelineHealth:
         return health
 
     def get_pipeline_status(self) -> PipelineStatus:
-        """Get complete pipeline health status."""
         status = PipelineStatus()
 
         try:

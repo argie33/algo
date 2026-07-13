@@ -12,7 +12,6 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(m
 logger = logging.getLogger(__name__)
 
 def validate_environment():
-    """Validate all required environment variables are set."""
     logger.info("=" * 70)
     logger.info("ORCHESTRATOR READINESS VALIDATION")
     logger.info("=" * 70)
@@ -62,7 +61,6 @@ def validate_environment():
     return True
 
 def validate_imports():
-    """Validate all critical imports work."""
     logger.info("\n[2/6] Validating imports...")
 
     imports_to_test = [
@@ -85,7 +83,6 @@ def validate_imports():
     return True
 
 def validate_database():
-    """Validate database connection works."""
     logger.info("\n[3/6] Validating database connection...")
 
     try:
@@ -105,7 +102,6 @@ def validate_database():
         return False
 
 def validate_required_tables():
-    """Validate required database tables exist."""
     logger.info("\n[4/6] Validating required database tables...")
 
     required_tables = [
@@ -135,7 +131,6 @@ def validate_required_tables():
         return False
 
 def validate_orchestrator_init():
-    """Validate orchestrator can be initialized."""
     logger.info("\n[5/6] Validating orchestrator initialization...")
 
     try:
@@ -160,7 +155,6 @@ def validate_orchestrator_init():
         return False
 
 def validate_loaders():
-    """Validate loader infrastructure is ready."""
     logger.info("\n[6/6] Validating loader infrastructure...")
 
     try:

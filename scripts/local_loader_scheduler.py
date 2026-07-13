@@ -107,7 +107,6 @@ def run_pipeline(pipeline_name):
 
 
 def time_until_next_run(target_hour, target_minute):
-    """Calculate seconds until next scheduled run."""
     now = datetime.now(EASTERN_TZ)
     next_run = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
 

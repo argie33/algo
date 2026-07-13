@@ -62,7 +62,6 @@ class StructuredDBLogger:
 
     @staticmethod
     def _format_param_value(param: Any) -> str:
-        """Format a single parameter value."""
         if param is None:
             return "None"
         if isinstance(param, str):
@@ -74,7 +73,6 @@ class StructuredDBLogger:
 
     @staticmethod
     def _format_list_params(params: list[Any] | tuple[Any, ...], max_items: int) -> str:
-        """Format list/tuple parameters."""
         if len(params) == 0:
             return "[]"
         formatted = [StructuredDBLogger._format_param_value(p) for p in params[:max_items]]
@@ -87,7 +85,6 @@ class StructuredDBLogger:
 
     @staticmethod
     def _format_dict_params(params: dict[str, Any], max_items: int) -> str:
-        """Format dictionary parameters."""
         if len(params) == 0:
             return "{}"
         formatted = []

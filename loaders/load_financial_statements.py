@@ -360,7 +360,6 @@ def main() -> int:
 
 
 def get_conflict_target(primary_key: tuple[str, ...]) -> str:
-    """Generate SQL CONFLICT target from primary key tuple."""
     cols = ", ".join(primary_key)
     return f"({cols})"
 
@@ -376,7 +375,6 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
     """
 
     def __init__(self, backfill_days: int | None = None):
-        """Initialize with dynamic statement configuration from env vars."""
         statement_type = os.environ.get("LOADER_STATEMENT_TYPE", "income").lower()
         period = os.environ.get("LOADER_PERIOD", "annual").lower()
 
@@ -395,7 +393,6 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         self.backfill_days = backfill_days
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch financial data for the configured statement type and period."""
         return super().fetch_incremental(symbol, since)
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

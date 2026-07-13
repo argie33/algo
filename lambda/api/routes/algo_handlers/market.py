@@ -39,7 +39,6 @@ logger = logging.getLogger(__name__)
 @db_route_handler("get data quality")  # type: ignore[untyped-decorator]
 @validate_api_response("health")  # type: ignore[untyped-decorator]
 def _get_data_quality(cur: cursor) -> Any:
-    """Get detailed data quality summary by table from latest data_patrol_log run."""
     try:
         # Get patrol log entries from last 24 hours
         interval_24h = get_interval_sql("24h")
@@ -483,7 +482,6 @@ def _normalize_exposure(exp: dict[str, Any]) -> Any:
 @db_route_handler("get market")  # type: ignore[untyped-decorator]
 @validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_market(cur: cursor) -> Any:
-    """Get simplified market data for dashboard. Returns market_health_daily + exposure data."""
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
 
@@ -598,7 +596,6 @@ def _get_market(cur: cursor) -> Any:
 
 @db_route_handler("get market factors")  # type: ignore[untyped-decorator]
 def _get_market_factors(cur: cursor) -> Any:
-    """Get market exposure factors for dashboard display."""
     logger.debug("[MARKET_FACTORS] Function called - no validation decorator")
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -704,7 +701,6 @@ def _get_market_sentiment(cur: cursor) -> Any:
 @db_route_handler("get markets")  # type: ignore[untyped-decorator]
 @validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_markets(cur: cursor) -> Any:  # noqa: C901
-    """Get market regime, exposure, and 12-factor data for the Markets Health dashboard."""
     try:
         # Latest exposure row
         cur.execute("""

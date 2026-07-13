@@ -21,7 +21,6 @@ DESCRIPTION = "Replace admin-user placeholder with real Cognito sub"
 
 
 def up():
-    """Update all 'admin-user' references to real admin Cognito sub."""
     admin_cognito_sub = os.getenv("ADMIN_COGNITO_SUB", "").strip()
 
     if not admin_cognito_sub or admin_cognito_sub == "admin-user":

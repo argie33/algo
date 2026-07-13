@@ -208,7 +208,6 @@ class PositionContext:
         return False, None
 
     def _was_target_hit_today(self, hit_time: Any | None) -> bool:
-        """Check if target was already hit today."""
         if hit_time is None:
             return False
         hit_date = hit_time.date() if hasattr(hit_time, "date") else hit_time
@@ -470,7 +469,6 @@ class ExitEngine:
             )
 
     def check_and_execute_exits(self, current_date: Any = None) -> int:
-        """Check all open positions for exit conditions and execute."""
 
         if not current_date:
             # CRITICAL: Use ET (Eastern Time) for all trading dates, not UTC
@@ -1436,7 +1434,6 @@ class ExitEngine:
         return False
 
     def _check_volume_spike(self, cur: Any, symbol: str, current_date: Any, volume_multiplier: float) -> bool:
-        """Check if today's volume is >= volume_multiplier * average volume."""
 
         interval_50d = get_interval_sql("50d")
         cur.execute(

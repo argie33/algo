@@ -110,7 +110,6 @@ def error_response(message: str, **extra_fields: Any) -> dict[str, Any]:
 
 
 def success_response(data: Any = None, **extra_fields: Any) -> dict[str, Any]:
-    """Create a standardized success response dict."""
     if data is None:
         data = {}
 

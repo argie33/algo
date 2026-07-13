@@ -70,7 +70,6 @@ def check_file(filepath: str) -> list[str]:
 
 
 def main() -> int:
-    """Check all files passed as arguments."""
     if len(sys.argv) < 2:
         print("Usage: check-no-hardcoded-patterns.py <file1> [file2] ...")
         return 0

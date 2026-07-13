@@ -663,7 +663,6 @@ def validate_required_fields(data: dict[str, Any], required_fields: list[str], s
 
 
 def validate_field_types(data: dict[str, Any], type_spec: dict[str, type], source: str | None = None) -> bool:
-    """Validate that fields in data match expected types. Log warnings for type mismatches."""
     issues = []
     for field_name, expected_type in type_spec.items():
         if field_name not in data:

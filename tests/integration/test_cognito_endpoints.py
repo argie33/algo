@@ -19,7 +19,6 @@ class TestAdminEndpointProtection:
 
     @pytest.fixture
     def mock_cursor(self):
-        """Create a mock database cursor."""
         cursor = Mock()
         # Mock responses for various admin endpoints
         cursor.fetchone.return_value = (1,)  # For existence checks

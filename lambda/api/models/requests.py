@@ -100,7 +100,6 @@ class ContactSubmissionRequest(BaseModel):
     @field_validator("message", "name", "subject")
     @classmethod
     def check_dangerous_content(cls, v: Any, info: ValidationInfo) -> str | None:
-        """Check for XSS patterns (plaintext input that will be rendered as HTML)."""
         if v is None:
             return None
 

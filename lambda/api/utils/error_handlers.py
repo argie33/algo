@@ -99,7 +99,6 @@ def log_error_with_context(e: Exception, context: dict[str, Any] | None = None) 
 
 
 def make_error_response(status_code: int, error_type: str, message: str) -> dict[str, Any]:
-    """Create a standardized error response."""
     return {
         "statusCode": status_code,
         "error": {

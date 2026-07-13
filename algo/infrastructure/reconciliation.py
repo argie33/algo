@@ -1370,7 +1370,6 @@ class DailyReconciliation:
             ) from e
 
     def _fetch_account(self) -> Any:
-        """Fetch account data from broker via BrokerAdapter."""
         if not self.broker:
             return {"error": "No broker available (paper trading mode)"}
         return self.broker.fetch_account()

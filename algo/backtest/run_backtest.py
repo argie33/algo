@@ -42,7 +42,6 @@ logger = logging.getLogger(__name__)
 
 
 def _get_trading_dates(start: date, end: date) -> list[date]:
-    """Get all trading dates between start and end from price_daily."""
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -127,7 +126,6 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
 
 
 def _get_daily_sell_signals(signal_date: date) -> set[str]:
-    """Get symbols with SELL signal on signal_date."""
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -140,7 +138,6 @@ def _get_daily_sell_signals(signal_date: date) -> set[str]:
 
 
 def _get_price_on_date(symbol: str, target_date: date) -> float | None:
-    """Get close price at or before target_date."""
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -154,7 +151,6 @@ def _get_price_on_date(symbol: str, target_date: date) -> float | None:
 
 
 def _get_prices_batch(symbols: list[str], target_date: date) -> dict[str, float]:
-    """Get close prices for multiple symbols on target_date."""
     if not symbols:
         raise ValueError("symbols list cannot be empty for backtest price fetch")
     try:

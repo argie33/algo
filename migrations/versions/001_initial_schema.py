@@ -12,7 +12,6 @@ DESCRIPTION = "Initialize schema version tracking table"
 
 
 def up():
-    """Create schema_version table."""
     sql = """
     CREATE TABLE IF NOT EXISTS schema_version (
         id SERIAL PRIMARY KEY,

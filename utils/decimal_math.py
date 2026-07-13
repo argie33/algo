@@ -54,12 +54,10 @@ def divide(a: float | str | int | Decimal, b: float | str | int | Decimal) -> fl
 
 
 def percentage(value: float | str | int | Decimal, percentage_val: float | str | int | Decimal) -> float:
-    """Calculate percentage_val% of value."""
     return multiply(value, divide(percentage_val, 100))
 
 
 def percentage_change(old: float | str | int | Decimal, new: float | str | int | Decimal) -> float:
-    """Calculate percentage change from old to new. Raises if old is 0."""
     old_d = to_decimal(old)
     if old_d == 0:
         raise ValueError(f"Cannot calculate percentage change: old value is 0, new value is {new}")
@@ -84,7 +82,6 @@ def r_multiple(
 
 
 def position_value(shares: float | str | int | Decimal, price: float | str | int | Decimal) -> float:
-    """Calculate position value: shares * price."""
     return multiply(shares, price)
 
 
@@ -92,7 +89,6 @@ def average_fill_price(
     total_cost: float | str | int | Decimal,
     total_shares: float | str | int | Decimal,
 ) -> float:
-    """Calculate average fill price. Returns 0 if shares is 0."""
     return divide(total_cost, total_shares)
 
 
@@ -100,7 +96,6 @@ def pnl_percent(
     entry_price: float | str | int | Decimal,
     exit_price: float | str | int | Decimal,
 ) -> float:
-    """Calculate P&L percentage. Returns 0 if entry_price is 0."""
     return percentage_change(entry_price, exit_price)
 
 
@@ -109,5 +104,4 @@ def pnl_dollars(
     exit_price: float | str | int | Decimal,
     shares: float | str | int | Decimal,
 ) -> float:
-    """Calculate P&L in dollars: (exit - entry) * shares."""
     return multiply(subtract(exit_price, entry_price), shares)

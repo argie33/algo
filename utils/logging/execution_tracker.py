@@ -30,13 +30,11 @@ class OrchestratorExecutionTracker:
         self.phase_results: dict[int | str, dict[str, Any]] = {}
 
     def set_run_context(self, run_id: str, run_date: Any) -> None:
-        """Set the run context (called at orchestrator startup)."""
         self.run_id = run_id
         self.run_date = run_date
         self.started_at = datetime.now(timezone.utc)
 
     def _ensure_table_exists(self) -> None:
-        """Create orchestrator_execution_log if it doesn't exist (self-healing)."""
         with DatabaseContext("write") as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS orchestrator_execution_log (

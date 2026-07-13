@@ -45,7 +45,6 @@ _trace_id: str | None = None
 
 
 def set_trace_id(trace_id: str) -> None:
-    """Set the global trace ID for this run. Called by orchestrator at startup."""
     global _trace_id
     _trace_id = trace_id
 
@@ -64,7 +63,6 @@ class StructuredFormatter(logging.Formatter):
     """
 
     def format(self, record: logging.LogRecord) -> str:
-        """Format log record as JSON."""
         # Build JSON log entry
         log_entry = {
             "timestamp": datetime.utcnow().isoformat() + "Z",

@@ -648,7 +648,6 @@ def validate_query_param_type(value: str, expected_type: str) -> tuple[bool, Any
 
 
 def parse_query_params(event: dict[str, Any]) -> dict[str, list[str]]:
-    """Parse query parameters from API Gateway v1 or v2 events."""
     params: dict[str, list[str]] = {}
     # Try v1 format first (REST API)
     if event.get("queryStringParameters"):

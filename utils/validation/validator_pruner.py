@@ -10,7 +10,6 @@ class ValidatorBase(ABC):
 
     @abstractmethod
     def validate(self, value: Any) -> tuple[bool, str]:
-        """Validate a value."""
         ...
 
 
@@ -18,7 +17,6 @@ class FinancialValidator(ValidatorBase):
     """Validates financial data (prices, volumes, percentages)."""
 
     def validate(self, value: Any) -> tuple[bool, str]:
-        """Validate financial value."""
         if not isinstance(value, (int, float)):
             return False, "Must be numeric"
         if value < 0:
@@ -30,7 +28,6 @@ class SchemaValidator(ValidatorBase):
     """Validates data schema consistency."""
 
     def validate(self, value: Any) -> tuple[bool, str]:
-        """Validate schema."""
         if not isinstance(value, dict):
             return False, "Must be dict"
         return True, ""

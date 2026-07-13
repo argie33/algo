@@ -12,7 +12,6 @@ from typing import Any
 
 
 class SignalQueryBuilder:
-    """Build consistent signal queries with documented source hierarchy."""
 
     SOURCES = {
         "buy_sell_daily": {
@@ -48,7 +47,6 @@ class SignalQueryBuilder:
     }
 
     def __init__(self, source: str = "stocks", alias: str = "bsd"):
-        """Initialize with primary source: 'stocks' or 'etf'."""
         self.primary_source = "buy_sell_daily" if source == "stocks" else "buy_sell_daily_etf"
         self.alias = alias
         self.supplementary_sources: list[str] = []

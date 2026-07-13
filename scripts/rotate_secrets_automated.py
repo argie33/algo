@@ -215,7 +215,6 @@ class SecretsManager:
     # ========================================================================
 
     def validate_required_secrets(self) -> bool:
-        """Validate all required secrets are present."""
         logger.info("Validating required secrets...")
 
         required = [
@@ -249,7 +248,6 @@ class SecretsManager:
         return True
 
     def validate_database_rotation(self) -> bool:
-        """Validate database password rotation is enabled."""
         logger.info("Validating database password rotation...")
 
         returncode, stdout, stderr = self.run_command([
@@ -277,7 +275,6 @@ class SecretsManager:
             return False
 
     def validate_api_endpoints(self) -> bool:
-        """Validate all API endpoints are responding."""
         logger.info("Validating API endpoints...")
 
         endpoints = [

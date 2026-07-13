@@ -23,7 +23,6 @@ class AlpacaBrokerAdapter(BrokerAdapter):
     """
 
     def __init__(self, config: Any):
-        """Initialize Alpaca adapter with configuration."""
         self.config = config
         self.alpaca_sync = AlpacaSyncManager(config)
 

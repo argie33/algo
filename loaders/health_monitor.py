@@ -24,7 +24,6 @@ class LoaderHealthMonitor:
     """Monitors health of loader system."""
 
     def __init__(self, conn: Any):
-        """Initialize monitor with database connection."""
         self.conn = conn
         self.status = HealthStatus.HEALTHY
         self.checks: list[dict[str, Any]] = []

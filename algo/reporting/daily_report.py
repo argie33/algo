@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class DailyFinanceReport:
-    """Generate institutional daily finance report."""
 
     def __init__(self) -> None:
         from algo.orchestration import RegimeManager
@@ -282,7 +281,6 @@ class DailyFinanceReport:
             raise RuntimeError(f"Database error fetching signal counts for {report_date}: {e}") from e
 
     def format_text(self, report: dict[str, Any]) -> str:
-        """Format report as text for logs."""
         if not report:
             raise ValueError("Report cannot be None")
 
@@ -371,7 +369,6 @@ class DailyFinanceReport:
         return "\n".join(lines)
 
     def _check_thresholds(self, report: dict[str, Any]) -> list[str]:
-        """Check metric thresholds and return warnings."""
         warnings = []
 
         risk = report.get("risk")

@@ -24,7 +24,6 @@ os.environ["ORCHESTRATOR_DRY_RUN"] = "true"
 
 
 def _create_mock_cursor():
-    """Create a mock cursor with proper algo_config data."""
     cursor = MagicMock()
 
     # Create realistic algo_config data (key, value, dtype tuples)
@@ -56,7 +55,6 @@ def _create_mock_cursor():
 
 
 def _create_mock_connection():
-    """Create a mock connection."""
     conn = MagicMock()
     conn.cursor.return_value = _create_mock_cursor()
     conn.commit.return_value = None

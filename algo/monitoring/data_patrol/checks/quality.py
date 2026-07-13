@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class QualityChecker(BaseCheck):
-    """Check data quality: NULLs, OHLC relationships, zero values, volume."""
 
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute all quality checks."""
@@ -29,7 +28,6 @@ class QualityChecker(BaseCheck):
         return self.results
 
     def check_null_anomalies(self, cur: Any) -> None:
-        """Check for sudden spike in NULL values."""
         try:
             # EXPLICIT THRESHOLD: price_daily NULL values should never exceed 5%
             # This is a fixed contract, not a configurable setting
@@ -87,7 +85,6 @@ class QualityChecker(BaseCheck):
             self.log("null_anomaly", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_zero_or_identical(self, cur: Any) -> None:
-        """Check for zero values or identical OHLC (sign of API limit hit)."""
         try:
             quality_cfg = self.config.get_quality_config()
             new_zeros_error = quality_cfg["zero_symbols_error"]
@@ -208,7 +205,6 @@ class QualityChecker(BaseCheck):
             self.log("zero_data", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_ohlc_sanity(self, cur: Any) -> None:
-        """Check OHLC relationships: High >= Open/Close/Low, etc."""
         try:
             cur.execute("""
                 SELECT COUNT(*) FILTER (WHERE high < open OR high < close OR high < low) AS bad_high,
@@ -255,7 +251,6 @@ class QualityChecker(BaseCheck):
             self.log("ohlc_sanity", ERROR, "price_daily", f"Check failed: {e}", None)
 
     def check_volume_sanity(self, cur: Any) -> None:
-        """Check volume within realistic range."""
         try:
             vol_cfg = self.config.get_volume_config()
             low_vol_threshold = vol_cfg["low_threshold"]

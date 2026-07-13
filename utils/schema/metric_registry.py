@@ -87,7 +87,6 @@ class MetricDefinition:
             self.display_name = self.name.replace("_", " ").title()
 
     def get_column_definition(self) -> str:
-        """Generate SQL column definition for migrations."""
         type_map = {
             MetricType.NUMERIC: "NUMERIC(10,2)",
             MetricType.INTEGER: "INTEGER",
@@ -101,7 +100,6 @@ class MetricDefinition:
         return f"{self.column_name} {sql_type}{null_clause}{default_clause}"
 
     def validate(self, value: Any) -> bool:
-        """Validate value against metric rules."""
         if value is None:
             return self.nullable
 

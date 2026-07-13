@@ -23,7 +23,6 @@ class AlpacaSyncManager:
     """Manages Alpaca account sync: fetching positions, importing positions, processing failures."""
 
     def __init__(self, config: Any):
-        """Initialize with configuration and credentials."""
         self.config = config
         credential_manager = get_credential_manager()
         creds = credential_manager.get_alpaca_credentials()

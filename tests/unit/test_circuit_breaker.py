@@ -15,7 +15,6 @@ from algo.risk import CircuitBreaker
 
 @pytest.fixture
 def mock_config():
-    """Create mock configuration."""
     return {
         "circuit_breaker_enabled": True,
         "daily_loss_limit": -5000,
@@ -25,7 +24,6 @@ def mock_config():
 
 @pytest.fixture
 def mock_connection():
-    """Create mock database connection."""
     mock_conn = Mock()
     mock_cur = Mock()
     mock_conn.cursor.return_value = mock_cur
@@ -34,7 +32,6 @@ def mock_connection():
 
 @pytest.fixture
 def circuit_breaker(mock_config):
-    """Create CircuitBreaker instance with mocked database."""
     return CircuitBreaker(config=mock_config)
 
 

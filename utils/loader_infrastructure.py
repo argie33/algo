@@ -53,7 +53,6 @@ class LoaderInfrastructure:
         signal.signal(signal.SIGTERM, handle_shutdown)
 
     def _validate_runtime_config(self) -> None:
-        """Validate runtime configuration for security and correctness."""
         try:
             assert_safe_table(self.table_name)
         except ValueError as e:

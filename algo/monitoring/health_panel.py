@@ -13,7 +13,6 @@ class HealthPanelStrategy(ABC):
 
     @abstractmethod
     def fetch_data(self) -> dict[str, Any]:
-        """Fetch health data."""
         ...
 
 
@@ -21,7 +20,6 @@ class SystemHealthPanel(HealthPanelStrategy):
     """System-level health: CPU, memory, disk."""
 
     def fetch_data(self) -> dict[str, Any]:
-        """Fetch system metrics."""
         return {
             "cpu_percent": 45.2,
             "memory_percent": 62.5,
@@ -34,7 +32,6 @@ class DatabaseHealthPanel(HealthPanelStrategy):
     """Database connectivity and performance."""
 
     def fetch_data(self) -> dict[str, Any]:
-        """Fetch database metrics."""
         return {
             "connections_active": 12,
             "query_time_ms": 85.4,
@@ -47,7 +44,6 @@ class PortfolioHealthPanel(HealthPanelStrategy):
     """Portfolio liquidation health and risk."""
 
     def fetch_data(self) -> dict[str, Any]:
-        """Fetch portfolio metrics."""
         return {
             "liquidation_risk": 0.05,
             "drawdown_percent": -8.3,
@@ -60,7 +56,6 @@ class ServiceHealthPanel(HealthPanelStrategy):
     """Dependent services: pricing API, news feed."""
 
     def fetch_data(self) -> dict[str, Any]:
-        """Fetch service status."""
         return {
             "pricing_api_status": "healthy",
             "pricing_latency_ms": 245,
@@ -92,7 +87,6 @@ class HealthPanel:
     """Aggregates all health panel data into system status."""
 
     def __init__(self) -> None:
-        """Initialize health panel."""
         self.factory = HealthPanelFactory()
         self.history: list[dict[str, Any]] = []
 
@@ -108,7 +102,6 @@ class HealthPanel:
         }
 
     def calculate_health_score(self) -> float:
-        """Calculate overall health score (0-100)."""
         return 95.0
 
     def aggregate_status(self) -> str:

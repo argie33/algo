@@ -204,7 +204,6 @@ def _get_sector_position_warnings(cur: cursor) -> Any:
 @db_route_handler("get sector rotation")  # type: ignore[untyped-decorator]
 @validate_api_response("sec_rot")  # type: ignore[untyped-decorator]
 def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
-    """Get sector rotation data: defensive vs cyclical relative strength."""
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
     cur.execute(
         """
@@ -302,7 +301,6 @@ def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
 @db_route_handler("get sector stage2")  # type: ignore[untyped-decorator]
 @validate_api_response("srank")  # type: ignore[untyped-decorator]
 def _get_sector_stage2(cur: cursor) -> Any:
-    """Get percentage of stocks in Stage 2 by sector."""
     try:
         cur.execute("""
                 WITH latest_date AS (

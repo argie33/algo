@@ -23,7 +23,6 @@ class LoadState:
 
     @result.setter
     def result(self, value: dict[str, Any] | None) -> None:
-        """Set result with lock protection."""
         with self._lock:
             self._result = value
 
@@ -34,7 +33,6 @@ class LoadState:
 
     @elapsed.setter
     def elapsed(self, value: float) -> None:
-        """Set elapsed time with lock protection."""
         with self._lock:
             self._elapsed = value
 
@@ -62,7 +60,6 @@ class WatchState:
 
     @result.setter
     def result(self, value: dict[str, Any] | None) -> None:
-        """Set result with lock protection."""
         with self._lock:
             self._result = value
 
@@ -73,7 +70,6 @@ class WatchState:
 
     @elapsed.setter
     def elapsed(self, value: float) -> None:
-        """Set elapsed time with lock protection."""
         with self._lock:
             self._elapsed = value
 
@@ -84,7 +80,6 @@ class WatchState:
 
     @loading.setter
     def loading(self, value: bool) -> None:
-        """Set loading state with lock protection."""
         with self._lock:
             self._loading = value
 
@@ -95,7 +90,6 @@ class WatchState:
 
     @last_load.setter
     def last_load(self, value: float) -> None:
-        """Set last load time with lock protection."""
         with self._lock:
             self._last_load = value
 
@@ -106,7 +100,6 @@ class WatchState:
 
     @frame.setter
     def frame(self, value: int) -> None:
-        """Set frame count with lock protection."""
         with self._lock:
             self._frame = value
 
@@ -117,6 +110,5 @@ class WatchState:
 
     @error.setter
     def error(self, value: str | None) -> None:
-        """Set error message with lock protection."""
         with self._lock:
             self._error = value

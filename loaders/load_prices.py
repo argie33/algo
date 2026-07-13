@@ -75,7 +75,6 @@ class PriceLoader(OptimalLoader):
     """
 
     def __init__(self, interval: str = "1d", asset_class: str = "stock", *args: Any, **kwargs: Any) -> None:
-        """Initialize with interval (1d/1wk/1mo) and asset class (stock/etf)."""
         if interval not in ("1d", "1wk", "1mo"):
             raise ValueError(f"Invalid interval: {interval!r}; must be one of: 1d, 1wk, 1mo")
         if asset_class not in ("stock", "etf"):
@@ -800,7 +799,6 @@ class PriceLoader(OptimalLoader):
         raise RuntimeError(error_msg)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> Any:
-        """Fetch OHLCV from yfinance at specified interval."""
         return self.fetcher.fetch_incremental(symbol, since, is_eod_pipeline=self._is_eod_pipeline)
 
     def fetch_batch_incremental(self, symbols: list[str], since: date | None) -> dict[str, Any]:
@@ -1324,7 +1322,6 @@ class PriceLoader(OptimalLoader):
                 )
 
     def transform(self, rows: list[Any]) -> list[dict[str, Any]]:
-        """Validate and filter rows. Phase 1: Reject invalid ticks. Integrated validation framework."""
         return self.transformer.validate_and_transform(rows)
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
@@ -1340,7 +1337,6 @@ class PriceLoader(OptimalLoader):
             ) from e
 
     def _validate_and_check_preconditions(self) -> None:
-        """Validate preflight conditions: schema and market close availability."""
         self._validate_schema_preflight()
         if self.interval == "1d":
             self._validate_market_close_for_1d()
@@ -1684,7 +1680,6 @@ class PriceLoader(OptimalLoader):
         self._update_loader_status()
 
     def _update_loader_status(self, status: str = "COMPLETED") -> None:
-        """Update data_loader_status table with completion metrics."""
         try:
             with DatabaseContext("read") as cur:
                 table_safe = assert_safe_table(self.table_name)

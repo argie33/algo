@@ -62,7 +62,6 @@ _LOOKBACK_DAYS = 10  # compute for the last N trading days to fill recent gaps
 
 
 def _update_loader_status(status: str, error_message: str | None = None, symbol_count: int | None = None) -> None:
-    """Update data_loader_status for Phase 1 monitoring."""
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
             cur.execute(
@@ -91,7 +90,6 @@ def _fetch_latest_dates(cur: psycopg2.extensions.cursor) -> list[date]:
 
 
 def _fetch_technical_data(cur: psycopg2.extensions.cursor, dates: list[date]) -> pd.DataFrame:
-    """Fetch technical indicators for the given dates (all symbols at once)."""
     cur.execute(
         """
         SELECT symbol, date, rsi_14, sma_50, sma_200, roc_20d, roc_60d, roc_252d
@@ -110,7 +108,6 @@ def _fetch_technical_data(cur: psycopg2.extensions.cursor, dates: list[date]) ->
 
 
 def _fetch_price_data(cur: psycopg2.extensions.cursor, dates: list[date]) -> pd.DataFrame:
-    """Fetch close prices for the given dates (all symbols at once)."""
     cur.execute(
         "SELECT symbol, date, close FROM price_daily WHERE date = ANY(%s)",
         (dates,),
@@ -300,10 +297,6 @@ def run() -> dict:  # type: ignore[type-arg]
 
 
 def main() -> int:
-    """Compute and persist trend template data.
-
-    Exit codes: 0=success, 1=error, 2=no_data
-    """
     try:
         result = run()
 

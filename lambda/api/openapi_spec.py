@@ -75,7 +75,6 @@ def generate_openapi_spec() -> dict[str, Any]:
 
 
 def _build_path_health() -> dict[str, Any]:
-    """Build health check endpoints."""
     return {
         "/api/health": {
             "get": {
@@ -132,7 +131,6 @@ def _build_path_health() -> dict[str, Any]:
 
 
 def _build_path_stocks() -> dict[str, Any]:
-    """Build stock data endpoints."""
     return {
         "/api/stocks/{symbol}": {
             "get": {
@@ -187,7 +185,6 @@ def _build_path_stocks() -> dict[str, Any]:
 
 
 def _build_path_signals() -> dict[str, Any]:
-    """Build signal endpoints."""
     return {
         "/api/signals": {
             "get": {
@@ -248,7 +245,6 @@ def _build_path_signals() -> dict[str, Any]:
 
 
 def _build_path_financials() -> dict[str, Any]:
-    """Build financial statement endpoints."""
     return {
         "/api/financials/{symbol}/key-metrics": {
             "get": {
@@ -354,7 +350,6 @@ def _build_path_financials() -> dict[str, Any]:
 
 
 def _build_path_sectors_industries() -> dict[str, Any]:
-    """Build sector and industry endpoints."""
     return {
         "/api/sectors": {
             "get": {
@@ -376,7 +371,6 @@ def _build_path_sectors_industries() -> dict[str, Any]:
 
 
 def _build_path_prices() -> dict[str, Any]:
-    """Build price data endpoints."""
     return {
         "/api/prices/{symbol}": {
             "get": {
@@ -404,7 +398,6 @@ def _build_path_prices() -> dict[str, Any]:
 
 
 def _build_path_market() -> dict[str, Any]:
-    """Build market data endpoints."""
     return {
         "/api/market": {
             "get": {
@@ -418,7 +411,6 @@ def _build_path_market() -> dict[str, Any]:
 
 
 def _build_path_earnings() -> dict[str, Any]:
-    """Build earnings endpoints."""
     return {
         "/api/earnings": {
             "get": {
@@ -432,7 +424,6 @@ def _build_path_earnings() -> dict[str, Any]:
 
 
 def _build_path_economic() -> dict[str, Any]:
-    """Build economic data endpoints."""
     return {
         "/api/economic": {
             "get": {
@@ -446,7 +437,6 @@ def _build_path_economic() -> dict[str, Any]:
 
 
 def _build_path_scores() -> dict[str, Any]:
-    """Build stock scoring endpoints."""
     return {
         "/api/scores": {
             "get": {
@@ -468,7 +458,6 @@ def _build_path_scores() -> dict[str, Any]:
 
 
 def _build_path_trades() -> dict[str, Any]:
-    """Build trade endpoints."""
     return {
         "/api/trades": {
             "get": {
@@ -541,7 +530,6 @@ def _build_path_trades() -> dict[str, Any]:
 
 
 def _build_path_algo() -> dict[str, Any]:
-    """Build algo trading endpoints."""
     return {
         "/api/algo/preview": {
             "post": {
@@ -590,7 +578,6 @@ def _build_path_algo() -> dict[str, Any]:
 
 
 def _build_path_admin() -> dict[str, Any]:
-    """Build admin endpoints."""
     return {
         "/api/admin/verify-user-email": {
             "post": {
@@ -631,7 +618,6 @@ def _build_path_admin() -> dict[str, Any]:
 
 
 def _build_path_contact() -> dict[str, Any]:
-    """Build contact form endpoints."""
     return {
         "/api/contact": {
             "post": {
@@ -692,7 +678,6 @@ def _build_path_contact() -> dict[str, Any]:
 
 
 def _build_path_settings() -> dict[str, Any]:
-    """Build settings endpoints."""
     return {
         "/api/settings": {
             "get": {
@@ -727,7 +712,6 @@ def _build_path_settings() -> dict[str, Any]:
 
 
 def _build_path_data_coverage() -> dict[str, Any]:
-    """Build data coverage endpoints."""
     return {
         "/api/data-coverage": {
             "get": {
@@ -741,7 +725,6 @@ def _build_path_data_coverage() -> dict[str, Any]:
 
 
 def _build_path_api_docs() -> dict[str, Any]:
-    """Build API documentation endpoints."""
     return {
         "/api/openapi.json": {
             "get": {
@@ -789,7 +772,6 @@ def _build_path_api_docs() -> dict[str, Any]:
 
 
 def _get_paths() -> dict[str, Any]:
-    """Generate API paths for all endpoints by dispatching to builder functions."""
     paths = {}
     paths.update(_build_path_health())
     paths.update(_build_path_stocks())
@@ -812,7 +794,6 @@ def _get_paths() -> dict[str, Any]:
 
 
 def _get_schemas() -> dict[str, Any]:
-    """Generate JSON schemas for all response types."""
     return {
         "DataFreshness": {
             "type": "object",
@@ -945,7 +926,6 @@ def _get_schemas() -> dict[str, Any]:
 
 
 def _get_common_responses() -> dict[str, Any]:
-    """Generate common response definitions."""
     return {
         "BadRequest": {
             "description": "Bad request - invalid parameters",

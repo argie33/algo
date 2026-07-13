@@ -633,7 +633,6 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
 @db_route_handler("fetch circuit breakers")  # type: ignore[untyped-decorator]
 @validate_api_response("cb")  # type: ignore[untyped-decorator]
 def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
-    """Get real-time circuit breaker state with current values vs thresholds."""
     try:
         today = date.today()
         breakers = []
@@ -1416,7 +1415,6 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 @db_route_handler("fetch dashboard scores")  # type: ignore[untyped-decorator]
 @validate_api_response("scores")  # type: ignore[untyped-decorator]
 def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
-    """Get top stock scores with composite and component scores for dashboard."""
     try:
         # Allow 25 seconds for query to complete (safe before API Gateway limit)
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
@@ -1463,7 +1461,6 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
 
 @db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
 def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
-    """Get equity curve for last N days."""
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
         cur.execute(

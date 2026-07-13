@@ -301,7 +301,6 @@ def check_cloudwatch_logs():
         return False
 
 def generate_report():
-    """Generate comprehensive deployment verification report."""
     print("\n" + "=" * 80)
     print("AWS DEPLOYMENT VERIFICATION REPORT")
     print("=" * 80)

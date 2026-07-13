@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class AlignmentChecker(BaseCheck):
-    """Check alignment and consistency across tables."""
 
     def run(self, cur: Any) -> list[CheckResult]:
         """Execute all alignment checks."""

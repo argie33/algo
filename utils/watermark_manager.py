@@ -28,7 +28,6 @@ class WatermarkManager:
         return self._marks.get(symbol)
 
     def set(self, symbol: str, value: date | None, rows_loaded: int = 0) -> None:
-        """Set watermark for a symbol (in-memory only)."""
         if value is not None:
             self._marks[symbol] = value
 

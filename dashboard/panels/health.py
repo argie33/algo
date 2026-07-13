@@ -43,7 +43,6 @@ def _var_color(var95: float | None) -> str:
 
 
 def _fmt_age(r: dict[str, Any]) -> str:
-    """Format age from health item dict."""
     from dashboard.data_validation import StrictValidationError, safe_float
 
     ah = r.get("age_hours")
@@ -66,7 +65,6 @@ def _fmt_age(r: dict[str, Any]) -> str:
 
 
 def _fmt_updated(r: dict[str, Any]) -> str:
-    """Format last_updated/latest timestamp from health item dict."""
     lat = r.get("last_updated")
     if lat is None:
         lat = r.get("latest")
@@ -154,7 +152,6 @@ ROLE_ORDER = {"CRIT": 0, "IMP": 1, "NORM": 2}
 
 
 def _format_phase_badge(phase_status: str | None) -> tuple[str, str]:
-    """Format phase status string to (color, icon) badge tuple."""
     # Ensure phase_status is a string (handle malformed data)
     if not isinstance(phase_status, str):
         phase_status = ""
@@ -179,7 +176,6 @@ SEV_COLORS = {"critical": R, "warning": Y, "info": CY, "debug": DIM}
 
 
 class HealthFormatter:
-    """Format health metrics to color-coded display values."""
 
     @staticmethod
     def var_color(value: float | None) -> str:
@@ -370,7 +366,6 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
 
 
 def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
-    """Format orchestration config parameters into display line."""
     from dashboard.data_validation import safe_float
 
     min_score_f = safe_float(cfg_params.get("min_score"), default=None)
@@ -679,7 +674,6 @@ def _get_status_safe(run: dict[str, Any]) -> str:
 
 
 def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
-    """Format last N runs summary (used in panel_status and panel_algo_health)."""
     rows: list[Text] = []
     valid_hist_raw = safe_get_list(exec_hist)
     # Check if marker dict (data_unavailable) was returned instead of list
@@ -846,7 +840,6 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
 
 
 def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
-    """Format data health section (stale tables only)."""
     rows: list[Text] = []
     if not hlth_items:
         logger.warning(
@@ -909,7 +902,6 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
 
 
 def _format_loader_status(loader: list[Any]) -> list[Text]:
-    """Format data loader status section."""
     rows: list[Text] = []
     try:
         valid_loader_raw = safe_get_list(loader)
@@ -1007,7 +999,6 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
 
 
 def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
-    """Format notifications section."""
     rows: list[Text] = []
     valid_notifs_raw = safe_get_list(notifs)
     if not isinstance(valid_notifs_raw, list):
@@ -1053,7 +1044,6 @@ def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
 
 
 def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
-    """Format daily trade activity summary."""
     rows: list[Text] = []
     valid_metrics_raw = safe_get_list(algo_metrics)
     if not isinstance(valid_metrics_raw, list):
@@ -1113,7 +1103,6 @@ def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
 
 
 def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
-    """Format audit log section (notable actions only)."""
     rows: list[Text] = []
     valid_audit_raw = safe_get_list(audit)
     if not isinstance(valid_audit_raw, list):
@@ -1188,7 +1177,6 @@ def _age_h(r: dict[str, Any]) -> float | dict[str, Any]:
 
 
 def _age_fmt_c(r: dict[str, Any]) -> str:
-    """Format age with hours/days suffix."""
     h = _age_h(r)
     if h is None or isinstance(h, dict):
         return "?"
@@ -1248,7 +1236,6 @@ def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, 
 
 
 def _format_health_data_stale_section(stale: list[Any], hlth_list: list[Any] | None) -> str:
-    """Format data health when stale tables exist."""
     crit_stale = [r for r in stale if r.get("role") == "CRIT"]
     if crit_stale:
         rtt_pfx = f"[bold {R}]CRIT STALE[/]  "
@@ -1268,7 +1255,6 @@ def _format_health_data_stale_section(stale: list[Any], hlth_list: list[Any] | N
 def _format_health_data_fresh_section(
     hlth_list: list[Any], crit: list[Any], ready_to_trade: bool | None, ages: list[float | None]
 ) -> str:
-    """Format data health when all tables are fresh."""
     if ready_to_trade is False:
         rtt_badge = f"[bold {R}]✗ NOT READY[/]"
     elif ready_to_trade is True:
@@ -1343,7 +1329,6 @@ def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any
 
 
 def _build_phase_badges_from_audit(phases_list: list[Any]) -> list[str]:
-    """Build phase badges from audit log format."""
     phase_badges = []
     for p in phases_list:
         at_raw = p.get("action_type")
@@ -1454,7 +1439,6 @@ def _format_algo_actions_and_activity(
 
 
 def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
-    """Format run history badges and summary stats."""
     rows: list[Text] = []
     if not valid_hist:
         logger.warning(
@@ -1516,7 +1500,6 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
 
 
 def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
-    """Format risk metrics (VaR, CVaR, Beta, Concentration)."""
     from ..data_validation import safe_float
 
     rows: list[Text | Rule] = []
@@ -1575,7 +1558,6 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
 
 
 def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
-    """Format notifications summary."""
     rows: list[Text | Rule] = []
     if not valid_notifs:
         logger.debug(

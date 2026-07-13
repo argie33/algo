@@ -129,7 +129,6 @@ def get_status_emoji(age_minutes: float, thresholds: dict) -> str:
 
 
 def format_age(minutes: float) -> str:
-    """Format age in human-readable format."""
     if minutes < 60:
         return f"{minutes:.0f}m"
     hours = minutes / 60

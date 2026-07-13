@@ -52,7 +52,6 @@ def run_cmd(cmd: List[str]) -> Tuple[int, str, str]:
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 def check_required_secrets() -> Tuple[bool, str]:
-    """Check that all required secrets exist."""
     returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
 
     if returncode != 0:
@@ -67,7 +66,6 @@ def check_required_secrets() -> Tuple[bool, str]:
     return True, f"✓ All {len(REQUIRED_SECRETS)} required secrets present"
 
 def check_no_duplicates() -> Tuple[bool, str]:
-    """Check for duplicate secrets."""
     returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
 
     if returncode != 0:
@@ -86,7 +84,6 @@ def check_no_duplicates() -> Tuple[bool, str]:
     return True, "✓ No duplicate secrets"
 
 def check_secrets_freshness() -> Tuple[bool, str]:
-    """Check that secrets are recently rotated."""
     returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
 
     if returncode != 0:
@@ -129,7 +126,6 @@ def check_secrets_freshness() -> Tuple[bool, str]:
     return True, "✓ All secrets recently rotated"
 
 def check_credential_loading() -> Tuple[bool, str]:
-    """Check that credentials can be loaded."""
     try:
         from config.credential_manager import get_credential_manager
         mgr = get_credential_manager()

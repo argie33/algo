@@ -94,7 +94,6 @@ class PatrolLogger:
             raise RuntimeError(f"Failed to log patrol performance — health check metrics not recorded: {e}") from e
 
     def update_completion_status(self, ready: bool, elapsed_seconds: float | None = None) -> None:
-        """Update DynamoDB with patrol completion status."""
         import os
         import time
 

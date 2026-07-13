@@ -54,7 +54,6 @@ class PooledDatabaseContext:
         self.cursor = None
 
     def __enter__(self) -> Any:
-        """Create cursor from pre-acquired connection."""
         try:
             self.cursor = self.connection.cursor(cursor_factory=self.cursor_factory)
             return self.cursor

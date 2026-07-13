@@ -348,7 +348,6 @@ class SafeDict:
     # ──────────────────────────────────────────────────────────────────────────
 
     def _context_str(self) -> str:
-        """Format context string for logging."""
         return f"[{self._context}]" if self._context else ""
 
     def keys(self) -> list[str]:

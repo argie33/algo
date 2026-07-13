@@ -34,7 +34,6 @@ OPTIONAL_ENRICHMENT_FILES = {
 
 
 def should_check_file(filepath: Path) -> bool:
-    """Check if file is a financial path requiring strict enforcement."""
     if filepath.suffix != ".py":
         return False
 
@@ -53,7 +52,6 @@ def should_check_file(filepath: Path) -> bool:
 
 
 def check_financial_data_integrity(filepath: Path) -> list[dict[str, Any]]:
-    """Check that financial data access follows fail-fast patterns."""
     violations = []
     is_critical = any(crit in str(filepath) for crit in CRITICAL_FINANCIAL_FILES)
 
@@ -149,7 +147,6 @@ def check_financial_data_integrity(filepath: Path) -> list[dict[str, Any]]:
 
 
 def main() -> int:
-    """Check financial paths for data integrity violations."""
     repo_root = Path.cwd()
     violations = []
 

@@ -38,7 +38,6 @@ dynamodb = boto3.resource("dynamodb")
 
 
 def get_db_credentials():
-    """Fetch database credentials from credential_manager (centralized)."""
     try:
         from config.credential_manager import get_db_credentials as get_db_creds
 
@@ -155,7 +154,6 @@ def get_portfolio_pnl(max_attempts: int = 3):
 
 
 def _set_halt_flag_rds(halt: bool, reason: str, check_time: str) -> None:
-    """Set halt flag in RDS (source of truth). Raises on failure — this is critical."""
     creds = get_db_credentials()
     conn = psycopg2.connect(
         host=creds["host"],
@@ -206,7 +204,6 @@ def _set_halt_flag_rds(halt: bool, reason: str, check_time: str) -> None:
 
 
 def _set_halt_flag_dynamodb(table, halt: bool, reason: str, check_time: str) -> None:
-    """Set halt flag in DynamoDB (cache). Raises on failure."""
     item = {
         "key": "orchestrator_halt",
         "halt_flag": halt,

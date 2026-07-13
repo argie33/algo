@@ -230,7 +230,6 @@ def _get_loader_status(cur: cursor) -> Any:
 
 @db_route_handler("get system health")  # type: ignore[untyped-decorator]
 def _get_system_health(cur: cursor) -> Any:
-    """Get overall system health status."""
     health_data: dict[str, Any] = {"status": "healthy", "components": {}}
     cur.execute("SET LOCAL statement_timeout = '3000ms'")
 
@@ -330,7 +329,6 @@ def _get_system_health(cur: cursor) -> Any:
 
 @db_route_handler("get database stats")  # type: ignore[untyped-decorator]
 def _get_database_stats(cur: cursor) -> Any:
-    """Get database statistics (schema-safe version - no table name exposure)."""
     stats = {}
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
 
@@ -375,7 +373,6 @@ def _get_database_stats(cur: cursor) -> Any:
 
 @db_route_handler("get data quality")  # type: ignore[untyped-decorator]
 def _get_data_quality(cur: cursor) -> Any:
-    """Get data quality metrics."""
     quality: dict[str, Any] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "checks": {},

@@ -221,7 +221,6 @@ class FreshnessValidator:
 
     @classmethod
     def for_critical_market_data(cls) -> "FreshnessValidator":
-        """Create validator for critical position-sizing data."""
         return cls(
             max_age_hours={
                 "vix": 1.0,
@@ -232,7 +231,6 @@ class FreshnessValidator:
 
     @classmethod
     def for_signal_generation(cls) -> "FreshnessValidator":
-        """Create validator for signal generation data."""
         return cls(
             max_age_hours={
                 "technical_indicators": 1.0,

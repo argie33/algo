@@ -27,7 +27,6 @@ secrets_client = boto3.client("secretsmanager")
 
 
 def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> dict[str, Any]:
-    """Fetch secret from Secrets Manager."""
     try:
         response = secrets_client.get_secret_value(SecretId=secret_id, VersionStage=stage)
         return cast(dict[str, Any], json.loads(response["SecretString"]))
@@ -37,7 +36,6 @@ def get_secret_dict(secret_id: str, stage: str = "AWSCURRENT") -> dict[str, Any]
 
 
 def set_secret_version(secret_id: str, secret_value: dict[str, Any]) -> str:
-    """Create new secret version in Secrets Manager."""
     try:
         response = secrets_client.put_secret_value(
             SecretId=secret_id,
@@ -99,7 +97,6 @@ def finish_secret(secret_id: str, version_id: str) -> None:
 
 
 def generate_password(length: int = 32) -> str:
-    """Generate a secure random password."""
     # Mix of uppercase, lowercase, digits, and special characters
     characters = string.ascii_letters + string.digits + "!@#$%^&*-_=+"
     password = "".join(secrets.choice(characters) for _ in range(length))

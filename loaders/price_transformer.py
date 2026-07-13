@@ -24,7 +24,6 @@ class PriceTransformer:
     """
 
     def __init__(self, asset_class: str = "stock"):
-        """Initialize PriceTransformer."""
         self.timezone: str | None = None
         self.asset_class = asset_class
 
@@ -132,7 +131,6 @@ class PriceTransformer:
         return transformed
 
     def set_timezone(self, tz: str) -> None:
-        """Set timezone for date handling."""
         self.timezone = tz
 
     def _extract_date_range(self, rows: list[dict[str, Any]]) -> tuple[Any, Any]:
@@ -194,7 +192,6 @@ class PriceTransformer:
     def _validate_row_trading_day(
         self, row_date_str: Any, row_date: Any, trading_day_set: set[Any] | None, symbol: str | None, tracker: Any
     ) -> bool:
-        """Validate if row is from a trading day."""
         from algo.infrastructure import MarketCalendar
 
         if trading_day_set is not None:
@@ -225,7 +222,6 @@ class PriceTransformer:
     def _validate_row_prices(
         self, row: dict[str, Any], symbol: str | None, prior_close_by_symbol: dict[str, float | None], tracker: Any
     ) -> tuple[bool, str | None]:
-        """Validate price fields in row."""
         from utils.data.tick_validator import validate_price_tick
 
         open_val: float | None = row.get("open")

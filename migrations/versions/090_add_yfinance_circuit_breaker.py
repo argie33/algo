@@ -15,7 +15,6 @@ DESCRIPTION = "Add yfinance_ip_ban table for coordinating rate limiting across E
 
 
 def up():
-    """Create yfinance_ip_ban table with shared state tracking."""
     with DatabaseContext("write") as cur:
         cur.execute("""
             CREATE TABLE IF NOT EXISTS yfinance_ip_ban (

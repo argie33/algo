@@ -35,7 +35,6 @@ class CognitoAuth:
         self._auth_lost_time: float | None = None
 
     def _parse_jwt_expiry(self, token: str) -> float | None:
-        """Parse JWT expiry time. Returns Unix timestamp or raises RuntimeError if invalid."""
         try:
             import base64
 

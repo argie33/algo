@@ -91,7 +91,6 @@ def handle(
 
 
 def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
-    """Get all current risk metrics in one view."""
     try:
         result: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),

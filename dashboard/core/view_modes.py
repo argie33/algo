@@ -42,7 +42,6 @@ class ViewModeState:
         self.current = ViewMode.NORMAL.value
 
     def set(self, mode: str) -> None:
-        """Set view mode if valid."""
         if ViewMode.is_valid(mode):
             self.current = mode
 

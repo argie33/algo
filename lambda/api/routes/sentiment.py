@@ -588,7 +588,6 @@ def handle(  # noqa: C901
 
 
 def _get_vix_data(cur: cursor) -> Any:
-    """Get latest VIX data and historical trend."""
     try:
         cur.execute("""
                 SELECT date, vix_level, put_call_ratio, market_trend, market_stage

@@ -37,12 +37,10 @@ _sign_formatter = SignFormatter()
 
 
 def fmt_age(ts: Any) -> str:
-    """Format timestamp as age string."""
     return _age_formatter.format(ts)
 
 
 def fmt_money(v: Any) -> str:
-    """Format value as currency: $1.23, $12.34K, $1.23M."""
     return _money_formatter.format(v)
 
 
@@ -119,7 +117,6 @@ def next_run_str() -> str:
 
 
 def _validate_schedule_entry(s: dict[str, Any]) -> tuple[int, int]:
-    """Validate schedule entry has required fields. Fail fast if corrupted."""
     if "hour" not in s or "minute" not in s:
         raise ValueError(
             f"Schedule entry missing required fields: {s}. "

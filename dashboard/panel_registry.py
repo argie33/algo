@@ -67,7 +67,6 @@ class PanelRegistry:
     """
 
     def __init__(self) -> None:
-        """Initialize the panel registry."""
         self._panels: dict[str, PanelDefinition] = {}
         self._render_functions: dict[str, Callable[..., Any]] = {}
 

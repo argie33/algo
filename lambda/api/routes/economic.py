@@ -98,7 +98,6 @@ def handle(
 
 
 def _get_vix(cur: cursor) -> Any:
-    """Get VIX historical data."""
     try:
         rows = execute_with_timeout(
             cur,
@@ -132,7 +131,6 @@ def _get_vix(cur: cursor) -> Any:
 
 
 def _get_calendar(cur: cursor, params: dict[str, Any]) -> Any:
-    """Get economic calendar data with optional date filtering."""
     try:
         cur.execute("SET LOCAL statement_timeout = '5000ms'")
         start_date = extract_param(params, "start_date")
@@ -186,7 +184,6 @@ def _get_calendar(cur: cursor, params: dict[str, Any]) -> Any:
 
 
 def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
-    """Get leading economic indicators formatted for EconomicDashboard."""
     # Maps FRED series IDs to indicator names
     indicator_map = {
         # Labor market
@@ -463,7 +460,6 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
 
 
 def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
-    """Get yield curve and credit spread data formatted for EconomicDashboard."""
     try:
         cur.execute("""
                 WITH latest AS (

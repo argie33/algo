@@ -44,7 +44,6 @@ def _dec_round(val: Any, places: int) -> float:
 
 
 class LivePerformance:
-    """Compute live performance metrics for institutional comparison."""
 
     def __init__(self, config: Any) -> None:
         self.config = config

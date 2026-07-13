@@ -690,7 +690,6 @@ class DataSourceRouter:
         return self._sec_client().get_quarterly_concept(symbol, "EarningsPerShareDiluted")
 
     def fetch_eps_revisions(self, symbol: str) -> Any | None:
-        """Fetch estimate revisions (up/down counts). yfinance only (no fallback)."""
         sources = [
             ("yfinance", lambda: self._fetch_yfinance_eps_revisions(symbol)),
         ]
@@ -725,7 +724,6 @@ class DataSourceRouter:
             raise TimeoutError(f"yfinance eps_revisions timeout for {symbol}") from e
 
     def fetch_eps_trend(self, symbol: str) -> Any | None:
-        """Fetch estimate trends (historical estimate changes). yfinance only (no fallback)."""
         sources = [
             ("yfinance", lambda: self._fetch_yfinance_eps_trend(symbol)),
         ]

@@ -76,11 +76,9 @@ class TestEndToEndTradingWorkflow:
 
     @pytest.fixture
     def mock_db(self):
-        """Create mock database with real data."""
         return MockDatabase()
 
     def create_mock_cursor(self, mock_db):
-        """Create a cursor that returns real-like data."""
         cursor = Mock()
 
         def execute_side_effect(query, params=None):
