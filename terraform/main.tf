@@ -288,6 +288,7 @@ module "services" {
   algo_lambda_memory                     = var.algo_lambda_memory
   algo_lambda_timeout                    = var.algo_lambda_timeout
   algo_lambda_reserved_concurrency       = var.algo_lambda_reserved_concurrency
+  algo_lambda_provisioned_concurrency    = var.algo_lambda_provisioned_concurrency
   algo_lambda_ephemeral_storage          = var.algo_lambda_ephemeral_storage
   algo_lambda_role_arn                   = module.iam.lambda_algo_role_arn
   eventbridge_scheduler_role_arn         = module.iam.eventbridge_scheduler_role_arn
