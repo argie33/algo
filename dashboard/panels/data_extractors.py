@@ -82,8 +82,9 @@ def safe_get_list(data: Any) -> list[Any] | dict[str, Any]:
         dict: marker dict with data_unavailable=True if data is None or dict without list/items/data fields (optional field not present)
 
     Raises:
-        TypeError: if data is not dict, list, or None
         ValueError: if data is error dict
+
+    Note: Returns unavailability marker instead of raising on type mismatch to handle gracefully
     """
     if data is None:
         logger.debug("safe_get_list: data is None (optional field not present), returning unavailability marker")
@@ -107,7 +108,15 @@ def safe_get_list(data: Any) -> list[Any] | dict[str, Any]:
             "data_unavailable": True,
             "reason": "list_field_not_found",
         }
-    raise TypeError(f"Expected dict or list but got {type(data).__name__}")
+    # Gracefully handle type mismatch instead of raising - return unavailability marker
+    logger.warning(
+        f"safe_get_list: Expected dict or list but got {type(data).__name__} (value={data!r:.50}). "
+        f"Returning unavailability marker."
+    )
+    return {
+        "data_unavailable": True,
+        "reason": f"invalid_type_{type(data).__name__}",
+    }
 
 
 # Extract common field accessors as functions to reduce repetition in panels
