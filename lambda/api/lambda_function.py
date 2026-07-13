@@ -1190,6 +1190,8 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
     Check if path requires authentication.
     Returns: (requires_auth: bool, is_authorized: bool, error_msg: str or None, jwt_claims: dict or None)
     """
+    if path == "/api/algo/status":
+        logger.warning(f"[STATUS_ENDPOINT_CHECK] Processing /api/algo/status, file={__file__}")
     # Public endpoints (no auth required) - only aggregate market data (no strategy/trading info)
     # SECURITY FIX: Strategy and trading endpoints require authentication
     PUBLIC_PREFIXES = {  # noqa: N806
@@ -1203,9 +1205,11 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/markets",  # Market regime data (public market conditions)
         "/api/algo/scores",  # Stock scores (needed for dashboard signals panel - growth/composite scores)
         "/api/algo/swing-scores",  # Swing trader scores (used by TradingSignals page for all users)
+        "/api/algo/swing-scores-history",  # Historical swing scores (public market analysis)
         "/api/algo/sector-rotation",  # Sector rotation analysis (public market analysis)
         "/api/algo/sector-breadth",  # Sector breadth analysis (public market data)
         "/api/algo/sector-stage2",  # Stage 2 sector stocks (public market analysis)
+        "/api/algo/status",  # Algorithm execution status (public system metadata for dashboard)
         "/api/algo/last-run",  # Orchestrator run status (public system metadata for dashboard health panel)
         "/api/algo/data-status",  # Data loader status and freshness (public metadata)
         "/api/algo/health",  # System health check (public metadata for dashboard health panel)
@@ -1249,6 +1253,9 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/data-coverage",  # Data freshness status (public metadata)
         "/api/contact",  # Public contact form (no auth required)
         "/api/logs",  # Frontend error log ingest (intentionally unauthenticated — called by error boundaries)
+        # Backwards compatibility aliases
+        "/api/portfolio",  # Alias for /api/algo/portfolio
+        "/api/positions",  # Alias for /api/algo/positions
     }
 
     # Protected endpoints requiring authentication (strategy/trading data)
