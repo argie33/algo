@@ -268,9 +268,9 @@ variable "algo_lambda_reserved_concurrency" {
 }
 
 variable "api_lambda_provisioned_concurrency" {
-  description = "Provisioned concurrent executions for API Lambda (pre-warmed instances to avoid cold starts). Cost: ~$12/month per unit. Set to 0 to disable."
+  description = "Provisioned concurrent executions for API Lambda (pre-warmed instances to avoid cold starts). Cost: ~$12/month per unit. Set to 0 to disable. CRITICAL FIX: Set to 5 to prevent Lambda 503 errors from VPC cold-start (15-40s) exceeding API Gateway 29s timeout. Prevents dashboard 'data not available' errors."
   type        = number
-  default     = 1
+  default     = 5
   validation {
     condition     = var.api_lambda_provisioned_concurrency >= 0 && var.api_lambda_provisioned_concurrency <= 100
     error_message = "Provisioned concurrency must be between 0 and 100"
@@ -278,9 +278,9 @@ variable "api_lambda_provisioned_concurrency" {
 }
 
 variable "algo_lambda_provisioned_concurrency" {
-  description = "Provisioned concurrent executions for Orchestrator Lambda (pre-warmed instances to avoid cold starts). Cost: ~$12/month per unit. Set to 0 to disable."
+  description = "Provisioned concurrent executions for Orchestrator Lambda (pre-warmed instances to avoid cold starts). Cost: ~$12/month per unit. Set to 0 to disable. CRITICAL FIX: Set to 5 to prevent Lambda 503 errors from VPC cold-start (15-40s) exceeding Step Functions timeout. Prevents orchestrator phase timeout errors."
   type        = number
-  default     = 1
+  default     = 5
   validation {
     condition     = var.algo_lambda_provisioned_concurrency >= 0 && var.algo_lambda_provisioned_concurrency <= 100
     error_message = "Provisioned concurrency must be between 0 and 100"

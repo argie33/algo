@@ -115,8 +115,14 @@ class VectorizedTechnicalLoader:
 
             inserted = self._bulk_insert(indicators_df, since_date)
 
-            # Consolidation: Compute and insert VCP patterns (moved from separate loader)
-            self._compute_and_insert_vcp_patterns(indicators_df)
+            # CRITICAL FIX: Disable VCP pattern computation - it was doing 30K+ DB queries per run
+            # (1 query per symbol to fetch from technical_data_daily, plus avg volume queries).
+            # With 10K symbols, this takes 60+ seconds and causes orchestrator timeout.
+            # VCP patterns are optional enrichment; orchestrator must complete on time.
+            # If VCP is needed, implement vectorized computation using in-memory indicators_df.
+            logger.info("[VCP] VCP pattern computation disabled - was causing 60s+ timeouts. " +
+                       "Implement vectorized computation if needed.")
+            # self._compute_and_insert_vcp_patterns(indicators_df)
 
             # Get the latest date in the computed indicators
             latest_date = None
