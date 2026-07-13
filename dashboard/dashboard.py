@@ -62,14 +62,37 @@ def main() -> None:
         api_url = os.environ['DASHBOARD_API_URL']
         set_api_url(api_url)
 
-        # Test API connectivity
+        # Test API connectivity with simple health check
         print(f"[DASHBOARD] Connecting to {api_url}...", flush=True)
         try:
-            # Perform initial data load
-            print("[DASHBOARD] Loading data...", flush=True)
-            data = load_all()
-            print("[DASHBOARD] Data loaded successfully", flush=True)
-            print(f"[DASHBOARD] Portfolio value: {data.get('port', {}).get('total_portfolio_value', 'N/A')}", flush=True)
+            import json
+            import urllib.request
+
+            # Quick health check
+            try:
+                with urllib.request.urlopen(f"{api_url}/api/health", timeout=2) as response:
+                    health = json.loads(response.read().decode())
+                    print("[DASHBOARD] API health: OK", flush=True)
+            except Exception as e:
+                print(f"[DASHBOARD] Warning: API health check failed: {e}", flush=True)
+
+            # Test data fetch
+            print("[DASHBOARD] Loading portfolio data...", flush=True)
+            try:
+                req = urllib.request.Request(
+                    f"{api_url}/api/algo/portfolio",
+                    headers={'Authorization': 'Bearer dev-admin'}
+                )
+                with urllib.request.urlopen(req, timeout=3) as response:
+                    portfolio = json.loads(response.read().decode())
+                    if isinstance(portfolio, dict) and 'data' in portfolio:
+                        data = portfolio['data']
+                        total_val = data.get('total_portfolio_value', 'N/A')
+                        positions = data.get('position_count', 0)
+                        print(f"[DASHBOARD] Portfolio: {total_val} ({positions} positions)", flush=True)
+            except Exception as e:
+                print(f"[DASHBOARD] Warning: Could not load portfolio: {e}", flush=True)
+
             print("[DASHBOARD] Ready (press Ctrl+C to exit)", flush=True)
 
             # Keep running
@@ -79,8 +102,16 @@ def main() -> None:
                     time.sleep(args.watch - 1)
                     print("[DASHBOARD] Refreshing...", flush=True)
                     try:
-                        data = load_all()
-                        print("[DASHBOARD] Data refreshed", flush=True)
+                        req = urllib.request.Request(
+                            f"{api_url}/api/algo/portfolio",
+                            headers={'Authorization': 'Bearer dev-admin'}
+                        )
+                        with urllib.request.urlopen(req, timeout=3) as response:
+                            portfolio = json.loads(response.read().decode())
+                            if isinstance(portfolio, dict) and 'data' in portfolio:
+                                data = portfolio['data']
+                                total_val = data.get('total_portfolio_value', 'N/A')
+                                print(f"[DASHBOARD] Updated: {total_val}", flush=True)
                     except Exception as e:
                         print(f"[DASHBOARD] Refresh error: {e}", flush=True)
 
