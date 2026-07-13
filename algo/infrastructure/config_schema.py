@@ -255,7 +255,7 @@ VALIDATION_SCHEMA = {
     "enable_advanced_filters": ("bool", None, None, False, None),
     # Pyramid Trading Configuration
     "pyramid_enabled": ("bool", None, None, False, None),
-    "pyramid_split_pct": ("float", 0.0, 100.0, False, None),
+    "pyramid_split_pct": ("string", None, None, False, None),  # Comma-separated split, e.g. "50,33,17"
     "pyramid_add_1_gain_pct": ("float", 0.0, 100.0, False, None),
     "pyramid_add_2_gain_pct": ("float", 0.0, 100.0, False, None),
     # Data Patrol Staleness Thresholds (per-table granularity)
@@ -298,13 +298,16 @@ VALIDATION_SCHEMA = {
     "grade_override_enabled": ("bool", None, None, False, False),
     "grade_override_max_duration_minutes": ("int", 1, 10000, False, 60),
     # Swing Score Weights
-    "swing_weight_setup": ("float", 0.0, 1.0, False, 0.15),
-    "swing_weight_trend": ("float", 0.0, 1.0, False, 0.25),
-    "swing_weight_momentum": ("float", 0.0, 1.0, False, 0.20),
-    "swing_weight_volume": ("float", 0.0, 1.0, False, 0.15),
-    "swing_weight_fundamentals": ("float", 0.0, 1.0, False, 0.10),
-    "swing_weight_sector": ("float", 0.0, 1.0, False, 0.10),
-    "swing_weight_multi_timeframe": ("float", 0.0, 1.0, False, 0.05),
+    # Stored and consumed as whole-number percentages (0-100), not fractions --
+    # see algo/orchestration/weight_optimizer.py (MIN_WEIGHT=3, MAX_WEIGHT=40) and
+    # migrations/versions/018_reseed_algo_config.py's seed values (25, 20, 20, 12, 10, 8, 5).
+    "swing_weight_setup": ("int", 0, 100, False, 25),
+    "swing_weight_trend": ("int", 0, 100, False, 20),
+    "swing_weight_momentum": ("int", 0, 100, False, 20),
+    "swing_weight_volume": ("int", 0, 100, False, 12),
+    "swing_weight_fundamentals": ("int", 0, 100, False, 10),
+    "swing_weight_sector": ("int", 0, 100, False, 8),
+    "swing_weight_multi_timeframe": ("int", 0, 100, False, 5),
     # Corporate Action Configuration
     "patrol_corporate_action_lookback_days": ("int", 1, 365, False, 30),
     "patrol_corporate_action_drop_ratio": ("float", 0.0, 1.0, False, 0.10),
