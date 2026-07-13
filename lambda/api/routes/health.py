@@ -133,21 +133,17 @@ def _handle_basic(cur: cursor) -> Any:
                         datetime.now(timezone.utc) - latest.replace(tzinfo=timezone.utc)
                     ).total_seconds() / 3600
                     config = get_config()
-                    # CRITICAL FIX: Don't mark as critical for stale signals during development
-                    # In production/testing, stale signals are still a problem but shouldn't BLOCK the API
-                    # Allow dashboard to load even with stale signals - warn but don't 503
-                    is_local_dev = os_module.getenv("LOCAL_MODE", "").lower() == "true"
-
+                    # Stale/absent signals reflect the trading strategy's output (it may
+                    # legitimately find zero qualifying candidates on a given day), not
+                    # infrastructure health. Report it for visibility but never 503 the
+                    # whole health endpoint over it -- doing so previously blocked the
+                    # dashboard and tripped false-positive outage alerts.
                     if age_hours > config.signal_stale_threshold_hours and market_is_open:
-                        # In local dev mode, don't mark as critical - just warn
-                        # In production, this would still be critical if we cared
-                        if not is_local_dev:
-                            has_critical = True
                         health["freshness"] = {
-                            "status": "STALE" if not is_local_dev else "WARNING",
+                            "status": "STALE",
                             "signal_age_hours": round(age_hours, 1),
                             "market_open": market_is_open,
-                            "note": "Signals are stale but API is functional" if is_local_dev else None,
+                            "note": "Signals are stale but API is functional",
                         }
                     else:
                         health["freshness"] = {
@@ -164,11 +160,9 @@ def _handle_basic(cur: cursor) -> Any:
                         f"[HEALTH INFO] Signal data unavailable yet - loaders may not have run (LOCAL_MODE={is_local_dev})"
                     )
                     if market_is_open and not is_local_dev:
-                        # Only critical if market is open, signals missing, AND not in local dev mode
-                        has_critical = True
                         health["freshness"] = {
                             "status": "NO_DATA",
-                            "error": "Signal table empty (loaders should be running during market hours)",
+                            "error": "No active signals (strategy found zero qualifying candidates, or loaders haven't run yet)",
                             "market_open": market_is_open,
                         }
                     else:
@@ -400,7 +394,7 @@ def _handle_detailed(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
             FROM pg_stat_user_tables
             WHERE relname = ANY(%s)
             """,
-            params=(health_tables,),
+            params=(list(health_tables),),
             timeout_sec=5,
         )
         table_counts = {row[0]: row[1] for row in rows}
