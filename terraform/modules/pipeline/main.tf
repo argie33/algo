@@ -2035,11 +2035,6 @@ resource "aws_scheduler_schedule" "morning_pipeline_trigger" {
       arn = var.scheduler_dlq_arn
     }
   }
-
-  logging_configuration {
-    log_destination        = "${var.scheduler_log_group_arn}:*"
-    include_execution_data = true
-  }
 }
 
 # ============================================================
@@ -2142,11 +2137,6 @@ resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
     dead_letter_config {
       arn = var.scheduler_dlq_arn
     }
-  }
-
-  logging_configuration {
-    log_destination        = "${var.scheduler_log_group_arn}:*"
-    include_execution_data = true
   }
 }
 

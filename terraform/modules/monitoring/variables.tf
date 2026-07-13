@@ -212,6 +212,12 @@ variable "alert_email_to" {
   default     = ""
 }
 
+variable "scheduler_dlq_arn" {
+  description = "ARN of EventBridge Scheduler Dead Letter Queue for monitoring failed invocations"
+  type        = string
+  default     = ""
+}
+
 # ============================================================
 # Cost Optimization: Alarm Gating for Dev vs Prod
 # ============================================================

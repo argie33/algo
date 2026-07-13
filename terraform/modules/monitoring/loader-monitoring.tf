@@ -5,6 +5,9 @@
 # CloudWatch metric filters + alarms per loader
 # Dashboard for real-time status heatmap
 
+# Data source for AWS account ID
+data "aws_caller_identity" "current" {}
+
 # ============================================================
 # 1. CloudWatch Log Group for Loaders (already exists via ECS)
 # ============================================================
