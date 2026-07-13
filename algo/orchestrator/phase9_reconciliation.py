@@ -581,14 +581,18 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         logger.error(error_msg)
         raise RuntimeError(error_msg)
 
-    # CRITICAL FIX: Explicit check for changes field instead of empty list default
+    # CRITICAL: Explicit validation — no silent empty list defaults
     changes = opt_result.get("changes")
     if changes is None:
-        logger.warning("Weight optimization result missing 'changes' field — defaulting to empty list")
-        changes = []
-    elif not isinstance(changes, list):
-        logger.error(f"Weight optimization 'changes' is not a list: {type(changes)}. Defaulting to empty list.")
-        changes = []
+        raise ValueError(
+            "[PHASE 9] Weight optimization result missing 'changes' field. "
+            "Optimization failed or returned malformed data. Cannot proceed with reconciliation."
+        )
+    if not isinstance(changes, list):
+        raise ValueError(
+            f"[PHASE 9] Weight optimization 'changes' is not a list: {type(changes)}. "
+            "Data structure corrupted or optimization returned invalid type."
+        )
     log_phase_result_fn(
         9,
         "weight_optimization",

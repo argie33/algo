@@ -157,10 +157,11 @@ class LiquidityChecks:
         try:
             min_days_val = self.config.get("min_price_history_days")
             if min_days_val is None:
-                logger.error("CRITICAL: min_price_history_days config missing. Using safe default 200.")
-                min_days = 200
-            else:
-                min_days = int(min_days_val)
+                raise ValueError(
+                    "[LIQUIDITY] min_price_history_days config required. "
+                    "Cannot proceed with trade entry validation without explicit IPO age threshold."
+                )
+            min_days = int(min_days_val)
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
