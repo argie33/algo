@@ -72,7 +72,17 @@ resource "aws_route_table_association" "public" {
 # Elastic IP for NAT Gateway
 # Re-enabled 2026-06-22: Required for Lambda/ECS to reach Secrets Manager (DB credentials)
 # and Cognito (JWT validation). Without NAT, all authenticated API requests fail.
-resource "aws_eip" "nat" {
+#
+# Renamed nat -> nat_v2 on 2026-07-13 to force a fresh EIP allocation (new resource
+# address = new AWS resource, no -replace flag or local state access needed, just a
+# normal `terraform apply` through the existing CI pipeline): Yahoo Finance had
+# rate-limit-banned this environment's previous NAT egress IP for an extended period
+# after an earlier ECS loader-task pileup hammered it with concurrent requests
+# (confirmed live: even a fully-reset internal circuit breaker's fresh retry was
+# immediately rejected by Yahoo). A new egress IP is the direct fix for that specific
+# symptom; the pileup's root cause is separately fixed (ECS ListTasks mutual-exclusion
+# guard + Step Functions CheckConcurrency states).
+resource "aws_eip" "nat_v2" {
   count  = length(var.public_subnet_cidrs) >= 1 ? 1 : 0
   domain = "vpc"
 
@@ -84,9 +94,9 @@ resource "aws_eip" "nat" {
 }
 
 # NAT Gateway in first public subnet
-resource "aws_nat_gateway" "main" {
+resource "aws_nat_gateway" "main_v2" {
   count         = length(var.public_subnet_cidrs) >= 1 ? 1 : 0
-  allocation_id = aws_eip.nat[0].id
+  allocation_id = aws_eip.nat_v2[0].id
   subnet_id     = aws_subnet.public[0].id
 
   tags = merge(var.common_tags, {
@@ -101,7 +111,7 @@ resource "aws_route" "private_nat" {
   count                  = length(var.public_subnet_cidrs) >= 1 ? 1 : 0
   route_table_id         = aws_route_table.private.id
   destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.main[0].id
+  nat_gateway_id         = aws_nat_gateway.main_v2[0].id
 }
 
 # ============================================================
