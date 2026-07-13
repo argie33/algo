@@ -8,11 +8,14 @@ Responsibilities:
 - Return structured factor data for scoring
 """
 
+from __future__ import annotations
+
 import logging
 from datetime import date as _date
 from typing import Any
 
 import psycopg2
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 
@@ -49,7 +52,7 @@ class MarketFactorCalculator:
 
         return score * weight / 100.0, weight
 
-    def _pct_above_ma(self, eval_date: _date, ma_days: int, cur: Any) -> dict[str, Any]:
+    def _pct_above_ma(self, eval_date: _date, ma_days: int, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Calculate % of stocks trading above N-day MA (critical).
 
         Linear scale: 20% = 0 pts, 50% = 50 pts, 80% = 100 pts
@@ -122,7 +125,7 @@ class MarketFactorCalculator:
             "term_structure": round(term_structure, 2) if term_structure else None,
         }
 
-    def _has_market_confirmation(self, eval_date: _date, cur: Any) -> bool:
+    def _has_market_confirmation(self, eval_date: _date, cur: PsycopgCursor[Any]) -> bool:
         """Check for volume-backed rally confirmation (hard gate).
 
         True if: volume today > 20-day average AND price > previous close
@@ -166,7 +169,7 @@ class MarketFactorCalculator:
 
     # ============= Factor Implementations =============
 
-    def trend_30wk(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def trend_30wk(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Trend factor: SPY vs 30-week MA (critical).
 
         Raises RuntimeError if data unavailable — SPY trend is foundational to veto logic.
@@ -205,7 +208,7 @@ class MarketFactorCalculator:
                 f"Cannot proceed with position sizing without SPY 30-week trend."
             ) from e
 
-    def spy_momentum(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def spy_momentum(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """SPY 12-month momentum (TSMOM, critical).
 
         Raises RuntimeError if data unavailable — momentum is key to trend confirmation.
@@ -250,7 +253,7 @@ class MarketFactorCalculator:
                 f"Cannot proceed with position sizing without momentum confirmation."
             ) from e
 
-    def selling_pressure(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def selling_pressure(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Heavy-volume down days in last 25 sessions (critical).
 
         Raises RuntimeError if data unavailable — selling pressure is required for veto 3.
@@ -313,7 +316,7 @@ class MarketFactorCalculator:
                 f"Cannot proceed with position sizing without distribution detection."
             ) from e
 
-    def vix_regime(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def vix_regime(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """VIX level + term structure (critical).
 
         Raises RuntimeError if data unavailable — VIX is foundational to risk assessment.
@@ -342,7 +345,7 @@ class MarketFactorCalculator:
                 f"Cannot proceed with position sizing without volatility regime data."
             ) from e
 
-    def put_call_ratio(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def put_call_ratio(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Put/call ratio (contrarian indicator).
 
         Returns neutral score (50/100) when data unavailable — put/call data is enrichment from
@@ -391,7 +394,7 @@ class MarketFactorCalculator:
                 f"Cannot proceed with position sizing without sentiment data."
             ) from e
 
-    def new_highs_lows(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def new_highs_lows(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """52-week new highs vs new lows (critical).
 
         Raises RuntimeError if data unavailable — market leadership is key to confirm trends.
@@ -438,7 +441,7 @@ class MarketFactorCalculator:
                 f"Cannot proceed without leadership confirmation."
             ) from e
 
-    def ad_line(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def ad_line(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Advance/decline line vs SPY (critical).
 
         Raises RuntimeError if data unavailable — A/D confirmation is key to market health check.
@@ -477,7 +480,7 @@ class MarketFactorCalculator:
                 f"[AD_LINE CRITICAL] A/D line query failed: {e}. Cannot proceed without breadth confirmation."
             ) from e
 
-    def credit_spread(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def credit_spread(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """High-yield credit spread (HY OAS, critical).
 
         Raises RuntimeError if data unavailable — credit stress is key systemic risk indicator.
@@ -512,7 +515,7 @@ class MarketFactorCalculator:
                 f"Cannot proceed without systemic stress assessment."
             ) from e
 
-    def aaii(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def aaii(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """AAII sentiment (contrarian at extremes, critical).
 
         Raises RuntimeError if data unavailable — sentiment extremes are key contrarian signals.
@@ -555,7 +558,7 @@ class MarketFactorCalculator:
                 f"[AAII CRITICAL] AAII sentiment query failed: {e}. Cannot proceed without contrarian sentiment data."
             ) from e
 
-    def naaim(self, eval_date: _date, cur: Any) -> dict[str, Any]:
+    def naaim(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """NAAIM exposure (contrarian positioning, critical). Uses most recent weekly reading.
 
         Raises RuntimeError if data unavailable — professional positioning is key contrarian signal.
