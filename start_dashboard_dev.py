@@ -37,7 +37,7 @@ def start_dev_server() -> subprocess.Popen:
 
     # Check if already running
     if is_port_open(3001):
-        print("[STARTUP] ✓ Dev server already running on localhost:3001", flush=True)
+        print("[STARTUP] [OK] Dev server already running on localhost:3001", flush=True)
         return None
 
     print("[STARTUP] Dev server not responding. Starting it now...", flush=True)
@@ -69,11 +69,11 @@ def start_dev_server() -> subprocess.Popen:
     start_time = time.time()
     while time.time() - start_time < 30:
         if is_port_open(3001):
-            print("[STARTUP] ✓ Dev server started successfully on localhost:3001", flush=True)
+            print("[STARTUP] [OK] Dev server started successfully on localhost:3001", flush=True)
             return process
         time.sleep(0.5)
 
-    print("[STARTUP] ✗ Dev server failed to start within 30s", flush=True)
+    print("[STARTUP] [FAIL] Dev server failed to start within 30s", flush=True)
     process.terminate()
     stdout, stderr = process.communicate(timeout=5)
     print(f"[STARTUP] stdout:\n{stdout}")
@@ -83,7 +83,7 @@ def start_dev_server() -> subprocess.Popen:
 
 def start_dashboard(watch_interval: int = None) -> int:
     """Start dashboard (blocks until user exits)."""
-    print("[STARTUP] ✓ All prerequisites met. Starting dashboard...", flush=True)
+    print("[STARTUP] [OK] All prerequisites met. Starting dashboard...", flush=True)
     print("[STARTUP] Press Ctrl+C to stop both dashboard and dev_server", flush=True)
     print()
 

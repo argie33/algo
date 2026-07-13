@@ -187,30 +187,47 @@ def log_error_with_context(
 
 
 def sanitize_error_message(msg: str) -> str:
-    """Remove sensitive info (credentials, SQL, internal details) from message.
+    """Remove sensitive info (credentials, SQL, PII, paths) from message.
 
-    Prevents credential leaks and SQL injection details from being exposed.
+    Prevents credential leaks, SQL injection details, email addresses, IPs,
+    and file paths from being exposed to clients or logs.
 
     Args:
         msg: Raw error message
 
     Returns:
-        Sanitized message safe to return to client
+        Sanitized message safe to return to client or log
     """
-    # Remove connection strings
-    msg = re.sub(r"password=\S+", "password=***", msg, flags=re.IGNORECASE)
-    msg = re.sub(r"api[_-]?key=\S+", "api_key=***", msg, flags=re.IGNORECASE)
-    msg = re.sub(r"token=\S+", "token=***", msg, flags=re.IGNORECASE)
+    if not isinstance(msg, str):
+        return str(msg)
 
-    # Remove file paths
-    msg = re.sub(r"(/[a-zA-Z0-9_/.-]+)+", "/path/..", msg)
-    msg = re.sub(r"([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+", "C:\\\\path\\\\...", msg)
+    # Remove SQL query details (anything between common SQL keywords)
+    sanitized = re.sub(
+        r"(SELECT|INSERT|UPDATE|DELETE|FROM|WHERE|JOIN|ON).*?(;|$)",
+        "[SQL]",
+        msg,
+        flags=re.IGNORECASE,
+    )
 
-    # Remove SQL if too long (indicates stack trace)
-    if "SELECT" in msg or "INSERT" in msg or "UPDATE" in msg:
-        msg = "Database operation failed"
+    # Remove file paths (Unix and Windows)
+    sanitized = re.sub(r"(/[a-zA-Z0-9/_.-]*)+", "[path]", sanitized)
+    sanitized = re.sub(r"([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+", "[path]", sanitized)
 
-    return msg
+    # Remove credentials (password, token, key, api_key, secret)
+    sanitized = re.sub(
+        r"(password|token|secret|key|api[_-]?key)[\s=:]*[^,\s]+",
+        r"\1=[redacted]",
+        sanitized,
+        flags=re.IGNORECASE,
+    )
+
+    # Remove email addresses
+    sanitized = re.sub(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", "[email]", sanitized)
+
+    # Remove IP addresses
+    sanitized = re.sub(r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b", "[ip]", sanitized)
+
+    return sanitized
 
 
 def extract_error_context(e: Exception) -> dict[str, Any]:

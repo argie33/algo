@@ -410,8 +410,15 @@ resource "aws_cloudwatch_event_rule" "scheduled_loader" {
 
 locals {
   all_loaders = {
-    # Cost-optimized: Reduced from 1024/2048 (price fetch is I/O bound, not compute intensive)
-    "stock_prices_daily" = { cpu = 512, memory = 1024, timeout = 5400, parallelism = 1 }
+    # REVERTED (session 113): 512/1024 cost-cut was OOM-killing this task in prod
+    # (ExitCode 137, "container killed due to memory usage" - confirmed via
+    # Step Functions execution history + CloudWatch logs). Root cause: AWS_REGION
+    # wasn't reaching the container at runtime (see undeployed-fixes finding), so
+    # the loader ran with local-dev batch_size=500 instead of AWS batch_size=20,
+    # loading far more into memory per batch than this config assumed.
+    # Restoring 1024/2048 as a safety margin; batch_size=20 fix should let this
+    # run comfortably once deploys are unblocked and AWS_REGION is confirmed live.
+    "stock_prices_daily" = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     # FIXED (2026-07-12): Reduced from 4096 to 1024 (actual peak ~300MB, 3-4x headroom sufficient)
     "technical_data_daily"  = { cpu = 1024, memory = 1024, timeout = 2400, parallelism = 1 }
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
