@@ -536,8 +536,13 @@ class DailyReconciliation:
 
                 # FIXED: Read from algo_trades (source of truth) instead of algo_positions (stale).
                 # algo_positions drifts over time; algo_trades is authoritative for open positions.
-                # CRITICAL: Fall back to algo_positions.entry_price if algo_trades.entry_price is NULL.
+                # CRITICAL: Fall back to algo_positions.avg_entry_price if algo_trades.entry_price is NULL.
                 # This handles backlog of positions created before entry_price was consistently populated.
+                # (migration 1104 tried adding a separate algo_positions.entry_price column for this
+                # fallback instead, but was never applied to RDS -- production kept crashing with
+                # "column ap.entry_price does not exist" every Phase 9 run. avg_entry_price already
+                # exists and is the more meaningful cost-basis fallback anyway, so use it directly
+                # instead of depending on another migration actually landing.)
                 # When price_daily has no entry, current_price must be NULL to indicate missing data.
                 # This prevents position_value from being calculated incorrectly (showing 0% gain/loss).
                 cur.execute("""
@@ -549,7 +554,7 @@ class DailyReconciliation:
                     open_trades AS (
                         SELECT DISTINCT ON (at.symbol)
                             at.symbol, at.entry_quantity as quantity,
-                            COALESCE(NULLIF(at.entry_price, 0), ap.entry_price) as avg_entry_price,
+                            COALESCE(NULLIF(at.entry_price, 0), ap.avg_entry_price) as avg_entry_price,
                             lp.current_price,
                             (at.entry_quantity * lp.current_price) as position_value
                         FROM algo_trades at
