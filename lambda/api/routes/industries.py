@@ -146,12 +146,19 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
 
     industries = []
     for row in industry_ranking_data:
-        industry = DatabaseResultValidator.safe_get_str(row, "industry", default="")
-        current_rank = DatabaseResultValidator.safe_get_int(row, "current_rank", default=0)
-        momentum = DatabaseResultValidator.safe_get_float(row, "momentum_score", default=0.0)
-        rank_1w = DatabaseResultValidator.safe_get_int(row, "rank_1w_ago", default=0)
-        rank_4w = DatabaseResultValidator.safe_get_int(row, "rank_4w_ago", default=0)
-        rank_12w = DatabaseResultValidator.safe_get_int(row, "rank_12w_ago", default=0)
+        # FAIL-FAST: Required fields must not default to empty/zero values in finance app
+        industry = DatabaseResultValidator.safe_get_str(row, "industry", default=None, strict=True)
+        if industry is None or industry == "":
+            raise ValueError(f"[INDUSTRIES] Required field 'industry' missing or empty in row: {row}")
+        current_rank = DatabaseResultValidator.safe_get_int(row, "current_rank")
+        if current_rank is None:
+            raise ValueError(f"[INDUSTRIES] Required field 'current_rank' missing for industry {industry}")
+        momentum = DatabaseResultValidator.safe_get_float(row, "momentum_score")
+        if momentum is None:
+            raise ValueError(f"[INDUSTRIES] Required field 'momentum_score' missing for industry {industry}")
+        rank_1w = DatabaseResultValidator.safe_get_int(row, "rank_1w_ago")  # Optional
+        rank_4w = DatabaseResultValidator.safe_get_int(row, "rank_4w_ago")  # Optional
+        rank_12w = DatabaseResultValidator.safe_get_int(row, "rank_12w_ago")  # Optional
 
         momentum_label = (
             "Strong"
@@ -328,10 +335,17 @@ def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> 
 
     trend_data = []
     for r in rows:
-        date_val = DatabaseResultValidator.safe_get_str(r, "date", default="")
-        avg_price = DatabaseResultValidator.safe_get_float(r, "avg_price", default=0.0)
-        stock_cnt = DatabaseResultValidator.safe_get_int(r, "stock_count", default=0)
-        strength_score = DatabaseResultValidator.safe_get_float(r, "daily_strength_score", default=0.0)
+        # FAIL-FAST: Required trend fields must not default in finance app
+        date_val = DatabaseResultValidator.safe_get_str(r, "date", default=None, strict=True)
+        if date_val is None or date_val == "":
+            raise ValueError(f"[INDUSTRIES TREND] Required field 'date' missing in row: {r}")
+        avg_price = DatabaseResultValidator.safe_get_float(r, "avg_price")
+        if avg_price is None:
+            raise ValueError(f"[INDUSTRIES TREND] Required field 'avg_price' missing for date {date_val}")
+        stock_cnt = DatabaseResultValidator.safe_get_int(r, "stock_count")
+        if stock_cnt is None:
+            raise ValueError(f"[INDUSTRIES TREND] Required field 'stock_count' missing for date {date_val}")
+        strength_score = DatabaseResultValidator.safe_get_float(r, "daily_strength_score")
         trend_data.append(
             {
                 "date": date_val,
