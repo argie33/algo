@@ -37,10 +37,14 @@ def check_database() -> dict:
     print("[*] Database: Connecting...")
     try:
         import psycopg2
+        # Fail-fast on missing credentials: no empty string fallback for password
+        db_password = os.getenv('DB_PASSWORD')
+        if not db_password:
+            raise ValueError("DB_PASSWORD environment variable not set - cannot authenticate to database")
         conn = psycopg2.connect(
             dbname='stocks',
             user='stocks',
-            password=os.getenv('DB_PASSWORD', ''),
+            password=db_password,
             host='localhost'
         )
         cursor = conn.cursor()

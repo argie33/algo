@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class AlpacaResponseValidator:
-    """Validates Alpaca API responses for required fields and types."""
 
     @staticmethod
     def validate_order_response(data: dict[str, Any]) -> dict[str, Any]:

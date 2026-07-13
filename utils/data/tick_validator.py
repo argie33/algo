@@ -30,7 +30,6 @@ logger = logging.getLogger(__name__)
 
 
 class TickValidator:
-    """Validates a single tick of OHLCV data."""
 
     def __init__(
         self,
@@ -203,7 +202,6 @@ class TickValidator:
 
 
 class TickValidationBatch:
-    """Validates a batch of ticks for the same symbol."""
 
     def __init__(self, symbol: str, is_etf: bool = False):
         self.symbol = symbol

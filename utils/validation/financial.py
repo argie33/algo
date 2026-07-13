@@ -18,7 +18,6 @@ logger = logging.getLogger(__name__)
 
 
 class FinancialDataValidator:
-    """Validates financial data with fail-closed behavior."""
 
     @staticmethod
     def validate_price(price: Any, context: str = "", allow_zero: bool = False) -> tuple[bool, float | None, str]:

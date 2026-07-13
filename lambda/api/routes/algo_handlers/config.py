@@ -26,7 +26,6 @@ logger = logging.getLogger(__name__)
 @validate_api_response("cfg")  # type: ignore[untyped-decorator]
 @db_route_handler("fetch algo config")  # type: ignore[untyped-decorator]
 def _get_algo_config(cur: cursor) -> Any:
-    """Return all algo configuration rows with defaults and categorization for TIER 3 visibility."""
     try:
         cur.execute("SELECT key, value, value_type, description, updated_at FROM algo_config ORDER BY key")
         rows = cur.fetchall()
@@ -79,7 +78,6 @@ def _get_algo_config(cur: cursor) -> Any:
 @db_route_handler("fetch algo config key")  # type: ignore[untyped-decorator]
 @validate_api_response("cfg")  # type: ignore[untyped-decorator]
 def _get_algo_config_key(cur: cursor, key: str) -> Any:
-    """Return a single algo config key."""
     cur.execute(
         "SELECT key, value, value_type, description, updated_at FROM algo_config WHERE key = %s",
         (key,),

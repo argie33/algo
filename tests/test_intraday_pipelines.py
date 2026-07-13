@@ -119,7 +119,6 @@ def validate_intraday_mode_support():
 
 
 def validate_terraform_state_machines():
-    """Check that Terraform state machines were created"""
     print("\n=== TEST: Terraform Step Functions State Machines ===")
 
     state_machines = [
@@ -142,7 +141,6 @@ def validate_terraform_state_machines():
 
 
 def validate_eventbridge_rules():
-    """Check that EventBridge scheduler rules exist"""
     print("\n=== TEST: EventBridge Scheduler Rules ===")
 
     rules = {

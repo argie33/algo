@@ -650,7 +650,6 @@ def _get_market_factors(cur: cursor) -> Any:
 @db_route_handler("get market sentiment")  # type: ignore[untyped-decorator]
 @validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_market_sentiment(cur: cursor) -> Any:
-    """Return latest market sentiment score and trend."""
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
     cur.execute("""
         SELECT sentiment_score,
@@ -1007,7 +1006,6 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
 @db_route_handler("get trend criteria")  # type: ignore[untyped-decorator]
 @validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_trend_criteria(cur: cursor) -> Any:
-    """Return trend criteria analysis with passing count from actual data."""
     cur.execute("""
         SELECT
             COUNT(*) as total_symbols,

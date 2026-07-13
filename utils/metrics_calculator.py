@@ -385,7 +385,6 @@ class MetricsCalculator:
 
 
 class MetricsValidator:
-    """Validates metric values for consistency and data quality."""
 
     @staticmethod
     def validate_metrics(metrics: dict[str, Any]) -> dict[str, Any]:

@@ -36,7 +36,6 @@ logger = logging.getLogger(__name__)
 @db_route_handler("get algo audit log")  # type: ignore[untyped-decorator]
 @validate_api_response("audit")  # type: ignore[untyped-decorator]
 def _get_algo_audit_log(cur: cursor, limit: int = 100, offset: int = 0, action_type: str | None = None) -> Any:
-    """Return algo audit log entries with pagination."""
     if action_type:
         cur.execute(
             "SELECT COUNT(*) as total FROM algo_audit_log WHERE action_type = %s",

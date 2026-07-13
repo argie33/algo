@@ -16,7 +16,7 @@ class FormatterStrategy(ABC):
     """Base class for all formatter strategies."""
 
     @abstractmethod
-    def format(self, value: Any) -> str:
+    def format(self, value: Any) -> str: ...
 
 
 class GradeFormatter(FormatterStrategy):
@@ -67,7 +67,6 @@ class TierFormatter(FormatterStrategy):
 
 
 class SignFormatter(FormatterStrategy):
-    """Formats numeric value with sign prefix."""
 
     def format(self, value: Any) -> str:
         try:
@@ -78,7 +77,6 @@ class SignFormatter(FormatterStrategy):
 
 
 class MarketHoursFormatter(FormatterStrategy):
-    """Formats time remaining until market status change as countdown string."""
 
     def format(self, minutes: int) -> str:
         """Convert minutes to human-readable countdown: '5h30m', '45m', etc."""
@@ -94,7 +92,6 @@ class MarketHoursFormatter(FormatterStrategy):
 
 
 class DataAgeFormatter(FormatterStrategy):
-    """Formats timestamp as age string."""
 
     def format(self, ts: Any) -> str:
         """Convert timestamp to age: '5m ago', '2h10m ago', '3d ago'."""
@@ -126,7 +123,6 @@ class DataAgeFormatter(FormatterStrategy):
 
 
 class MoneyFormatter(FormatterStrategy):
-    """Formats decimal value as currency string."""
 
     def __init__(self, short: bool = False) -> None:
         """Initialize formatter.

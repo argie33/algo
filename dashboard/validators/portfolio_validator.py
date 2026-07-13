@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 class PortfolioDataValidator:
-    """Validates portfolio data for completeness before rendering."""
 
     # Metrics that are CRITICAL for portfolio dashboard - must not be None
     CRITICAL_METRICS = {

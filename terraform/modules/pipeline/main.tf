@@ -1987,16 +1987,12 @@ resource "aws_iam_role_policy" "eventbridge_lambda" {
 #         stock_scores for signal ranking. No intraday updates needed.
 # ============================================================
 
-# ============================================================
-# CloudWatch Log Group for EventBridge Scheduler
-# ============================================================
-
-resource "aws_cloudwatch_log_group" "eventbridge_scheduler" {
-  name              = "/aws/scheduler/${var.project_name}-pipeline-${var.environment}"
-  retention_in_days = var.cloudwatch_log_retention_days
-
-  tags = var.common_tags
-}
+# NOTE: The EventBridge Scheduler CloudWatch Log Group for this pipeline is owned by
+# the loaders module (aws_cloudwatch_log_group.scheduler_logs) and passed in here via
+# var.scheduler_log_group_arn. A duplicate resource used to be declared in this module
+# too, with the identical log group name (/aws/scheduler/<project>-pipeline-<env>) — since
+# it was never referenced by anything, it only served to collide with the loaders module's
+# real resource on every terraform apply (CreateLogGroup: ResourceAlreadyExistsException).
 
 # ============================================================
 # EventBridge Scheduler (timezone-aware): all pipelines use America/New_York so they

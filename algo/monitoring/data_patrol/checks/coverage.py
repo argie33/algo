@@ -29,7 +29,6 @@ class CoverageChecker(BaseCheck):
         return self.results
 
     def check_universe_coverage(self, cur: Any) -> None:
-        """Check % symbols updated today (catches loader drop-offs)."""
         try:
             cur.execute("""
                 WITH latest_date AS (

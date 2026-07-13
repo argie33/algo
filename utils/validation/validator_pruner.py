@@ -14,7 +14,6 @@ class ValidatorBase(ABC):
 
 
 class FinancialValidator(ValidatorBase):
-    """Validates financial data (prices, volumes, percentages)."""
 
     def validate(self, value: Any) -> tuple[bool, str]:
         if not isinstance(value, (int, float)):
@@ -25,7 +24,6 @@ class FinancialValidator(ValidatorBase):
 
 
 class SchemaValidator(ValidatorBase):
-    """Validates data schema consistency."""
 
     def validate(self, value: Any) -> tuple[bool, str]:
         if not isinstance(value, dict):

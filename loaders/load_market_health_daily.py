@@ -64,9 +64,8 @@ class MarketHealthDailyLoader(OptimalLoader):
         Market health is market-wide (not symbol-based), but OptimalLoader.run()
         expects a symbols list. Provide default "market" pseudo-symbol.
         """
-        if symbols is None or len(symbols) == 0:
-            symbols = ["market"]
-        return super().run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)
+        actual_symbols: list[str] = symbols if symbols and len(symbols) > 0 else ["market"]
+        return super().run(symbols=actual_symbols, parallelism=parallelism, backfill_days=backfill_days)
 
     def fetch_vix_with_breaker(self, start: date, end: date) -> dict[str, Any]:
         return self._vix_fetcher.fetch(start, end)

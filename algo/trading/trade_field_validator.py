@@ -5,7 +5,6 @@ from typing import Any
 
 
 class TradeFieldValidator:
-    """Validates and consolidates trade field handling."""
 
     REQUIRED_FIELDS = {
         "symbol",

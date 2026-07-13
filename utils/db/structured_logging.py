@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 class StructuredDBLogger:
-    """Formats and logs database errors with full operational context."""
 
     @staticmethod
     def format_query_for_logs(query: str, max_length: int = 500) -> str:

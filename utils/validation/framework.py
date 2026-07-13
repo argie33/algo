@@ -68,7 +68,6 @@ class Validator(ABC):
 
 
 class TypeValidator(Validator):
-    """Validates data type and optionally range/length constraints."""
 
     def __init__(
         self,
@@ -142,7 +141,6 @@ class TypeValidator(Validator):
 
 
 class EnumValidator(Validator):
-    """Validates that value is one of allowed enum values."""
 
     def __init__(self, allowed_values: list[str], case_sensitive: bool = False) -> None:
         super().__init__()
@@ -167,7 +165,6 @@ class EnumValidator(Validator):
 
 
 class PhaseValidator(Validator):
-    """Validates orchestrator phase objects with name and status fields."""
 
     VALID_STATUSES = {
         "ok",

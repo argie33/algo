@@ -214,7 +214,6 @@ class AlignmentChecker(BaseCheck):
             )
 
     def check_score_freshness(self, cur: Any) -> None:
-        """Computed scores should be updated AFTER raw data."""
         try:
             cur.execute("""
                 SELECT

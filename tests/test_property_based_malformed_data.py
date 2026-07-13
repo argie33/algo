@@ -12,7 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dashboard.response_validators import (
+from utils.validation.response_validators import (
     ResponseValidationError,
     validate_config_response,
     validate_portfolio_response,

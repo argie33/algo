@@ -251,10 +251,10 @@ class RiskMetricsLoader(OptimalLoader):
 
             has_complete_metrics = all(v is not None for v in [vol_30d, vol_60d, vol_252d, beta])
             data_unavailable = not has_complete_metrics
-            reason: str | None = "; ".join(unavailability_reasons) if unavailability_reasons else None
+            unavailability_reason: str | None = "; ".join(unavailability_reasons) if unavailability_reasons else None
 
             if data_unavailable and unavailability_reasons:
-                logger.debug(f"[RISK_METRICS] {symbol}: incomplete stability metrics - {reason}")
+                logger.debug(f"[RISK_METRICS] {symbol}: incomplete stability metrics - {unavailability_reason}")
 
             return {
                 "symbol": symbol,
@@ -264,7 +264,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": data_unavailable,
-                "reason": reason,
+                "reason": unavailability_reason,
             }
 
         except RuntimeError as e:

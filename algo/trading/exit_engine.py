@@ -1469,7 +1469,6 @@ class ExitEngine:
         return today_vol >= avg_vol * volume_multiplier
 
     def _compute_gain_last_n_days(self, cur: Any, symbol: str, current_date: Any, n_days: int) -> float | None:
-        """Compute % gain over the last N days (from close N days ago to current close)."""
 
         cur.execute(
             """

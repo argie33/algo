@@ -9,7 +9,6 @@ logger = logging.getLogger(__name__)
 
 
 class DataQualityScorer:
-    """Calculates data quality metrics across datasets."""
 
     @staticmethod
     def score_completeness(rows: list[dict[str, Any]], required_fields: set[str]) -> float:

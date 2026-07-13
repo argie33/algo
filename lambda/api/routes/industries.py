@@ -216,7 +216,6 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
 
 
 def _industry_detail(cur: cursor, industry_name: str) -> Any:
-    """Return detail for a single industry."""
     if not industry_name or not isinstance(industry_name, str):
         return error_response(400, "invalid_industry_name", "Industry name is required and must be a string")
 
@@ -280,7 +279,6 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
 
 
 def _industry_trend(cur: cursor, industry_name: str, params: dict[str, Any]) -> Any:
-    """Return daily price series for an industry (from price_daily, indexed to 100)."""
     if not industry_name or not isinstance(industry_name, str):
         return error_response(400, "invalid_industry_name", "Industry name is required and must be a string")
 

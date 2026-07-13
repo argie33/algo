@@ -17,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 class CognitoValidator:
-    """Validates Cognito JWT claims and API responses."""
 
     @staticmethod
     def validate_jwt_claims(jwt_claims: dict[str, Any] | None) -> dict[str, Any]:
@@ -105,7 +104,6 @@ class CognitoValidator:
 
 
 class DynamoDBValidator:
-    """Validates DynamoDB operation responses."""
 
     @staticmethod
     def validate_get_item_response(response: dict[str, Any]) -> dict[str, Any]:
@@ -238,7 +236,6 @@ class DynamoDBValidator:
 
 
 class DatabaseResultValidator:
-    """Validates database query results for type safety."""
 
     @staticmethod
     def safe_get_float(

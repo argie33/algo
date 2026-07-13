@@ -12,7 +12,6 @@ logger = logging.getLogger(__name__)
 
 
 class DataValidator:
-    """Validates loader output tables for data quality."""
 
     def __init__(self, conn: Any):
         self.conn = conn

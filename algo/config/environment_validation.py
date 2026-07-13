@@ -11,7 +11,6 @@ from algo.config.error_codes import ErrorCode, OrchestrationError
 
 
 class EnvironmentValidator:
-    """Validates that all required environment variables are set and valid."""
 
     # Required environment variables for orchestrator execution
     REQUIRED_VARS = {

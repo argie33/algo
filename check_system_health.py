@@ -53,12 +53,26 @@ def check_database() -> dict:
         import psycopg2
 
         try:
+            # Fail-fast on missing credentials: no hardcoded defaults for auth
+            db_host = os.getenv("DB_HOST") or "localhost"
+            db_port = int(os.getenv("DB_PORT") or 5432)
+            db_user = os.getenv("DB_USER")
+            db_password = os.getenv("DB_PASSWORD")
+            db_name = os.getenv("DB_NAME")
+
+            if not db_user:
+                raise ValueError("DB_USER environment variable not set")
+            if not db_password:
+                raise ValueError("DB_PASSWORD environment variable not set")
+            if not db_name:
+                raise ValueError("DB_NAME environment variable not set")
+
             conn = psycopg2.connect(
-                host=os.getenv("DB_HOST", "localhost"),
-                port=int(os.getenv("DB_PORT", 5432)),
-                user=os.getenv("DB_USER", "stocks"),
-                password=os.getenv("DB_PASSWORD", "stocks"),
-                database=os.getenv("DB_NAME", "stocks"),
+                host=db_host,
+                port=db_port,
+                user=db_user,
+                password=db_password,
+                database=db_name,
                 connect_timeout=5,
             )
             cur = conn.cursor()
@@ -169,12 +183,26 @@ def check_orchestrator() -> dict:
     try:
         import psycopg2
 
+        # Fail-fast on missing credentials: no hardcoded defaults for auth
+        db_host = os.getenv("DB_HOST") or "localhost"
+        db_port = int(os.getenv("DB_PORT") or 5432)
+        db_user = os.getenv("DB_USER")
+        db_password = os.getenv("DB_PASSWORD")
+        db_name = os.getenv("DB_NAME")
+
+        if not db_user:
+            raise ValueError("DB_USER environment variable not set")
+        if not db_password:
+            raise ValueError("DB_PASSWORD environment variable not set")
+        if not db_name:
+            raise ValueError("DB_NAME environment variable not set")
+
         conn = psycopg2.connect(
-            host=os.getenv("DB_HOST", "localhost"),
-            port=int(os.getenv("DB_PORT", 5432)),
-            user=os.getenv("DB_USER", "stocks"),
-            password=os.getenv("DB_PASSWORD", "stocks"),
-            database=os.getenv("DB_NAME", "stocks"),
+            host=db_host,
+            port=db_port,
+            user=db_user,
+            password=db_password,
+            database=db_name,
             connect_timeout=5,
         )
         cur = conn.cursor()

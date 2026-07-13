@@ -118,7 +118,6 @@ class AlpacaOrderValidator(Validator):
 
 
 class AlpacaOrderStatusValidator(Validator):
-    """Validates Alpaca order status response (GET /v2/orders/{order_id})."""
 
     def __init__(self) -> None:
         super().__init__("AlpacaOrderStatusValidator")
@@ -184,7 +183,6 @@ class AlpacaOrderStatusValidator(Validator):
 
 
 class AlpacaAccountValidator(Validator):
-    """Validates Alpaca account response."""
 
     def __init__(self) -> None:
         super().__init__("AlpacaAccountValidator")
@@ -235,7 +233,6 @@ class AlpacaAccountValidator(Validator):
 
 
 class AlpacaPositionValidator(Validator):
-    """Validates Alpaca position response (GET /v2/positions/{symbol})."""
 
     def __init__(self) -> None:
         super().__init__("AlpacaPositionValidator")

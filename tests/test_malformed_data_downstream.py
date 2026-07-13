@@ -53,7 +53,7 @@ class TestApiResponseBoundaryValidation:
 
     def test_response_validators_convert_valid_strings(self):
         """Response validators convert valid numeric strings (lenient mode)."""
-        from dashboard.response_validators import (
+        from utils.validation.response_validators import (
             ResponseValidationError,
             validate_portfolio_response,
         )
@@ -71,7 +71,7 @@ class TestApiResponseBoundaryValidation:
 
     def test_response_validators_reject_invalid_strings(self):
         """Response validators catch invalid strings that can't be converted."""
-        from dashboard.response_validators import (
+        from utils.validation.response_validators import (
             ResponseValidationError,
             validate_portfolio_response,
         )

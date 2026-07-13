@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 class APIResponseValidator:
-    """Validates and sanitizes API responses to prevent null value issues."""
 
     @staticmethod
     @overload

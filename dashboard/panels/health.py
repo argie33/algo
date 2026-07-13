@@ -1364,7 +1364,6 @@ def _build_phase_badges_from_audit(phases_list: list[Any]) -> list[str]:
 def _format_algo_actions_and_activity(
     signals_gen: int, entries_exec: int, exits_exec: int, today_m: dict[str, Any], valid_metrics: list[Any]
 ) -> list[Text]:
-    """Format 'what did the algo do' summary and 5-day activity strip."""
     rows: list[Text] = []
 
     # CRITICAL: Explicit check for unavailability marker instead of falsy fallback

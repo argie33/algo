@@ -676,7 +676,6 @@ def _get_algo_portfolio(cur: cursor) -> Any:
 
 @db_route_handler("get daily return histogram")  # type: ignore[untyped-decorator]
 def _get_daily_return_histogram(cur: cursor) -> Any:
-    """Return histogram of daily portfolio returns with stats."""
     try:
         cur.execute("""
             SELECT daily_return_pct
@@ -730,7 +729,6 @@ def _get_daily_return_histogram(cur: cursor) -> Any:
 
 @db_route_handler("get holding period distribution")  # type: ignore[untyped-decorator]
 def _get_holding_period_distribution(cur: cursor) -> Any:
-    """Return distribution of position holding periods in days."""
     cur.execute("""
         SELECT CASE
             WHEN trade_duration_days IS NOT NULL AND trade_duration_days > 0 THEN trade_duration_days
@@ -885,7 +883,6 @@ def _get_performance_analytics(cur: cursor) -> Any:
 @db_route_handler("get performance metrics endpoint")  # type: ignore[untyped-decorator]
 @validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_performance_metrics_endpoint(cur: cursor) -> Any:
-    """Return latest performance metrics. Fail-fast if unavailable."""
     try:
         cur.execute("""
             SELECT win_rate_pct, profit_factor, avg_trade_pct, sharpe_ratio, max_drawdown_pct
@@ -922,7 +919,6 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
 @db_route_handler("get portfolio summary")  # type: ignore[untyped-decorator]
 @validate_api_response("port")  # type: ignore[untyped-decorator]
 def _get_portfolio_summary(cur: cursor) -> Any:
-    """Return portfolio summary with current value and allocation."""
     cur.execute("""
         SELECT total_portfolio_value, total_cash, total_equity, position_count, daily_return_pct
         FROM algo_portfolio_snapshots
@@ -1045,7 +1041,6 @@ def _get_risk_metrics(cur: cursor) -> Any:
 
 @db_route_handler("get stage distribution")  # type: ignore[untyped-decorator]
 def _get_stage_distribution(cur: cursor) -> Any:
-    """Return distribution of positions by Weinstein stage."""
     cur.execute("""
         SELECT
             COUNT(*) as count,
@@ -1077,7 +1072,6 @@ def _get_stage_distribution(cur: cursor) -> Any:
 
 @db_route_handler("get trade distribution")  # type: ignore[untyped-decorator]
 def _get_trade_distribution(cur: cursor) -> Any:
-    """Return distribution of trade outcomes by R-multiple."""
     cur.execute("""
         SELECT exit_r_multiple
         FROM algo_trades

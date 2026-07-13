@@ -145,7 +145,6 @@ class DatabaseResultValidator:
 
 
 class APIResponseValidator:
-    """Validates and sanitizes API response data."""
 
     @staticmethod
     def sanitize_response(data: Any) -> Any:

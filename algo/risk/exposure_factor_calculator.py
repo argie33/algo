@@ -93,7 +93,6 @@ class DrawdownFactor(ExposureFactorStrategy):
 
 
 class ExposureFactorCalculator:
-    """Calculates composite market exposure factors."""
 
     def __init__(self) -> None:
         self.factors = {
