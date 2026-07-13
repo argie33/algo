@@ -253,8 +253,13 @@ resource "aws_lambda_function" "api" {
 resource "null_resource" "api_concurrency_propagation_delay" {
   count = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
 
+  # Keyed on last_modified (not reserved_concurrency) so the delay reruns on every
+  # apply that touches the function - including code-only deploys, which is when
+  # the provisioned-concurrency-vs-reserved-concurrency race actually reproduces.
+  # Keying on reserved_concurrency alone meant the sleep silently no-op'd whenever
+  # only the code changed, since that value stays constant across code deploys.
   triggers = {
-    reserved_concurrency = aws_lambda_function.api.reserved_concurrent_executions
+    last_modified = aws_lambda_function.api.last_modified
   }
 
   provisioner "local-exec" {
@@ -890,8 +895,10 @@ resource "aws_lambda_function" "algo" {
 resource "null_resource" "algo_concurrency_propagation_delay" {
   count = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
 
+  # See api_concurrency_propagation_delay above for why this is keyed on
+  # last_modified rather than reserved_concurrency.
   triggers = {
-    reserved_concurrency = aws_lambda_function.algo.reserved_concurrent_executions
+    last_modified = aws_lambda_function.algo.last_modified
   }
 
   provisioner "local-exec" {
