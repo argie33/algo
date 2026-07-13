@@ -13,6 +13,7 @@ Never silently use stale alpaca prices for P&L or risk calculations.
 """
 
 import os
+
 import psycopg2
 
 

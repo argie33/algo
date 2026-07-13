@@ -14,13 +14,11 @@ This module sends alerts to SNS topic when data is stale, enabling:
 3. Audit trail of when data staleness occurred
 """
 
-import json
 import logging
-from datetime import datetime, date
-from typing import Dict, List, Tuple
+from datetime import date, datetime
 
-import psycopg2
 import boto3
+import psycopg2
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +35,7 @@ FRESHNESS_THRESHOLDS = {
 }
 
 
-def check_data_freshness() -> Dict[str, Tuple[int, bool]]:
+def check_data_freshness() -> dict[str, tuple[int, bool]]:
     """
     Check freshness of critical data tables.
 
@@ -81,7 +79,7 @@ def check_data_freshness() -> Dict[str, Tuple[int, bool]]:
         conn.close()
 
 
-def send_staleness_alert(stale_tables: Dict[str, Tuple[int, bool]]) -> None:
+def send_staleness_alert(stale_tables: dict[str, tuple[int, bool]]) -> None:
     """Send SNS alert for stale data."""
     sns = boto3.client('sns', region_name='us-east-1')
 
@@ -117,7 +115,7 @@ def send_staleness_alert(stale_tables: Dict[str, Tuple[int, bool]]) -> None:
             Subject="[ALGO] Data Staleness Alert - Manual Action Required",
             Message=message,
         )
-        logger.info(f"Staleness alert published to SNS")
+        logger.info("Staleness alert published to SNS")
     except Exception as e:
         logger.error(f"Failed to publish SNS alert: {e}")
 

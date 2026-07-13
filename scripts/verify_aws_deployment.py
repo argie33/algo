@@ -11,11 +11,11 @@ Verifies:
 """
 
 import sys
-import json
+from datetime import datetime
+
 import boto3
-from datetime import datetime, timedelta
 import psycopg2
-from typing import Dict, List, Any
+
 
 def check_aws_credentials():
     """Verify AWS credentials are available."""
@@ -26,7 +26,7 @@ def check_aws_credentials():
         print(f"ARN: {identity['Arn']}")
         return True
     except Exception as e:
-        print(f"ERROR: Cannot access AWS: {str(e)}")
+        print(f"ERROR: Cannot access AWS: {e!s}")
         return False
 
 def check_step_functions():
@@ -62,7 +62,7 @@ def check_step_functions():
                 maxItems=5
             )
 
-            print(f"\nRecent executions:")
+            print("\nRecent executions:")
             for exec_item in executions.get('executions', []):
                 print(f"  - {exec_item['name']}: {exec_item['status']}")
                 print(f"    Started: {exec_item['startDate']}")
@@ -70,7 +70,7 @@ def check_step_functions():
         return True
 
     except Exception as e:
-        print(f"ERROR: Step Functions check failed: {str(e)}")
+        print(f"ERROR: Step Functions check failed: {e!s}")
         return False
 
 def check_lambda_functions():
@@ -101,7 +101,7 @@ def check_lambda_functions():
         return True
 
     except Exception as e:
-        print(f"ERROR: Lambda check failed: {str(e)}")
+        print(f"ERROR: Lambda check failed: {e!s}")
         return False
 
 def check_ecs_task_definitions():
@@ -145,7 +145,7 @@ def check_ecs_task_definitions():
         return True
 
     except Exception as e:
-        print(f"ERROR: ECS check failed: {str(e)}")
+        print(f"ERROR: ECS check failed: {e!s}")
         return False
 
 def check_rds_connection_and_data():
@@ -207,7 +207,7 @@ def check_rds_connection_and_data():
             WHERE started_at > CURRENT_TIMESTAMP - INTERVAL '7 days'
         """)
         total_runs, success_runs, latest_run = cur.fetchone()
-        print(f"\nOrchestrator (last 7 days):")
+        print("\nOrchestrator (last 7 days):")
         print(f"  Total runs:       {total_runs}")
         print(f"  Successful:       {success_runs}")
         print(f"  Latest run:       {latest_run}")
@@ -216,11 +216,11 @@ def check_rds_connection_and_data():
         return all_exist
 
     except psycopg2.OperationalError as e:
-        print(f"ERROR: Cannot connect to RDS: {str(e)}")
+        print(f"ERROR: Cannot connect to RDS: {e!s}")
         print("  Make sure you're connected to AWS VPC or using RDS endpoint")
         return False
     except Exception as e:
-        print(f"ERROR: Database check failed: {str(e)}")
+        print(f"ERROR: Database check failed: {e!s}")
         return False
 
 def check_eventbridge_schedules():
@@ -254,7 +254,7 @@ def check_eventbridge_schedules():
         return len(algo_rules) > 0
 
     except Exception as e:
-        print(f"ERROR: EventBridge check failed: {str(e)}")
+        print(f"ERROR: EventBridge check failed: {e!s}")
         return False
 
 def check_cloudwatch_logs():
@@ -297,7 +297,7 @@ def check_cloudwatch_logs():
         return len(algo_logs) > 0
 
     except Exception as e:
-        print(f"ERROR: CloudWatch check failed: {str(e)}")
+        print(f"ERROR: CloudWatch check failed: {e!s}")
         return False
 
 def generate_report():
@@ -343,7 +343,7 @@ if __name__ == '__main__':
         print("\nVerification interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\nFATAL ERROR: {str(e)}")
+        print(f"\nFATAL ERROR: {e!s}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

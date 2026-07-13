@@ -4,10 +4,9 @@
 PHASE 3 VALIDATION: Ensures system can execute orchestrator end-to-end without silent failures.
 """
 
+import logging
 import os
 import sys
-import logging
-from datetime import datetime, timezone
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
 logger = logging.getLogger(__name__)
@@ -140,8 +139,8 @@ def validate_orchestrator_init():
     logger.info("\n[5/6] Validating orchestrator initialization...")
 
     try:
-        from algo.orchestration import Orchestrator
         from algo.infrastructure import get_config
+        from algo.orchestration import Orchestrator
 
         config = get_config()
         orchestrator = Orchestrator(

@@ -4,11 +4,11 @@ Monitor loader pipeline execution and alert on failures.
 Tracks morning and EOD pipeline runs, checks data freshness after completion.
 """
 
-import boto3
-import json
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
+
+import boto3
+
 
 def check_pipeline_execution(execution_arn: str) -> dict:
     """Get current execution status."""
@@ -28,8 +28,9 @@ def check_pipeline_execution(execution_arn: str) -> dict:
 
 def check_data_freshness() -> dict:
     """Check if loader data is fresh."""
-    import psycopg2
     from datetime import date
+
+    import psycopg2
 
     conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
     cur = conn.cursor()
@@ -68,8 +69,8 @@ def main():
     print("LOADER PIPELINE MONITOR")
     print("=" * 80)
     print(f"\nTracking execution: {execution_arn.split(':')[-1]}")
-    print(f"Started: 2026-07-12 20:09:35 UTC")
-    print(f"Expected completion: 45-60 minutes (20:54:35 - 21:09:35 UTC)")
+    print("Started: 2026-07-12 20:09:35 UTC")
+    print("Expected completion: 45-60 minutes (20:54:35 - 21:09:35 UTC)")
     print(f"Current time: {datetime.utcnow().isoformat()}Z\n")
 
     # Poll execution status
@@ -110,7 +111,7 @@ def main():
 
             break
         elif current_status == 'FAILED':
-            print(f"❌ Pipeline FAILED!")
+            print("❌ Pipeline FAILED!")
             print(f"\n  Error: {status.get('error', 'Unknown')}")
             print(f"  Cause: {status.get('cause', 'No details')}")
             break

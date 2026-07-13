@@ -5,10 +5,11 @@ Lambda needs VPC config to access RDS database. Without it, all database calls f
 This script configures the API Lambda with proper VPC settings.
 """
 
-import subprocess
 import json
-import sys
 import os
+import subprocess
+import sys
+
 
 def run_command(cmd: list, description: str) -> dict | str | None:
     """Run AWS CLI command and return parsed output."""
@@ -23,7 +24,7 @@ def run_command(cmd: list, description: str) -> dict | str | None:
             return json.loads(output)
         return output
     except subprocess.TimeoutExpired:
-        print(f"  ERROR: Command timed out")
+        print("  ERROR: Command timed out")
         return None
     except Exception as e:
         print(f"  ERROR: {type(e).__name__}: {e}")
@@ -57,7 +58,7 @@ def main():
         print(f"  [OK] Lambda already has VPC config: {len(current_vpc['SubnetIds'])} subnets")
         return 0
 
-    print(f"  [ISSUE] Lambda has NO VPC configuration - cannot access RDS database")
+    print("  [ISSUE] Lambda has NO VPC configuration - cannot access RDS database")
 
     # Step 2: Get VPC and subnet information from environment
     print("\n2. Detecting VPC and subnet configuration...")
@@ -69,7 +70,7 @@ def main():
     if env_subnets and env_subnets[0]:
         subnets = env_subnets
         sg_id = env_sg
-        print(f"  [OK] Using environment variables:")
+        print("  [OK] Using environment variables:")
         print(f"       Subnets: {subnets}")
         print(f"       Security group: {sg_id}")
     else:
@@ -100,7 +101,7 @@ def main():
         print("\nERROR: Failed to update Lambda VPC configuration")
         return 1
 
-    print(f"  [OK] Lambda VPC configuration updated")
+    print("  [OK] Lambda VPC configuration updated")
 
     # Step 4: Wait for update to complete
     print("\n4. Waiting for Lambda to update...")
@@ -111,7 +112,7 @@ def main():
         "Waiting for Lambda configuration to apply"
     )
 
-    print(f"  [OK] Lambda update complete")
+    print("  [OK] Lambda update complete")
 
     # Step 5: Verify configuration
     print("\n5. Verifying Lambda VPC configuration...")
@@ -124,12 +125,12 @@ def main():
     )
 
     if verify and verify.get("VpcConfig", {}).get("SubnetIds"):
-        print(f"  [OK] Lambda VPC configuration verified!")
+        print("  [OK] Lambda VPC configuration verified!")
         print(f"       Subnets: {verify['VpcConfig']['SubnetIds']}")
         print(f"       Security groups: {verify['VpcConfig'].get('SecurityGroupIds', [])}")
         return 0
     else:
-        print(f"  [ERROR] Lambda VPC configuration not applied")
+        print("  [ERROR] Lambda VPC configuration not applied")
         return 1
 
 if __name__ == "__main__":

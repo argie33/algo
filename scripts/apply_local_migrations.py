@@ -6,9 +6,11 @@ Usage:
     python3 scripts/apply_local_migrations.py
 """
 
-import psycopg2
 import os
 import sys
+
+import psycopg2
+
 
 def get_db_connection():
     """Get connection to local database."""

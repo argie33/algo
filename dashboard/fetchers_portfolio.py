@@ -279,7 +279,7 @@ def fetch_positions(c: None) -> dict[str, Any]:
         if invalid_count > 0:
             logger.warning(
                 f"Filtered {invalid_count} invalid position(s) from API response, {len(valid_items)} valid. "
-                f"Coverage: {items_coverage_pct:.1f}% ({len(valid_items)}/{total_items})" if items_coverage_pct is not None else f"Invalid positions filtered, but no valid items remain"
+                f"Coverage: {items_coverage_pct:.1f}% ({len(valid_items)}/{total_items})" if items_coverage_pct is not None else "Invalid positions filtered, but no valid items remain"
             )
 
         return {

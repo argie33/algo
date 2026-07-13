@@ -13,9 +13,9 @@ or when you need to manually run the orchestrator.
 import json
 import logging
 import sys
-import boto3
-from datetime import datetime, timezone
 from argparse import ArgumentParser
+
+import boto3
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)

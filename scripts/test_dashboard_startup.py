@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """Diagnostic script to test dashboard startup."""
 
-import sys
 import os
+import sys
 import traceback
 
 # Fix Windows console encoding before doing anything else
 if sys.platform.startswith('win'):
-    import codecs
     import io
     # Allow UTF-8 output even on Windows
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
@@ -25,7 +24,6 @@ print("[TEST] Starting dashboard diagnostic...", flush=True)
 
 try:
     print("[TEST] Step 1: Importing dashboard module...", flush=True)
-    import dashboard
     print("[TEST] OK: Dashboard module imported successfully", flush=True)
 
 except Exception as e:
@@ -36,8 +34,8 @@ except Exception as e:
 try:
     print("[TEST] Step 2: Importing Rich Console...", flush=True)
     from rich.console import Console
-    from dashboard.utilities import CONSOLE
-    print(f"[TEST] OK: Console imported", flush=True)
+
+    print("[TEST] OK: Console imported", flush=True)
 
 except Exception as e:
     print(f"[TEST] FAIL: Failed to import Console: {type(e).__name__}: {e}", flush=True)
@@ -50,7 +48,7 @@ try:
     from rich.text import Text
 
     test_console = Console(force_terminal=True, legacy_windows=False)
-    print(f"[TEST] OK: Test console created", flush=True)
+    print("[TEST] OK: Test console created", flush=True)
 
     with Live(console=test_console, screen=True) as live:
         print("[TEST] OK: Live context manager opened successfully", flush=True)

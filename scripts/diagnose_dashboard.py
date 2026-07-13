@@ -2,10 +2,8 @@
 """Diagnostic script to identify why dashboard shows 'data not available'."""
 
 import os
-import sys
 import socket
-import time
-from typing import Tuple
+import sys
 
 # Fix Windows console encoding
 if sys.platform.startswith('win'):
@@ -16,7 +14,7 @@ if sys.platform.startswith('win'):
     except Exception:
         pass
 
-def check_dev_server() -> Tuple[bool, str]:
+def check_dev_server() -> tuple[bool, str]:
     """Check if dev_server is running on localhost:3001."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -30,7 +28,7 @@ def check_dev_server() -> Tuple[bool, str]:
     except Exception as e:
         return False, f"Error checking dev_server: {e}"
 
-def check_database() -> Tuple[bool, str]:
+def check_database() -> tuple[bool, str]:
     """Check if database is accessible."""
     try:
         import psycopg2
@@ -47,7 +45,7 @@ def check_database() -> Tuple[bool, str]:
     except Exception as e:
         return False, f"Database error: {e}"
 
-def check_api_endpoints() -> Tuple[bool, str]:
+def check_api_endpoints() -> tuple[bool, str]:
     """Check if dev_server is responding to API calls."""
     try:
         import requests
@@ -66,7 +64,7 @@ def check_api_endpoints() -> Tuple[bool, str]:
     except Exception as e:
         return False, f"API error: {e}"
 
-def check_dashboard_import() -> Tuple[bool, str]:
+def check_dashboard_import() -> tuple[bool, str]:
     """Check if dashboard module can be imported."""
     try:
         # Make sure we're running from repo root
@@ -80,7 +78,7 @@ def check_dashboard_import() -> Tuple[bool, str]:
     except Exception as e:
         return False, f"Cannot import dashboard: {type(e).__name__}: {str(e)[:60]}"
 
-def check_local_mode() -> Tuple[bool, str]:
+def check_local_mode() -> tuple[bool, str]:
     """Check if LOCAL_MODE is set."""
     local_mode = os.environ.get('LOCAL_MODE')
     if local_mode:

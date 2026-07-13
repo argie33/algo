@@ -3,9 +3,7 @@
 
 import os
 import sys
-import time
-import json
-from datetime import datetime, date, timedelta
+from datetime import date, datetime
 from pathlib import Path
 
 # Add repo to path
@@ -135,8 +133,8 @@ def check_api_endpoints():
 def check_alpaca_integration():
     """Check if Alpaca credentials and connection work."""
     try:
-        from utils.external.alpaca import AlpacaClient
         from config.alpaca_config import get_alpaca_config
+        from utils.external.alpaca import AlpacaClient
 
         config = get_alpaca_config()
         client = AlpacaClient(config)

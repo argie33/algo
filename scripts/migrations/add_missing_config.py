@@ -2,6 +2,7 @@
 """Add missing config keys to the database."""
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path.cwd()))
 
 from utils.db.context import DatabaseContext

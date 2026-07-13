@@ -680,7 +680,8 @@ def run(  # noqa: C901
                         cur.execute("SELECT MAX(date) FROM price_daily")
                         max_price_date = cur.fetchone()[0]
                         if max_price_date:
-                            from datetime import datetime as dt_now, timezone
+                            from datetime import datetime as dt_now
+                            from datetime import timezone
                             age_days = (dt_now.now(timezone.utc).date() - max_price_date).days
 
                             if age_days > 2:

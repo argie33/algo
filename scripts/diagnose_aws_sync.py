@@ -5,11 +5,11 @@ Usage:
   python3 scripts/diagnose_aws_sync.py
 """
 
-import json
 import sys
+
 import psycopg2
 import requests
-from datetime import datetime
+
 
 def check_local_db():
     """Check local PostgreSQL database state."""

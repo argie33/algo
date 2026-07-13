@@ -10,10 +10,11 @@ Verify that ALL THINGS ARE WORKING end-to-end:
 """
 
 import sys
-import time
-import requests
-import psycopg2
 from datetime import datetime, timezone
+
+import psycopg2
+import requests
+
 
 def check_api_endpoints():
     """Verify all critical API endpoints are working"""
@@ -70,7 +71,7 @@ def check_database():
         cur.close()
         conn.close()
 
-        print(f"  [OK] Connected")
+        print("  [OK] Connected")
         print(f"  [OK] Circuit Breaker Data: {cb_date} ({age} days old)" if cb_date else "  [WARN] CB data missing")
         print(f"  [OK] Open Positions: {positions}")
         if result:
@@ -112,7 +113,7 @@ def check_dashboard_freshness():
                 print(f"  [WARN] Data stale ({age_hours:.1f} hours old) - orchestrator should run soon")
                 return True  # Still acceptable if we're on weekend
         else:
-            print(f"  [ERR] No circuit breaker data found")
+            print("  [ERR] No circuit breaker data found")
             return False
     except Exception as e:
         print(f"  [ERR] {str(e)[:60]}")

@@ -8,9 +8,10 @@ Traces:
 4. Correct volume/quality at each stage
 """
 
+from datetime import datetime
+from typing import Any
+
 import psycopg2
-from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Any
 
 PIPELINE_LAYERS = {
     "Foundation": {
@@ -61,7 +62,7 @@ def check_table_exists(cur: Any, table: str) -> bool:
     except:
         return False
 
-def get_table_stats(cur: Any, table: str) -> Dict[str, Any]:
+def get_table_stats(cur: Any, table: str) -> dict[str, Any]:
     """Get statistics for a table."""
     try:
         cur.execute(f"SELECT COUNT(*) FROM {table}")
@@ -129,7 +130,7 @@ def verify_pipeline():
                           f"latest: {dep_stats['latest_date']})")
 
             # Check output tables
-            print(f"  Outputs:")
+            print("  Outputs:")
             for table in config["tables"]:
                 stats = get_table_stats(cur, table)
                 layer_stats[table] = stats
@@ -148,9 +149,9 @@ def verify_pipeline():
                     print(f"    [OK]      {table:35} {stats['row_count']:>12,} rows  {age_str}")
 
             if layer_healthy:
-                print(f"  Status: HEALTHY")
+                print("  Status: HEALTHY")
             else:
-                print(f"  Status: ISSUES FOUND")
+                print("  Status: ISSUES FOUND")
 
             layer_results[layer_name] = {
                 "healthy": layer_healthy,
@@ -166,7 +167,7 @@ def verify_pipeline():
         total_layers = len(layer_results)
 
         print(f"\nHealthy layers: {len(healthy_layers)}/{total_layers}")
-        print(f"\nLayer Status:")
+        print("\nLayer Status:")
         for layer_name, result in layer_results.items():
             status = "HEALTHY" if result["healthy"] else "ISSUES"
             print(f"  {layer_name:30} - {status}")
@@ -222,10 +223,10 @@ def verify_pipeline():
         return result
 
     except psycopg2.OperationalError as e:
-        print(f"ERROR: Cannot connect to database: {str(e)}")
+        print(f"ERROR: Cannot connect to database: {e!s}")
         return False
     except Exception as e:
-        print(f"ERROR: Pipeline verification failed: {str(e)}")
+        print(f"ERROR: Pipeline verification failed: {e!s}")
         import traceback
         traceback.print_exc()
         return False

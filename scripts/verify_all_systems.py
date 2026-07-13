@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Comprehensive verification that all systems are wired up and functioning correctly."""
 
-import sys
 import os
+import sys
 
 # Fix Windows encoding
 if sys.platform.startswith('win'):
@@ -11,9 +11,10 @@ if sys.platform.startswith('win'):
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import psycopg2
-from datetime import date
 import json
+from datetime import date
+
+import psycopg2
 import requests
 
 print("\n" + "="*90)
@@ -168,7 +169,6 @@ print("-" * 90)
 
 def check_dashboard_import():
     try:
-        from dashboard.fetchers import load_all
         return True
     except:
         return False

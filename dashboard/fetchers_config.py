@@ -164,7 +164,7 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
         if is_error:
             # If API returns auth error (401), return minimal config instead of failing
             if data.get("_auth_error"):
-                logger.warning(f"API auth error getting config - using defaults")
+                logger.warning("API auth error getting config - using defaults")
                 return {"min_composite_score": 50}
 
             record_data_quality_issue("cfg", "api_call", "api_error", error_msg or "unknown_error")

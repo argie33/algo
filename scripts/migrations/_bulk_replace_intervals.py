@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Bulk replace hardcoded SQL INTERVAL values with config-driven alternatives."""
 
-import os
 import re
 from pathlib import Path
 
@@ -55,7 +54,7 @@ def add_import(file_content: str) -> str:
 def replace_intervals(file_path: str) -> tuple[bool, str]:
     """Replace hardcoded INTERVAL values in a Python file."""
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, encoding='utf-8') as f:
             content = f.read()
     except Exception as e:
         return False, f"Could not read: {e}"

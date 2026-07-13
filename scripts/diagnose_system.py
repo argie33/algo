@@ -2,8 +2,8 @@
 """Diagnose system status - check all components and identify issues."""
 
 import os
-import sys
 import subprocess
+import sys
 import time
 from pathlib import Path
 

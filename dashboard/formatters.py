@@ -5,7 +5,6 @@ import time
 from datetime import datetime, timedelta
 from typing import Any, cast
 
-from .error_boundary import has_error
 from .formatter_strategies import (
     DataAgeFormatter,
     GradeFormatter,

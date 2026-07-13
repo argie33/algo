@@ -15,6 +15,7 @@ from datetime import date
 sys.path.insert(0, '.')
 from utils.db.context import DatabaseContext
 
+
 def main():
     today = date.today()
 
@@ -24,7 +25,7 @@ def main():
         print("=" * 70)
 
         # 1. Delete future-dated rows from market_exposure_daily
-        print(f"\n1. Cleaning up future-dated rows in market_exposure_daily...")
+        print("\n1. Cleaning up future-dated rows in market_exposure_daily...")
         cur.execute(
             "SELECT COUNT(*) FROM market_exposure_daily WHERE date > %s",
             (today,)
@@ -35,7 +36,7 @@ def main():
             cur.execute("DELETE FROM market_exposure_daily WHERE date > %s", (today,))
             print(f"   DELETED {future_count} future-dated row(s)")
         else:
-            print(f"   No future-dated rows found")
+            print("   No future-dated rows found")
 
         # Also clean market_health_daily if needed
         cur.execute(
@@ -100,7 +101,7 @@ def main():
                 print(f"   CREATED market_health_daily for {today}")
 
         # Verify all tables are fresh
-        print(f"\n3. Verifying all halt-critical tables are fresh...")
+        print("\n3. Verifying all halt-critical tables are fresh...")
 
         from algo.infrastructure.market_calendar import MarketCalendar
         expected = today if MarketCalendar.is_trading_day(today) else today

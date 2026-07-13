@@ -106,7 +106,8 @@ from rich.live import Live
 try:
     # Try relative imports first (module execution)
     from .api_data_layer import set_api_url, set_cognito_auth, validate_api_config
-    from .cognito_auth import get_cognito_auth as get_cognito_auth_instance, save_tokens
+    from .cognito_auth import get_cognito_auth as get_cognito_auth_instance
+    from .cognito_auth import save_tokens
     from .core import DashboardContext, ViewMode
     from .error_boundary import error_summary_panel
     from .error_recovery import RenderRecovery
@@ -124,8 +125,9 @@ try:
     from .watch import LoadState, WatchModeController, WatchState
 except ImportError:
     # Fall back to absolute imports (direct script execution)
-    from dashboard.api_data_layer import set_api_url, set_cognito_auth, validate_api_config
-    from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance, save_tokens
+    from dashboard.api_data_layer import set_api_url, set_cognito_auth
+    from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
+    from dashboard.cognito_auth import save_tokens
     from dashboard.core import DashboardContext, ViewMode
     from dashboard.error_boundary import error_summary_panel
     from dashboard.error_recovery import RenderRecovery
@@ -140,7 +142,7 @@ except ImportError:
         render_header_components,
     )
     from dashboard.utilities import CONSOLE, MASCOT_W, logger
-    from dashboard.watch import LoadState, WatchModeController, WatchState
+    from dashboard.watch import WatchModeController, WatchState
 
 
 class _RenderState:

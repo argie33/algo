@@ -9,9 +9,10 @@ Checks:
 5. Whether loader output feeds downstream dependencies
 """
 
+from datetime import datetime
+from typing import Any
+
 import psycopg2
-from datetime import datetime, timedelta
-from typing import Dict, List, Tuple, Any
 
 LOADERS = {
     "load_prices.py": {
@@ -101,7 +102,7 @@ LOADERS = {
     },
 }
 
-def verify_loader(conn: Any, loader_name: str, config: Dict) -> Dict[str, Any]:
+def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
     """Verify a single loader's output."""
     cur = conn.cursor()
     results = {
@@ -148,7 +149,7 @@ def verify_loader(conn: Any, loader_name: str, config: Dict) -> Dict[str, Any]:
                         results["issues"].append(
                             f"Stale data: {age.days} days old (max_date: {max_date})"
                         )
-            except Exception as date_error:
+            except Exception:
                 # Skip if date column doesn't work
                 pass
             else:
@@ -261,10 +262,10 @@ def verify_all_loaders():
             return True
 
     except psycopg2.OperationalError as e:
-        print(f"ERROR: Cannot connect to database: {str(e)}")
+        print(f"ERROR: Cannot connect to database: {e!s}")
         return False
     except Exception as e:
-        print(f"ERROR: Verification failed: {str(e)}")
+        print(f"ERROR: Verification failed: {e!s}")
         import traceback
         traceback.print_exc()
         return False

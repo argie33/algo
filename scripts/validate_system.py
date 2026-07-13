@@ -1,10 +1,8 @@
 #!/usr/bin/env python3
 """Comprehensive system validation - checks all critical paths for live trading."""
 
-import json
 import logging
 import sys
-from datetime import datetime, timedelta
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,9 +40,6 @@ def check_database():
 def check_data_loaders():
     """Verify critical loaders can import and validate."""
     try:
-        from loaders.load_prices import PriceLoader
-        from loaders.load_technical_indicators import VectorizedTechnicalLoader
-        from loaders.load_stock_scores import StockScoresLoader
 
         logger.info("✓ Data loaders: All import successfully")
         return True
@@ -85,8 +80,6 @@ def check_api_endpoints():
 def check_trading_system():
     """Verify trading system can initialize."""
     try:
-        from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
-        from algo.trading.order_manager import OrderManager
 
         logger.info("  AlpacaBrokerAdapter: Imports OK")
         logger.info("  OrderManager: Imports OK")
@@ -103,8 +96,9 @@ def check_dashboard_data():
         os.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
         os.environ['LOCAL_MODE'] = 'true'
 
-        from dashboard.fetchers import load_all
         import time
+
+        from dashboard.fetchers import load_all
 
         start = time.time()
         data = load_all()

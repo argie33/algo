@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Diagnose AWS Lambda and API Gateway issues causing 503 errors and dashboard failures."""
 
-import subprocess
 import json
+import subprocess
 import sys
 from datetime import datetime, timedelta
+
 
 def run_command(cmd, description):
     """Run AWS CLI command and return output."""
@@ -14,7 +15,7 @@ def run_command(cmd, description):
         if result.returncode != 0:
             print(f"  ✗ FAILED: {result.stderr[:200]}")
             return None
-        print(f"  ✓ OK")
+        print("  ✓ OK")
         return result.stdout.strip()
     except Exception as e:
         print(f"  ✗ ERROR: {e}")
@@ -57,7 +58,7 @@ def check_provisioned_concurrency():
                 print("  ⚠ WARNING: No provisioned concurrency - cold starts may cause 503 errors!")
                 return False
         except json.JSONDecodeError:
-            print(f"  ⚠ Could not parse response (may mean no provisioned concurrency)")
+            print("  ⚠ Could not parse response (may mean no provisioned concurrency)")
             return False
     return True
 
@@ -125,7 +126,7 @@ def check_database_connectivity():
     if output and output != "null":
         print(f"  ✗ Found connection error: {output[:200]}")
         return False
-    print(f"  ✓ No connection errors detected")
+    print("  ✓ No connection errors detected")
     return True
 
 def check_reserved_concurrency():
@@ -154,7 +155,7 @@ def check_lambda_code_size():
             size_mb = size_bytes / (1024 * 1024)
             print(f"  Size: {size_mb:.1f} MB")
             if size_mb > 250:
-                print(f"  ⚠ WARNING: Code size > 250 MB may affect performance")
+                print("  ⚠ WARNING: Code size > 250 MB may affect performance")
         except ValueError:
             print(f"  Could not parse size: {output}")
 

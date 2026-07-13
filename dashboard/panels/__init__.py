@@ -51,12 +51,12 @@ from .portfolio import (
 from .positions import (
     panel_positions,
 )
+from .scores import (
+    render_scores,
+)
 from .sectors import (
     panel_sector_compact,
     panel_sectors_expanded,
-)
-from .scores import (
-    render_scores,
 )
 from .signals import (
     panel_signals_compact,

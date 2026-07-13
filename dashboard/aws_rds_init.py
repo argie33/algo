@@ -25,8 +25,7 @@ import json
 import logging
 import os
 import sys
-from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,6 @@ logger = logging.getLogger(__name__)
 class AWSRDSInitializationError(Exception):
     """Raised when RDS credential initialization fails."""
 
-    pass
 
 
 class RDSCredentialFetcher:
@@ -415,7 +413,7 @@ if __name__ == "__main__":
             secret_name=os.getenv("DB_SECRET_ARN", "algo/rds"),
             force_aws=os.getenv("FORCE_AWS", "").lower() in ("true", "1"),
         )
-        print(f"\nSuccess! Credentials loaded:")
+        print("\nSuccess! Credentials loaded:")
         print(f"  Host: {creds['host']}")
         print(f"  Port: {creds['port']}")
         print(f"  User: {creds['username'][:8]}...")

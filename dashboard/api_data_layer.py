@@ -674,7 +674,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 continue
             logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES + 1} attempts")
             _record_api_failure()
-            error_msg = f"API timeout - Lambda endpoint not responding"
+            error_msg = "API timeout - Lambda endpoint not responding"
             # Provide helpful guidance if using AWS endpoint
             if "execute-api" in api_url or "lambda" in api_url.lower():
                 error_msg += ". For local dev: Use --local flag (python -m dashboard --local)"

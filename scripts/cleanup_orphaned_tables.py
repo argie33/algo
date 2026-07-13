@@ -9,8 +9,9 @@ Run: python3 scripts/cleanup_orphaned_tables.py
 Safe to run multiple times (DROP TABLE IF EXISTS).
 """
 
-import psycopg2
 import sys
+
+import psycopg2
 
 # Tables to drop: all have 0 rows, not used by any loader or application
 ORPHANED_TABLES = [

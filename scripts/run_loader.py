@@ -9,10 +9,9 @@ Usage:
 This bypasses the full orchestrator and Step Functions to test individual loaders quickly.
 """
 
-import sys
 import argparse
 import logging
-from datetime import date, timedelta
+import sys
 
 logging.basicConfig(level=logging.INFO, format='[%(name)s] %(message)s')
 logger = logging.getLogger(__name__)
@@ -48,10 +47,10 @@ def run_price_loader(symbols=None, backfill_days=1):
 
 def run_technical_indicators_loader(backfill_days=1):
     """Run technical indicators loader."""
-    from loaders.load_technical_indicators import TechnicalIndicatorsLoader
-
     # Load all symbols from universe
     import psycopg2
+
+    from loaders.load_technical_indicators import TechnicalIndicatorsLoader
     try:
         conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
         cursor = conn.cursor()

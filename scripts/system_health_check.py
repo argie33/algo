@@ -8,13 +8,14 @@ Usage:
 This diagnoses the system state and points to specific issues.
 """
 
-import sys
-import socket
-import psycopg2
-import requests
 import argparse
 import logging
-from datetime import datetime, date
+import socket
+import sys
+from datetime import date, datetime
+
+import psycopg2
+import requests
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -52,7 +53,7 @@ def check_database():
         cur.close()
         conn.close()
 
-        logger.info(f"\n✓ Database: Connected")
+        logger.info("\n✓ Database: Connected")
         logger.info(f"  Tables: {len(tables)} total")
         for table, latest in freshness.items():
             if latest:
@@ -76,11 +77,11 @@ def check_dev_server():
         sock.close()
 
         if result == 0:
-            logger.info(f"✓ Dev Server: Running on localhost:3001")
+            logger.info("✓ Dev Server: Running on localhost:3001")
             return True
         else:
-            logger.error(f"✗ Dev Server: NOT running on localhost:3001")
-            logger.info(f"  Start with: python3 api-pkg/dev_server.py")
+            logger.error("✗ Dev Server: NOT running on localhost:3001")
+            logger.info("  Start with: python3 api-pkg/dev_server.py")
             return False
     except Exception as e:
         logger.error(f"✗ Dev Server: Check failed - {e}")
@@ -133,14 +134,14 @@ def check_dashboard():
         from dashboard.fetchers_config import fetch_health
 
         url = _get_api_base_url()
-        logger.info(f"✓ Dashboard: Modules load OK")
+        logger.info("✓ Dashboard: Modules load OK")
         logger.info(f"  API URL: {url}")
 
         # Try a health check fetch
         try:
             health = fetch_health(None)
             if "_error" not in health:
-                logger.info(f"  Health fetch: OK")
+                logger.info("  Health fetch: OK")
                 return True
             else:
                 logger.warning(f"  Health fetch error: {health.get('_error', 'unknown')}")

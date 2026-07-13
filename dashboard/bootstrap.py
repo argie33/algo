@@ -20,7 +20,6 @@ Usage in dashboard/__main__.py or dashboard/dashboard.py:
             cur.execute("SELECT ...")
 """
 
-import json
 import logging
 import os
 from typing import Any

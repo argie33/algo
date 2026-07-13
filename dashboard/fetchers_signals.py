@@ -20,8 +20,9 @@ def fetch_signals(c: None) -> dict[str, Any]:
     Dashboard optimization: Signals API can be slow (10+ seconds). Use 5-second timeout
     so dashboard doesn't hang on loading screen. Signals are non-critical enrichment.
     """
-    from dashboard.fetcher_validator import FetcherValidator
     import threading
+
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         # Fetch signals with 5-second timeout using thread (cross-platform compatible)
@@ -261,8 +262,9 @@ def fetch_scores(c: None) -> dict[str, Any]:
     LATERAL price/technical lookups) so a 50-row page should return in well under a second; 8s is
     headroom for cold Lambda/RDS-Proxy connections, not the expected steady-state latency.
     """
-    from dashboard.fetcher_validator import FetcherValidator
     import threading
+
+    from dashboard.fetcher_validator import FetcherValidator
 
     try:
         # Uses thread-based timeout for cross-platform compatibility

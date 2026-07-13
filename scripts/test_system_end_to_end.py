@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """End-to-end system test to verify all components work together."""
 
-import subprocess
-import json
-import time
-import requests
 import logging
+import subprocess
 import sys
+import time
+
+import requests
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)

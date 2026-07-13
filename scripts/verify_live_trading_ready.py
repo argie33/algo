@@ -3,6 +3,7 @@
 
 import os
 import sys
+
 sys.path.insert(0, '.')
 
 from utils.db.context import DatabaseContext
@@ -68,7 +69,7 @@ with DatabaseContext('read') as cur:
     cur.execute('SELECT MAX(date) FROM buy_sell_daily')
     latest_signal = cur.fetchone()[0]
 
-    from datetime import datetime, date
+    from datetime import date
     today = date.today()
 
     check("Recent prices (today or yesterday)", latest_price >= today - __import__('datetime').timedelta(days=1),
@@ -96,7 +97,7 @@ try:
 except Exception as e:
     print(f"[SKIP] API checks (dev server not running): {type(e).__name__}")
 
-print(f"\n=== SUMMARY ===")
+print("\n=== SUMMARY ===")
 print(f"Passed: {checks_passed}/{checks_total}")
 
 if checks_passed == checks_total:

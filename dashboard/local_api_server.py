@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -20,7 +20,7 @@ sys.path.insert(0, str(repo_root))
 sys.path.insert(0, str(repo_root / "lambda" / "api"))
 os.environ["ENVIRONMENT"] = "dev"
 
-from utils.data_queries import get_open_positions  # noqa: E402, I001
+from utils.data_queries import get_open_positions  # noqa: E402
 from utils.db import get_db_connection  # noqa: E402
 
 

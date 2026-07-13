@@ -6,9 +6,10 @@ Session 101: Morning pipeline failed on stock_prices_daily ECS task.
 This script checks what went wrong and attempts fixes.
 """
 
-import boto3
 import sys
 from datetime import date
+
+import boto3
 
 print("=" * 80)
 print("LOADER DIAGNOSTIC & RECOVERY TOOL")

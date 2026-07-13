@@ -11,10 +11,8 @@ This is a TEST-ONLY script for local development. Do not use in production.
 """
 
 import sys
-from datetime import datetime, timedelta
 
 from utils.db.context import DatabaseContext
-from utils.infrastructure.timezone import EASTERN_TZ
 
 
 def refresh_data() -> None:
@@ -58,7 +56,7 @@ def refresh_data() -> None:
                 """,
                 (latest_price_date,),
             )
-            print(f"  [OK] market_exposure_daily updated")
+            print("  [OK] market_exposure_daily updated")
 
             # Step 2: Create synthetic buy signals from stocks with prices
             # (needed for signal generation to have candidate signals)

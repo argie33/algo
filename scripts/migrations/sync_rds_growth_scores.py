@@ -13,11 +13,12 @@ Or set environment variable:
     python3 sync_rds_growth_scores.py
 """
 
-import psycopg2
-import sys
-import os
 import argparse
-from datetime import datetime
+import os
+import sys
+
+import psycopg2
+
 
 def main():
     parser = argparse.ArgumentParser(description="Sync fresh growth_scores from local to RDS")
@@ -141,7 +142,7 @@ def main():
             return False
 
     except psycopg2.OperationalError as e:
-        print(f"\nERROR: Cannot connect to RDS")
+        print("\nERROR: Cannot connect to RDS")
         print(f"  {str(e)[:150]}")
         print("\nVerify:")
         print("  - RDS endpoint: algo-db.cojggi2mkthi.us-east-1.rds.amazonaws.com")

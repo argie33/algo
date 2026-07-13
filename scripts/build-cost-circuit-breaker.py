@@ -8,6 +8,7 @@ import sys
 import zipfile
 from pathlib import Path
 
+
 def build_lambda():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent

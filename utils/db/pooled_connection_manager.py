@@ -84,7 +84,7 @@ class IdleConnectionPool:
         """
         try:
             self._pool.putconn(conn, close=close)
-            logger.debug(f"[IDLE_POOL] Connection returned to underlying pool")
+            logger.debug("[IDLE_POOL] Connection returned to underlying pool")
         except Exception as e:
             if close:
                 logger.warning(f"[IDLE_POOL] Failed to close connection: {e}")

@@ -47,6 +47,7 @@ logger = logging.getLogger(__name__)
 # Result: ECS task killed before health check could run (started at 60s)
 # Solution: Use shorter timeout for production to fail fast if there's an issue
 import socket
+
 if os.getenv("ENVIRONMENT") == "dev" and os.getenv("AWS_REGION"):
     # Production ECS environment detected: reduce timeout to 15s
     # This allows loader to start+initialize within 30s grace period

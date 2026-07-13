@@ -3,8 +3,9 @@
 
 import logging
 import sys
-import psycopg2
 from pathlib import Path
+
+import psycopg2
 
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 logger = logging.getLogger(__name__)

@@ -11,7 +11,8 @@ else:
     try:
         from dashboard.panel_registry import register_panel
     except ImportError:
-        from typing import Callable, TypeVar
+        from collections.abc import Callable
+        from typing import TypeVar
 
         _F = TypeVar("_F", bound=Callable[..., Any])
 
@@ -35,7 +36,6 @@ from rich.panel import Panel
 from rich.table import Table
 
 from dashboard.data_validation import safe_float
-from dashboard.utilities import DIM, G, R, Y
 
 from ._helpers import _composite_score_color, _error_panel, _score_cell
 from .data_extractors import safe_get_dict, safe_get_field, safe_get_list
