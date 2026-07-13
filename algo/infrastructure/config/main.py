@@ -1562,7 +1562,7 @@ class AlgoConfig:
         if warnings:
             logger.warning("[AlgoConfig] Critical threshold warnings:\n" + "\n".join(warnings))
 
-    def _validate_config_interdependencies(self) -> None:
+    def _validate_config_interdependencies(self) -> None:  # noqa: C901
         """Validate configuration interdependencies at startup.
 
         Checks for conflicting values that create impossible or dead-code scenarios.

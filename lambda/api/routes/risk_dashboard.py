@@ -51,45 +51,48 @@ def handle(
     elif path == "/api/algo/risk-dashboard/exposure-tier":
         return _get_exposure_tier_info(cur)
     elif path == "/api/algo/risk-dashboard/position-sizing-audit":
-        # GOVERNANCE: Explicit parameter validation instead of silent defaults.
         days = params.get("days") if params and isinstance(params, dict) else None
         if days is None:
-            logger.debug("days parameter missing, using default=30")
-            days_int = 30
+            raise ValueError(
+                "CRITICAL: days parameter required for position sizing audit. "
+                "Cannot audit without explicit date range (no safe defaults allowed)."
+            )
         elif isinstance(days, list) and len(days) > 0:
             days_int = safe_limit(days[0], max_val=365, default=30)
         else:
             raise ValueError(
                 f"CRITICAL: Invalid days parameter: {days!r} (type: {type(days).__name__}). "
-                f"Expected None, int, or list[int]. Risk dashboard requires valid date range."
+                f"Expected int or list[int]. Risk dashboard requires valid date range."
             )
         return _get_position_sizing_audit(cur, days_int)
     elif path == "/api/algo/risk-dashboard/stop-loss-audit":
-        # GOVERNANCE: Explicit parameter validation instead of silent defaults.
         days = params.get("days") if params and isinstance(params, dict) else None
         if days is None:
-            logger.debug("days parameter missing, using default=30")
-            days_int = 30
+            raise ValueError(
+                "CRITICAL: days parameter required for stop loss audit. "
+                "Cannot audit without explicit date range (no safe defaults allowed)."
+            )
         elif isinstance(days, list) and len(days) > 0:
             days_int = safe_limit(days[0], max_val=365, default=30)
         else:
             raise ValueError(
                 f"CRITICAL: Invalid days parameter: {days!r} (type: {type(days).__name__}). "
-                f"Expected None, int, or list[int]. Risk dashboard requires valid date range."
+                f"Expected int or list[int]. Risk dashboard requires valid date range."
             )
         return _get_stop_loss_audit(cur, days_int)
     elif path == "/api/algo/risk-dashboard/exit-rules":
-        # GOVERNANCE: Explicit parameter validation instead of silent defaults.
         days = params.get("days") if params and isinstance(params, dict) else None
         if days is None:
-            logger.debug("days parameter missing, using default=30")
-            days_int = 30
+            raise ValueError(
+                "CRITICAL: days parameter required for exit rules analysis. "
+                "Cannot analyze without explicit date range (no safe defaults allowed)."
+            )
         elif isinstance(days, list) and len(days) > 0:
             days_int = safe_limit(days[0], max_val=365, default=30)
         else:
             raise ValueError(
                 f"CRITICAL: Invalid days parameter: {days!r} (type: {type(days).__name__}). "
-                f"Expected None, int, or list[int]. Risk dashboard requires valid date range."
+                f"Expected int or list[int]. Risk dashboard requires valid date range."
             )
         return _get_exit_rules_distribution(cur, days_int)
     else:
@@ -422,8 +425,20 @@ def _get_position_sizing_audit(cur: cursor, days: int) -> Any:
             from utils.validation import DatabaseResultValidator
 
             symbol = DatabaseResultValidator.safe_get_str(row, "symbol")
+            if symbol is None or symbol == "":
+                error_msg = "Position sizing audit incomplete: symbol missing or empty. Cannot identify trade."
+                logger.error(error_msg)
+                return error_response(503, "incomplete_audit_data", error_msg)
             base_shares = DatabaseResultValidator.safe_get_int(row, "base_shares")
+            if base_shares is None:
+                error_msg = f"Position sizing audit incomplete for {symbol}: base_shares missing. Cannot determine initial position size."
+                logger.error(error_msg)
+                return error_response(503, "incomplete_audit_data", error_msg)
             final_shares = DatabaseResultValidator.safe_get_int(row, "final_shares")
+            if final_shares is None:
+                error_msg = f"Position sizing audit incomplete for {symbol}: final_shares missing. Cannot determine executed position size."
+                logger.error(error_msg)
+                return error_response(503, "incomplete_audit_data", error_msg)
             entry_price = DatabaseResultValidator.safe_get_float(row, "entry_price", default=None)
             stop_loss_price = DatabaseResultValidator.safe_get_float(row, "stop_loss_price", default=None)
             signal_date = row.get("signal_date")
@@ -489,8 +504,22 @@ def _get_stop_loss_audit(cur: cursor, days: int) -> Any:
             from utils.validation import DatabaseResultValidator
 
             symbol = DatabaseResultValidator.safe_get_str(row, "symbol")
+            if symbol is None or symbol == "":
+                error_msg = "Stop loss audit incomplete: symbol missing or empty. Cannot identify trade."
+                logger.error(error_msg)
+                return error_response(503, "incomplete_stop_loss_data", error_msg)
             stop_method = DatabaseResultValidator.safe_get_str(row, "stop_method")
+            if stop_method is None or stop_method == "":
+                error_msg = f"Stop loss audit incomplete for {symbol}: stop_method missing. Cannot determine stop type."
+                logger.error(error_msg)
+                return error_response(503, "incomplete_stop_loss_data", error_msg)
             stop_reasoning = DatabaseResultValidator.safe_get_str(row, "stop_reasoning")
+            if stop_reasoning is None or stop_reasoning == "":
+                error_msg = (
+                    f"Stop loss audit incomplete for {symbol}: stop_reasoning missing. Cannot justify risk choice."
+                )
+                logger.error(error_msg)
+                return error_response(503, "incomplete_stop_loss_data", error_msg)
             entry_price = DatabaseResultValidator.safe_get_float(row, "entry_price", default=None)
             stop_loss_price = DatabaseResultValidator.safe_get_float(row, "stop_loss_price", default=None)
             signal_date = row.get("signal_date")
@@ -541,9 +570,23 @@ def _get_exit_rules_distribution(cur: cursor, days: int) -> Any:
             from utils.validation import DatabaseResultValidator
 
             exit_rule = DatabaseResultValidator.safe_get_str(row, "exit_rule")
+            if exit_rule is None or exit_rule == "":
+                error_msg = "Exit rules data incomplete: exit_rule missing or empty. Cannot categorize exit."
+                logger.error(error_msg)
+                return error_response(503, "incomplete_exit_rules_data", error_msg)
             count = DatabaseResultValidator.safe_get_int(row, "count")
-            winning = DatabaseResultValidator.safe_get_int(row, "winning_count", default=0)
-            losing = DatabaseResultValidator.safe_get_int(row, "losing_count", default=0)
+            if count is None or count == 0:
+                error_msg = (
+                    f"Exit rules data incomplete for '{exit_rule}': count missing or zero. Cannot aggregate statistics."
+                )
+                logger.error(error_msg)
+                return error_response(503, "incomplete_exit_rules_data", error_msg)
+            winning = DatabaseResultValidator.safe_get_int(row, "winning_count", default=None)
+            if winning is None:
+                winning = 0  # Optional field, default to 0 only after explicit None check
+            losing = DatabaseResultValidator.safe_get_int(row, "losing_count", default=None)
+            if losing is None:
+                losing = 0  # Optional field, default to 0 only after explicit None check
             avg_pnl = DatabaseResultValidator.safe_get_float(row, "avg_pnl_pct", default=None)
             avg_r = DatabaseResultValidator.safe_get_float(row, "avg_r_multiple", default=None)
 

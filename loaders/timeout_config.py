@@ -153,12 +153,8 @@ def get_http_timeout(api_type: str = "default") -> tuple[float, float]:
                 f"Cannot proceed with invalid timeout configuration. {e}"
             ) from e
 
-    # Raise if env var was not set (configuration is required, not optional)
-    raise ValueError(
-        f"CRITICAL: {env_key} environment variable not set. "
-        f"Timeout configuration is required for {api_type}. "
-        f"Valid formats: '30' (float) or '5,30' (connect,read tuple)"
-    )
+    # No env override: fall back to the per-API defaults above.
+    return api_timeouts.get(api_type, api_timeouts["default"])
 
 
 def get_database_timeout() -> float:
