@@ -144,7 +144,7 @@ class PriceTransformer:
         max_row_date = None
         try:
             for row in rows:
-                date_str = row.get("date")
+                date_str = row["date"] if "date" in row else None
                 if date_str:
                     row_date = datetime.fromisoformat(date_str).date()
                     if min_row_date is None or row_date < min_row_date:
@@ -273,8 +273,8 @@ class PriceTransformer:
         tracker: Any,
     ) -> tuple[bool, int, int]:
         """Process single row; returns (was_valid, non_trading_count, parse_error_count)."""
-        row_date_str: str | None = row.get("date")
-        symbol: str | None = row.get("symbol")
+        row_date_str: str | None = row["date"] if "date" in row else None
+        symbol: str | None = row["symbol"] if "symbol" in row else None
 
         try:
             if not row_date_str or not isinstance(row_date_str, str):
@@ -297,17 +297,18 @@ class PriceTransformer:
         is_valid, error_msg = self._validate_row_prices(row, symbol, prior_close_by_symbol, tracker)
         if not is_valid:
             if error_msg:
-                logger.warning(f"[{symbol}] {row.get('date')}: {error_msg}")
+                row_date_for_log = row["date"] if "date" in row else None
+                logger.warning(f"[{symbol}] {row_date_for_log}: {error_msg}")
             return False, 0, 1
 
         if tracker:
             tracker.record_tick(
                 symbol=symbol,
-                tick_date=row.get("date"),
+                tick_date=row["date"] if "date" in row else None,
                 data=row,
                 source_api="yfinance",
             )
-        prior_close_by_symbol[symbol] = row.get("close")
+        prior_close_by_symbol[symbol] = row["close"] if "close" in row else None
         return True, 0, 0
 
     def validate_and_transform(self, rows: list[dict[str, Any]], tracker: Any = None) -> list[dict[str, Any]]:
@@ -372,7 +373,7 @@ class PriceTransformer:
             filtered_pct = (non_trading_filtered + parse_errors) / total_input * 100
             if rows:
                 # CRITICAL: Validate symbol field exists in first row (fail-fast if missing)
-                symbol = rows[0].get("symbol")
+                symbol = rows[0]["symbol"] if "symbol" in rows[0] else None
                 if symbol is None:
                     raise ValueError(
                         f"[TRANSFORMER] First row in batch missing required 'symbol' field. "

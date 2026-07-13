@@ -74,7 +74,7 @@ class PriceValidator:
 
     def validate_price_row(self, row: dict[str, Any]) -> bool:
         # Check required fields - explicit key checking (no silent .get() fallbacks)
-        if self.validation_rules.get("close_required") and row.get("close") is None:
+        if self.validation_rules.get("close_required") and (row["close"] if "close" in row else None) is None:
             return False
         if self.validation_rules.get("date_required") and (row["date"] if "date" in row else None) is None:
             return False
@@ -243,24 +243,24 @@ class PriceValidator:
         if not row:
             return False
 
-        # Check required fields
-        if self.validation_rules.get("symbol_required") and not row.get("symbol"):
+        # Check required fields - explicit key checking (no silent .get() fallbacks)
+        if self.validation_rules.get("symbol_required") and not (row["symbol"] if "symbol" in row else None):
             return False
-        if self.validation_rules.get("date_required") and not row.get("date"):
+        if self.validation_rules.get("date_required") and not (row["date"] if "date" in row else None):
             return False
-        if self.validation_rules.get("close_required") and row.get("close") is None:
+        if self.validation_rules.get("close_required") and (row["close"] if "close" in row else None) is None:
             return False
 
         # Check OHLC reasonableness
         if self.validation_rules.get("ohlc_reasonable"):
-            close = row.get("close")
-            high = row.get("high")
-            low = row.get("low")
+            close = row["close"] if "close" in row else None
+            high = row["high"] if "high" in row else None
+            low = row["low"] if "low" in row else None
 
             if close is not None and high is not None and low is not None:
                 if not (low <= close <= high):
                     # CRITICAL: Validate symbol field exists for audit (fail-fast if missing)
-                    symbol = row.get("symbol")
+                    symbol = row["symbol"] if "symbol" in row else None
                     if symbol is None:
                         raise ValueError(
                             f"[VALIDATOR] Row with out-of-range prices missing required 'symbol' field. "
@@ -273,7 +273,7 @@ class PriceValidator:
 
         # Check volume non-negative
         if self.validation_rules.get("volume_non_negative"):
-            volume = row.get("volume")
+            volume = row["volume"] if "volume" in row else None
             if volume is not None and volume < 0:
                 return False
 
