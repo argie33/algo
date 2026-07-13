@@ -10,7 +10,7 @@ def test_executor_detects_missing_dependency():
     executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: False)
 
     def phase7_fn(**kwargs):
-        return Phase7Result(status="ok", qualified_trades=[])
+        return PhaseResult(phase_num=7, phase_name="SIGNAL GENERATION", status="ok", data={})
 
     executor.register_phase(
         PhaseDefinition(
@@ -32,7 +32,7 @@ def test_executor_detects_failed_dependency():
     """Executor must fail phase if dependency failed."""
     executor = OrchestratorPhaseExecutor(config={}, halt_check_fn=lambda: False)
 
-    phase5_result = Phase5Result(
+    phase5_result = PhaseResult(phase_num=5, phase_name="EXPOSURE POLICY",
         status="error",
         error="Phase 5 failed due to bad constraints",
         constraints=None,
@@ -41,7 +41,7 @@ def test_executor_detects_failed_dependency():
     executor.phase_results[5] = phase5_result
 
     def phase7_fn(**kwargs):
-        return Phase7Result(status="ok", qualified_trades=[])
+        return PhaseResult(phase_num=7, phase_name="SIGNAL GENERATION", status="ok", data={})
 
     executor.register_phase(
         PhaseDefinition(
@@ -73,7 +73,7 @@ def test_executor_detects_invalid_dependency_data():
     executor.phase_results[5] = phase5_result
 
     def phase7_fn(**kwargs):
-        return Phase7Result(status="ok", qualified_trades=[])
+        return PhaseResult(phase_num=7, phase_name="SIGNAL GENERATION", status="ok", data={})
 
     executor.register_phase(
         PhaseDefinition(
@@ -99,7 +99,7 @@ def test_executor_allows_valid_dependency():
         "risk_multiplier": 1.0,
         "max_new_positions_today": 5,
     }
-    phase5_result = Phase5Result(
+    phase5_result = PhaseResult(phase_num=5, phase_name="EXPOSURE POLICY",
         status="ok",
         constraints=constraints,
         actions=[],
@@ -111,7 +111,7 @@ def test_executor_allows_valid_dependency():
     def phase7_fn(**kwargs):
         nonlocal phase7_executed
         phase7_executed = True
-        return Phase7Result(status="ok", qualified_trades=[])
+        return PhaseResult(phase_num=7, phase_name="SIGNAL GENERATION",status="ok", qualified_trades=[])
 
     executor.register_phase(
         PhaseDefinition(
@@ -143,7 +143,7 @@ def test_executor_validates_all_dependencies():
         )
     )
 
-    phase5_result = Phase5Result(
+    phase5_result = PhaseResult(phase_num=5, phase_name="EXPOSURE POLICY",
         status="ok",
         constraints={
             "tier_name": "NORMAL",
