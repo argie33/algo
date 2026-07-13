@@ -10,7 +10,6 @@ import logging
 from datetime import date, datetime
 from typing import Any, cast
 
-import psycopg2
 from utils.db.context import DatabaseContext
 from utils.validation.freshness_config import get_freshness_rule
 
@@ -71,7 +70,8 @@ class DataAgeValidator:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[{table_name}] Could not query {date_column}: {e}")
             if "critical" not in rule or rule["critical"] is None:
-                raise ValueError(f"Rule for {table_name} missing required 'critical' flag")
+                # A missing 'critical' flag is a config problem, not caused by the DB error above.
+                raise ValueError(f"Rule for {table_name} missing required 'critical' flag") from None
             return {
                 "is_fresh": False,
                 "age_days": None,
@@ -101,7 +101,8 @@ class DataAgeValidator:
                 max_date = datetime.fromisoformat(max_date).date()
             except (ValueError, AttributeError):
                 if "critical" not in rule or rule["critical"] is None:
-                    raise ValueError(f"Rule for {table_name} missing required 'critical' flag")
+                    # A missing 'critical' flag is a config problem, not caused by the parse error above.
+                    raise ValueError(f"Rule for {table_name} missing required 'critical' flag") from None
                 return {
                     "is_fresh": False,
                     "age_days": None,

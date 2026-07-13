@@ -65,6 +65,7 @@ class BuySignalGenerator:
 
         for i, row in enumerate(rows):
             # Extract indicator values - explicit key checking (no silent .get() fallbacks)
+            open_price = row["open"] if "open" in row else None
             high = row["high"] if "high" in row else None
             low = row["low"] if "low" in row else None
             close = row["close"] if "close" in row else None
@@ -198,15 +199,9 @@ class BuySignalGenerator:
 
             # Collect nearby bars (may have gaps)
             # EXPLICIT CHECK: Only skip None values, not 0 (which is technically valid though rare)
-            lookback_bars = [
-                rows[k].get("high")
-                for k in range(max(0, j - 3), j)
-                if rows[k].get("high") is not None
-            ]
+            lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high") is not None]
             lookforward_bars = [
-                rows[k].get("high")
-                for k in range(j + 1, min(len(rows), j + 4))
-                if rows[k].get("high") is not None
+                rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("high") is not None
             ]
 
             # Lenient requirement: need at least 2 lookback and 2 lookforward bars (was requiring all)
@@ -237,7 +232,9 @@ class BuySignalGenerator:
 
             # Collect nearby bars (may have gaps)
             lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
-            lookforward_bars = [rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low") is not None]
+            lookforward_bars = [
+                rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low") is not None
+            ]
 
             # Lenient requirement: need at least 2 lookback and 2 lookforward bars (was requiring all)
             if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
