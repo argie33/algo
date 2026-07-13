@@ -99,9 +99,14 @@ rds_backup_retention_period = 1
 # Credentials are stored securely in AWS Secrets Manager (algo/alpaca secret)
 # Set via environment variables at deploy time, NOT in this file (security best practice)
 # To enable live trading: export TF_VAR_alpaca_api_key_id and TF_VAR_alpaca_api_secret_key before terraform apply
-alpaca_api_key_id     = ""                                 # Set via TF_VAR_alpaca_api_key_id environment variable at deploy time
-alpaca_api_secret_key = ""                                 # Set via TF_VAR_alpaca_api_secret_key environment variable at deploy time
-alpaca_api_base_url   = "https://paper-api.alpaca.markets" # Paper trading URL
+#
+# CRITICAL: alpaca_api_key_id / alpaca_api_secret_key must NOT be assigned here, not even as "".
+# -var-file values always take precedence over TF_VAR_* environment variables in Terraform's
+# precedence order, so an explicit "" here permanently locks the value to empty regardless of
+# what the deploy workflow's TF_VAR_alpaca_api_key_id / TF_VAR_alpaca_api_secret_key (sourced
+# from GitHub Secrets ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY) provide. Leaving these two
+# variables entirely absent from this file is what lets the environment variables take effect.
+alpaca_api_base_url = "https://paper-api.alpaca.markets" # Paper trading URL
 
 # Execution Monitor - queries RDS for signals and Alpaca for trades
 enable_execution_monitor          = false # OPTIMIZED: Disabled in dev (paper trading only, low value); cost: $13/month
