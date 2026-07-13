@@ -2646,26 +2646,41 @@ def main() -> int:
                             f"[MAIN] Loader failed for {asset_class}/{interval}: {e}. "
                             "Cannot proceed with price loading if an interval fails."
                         ) from e
-    except Exception as timeout_err:
-        logger.critical("[MAIN] Loader execution timeout exceeded: %s", timeout_err)
+    except Exception as fatal_err:
+        # NOTE: this catches any fatal exception from the interval loop above (SIGALRM
+        # timeout, or a re-raised per-interval RuntimeError e.g. a batch that failed
+        # even after retry) -- the "timeout" framing below predates that broader scope.
+        #
+        # CRITICAL FIX: this handler used to log the failure and then fall through to
+        # "[MAIN] All intervals completed" / return 0 below, so main() reported SUCCESS
+        # to ECS/Step Functions (exit code 0) even after a fatal data-loading failure --
+        # confirmed live: a run that hit "Price fetch failed for 20 symbols... Cannot
+        # load market prices without complete data" on its last batch still logged
+        # "All intervals completed. Total: {'symbols_loaded': 0, ...}" immediately after,
+        # and log_loader_execution() got called twice for the same run ("failed" here,
+        # then "completed" further down). No automatic retry ever triggered because the
+        # orchestration layer saw a clean exit. Re-raise so the process actually exits
+        # non-zero and the audit trail isn't contradicted.
+        logger.critical("[MAIN] Fatal error during price loading: %s", fatal_err)
         try:
             _invalidate_phase1_cache()
         except RuntimeError as cache_err:
-            logger.critical("[MAIN] Cache invalidation failed on timeout error: %s", cache_err)
+            logger.critical("[MAIN] Cache invalidation failed on fatal error: %s", cache_err)
         duration_seconds = round(time.time() - start_time, 2)
         try:
             log_loader_execution(
                 "loadpricedaily",
                 "price_daily",
                 "failed",
-                error_msg=f"Execution timeout: {timeout_err}",
+                error_msg=f"Fatal error: {fatal_err}",
                 duration_seconds=duration_seconds,
             )
         except Exception as log_err:
             raise RuntimeError(
-                f"[MAIN] Could not log timeout failure to audit trail: {log_err}. "
+                f"[MAIN] Could not log fatal failure to audit trail: {log_err}. "
                 "Audit trail integrity is mandatory for Phase 7 reconciliation."
             ) from log_err
+        raise RuntimeError(f"[MAIN] Price loader failed: {fatal_err}") from fatal_err
 
     logger.info("[MAIN] All intervals completed. Total: %s", total_stats)
 
@@ -2708,11 +2723,13 @@ def main() -> int:
             f"[MAIN] Could not log loader completion to audit trail: {log_err}. "
             "Audit trail integrity is mandatory for Phase 7 reconciliation."
         ) from log_err
-    if _lock_conn:
-        try:
-            _lock_conn.close()
-        except Exception as close_err:
-            logger.debug("Could not close lock connection: %s", close_err)
+    # Do NOT close _lock_conn here: the atexit-registered _release_price_loader_lock()
+    # (see above) needs this same connection to DELETE the row-lock entry before closing
+    # it. Closing it early here always runs first (atexit only fires at interpreter
+    # shutdown, well after main() returns), which made the DELETE silently fail every
+    # single time (cursor() on an already-closed connection) -- so the lock was NEVER
+    # actually released on any exit path and just sat until its 93-minute expires_at,
+    # blocking every subsequent run regardless of whether this one succeeded or failed.
     return 0
 
 
