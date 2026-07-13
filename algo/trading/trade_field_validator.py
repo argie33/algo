@@ -32,9 +32,9 @@ class TradeFieldValidator:
             return False, f"Missing required fields: {missing}"
 
         # Validate field types (safe to use direct access since required fields already checked)
-        if not isinstance(trade_data.get("symbol"), str):
+        if not isinstance(trade_data["symbol"], str):
             return False, "symbol must be string"
-        shares = trade_data.get("shares")
+        shares = trade_data["shares"]
         if not isinstance(shares, int) or shares <= 0:
             return False, "shares must be positive integer"
 

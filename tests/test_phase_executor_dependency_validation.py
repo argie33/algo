@@ -104,7 +104,7 @@ def test_executor_allows_valid_dependency():
         phase_num=5,
         phase_name="EXPOSURE POLICY",
         status="ok",
-        data={"constraints": constraints},
+        data={"constraints": constraints, "actions": []},
     )
     executor.phase_results[5] = phase5_result
 
