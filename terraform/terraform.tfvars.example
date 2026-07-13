@@ -1,4 +1,10 @@
 # ============================================================
+# ⚠️  WARNING: This file contains SECRETS - NEVER commit to git
+# ============================================================
+# terraform.tfvars is in .gitignore and MUST stay out of git history
+# Verify with: git check-ignore terraform/terraform.tfvars
+# If accidentally added: git rm --cached terraform/terraform.tfvars
+#
 # Terraform Variables - COPY TO terraform.tfvars AND FILL IN
 # ============================================================
 #

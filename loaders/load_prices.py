@@ -87,7 +87,9 @@ class PriceLoader(OptimalLoader):
         # CRITICAL FIX (Session 111): Reduce initial batch size in production to avoid yfinance rate limits
         # AWS production: Start conservative with batch=50 (allows 200/min rate limit * 1 min = ~200 calls)
         # Local dev: Can use larger batch_size if needed (no public rate limits)
-        self.batch_size = 50 if os.getenv("AWS_REGION") else 500
+        # Allow override via PRICE_LOADER_BATCH_SIZE for tuning
+        default_batch = 50 if os.getenv("AWS_REGION") is not None else 500
+        self.batch_size = int(os.getenv("PRICE_LOADER_BATCH_SIZE", str(default_batch)))
 
         # Circuit breaker for data loader outage handling
         self._circuit_breaker = CircuitBreaker(name="yfinance_prices", importance=DataImportance.CRITICAL)

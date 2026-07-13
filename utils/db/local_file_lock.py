@@ -55,9 +55,9 @@ class FileLockManager:
             for lock_file in self.lock_dir.glob("*.lock"):
                 try:
                     # Read expiry time from file
-                    with open(lock_file) as f:
+                    with open(lock_file, encoding="utf-8") as f:
                         content = f.read().strip()
-                        # Format: "expiry_timestamp"
+                        # Format: "lock_id|expiry_timestamp"
                         expiry_str = content.split("|")[1] if "|" in content else None
                         if expiry_str:
                             expiry = datetime.fromisoformat(expiry_str)
@@ -88,7 +88,7 @@ class FileLockManager:
             # Check if lock file exists and is valid
             if lock_file.exists():
                 try:
-                    with open(lock_file) as f:
+                    with open(lock_file, encoding="utf-8") as f:
                         content = f.read().strip()
                         # Format: "lock_id|expiry_timestamp"
                         parts = content.split("|")
@@ -115,7 +115,7 @@ class FileLockManager:
                 lock_content = f"local-dev|{expiry.isoformat()}"
 
                 # Write lock file atomically
-                with open(lock_file, "w") as f:
+                with open(lock_file, "w", encoding="utf-8") as f:
                     f.write(lock_content)
 
                 self.acquired = True

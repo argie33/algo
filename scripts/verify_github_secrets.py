@@ -16,6 +16,7 @@ REQUIRED SECRETS:
 RUN: python scripts/verify_github_secrets.py
 """
 
+import os
 import subprocess
 import sys
 import json
@@ -29,11 +30,33 @@ REQUIRED_SECRETS = {
     "GITHUB_ACTIONS_ROLE_NAME": "GitHub Actions IAM Role Name",
 }
 
+def get_repo() -> str:
+    """Auto-detect repo from git remote or use environment variable."""
+    try:
+        result = subprocess.run(
+            ["git", "config", "remote.origin.url"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=os.getcwd(),
+        )
+        url = result.stdout.strip()
+        # Extract owner/repo from git@github.com:owner/repo.git or https://github.com/owner/repo.git
+        if "github.com" in url:
+            if url.startswith("git@"):
+                return url.split(":")[-1].replace(".git", "")
+            else:
+                return "/".join(url.split("/")[-2:]).replace(".git", "")
+    except Exception:
+        pass
+    return os.getenv("GITHUB_REPO", "argie33/algo")
+
 def get_github_secrets():
     """Get all GitHub secrets for the repository."""
     try:
+        repo = get_repo()
         result = subprocess.run(
-            ["gh", "secret", "list", "-R", "argie33/algo", "--json", "name"],
+            ["gh", "secret", "list", "-R", repo, "--json", "name"],
             capture_output=True,
             text=True,
             check=True,
@@ -79,13 +102,14 @@ def main():
     print(f"Missing: {len(missing)}/{len(REQUIRED_SECRETS)}")
 
     if missing:
+        repo = get_repo()
         print(f"\nCRITICAL: {len(missing)} secrets missing. Set them in GitHub before deployment:")
-        print("\nhttps://github.com/argie33/algo/settings/secrets/actions")
+        print(f"\nhttps://github.com/{repo}/settings/secrets/actions")
         print("\nRequired secrets to add:")
         for secret in missing:
             print(f"  - {secret}: {REQUIRED_SECRETS[secret]}")
         print("\nCommand to set a secret:")
-        print("  gh secret set SECRET_NAME -R argie33/algo < secret-value.txt")
+        print(f"  gh secret set SECRET_NAME -R {repo} < secret-value.txt")
         sys.exit(1)
     else:
         print("\n[SUCCESS] All required GitHub secrets are configured!")

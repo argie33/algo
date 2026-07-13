@@ -149,6 +149,8 @@ paper_mode_reports/
 *.tfstate.backup
 *.tfstate.*.backup
 **/.terraform.local/
+terraform/terraform.tfvars
+terraform/terraform.local.tfvars
 terraform.tfvars.local
 override.tf
 override.tf.json

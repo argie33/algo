@@ -3,10 +3,18 @@
 if __name__ == "__main__":
     import sys
     import os
+    from pathlib import Path
 
-    # Ensure we import the dashboard package, not this script
-    sys.path.insert(0, os.path.dirname(__file__))
+    # Ensure we import the dashboard package from current directory
+    # Prevents Python from loading ./dashboard.py instead of ./dashboard/dashboard.py
+    root_dir = str(Path(__file__).parent)
+    if root_dir not in sys.path:
+        sys.path.insert(0, root_dir)
 
-    # Import and run
-    from dashboard.dashboard import main
-    main()
+    try:
+        from dashboard.dashboard import main
+        main()
+    except ImportError as e:
+        print(f"ERROR: Failed to import dashboard module: {e}")
+        print(f"Make sure you're running from the repo root: python dashboard.py")
+        sys.exit(1)

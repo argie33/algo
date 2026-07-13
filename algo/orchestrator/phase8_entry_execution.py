@@ -610,9 +610,9 @@ def run(
     alpaca_secret = None
     execution_mode = config.get("execution_mode", "paper")
 
-    from config.credential_manager import get_credential_manager
-
     try:
+        from config.credential_manager import get_credential_manager
+
         creds = get_credential_manager().get_alpaca_credentials()
         if creds and creds.get("key") and creds.get("secret"):
             alpaca_key = creds["key"]
@@ -624,22 +624,25 @@ def run(
                 "[PHASE 8 CRITICAL] Alpaca credentials object is missing key/secret fields. "
                 "Credential manager returned invalid data."
             )
-    except (RuntimeError, ValueError) as e:
-        # FAIL HARD: Credentials missing or invalid, and we have trades to execute
-        error_msg = (
-            f"[PHASE 8 CRITICAL] Alpaca credentials not available: {e}\n"
-            f"Cannot execute {len(qualified_trades)} qualified trades without credentials.\n"
-            f"\nTO FIX:\n"
-            f"1. LOCAL DEV: Run: source scripts/setup_local_alpaca_credentials.sh\n"
-            f"2. AWS DEPLOYMENT: Set GitHub Secrets:\n"
-            f"   - ALPACA_API_KEY_ID (e.g., PK_PAPER_xxxxx)\n"
-            f"   - ALPACA_API_SECRET_KEY\n"
-            f"   See: https://github.com/argie33/algo/settings/secrets/actions\n"
-            f"3. Then run: terraform apply (or push to main for GitHub Actions)"
-        )
-        logger.critical(error_msg)
-        log_phase_result_fn(8, "entry_execution", "halt", error_msg)
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+    except (RuntimeError, ValueError, KeyError, ImportError) as e:
+        # Only fail if we have trades to execute; paper mode can skip if no credentials
+        if len(qualified_trades) > 0:
+            error_msg = (
+                f"[PHASE 8 CRITICAL] Alpaca credentials not available: {e}\n"
+                f"Cannot execute {len(qualified_trades)} qualified trades without credentials.\n"
+                f"\nTO FIX:\n"
+                f"1. LOCAL DEV: Run: source scripts/setup_local_alpaca_credentials.sh\n"
+                f"2. AWS DEPLOYMENT: Set GitHub Secrets:\n"
+                f"   - ALPACA_API_KEY_ID (e.g., PK_PAPER_xxxxx)\n"
+                f"   - ALPACA_API_SECRET_KEY\n"
+                f"   See: https://github.com/argie33/algo/settings/secrets/actions\n"
+                f"3. Then run: terraform apply (or push to main for GitHub Actions)"
+            )
+            logger.critical(error_msg)
+            log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+            return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+        else:
+            logger.warning(f"[PHASE 8] No trades queued, skipping credential check: {e}")
 
     pretrade = PreTradeChecks(
         config=config,
