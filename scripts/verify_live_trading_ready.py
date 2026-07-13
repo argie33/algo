@@ -103,7 +103,7 @@ print(f"Passed: {checks_passed}/{checks_total}")
 if checks_passed == checks_total:
     print("\n[READY] SYSTEM READY FOR LIVE PAPER TRADING")
     print("\nTo start trading:")
-    print("  1. Terminal 1: python3 api-pkg/dev_server.py")
+    print("  1. Terminal 1: python3 lambda/api/dev_server.py")
     print("  2. Terminal 2: python3 dashboard/dashboard.py --local -w 30")
     print("  3. AWS: Orchestrator will run at scheduled times (9:30 AM, 1 PM ET)")
     sys.exit(0)

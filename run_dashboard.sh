@@ -4,7 +4,7 @@
 set -e
 
 echo "[1] Starting dev server..."
-python3 api-pkg/dev_server.py &
+python3 lambda/api/dev_server.py &
 DEV_SERVER_PID=$!
 
 # Wait for dev server to be ready

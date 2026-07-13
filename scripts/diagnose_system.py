@@ -86,7 +86,7 @@ def check_dev_server():
     try:
         # Start dev server in background
         proc = subprocess.Popen(
-            [sys.executable, "api-pkg/dev_server.py"],
+            [sys.executable, "lambda/api/dev_server.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=str(_repo_root)
@@ -140,7 +140,7 @@ def check_fetchers():
         # Start dev server
         print("\nStarting dev server...")
         proc = subprocess.Popen(
-            [sys.executable, "api-pkg/dev_server.py"],
+            [sys.executable, "lambda/api/dev_server.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             cwd=str(_repo_root)
@@ -218,7 +218,7 @@ def main():
     if all_pass:
         print("\n[OK] All checks passed! System is ready.")
         print("\nTO USE DASHBOARD:")
-        print("  1. Run: python api-pkg/dev_server.py")
+        print("  1. Run: python lambda/api/dev_server.py")
         print("  2. In another terminal: python -m dashboard")
         print("     (Dashboard auto-detects localhost:3001 - no --local flag needed)")
     else:

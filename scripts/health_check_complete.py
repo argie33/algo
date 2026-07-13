@@ -100,7 +100,7 @@ def check_dev_server() -> dict:
             return {
                 'status': 'ERROR',
                 'port': 3001,
-                'message': 'Dev server not running. Start it with: python3 api-pkg/dev_server.py'
+                'message': 'Dev server not running. Start it with: python3 lambda/api/dev_server.py'
             }
     except Exception as e:
         return {'status': 'ERROR', 'error': str(e)}

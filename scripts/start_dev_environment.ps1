@@ -24,7 +24,7 @@ if (-not $devServerRunning) {
 
     $processInfo = New-Object System.Diagnostics.ProcessStartInfo
     $processInfo.FileName = "python3"
-    $processInfo.Arguments = "api-pkg/dev_server.py"
+    $processInfo.Arguments = "lambda/api/dev_server.py"
     $processInfo.UseShellExecute = $false
     $processInfo.RedirectStandardOutput = $false
     $processInfo.RedirectStandardError = $false

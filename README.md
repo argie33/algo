@@ -8,7 +8,7 @@ Production-ready algorithmic trading system with Alpaca paper trading, event-dri
 
 ```bash
 # Terminal 1: Start API server
-python3 api-pkg/dev_server.py
+python3 lambda/api/dev_server.py
 
 # Terminal 2: Start dashboard (in another terminal)
 python3 -m dashboard --local -w 30
@@ -71,7 +71,7 @@ This starts both dev server and dashboard automatically.
 **Solution:**
 1. Make sure dev server is running in another terminal:
    ```bash
-   python3 api-pkg/dev_server.py
+   python3 lambda/api/dev_server.py
    ```
 
 2. Always use `--local` flag when developing:

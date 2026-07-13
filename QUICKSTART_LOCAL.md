@@ -3,7 +3,7 @@
 **TL;DR:**
 ```bash
 # Terminal 1: Start API dev server
-python3 api-pkg/dev_server.py
+python3 lambda/api/dev_server.py
 
 # Terminal 2: Start dashboard (watch mode, auto-refreshes every 30s)
 python3 -m dashboard --local -w 30
@@ -29,7 +29,7 @@ Check: `python scripts/diagnose_system.py` (tells you if everything is set up)
 
 **Terminal 1 - Start the API dev server:**
 ```bash
-python3 api-pkg/dev_server.py
+python3 lambda/api/dev_server.py
 ```
 
 You'll see:
@@ -106,7 +106,7 @@ For local development, use `--local` to connect to `http://localhost:3001` inste
 
 **Fix:** Make sure you started the dev server in another terminal:
 ```bash
-python3 api-pkg/dev_server.py
+python3 lambda/api/dev_server.py
 ```
 
 ### Dashboard shows blank panels or errors
@@ -119,7 +119,7 @@ python scripts/diagnose_system.py
 If diagnostics pass but dashboard shows errors:
 1. Kill all python processes: `pkill -9 python`
 2. Start fresh: 
-   - Terminal 1: `python3 api-pkg/dev_server.py`
+   - Terminal 1: `python3 lambda/api/dev_server.py`
    - Terminal 2: `python3 -m dashboard --local`
 
 ### "PostgreSQL connection refused"
@@ -170,7 +170,7 @@ curl -H "Authorization: Bearer dev-admin" \
 
 ## Next Steps
 
-- **View code:** See `api-pkg/routes/` for API handlers
+- **View code:** See `lambda/api/routes/` for API handlers
 - **Run tests:** `make test`
 - **Check types:** `make type-check`
 - **Deploy to AWS:** Push to main, GitHub Actions handles deployment automatically

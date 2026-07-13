@@ -13,7 +13,7 @@ IMPORTANT: For local development, ALWAYS use --local flag!
 Without it, dashboard tries to connect to AWS Lambda which requires Cognito authentication.
 
 Modes:
-  Local: Run local dev server first (python api-pkg/dev_server.py), then use --local flag
+  Local: Run local dev server first (python lambda/api/dev_server.py), then use --local flag
   AWS (default): Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID env vars
 """
 
@@ -644,7 +644,7 @@ def _setup_local_api() -> str:
                 CONSOLE.print("\n[bold red]✗ FATAL: Dev server not running on localhost:3001[/]")
                 CONSOLE.print("[yellow]The dashboard REQUIRES dev_server to be running in another terminal[/]\n")
                 CONSOLE.print("[bold cyan]STEP 1: Start the API server (in a NEW terminal):[/]")
-                CONSOLE.print("  [bright_black]$[/] python3 api-pkg/dev_server.py\n")
+                CONSOLE.print("  [bright_black]$[/] python3 lambda/api/dev_server.py\n")
                 CONSOLE.print("[bold cyan]STEP 2: Wait for this message:[/]")
                 CONSOLE.print("  [bright_green][INFO] Starting API dev server on http://localhost:3001[/]\n")
                 CONSOLE.print("[bold cyan]STEP 3: Start dashboard (in this terminal):[/]")

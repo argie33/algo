@@ -13,7 +13,7 @@ if curl -s http://localhost:3001/api/algo/portfolio -H "Authorization: Bearer de
     echo "Dev server already running on port 3001"
 else
     echo "Starting dev server on port 3001..."
-    python3 api-pkg/dev_server.py &
+    python3 lambda/api/dev_server.py &
     DEV_SERVER_PID=$!
     sleep 3
     echo "Dev server started (PID: $DEV_SERVER_PID)"

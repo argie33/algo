@@ -15,7 +15,7 @@ You are running the dashboard **WITHOUT the `--local` flag** when trying to conn
 **For Local Development:**
 ```bash
 # Terminal 1: Start the API dev server
-python3 api-pkg/dev_server.py
+python3 lambda/api/dev_server.py
 
 # Terminal 2: Start dashboard with --local flag (MUST USE --local)
 python3 -m dashboard --local
@@ -57,7 +57,7 @@ Expected output:
 
 ### Scenario 1: Dashboard loading hangs
 **Cause:** dev_server not running  
-**Fix:** Start dev_server first in Terminal 1: `python3 api-pkg/dev_server.py`
+**Fix:** Start dev_server first in Terminal 1: `python3 lambda/api/dev_server.py`
 
 ### Scenario 2: Positions show as empty
 **Cause:** No live positions open  
@@ -82,7 +82,7 @@ Dashboard showing "Data not available"?
   │  └─ Yes → Continue...
   │
   ├─ dev_server running?
-  │  ├─ No → Start: python3 api-pkg/dev_server.py
+  │  ├─ No → Start: python3 lambda/api/dev_server.py
   │  └─ Yes → Continue...
   │
   ├─ Health check passing?

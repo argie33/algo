@@ -40,10 +40,10 @@ def start_dev_server() -> subprocess.Popen:
         return None
 
     print("[STARTUP] Dev server not responding. Starting it now...", flush=True)
-    print("[STARTUP]   Running: python3 api-pkg/dev_server.py", flush=True)
+    print("[STARTUP]   Running: python3 lambda/api/dev_server.py", flush=True)
 
     repo_root = Path(__file__).parent
-    dev_server_path = repo_root / "api-pkg" / "dev_server.py"
+    dev_server_path = repo_root / "lambda" / "api" / "dev_server.py"
 
     if not dev_server_path.exists():
         raise FileNotFoundError(f"dev_server.py not found at {dev_server_path}")

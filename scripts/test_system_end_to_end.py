@@ -17,7 +17,7 @@ def test_dev_server():
 
     # Start dev server
     proc = subprocess.Popen(
-        ['python3', 'api-pkg/dev_server.py'],
+        ['python3', 'lambda/api/dev_server.py'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -125,7 +125,7 @@ def test_dashboard_fetchers():
 
     # Start dev server first
     proc = subprocess.Popen(
-        ['python3', 'api-pkg/dev_server.py'],
+        ['python3', 'lambda/api/dev_server.py'],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )

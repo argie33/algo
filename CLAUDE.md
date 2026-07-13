@@ -58,7 +58,7 @@ This handles everything automatically:
 
 ```bash
 # Terminal 1: Run backend API
-python api-pkg/dev_server.py
+python lambda/api/dev_server.py
 # Wait for: [INFO] Starting API dev server on http://localhost:3001
 
 # Terminal 2: Run dashboard (auto-detects localhost)
@@ -128,9 +128,9 @@ WHERE started_at > NOW() - INTERVAL '1 hour';
 | Issue | Root Cause | Fix |
 |-------|-----------|-----|
 | **Dashboard: "Data not available" on all panels** | Dashboard running WITHOUT `--local` flag, trying AWS Lambda | Use: `python3 -m dashboard --local` (requires Terminal 1: dev_server running) |
-| **Dashboard: "Data not available" on all panels (v2)** | dev_server not running when dashboard starts | Start Terminal 1: `python3 api-pkg/dev_server.py` FIRST, wait for "running on http://localhost:3001", THEN start Terminal 2: dashboard |
+| **Dashboard: "Data not available" on all panels (v2)** | dev_server not running when dashboard starts | Start Terminal 1: `python3 lambda/api/dev_server.py` FIRST, wait for "running on http://localhost:3001", THEN start Terminal 2: dashboard |
 | **AWS Mode: Lambda 503 "Service Unavailable"** | VPC cold-start (15-40s) exceeds API Gateway 29s timeout | See `steering/AWS_LAMBDA_503_FIX.md` - enable provisioned concurrency (5 units) to keep Lambda warm |
-| **Dev server "Connection refused"** | dev_server not listening on localhost:3001 | Check Terminal 1 is running: `python3 api-pkg/dev_server.py` and wait for startup message |
+| **Dev server "Connection refused"** | dev_server not listening on localhost:3001 | Check Terminal 1 is running: `python3 lambda/api/dev_server.py` and wait for startup message |
 | **PostgreSQL "connection refused"** | Database not running or wrong credentials | Verify: `python3 -c "import psycopg2; psycopg2.connect('dbname=stocks user=stocks host=localhost')"` |
 | **Code fails pre-commit hooks** | Type errors or formatting issues | Run: `make format && make type-check` |
 | **Orchestrator not executing** | Step Functions not triggered or EventBridge broken | Check: `aws stepfunctions describe-execution` + EventBridge Scheduler logs |

@@ -16,7 +16,7 @@
 **Quick Fix (Local Development):**
 ```bash
 # Terminal 1: Start API dev server
-python3 api-pkg/dev_server.py
+python3 lambda/api/dev_server.py
 
 # Terminal 2: Start dashboard WITH --local flag (REQUIRED)
 python3 -m dashboard --local -w 30

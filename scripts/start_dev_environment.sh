@@ -14,7 +14,7 @@ if netstat -an 2>/dev/null | grep -q "3001.*LISTENING"; then
     DEV_SERVER_RUNNING=true
 else
     echo "[INFO] Starting dev_server on port 3001..."
-    python3 api-pkg/dev_server.py &
+    python3 lambda/api/dev_server.py &
     DEV_SERVER_PID=$!
     echo "[OK] Dev server started (PID: $DEV_SERVER_PID)"
     sleep 3
