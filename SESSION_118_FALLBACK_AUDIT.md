@@ -145,25 +145,31 @@ Identify and eliminate ALL silent fallback patterns in financial app where expli
 
 ## Fix Strategy (Priority Order)
 
-**Phase A (TODAY)**: Orchestrator systemic fixes
-- [ ] orchestrator.py:162 - Remove alpaca_paper_trading fallback
-- [ ] orchestrator.py:204-210 - Remove credential fallback
-- [ ] orchestrator.py:1348 - Remove results dict fallback
-- [ ] phase1/8 - Make all returns explicit PhaseResult
+**Phase A (TODAY)**: Orchestrator systemic fixes - ✅ COMPLETE
+- [x] orchestrator.py:162 - Remove alpaca_paper_trading fallback
+- [x] orchestrator.py:204-210 - Remove credential fallback (raise on auth failure)
+- [x] orchestrator.py:1357 - Remove results dict fallback (raise on missing)
+- [x] buy_signal_generator.py - Fix truthy checks (use `is None`)
+- [x] position_sizer.py - Remove Alpaca exception swallowing (raise instead)
+- [x] phase7_signal_generation.py - Remove neutral 50.0 risk score default
+- [x] portfolio_manager.py - Make paper mode fallback explicit (with better logging)
+- [x] fetchers_portfolio.py - Replace truthy check with `is None`
 
-**Phase B (TOMORROW)**: Trading paths
-- [ ] order_manager - Verify all status checks
-- [ ] exit_engine - Guard all config .get() calls
-- [ ] exit_strategies - Guard decision extraction
-- [ ] executor - Guard order_status access
+**Phase B (IMMEDIATE)**: High priority fixes - ✅ COMPLETE
+- [x] reconciliation.py - Remove hardcoded initial_capital default
+- [x] fetchers_signals.py - Upgrade timeout handling (explicit unavailability)
+- [x] load_economic_data.py - Require FRED API key (raise instead of empty string)
 
-**Phase C (DAY 3)**: Notifications & reporting
+**Phase C (NEXT)**: Remaining fallback patterns
+- [ ] order_manager - Verify all status checks (some already correct)
+- [ ] exit_engine - Verify config .get() calls
+- [ ] exit_strategies - Verify decision extraction
+- [ ] executor - Verify order_status access
+
+**Phase D (FINAL)**: Notifications & dashboard
 - [ ] notifications.py - Guard all price/status extraction
 - [ ] daily_report.py - Guard report extraction
-
-**Phase D (DAY 4)**: Dashboard
-- [ ] Convert 25 silent return patterns
-- [ ] Use explicit data_unavailable markers
+- [ ] Dashboard files - Convert 25 silent return patterns
 
 ## Testing Strategy
 
