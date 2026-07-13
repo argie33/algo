@@ -189,8 +189,12 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                     # transient failure aborting the entire Lambda cold start.
                     logger.warning("[STARTUP] Connection lost during rollback - reconnecting")
                     conn = psycopg2.connect(
-                        host=db_host, port=int(db_port), database=db_name, user=db_user,
-                        password=db_password, sslmode=sslmode,
+                        host=db_host,
+                        port=int(db_port),
+                        database=db_name,
+                        user=db_user,
+                        password=db_password,
+                        sslmode=sslmode,
                     )
                     cur = conn.cursor()
 
@@ -285,8 +289,12 @@ def _apply_critical_migrations() -> tuple[bool, str]:
                 except Exception:
                     logger.warning("[STARTUP] Connection lost during rollback - reconnecting")
                     conn = psycopg2.connect(
-                        host=db_host, port=int(db_port), database=db_name, user=db_user,
-                        password=db_password, sslmode=sslmode,
+                        host=db_host,
+                        port=int(db_port),
+                        database=db_name,
+                        user=db_user,
+                        password=db_password,
+                        sslmode=sslmode,
                     )
                     cur = conn.cursor()
 

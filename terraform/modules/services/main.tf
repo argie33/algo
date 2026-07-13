@@ -265,11 +265,28 @@ resource "null_resource" "api_concurrency_propagation_delay" {
   }
 
   provisioner "local-exec" {
-    # 15s was confirmed insufficient today: reserved_concurrent_executions read back
-    # as 50 (correct, comfortably above the 5 requested) immediately after a 15s-gated
-    # apply that still failed with the same "greater than reservedConcurrentExecution"
-    # error. Bumped to 60s for margin against AWS control-plane propagation lag.
-    command = "sleep 60"
+    # A fixed sleep (15s, then 60s) was tried and confirmed insufficient more than once:
+    # PutProvisionedConcurrencyConfig failed with "greater than reservedConcurrentExecution"
+    # even after the delay, because the propagation lag isn't constant -- it's worse when
+    # another concurrent process (e.g. a parallel terraform apply, of which this repo
+    # regularly has more than one running) is also mutating the same function's concurrency
+    # around the same time. Poll the actual read-back value instead of guessing a duration:
+    # wait until AWS confirms ReservedConcurrentExecutions matches what we just set (up to
+    # 90s), then proceed immediately rather than always paying a fixed worst-case delay.
+    command = <<-EOT
+      for i in $(seq 1 18); do
+        actual=$(aws lambda get-function-concurrency \
+          --function-name ${aws_lambda_function.api.function_name} \
+          --region ${var.aws_region} \
+          --query 'ReservedConcurrentExecutions' --output text 2>/dev/null || echo "")
+        if [ "$actual" = "${var.api_lambda_reserved_concurrency}" ]; then
+          echo "Reserved concurrency propagated ($actual) after $((i * 5 - 5))s"
+          exit 0
+        fi
+        sleep 5
+      done
+      echo "WARNING: reserved concurrency did not read back as ${var.api_lambda_reserved_concurrency} within 90s (last seen: $actual) - proceeding anyway"
+    EOT
   }
 
   depends_on = [aws_lambda_function.api]
@@ -909,11 +926,23 @@ resource "null_resource" "algo_concurrency_propagation_delay" {
   }
 
   provisioner "local-exec" {
-    # 15s was confirmed insufficient today: reserved_concurrent_executions read back
-    # as 50 (correct, comfortably above the 5 requested) immediately after a 15s-gated
-    # apply that still failed with the same "greater than reservedConcurrentExecution"
-    # error. Bumped to 60s for margin against AWS control-plane propagation lag.
-    command = "sleep 60"
+    # See api_concurrency_propagation_delay above -- same fix, same reasoning: poll the
+    # actual read-back value instead of a fixed sleep, since propagation lag isn't constant
+    # (worse when a concurrent apply is also mutating this function's concurrency).
+    command = <<-EOT
+      for i in $(seq 1 18); do
+        actual=$(aws lambda get-function-concurrency \
+          --function-name ${aws_lambda_function.algo.function_name} \
+          --region ${var.aws_region} \
+          --query 'ReservedConcurrentExecutions' --output text 2>/dev/null || echo "")
+        if [ "$actual" = "${max(var.algo_lambda_reserved_concurrency, var.algo_lambda_provisioned_concurrency)}" ]; then
+          echo "Reserved concurrency propagated ($actual) after $((i * 5 - 5))s"
+          exit 0
+        fi
+        sleep 5
+      done
+      echo "WARNING: reserved concurrency did not read back as ${max(var.algo_lambda_reserved_concurrency, var.algo_lambda_provisioned_concurrency)} within 90s (last seen: $actual) - proceeding anyway"
+    EOT
   }
 
   depends_on = [aws_lambda_function.algo]

@@ -1453,9 +1453,7 @@ class PriceLoader(OptimalLoader):
             # weakening the fail-closed guarantee: if a batch fails twice, it's still
             # fatal.
             still_failed: list[tuple[list[str], str]] = []
-            logger.warning(
-                f"[BATCH_RETRY] {len(failed_batches)} batch(es) failed, retrying once before giving up"
-            )
+            logger.warning(f"[BATCH_RETRY] {len(failed_batches)} batch(es) failed, retrying once before giving up")
             for batch, first_err in failed_batches:
                 try:
                     self._load_batch(batch)
