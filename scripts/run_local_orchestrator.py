@@ -98,12 +98,22 @@ def main() -> None:
             )
             result = orchestrator_instance.run()
 
-            if result and result.get("overall_status") == "success":
+            # run() returns {success, halted, skipped, reason, phases, run_date} - there is no
+            # "overall_status" key (that's a separate local variable inside run(), only used for
+            # the DB execution log). Checking for it here always evaluated to None == "success",
+            # so this printed "FAILED or HALTED" on every run regardless of actual outcome.
+            # Check "halted" before "success": a run can halt (e.g. circuit breakers) without any
+            # phase erroring, so success=True and halted=True can both be set simultaneously -
+            # halted is the more specific, more important state to surface.
+            if result and result.get("halted"):
+                print(f"  Status: HALTED")
+                print(f"  Reason: {result.get('reason')}")
+            elif result and result.get("success"):
                 print(f"  Status: OK - COMPLETED")
             else:
-                print(f"  Status: FAILED or HALTED")
+                print(f"  Status: FAILED")
                 if result:
-                    print(f"  Details: {result.get('overall_status')}")
+                    print(f"  Details: {result}")
 
         except Exception as e:
             print(f"  Error: {type(e).__name__}: {e}")
