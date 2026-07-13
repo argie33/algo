@@ -1565,14 +1565,34 @@ class PriceLoader(OptimalLoader):
 
         current_batch_size = self.fetcher.get_current_batch_size()
         circuit_break_threshold_sec = self._rate_limit_circuit_break_threshold
-        if current_batch_size < 100 and elapsed_sec > circuit_break_threshold_sec:
+        batch_size_shrunk = current_batch_size < 100 and elapsed_sec > circuit_break_threshold_sec
+        projected_total_sec = (elapsed_sec / completion_pct) if completion_pct > 0 else 0
+
+        # CRITICAL: A shrunk batch size alone doesn't mean the run will miss its deadline -
+        # e.g. 25% done in 8min at batch_size=20 projects to ~32min total, comfortably
+        # inside a 180min (task_timeout_sec) budget. This mirrors the ETA-vs-timeout check
+        # above (total_estimated_sec > task_timeout_sec) as the actual "will miss deadline"
+        # gate, instead of treating batch_size < 100 - AWS's own conservative starting
+        # point (see __init__) - as an automatic halt trigger regardless of pace.
+        will_miss_deadline = batch_size_shrunk and projected_total_sec > task_timeout_sec
+
+        if batch_size_shrunk and not will_miss_deadline:
             pipeline_context = "EOD (85-min window)" if self._is_eod_pipeline else "Morning prep (450-min window)"
-            projected_total_sec = (elapsed_sec / completion_pct) if completion_pct > 0 else 0
+            logger.warning(
+                f"[CIRCUIT_BREAKER] {pipeline_context}: batch size shrunk to {current_batch_size} "
+                f"after {elapsed_sec / 60:.0f}min ({completion_pct * 100:.0f}% complete), but projected "
+                f"completion ({projected_total_sec / 60:.0f}min) is within the {task_timeout_sec / 60:.0f}min "
+                "budget - continuing at reduced batch size rather than halting."
+            )
+
+        if will_miss_deadline:
+            pipeline_context = "EOD (85-min window)" if self._is_eod_pipeline else "Morning prep (450-min window)"
             logger.critical(
                 f"[CIRCUIT_BREAKER] {pipeline_context}: Rate limit cascade detected! "
-                f"Batch size reduced to {current_batch_size} (from 150) after {elapsed_sec / 60:.0f}min. "
+                f"Batch size reduced to {current_batch_size} after {elapsed_sec / 60:.0f}min. "
                 f"Only {completion_pct * 100:.0f}% complete. "
-                f"Projected total execution: {projected_total_sec / 60:.0f}min (would exceed deadline). "
+                f"Projected total execution: {projected_total_sec / 60:.0f}min "
+                f"(exceeds {task_timeout_sec / 60:.0f}min deadline). "
                 "HALTING to trigger failsafe."
             )
             try:
@@ -1600,8 +1620,9 @@ class PriceLoader(OptimalLoader):
             # CRITICAL: Do not silently return with incomplete data
             # Fail fast to trigger Phase 1 failsafe instead of allowing corrupted/incomplete load
             error_msg = (
-                f"[CIRCUIT_BREAKER] Rate limit cascade detected - batch reduced from 150 to {current_batch_size} "
-                f"after {elapsed_sec / 60:.0f}min with only {completion_pct * 100:.0f}% of symbols loaded. "
+                f"[CIRCUIT_BREAKER] Rate limit cascade detected - batch reduced to {current_batch_size} "
+                f"after {elapsed_sec / 60:.0f}min with only {completion_pct * 100:.0f}% of symbols loaded, "
+                f"projected to exceed the {task_timeout_sec / 60:.0f}min deadline. "
                 f"Cannot proceed with incomplete price data ({processed}/{total_symbols} symbols). "
                 f"yfinance API severely degraded. Halting to maintain data integrity."
             )
