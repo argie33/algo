@@ -17,7 +17,13 @@ import subprocess
 import sys
 import json
 import datetime
+import os
 from typing import List, Tuple
+
+# Fix Windows encoding
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # Configuration
 REQUIRED_SECRETS = [

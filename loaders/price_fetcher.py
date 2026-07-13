@@ -559,8 +559,11 @@ class PriceFetcher:
             time.sleep(wait_time)
             return self._fetch_with_fallback(symbols, start, end, batch_size, attempt + 1, max_attempts, elapsed_sec)
 
-        # Reduce batch size and retry
-        new_batch_size = max(1, batch_size // 2)
+        # Reduce batch size intelligently: stop at batch_size=50 minimum and use longer waits instead
+        # This prevents catastrophic slowdown (batch=1 takes 7.5+ hours for 11K symbols)
+        # by keeping batch_size reasonable while waiting longer between requests
+        min_batch_size = 50  # Never go below 50 symbols per batch
+        new_batch_size = max(min_batch_size, batch_size // 2)
         if self._rate_limit_error_start_time is None:
             raise RuntimeError(
                 "[PRICE_FETCHER] Batch size reduction retry called but error_start_time not set. "
@@ -569,7 +572,9 @@ class PriceFetcher:
         error_duration = time.time() - self._rate_limit_error_start_time
         total_elapsed = elapsed_sec + error_duration
 
-        base_wait = min(60, (2**attempt) * 2)
+        # Increase wait time for rate limiting: use exponential backoff with longer base wait
+        # This gives yfinance time to recover without making batches too small
+        base_wait = min(120, (2**attempt) * 5)  # Increased from min(60, (2**attempt) * 2)
         jitter = random.uniform(0.8, 1.2)
         wait_time = base_wait * jitter
 

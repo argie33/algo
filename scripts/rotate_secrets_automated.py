@@ -25,6 +25,11 @@ import datetime
 from typing import Any, Dict, List, Optional, Tuple
 import logging
 
+# Fix Windows encoding
+if sys.platform == 'win32':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,

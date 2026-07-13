@@ -83,11 +83,13 @@ class Orchestrator:
         env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
         if env_execution_mode:
             logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var set: {env_execution_mode}")
-            self.config.override("execution_mode", env_execution_mode)
+            self.execution_mode = env_execution_mode
         else:
-            configured_mode = self.config.get("execution_mode", "paper")
+            # OrchestratorConfig doesn't have get() method - it's static class attributes
+            # Default to paper trading for local/test environments
+            self.execution_mode = "paper"
             logger.info(
-                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, using configured mode: {configured_mode}"
+                f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, defaulting to: {self.execution_mode}"
             )
 
         # Explicitly default run_date to today if not provided

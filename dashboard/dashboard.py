@@ -632,6 +632,7 @@ def _setup_local_api() -> str:
     set_api_url(local_url)
     # Clear Cognito auth for local dev mode so dashboard injects dev-admin token
     set_cognito_auth(None)
+    logger.info("[DASHBOARD] LOCAL MODE: Using localhost:3001 dev server")
     return "LOCAL"
 
 
