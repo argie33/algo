@@ -447,6 +447,28 @@ def run(  # noqa: C901
                     log_phase_error,
                 )
 
+                # DIAGNOSTIC (temporary, session 130): this halt has fired with an
+                # identical symbols_loaded count across many consecutive runs despite
+                # price_daily loader tasks actively committing writes in the same
+                # window (confirmed via their own CloudWatch logs) -- couldn't be
+                # explained without seeing the real per-date distribution, and this
+                # session had no direct SQL access to the production DB. Log it here
+                # so the next halt makes the mechanism visible without needing that
+                # access. Safe to remove once the underlying cause is confirmed.
+                try:
+                    cur.execute(
+                        "SELECT date, COUNT(DISTINCT symbol) FROM price_daily "
+                        "WHERE date >= %s GROUP BY date ORDER BY date DESC LIMIT 7",
+                        (max_date - td(days=7),),
+                    )
+                    diag_rows = cur.fetchall()
+                    logger.critical(
+                        f"[PHASE 1 DIAGNOSTIC] max_date={max_date} recent_cutoff={recent_cutoff} "
+                        f"per-date distribution (last 7 days with data): {list(diag_rows)}"
+                    )
+                except Exception as diag_err:
+                    logger.warning(f"[PHASE 1 DIAGNOSTIC] failed to gather date distribution: {diag_err}")
+
                 fail_reason = (
                     f"symbols {symbols_loaded} < min {min_symbol_count}"
                     if symbols_loaded < min_symbol_count
