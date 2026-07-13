@@ -48,9 +48,22 @@ python3 -m dashboard --local -w 30
 - ❌ Did you run dashboard before dev_server was ready? (restart dashboard after dev_server prints "running")
 - ❌ Is dev_server still running in Terminal 1? (check the window, it must stay open)
 
-**Diagnostic command:**
+**Diagnostic commands:**
 ```bash
+# Comprehensive dashboard setup check (recommended if data not loading)
+python3 scripts/diagnose_dashboard.py
+
+# System-wide diagnostic
 python3 scripts/diagnose_system.py
+```
+
+**Expected output from diagnose_dashboard.py:**
+```
+[OK] Dev Server: Dev server is running on localhost:3001
+[OK] Database: Database connected (8,600,000+ price records)
+[OK] API Endpoints: API responding with data (200 OK)
+[OK] Dashboard Module: Dashboard module can be imported
+[!] LOCAL_MODE env var: (OK if you're using --local flag)
 ```
 
 ## System Status
