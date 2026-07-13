@@ -376,7 +376,8 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
         # Build result dict with explicit error handling for field conversions
         try:
             exposure_pct = safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct", strict=True)
-            raw_score = safe_float(current.get("raw_score"), field_name="exposure.raw_score", strict=True)
+            # raw_score is optional — may be None from API, use default 0.0 in that case
+            raw_score = safe_float(current.get("raw_score"), default=0.0, field_name="exposure.raw_score", strict=False)
         except Exception as e:
             error_msg = f"Exposure metrics conversion failed: {type(e).__name__}: {e}"
             logger.error(f"[EXPOSURE DATA QUALITY] {error_msg}")
