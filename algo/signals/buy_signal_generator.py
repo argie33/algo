@@ -22,6 +22,8 @@ class BuySignalGenerator:
     """Generates buy/sell signals from technical indicator data using swing pivot detection."""
 
     def __init__(self) -> None:
+        """Initialize signal generator."""
+        pass
 
     def run(self, symbol: str, rows: list[dict[str, Any]], tech_data_age: int | None = None) -> list[dict[str, Any]]:
         """Generate buy/sell signals from technical indicator data.
