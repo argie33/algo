@@ -174,7 +174,6 @@ class Orchestrator:
                     if (not api_key or not api_secret) and os.getenv("LOCAL_MODE") == "true":
                         logger.info("[LOCAL_MODE] Checking algo_config for Alpaca credentials...")
                         try:
-                            from utils.db.context import DatabaseContext
                             with DatabaseContext("read") as cur:
                                 cur.execute('SELECT value FROM algo_config WHERE key = %s', ['alpaca_api_key'])
                                 result = cur.fetchone()
