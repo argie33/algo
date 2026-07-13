@@ -114,6 +114,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     # Check if symbol is halted
                     if halt_check.get("halted"):
                         halts_found.append(symbol)
+                        meh.handle_single_stock_halt(symbol)
                         if verbose:
                             logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
                 except Exception as halt_exc:
