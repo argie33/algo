@@ -422,7 +422,11 @@ locals {
     # FIXED (2026-07-12): Reduced from 4096 to 1024 (actual peak ~300MB, 3-4x headroom sufficient)
     # FIXED (2026-07-13): memory=1024 is not a valid Fargate combo for cpu=1024 (min is 2048) -
     # ECS RegisterTaskDefinition rejected this outright, blocking every terraform apply.
-    "technical_data_daily"  = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 1 }
+    # FIXED (2026-07-13, later): the "~300MB peak" estimate assumed normal single-day
+    # incremental runs. After the multi-day price-loader stall (stock_prices_daily lock
+    # bug), this task had a multi-day backlog to recompute in one run and was OOM-killed
+    # (exit 137) twice in a row at 2048MB. Bumped to 4096MB for backlog-catch-up headroom.
+    "technical_data_daily"  = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
     "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~10-30s, 2x headroom)
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
