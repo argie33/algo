@@ -290,13 +290,13 @@ class OptimalLoader:
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         lock_manager = None
         try:
-            from utils.db.dynamo_lock import DynamoDBLockManager
+            from utils.db.local_file_lock import get_lock_manager
 
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
-            lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
+            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=1800)
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 logger.warning(f"[{self.table_name}] Skipping: another instance already running")
                 return self._stats.to_dict()
@@ -410,13 +410,13 @@ class OptimalLoader:
     def load_global(self) -> int:
         lock_manager = None
         try:
-            from utils.db.dynamo_lock import DynamoDBLockManager
+            from utils.db.local_file_lock import get_lock_manager
 
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
-            lock_manager = DynamoDBLockManager(table_name=lock_table, lock_duration_seconds=1800)
+            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=1800)
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 logger.warning(f"[{self.table_name}] Skipping global load: another instance running")
                 return 0

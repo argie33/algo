@@ -82,9 +82,15 @@ def main() -> None:
             print(f"  Run ID: {run_id}")
             print(f"  Mode: paper (local development)")
 
+            # Create config dict for orchestrator
+            config = {
+                "execution_mode": "paper",  # Always use paper trading for local dev
+                "max_runtime_seconds": 600,  # 10 minute timeout
+            }
+
             # Create and run orchestrator instance
             orchestrator_instance = Orchestrator(
-                config=OrchestratorConfig,
+                config=config,
                 run_id=run_id,
                 dry_run=False,
             )

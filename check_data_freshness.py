@@ -17,7 +17,7 @@ try:
     now = datetime.now()
 
     tables = [
-        ('price_daily', 'signal_date', 'Price data'),
+        ('price_daily', 'date', 'Price data'),
         ('technical_data_daily', 'date', 'Technical indicators'),
         ('market_health_daily', 'date', 'Market health'),
         ('stock_scores', 'updated_at', 'Stock scores'),
@@ -41,7 +41,16 @@ try:
             cur.close()
             conn.close()
             if latest:
-                age_hours = (now - latest).total_seconds() / 3600
+                # Handle both datetime and date objects
+                if hasattr(latest, 'time'):
+                    # datetime object
+                    age = now - latest
+                else:
+                    # date object - convert to datetime
+                    latest_dt = datetime.combine(latest, datetime.min.time())
+                    age = now - latest_dt
+
+                age_hours = age.total_seconds() / 3600
                 age_days = age_hours / 24
 
                 # Color code: green if <4h, yellow if <1d, red if >1d
