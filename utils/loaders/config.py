@@ -319,8 +319,10 @@ class LoaderConfigManager:
 
         # Check in-memory cache first
         cached = self._get_cache(loader_name)
+        dynamo_config_found = False
         if cached is not None:
             base_parallelism = cached["parallelism"]
+            dynamo_config_found = True
             logger.debug(f"Using cached parallelism for {loader_name}: {base_parallelism}")
         # Try DynamoDB if available
         elif self._check_dynamodb_available():
@@ -328,9 +330,16 @@ class LoaderConfigManager:
             if config is not None:
                 self._set_cache(loader_name, config)
                 base_parallelism = config["parallelism"]
+                dynamo_config_found = True
                 logger.debug(f"Loaded parallelism for {loader_name} from DynamoDB: {base_parallelism}")
-        # Fall back to environment variable
-        else:
+
+        # Fall back to environment variable whenever no cache/DynamoDB row was found for this
+        # loader specifically -- previously this branch only ran when DynamoDB was entirely
+        # unavailable, so an explicit per-loader env var (e.g. terraform's LOADER_PARALLELISM=1
+        # for stock_prices_daily, set to avoid yfinance rate-limit cascades) was silently
+        # ignored whenever DynamoDB was reachable but simply had no row for this loader --
+        # falling through to the constraint maximum instead of the operator-intended value.
+        if not dynamo_config_found:
             env_parallelism = os.getenv("LOADER_PARALLELISM", None)
             if env_parallelism is not None:
                 base_parallelism = int(env_parallelism)
