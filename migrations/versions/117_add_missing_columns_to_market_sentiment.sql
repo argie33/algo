@@ -20,18 +20,31 @@
 --   psycopg2.errors.UndefinedColumn: column "bullish_pct" does not exist
 -- and the loader itself has never successfully inserted a row on production.
 --
--- SOLUTION: Detect whether market_sentiment is a view (drop + recreate as a real
--- table) or a table (idempotently ALTER it) so this applies cleanly regardless of
--- which state a given environment is in.
+-- SOLUTION: Detect whether market_sentiment is a view/materialized view (drop +
+-- recreate as a real table) or a table (idempotently ALTER it) so this applies
+-- cleanly regardless of which state a given environment is in.
+--
+-- UPDATE (2026-07-13): First deploy of this migration STILL failed on production with
+-- '"market_sentiment" is not a table, composite type, or foreign table' -- because
+-- production's object is a MATERIALIZED view (relkind 'm'), not a plain view ('v'),
+-- so the original relkind='v' check fell through to the ALTER TABLE branch. Handle
+-- both relkinds explicitly.
 
 DO $$
+DECLARE
+    kind CHAR;
 BEGIN
-    IF EXISTS (
-        SELECT 1 FROM pg_class c
-        JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE c.relname = 'market_sentiment' AND n.nspname = 'public' AND c.relkind = 'v'
-    ) THEN
-        DROP VIEW market_sentiment CASCADE;
+    SELECT c.relkind INTO kind
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relname = 'market_sentiment' AND n.nspname = 'public';
+
+    IF kind IN ('v', 'm') THEN
+        IF kind = 'v' THEN
+            DROP VIEW market_sentiment CASCADE;
+        ELSE
+            DROP MATERIALIZED VIEW market_sentiment CASCADE;
+        END IF;
         CREATE TABLE market_sentiment (
             id SERIAL PRIMARY KEY,
             date DATE NOT NULL UNIQUE,
@@ -47,11 +60,28 @@ BEGIN
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
         CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
-    ELSE
+    ELSIF kind = 'r' THEN
         ALTER TABLE market_sentiment ADD COLUMN IF NOT EXISTS bullish_pct DECIMAL(8, 2);
         ALTER TABLE market_sentiment ADD COLUMN IF NOT EXISTS bearish_pct DECIMAL(8, 2);
         ALTER TABLE market_sentiment ADD COLUMN IF NOT EXISTS neutral_pct DECIMAL(8, 2);
         ALTER TABLE market_sentiment ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN NOT NULL DEFAULT FALSE;
         ALTER TABLE market_sentiment ADD COLUMN IF NOT EXISTS reason VARCHAR(200);
+    ELSE
+        -- Object absent entirely (fresh environment): create the canonical table.
+        CREATE TABLE market_sentiment (
+            id SERIAL PRIMARY KEY,
+            date DATE NOT NULL UNIQUE,
+            fear_greed_index DECIMAL(8, 4),
+            put_call_ratio DECIMAL(8, 4),
+            vix DECIMAL(8, 4),
+            sentiment_score DECIMAL(8, 4),
+            bullish_pct DECIMAL(8, 2),
+            bearish_pct DECIMAL(8, 2),
+            neutral_pct DECIMAL(8, 2),
+            data_unavailable BOOLEAN NOT NULL DEFAULT FALSE,
+            reason VARCHAR(200),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
     END IF;
 END $$;
