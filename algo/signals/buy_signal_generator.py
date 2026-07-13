@@ -192,12 +192,22 @@ class BuySignalGenerator:
 
         for j in range(max(0, i - 50), i):
             candidate = rows[j].get("high")
-            if not candidate:
+            # EXPLICIT CHECK: Use "is None" not "not" to distinguish 0 (valid price) from None (missing)
+            if candidate is None:
                 continue
 
             # Collect nearby bars (may have gaps)
-            lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high")]
-            lookforward_bars = [rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("high")]
+            # EXPLICIT CHECK: Only skip None values, not 0 (which is technically valid though rare)
+            lookback_bars = [
+                rows[k].get("high")
+                for k in range(max(0, j - 3), j)
+                if rows[k].get("high") is not None
+            ]
+            lookforward_bars = [
+                rows[k].get("high")
+                for k in range(j + 1, min(len(rows), j + 4))
+                if rows[k].get("high") is not None
+            ]
 
             # Lenient requirement: need at least 2 lookback and 2 lookforward bars (was requiring all)
             if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
