@@ -51,7 +51,7 @@ class PositionMonitor:
     def __init__(self, config: Any) -> None:
         self.config = config
 
-    def check_stale_orders(self, current_date: Any | None = None) -> dict[str, Any]:
+    def check_stale_orders(self, current_date: _date | None = None) -> dict[str, Any]:
         """Check for orders stuck in pending state >1 hour. Auto-cancel if >2 hours.
 
         Stuck orders = likely API issue or rejection. Orders >2 hours old are auto-cancelled
@@ -218,7 +218,7 @@ class PositionMonitor:
                     }
             return {"status": "OK", "count": 0}
 
-    def check_sector_concentration(self, current_date: Any | None = None) -> dict[str, Any]:
+    def check_sector_concentration(self, current_date: _date | None = None) -> dict[str, Any]:
         """Check if portfolio is overly concentrated in one sector.
 
         Alert if >3 positions in same sector (concentration risk).
@@ -254,7 +254,7 @@ class PositionMonitor:
                     f"Cannot proceed with position monitoring without valid concentration metrics."
                 ) from e
 
-    def review_positions(self, current_date: Any | None = None) -> list[dict[str, Any]]:
+    def review_positions(self, current_date: _date | None = None) -> list[dict[str, Any]]:
         """Review every open position. Returns list of recommendations."""
         if not current_date:
             current_date = _date.today()
@@ -939,7 +939,7 @@ class PositionMonitor:
         return "stable"
 
     def _max_unrealized_pct(
-        self, symbol: str, trade_date: Any, current_date: Any, entry_price: float, cur: Any
+        self, symbol: str, trade_date: _date, current_date: Any, entry_price: float, cur: Any
     ) -> float:
         """Highest closing price since entry, expressed as % gain."""
         if entry_price <= 0:
@@ -1036,7 +1036,7 @@ class PositionMonitor:
             )
         return int(row[0])
 
-    def _period_return(self, symbol: str, end_date: Any, lookback_days: int, cur: Any) -> float:
+    def _period_return(self, symbol: str, end_date: _date, lookback_days: int, cur: Any) -> float:
         """Compute simple return over a lookback period.
 
         Raises:
