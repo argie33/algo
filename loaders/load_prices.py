@@ -2341,12 +2341,18 @@ def main() -> int:
                             "SELECT pg_advisory_unlock(hashtext(%s)::bigint)",
                             ("stock_prices_daily",),
                         )
-                except (psycopg2.DatabaseError, psycopg2.OperationalError) as unlock_err:
+                except psycopg2.Error as unlock_err:
+                    # InterfaceError ("connection already closed") happens when the DB
+                    # pool's own idle-connection cleanup beats atexit to closing this
+                    # connection -- harmless, the lock releases with the connection
+                    # either way, but psycopg2.Error (not just DatabaseError/
+                    # OperationalError) is needed to actually catch it instead of
+                    # leaking an "exception ignored in atexit callback" warning.
                     logger.debug("Could not explicitly unlock advisory lock: %s", unlock_err)
                 finally:
                     try:
                         conn.close()
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError):
+                    except psycopg2.Error:
                         pass
 
             atexit.register(_release_price_loader_lock)
