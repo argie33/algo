@@ -162,10 +162,15 @@ class WeightOptimizer:
 
             sample_size = first_comp_data["sample_size"]
             if sample_size < self.MIN_TRADES:
-                raise ValueError(
-                    f"Insufficient trades ({sample_size} < {self.MIN_TRADES}) for weight optimization. "
-                    "Weights cannot be optimized without sufficient closed trade history."
+                # Expected condition (new account, or account still building trade history) -
+                # matches this method's documented contract ("Returns: ... or None if
+                # insufficient data"), not an error. apply() already has a dedicated
+                # "if not optimal" path that reports this gracefully with no weight changes.
+                logger.info(
+                    f"Insufficient trades ({sample_size} < {self.MIN_TRADES}) for weight optimization "
+                    f"on {report_date} - skipping optimization, keeping current weights."
                 )
+                return None
 
             ic_list: list[float] = []
             for comp in self.COMPONENTS:
@@ -421,14 +426,24 @@ class WeightOptimizer:
                 ) from e
 
             if not optimal:
-                logger.error(
-                    f"Optimization returned None on {report_date} (insufficient trade history). "
-                    f"Cannot proceed with weight optimization—trading continues with prior weights."
+                # Expected condition (see optimize()'s "insufficient trades" branch, which
+                # returns None precisely so this path can report it gracefully instead of
+                # halting reconciliation over a fresh/still-building account).
+                logger.info(
+                    f"Weight optimization skipped for {report_date}: insufficient trade history. "
+                    f"Keeping current weights unchanged."
                 )
-                raise ValueError(
-                    f"Weight optimization failed for {report_date}: insufficient data. "
-                    f"Reconciliation halts until sufficient closed trades available for IC computation."
-                )
+                return {
+                    "old_weights": current,
+                    "new_weights": current,
+                    "optimal_weights": None,
+                    "changes": [],
+                    "blending_factor": self.BLEND_FACTORS[regime],
+                    "regime": regime,
+                    "dry_run": dry_run,
+                    "success": True,
+                    "skipped_reason": "insufficient_trade_history",
+                }
 
             # Validate optimal weights structure
             if not isinstance(optimal, dict):
