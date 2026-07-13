@@ -206,6 +206,14 @@ def _check_connection_health(conn: Any, pool: Any) -> None:
         cur = conn.cursor()
         cur.execute("SELECT 1")
         cur.close()
+        # The ping itself opens a transaction (autocommit defaults to False), which
+        # would otherwise be handed back to the caller silently mid-transaction.
+        # Callers that set .autocommit / call set_session right after acquiring a
+        # connection (e.g. load_prices.py's advisory lock) then fail deterministically
+        # with "set_session cannot be used inside a transaction" -- confirmed via local
+        # repro. Roll back to reset to IDLE state; harmless no-op since the ping never
+        # wrote anything.
+        conn.rollback()
     except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
         logger.warning(f"[DB_POOL] Connection ping failed (SSL dropped), discarding: {str(e)[:100]}")
         try:
