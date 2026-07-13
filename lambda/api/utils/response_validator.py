@@ -41,6 +41,7 @@ except (ImportError, ModuleNotFoundError):
     class ValidationResult:
         pass
 
+
 # Also export as ResponseValidationError for backward compatibility
 ResponseValidationError = DataUnavailableError
 

@@ -958,7 +958,9 @@ class ExitEngine:
         except (RuntimeError, ValueError):
             raise
 
-    def _fetch_recent_prices(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime) -> tuple[float | None, float | None]:
+    def _fetch_recent_prices(
+        self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime
+    ) -> tuple[float | None, float | None]:
         """Return (current_price, previous_close) with intraday support.
 
 
@@ -1240,7 +1242,9 @@ class ExitEngine:
 
         return gain_pct >= threshold_pct
 
-    def _chandelier_or_ema_stop(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, days_held: int) -> float | None:
+    def _chandelier_or_ema_stop(
+        self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, days_held: int
+    ) -> float | None:
         """Trailing stop: chandelier (3xATR from highest high) for first 10d,
 
         then 21-EMA after."""
@@ -1371,7 +1375,9 @@ class ExitEngine:
 
         return td_state
 
-    def _is_minervini_break(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, cur_price: float) -> bool:
+    def _is_minervini_break(
+        self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, cur_price: float
+    ) -> bool:
         """Close < 50-DMA OR (close < EMA(21) AND volume > 50-day avg)."""
 
         interval_50d = get_interval_sql("50d")
@@ -1435,7 +1441,9 @@ class ExitEngine:
 
         return False
 
-    def _check_volume_spike(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, volume_multiplier: float) -> bool:
+    def _check_volume_spike(
+        self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, volume_multiplier: float
+    ) -> bool:
 
         interval_50d = get_interval_sql("50d")
         cur.execute(
@@ -1470,7 +1478,9 @@ class ExitEngine:
 
         return today_vol >= avg_vol * volume_multiplier
 
-    def _compute_gain_last_n_days(self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, n_days: int) -> float | None:
+    def _compute_gain_last_n_days(
+        self, cur: PsycopgCursor[Any], symbol: str, current_date: _date | datetime, n_days: int
+    ) -> float | None:
 
         cur.execute(
             """

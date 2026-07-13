@@ -496,16 +496,12 @@ class ValueAtRisk:
                                 (position_weight * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                             ),
                             "estimated_beta": float(estimated_beta),
-                            "contribution": float(
-                                weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)
-                            ),
+                            "contribution": float(weighted_beta.quantize(Decimal("0.001"), rounding=ROUND_HALF_UP)),
                         }
                     )
 
                 return {
-                    "portfolio_beta": float(
-                        total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-                    ),
+                    "portfolio_beta": float(total_beta_exposure.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                     "interpretation": f"Portfolio is {float(total_beta_exposure.quantize(Decimal('0.1'), rounding=ROUND_HALF_UP))}x market risk",
                     "positions": positions_list,
                     "portfolio_value": float(portfolio_value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),

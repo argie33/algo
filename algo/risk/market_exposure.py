@@ -67,7 +67,7 @@ from typing import Any, TypeVar
 
 import psycopg2
 from psycopg2 import sql as pgsql
-from psycopg2.extensions import cursor as PsycopgCursor  # noqa: N812
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.risk.market_factor_calculator import MarketFactorCalculator

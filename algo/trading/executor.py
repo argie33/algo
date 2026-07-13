@@ -159,7 +159,9 @@ class TradeExecutor:
         self.validator = TradeValidator(config, self.pretrade)
 
         # Validate and load R-multiple config (fail-fast, no defaults)
-        self.t1_target_r_multiple, self.t2_target_r_multiple, self.t3_target_r_multiple = _validate_and_load_r_multiples(config)
+        self.t1_target_r_multiple, self.t2_target_r_multiple, self.t3_target_r_multiple = (
+            _validate_and_load_r_multiples(config)
+        )
 
         # Resolve Alpaca base URL using execution mode strategy
         self.alpaca_base_url = self.execution_mode_strategy.resolve_base_url(self.alpaca_base_url)

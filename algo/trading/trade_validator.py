@@ -68,7 +68,9 @@ class TradeValidator:
         self.pretrade_checks = pretrade_checks
 
         # Load and validate R-multiples (fail-fast)
-        self.t1_target_r_multiple, self.t2_target_r_multiple, self.t3_target_r_multiple = _validate_and_load_r_multiples(config)
+        self.t1_target_r_multiple, self.t2_target_r_multiple, self.t3_target_r_multiple = (
+            _validate_and_load_r_multiples(config)
+        )
 
         # Validate re-entry config values
         if "max_reentries_per_name" not in config or config["max_reentries_per_name"] is None:

@@ -90,8 +90,7 @@ class ExitStrategy(ABC):
         missing = [f for f in required_fields if f not in decision or decision[f] is None]
         if missing:
             raise ValueError(
-                f"Exit decision incomplete: missing {missing}. "
-                f"Cannot process exit without all required fields."
+                f"Exit decision incomplete: missing {missing}. Cannot process exit without all required fields."
             )
 
     def _get_config(self, key: str) -> Any:

@@ -417,7 +417,9 @@ class AdvancedFilters:
             )
         return FilterRegistry.get_weight("momentum_industry")
 
-    def _volume_confirmation_score(self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]) -> tuple[float, float]:
+    def _volume_confirmation_score(
+        self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]
+    ) -> tuple[float, float]:
         cur.execute(
             """
             WITH d AS (

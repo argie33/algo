@@ -133,7 +133,9 @@ class ExitHandler:
                 "message": f"Unexpected error: {type(e).__name__}",
             }
 
-    def _raise_stop_only(self, trade_id: int, new_stop_price: float | None, cur: PsycopgCursor[Any] | None) -> dict[str, Any]:
+    def _raise_stop_only(
+        self, trade_id: int, new_stop_price: float | None, cur: PsycopgCursor[Any] | None
+    ) -> dict[str, Any]:
         """Raise stop on residual position without exiting shares."""
         if new_stop_price is None:
             return {
@@ -314,8 +316,17 @@ class ExitHandler:
             )
         current_qty_f = float(current_qty)  # float preserves fractional shares
 
-        return (symbol, entry_price_f, entry_qty_i, stop_loss_price_f, alpaca_order_id,
-                position_id, current_qty_f, target_hits, position_status)
+        return (
+            symbol,
+            entry_price_f,
+            entry_qty_i,
+            stop_loss_price_f,
+            alpaca_order_id,
+            position_id,
+            current_qty_f,
+            target_hits,
+            position_status,
+        )
 
     def _calculate_exit_shares(self, current_qty: float, exit_fraction: float) -> tuple[float, bool]:
         """Calculate number of shares to exit with proper rounding.
@@ -329,9 +340,7 @@ class ExitHandler:
         """
         current_qty_dec = Decimal(str(current_qty))
         exit_frac_dec = Decimal(str(exit_fraction))
-        shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(
-            Decimal("0.01"), rounding=ROUND_HALF_UP
-        )
+        shares_to_exit_dec = (current_qty_dec * exit_frac_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
         shares_to_exit_dec = max(Decimal("0.01"), shares_to_exit_dec)
         shares_to_exit_dec = min(shares_to_exit_dec, current_qty_dec)
         shares_to_exit = float(shares_to_exit_dec)
@@ -366,7 +375,7 @@ class ExitHandler:
         (
             symbol,
             entry_price,
-            entry_qty,
+            _entry_qty,
             stop_loss_price,
             alpaca_order_id,
             position_id,

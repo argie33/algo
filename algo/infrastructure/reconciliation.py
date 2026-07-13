@@ -68,7 +68,9 @@ class DailyReconciliation:
                     f"Reconciliation initialization failed: {e}. Live trading requires valid Alpaca credentials."
                 ) from e
 
-    def run_daily_reconciliation(self, reconcile_date: _date_type | None = None, dry_run: bool = False) -> dict[str, Any]:
+    def run_daily_reconciliation(
+        self, reconcile_date: _date_type | None = None, dry_run: bool = False
+    ) -> dict[str, Any]:
         """Run full daily reconciliation. If dry_run=True, skip Alpaca API calls and return mock data.
 
         CRITICAL SAFETY: dry_run mode must be explicitly enabled via ORCHESTRATOR_DRY_RUN environment variable

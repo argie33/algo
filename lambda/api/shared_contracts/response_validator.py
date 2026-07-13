@@ -4,7 +4,6 @@ This module is kept for backward compatibility only.
 All new code should import from response_validator directly.
 """
 
-
 # Handle both relative and absolute imports
 try:
     # Try relative import first (when used as part of lambda.api package)

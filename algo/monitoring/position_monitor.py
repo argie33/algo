@@ -946,7 +946,12 @@ class PositionMonitor:
         return "stable"
 
     def _max_unrealized_pct(
-        self, symbol: str, trade_date: _date, current_date: _date | datetime, entry_price: float, cur: PsycopgCursor[Any]
+        self,
+        symbol: str,
+        trade_date: _date,
+        current_date: _date | datetime,
+        entry_price: float,
+        cur: PsycopgCursor[Any],
     ) -> float:
         """Highest closing price since entry, expressed as % gain."""
         if entry_price <= 0:

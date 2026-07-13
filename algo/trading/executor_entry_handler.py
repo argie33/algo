@@ -562,7 +562,12 @@ class EntryHandler:
             ) from e
 
     def _validate_entry_phase(
-        self, cur: PsycopgCursor[Any], symbol: str, signal_date: _date | None, entry_price: Decimal, stop_loss_price: Decimal
+        self,
+        cur: PsycopgCursor[Any],
+        symbol: str,
+        signal_date: _date | None,
+        entry_price: Decimal,
+        stop_loss_price: Decimal,
     ) -> tuple[bool, str, dict[str, Any]]:
         """PHASE 1: Validate entry conditions within transaction.
 

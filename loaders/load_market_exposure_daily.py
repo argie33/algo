@@ -36,7 +36,7 @@ from datetime import date
 from typing import Any
 
 import psycopg2
-from psycopg2.extensions import cursor as PsycopgCursor  # noqa: N812
+from psycopg2.extensions import cursor as PsycopgCursor
 
 from loaders.timeout_config import configure_socket_timeout
 
