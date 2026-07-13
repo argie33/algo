@@ -22,6 +22,7 @@ Fetches once per symbol, caches 24 hours. Eliminates 30,000+ redundant API calls
 """
 
 import logging
+import os
 import sys
 from datetime import date, datetime, timezone
 from typing import Any
@@ -227,12 +228,39 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
 
 def main() -> int:
-    """Wrapped main with exception handling for data_unavailable markers."""
+    """Wrapped main with exception handling for data_unavailable markers.
+
+    Enforces LOADER_TIMEOUT as a hard total-runtime deadline. The batch prefetch's
+    per-request 30s socket timeout (configure_socket_timeout above) bounds each
+    individual yfinance call but not the overall run -- sustained rate-limit
+    backoff across thousands of symbols can still blow well past the intended
+    ~120min budget with no single call ever timing out. Without this, the only
+    backstop was the external loader_timeout_guardian Lambda, which (by design,
+    for safety margin) waits 1.5x LOADER_TIMEOUT before killing a task -- letting
+    a stuck run block the downstream computed-metrics pipeline (financials_all,
+    growth/quality/value/positioning/stability, stock_scores) for up to 3h.
+    Confirmed live 2026-07-13: a run exceeded 120min with no self-timeout firing.
+    """
+    import signal
+
+    execution_timeout_sec = int(os.getenv("LOADER_TIMEOUT", "7200")) - 60
+
+    def _timeout_handler(signum: int, frame: Any) -> None:
+        raise TimeoutError(f"yfinance_snapshot exceeded {execution_timeout_sec}s timeout")
+
+    if hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
+
     try:
         return run_loader(YFinanceSnapshotLoader)
     except Exception as e:
         logger.error(f"[YFINANCE_SNAPSHOT FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
-        # Mark data unavailable for all symbols
+        # Mark data unavailable only for symbols with no row yet -- a timeout or
+        # crash partway through a run must not clobber symbols already fetched
+        # and committed earlier in this same run (ON CONFLICT DO UPDATE previously
+        # overwrote every active symbol unconditionally, silently destroying good
+        # data on every partial-completion crash/timeout, not just a total failure).
         try:
             symbols = set()
             with DatabaseContext("read") as cur:
@@ -245,10 +273,7 @@ def main() -> int:
                         """
                         INSERT INTO yfinance_snapshot (symbol, data_unavailable, reason, updated_at)
                         VALUES (%s, TRUE, %s, NOW())
-                        ON CONFLICT (symbol) DO UPDATE SET
-                          data_unavailable = TRUE,
-                          reason = EXCLUDED.reason,
-                          updated_at = NOW()
+                        ON CONFLICT (symbol) DO NOTHING
                     """,
                         (symbol, f"loader_crash:{type(e).__name__}"),
                     )
