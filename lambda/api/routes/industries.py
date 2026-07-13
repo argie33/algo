@@ -195,8 +195,12 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     try:
         freshness = check_data_freshness(cur, "industry_ranking", "date_recorded", warning_days=1)
     except Exception as e:
-        logger.warning(f"[INDUSTRIES] Could not check data freshness: {e}. Using safe default.")
-        freshness = {"data_age_days": None, "is_stale": False, "warning": None}
+        # FAIL-FAST: Cannot determine data freshness = must raise, not assume fresh
+        # Defaulting is_stale=False hides data quality issues and misleads dashboard users
+        raise RuntimeError(
+            f"CRITICAL: Could not check data freshness for industry_ranking: {e}. "
+            f"Cannot determine if data is stale. Must fix data loader or freshness check logic."
+        ) from e
 
     result = {
         "items": industries,

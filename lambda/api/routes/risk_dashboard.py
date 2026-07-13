@@ -59,8 +59,10 @@ def handle(
         elif isinstance(days, list) and len(days) > 0:
             days_int = safe_limit(days[0], max_val=365, default=30)
         else:
-            logger.warning(f"Invalid days parameter: {days}, using default=30")
-            days_int = 30
+            raise ValueError(
+                f"CRITICAL: Invalid days parameter: {days!r} (type: {type(days).__name__}). "
+                f"Expected None, int, or list[int]. Risk dashboard requires valid date range."
+            )
         return _get_position_sizing_audit(cur, days_int)
     elif path == "/api/algo/risk-dashboard/stop-loss-audit":
         # GOVERNANCE: Explicit parameter validation instead of silent defaults.
@@ -71,8 +73,10 @@ def handle(
         elif isinstance(days, list) and len(days) > 0:
             days_int = safe_limit(days[0], max_val=365, default=30)
         else:
-            logger.warning(f"Invalid days parameter: {days}, using default=30")
-            days_int = 30
+            raise ValueError(
+                f"CRITICAL: Invalid days parameter: {days!r} (type: {type(days).__name__}). "
+                f"Expected None, int, or list[int]. Risk dashboard requires valid date range."
+            )
         return _get_stop_loss_audit(cur, days_int)
     elif path == "/api/algo/risk-dashboard/exit-rules":
         # GOVERNANCE: Explicit parameter validation instead of silent defaults.
@@ -83,8 +87,10 @@ def handle(
         elif isinstance(days, list) and len(days) > 0:
             days_int = safe_limit(days[0], max_val=365, default=30)
         else:
-            logger.warning(f"Invalid days parameter: {days}, using default=30")
-            days_int = 30
+            raise ValueError(
+                f"CRITICAL: Invalid days parameter: {days!r} (type: {type(days).__name__}). "
+                f"Expected None, int, or list[int]. Risk dashboard requires valid date range."
+            )
         return _get_exit_rules_distribution(cur, days_int)
     else:
         return error_response(404, "not_found", f"No risk dashboard handler for {path}")
