@@ -312,9 +312,9 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 )
             if sid not in history_by_series:
                 history_by_series[sid] = []
-            # FAIL-FAST: Extract date and value with validation
+            # FAIL-FAST: Extract date and value with validation (strict mode required for financial data)
             date_val = DatabaseResultValidator.safe_get_str(row, "date", strict=True)
-            value_val = DatabaseResultValidator.safe_get_float(row, "value", default=None)
+            value_val = DatabaseResultValidator.safe_get_float(row, "value", default=None, strict=True)
             history_by_series[sid].append(
                 {
                     "date": date_val,
@@ -341,18 +341,18 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
                 cur_h = history[-1] if history else None
                 yr_ago = history[-13] if len(history) >= 13 else history[0]
                 if cur_h and yr_ago:
-                    # FAIL-FAST: Extract values upfront with safe validation
-                    prior = DatabaseResultValidator.safe_get_float(yr_ago, "value", default=None)
-                    cur_val = DatabaseResultValidator.safe_get_float(cur_h, "value", default=None)
+                    # FAIL-FAST: Extract values upfront with safe validation (strict mode required)
+                    prior = DatabaseResultValidator.safe_get_float(yr_ago, "value", default=None, strict=True)
+                    cur_val = DatabaseResultValidator.safe_get_float(cur_h, "value", default=None, strict=True)
                     if prior is not None and cur_val is not None and prior != 0:
                         display_value = round((cur_val - prior) / abs(prior) * 100, 2)
                 # Replace history values with rolling YoY % change too
                 yoy_history = []
                 for idx in range(12, len(history)):
-                    # FAIL-FAST: Extract values upfront before arithmetic
-                    cur_v = DatabaseResultValidator.safe_get_float(history[idx], "value", default=None)
-                    yr_v = DatabaseResultValidator.safe_get_float(history[idx - 12], "value", default=None)
-                    date_v = DatabaseResultValidator.safe_get_str(history[idx], "date", default=None)
+                    # FAIL-FAST: Extract values upfront before arithmetic (strict mode required for financial data)
+                    cur_v = DatabaseResultValidator.safe_get_float(history[idx], "value", default=None, strict=True)
+                    yr_v = DatabaseResultValidator.safe_get_float(history[idx - 12], "value", default=None, strict=True)
+                    date_v = DatabaseResultValidator.safe_get_str(history[idx], "date", default=None, strict=True)
                     if cur_v is not None and yr_v is not None and yr_v != 0:
                         yoy_history.append(
                             {
@@ -499,9 +499,9 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
         history = {}
 
         for row in latest_rows:
-            # FAIL-FAST: Extract series_id and value with safe validation
+            # FAIL-FAST: Extract series_id and value with safe validation (strict mode required for financial data)
             sid = DatabaseResultValidator.safe_get_str(row, "series_id", strict=True)
-            val = DatabaseResultValidator.safe_get_float(row, "value", default=None)
+            val = DatabaseResultValidator.safe_get_float(row, "value", default=None, strict=True)
 
             # Build current yield curve
             if sid == "DGS3MO":
@@ -541,7 +541,7 @@ def _get_yield_curve_full(cur: cursor) -> Any:  # noqa: C901
                     "Indicates data corruption or validation failure. Cannot proceed without valid series_id."
                 )
             date_val = DatabaseResultValidator.safe_get_str(row, "date", strict=True)
-            value_val = DatabaseResultValidator.safe_get_float(row, "value", default=None)
+            value_val = DatabaseResultValidator.safe_get_float(row, "value", default=None, strict=True)
             if sid not in history_by_series:
                 history_by_series[sid] = []
             history_by_series[sid].append(

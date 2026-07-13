@@ -162,10 +162,14 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(data)
         if is_error:
-            # If API returns auth error (401), return minimal config instead of failing
+            # FAIL-FAST: Auth errors must not fall back to defaults
+            # Missing config is a deployment issue that must be fixed, not silently worked around
             if data.get("_auth_error"):
-                logger.warning("API auth error getting config - using defaults")
-                return {"min_composite_score": 50}
+                raise RuntimeError(
+                    "CRITICAL: Cannot fetch config due to auth error (401). "
+                    "Configuration is required for dashboard operation. "
+                    "This indicates Cognito auth is not properly configured. Check credentials and retry."
+                )
 
             record_data_quality_issue("cfg", "api_call", "api_error", error_msg or "unknown_error")
             return FetcherValidator.build_error_response(error_msg)

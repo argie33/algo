@@ -146,20 +146,41 @@ def get_http_timeout(api_type: str = "default") -> tuple[float, float]:
             else:
                 timeout = float(timeout_str)
                 return (timeout, timeout)
-        except (ValueError, AttributeError):
-            logger.warning(f"Invalid {env_key} value: {timeout_str}. Using API default.")
+        except (ValueError, AttributeError) as e:
+            raise ValueError(
+                f"CRITICAL: {env_key} value is invalid: {timeout_str!r}. "
+                f"Timeout configuration must be a valid float or 'connect_timeout,read_timeout' pair. "
+                f"Cannot proceed with invalid timeout configuration. {e}"
+            ) from e
 
-    # Fall back to API-specific timeout or default
-    return api_timeouts.get(api_type, api_timeouts["default"])
+    # Raise if env var was not set (configuration is required, not optional)
+    raise ValueError(
+        f"CRITICAL: {env_key} environment variable not set. "
+        f"Timeout configuration is required for {api_type}. "
+        f"Valid formats: '30' (float) or '5,30' (connect,read tuple)"
+    )
 
 
 def get_database_timeout() -> float:
-    timeout_str = os.getenv("DATABASE_TIMEOUT_SECONDS", "30")
+    """Get database timeout from config.
+
+    FAIL-FAST: Invalid timeout values must be fixed at source, not silently defaulted.
+    Database operations require explicit timeout configuration to prevent hanging.
+    """
+    timeout_str = os.getenv("DATABASE_TIMEOUT_SECONDS")
+    if timeout_str is None:
+        raise ValueError(
+            "CRITICAL: DATABASE_TIMEOUT_SECONDS environment variable not set. "
+            "Database timeout must be explicitly configured (e.g., '30' for 30 seconds). "
+            "Cannot proceed without explicit timeout configuration."
+        )
     try:
         return float(timeout_str)
-    except (ValueError, AttributeError):
-        logger.warning(f"Invalid DATABASE_TIMEOUT_SECONDS value: {timeout_str}. Using default 30s.")
-        return 30.0
+    except (ValueError, AttributeError) as e:
+        raise ValueError(
+            f"CRITICAL: DATABASE_TIMEOUT_SECONDS value is invalid: {timeout_str!r}. "
+            f"Must be a valid float (e.g., '30' for 30 seconds). {e}"
+        ) from e
 
 
 def configure_yfinance_timeout(timeout_seconds: int = 30) -> None:

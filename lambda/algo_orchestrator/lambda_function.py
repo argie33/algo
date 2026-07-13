@@ -144,13 +144,16 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
         # Parse event payload
         source = event.get("source", "eventbridge")
-        # CRITICAL FIX: Explicit check for test flag instead of False default
+        # CRITICAL FIX: Explicit check for test flag instead of silent conversion
         is_test = event.get("test")
         if is_test is None:
             is_test = False
         elif not isinstance(is_test, bool):
-            logger.warning(f"Event 'test' field is not a boolean: {type(is_test)}, defaulting to False")
-            is_test = bool(is_test)
+            raise ValueError(
+                f"CRITICAL: Event 'test' field must be boolean, got {type(is_test).__name__}: {is_test!r}. "
+                f"Orchestrator mode (test/production) must be explicitly specified as boolean. "
+                f"Silent conversion of {is_test!r} to bool could hide configuration errors."
+            )
 
         # ORCHESTRATOR_DRY_RUN env var (set by Terraform) is the baseline.
         # Event payload 'dry_run' key overrides it for manual invocations.

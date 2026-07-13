@@ -202,9 +202,12 @@ def panel_portfolio(
     snap = port.get("snapshot_date")
     max_n_val = cfg.get("max_pos_n") if cfg else None
     if max_n_val is None:
-        # Explicit default with audit trail logging
-        logger.warning("[PORTFOLIO] Config max_pos_n missing, using fallback default value of 12")
-        max_n_val = 12  # Default max positions if config unavailable
+        # FAIL-FAST: Configuration must be complete. Position limits come from config, never guess.
+        raise ValueError(
+            "CRITICAL: Position limit config (max_pos_n) is missing. "
+            "Dashboard cannot determine position limit without explicit config. "
+            "Check config loader and ensure max_pos_n is populated from database."
+        )
     # Config should always provide valid int, trust it
     try:
         max_n = int(max_n_val)
