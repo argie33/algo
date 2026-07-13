@@ -23,7 +23,7 @@ from shared.exceptions import LoaderFatalError, LoaderRetryableError
 logger = logging.getLogger(__name__)
 
 
-class SectorPerformanceLoader(BaseLoader):
+class SectorPerformanceLoader(BaseLoader):  # type: ignore[misc]
     """Load daily sector performance (return %) from stock prices."""
 
     def __init__(self, cur: cursor) -> None:
@@ -116,7 +116,7 @@ class SectorPerformanceLoader(BaseLoader):
 
         self.cur.connection.commit()
         logger.info(f"[{self.name}] Loaded/updated {rows} sector performance records for {target_date}")
-        return int(rows)  # type: ignore[return-value]
+        return int(rows)
 
 
 def run(cur: cursor) -> dict[str, Any]:
