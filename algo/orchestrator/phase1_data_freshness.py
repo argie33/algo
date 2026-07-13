@@ -189,9 +189,7 @@ def _validate_config(config: Any) -> tuple[int, int, int, int, int]:
         phase1_prior_cutoff_days = config["phase1_prior_cutoff_days"]
         phase1_halt_table_max_tolerance_days = config["phase1_halt_table_max_tolerance_days"]
     except (KeyError, TypeError) as e:
-        raise RuntimeError(
-            f"[PHASE 1] Config error reading staleness thresholds: {e}"
-        ) from e
+        raise RuntimeError(f"[PHASE 1] Config error reading staleness thresholds: {e}") from e
 
     return (
         min_coverage_pct,
