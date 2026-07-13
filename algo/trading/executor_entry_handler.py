@@ -750,18 +750,20 @@ class EntryHandler:
             advanced_components=context.signals.advanced_components,
             rejection_reason=rejection_reason,
             # Only link to a position when one will actually be created below (order_status
-            # in filled/partially_filled/paper_pending) - the FK is DEFERRABLE INITIALLY
-            # DEFERRED so the position row (inserted after this trade row, same transaction)
-            # satisfies it by commit time, but a trade whose order didn't fill has no
-            # corresponding position ever, so position_id must stay NULL for those.
-            position_id=position_id if order_status in ("filled", "partially_filled", "paper_pending") else None,
+            # in filled/partially_filled/paper_pending/open - "open" is the immediate
+            # simulated-fill status used by paper/dry execution_mode). The FK is DEFERRABLE
+            # INITIALLY DEFERRED so the position row (inserted after this trade row, same
+            # transaction) satisfies it by commit time, but a trade whose order didn't fill
+            # (e.g. "pending" in review mode) has no corresponding position ever, so
+            # position_id must stay NULL for those.
+            position_id=position_id if order_status in ("filled", "partially_filled", "paper_pending", "open") else None,
         )
         self._insert_trade_record(cur, trade_request)
 
         # Insert position record if order was filled or paper_pending (paper mode tracking)
         # PAPER MODE: Create positions for paper_pending trades to maintain portfolio state
         # Live mode: Only create positions for actual filled/partially_filled orders
-        if order_status in ("filled", "partially_filled", "paper_pending"):
+        if order_status in ("filled", "partially_filled", "paper_pending", "open"):
             # Use the position_id from trade_request to link position to trade
             position_id = trade_request.position_id or str(uuid.uuid4())
             entry_date = context.entry_date
