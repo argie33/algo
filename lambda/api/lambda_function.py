@@ -1636,23 +1636,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     cors_headers = get_cors_headers(event)
                     if not is_authorized or not jwt_claims:
                         log_api_request(event, 401, error_msg="unauthorized")
-                        msg = "Authentication required"
-                        return {
-                            "statusCode": 401,
-                            "headers": {
-                                "Content-Type": get_json_content_type(),
-                                **cors_headers,
-                                **get_security_headers(),
-                            },
-                            "body": json.dumps(
-                                {
-                                    "statusCode": 401,
-                                    "errorType": "unauthorized",
-                                    "message": msg,
-                                    "_error": msg,
-                                }
-                            ),
-                        }
+                        return make_error_response(401, "unauthorized", "Authentication required", event)
                     jti = jwt_claims.get("jti")
                     exp = jwt_claims.get("exp")
                     if jti and exp:
