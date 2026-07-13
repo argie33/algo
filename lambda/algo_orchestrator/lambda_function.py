@@ -558,7 +558,24 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
             success = result["success"]
 
+            # Orchestrator._handle_concurrency_lock() short-circuits with just
+            # {"success": False, "error": "Lock acquisition failed"} when another
+            # invocation is already running - a benign, expected outcome of concurrent
+            # triggers (EventBridge schedule overlapping a manual/retry invoke), not a
+            # bug. Report it as a skip rather than crashing on the missing 'run_id'.
             if "run_id" not in result:
+                if result.get("error") == "Lock acquisition failed":
+                    logger.info("Orchestrator run skipped: another instance is already running")
+                    return {
+                        "statusCode": 200,
+                        "body": json.dumps(
+                            {
+                                "status": "skipped",
+                                "message": "Another orchestrator instance is already running",
+                                "source": "eventbridge",
+                            }
+                        ),
+                    }
                 raise ValueError(
                     f"Orchestrator result missing 'run_id' field. "
                     f"Available keys: {list(result.keys())}. "
