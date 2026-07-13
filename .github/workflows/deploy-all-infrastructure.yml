@@ -177,7 +177,7 @@ jobs:
       - name: Restore deleted secrets from scheduled deletion
         run: |
           echo "[INFO] Checking for secrets scheduled for deletion..."
-          for SECRET in "algo/fred" "algo/alpaca"; do
+          for SECRET in "algo/fred" "algo/alpaca" "algo/jwt"; do
             STATUS=$(aws secretsmanager describe-secret --secret-id "$SECRET" --region us-east-1 2>/dev/null || echo "NOT_FOUND")
 
             if echo "$STATUS" | grep -q "DeletedDate"; then
