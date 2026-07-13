@@ -103,9 +103,13 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         )
         stale_alerts.append("Position data unavailable: algo_positions sync incomplete")
 
-    # FIX: Load sector data from company_profile for positions missing sector
-    # (algo_trades currently has NULL sectors, so view defaults to "Unknown")
+    # FIX: Load sector/company_name from company_profile and technical scores from
+    # trend_template_data for positions. algo_positions (the base table) does not carry
+    # these columns at all -- they must be joined in here explicitly rather than relying
+    # on algo_positions_with_risk, whose schema has drifted across many competing migrations.
     sector_map: dict[str, str] = {}
+    company_name_map: dict[str, str] = {}
+    technical_map: dict[str, dict[str, Any]] = {}
     try:
         # Get list of open position symbols from the positions we fetched
         if positions:
@@ -122,7 +126,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 placeholders = ",".join(["%s"] * len(open_symbols))
                 cur.execute(
                     f"""
-                    SELECT ticker, sector FROM company_profile
+                    SELECT ticker, sector, short_name FROM company_profile
                     WHERE ticker IN ({placeholders})
                     """,
                     tuple(open_symbols),
@@ -131,11 +135,37 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                     row_dict = safe_dict_convert(row)
                     ticker = row_dict.get("ticker")
                     sector = row_dict.get("sector")
+                    short_name = row_dict.get("short_name")
                     if ticker and sector:
                         sector_map[ticker] = sector
-                logger.debug(f"[POSITIONS] Loaded sector data for {len(sector_map)} symbols from company_profile")
+                    if ticker and short_name:
+                        company_name_map[ticker] = short_name
+                logger.debug(f"[POSITIONS] Loaded sector/name data for {len(sector_map)} symbols from company_profile")
+
+                cur.execute(
+                    f"""
+                    SELECT DISTINCT ON (symbol) symbol, weinstein_stage, minervini_trend_score
+                    FROM trend_template_data
+                    WHERE symbol IN ({placeholders}) AND data_unavailable IS NOT TRUE
+                    ORDER BY symbol, date DESC
+                    """,
+                    tuple(open_symbols),
+                )
+                for row in cur.fetchall():
+                    row_dict = safe_dict_convert(row)
+                    ticker = row_dict.get("symbol")
+                    if ticker:
+                        technical_map[ticker] = {
+                            "weinstein_stage": row_dict.get("weinstein_stage"),
+                            "minervini_trend_score": row_dict.get("minervini_trend_score"),
+                        }
+                logger.debug(
+                    f"[POSITIONS] Loaded technical scores for {len(technical_map)} symbols from trend_template_data"
+                )
     except Exception as e:
-        logger.warning(f"[POSITIONS] Could not load company_profile sectors: {type(e).__name__}: {e}")
+        logger.warning(
+            f"[POSITIONS] Could not load company_profile/trend_template_data enrichment: {type(e).__name__}: {e}"
+        )
 
     items = []
     sector_risk: dict[str, float] = {}
@@ -255,6 +285,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             d["ladder_unavailable"] = True
             d["ladder_unavailable_reason"] = error_msg
 
+        # Enrich with technical scores (weinstein_stage/minervini_trend_score live only in
+        # trend_template_data, never on algo_positions itself)
+        if d.get("weinstein_stage") is None and symbol in technical_map:
+            d["weinstein_stage"] = technical_map[symbol]["weinstein_stage"]
+        if d.get("minervini_trend_score") is None and symbol in technical_map:
+            d["minervini_trend_score"] = technical_map[symbol]["minervini_trend_score"]
+        if d.get("company_name") is None and symbol in company_name_map:
+            d["company_name"] = company_name_map[symbol]
+
         # Compute stage_label for stage distribution (Issue #8)
         stage_raw = d.get("weinstein_stage")
         stage = None
@@ -316,7 +355,11 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
     # Sort positions by position value descending (largest positions first) for better UX
     # This makes the dashboard display more organized and easier to scan
-    items.sort(key=lambda x: float(x.get("position_value", 0)), reverse=True)
+    # FAIL-FAST: All items must have position_value (no fallback to 0)
+    for item in items:
+        if "position_value" not in item or item["position_value"] is None:
+            raise ValueError(f"[POSITIONS SORT] Item missing position_value: {item.get('symbol', '?')}")
+    items.sort(key=lambda x: float(x["position_value"]), reverse=True)
 
     # Compute sector_allocation array after processing all positions (E5 fix)
     # CRITICAL: Fail-fast if portfolio appears empty after position processing
@@ -391,7 +434,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
 @db_route_handler("fetch algo status")  # type: ignore[untyped-decorator]
 @validate_api_response("run")  # type: ignore[untyped-decorator]
-def _get_algo_status(cur: cursor) -> Any:
+def _get_algo_status(cur: cursor) -> Any:  # noqa: C901
     """Get latest algo execution status plus latest portfolio snapshot.
 
     Returns sensible defaults if data is missing, allowing dashboard to render
@@ -492,17 +535,45 @@ def _get_algo_status(cur: cursor) -> Any:
             pos_result = cur.fetchone()
             if pos_result:
                 pos_result = safe_dict_convert(pos_result)
-            pos_count = pos_result.get("pos_count") if pos_result else 0
-            pos_value = float(pos_result.get("total_positions_value", 0)) if pos_result else 0.0
-            closed_value = float(pos_result.get("closed_value", 0)) if pos_result else 0.0
 
-            # Get initial cash from portfolio snapshot if available, else use default
+            # FAIL-FAST: Query must return result. If table empty, this is a data quality issue.
+            if not pos_result:
+                raise RuntimeError(
+                    "[PORTFOLIO FALLBACK] algo_positions query returned no result. "
+                    "Cannot compute fallback portfolio without position data. "
+                    "Check: (1) algo_positions table populated? (2) Schema intact?"
+                )
+
+            # Extract position metrics - NO fallback to 0 for these critical fields
+            pos_count_raw = pos_result.get("pos_count")
+            if pos_count_raw is None:
+                raise ValueError("[PORTFOLIO FALLBACK] pos_count is NULL - cannot compute position count")
+            try:
+                pos_count = int(pos_count_raw)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"[PORTFOLIO FALLBACK] pos_count invalid ({pos_count_raw}): {e}") from e
+
+            pos_value_raw = pos_result.get("total_positions_value")
+            if pos_value_raw is None:
+                raise ValueError("[PORTFOLIO FALLBACK] total_positions_value is NULL - cannot compute position value")
+            try:
+                pos_value = float(pos_value_raw)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"[PORTFOLIO FALLBACK] total_positions_value invalid ({pos_value_raw}): {e}") from e
+
+            closed_value_raw = pos_result.get("closed_value")
+            if closed_value_raw is None:
+                raise ValueError("[PORTFOLIO FALLBACK] closed_value is NULL - cannot compute closed position value")
+            try:
+                closed_value = float(closed_value_raw)
+            except (ValueError, TypeError) as e:
+                raise ValueError(f"[PORTFOLIO FALLBACK] closed_value invalid ({closed_value_raw}): {e}") from e
+
+            # Get initial cash from portfolio snapshot if available
             # CRITICAL: algo_trades table does NOT have initial_cash column
-            # Use default of $100,000 (standard Alpaca paper trading starting balance)
-            # This is a reasonable assumption for paper trading accounts
-            initial_cash = 100000.0
+            initial_cash = None
 
-            # Try to get actual initial balance from first portfolio snapshot if available
+            # Try to get actual initial balance from first portfolio snapshot
             cur.execute("""
                 SELECT total_portfolio_value
                 FROM algo_portfolio_snapshots
@@ -511,13 +582,29 @@ def _get_algo_status(cur: cursor) -> Any:
             first_snapshot = cur.fetchone()
             if first_snapshot:
                 first_snapshot = safe_dict_convert(first_snapshot)
-            if first_snapshot and first_snapshot.get("total_portfolio_value"):
+
+            if first_snapshot is not None and "total_portfolio_value" in first_snapshot:
+                initial_cash_raw = first_snapshot.get("total_portfolio_value")
+                # FAIL-FAST: Explicit None check (not falsy check - 0.0 is valid)
+                if initial_cash_raw is None:
+                    raise RuntimeError(
+                        "[PORTFOLIO] First portfolio snapshot has NULL total_portfolio_value. "
+                        "Cannot determine initial portfolio value. Check data integrity."
+                    )
                 try:
-                    # If we have a first snapshot, use its value as our baseline
-                    # This represents the portfolio value at the very beginning
-                    initial_cash = float(first_snapshot["total_portfolio_value"])
-                except (ValueError, TypeError):
-                    pass  # Fall back to default if conversion fails
+                    initial_cash = float(initial_cash_raw)
+                except (ValueError, TypeError) as e:
+                    raise ValueError(
+                        f"[PORTFOLIO] First snapshot total_portfolio_value invalid ({initial_cash_raw}): {e}"
+                    ) from e
+
+            # If no snapshot available, fail rather than using hardcoded fallback
+            if initial_cash is None:
+                raise RuntimeError(
+                    "[PORTFOLIO FALLBACK] No portfolio snapshots available to determine initial balance. "
+                    "Cannot compute fallback portfolio. Orchestrator may not have completed initialization. "
+                    "Check: (1) algo_portfolio_snapshots table has records? (2) Orchestrator Phase 9 completed?"
+                )
 
             # Compute cash as: initial - (all positions value) + (closed positions)
             total_spent = pos_value

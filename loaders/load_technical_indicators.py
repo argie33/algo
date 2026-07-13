@@ -69,7 +69,10 @@ class VectorizedTechnicalLoader:
         now_et = now_utc.astimezone(EASTERN_TZ)
         end_date = now_et.date()
 
-        start_date = end_date - timedelta(days=300)
+        # 252-trading-day indicators (roc_252d) need ~252 * 7/5 ≈ 353 calendar days of
+        # history plus market holidays; 300 was short by ~50+ days and left roc_252d
+        # (and therefore minervini_trend_score, which sums it) permanently NULL.
+        start_date = end_date - timedelta(days=400)
 
         logger.info(f"VectorizedTechnicalLoader: {len(symbols)} symbols, date range {start_date} to {end_date}")
 

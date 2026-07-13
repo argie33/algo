@@ -8,7 +8,7 @@ Swing scores have been removed; this module is deprecated and returns unavailabl
 
 import logging
 from datetime import date as _date
-from typing import Any, cast
+from typing import Any
 
 import psycopg2
 

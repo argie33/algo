@@ -160,16 +160,14 @@ def get_http_timeout(api_type: str = "default") -> tuple[float, float]:
 def get_database_timeout() -> float:
     """Get database timeout from config.
 
-    FAIL-FAST: Invalid timeout values must be fixed at source, not silently defaulted.
-    Database operations require explicit timeout configuration to prevent hanging.
+    Defaults to 30s (matching this module's documented default) when unset -- a
+    connection timeout is operational plumbing, not financial data that needs
+    fail-fast integrity checks. A value that IS set but malformed still raises,
+    since that's a real misconfiguration worth surfacing.
     """
     timeout_str = os.getenv("DATABASE_TIMEOUT_SECONDS")
     if timeout_str is None:
-        raise ValueError(
-            "CRITICAL: DATABASE_TIMEOUT_SECONDS environment variable not set. "
-            "Database timeout must be explicitly configured (e.g., '30' for 30 seconds). "
-            "Cannot proceed without explicit timeout configuration."
-        )
+        return 30.0
     try:
         return float(timeout_str)
     except (ValueError, AttributeError) as e:

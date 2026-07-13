@@ -253,11 +253,18 @@ def _get_notifications(
 def _get_patrol_log(cur: cursor, limit: int = 50, offset: int = 0) -> Any:
     cur.execute("SELECT COUNT(*) as total FROM data_patrol_log")
     row = cur.fetchone()
-    if row:
-        row = safe_dict_convert(row)
-        total = row.get("total", 0)
-    else:
-        total = 0
+    if not row:
+        # COUNT(*) always returns a row, even if table is empty (result is 0)
+        raise RuntimeError("[PATROL_LOG] COUNT(*) query returned no row - database may be corrupted")
+
+    row = safe_dict_convert(row)
+    total_raw = row.get("total")
+    if total_raw is None:
+        raise RuntimeError("[PATROL_LOG] COUNT(*) returned NULL total - database corruption detected")
+    try:
+        total = int(total_raw)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"[PATROL_LOG] COUNT(*) total invalid type ({total_raw}): {e}") from e
 
     cur.execute(
         """

@@ -323,13 +323,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 }
             )
 
-        ok_count = summary.get("ok")
-        if ok_count is None:
-            raise ValueError(
-                "CRITICAL: Health summary missing 'ok' status count. "
-                "Cannot determine system readiness for trading without complete health data. "
-                "This indicates incomplete health check data - must be fixed at source."
-            )
+        # summary only gets a key for statuses that actually occurred at least once above
+        # (summary[status] = current_count + 1). If every table is stale/empty/critical,
+        # "ok" is legitimately absent, not corrupt -- 0 is the correct count, not an error.
+        ok_count = summary.get("ok", 0)
         if not isinstance(ok_count, int):
             raise ValueError(f"Expected int for 'ok' count in health summary, got {type(ok_count).__name__}")
         ready_to_trade = len(critical_stale) == 0 and ok_count > 0

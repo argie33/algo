@@ -595,19 +595,22 @@ def _get_algo_portfolio(cur: cursor) -> Any:
             if not now_row:
                 raise ValueError("Database NOW() returned empty")
             now_row = safe_dict_convert(now_row)
-            now_db = now_row.get("now") or next(iter(now_row.values()))
+            now_db = now_row.get("now")
+            if now_db is None:
+                # FAIL-FAST: Database NOW() must return a value
+                raise ValueError("Database NOW()::timestamp returned NULL")
         except Exception as e:
             logger.error(f"CRITICAL: Cannot get database NOW(): {e}")
             return error_response(503, "database_error", "Cannot get current database time")
 
         from datetime import datetime
 
-        # Prefer updated_at (bumped on every write); fall back to created_at for rows written
-        # before updated_at existed or before this fix, so old snapshots don't hard-fail.
-        last_write_at = data.get("updated_at") or data.get("created_at")
-        if not last_write_at:
-            logger.error("CRITICAL: updated_at/created_at missing from portfolio snapshot query result")
-            return error_response(503, "incomplete_data", "Portfolio snapshot missing updated_at/created_at timestamp")
+        # FAIL-FAST: Portfolio snapshots must have updated_at timestamp (required column)
+        # Do NOT fall back to created_at - if updated_at is missing, that's a data integrity issue
+        last_write_at = data.get("updated_at")
+        if last_write_at is None:
+            logger.error("CRITICAL: updated_at missing from portfolio snapshot. Data integrity check failed.")
+            return error_response(503, "incomplete_data", "Portfolio snapshot missing required updated_at timestamp")
 
         # Calculate age: both are now naive TIMESTAMP WITHOUT TIME ZONE in database's local timezone
         if isinstance(last_write_at, datetime) and isinstance(now_db, datetime):
