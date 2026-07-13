@@ -1,9 +1,18 @@
 # ============================================================
 # AAII Sentiment Loader Lambda
 # ============================================================
-# Runs inside VPC with direct RDS access during deployment.
-# Populates aaii_sentiment table with 2029 records.
-# Invoked by GitHub Actions workflow after Terraform apply.
+# STATUS (2026-07-13): non-functional. scripts/aaii_loader_function.py -- the only
+# real implementation this ever had -- was a fabricated-data generator (deterministic
+# formula, zero connection to the actual AAII investor sentiment survey) and was
+# deleted in commit 676a415c5 as presumed test cruft. deploy-all-infrastructure.yml's
+# "Build AAII Sentiment Loader Lambda" step now silently falls back to a stub
+# (`lambda_handler` returning 501) whenever the source file is missing, so this
+# resource currently deploys a no-op. Do not restore the fake generator -- if AAII
+# data is wanted, wire up a real source and a recurring schedule (this Lambda was
+# also never scheduled: invoked once per Terraform apply, not on a cadence, so even
+# a working loader would only refresh on redeploys, not weekly with the survey).
+# aaii_sentiment is IMP-role (non-critical); loaders/load_market_sentiment.py treats
+# missing/stale AAII data as NULL with data_unavailable reasoning, not fabricated.
 
 # Lambda function for AAII Sentiment loading
 # ZIP file is pre-built by GitHub Actions workflow before Terraform runs
