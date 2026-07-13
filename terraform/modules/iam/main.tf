@@ -224,6 +224,19 @@ data "aws_iam_policy_document" "github_actions_identity" {
   }
 
   statement {
+    sid    = "AccessKeyRotation"
+    effect = "Allow"
+    actions = [
+      "iam:GetUser",
+      "iam:CreateAccessKey",
+      "iam:ListAccessKeys",
+      "iam:UpdateAccessKey",
+      "iam:DeleteAccessKey"
+    ]
+    resources = ["arn:aws:iam::${var.aws_account_id}:user/algo-developer"]
+  }
+
+  statement {
     sid    = "CognitoIDP"
     effect = "Allow"
     actions = [

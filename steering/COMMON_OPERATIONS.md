@@ -338,7 +338,7 @@ sleep 35
 python -m dashboard -w
 ```
 
-**Note:** `/api/scores` endpoint is never cached (fixed 2026-07-01), but other endpoints cache for 30 min.
+**Note:** `/api/scores` endpoint is never cached (by design to prevent stale trading data), but other endpoints cache for 30 min.
 
 ---
 
@@ -392,4 +392,3 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 
 ---
 
-Last Updated: 2026-07-01

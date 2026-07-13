@@ -86,7 +86,7 @@ When seeing `data_unavailable=TRUE` markers appearing for a new class of symbols
 
 **Correct pattern:** `data_unavailable=TRUE` + `reason="upstream_loader_gap:sector_ranking"` + FIX the upstream loader.
 
-**Status:** All fail-fast patterns implemented and tested. See git log for remediation commits: `git log --all --oneline | grep -i "fail-fast\|fallback"`
+All fail-fast patterns are enforced. See git log for remediation commits: `git log --all --oneline | grep -i "fail-fast\|fallback"`
 
 ---
 

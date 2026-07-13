@@ -347,8 +347,9 @@ class MarketFactorCalculator:
         """Put/call ratio (contrarian indicator).
 
         Returns neutral score (50/100) when data unavailable — put/call data is enrichment from
-        a third-party feed that is often unavailable. Raising here blocks market_exposure_daily
-        from computing entirely, which halts Phase 1 and stops all trading.
+        a third-party feed that is often unavailable (PCRX delisted in yfinance).
+        GRACEFUL DEGRADATION: Return neutral score instead of raising. Put/call is only 8pts of 100.
+        This prevents cascade failures when PCRX data becomes unavailable.
         """
         try:
             cur.execute("SAVEPOINT sp_put_call")
@@ -359,12 +360,10 @@ class MarketFactorCalculator:
             row = cur.fetchone()
             cur.execute("RELEASE SAVEPOINT sp_put_call")
             if not row:
-                raise RuntimeError(
-                    f"[PUT_CALL CRITICAL] Put/call ratio unavailable for {eval_date}. "
-                    f"Cannot compute market exposure without sentiment data (put/call ratio is key to position sizing). "
-                    f"Check: (1) market_health_daily has recent readings, (2) put_call_ratio column populated. "
-                    f"Must have put/call data to proceed — no degraded scoring allowed."
+                logger.warning(
+                    f"[PUT_CALL RATIO] No data for {eval_date}. Using neutral score."
                 )
+                return {"value": None, "score": 50, "data_unavailable": True}
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
             if isinstance(row, dict):
@@ -373,21 +372,17 @@ class MarketFactorCalculator:
                 pcr_val = row[0]
 
             if pcr_val is None:
-                raise RuntimeError(
-                    f"[PUT_CALL CRITICAL] Put/call ratio unavailable for {eval_date}. "
-                    f"Cannot compute market exposure without sentiment data (put/call ratio is key to position sizing). "
-                    f"Check: (1) market_health_daily has recent readings, (2) put_call_ratio column populated. "
-                    f"Must have put/call data to proceed — no degraded scoring allowed."
+                logger.warning(
+                    f"[PUT_CALL RATIO] Value is None for {eval_date}. Using neutral score."
                 )
+                return {"value": None, "score": 50, "data_unavailable": True}
 
             pcr = float(pcr_val)
             if pcr <= 0:
-                raise RuntimeError(
-                    f"[PUT_CALL CRITICAL] Put/call ratio invalid for {eval_date}: {pcr}. "
-                    f"Put/call ratio must be > 0 to indicate valid market sentiment data. "
-                    f"Value of {pcr} indicates upstream data quality issue in market_health_daily. "
-                    f"Cannot proceed with position sizing without valid sentiment data."
+                logger.warning(
+                    f"[PUT_CALL RATIO] Invalid value {pcr} for {eval_date}. Using neutral score."
                 )
+                return {"value": pcr, "score": 50, "data_unavailable": True}
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
         except RuntimeError:

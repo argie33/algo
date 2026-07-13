@@ -311,7 +311,7 @@ Run: `python -m dashboard.circuit_breaker_monitor`
 
 If any circuit breaker triggers:
 ```
-Circuit Breaker Status (as of 2026-06-29 14:45 ET)
+Circuit Breaker Monitoring
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Drawdown:         21.5% (threshold: 20%)  ⛔ HALT
 Daily Loss:       0.1% (threshold: 2%)    ✓ OK
