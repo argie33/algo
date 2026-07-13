@@ -236,9 +236,9 @@ class APIHandler(BaseHTTPRequestHandler):
             position_count = int(snapshot["position_count"])
 
             # Optional fields (may be None on first run)
-            total_cash = float(snapshot.get("cash_balance") or 0) if snapshot.get("cash_balance") is not None else 0
-            daily_return_pct = float(snapshot.get("daily_return_pct") or 0) if snapshot.get("daily_return_pct") is not None else None
-            unrealized_pnl_total = float(snapshot.get("unrealized_pnl") or 0) if snapshot.get("unrealized_pnl") is not None else None
+            total_cash = float(snapshot.get("cash_balance")) if snapshot.get("cash_balance") is not None else 0
+            daily_return_pct = float(snapshot.get("daily_return_pct")) if snapshot.get("daily_return_pct") is not None else None
+            unrealized_pnl_total = float(snapshot.get("unrealized_pnl")) if snapshot.get("unrealized_pnl") is not None else None
             snapshot_date = snapshot.get("snapshot_date")
 
             response = {
