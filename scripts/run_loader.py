@@ -46,26 +46,32 @@ def run_price_loader(symbols=None, backfill_days=1):
 
 
 def run_technical_indicators_loader(backfill_days=1):
-    """Run technical indicators loader."""
-    # Load all symbols from universe
-    import psycopg2
+    """Run technical indicators loader - vectorized in-database calculation."""
+    from loaders.load_technical_indicators import VectorizedTechnicalLoader
 
-    from loaders.load_technical_indicators import TechnicalIndicatorsLoader
-    try:
-        conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
-        cursor = conn.cursor()
-        cursor.execute('SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol')
-        symbols = [row[0] for row in cursor.fetchall()]
-        cursor.close()
-        conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols for technical indicators")
-    except Exception as e:
-        logger.warning(f"Could not load universe, using default symbols: {e}")
-        symbols = ['AAPL', 'SPY', 'QQQ', 'MSFT', 'NVDA']
-
-    loader = TechnicalIndicatorsLoader()
-    result = loader.run(symbols=symbols, backfill_days=backfill_days)
+    loader = VectorizedTechnicalLoader()
+    result = loader.run()
     logger.info(f"Technical indicators loader result: {result}")
+    return result
+
+
+def run_market_health_loader():
+    """Run market health loader."""
+    from loaders.load_market_health_daily import MarketHealthDailyLoader
+
+    loader = MarketHealthDailyLoader()
+    result = loader.run(symbols=None)
+    logger.info(f"Market health loader result: {result}")
+    return result
+
+
+def run_yfinance_metrics_loader():
+    """Run yfinance derived metrics loader (quality/growth/value/positioning/stability)."""
+    from loaders.load_yfinance_derived_metrics import YfinanceDerivedMetricsLoader
+
+    loader = YfinanceDerivedMetricsLoader()
+    result = loader.run(symbols=None, parallelism=3)
+    logger.info(f"Yfinance metrics loader result: {result}")
     return result
 
 
@@ -74,7 +80,7 @@ def run_stock_scores_loader(limit=None):
     from loaders.load_stock_scores import StockScoresLoader
 
     loader = StockScoresLoader()
-    result = loader.run(limit=limit)
+    result = loader.run(symbols=None, limit=limit)
     logger.info(f"Stock scores loader result: {result}")
     return result
 
@@ -100,6 +106,12 @@ def main():
 
         elif args.loader == 'technical':
             run_technical_indicators_loader(backfill_days=args.backfill)
+
+        elif args.loader == 'health':
+            run_market_health_loader()
+
+        elif args.loader == 'metrics':
+            run_yfinance_metrics_loader()
 
         elif args.loader == 'scores':
             run_stock_scores_loader(limit=args.limit)
