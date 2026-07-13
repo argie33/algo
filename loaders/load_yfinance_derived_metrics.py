@@ -160,8 +160,14 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
 
     def _persist_to_all_tables(self, record: dict[str, Any]) -> None:
         """Persist consolidated record to all 7 output tables."""
+        from datetime import timezone
+
         symbol = record.get("symbol")
         updated_at = record.get("updated_at")
+
+        # Guard against None updated_at
+        if updated_at is None:
+            updated_at = datetime.now(timezone.utc)
 
         with DatabaseContext("write") as cur:
             # 1. value_metrics
