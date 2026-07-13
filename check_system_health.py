@@ -11,6 +11,7 @@ Verifies all prerequisites for dashboard to work:
 Run: python check_system_health.py
 """
 
+import io
 import json
 import os
 import socket
@@ -18,6 +19,13 @@ import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+
+# Fix Windows console encoding for unicode output
+if sys.platform.startswith('win'):
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 # Add repo root to path
 sys.path.insert(0, str(Path(__file__).parent))
