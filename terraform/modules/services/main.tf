@@ -265,7 +265,11 @@ resource "null_resource" "api_concurrency_propagation_delay" {
   }
 
   provisioner "local-exec" {
-    command = "sleep 15"
+    # 15s was confirmed insufficient today: reserved_concurrent_executions read back
+    # as 50 (correct, comfortably above the 5 requested) immediately after a 15s-gated
+    # apply that still failed with the same "greater than reservedConcurrentExecution"
+    # error. Bumped to 60s for margin against AWS control-plane propagation lag.
+    command = "sleep 60"
   }
 
   depends_on = [aws_lambda_function.api]
@@ -905,7 +909,11 @@ resource "null_resource" "algo_concurrency_propagation_delay" {
   }
 
   provisioner "local-exec" {
-    command = "sleep 15"
+    # 15s was confirmed insufficient today: reserved_concurrent_executions read back
+    # as 50 (correct, comfortably above the 5 requested) immediately after a 15s-gated
+    # apply that still failed with the same "greater than reservedConcurrentExecution"
+    # error. Bumped to 60s for margin against AWS control-plane propagation lag.
+    command = "sleep 60"
   }
 
   depends_on = [aws_lambda_function.algo]
