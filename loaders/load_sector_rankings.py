@@ -80,7 +80,7 @@ class SectorRankingLoader(OptimalLoader):
                         updated_at = NOW()
                     """
                 )
-                sector_count = cur.rowcount
+                sector_count = int(cur.rowcount) if cur.rowcount is not None else 0
 
                 # Compute industry rankings (same pattern as sector rankings)
                 cur.execute(
@@ -122,7 +122,7 @@ class SectorRankingLoader(OptimalLoader):
                         updated_at = NOW()
                     """
                 )
-                industry_count = cur.rowcount
+                industry_count = int(cur.rowcount) if cur.rowcount is not None else 0
 
             logger.info(f"[SECTOR_RANKING] Loaded {sector_count} sector + {industry_count} industry rankings")
             return sector_count + industry_count
