@@ -232,12 +232,12 @@ class BuySignalGenerator:
 
         for j in range(max(0, i - 50), i):
             candidate = rows[j].get("low")
-            if not candidate:
+            if candidate is None:
                 continue
 
             # Collect nearby bars (may have gaps)
-            lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low")]
-            lookforward_bars = [rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low")]
+            lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
+            lookforward_bars = [rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low") is not None]
 
             # Lenient requirement: need at least 2 lookback and 2 lookforward bars (was requiring all)
             if len(lookback_bars) < 2 or len(lookforward_bars) < 2:

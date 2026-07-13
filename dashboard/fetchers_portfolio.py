@@ -88,13 +88,16 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
 
         # Validate snapshot_date field (API returns snapshot_date, not last_run)
-        # EXPLICIT CHECK: Try primary field first, then fallback field
+        # EXPLICIT CHECK: Try primary field first with None check (not truthy check)
         snapshot_date = port.get("snapshot_date")
-        if not snapshot_date:
+        if snapshot_date is None:
             # Try secondary field with explicit logging
             snapshot_date = port.get("last_run")
-            if not snapshot_date:
-                logger.error("Portfolio missing snapshot_date/last_run field")
+            if snapshot_date is None:
+                logger.error(
+                    f"[FETCHER] Portfolio missing both snapshot_date and last_run fields. "
+                    f"API schema mismatch or response incomplete. Available keys: {list(port.keys())}"
+                )
                 record_data_quality_issue("portfolio", "snapshot_date", "missing_required_field")
                 return FetcherValidator.build_error_response("Portfolio snapshot_date/last_run field missing")
 

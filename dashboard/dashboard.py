@@ -129,7 +129,7 @@ from rich.live import Live
 # Support both: direct execution (python dashboard/dashboard.py) and module execution (python -m dashboard)
 try:
     # Try relative imports first (module execution)
-    from .api_data_layer import set_api_url, set_cognito_auth, validate_api_config
+    from .api_data_layer import reset_circuit_breaker, set_api_url, set_cognito_auth, validate_api_config
     from .cognito_auth import get_cognito_auth as get_cognito_auth_instance
     from .cognito_auth import save_tokens
     from .core import DashboardContext, ViewMode
@@ -149,7 +149,7 @@ try:
     from .watch import LoadState, WatchModeController, WatchState
 except ImportError:
     # Fall back to absolute imports (direct script execution)
-    from dashboard.api_data_layer import set_api_url, set_cognito_auth
+    from dashboard.api_data_layer import reset_circuit_breaker, set_api_url, set_cognito_auth
     from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
     from dashboard.cognito_auth import save_tokens
     from dashboard.core import DashboardContext, ViewMode
@@ -821,7 +821,6 @@ def main() -> None:
             data_source = "AWS"
 
         # Reset circuit breaker to ensure fresh session (clears stale state from previous runs)
-        from .api_data_layer import reset_circuit_breaker
         reset_circuit_breaker()
 
         # Run dashboard with appropriate mode

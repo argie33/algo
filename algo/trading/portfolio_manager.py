@@ -75,18 +75,23 @@ class PortfolioManager:
             elif resp.status_code == 401:
                 if is_paper_mode:
                     initial_capital = self.config.get("initial_capital_paper_trading")
-                    if not initial_capital:
+                    if initial_capital is None:
                         raise RuntimeError(
                             "[PORTFOLIO] CRITICAL: Paper mode Alpaca 401 Unauthorized and initial_capital_paper_trading not configured. "
-                            "Set initial_capital_paper_trading in algo_config table or provide credentials."
+                            "Set initial_capital_paper_trading in algo_config table or provide correct Alpaca credentials."
                         )
+                    # Paper mode only: use configured default when credentials unavailable
+                    # This is acceptable for development but NOT for live trading (enforced below)
                     logger.warning(
-                        f"[PORTFOLIO PAPER MODE] Alpaca 401 Unauthorized (credentials invalid/missing), "
-                        f"using configured initial_capital_paper_trading=${initial_capital:.2f}"
+                        f"[PORTFOLIO] Paper mode detected. Alpaca 401 Unauthorized (credentials invalid/missing). "
+                        f"Using configured fallback initial_capital_paper_trading=${initial_capital:.2f}. "
+                        f"For live trading, configure correct Alpaca API credentials."
                     )
                     return float(initial_capital)
+                # Live trading: NEVER fallback on credentials error
                 raise RuntimeError(
-                    f"[PORTFOLIO] Critical: Alpaca 401 Unauthorized — APCA_API_KEY_ID/APCA_API_SECRET_KEY are wrong or expired. URL: {self.alpaca_base_url}"
+                    f"[PORTFOLIO] CRITICAL: Alpaca 401 Unauthorized — APCA_API_KEY_ID/APCA_API_SECRET_KEY are wrong or expired. "
+                    f"Live trading requires valid credentials. URL: {self.alpaca_base_url}. Halting."
                 )
             elif resp.status_code == 403:
                 if is_paper_mode:

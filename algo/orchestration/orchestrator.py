@@ -159,7 +159,12 @@ class Orchestrator:
                 from config.credential_manager import CredentialManager
 
                 # Check if paper trading is enabled - if so, skip credential validation
-                is_paper_trading = self.config.get("alpaca_paper_trading", False)
+                is_paper_trading = self.config.get("alpaca_paper_trading")
+                if is_paper_trading is None:
+                    raise RuntimeError(
+                        "[STARTUP] CRITICAL: alpaca_paper_trading key must be explicitly set in algo_config. "
+                        "Never assume defaults for trading mode. Set to True for paper trading, False for live."
+                    )
                 if is_paper_trading:
                     logger.info("[OK] Paper trading mode enabled - Alpaca credentials not required")
                 else:
@@ -200,14 +205,18 @@ class Orchestrator:
             except ValueError as e:
                 raise RuntimeError(f"[STARTUP] Credential validation failed: {e}") from e
             except RuntimeError as e:
-                # Handle AWS permission errors - fall back to paper mode in dev
-                if "Secrets Manager access failed" in str(e) or "AccessDeniedException" in str(e):
-                    logger.warning(
-                        f"[CREDENTIAL FALLBACK] {e}. "
-                        "AWS permissions insufficient for live trading. Falling back to paper mode."
-                    )
-                else:
-                    raise
+                # CRITICAL: Never silently fall back to paper mode on credential failures
+                # This masks security degradation and operator loses awareness of auth issues
+                logger.critical(
+                    f"[CREDENTIAL VALIDATION FAILED] {e}. "
+                    "Live trading configured but credentials unavailable. "
+                    "Halting orchestrator. Configure credentials or set execution_mode to 'paper'."
+                )
+                raise RuntimeError(
+                    f"[ORCHESTRATOR HALT] Credential validation failed: {e}. "
+                    "Cannot proceed with trading when credentials unavailable. "
+                    "Set execution_mode=paper or provide valid AWS credentials."
+                ) from e
         else:
             logger.info("[OK] Paper trading mode - Alpaca credentials not required")
 
@@ -1345,7 +1354,12 @@ class Orchestrator:
         with TimeBlock("orchestrator_executor"):
             executor_result = self.executor.run()
 
-        executor_phases = executor_result.get("results", {})
+        executor_phases = executor_result.get("results")
+        if executor_phases is None:
+            raise RuntimeError(
+                "[ORCHESTRATOR] CRITICAL: Phase executor returned None for results. "
+                "Cannot proceed without phase execution details. Check orchestrator logs for phase failures."
+            )
         for phase_num, phase_result in executor_phases.items():
             summary = phase_result.data.get("summary", "") if phase_result.data else ""
             if phase_result.status == "error" and phase_result.error and not summary:

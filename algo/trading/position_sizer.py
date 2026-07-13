@@ -85,9 +85,16 @@ class PositionSizer:
                 logger.info(f"[PORTFOLIO] Using live Alpaca value: ${alpaca_value:,.2f}")
                 return alpaca_value
         except RuntimeError as e:
-            # In paper mode, Alpaca may be unavailable (401 Unauthorized, network error, etc.)
-            # Gracefully fall through to portfolio snapshot instead of raising
-            logger.warning(f"[PORTFOLIO] Live Alpaca unavailable ({str(e)[:80]}), falling back to portfolio snapshot")
+            # CRITICAL: Never silently fall back to portfolio snapshot when Alpaca fails
+            # Position sizing MUST use live portfolio value. Stale data is worse than not trading.
+            logger.critical(
+                f"[POSITION_SIZER] CRITICAL: Alpaca portfolio value unavailable: {e!s}. "
+                f"Cannot proceed with position sizing using stale snapshot. Halting phase execution."
+            )
+            raise PortfolioValueError(
+                f"Portfolio value fetch failed and fallback snapshot is stale. "
+                f"Alpaca unavailable: {str(e)[:200]}. Position sizing halted."
+            ) from e
 
         def fetch_snapshot(cur: Any) -> Any:
             cur.execute("SELECT pg_advisory_lock(%s)", (PORTFOLIO_SNAPSHOT_LOCK_ID,))

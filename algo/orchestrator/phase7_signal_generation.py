@@ -66,13 +66,20 @@ _BUYSELL_LOOKBACK_DAYS = 7  # Calendar days; covers full prior week including we
 def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
     """Risk score (0-100, 100 = very low risk) based on ATR volatility relative to price.
 
-    Phase 8 requires risk_score on every persisted signal (see phase8_entry_execution.py
-    _persist_signals_to_database) — signals without it are silently dropped from
-    algo_signals. ATR unavailable -> treat as moderate/unknown risk (neutral 50) rather
-    than blocking persistence entirely.
+    CRITICAL: Fails fast if ATR or close unavailable (never silent 50.0 default).
+    Risk scoring is fundamental to position sizing - using neutral defaults when data
+    is missing violates fail-fast principle. Either data exists or scoring halts.
     """
-    if atr_14 is None or close is None or close <= 0:
-        return 50.0
+    if atr_14 is None:
+        raise ValueError(
+            "ATR(14) data unavailable for risk scoring. Cannot proceed with signal generation. "
+            "Check that technical indicators loader completed successfully."
+        )
+    if close is None or close <= 0:
+        raise ValueError(
+            f"Close price invalid or unavailable ({close!r}) for risk scoring. "
+            "Cannot proceed with signal generation."
+        )
     atr_pct = (atr_14 / close) * 100
     return max(0.0, min(100.0, 100.0 - (atr_pct * 5)))
 
