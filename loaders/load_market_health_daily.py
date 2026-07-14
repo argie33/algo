@@ -1018,7 +1018,9 @@ class MarketHealthDailyLoader(OptimalLoader):
         mas = compute_moving_averages(df["close"])
         df["sma_50"] = mas["sma_50"]
         df["sma_200"] = mas["sma_200"]
-        df["breadth_10d"] = df["up_day"].rolling(10, min_periods=1).mean() * 100
+        # Breadth momentum: 10-day percentage of up days (only after 10 days of data)
+        # min_periods=10 ensures we don't show partial windows early in the dataset
+        df["breadth_10d"] = df["up_day"].rolling(10, min_periods=10).mean() * 100
 
         return df
 
@@ -1026,6 +1028,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         """Check if row should be skipped and return skip reason.
 
         Skips rows with: invalid close price, missing SMA_200 (insufficient history).
+        Breadth_10d may be NaN for early rows (< 10 days) — these are skipped too.
         Returns (should_skip, reason_for_logging).
         """
         if not pd.notna(row["close"]) or row["close"] <= 0:
@@ -1035,6 +1038,11 @@ class MarketHealthDailyLoader(OptimalLoader):
 
         if not pd.notna(row.get("sma_200")) or row["sma_200"] is None:
             return True, "SMA_200 not yet computed (insufficient history)"
+
+        # Breadth_10d requires 10 full periods of data (min_periods=10)
+        # Early rows (< 10 days) will have NaN — skip these until we have 10 days
+        if not pd.notna(row.get("breadth_10d")) or pd.isna(row["breadth_10d"]):
+            return True, "Breadth_10d not yet computed (insufficient 10-day history)"
 
         return False, None
 
@@ -1085,9 +1093,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         if pd.isna(up_volume_pct):
             raise RuntimeError(f"Cannot compute up_volume_percent for {row.get('date', 'unknown')}")
 
-        if pd.isna(row["breadth_10d"]):
-            raise RuntimeError(f"Breadth_momentum_10d is NaN for {row.get('date', 'unknown')}")
-
+        breadth_val = float(row["breadth_10d"]) if pd.notna(row["breadth_10d"]) else None
         return {
             "date": row["date"].date().isoformat(),
             "market_trend": market_trend,
@@ -1098,7 +1104,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             "advance_decline_ratio": None,
             "new_highs_count": None,
             "new_lows_count": None,
-            "breadth_momentum_10d": float(row["breadth_10d"]),
+            "breadth_momentum_10d": breadth_val,
             "spy_change_pct": spy_change_pct,
             "vix_level": None,
             "put_call_ratio": None,
