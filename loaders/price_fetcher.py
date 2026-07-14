@@ -179,7 +179,7 @@ class PriceFetcher:
             is_eod_pipeline: Whether this is end-of-day pipeline (affects end date logic)
 
         Raises:
-            ValueError: If date range is invalid (start > end)
+            ValueError: If date range is invalid (start >= end in EOD context)
             RuntimeError: If fetch fails after retries. No fallback to stale/fake data.
         """
         from utils.infrastructure.timezone import EASTERN_TZ
@@ -193,10 +193,20 @@ class PriceFetcher:
         else:
             start = since
 
-        if start > end:
-            error_msg = f"Invalid date range: start ({start}) > end ({end})"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+        if start >= end:
+            if not is_eod_pipeline:
+                # MORNING RUN FIX: When watermark is already at today's date (from yesterday's EOD load),
+                # but market hasn't opened yet, fetch the previous trading day's data instead.
+                start = end - timedelta(days=1)
+                logger.info(
+                    f"[{symbol}] [MORNING_CONTEXT] Watermark at {end}, fetching previous trading day ({start}) "
+                    f"since market hasn't opened yet"
+                )
+            else:
+                # EOD pipeline: start >= end is a real error (data should be available)
+                error_msg = f"Invalid date range: start ({start}) >= end ({end})"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
         rows = self._try_fetch(symbol, start, end)
         return rows
@@ -223,9 +233,20 @@ class PriceFetcher:
         start = end - timedelta(days=101) if since is None else since
 
         if start >= end:
-            error_msg = f"Invalid date range for batch fetch: start ({start}) >= end ({end})"
-            logger.error(error_msg)
-            raise ValueError(error_msg)
+            if not is_eod_pipeline:
+                # MORNING RUN FIX: When watermark is already at today's date (from yesterday's EOD load),
+                # but market hasn't opened yet, fetch the previous trading day's data instead.
+                # This prevents start >= end errors when the watermark is current but today's data isn't available yet.
+                start = end - timedelta(days=1)
+                logger.info(
+                    f"[MORNING_CONTEXT] Watermark at {end}, fetching previous trading day ({start}) "
+                    f"since market hasn't opened yet for today"
+                )
+            else:
+                # EOD pipeline: start >= end is a real error (data should be available)
+                error_msg = f"Invalid date range for batch fetch: start ({start}) >= end ({end})"
+                logger.error(error_msg)
+                raise ValueError(error_msg)
 
         adaptive_batch_size = min(len(symbols), self._get_smart_batch_size())
         logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size}")
