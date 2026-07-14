@@ -26,6 +26,7 @@ Usage:
 
 import json
 import logging
+import os
 import threading
 import time
 from collections import deque
@@ -153,6 +154,7 @@ class DataSourceRouter:
 
         # Lazy clients — only construct when needed
         self._alpaca: Any = None
+        self._alpaca_data: Any = None  # AlpacaMarketData, lazily constructed
         self._sec: SecEdgarClient | None = None
 
     def _get_health(self, name: str) -> SourceHealth:
@@ -266,15 +268,47 @@ class DataSourceRouter:
         end: date,
         interval: str = "1d",
     ) -> dict[str, list[dict[str, Any]] | None]:
-        """Batch fetch OHLCV for multiple symbols. Returns dict[symbol] -> rows or None."""
-        sources: list[tuple[str, Callable[[], Any]]] = [
+        """Batch fetch OHLCV for multiple symbols. Returns dict[symbol] -> rows or None.
+
+        Source selection (PRICE_DATA_SOURCE env / algo config):
+        - "yfinance" (default): unchanged legacy path.
+        - "alpaca": Alpaca Market Data first (genuinely batched — ~200 symbols per
+          HTTP request, full SIP historical data on the free plan for windows older
+          than 15 minutes), with automatic yfinance fallback so a bad Alpaca day
+          cannot halt price loading. Only daily bars route to Alpaca; other
+          intervals stay on yfinance.
+        """
+        sources: list[tuple[str, Callable[[], Any]]] = []
+        if interval == "1d" and os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca":
+            sources.append(
+                (
+                    "alpaca",
+                    lambda: self._fetch_alpaca_ohlcv_batch(symbols, start, end),
+                )
+            )
+        sources.append(
             (
                 "yfinance",
                 lambda: self._fetch_yfinance_ohlcv_batch(symbols, start, end, interval=interval),
-            ),
-        ]
+            )
+        )
         results = self._try_chain(sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]")
         return cast(dict[str, list[dict[str, Any]] | None], results if results else dict.fromkeys(symbols))
+
+    def _fetch_alpaca_ohlcv_batch(
+        self, symbols: list[str], start: date, end: date
+    ) -> dict[str, list[dict[str, Any]] | None]:
+        """Daily bars from Alpaca Market Data, shaped identically to the yfinance batch."""
+        from utils.external.alpaca_market_data import AlpacaMarketData
+
+        if self._alpaca_data is None:
+            self._alpaca_data = AlpacaMarketData()
+        fetched = self._alpaca_data.fetch_daily_bars(symbols, start, end)
+        # Symbols absent from Alpaca's response get None so _try_chain/callers keep
+        # the same per-symbol semantics as the yfinance batch path.
+        results: dict[str, list[dict[str, Any]] | None] = dict.fromkeys(symbols)
+        results.update(fetched)
+        return results
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))
     def _fetch_yfinance_ohlcv(
