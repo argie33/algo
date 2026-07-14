@@ -1595,6 +1595,23 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             score_dict = safe_json_serialize(safe_dict_convert(row))
             top_scores.append(score_dict)
 
+        # FALLBACK: If growth_score is null, fetch directly to ensure data correctness
+        # This handles cases where primary query returns stale/incomplete data
+        missing_fields = [i for i, s in enumerate(top_scores) if s.get('growth_score') is None]
+        if missing_fields:
+            logger.warning(f"[SCORES] Enriching {len(missing_fields)} rows with missing growth_score")
+            for idx in missing_fields:
+                symbol = top_scores[idx].get('symbol')
+                if symbol:
+                    try:
+                        cur.execute("SELECT growth_score, rs_percentile FROM stock_scores WHERE symbol = %s", (symbol,))
+                        enrichment = cur.fetchone()
+                        if enrichment:
+                            top_scores[idx]['growth_score'] = enrichment[0]
+                            top_scores[idx]['rs_percentile'] = enrichment[1]
+                    except Exception as e:
+                        logger.error(f"[SCORES] Failed to enrich {symbol}: {e}")
+
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
 
         response = {
