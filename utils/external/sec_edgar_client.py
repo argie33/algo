@@ -11,6 +11,7 @@ import random
 import socket
 import threading
 import time
+from collections import OrderedDict
 from typing import Any, cast
 
 import requests
@@ -53,6 +54,13 @@ class SecEdgarClient:
     Args:
         user_agent: Required by SEC. Format: "AppName admin@example.com"
         cache_ttl: Seconds to cache the symbol-to-CIK mapping.
+        companyfacts_cache_size: Max number of per-CIK companyfacts JSON
+            payloads to keep in the in-process LRU cache (0 disables caching).
+            MUST stay small: companyfacts payloads are multi-MB each, so an
+            unbounded cache over the ~5,300-symbol universe would exhaust the
+            512-1024MB ECS task memory. A handful of entries is enough because
+            callers that benefit (load_financial_statements all-mode) process
+            all statement/period combos for one symbol before moving on.
     """
 
     def __init__(
@@ -60,6 +68,7 @@ class SecEdgarClient:
         user_agent: str | None = None,
         cache_ttl: int = 86400,
         timeout: float | None = None,
+        companyfacts_cache_size: int = 4,
     ):
         self.user_agent = user_agent or DEFAULT_USER_AGENT
         if "@" not in self.user_agent:
@@ -86,6 +95,15 @@ class SecEdgarClient:
                 "Accept": "application/json",
             }
         )
+        # Companyfacts LRU cache keyed by CIK. The financial statements loader
+        # derives six statement/period outputs from the SAME companyfacts JSON
+        # per symbol; without this cache each output re-downloaded the multi-MB
+        # payload (~32,000 HTTP requests per run instead of ~5,300 at 2 req/s).
+        # A None value is a negative-cache entry for a 404 (permanent per SEC
+        # semantics — see _get_json); transient failures are never cached.
+        self._companyfacts_cache_size = companyfacts_cache_size
+        self._companyfacts_cache: OrderedDict[str, dict[str, Any] | None] = OrderedDict()
+        self._companyfacts_cache_lock = threading.Lock()
         # Delegate ticker cache to TickerCache class
         self._ticker_cache_manager = TickerCache(
             cache_ttl=cache_ttl,
@@ -106,6 +124,11 @@ class SecEdgarClient:
     def get_company_facts(self, cik: str) -> dict[str, Any]:
         """All XBRL facts for a company. Single endpoint, returns everything.
 
+        Results (including 404s, which are permanent) are cached in a small
+        per-CIK LRU so repeated calls for the same company within one process
+        reuse a single HTTP fetch. Callers MUST treat the returned dict as
+        read-only — the same object is shared across calls.
+
         Returns: {
             "cik": 320193,
             "entityName": "Apple Inc.",
@@ -119,7 +142,35 @@ class SecEdgarClient:
         }
         """
         url = f"{EDGAR_BASE}/api/xbrl/companyfacts/CIK{cik}.json"
-        return self._get_json(url)
+        if self._companyfacts_cache_size > 0:
+            with self._companyfacts_cache_lock:
+                if cik in self._companyfacts_cache:
+                    self._companyfacts_cache.move_to_end(cik)
+                    cached = self._companyfacts_cache[cik]
+                    if cached is None:
+                        # Negative-cached 404: preserve _get_json's exception contract
+                        raise FileNotFoundError(f"SEC filing not found: {url}")
+                    return cached
+
+        try:
+            data = self._get_json(url)
+        except FileNotFoundError:
+            # 404 is permanent (data doesn't exist) — safe to negative-cache.
+            # Transient errors (RuntimeError after retries) are NOT cached.
+            self._cache_companyfacts(cik, None)
+            raise
+        self._cache_companyfacts(cik, data)
+        return data
+
+    def _cache_companyfacts(self, cik: str, data: dict[str, Any] | None) -> None:
+        """Store a companyfacts result (or None for a 404) in the bounded LRU."""
+        if self._companyfacts_cache_size <= 0:
+            return
+        with self._companyfacts_cache_lock:
+            self._companyfacts_cache[cik] = data
+            self._companyfacts_cache.move_to_end(cik)
+            while len(self._companyfacts_cache) > self._companyfacts_cache_size:
+                self._companyfacts_cache.popitem(last=False)
 
     def get_concept(
         self,

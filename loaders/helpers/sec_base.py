@@ -164,8 +164,19 @@ class SecEdgarStatementLoader(SecLoaderBase):
         statement_type: str,
         period_config: dict[str, dict[str, Any]],
         period: str | None = None,
+        sec_client: SecEdgarClient | None = None,
     ):
-        """Initialize loader with statement type and period config."""
+        """Initialize loader with statement type and period config.
+
+        Args:
+            statement_type: 'income', 'balance', or 'cashflow'.
+            period_config: Per-period table/schema configuration.
+            period: 'annual' or 'quarterly' (falls back to LOADER_PERIOD env var).
+            sec_client: Optional shared SecEdgarClient. Passing one client to
+                several statement/period loaders lets them share its per-CIK
+                companyfacts LRU cache (and rate limiter), so all statements
+                for a symbol are derived from a single HTTP fetch.
+        """
         period = self._resolve_period(period)
         if period not in ("annual", "quarterly"):
             raise ValueError(f"Invalid period: {period!r}; must be 'annual' or 'quarterly'")
@@ -181,7 +192,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
         self._field_mapping: dict[str, str] | None = cast(dict[str, str] | None, cfg.get("field_mapping"))
 
         super().__init__()
-        self._sec_client = SecEdgarClient()
+        self._sec_client = sec_client if sec_client is not None else SecEdgarClient()
 
     @staticmethod
     def _resolve_period(cli_arg: str | None) -> str:
