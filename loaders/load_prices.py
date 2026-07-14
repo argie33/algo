@@ -2,8 +2,11 @@
 
 """UNIFIED Price Loader - loads all intervals (1d, 1wk, 1mo) and asset classes (stock, etf).
 
+Weekly/monthly bars are derived in SQL from the daily bars after each 1d load
+(derive_aggregate_prices) rather than fetched from yfinance; only 1d hits the API.
+
 Environment variables (set by Terraform/ECS task definition):
-  LOADER_INTERVALS: comma-separated intervals (default: "1d,1wk,1mo")
+  LOADER_INTERVALS: comma-separated intervals (default: "1d"; 1wk/1mo only for manual API backfill)
   LOADER_ASSET_CLASSES: comma-separated asset classes (default: "stock,etf")
   LOADER_SYMBOLS: optional comma-separated symbols; if blank, uses database active symbols
   LOADER_PARALLELISM: thread pool size (default: 2)
@@ -2179,6 +2182,94 @@ def _invalidate_phase1_cache() -> None:
     )
 
 
+def derive_aggregate_prices(asset_class: str) -> None:
+    """Derive weekly/monthly bars from the daily table in SQL (no API fetches).
+
+    Replaces fetching 1wk/1mo bars from yfinance for the whole universe (~10,700
+    requests/day when it ran; production disabled those fetches on 2026-07-10 which
+    left price_weekly/price_monthly with live readers — signal_patterns,
+    market_factor_calculator, dashboard price routes — and a critical 7-day Phase 1
+    freshness gate, but NO writer). Bar labeling matches the yfinance rows already in
+    the tables: weekly bars keyed by week start (Monday), monthly by the 1st.
+
+    The derivation window starts one full period before the target table's own
+    MAX(date), so the in-progress and prior period always heal, and any gap since the
+    last successful derivation auto-backfills. An empty target table backfills from
+    the entire daily history. Daily marker rows (NULL close) are excluded.
+    """
+    if asset_class == "etf":
+        daily_table = "etf_price_daily"
+        targets = (("etf_price_weekly", "week", 28), ("etf_price_monthly", "month", 92))
+        # ETF tables predate migration 114 and may lack data_unavailable columns.
+        reset_unavailable_flag = ""
+    else:
+        daily_table = "price_daily"
+        targets = (("price_weekly", "week", 28), ("price_monthly", "month", 92))
+        # A derived bar is real data: clear any marker state left by old loader runs
+        # (CHECK constraint requires reason NULL when flag is false).
+        reset_unavailable_flag = ", data_unavailable = FALSE, data_unavailable_reason = NULL"
+
+    assert_safe_table(daily_table)
+    for target_table, period, heal_days in targets:
+        assert_safe_table(target_table)
+        with DatabaseContext("write") as cur:
+            cur.execute(f"SELECT MAX(date) FROM {target_table}")
+            row = cur.fetchone()
+            last_derived: date | None = row[0] if row and row[0] is not None else None
+
+            date_filter = ""
+            params: tuple[Any, ...] = ()
+            if last_derived is not None:
+                date_filter = "AND date >= %s"
+                params = (last_derived - timedelta(days=heal_days),)
+
+            cur.execute(
+                f"""
+                INSERT INTO {target_table} (symbol, date, open, high, low, close, volume)
+                SELECT symbol,
+                       date_trunc('{period}', date)::date AS period_start,
+                       (array_agg(open ORDER BY date ASC) FILTER (WHERE open IS NOT NULL))[1],
+                       MAX(high),
+                       MIN(low),
+                       (array_agg(close ORDER BY date DESC) FILTER (WHERE close IS NOT NULL))[1],
+                       SUM(volume)
+                FROM {daily_table}
+                WHERE close IS NOT NULL {date_filter}
+                GROUP BY symbol, date_trunc('{period}', date)
+                ON CONFLICT (symbol, date) DO UPDATE SET
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    volume = EXCLUDED.volume{reset_unavailable_flag}
+                """,
+                params,
+            )
+            derived_rows = cur.rowcount
+            logger.info(
+                f"[DERIVE] {target_table}: upserted {derived_rows} {period}ly bars from {daily_table} "
+                f"(window start: {params[0] if params else 'full history'})"
+            )
+
+            # Keep freshness gates green: derived tables report loader status like any
+            # other loader (Phase 1 checks data_loader_status for these table names).
+            cur.execute(f"SELECT MAX(date) FROM {target_table}")
+            latest_row = cur.fetchone()
+            latest_date = latest_row[0] if latest_row else None
+            cur.execute(
+                """UPDATE data_loader_status
+                   SET status = %s, last_updated = NOW(), execution_completed = NOW(), latest_date = %s
+                   WHERE table_name = %s""",
+                ("COMPLETED", latest_date, target_table),
+            )
+            if cur.rowcount == 0:
+                cur.execute(
+                    """INSERT INTO data_loader_status (table_name, status, last_updated, execution_completed, latest_date)
+                       VALUES (%s, %s, NOW(), NOW(), %s)""",
+                    (target_table, "COMPLETED", latest_date),
+                )
+
+
 def log_loader_execution(
     loader_name: str,
     table_name: str,
@@ -2265,7 +2356,10 @@ def main() -> int:
             ) from log_err
 
     # Read from environment variables (no CLI args, cleaner for containerized execution)
-    intervals_str = os.getenv("LOADER_INTERVALS", "1d,1wk,1mo")
+    # Weekly/monthly bars are DERIVED from daily bars in SQL after the 1d load
+    # (see derive_aggregate_prices) — fetching them from yfinance is no longer the
+    # default. Set LOADER_INTERVALS=1wk or 1mo explicitly for a manual API backfill.
+    intervals_str = os.getenv("LOADER_INTERVALS", "1d")
     asset_classes_str = os.getenv("LOADER_ASSET_CLASSES", "stock,etf")
     symbols_str = os.getenv("LOADER_SYMBOLS", "")
     # CRITICAL: Use higher parallelism for stock_prices_daily to complete in reasonable time
@@ -2683,6 +2777,22 @@ def main() -> int:
         raise RuntimeError(f"[MAIN] Price loader failed: {fatal_err}") from fatal_err
 
     logger.info("[MAIN] All intervals completed. Total: %s", total_stats)
+
+    # Derive weekly/monthly bars in SQL from the freshly loaded daily bars instead of
+    # fetching them from yfinance. Fail-open: daily data (the critical output) is already
+    # committed and weekly consumers tolerate up to 7 days of staleness, so a derivation
+    # failure alerts loudly but must not zero out a successful price run.
+    if "1d" in intervals and os.getenv("DERIVE_AGGREGATE_PRICES", "true").lower() not in ("false", "0", "no"):
+        for asset_class in asset_classes:
+            try:
+                with TimeBlock(f"derive_aggregate_prices_{asset_class}"):
+                    derive_aggregate_prices(asset_class)
+            except Exception as derive_err:
+                logger.critical(
+                    f"[DERIVE] Weekly/monthly derivation failed for {asset_class}: {derive_err}. "
+                    "Daily prices loaded successfully; weekly/monthly tables will go stale if "
+                    "this persists (Phase 1 freshness gate allows 7 days)."
+                )
 
     duration_seconds = round(time.time() - start_time, 2)
     if fail_count > 0:

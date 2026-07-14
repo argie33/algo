@@ -1332,10 +1332,12 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Next = "MorningPrices"
       }
 
-      # Load only daily prices (not weekly/monthly) for morning prep.
+      # Load only daily prices for morning prep.
       # CRITICAL LOADER (FAIL-CLOSED): Must complete before technicals and signals can be computed.
       # Override LOADER_INTERVALS to "1d" so only daily prices are loaded (~15 min vs 6+ hours).
-      # The full 1d/1wk/1mo load runs in the EOD pipeline at 4:05pm ET.
+      # Weekly/monthly bars are DERIVED in SQL from daily bars after each 1d load
+      # (derive_aggregate_prices in loaders/load_prices.py) — no interval is fetched from
+      # yfinance besides 1d anywhere.
       # parallelism=1 (serial to prevent yfinance 429 rate limit errors); actual runtime 60-90 min with 5000+ symbols
       # Timeout: 4 hours (14400s). Morning pipeline runs 2:00-9:30 AM (450 min available).
       # 90min loader + 60min for technicals + 60min buffer = 210min needed; 240min timeout is safe.
