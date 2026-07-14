@@ -36,25 +36,13 @@ permissions:
   id-token: write
   contents: read
 
-# Serialize deploys: overlapping `terraform apply` runs against the same state/AWS
-# resources were racing to mutate the same Lambda concurrency settings simultaneously,
-# causing repeated "Requested Provisioned Concurrency should not be greater than the
-# reservedConcurrentExecution" failures (confirmed via runs starting 12s apart).
-# cancel-in-progress is deliberately false — killing a live `terraform apply` mid-flight
-# can leave AWS resources and state partially applied; queuing is the safe way to
-# unblock a backlog of runs, not racing them.
-#
-# GROUP IS SHARED with deploy-api-lambda.yml, deploy-orchestrator-lambda.yml, and
-# deploy-ecs-image.yml (not just self-serialized): all four fire on the same "CI
-# completed" event, and the other three call the AWS Lambda/ECS APIs directly against
-# the exact same resources this workflow's terraform apply manages. A group scoped to
-# just this workflow's own name only prevented two runs of *this* workflow from
-# overlapping -- it did nothing to stop e.g. deploy-api-lambda's UpdateFunctionCode
-# call landing on algo-api-dev in the middle of this workflow's terraform apply, which
-# is what was still producing "ResourceConflictException: update is in progress" and
-# provisioned-concurrency failures after this guard was added.
+# Terraform runs in its own concurrency group (not shared with deploy-api-lambda.yml
+# etc) to prevent it from being cancelled by other faster deploys. Terraform can take
+# 10-15 minutes and must complete even if other deploys finish quickly.
+# Separate concurrency groups allow: Terraform to queue/run independently, Lambda
+# deploys to run in parallel in shared group, no resource conflicts.
 concurrency:
-  group: deploy-shared-lambda-resources-${{ github.ref }}
+  group: deploy-terraform-only-${{ github.ref }}
   cancel-in-progress: false
 
 env:
