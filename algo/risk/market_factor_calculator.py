@@ -359,7 +359,9 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if not row:
-                logger.warning(f"[PUT_CALL] No put/call ratio data available on or before {eval_date}; degrading to neutral.")
+                logger.warning(
+                    f"[PUT_CALL] No put/call ratio data available on or before {eval_date}; degrading to neutral."
+                )
                 return {"value": None, "score": neutral_score, "data_unavailable": True, "reason": "no_data"}
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
