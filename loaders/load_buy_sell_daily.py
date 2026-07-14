@@ -758,15 +758,31 @@ def main() -> int:  # noqa: C901
                 )
                 return 1
 
-            coverage_pct = round(100 * tech_symbol_count / len(symbols), 1)
+            # DENOMINATOR FIX (same as the one documented in fetch_incremental, which this
+            # main()-level gate never received): the active-symbol list (10,000+) includes
+            # ETFs and listings with no price history, so dividing by it reads misleadingly
+            # low — 7,777 tech symbols over 10,705 active = 72.6% "failed" the 73% gate
+            # while true coverage over price-covered symbols was 91.9%. Use symbols that
+            # actually have prices on the technical max date as the denominator.
+            cur.execute(
+                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                (tech_data_date,),
+            )
+            price_row = cur.fetchone()
+            price_symbol_count = int(price_row[0]) if price_row and price_row[0] else 0
+            denominator = price_symbol_count if price_symbol_count > 0 else len(symbols)
+
+            coverage_pct = round(100 * tech_symbol_count / denominator, 1)
             if coverage_pct < 73:
                 logger.error(
-                    f"[DEPENDENCY] technical_data_daily coverage is {coverage_pct}% ({tech_symbol_count}/{len(symbols)} symbols) - below 73% threshold"
+                    f"[DEPENDENCY] technical_data_daily coverage is {coverage_pct}% "
+                    f"({tech_symbol_count}/{denominator} price-covered symbols) - below 73% threshold"
                 )
                 return 1
 
             logger.info(
-                f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{len(symbols)} symbols ({coverage_pct}%), age {tech_data_age}d"
+                f"[DEPENDENCY] ✓ technical_data_daily: {tech_symbol_count}/{denominator} price-covered "
+                f"symbols ({coverage_pct}%), age {tech_data_age}d"
             )
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as dep_err:
         logger.error(f"[LOADER] Failed to validate technical_data_daily dependency: {dep_err}. Exit code 1 (ERROR).")
