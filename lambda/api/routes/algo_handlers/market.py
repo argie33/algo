@@ -939,6 +939,11 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         # Include spy_close in market_health as well (required by dashboard fetcher)
         market_health["spy_close"] = spy_close
 
+        # Set put_call_ratio availability flag for dashboard fetcher
+        # Dashboard expects this flag to handle missing data gracefully
+        put_call_ratio_val = market_health.get("put_call_ratio")
+        market_health["put_call_ratio_data_unavailable"] = put_call_ratio_val is None
+
         # Build response with market data (not a list response)
         # Contract requires: spy_close, vix_level (required), plus optional market data fields
         vix_level = market_health.get("vix_level")

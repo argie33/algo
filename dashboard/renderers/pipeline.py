@@ -227,7 +227,12 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         else Panel("[red]Growth scores unavailable[/]", border_style="red")
     )
 
-    outer["r4"].update(Layout(scores_panel, name="scores"))
+    # Only update r4 if it exists in the layout (may not exist in all render paths)
+    try:
+        outer["r4"].update(Layout(scores_panel, name="scores"))
+    except KeyError:
+        logger.warning("[RENDERER] r4 layout not found - skipping scores panel update (may be in expanded view)")
+        # Layout may have changed during render (e.g., switched to expanded view) - this is not an error
 
     pos_panel = (
         safe_render(panel_positions, ctx.pos, compact, trades=ctx.trades)
