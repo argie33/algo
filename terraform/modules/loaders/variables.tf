@@ -156,9 +156,11 @@ variable "orchestrator_log_level" {
 }
 
 variable "backfill_days" {
-  description = "Number of days to backfill on first loader run"
+  # See root variables.tf: 365 here made every loader run a full-year refetch;
+  # 0 enables the watermark-incremental path. Nonzero only for explicit recovery.
+  description = "Days to force-refetch on EVERY loader run (0 = watermark-incremental; nonzero only for recovery)"
   type        = number
-  default     = 365
+  default     = 0
 }
 
 variable "disable_provenance_tracking" {

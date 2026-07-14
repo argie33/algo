@@ -1135,9 +1135,18 @@ variable "security_log_retention_days" {
 # ============================================================
 
 variable "backfill_days" {
-  description = "Number of days to backfill on first loader run"
+  # ROOT CAUSE FIX 2026-07-14: this was 365 and is injected as BACKFILL_DAYS into
+  # EVERY loader task definition — despite the description saying "first run", the
+  # loaders treat any value > 0 as "refetch the last N days on every run". Result:
+  # every production price run fetched AND re-upserted a full year of bars for all
+  # ~8,500 symbols (1.98M rows fetched / 1.88M re-upserted per run, confirmed in
+  # CloudWatch), the watermark-incremental path never executed, and yfinance served
+  # ~250x more data than needed twice a day. 0 = watermark-incremental (symbols with
+  # no watermark still get the fetcher's first-load window). For genuine recovery,
+  # pass backfill_days explicitly via the run-loader workflow's container override.
+  description = "Days to force-refetch on EVERY loader run (0 = watermark-incremental; nonzero only for recovery)"
   type        = number
-  default     = 365
+  default     = 0
 }
 
 variable "disable_provenance_tracking" {
