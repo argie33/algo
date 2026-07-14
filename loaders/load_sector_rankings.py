@@ -39,7 +39,11 @@ class SectorRankingLoader(OptimalLoader):
                     """
                 )
 
-                # Compute sector rankings from stock scores
+                # Compute sector rankings from stock scores.
+                # rank_1w/4w/12w_ago use the nearest row at-or-before the lookback date
+                # (loader gaps/weekends leave no exact-date row) and bootstrap to
+                # current_rank when history is missing — sector_rotation.py hard-requires
+                # all three to be non-NULL for market regime computation.
                 cur.execute(
                     """
                     WITH sector_stats AS (
@@ -54,28 +58,43 @@ class SectorRankingLoader(OptimalLoader):
                           AND cp.sector != ''
                           AND cp.sector != 'Unknown'
                         GROUP BY cp.sector
-                    ),
-                    prior_ranks AS (
-                        SELECT
-                            sector_name,
-                            current_rank AS rank_1w_ago
-                        FROM sector_ranking
-                        WHERE date = NOW()::date - INTERVAL '7 days'
                     )
                     INSERT INTO sector_ranking
-                      (sector_name, date, current_rank, momentum_score, rank_1w_ago)
+                      (sector_name, date, current_rank, momentum_score,
+                       rank_1w_ago, rank_4w_ago, rank_12w_ago)
                     SELECT
                         ss.sector_name,
                         NOW()::date,
                         ss.current_rank,
-                        COALESCE(ss.current_rank - COALESCE(pr.rank_1w_ago, ss.current_rank), 0),
-                        COALESCE(pr.rank_1w_ago, ss.current_rank)
+                        COALESCE(ss.current_rank - COALESCE(r1.rank, ss.current_rank), 0),
+                        COALESCE(r1.rank, ss.current_rank),
+                        COALESCE(r4.rank, ss.current_rank),
+                        COALESCE(r12.rank, ss.current_rank)
                     FROM sector_stats ss
-                    LEFT JOIN prior_ranks pr ON ss.sector_name = pr.sector_name
+                    LEFT JOIN LATERAL (
+                        SELECT sr.current_rank AS rank FROM sector_ranking sr
+                        WHERE sr.sector_name = ss.sector_name
+                          AND sr.date <= NOW()::date - INTERVAL '7 days'
+                        ORDER BY sr.date DESC LIMIT 1
+                    ) r1 ON TRUE
+                    LEFT JOIN LATERAL (
+                        SELECT sr.current_rank AS rank FROM sector_ranking sr
+                        WHERE sr.sector_name = ss.sector_name
+                          AND sr.date <= NOW()::date - INTERVAL '28 days'
+                        ORDER BY sr.date DESC LIMIT 1
+                    ) r4 ON TRUE
+                    LEFT JOIN LATERAL (
+                        SELECT sr.current_rank AS rank FROM sector_ranking sr
+                        WHERE sr.sector_name = ss.sector_name
+                          AND sr.date <= NOW()::date - INTERVAL '84 days'
+                        ORDER BY sr.date DESC LIMIT 1
+                    ) r12 ON TRUE
                     ON CONFLICT (sector_name, date) DO UPDATE SET
                         current_rank = EXCLUDED.current_rank,
                         momentum_score = EXCLUDED.momentum_score,
                         rank_1w_ago = EXCLUDED.rank_1w_ago,
+                        rank_4w_ago = EXCLUDED.rank_4w_ago,
+                        rank_12w_ago = EXCLUDED.rank_12w_ago,
                         updated_at = NOW()
                     """
                 )
@@ -96,28 +115,34 @@ class SectorRankingLoader(OptimalLoader):
                           AND cp.industry != ''
                           AND cp.industry != 'Unknown'
                         GROUP BY cp.industry
-                    ),
-                    prior_ranks AS (
-                        SELECT
-                            industry AS industry_name,
-                            current_rank AS rank_1w_ago
-                        FROM industry_ranking
-                        WHERE date_recorded = NOW()::date - INTERVAL '7 days'
                     )
                     INSERT INTO industry_ranking
-                      (industry, date_recorded, current_rank, momentum_score, rank_1w_ago)
+                      (industry, date_recorded, current_rank, momentum_score, rank_1w_ago, rank_4w_ago)
                     SELECT
                         ist.industry_name,
                         NOW()::date,
                         ist.current_rank,
-                        COALESCE(ist.current_rank - COALESCE(pr.rank_1w_ago, ist.current_rank), 0),
-                        COALESCE(pr.rank_1w_ago, ist.current_rank)
+                        COALESCE(ist.current_rank - COALESCE(r1.rank, ist.current_rank), 0),
+                        COALESCE(r1.rank, ist.current_rank),
+                        COALESCE(r4.rank, ist.current_rank)
                     FROM industry_stats ist
-                    LEFT JOIN prior_ranks pr ON ist.industry_name = pr.industry_name
+                    LEFT JOIN LATERAL (
+                        SELECT ir.current_rank AS rank FROM industry_ranking ir
+                        WHERE ir.industry = ist.industry_name
+                          AND ir.date_recorded <= NOW()::date - INTERVAL '7 days'
+                        ORDER BY ir.date_recorded DESC LIMIT 1
+                    ) r1 ON TRUE
+                    LEFT JOIN LATERAL (
+                        SELECT ir.current_rank AS rank FROM industry_ranking ir
+                        WHERE ir.industry = ist.industry_name
+                          AND ir.date_recorded <= NOW()::date - INTERVAL '28 days'
+                        ORDER BY ir.date_recorded DESC LIMIT 1
+                    ) r4 ON TRUE
                     ON CONFLICT (industry, date_recorded) DO UPDATE SET
                         current_rank = EXCLUDED.current_rank,
                         momentum_score = EXCLUDED.momentum_score,
                         rank_1w_ago = EXCLUDED.rank_1w_ago,
+                        rank_4w_ago = EXCLUDED.rank_4w_ago,
                         updated_at = NOW()
                     """
                 )
