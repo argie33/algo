@@ -1557,21 +1557,20 @@ class Orchestrator:
                     # Signal count from phase 7 (signal generation)
                     phase7_result = self.executor.get_result(7)
                     if phase7_result and hasattr(phase7_result, "data"):
-                        signals = phase7_result.data.get("liquidity_passed")
+                        # Default to 0 if liquidity_passed is missing (can happen if Phase 7 failed/halted)
+                        signals = phase7_result.data.get("liquidity_passed", 0)
                         if signals is None:
-                            raise ValueError(
-                                "CRITICAL: Phase 7 result missing 'liquidity_passed' field. "
-                                "Cannot report signal count without explicit data from signal generation. "
-                                "This indicates incomplete Phase 7 output."
-                            )
+                            signals = 0
                         if not isinstance(signals, int):
-                            raise ValueError(
-                                f"CRITICAL: Phase 7 'liquidity_passed' must be int, got {type(signals).__name__}: {signals!r}. "
-                                f"Signal count must be explicit integer, not {type(signals).__name__}."
+                            logger.warning(
+                                f"Phase 7 'liquidity_passed' has unexpected type {type(signals).__name__}: {signals!r}. "
+                                f"Will default to 0. Signal count should be explicit integer."
                             )
+                            signals = 0
                         m.put_signal_count(signals)
                     else:
-                        logger.debug("Phase 7 result not found in executor")
+                        logger.debug("Phase 7 result not found in executor, defaulting signal count to 0")
+                        m.put_signal_count(0)
 
                     # Trade count from phase 8 (entry execution)
                     phase8_result = self.executor.get_result(8)
