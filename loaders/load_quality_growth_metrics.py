@@ -252,17 +252,27 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         return metrics
 
     def _insert_record(self, cur: Any, table: str, record: dict[str, Any]) -> None:
-        """Insert a single record to table."""
+        """Upsert a single record to table.
+
+        BUGFIX: ON CONFLICT previously updated only updated_at, silently discarding every
+        recomputed metric value for symbols that already had a row — the table was
+        effectively write-once while its updated_at looked fresh. Now every non-key column
+        is updated from EXCLUDED so daily recomputes actually land.
+        """
         if not record:
             return
 
         columns = ", ".join(record.keys())
         placeholders = ", ".join(["%s"] * len(record))
+        update_cols = [col for col in record if col != "symbol"]
+        if not update_cols:
+            return
+        set_clause = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_cols)
         query = f"""
             INSERT INTO {table} ({columns})
             VALUES ({placeholders})
             ON CONFLICT (symbol) DO UPDATE SET
-                updated_at = EXCLUDED.updated_at
+                {set_clause}
         """
         values = tuple(record.values())
         cur.execute(query, values)

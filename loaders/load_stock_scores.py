@@ -252,6 +252,37 @@ class StockScoresLoader(OptimalLoader):
                 )
             self._momentum_max_date: date = max_date_row[0]
 
+            # Momentum prices for the whole universe in 5 index scans instead of one
+            # 5-subquery round trip per symbol (~5000 queries/run). Each query returns the
+            # latest close per symbol at/before the horizon cutoff — identical semantics to
+            # the per-symbol scalar subqueries this replaces (no lower date bound: a symbol
+            # whose newest row predates the cutoff still gets that row, as before).
+            horizon_days = {"current": None, "1m": 30, "3m": 60, "6m": 120, "12m": 252}
+            horizon_closes: dict[str, dict[str, Any]] = {}
+            for name, days in horizon_days.items():
+                if days is None:
+                    cur.execute(
+                        "SELECT DISTINCT ON (symbol) symbol, close FROM price_daily ORDER BY symbol, date DESC"
+                    )
+                else:
+                    cur.execute(
+                        "SELECT DISTINCT ON (symbol) symbol, close FROM price_daily "
+                        "WHERE date <= %s - INTERVAL '1 day' * %s ORDER BY symbol, date DESC",
+                        (self._momentum_max_date, days),
+                    )
+                horizon_closes[name] = {row[0]: row[1] for row in cur.fetchall()}
+            # Every symbol with any price row appears in "current" (it has no date bound).
+            self._momentum_cache: dict[str, tuple[Any, Any, Any, Any, Any]] = {
+                sym: (
+                    close,
+                    horizon_closes["1m"].get(sym),
+                    horizon_closes["3m"].get(sym),
+                    horizon_closes["6m"].get(sym),
+                    horizon_closes["12m"].get(sym),
+                )
+                for sym, close in horizon_closes["current"].items()
+            }
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.
 
@@ -906,28 +937,18 @@ class StockScoresLoader(OptimalLoader):
         (which may be None for individual timeframes if historical data missing).
         """
         try:
-            # CRITICAL: Validate row has expected 5 columns before accessing indices
-            # PERF FIX: max_date used to be an inline `(SELECT MAX(date) FROM price_daily)` subquery,
-            # re-evaluated as a full-table scan up to 4x per symbol (~20,000 scans/run across ~5000
-            # symbols). Now computed once in _prepare_batch_context() and bound as a parameter.
-            max_date = self._momentum_max_date
-            cur.execute(
-                """
-                SELECT
-                    (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1) as current,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s - INTERVAL '30 days' ORDER BY date DESC LIMIT 1) as price_1m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s - INTERVAL '60 days' ORDER BY date DESC LIMIT 1) as price_3m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s - INTERVAL '120 days' ORDER BY date DESC LIMIT 1) as price_6m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s - INTERVAL '252 days' ORDER BY date DESC LIMIT 1) as price_12m_ago
-            """,
-                (symbol, symbol, max_date, symbol, max_date, symbol, max_date, symbol, max_date),
-            )
-            row = cur.fetchone()
+            # PERF FIX: momentum prices for the whole universe are prefetched in
+            # _prepare_batch_context() (5 bulk queries total). This replaced a per-symbol
+            # 5-subquery round trip (~5000 queries/run), which itself replaced inline
+            # MAX(date) subqueries (~20,000 full-table scans/run). A symbol absent from the
+            # cache has no price_daily rows at all — the original scalar subqueries returned
+            # a row of 5 NULLs in that case, so we preserve that exact shape here.
+            row = self._momentum_cache.get(symbol, (None, None, None, None, None))
 
             if row:
                 if len(row) < 5:
                     raise ValueError(
-                        f"[STOCK_SCORES] {symbol}: momentum query returned {len(row)} columns, expected 5. "
+                        f"[STOCK_SCORES] {symbol}: momentum cache returned {len(row)} columns, expected 5. "
                         f"Schema mismatch detected — cannot safely access price data. Failing fast."
                     )
 
