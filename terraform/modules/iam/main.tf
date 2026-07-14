@@ -1689,15 +1689,10 @@ data "aws_iam_policy_document" "developer" {
       "rds-data:BatchExecuteStatement"
     ]
 
-    resources = ["arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:*"]
-
-    condition {
-      test     = "StringLike"
-      variable = "aws:arn"
-      values = [
-        "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:*${var.project_name}*"
-      ]
-    }
+    # RDS Data API requires cluster ARN in resource (not database-specific)
+    resources = [
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:${var.project_name}-*"
+    ]
   }
 
   # RDS IAM authentication — scoped to project DB users only
