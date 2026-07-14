@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import date, timedelta
+from datetime import date
 from typing import Any
 
 from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
@@ -271,46 +271,21 @@ class PutCallRatioFetcher:
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Internal put/call fetch implementation.
 
-        Fetches CBOE Put/Call Ratio Index (PCRX) from yfinance.
-        PCRX is the official CBOE-computed put/call ratio for broad market options sentiment.
-        Much simpler and more reliable than parsing options chains manually.
+        "PCRX" is NOT a CBOE put/call ratio index -- it's the NASDAQ ticker for
+        Pacira BioSciences, an unrelated equity. yfinance.download("PCRX", ...)
+        silently returns that stock's closing price, and the only validation here
+        was `value > 0`, so a real close price (e.g. $28.50) would have passed as
+        a valid put/call ratio. CBOE does not publish a real-time put/call feed
+        under any public, verified, machine-readable ticker or API, so there is no
+        drop-in replacement -- fail permanently (no retry) and let callers degrade
+        per the data_unavailable contract documented on `fetch()` above, instead of
+        reporting a stock price as options sentiment.
         """
-        try:
-            import yfinance
-
-            # Fetch PCRX (CBOE Put/Call Ratio Index) - official source, simple API
-            # PCRX is updated daily by CBOE and is readily available via yfinance
-            # yfinance's end date is exclusive (like pandas date_range), so
-            # start=end=eval_date always returned an empty frame -- this made
-            # every PCRX fetch fail regardless of data availability, permanently
-            # leaving put_call_ratio NULL since this fetcher was introduced.
-            pcrx_data = yfinance.download(
-                "PCRX",
-                start=eval_date,
-                end=eval_date + timedelta(days=1),
-                progress=False,
-            )
-
-            if pcrx_data is None or pcrx_data.empty:
-                raise RuntimeError(
-                    f"[PUT_CALL_FETCHER] No PCRX data available for {eval_date}. "
-                    f"CBOE put/call ratio index may not have been published yet (check after market close)."
-                )
-
-            # Extract close price (PCRX close value is the put/call ratio)
-            pcrx_close = float(pcrx_data["Close"].iloc[0].item())
-
-            if pcrx_close <= 0:
-                raise RuntimeError(
-                    f"[PUT_CALL_FETCHER] Invalid PCRX value {pcrx_close} for {eval_date}. "
-                    f"Put/call ratio must be positive."
-                )
-
-            logger.debug(f"[PUT_CALL_FETCHER] PCRX (CBOE Put/Call Ratio) for {eval_date}: {pcrx_close:.3f}")
-            return pcrx_close
-
-        except Exception as e:
-            raise RuntimeError(f"[PUT_CALL_FETCHER] PCRX fetch failed for {eval_date}: {e}") from e
+        raise ValueError(
+            f"[PUT_CALL_FETCHER] No verified real-time CBOE put/call ratio data source for {eval_date}. "
+            f"'PCRX' is Pacira BioSciences' equity ticker, not a put/call ratio index -- "
+            f"do not reintroduce it without a real, verified source."
+        )
 
 
 class YieldCurveFetcher:
