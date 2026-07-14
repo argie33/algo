@@ -261,9 +261,7 @@ class StockScoresLoader(OptimalLoader):
             horizon_closes: dict[str, dict[str, Any]] = {}
             for name, days in horizon_days.items():
                 if days is None:
-                    cur.execute(
-                        "SELECT DISTINCT ON (symbol) symbol, close FROM price_daily ORDER BY symbol, date DESC"
-                    )
+                    cur.execute("SELECT DISTINCT ON (symbol) symbol, close FROM price_daily ORDER BY symbol, date DESC")
                 else:
                     cur.execute(
                         "SELECT DISTINCT ON (symbol) symbol, close FROM price_daily "
@@ -849,7 +847,9 @@ class StockScoresLoader(OptimalLoader):
                 "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
             }
         # No row exists at all
-        logger.debug(f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness")
+        logger.debug(
+            f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness"
+        )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_found"}
 
     def _get_stability_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:

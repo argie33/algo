@@ -660,8 +660,7 @@ class VectorizedTechnicalLoader:
         kept = df[keep]
         if kept.empty:
             logger.warning(
-                "[INCREMENTAL] Watermark filter removed every row (unexpected); "
-                "falling back to full-window write"
+                "[INCREMENTAL] Watermark filter removed every row (unexpected); falling back to full-window write"
             )
             return df
         logger.info(
