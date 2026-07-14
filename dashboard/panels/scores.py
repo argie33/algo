@@ -68,12 +68,11 @@ def render_scores(data: dict[str, Any]) -> Panel | None:
         )
 
         table.add_column("Symbol", width=8, style="bold white")
-        table.add_column("Company", width=20, style="dim white")
-        table.add_column("Composite", width=10, justify="right")
-        table.add_column("Growth", width=10, justify="right")
-        table.add_column("Quality", width=10, justify="right")
-        table.add_column("Momentum", width=10, justify="right")
-        table.add_column("Complete", width=10, justify="right")
+        table.add_column("Company", width=25, style="dim white")
+        table.add_column("Score", width=8, justify="right", style="bold cyan")
+        table.add_column("Growth", width=8, justify="right")
+        table.add_column("Quality", width=8, justify="right")
+        table.add_column("Momentum", width=8, justify="right")
 
         for score_row in top_scores[:20]:  # Show top 20
             score_dict = safe_get_dict(score_row)
@@ -83,19 +82,15 @@ def render_scores(data: dict[str, Any]) -> Panel | None:
             symbol = safe_get_field(score_dict, "symbol", "--")
             company = safe_get_field(score_dict, "company_name", "--")
             if isinstance(company, str):
-                company = company[:20]
+                company = company[:25]
             else:
                 company = "--"
             composite = safe_float(safe_get_field(score_dict, "composite_score"))
             growth = safe_float(safe_get_field(score_dict, "growth_score"))
             quality = safe_float(safe_get_field(score_dict, "quality_score"))
             momentum = safe_float(safe_get_field(score_dict, "momentum_score"))
-            completeness = safe_float(safe_get_field(score_dict, "data_completeness"))
 
             comp_color = _composite_score_color(composite)
-
-            # Format completeness percentage manually instead of using decimal_places param
-            completeness_str = f"{completeness:.0f}" if completeness is not None else "--"
 
             table.add_row(
                 str(symbol),
@@ -104,7 +99,6 @@ def render_scores(data: dict[str, Any]) -> Panel | None:
                 f"[{_composite_score_color(growth)}]{_score_cell(growth)}[/]",
                 f"[{_composite_score_color(quality)}]{_score_cell(quality)}[/]",
                 f"[{_composite_score_color(momentum)}]{_score_cell(momentum)}[/]",
-                f"[dim]{completeness_str}%[/]",
             )
 
         return Panel(
