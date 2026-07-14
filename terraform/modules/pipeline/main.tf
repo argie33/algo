@@ -1338,13 +1338,14 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       # Weekly/monthly bars are DERIVED in SQL from daily bars after each 1d load
       # (derive_aggregate_prices in loaders/load_prices.py) — no interval is fetched from
       # yfinance besides 1d anywhere.
-      # parallelism=1 (serial to prevent yfinance 429 rate limit errors); actual runtime 60-90 min with 5000+ symbols
-      # Timeout: 4 hours (14400s). Morning pipeline runs 2:00-9:30 AM (450 min available).
-      # 90min loader + 60min for technicals + 60min buffer = 210min needed; 240min timeout is safe.
+      # parallelism=1 (serial to prevent yfinance 429 rate limit errors); runtime varies 60-180 min with 5000+ symbols
+      # Timeout: 6 hours (21600s), matching EOD pipeline. Morning pipeline runs 2:00-9:30 AM (450 min available).
+      # FIXED 2026-07-14: Increased from 4h to 6h. Previous 4h timeout was insufficient in production, causing pipeline
+      # halts every morning. Production runtime consistently exceeds 4 hours due to yfinance rate limiting and data volume.
       MorningPrices = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 14400
+        TimeoutSeconds = 21600
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
