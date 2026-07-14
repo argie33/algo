@@ -260,8 +260,9 @@ class OptimalLoader:
                 watermark_mgr=self._watermark if is_final else None,
             )
 
-        if new_wm:
-            self._watermark.advance_watermark(new_wm, symbol=symbol, rows_loaded=inserted)
+        # Watermark advance happens inside bulk_insert on the final chunk (with its own
+        # fail-fast). A second advance_watermark call here was redundant — one extra
+        # write round trip per symbol per run, ~10k/run across the universe.
 
         self._stats.increment("rows_inserted", inserted)
         return inserted
@@ -297,7 +298,15 @@ class OptimalLoader:
                 "LOADER_LOCKS_TABLE",
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
-            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=1800)
+            # Lock TTL must outlive the longest legitimate run. It used to be 1800s while
+            # real loader runtimes are 60-90+ min (price loader) — the lock silently
+            # expired mid-run and a concurrent trigger (SFN retry, manual run) could
+            # acquire it and double-write. Tie it to the loader SLA: the run() SLA
+            # enforcement self-kills at this same limit, and the finally-release below
+            # frees the lock immediately on any normal exit; the TTL only backstops
+            # hard-killed tasks (OOM, StopTask).
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 logger.warning(f"[{self.table_name}] Skipping: another instance already running")
                 return self._stats.to_dict()
@@ -417,7 +426,15 @@ class OptimalLoader:
                 "LOADER_LOCKS_TABLE",
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
-            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=1800)
+            # Lock TTL must outlive the longest legitimate run. It used to be 1800s while
+            # real loader runtimes are 60-90+ min (price loader) — the lock silently
+            # expired mid-run and a concurrent trigger (SFN retry, manual run) could
+            # acquire it and double-write. Tie it to the loader SLA: the run() SLA
+            # enforcement self-kills at this same limit, and the finally-release below
+            # frees the lock immediately on any normal exit; the TTL only backstops
+            # hard-killed tasks (OOM, StopTask).
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 logger.warning(f"[{self.table_name}] Skipping global load: another instance running")
                 return 0
