@@ -711,7 +711,17 @@ data "aws_iam_policy_document" "ecs_task" {
     condition {
       test     = "StringEquals"
       variable = "cloudwatch:namespace"
-      values   = ["${var.project_name}/loaders"]
+      # FIX 2026-07-14: this list only contained "${project}/loaders", a namespace no
+      # code publishes to — every ECS loader metric was AccessDenied and silently
+      # dropped (visible as "metrics.skipped (insufficient CloudWatch permission)" in
+      # loader logs). These are the namespaces the code actually uses:
+      # monitoring/metrics_context.py, algo/reporting/metrics.py, config/credential_manager.py.
+      values = [
+        "${var.project_name}/loaders",
+        "AlgoTrading/Operations",
+        "AlgoTrading",
+        "AlgoTradingPlatform",
+      ]
     }
   }
 
