@@ -88,14 +88,20 @@ resource "aws_iam_role_policy" "loader_timeout_guardian_ecs" {
 # 2. Loader Timeout Guardian Lambda Function
 # ============================================================
 
+locals {
+  loader_timeout_guardian_zip_path   = "${path.module}/../../lambda/loader-timeout-guardian/lambda_function.zip"
+  loader_timeout_guardian_zip_exists = fileexists(local.loader_timeout_guardian_zip_path)
+}
+
 resource "aws_lambda_function" "loader_timeout_guardian" {
-  filename      = "${path.module}/../../lambda/loader-timeout-guardian/lambda_function.zip"
-  function_name = "${var.project_name}-loader-timeout-guardian-${var.environment}"
-  role          = aws_iam_role.loader_timeout_guardian.arn
-  handler       = "lambda_function.lambda_handler"
-  timeout       = 60
-  memory_size   = 256
-  runtime       = "python3.12"
+  filename         = local.loader_timeout_guardian_zip_path
+  source_code_hash = local.loader_timeout_guardian_zip_exists ? filebase64sha256(local.loader_timeout_guardian_zip_path) : null
+  function_name    = "${var.project_name}-loader-timeout-guardian-${var.environment}"
+  role             = aws_iam_role.loader_timeout_guardian.arn
+  handler          = "lambda_function.lambda_handler"
+  timeout          = 60
+  memory_size      = 256
+  runtime          = "python3.12"
 
   # No VPC config needed -- this Lambda only talks to the ECS/CloudWatch APIs, not
   # RDS, so it has no cold-start VPC ENI dependency and can't be blocked by it.

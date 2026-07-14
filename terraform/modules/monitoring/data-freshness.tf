@@ -85,14 +85,20 @@ resource "aws_iam_role_policy" "data_freshness_metrics" {
 # 2. Data Freshness Monitor Lambda Function
 # ============================================================
 
+locals {
+  data_freshness_monitor_zip_path   = "${path.module}/../../lambda/data-freshness-monitor/lambda_function.zip"
+  data_freshness_monitor_zip_exists = fileexists(local.data_freshness_monitor_zip_path)
+}
+
 resource "aws_lambda_function" "data_freshness_monitor" {
-  filename      = "${path.module}/../../lambda/data-freshness-monitor/lambda_function.zip"
-  function_name = "${var.project_name}-data-freshness-monitor-${var.environment}"
-  role          = aws_iam_role.data_freshness_monitor.arn
-  handler       = "lambda_function.lambda_handler"
-  timeout       = 60
-  memory_size   = 256
-  runtime       = "python3.12"
+  filename         = local.data_freshness_monitor_zip_path
+  source_code_hash = local.data_freshness_monitor_zip_exists ? filebase64sha256(local.data_freshness_monitor_zip_path) : null
+  function_name    = "${var.project_name}-data-freshness-monitor-${var.environment}"
+  role             = aws_iam_role.data_freshness_monitor.arn
+  handler          = "lambda_function.lambda_handler"
+  timeout          = 60
+  memory_size      = 256
+  runtime          = "python3.12"
 
   vpc_config {
     subnet_ids         = var.private_subnet_ids
