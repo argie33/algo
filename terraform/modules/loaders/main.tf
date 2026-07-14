@@ -636,6 +636,22 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "PRICE_DATA_SOURCE"
           value = var.price_data_source
         },
+        # Alpaca data feed: sip = consolidated-tape (all 13 exchanges, default)
+        # iex = IEX exchange only (smaller volume, not recommended)
+        {
+          name  = "ALPACA_DATA_FEED"
+          value = "sip"
+        },
+        # Alpaca data rate limit (free plan allows 200/min, we use 190 for safety margin)
+        {
+          name  = "ALPACA_DATA_RATE_LIMIT_PER_MIN"
+          value = "190"
+        },
+        # Alpaca data symbols per request (max 200 per API docs, we use 200)
+        {
+          name  = "ALPACA_DATA_SYMBOLS_PER_REQUEST"
+          value = "200"
+        },
         {
           name  = "DISABLE_PROVENANCE_TRACKING"
           value = tostring(var.disable_provenance_tracking)
