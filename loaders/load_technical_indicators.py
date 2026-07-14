@@ -116,7 +116,19 @@ class VectorizedTechnicalLoader:
                     "Check upstream price data and indicator calculation functions."
                 )
 
-            inserted = self._bulk_insert(indicators_df, since_date)
+            # Incremental write: indicators are COMPUTED over the full 400-day window (the
+            # lookback is required for 252d ROC etc.), but only rows newer than each symbol's
+            # existing technical_data_daily watermark (minus a 7-day healing overlap) are
+            # WRITTEN. Previously the entire ~250-day x ~5000-symbol frame (~1.3-2.7M rows)
+            # was upserted every run, twice a day, with ~99% value-identical no-op updates
+            # churning indexes and dead tuples. New symbols (no watermark) get full history.
+            # Explicit --since/INTRADAY_MODE takes precedence; TECH_FULL_REFRESH=true forces
+            # a full-window rewrite for recovery/backfill.
+            write_df = indicators_df
+            if since_date is None and os.getenv("TECH_FULL_REFRESH", "").lower() not in ("true", "1", "yes"):
+                write_df = self._filter_to_unloaded_rows(indicators_df)
+
+            inserted = self._bulk_insert(write_df, since_date)
 
             # CRITICAL FIX: Disable VCP pattern computation - it was doing 30K+ DB queries per run
             # (1 query per symbol to fetch from technical_data_daily, plus avg volume queries).
@@ -621,6 +633,42 @@ class VectorizedTechnicalLoader:
         except Exception as e:
             logger.error(f"[VCP] Failed to insert VCP patterns: {e}")
             raise
+
+    def _filter_to_unloaded_rows(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Drop rows already present in technical_data_daily (per-symbol watermark filter).
+
+        Keeps rows dated within 7 days of (or after) each symbol's current MAX(date) so
+        late price corrections still heal, and ALL rows for symbols with no existing data.
+        Fails safe: any problem reading watermarks, or an unexpectedly empty result, falls
+        back to writing the full frame (the pre-existing behavior).
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT symbol, MAX(date) FROM technical_data_daily GROUP BY symbol")
+                watermarks = {row[0]: row[1] for row in cur.fetchall()}
+        except psycopg2.Error as e:
+            logger.warning(f"[INCREMENTAL] Watermark read failed ({e}); falling back to full-window write")
+            return df
+
+        if not watermarks:
+            logger.info("[INCREMENTAL] technical_data_daily is empty - writing full window")
+            return df
+
+        overlap = pd.Timedelta(days=7)
+        symbol_watermark = pd.to_datetime(df["symbol"].map(watermarks))
+        keep = symbol_watermark.isna() | (df["date"] >= symbol_watermark - overlap)
+        kept = df[keep]
+        if kept.empty:
+            logger.warning(
+                "[INCREMENTAL] Watermark filter removed every row (unexpected); "
+                "falling back to full-window write"
+            )
+            return df
+        logger.info(
+            f"[INCREMENTAL] Writing {len(kept)}/{len(df)} rows "
+            f"({len(df) - len(kept)} already loaded, 7-day overlap retained for healing)"
+        )
+        return kept
 
     def _bulk_insert(self, df: pd.DataFrame, since_date: date | None = None) -> int:
         """Bulk insert all indicators at once using COPY (fast).
