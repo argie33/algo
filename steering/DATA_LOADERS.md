@@ -1,193 +1,145 @@
 # Data Loader Orchestration
 
-Live data pipeline: 40+ loaders organized into 5 Step Functions pipelines, scheduled 2:15 AM and 4:05 PM ET.
+Live data pipeline: 40+ loaders organized into 4 Step Functions pipelines (morning 2:00 AM, reference 9:15 AM, EOD 4:05 PM, computed-metrics 7:00 PM ET; MON-FRI).
+
+---
+
+## Loading Architecture (updated 2026-07-14)
+
+Design principles (the "panel data" model — bulk everything, fetch once, write incrementally):
+
+1. **One query per table per run, not one per symbol.** Loaders prefetch shared data
+   (metric tables, watermarks, freshness maps) in `_prepare_batch_context()` and read
+   from in-memory dicts in the per-symbol path. Per-symbol `WHERE symbol = %s` round
+   trips are treated as bugs (N+1).
+2. **Fetch each external payload at most once per run.** SEC companyfacts is fetched
+   once per symbol and reused across all 6 statement/period combos (symbol-major
+   iteration + per-CIK LRU in `SecEdgarClient`). yfinance quoteSummary snapshots skip
+   symbols whose `yfinance_snapshot` row is fresher than `YFINANCE_SNAPSHOT_MAX_AGE_HOURS`
+   (default 20h) — crash-retries resume from the unfetched tail instead of restarting.
+3. **Derive, don't re-fetch.** Weekly/monthly bars are derived in SQL from
+   `price_daily` after every daily load (`derive_aggregate_prices` in
+   `loaders/load_prices.py`) — labeled identically to the historical yfinance rows
+   (weekly = Monday, monthly = 1st). No 1wk/1mo interval is fetched from yfinance.
+4. **Write incrementally with watermarks.** `technical_data_daily` computes over its
+   full 400-day lookback but writes only rows past each symbol's watermark (7-day
+   healing overlap; `TECH_FULL_REFRESH=true` forces a full rewrite). The price loader
+   trims each symbol's fetched rows to its OWN watermark before writing.
+5. **Batch the write path.** Price batches stage all symbols' rows through one chunked
+   `bulk_insert` (staging COPY + upsert) instead of one staging-table cycle per symbol;
+   watermarks are read in one query and advanced in one transaction per batch, only
+   after the insert commits. `LOADER_CHUNK_SIZE` is the DB insert chunk (5000), not an
+   API batch.
+6. **All yfinance traffic goes through one funnel.** `YFinanceWrapper` (serialized,
+   0.3s min interval per process) + the PostgreSQL-backed shared IP circuit breaker
+   (`yfinance_ip_ban` table) coordinate all ECS tasks behind the shared NAT IP. Raw
+   `yf.download`/`yf.Ticker` call sites outside the funnel are treated as bugs.
+7. **Don't discard good data on transient blips.** Failed price batches get one
+   sequential retry pass; validation failures mark explicit `data_unavailable` rows
+   rather than zeroing out completed work. Locks (DynamoDB, TTL tied to
+   `LOADER_SLA_TIMEOUT_SECONDS`) outlive the longest legitimate run and release in
+   `finally`.
+
+Scaling note: this architecture (bulk panel queries, incremental writes, derived
+aggregates) is what lets the same Postgres + ECS stack absorb higher-frequency
+loading later — an intraday cadence is "run the same incremental loaders more often,"
+not a redesign. The remaining ceiling is the free yfinance quota; if sustained
+throttling appears in the circuit-breaker logs, a paid market-data feed (e.g. Alpaca
+data subscription) slots in at the `DataSourceRouter` layer without changing loaders.
 
 ---
 
 ## Loader Execution Model
 
-**Unified Runner:** `loaders/runner.py` is single entry point for all loaders. Each loader defines:
-- `LOADER_TYPE` — 'critical' (Fargate, guaranteed resources) or 'auxiliary' (Fargate, batched)
-- `REQUIRED_SYMBOLS` — which symbols this loader covers (or None for all)
-- `SCHEMA` — output table schema with field validation
-- `COMPLETENESS_THRESHOLD` — failure threshold (e.g., 95% coverage required)
+**Unified Runner:** `loaders/runner.py` is the shared entry point for most loaders. Each loader defines:
+- `table_name`, `primary_key`, `watermark_field` (per-symbol high-water-mark tracking in `loader_watermarks`)
+- `_prepare_batch_context()` — bulk prefetch hook, called once before the symbol loop
+- `fetch_incremental(symbol, since)` — returns rows or explicit `data_unavailable` markers
 
-**Config Management:** `utils/loaders/config.py` LoaderConfigManager provides:
-- Per-loader parallelism tuning (min/max constraints from database)
-- Adaptive batching (reduces parallelism when RDS connection pool approaches saturation)
-- In-memory cache of loader config (5-minute TTL, refreshed on-demand)
-- Fail-fast if config invalid or missing
+**Config Management:** `utils/loaders/config.py` LoaderConfigManager provides per-loader
+parallelism (DynamoDB `algo-loader-config` → env → constraint max), with CloudWatch-based
+adaptive reduction when RDS proxy connections approach saturation. yfinance- and
+SEC-facing loaders are clamped to parallelism 1-2 to protect the shared NAT IP.
 
-**Example:** Price loader runs 3000+ symbols in batches of 100 → LoaderConfigManager queries `algo_config` table for `price_loader_parallelism` (default 10) → Parallel ECS tasks fetch symbols → Results validated for completeness → Loaded to `price_daily` table.
-
----
-
-## Loader Pipeline: 2:15 AM (Morning)
-
-**Purpose:** Freshest data for 9:30 AM signal generation.
-
-**Sequence (all parallel except Terminal steps):**
-1. `load_prices` — Fetches OHLCV from Alpaca (3000+ symbols)
-2. `load_technical_data_daily` — Computes 50/200-day SMA, momentum, ATR, ADX from price_daily (vectorized in-database). Also computes VCP (Volatility Contraction Pattern) data for signal quality scoring.
-3. `load_swing_trader_scores` — Swing score calculation (auxiliary, non-blocking if timeout)
-
-**Timing:**
-- Starts 2:15 AM (pre-market, 7:15 hours before 9:30 AM open)
-- Must complete by 9:30 AM (signal generation depends on it)
-- Typical duration: 45-60 minutes for all 3 loaders
-
-**Failure Handling:**
-- Price loader timeout → entire pipeline fails (no market data = no trading)
-- Technical data timeout → use prior day's SMA (market_exposure already has fallback calculation)
-- Swing scores timeout → skip (auxiliary, trading continues without swing filters)
+**Data sources (actual, per code):**
+- **Prices (OHLCV):** yfinance `yf.download` batches — the sole OHLCV source. Alpaca is
+  broker/trading API only (orders, positions); it is NOT used for bulk price data.
+- **Fundamentals/filings:** SEC EDGAR (`SecEdgarClient`, 2 req/s per task, companyfacts
+  cached per CIK per run).
+- **Economic series:** FRED (4 series) + DXY via yfinance (`DX-Y.NYB`).
+- **Snapshot metrics (PE/holdings/analyst/etc.):** yfinance quoteSummary once per symbol
+  per day into `yfinance_snapshot`; downstream metric loaders read the table, not the API.
 
 ---
 
-## Loader Pipeline: 4:05 PM (EOD)
+## Pipelines (Step Functions, EventBridge Scheduler, America/New_York)
 
-**Purpose:** End-of-day reconciliation and next-day preparation.
+**Morning (2:00 AM):** prices (1d, FAIL-CLOSED) → market health ∥ trend template →
+market exposure → technical data → sector ranking.
 
-**Sequence (staged):**
+**Reference (9:15 AM):** yfinance_derived_metrics (reads `yfinance_snapshot`, writes 7 tables).
 
-**Stage 1 (Parallel, ~5 min):**
-- `load_prices` — Close and volume
-- `load_market_exposure_daily` — Computes 12 market factors (12-month yield, VIX, SPY price, etc.)
-- `load_fred_economic_data` — Fetches FRED economic series + DXY_ICE from Yahoo Finance
+**EOD (4:05 PM):** stock symbols → bulk prices (FAIL-CLOSED) → trend template →
+technical data (FAIL-CLOSED) → market health → buy/sell signals → algo metrics →
+sector/industry/performance → FRED → market exposure → sentiment → data patrol →
+orchestrator dry-run validation.
 
-**Stage 2 (Parallel, ~15 min, after Stage 1):**
-- `load_quality_metrics` — yfinance + SEC filings (quality score, debt/equity, ROA, etc.)
-- `load_growth_metrics` — Revenue growth, earnings growth (SEC + yfinance)
-- `load_value_metrics` — P/E, P/B, P/S (daily prices)
-- `load_positioning_metrics` — Short interest, institutional ownership
-- `load_stability_metrics` — Dividend yield, payout ratio
+**Computed metrics (7:00 PM):** yfinance snapshot → financials_all (SEC, symbol-major) →
+growth → quality → value → stability → stock scores.
 
-**Stage 3 (Parallel, ~30 min, after Stage 2):**
-- `load_stock_scores` — Composite score calculation (depends on all metric loaders)
-
-**Timing:**
-- Starts 4:05 PM (35 minutes after 3:30 PM market close)
-- Must complete by 4:35 PM for 5:30 PM orchestrator run (uses scores for position sizing)
-
-**Failure Handling:**
-- Market exposure timeout → use defaults (12-month yield=3.5%, VIX=18, market_stage=2)
-- Any metric loader (quality/growth/value/positioning/stability) timeout → score calculates from available metrics (min 3 metrics required)
-- Stock scores timeout → use prior day's scores (no new entries, no re-weighting)
-
----
-
-## AWS Batch Sizing & Parallelism Tuning
-
-**Problem:** yfinance + SEC filing fetches hit rate limits when parallelizing across 3000+ symbols.
-
-**Solution:** Adaptive batch sizing per environment.
-
-**Metric loaders (quality, growth, value, positioning, stability):**
-- **Local:** batch=1000, parallelism=unlimited (no rate limit from yfinance)
-- **AWS:** batch=100, parallelism=5 (reduces parallel requests, avoids rate limit cascade)
-- **Timeout:** 600 seconds (10 minutes per task, sufficient for 100-symbol batches)
-- **Memory:** 1024 MB (sufficient for parallel DataFrame operations + RDS connection pool)
-- **Resource:** FARGATE (guaranteed, not SPOT — data quality is safety-critical)
-
-**Price loader:**
-- **Batch:** 1000 symbols per parallel task (Alpaca has different rate limit than yfinance)
-- **Parallelism:** 10 (Alpaca's websocket rate limit: ~100 symbols/sec, so 10 parallel × 1000 = 10k sym/sec)
-- **Timeout:** 300 seconds (5 minutes, price fetch is fast)
-- **Memory:** 512 MB
-- **Resource:** FARGATE
-
-**Query:** Check actual parallelism in use:
-```sql
-SELECT loader_name, parallelism_override, batch_size_override
-FROM algo_config
-WHERE loader_name IN ('load_quality_metrics', 'load_growth_metrics', 'load_prices');
-```
+**Failure handling:**
+- Price or technical-data failure halts the dependent chain (`PriceLoadFailureHalt`,
+  `TechDataFailureHalt`); everything else is fail-open with explicit `data_unavailable`.
+- Failed price batches get one sequential retry pass before the run is declared failed.
+- `loader-timeout-guardian` Lambda (5 min) stops ECS tasks past their `LOADER_TIMEOUT`;
+  `data-freshness-monitor` Lambda publishes `AlgoDataFreshness` metrics hourly 2AM-10AM.
 
 ---
 
 ## Completeness Validation & Recovery
 
-**Completeness Validator** (`utils/loaders/completeness_validator.py`):
-- Counts successfully-loaded symbols
-- Compares to `REQUIRED_SYMBOLS` or active portfolio
-- Fails if coverage < threshold (typically 95%)
-- Returns explicit reason: "insufficient_price_history", "rate_limit_exceeded", "sec_filing_unavailable"
-
-**At-Risk Loaders** (lower coverage, higher timeout risk):
-- `load_quality_metrics` — 87% coverage (some micro-caps lack SEC filings)
-- `load_positioning_metrics` — 92% coverage (small-cap short interest delayed)
-- `load_analyst_sentiment` — 85% coverage (no coverage for micro-caps, OTC stocks)
-
-**Recovery Procedure (if EOD loader times out):**
-1. Check CloudWatch: `/ecs/algo-cluster` for loader task logs
-2. Query data_loader_status:
-   ```sql
-   SELECT table_name, completion_pct, last_updated, reason
-   FROM data_loader_status
-   WHERE table_name = 'quality_metrics'
-   ORDER BY last_updated DESC LIMIT 1;
-   ```
-3. If completion_pct < 70%: Increase ECS memory to 2048 MB, reduce batch to 50
-4. If completion_pct > 70%, completeness_pct > 85%: Data is acceptable, proceed to stock_scores
-5. If still failing: Check rate limit logs (yfinance errors), wait 5 minutes, re-trigger manually
+- Upstream gates: `_check_upstream_completeness` requires `data_loader_status`
+  completion ≥ 95% for hard dependencies (technical←price, buy_sell←technical).
+- Coverage denominators use price_daily symbol counts, not the raw active-symbol list.
 
 **Manual Loader Re-Trigger:**
 
-**Option 1: GitHub Actions (Recommended)**
 ```bash
-# Run any loader via GitHub Actions workflow
-gh workflow run run-loader.yml \
-  -f loader_name=load_dxy_index \
-  -R owner/algo
+# GitHub Actions (recommended; logs in the UI)
+gh workflow run run-loader.yml -f loader_name=<name> -R owner/algo
 
-# Or use the web UI:
-# GitHub → Actions → "Run Loader" → Run workflow → Enter loader name
-```
-
-**Option 2: AWS CLI (Direct)**
-```bash
-# Trigger morning pipeline (2:15 AM re-run)
-aws stepfunctions start-execution \
-  --state-machine-arn arn:aws:states:us-east-1:xxx:stateMachine:algo-morning-pipeline \
-  --name "manual-trigger-$(date +%s)"
-
-# Trigger EOD pipeline (4:05 PM re-run)
+# AWS CLI (direct)
 aws stepfunctions start-execution \
   --state-machine-arn arn:aws:states:us-east-1:xxx:stateMachine:algo-eod-pipeline \
   --name "manual-trigger-$(date +%s)"
 ```
 
-**Why GitHub Actions?** Logs visible in GitHub UI, no AWS CLI needed, easier audit trail.
+**Recovery from a stalled/failed loader:** see `steering/LOADER_RECOVERY_GUIDE.md` and
+`python scripts/monitor_data_staleness.py`.
 
 ---
 
 ## Data Freshness & Staleness Detection
 
-**Data Patrol:** `scripts/data_patrol.py` runs every 5 minutes, checks table freshness.
+| Table | Max Age | Writer |
+|-------|---------|--------|
+| price_daily | 1 day | yfinance 1d fetch |
+| price_weekly / price_monthly (+etf_) | 7 days | **derived in SQL** after each daily load |
+| technical_data_daily | 1 day | incremental write past per-symbol watermark |
+| yfinance_snapshot | ~1 day | freshness-skip fetch (20h horizon) |
+| quality/growth/value/stability metrics | 7 days | computed from SEC + snapshot tables |
+| stock_scores | 4 hours | batch-context panel computation |
 
-**Freshness Thresholds (max age before ALERT):**
-| Table | Max Age | Why |
-|-------|---------|-----|
-| price_daily | 30 min (trading hours) | Used for intra-day scoring |
-| technical_data_daily | 1 day | Computed from price_daily |
-| market_exposure_daily | 4 hours | Used for position sizing |
-| quality_metrics | 7 days | Slow-changing (only loads EOD) |
-| stock_scores | 4 hours | Needs fresh for entries |
-
-**Alert Threshold Exceeded:**
-- If any loader missing for > threshold → Email ops, log ERROR
-- Data patrol continues; traders aware via dashboard
-
-**Dashboard Display:**
-- Green: All loaders fresh (within threshold)
-- Yellow: One loader stale (>threshold but <2× threshold)
-- Red: Loader critical (>2× threshold)
+Alerts: data patrol + freshness monitor publish to CloudWatch/SNS; dashboard shows
+green/yellow/red per table.
 
 ---
 
 ## For Detailed Reference
 
-See:
-- `steering/GOVERNANCE.md` — Data quality principles, fail-fast rules
-- `steering/OPERATIONS.md` — Troubleshooting loader failures, dashboard diagnostics
-- `loaders/runner.py` — Unified loader entry point
-- `utils/loaders/config.py` — LoaderConfigManager API
+- `steering/GOVERNANCE.md` — data quality principles, fail-fast rules
+- `steering/OPERATIONS.md` — troubleshooting, deploy chain (CI success auto-deploys; a
+  failed CI run silently skips deployment — always verify after pushing)
+- `loaders/runner.py`, `utils/optimal_loader.py`, `utils/bulk_insert_manager.py`
+- `utils/external/yfinance.py` + `utils/external/yfinance_circuit_breaker.py`
+- `utils/external/sec_edgar_client.py` (companyfacts LRU)
