@@ -1531,7 +1531,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
 @db_route_handler("fetch dashboard scores")  # type: ignore[untyped-decorator]
 @validate_api_response("scores")  # type: ignore[untyped-decorator]
 def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
-    # DEPLOYMENT FIX v2: Database synchronization (20260714-150700)
+    # VERSION: 20260714-153700 (COALESCE fix deployed)
     try:
         # Allow 25 seconds for query to complete (safe before API Gateway limit)
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
