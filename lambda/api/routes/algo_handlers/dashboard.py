@@ -1601,13 +1601,16 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         # Dashboard should show "--" (via safe_float handling) to indicate unavailable metrics
         missing_fields = [i for i, s in enumerate(top_scores) if s.get("growth_score") is None]
         if missing_fields:
-            logger.info(f"[SCORES] {len(missing_fields)} stocks without growth_score (likely missing growth_metrics data)")
+            logger.info(
+                f"[SCORES] {len(missing_fields)} stocks without growth_score (likely missing growth_metrics data)"
+            )
             for idx in missing_fields:
                 symbol = top_scores[idx].get("symbol")
                 if symbol:
                     try:
                         cur.execute(
-                            "SELECT growth_score, rs_percentile, unavailable_metrics FROM stock_scores WHERE symbol = %s LIMIT 1", (symbol,)
+                            "SELECT growth_score, rs_percentile, unavailable_metrics FROM stock_scores WHERE symbol = %s LIMIT 1",
+                            (symbol,),
                         )
                         enrichment = cur.fetchone()
                         if enrichment:
@@ -1618,7 +1621,9 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                                 logger.debug(f"[SCORES] Found growth_score for {symbol}: {growth_val}")
                             else:
                                 # Data truly unavailable - keep as None so dashboard renders "--"
-                                logger.debug(f"[SCORES] {symbol} growth_score is NULL (unavailable_metrics: {unavailable})")
+                                logger.debug(
+                                    f"[SCORES] {symbol} growth_score is NULL (unavailable_metrics: {unavailable})"
+                                )
                     except Exception as e:
                         logger.error(f"[SCORES] Failed to query enrichment for {symbol}: {e}")
 
