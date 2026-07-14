@@ -73,6 +73,55 @@ def get_all_statement_configs() -> list[tuple[str, str]]:
     ]
 
 
+# SEC snake_cased concept -> DB column mappings (BUGFIX 2026-07-14: no config ever
+# defined field_mapping, so SecEdgarStatementLoader.transform() raised "Field mapping
+# not initialized" for EVERY symbol that returned rows — this loader had never
+# persisted a real row since consolidation. Keys are _to_snake()'d XBRL concept names
+# from utils/external/sec_statements.py; unmapped keys are skipped by transform().
+# Multiple revenue concepts intentionally map to "revenue": transform iterates in row
+# insertion order (= concepts-list order), so the post-ASC-606 contract-revenue
+# concept overwrites the legacy Revenues value when a filer reports both.
+# data_unavailable/reason must pass through so marker rows keep their flags.
+_MARKER_FIELDS = {
+    "data_unavailable": "data_unavailable",
+    "reason": "reason",
+}
+
+_INCOME_FIELD_MAPPING = {
+    "revenues": "revenue",
+    "sales_revenue_net": "revenue",
+    "revenue_from_contract_with_customer_excluding_assessed_tax": "revenue",
+    "cost_of_revenue": "cost_of_revenue",
+    "gross_profit": "gross_profit",
+    "operating_income_loss": "operating_income",
+    "net_income_loss": "net_income",
+    "earnings_per_share_basic": "earnings_per_share",
+    **_MARKER_FIELDS,
+}
+
+_BALANCE_FIELD_MAPPING = {
+    "assets": "total_assets",
+    "assets_current": "current_assets",
+    "liabilities": "total_liabilities",
+    "liabilities_current": "current_liabilities",
+    "stockholders_equity": "stockholders_equity",
+    **_MARKER_FIELDS,
+}
+
+_CASHFLOW_FIELD_MAPPING = {
+    "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
+    "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
+    "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
+    "payments_to_acquire_property_plant_and_equipment": "capital_expenditures",
+    **_MARKER_FIELDS,
+}
+
+# Quarterly rows carry fiscal_period ("Q1".."Q4"), which transform() converts to the
+# integer fiscal_quarter column. Annual rows' fiscal_period ("FY") stays unmapped —
+# annual tables have no fiscal_quarter column.
+_QUARTERLY_EXTRA = {"fiscal_period": "fiscal_quarter"}
+
+
 def get_statement_config(statement_type: str, period: str) -> dict[str, Any]:
     """Return configuration for a specific statement type and period.
 
@@ -100,6 +149,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
     if period == "annual":
         return {
             "table_name": "annual_income_statement",
+            "field_mapping": dict(_INCOME_FIELD_MAPPING),
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
                 [
@@ -120,6 +170,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
     elif period == "quarterly":
         return {
             "table_name": "quarterly_income_statement",
+            "field_mapping": {**_INCOME_FIELD_MAPPING, **_QUARTERLY_EXTRA},
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
                 [
@@ -167,6 +218,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
     if period == "annual":
         return {
             "table_name": "annual_balance_sheet",
+            "field_mapping": dict(_BALANCE_FIELD_MAPPING),
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
                 [
@@ -186,6 +238,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
     elif period == "quarterly":
         return {
             "table_name": "quarterly_balance_sheet",
+            "field_mapping": {**_BALANCE_FIELD_MAPPING, **_QUARTERLY_EXTRA},
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
                 [
@@ -231,6 +284,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
     if period == "annual":
         return {
             "table_name": "annual_cash_flow",
+            "field_mapping": dict(_CASHFLOW_FIELD_MAPPING),
             "primary_key": ("symbol", "fiscal_year"),
             "schema_cols": frozenset(
                 [
@@ -251,6 +305,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
     elif period == "quarterly":
         return {
             "table_name": "quarterly_cash_flow",
+            "field_mapping": {**_CASHFLOW_FIELD_MAPPING, **_QUARTERLY_EXTRA},
             "primary_key": ("symbol", "fiscal_year", "fiscal_quarter"),
             "schema_cols": frozenset(
                 [
