@@ -318,11 +318,27 @@ class SignalsDailyLoader(OptimalLoader):
                     "_prepare_batch_context() must populate it before fetch_incremental()."
                 )
             if symbol_tech_max_dates.get(symbol) is None:
-                raise RuntimeError(
-                    f"[BUY_SELL_DAILY] {symbol}: No technical data within 10 days of {end}. "
-                    "Technical data is CRITICAL for buy/sell signal generation. "
-                    "Indicates symbol was never processed by TechnicalDataDaily. Cannot proceed."
+                # SENTINEL, NOT CRASH (2026-07-14): ~2,900 of 10,705 active symbols are
+                # new/inactive listings with no price history and therefore no technical
+                # data — a structural per-symbol gap, not a loader failure. Raising here
+                # marked each of them failed and tripped the parallel 5% fail-rate gate,
+                # killing the entire signals run (confirmed live). Emit the same explicit
+                # data_unavailable marker this loader already uses for fetch/generation
+                # errors; SYSTEMIC technical-data failures are still caught by the 95%
+                # coverage gate below.
+                logger.debug(
+                    f"[BUY_SELL_DAILY] {symbol}: No technical data within 10 days of {end} — "
+                    "marking data_unavailable (new/inactive listing without price history)"
                 )
+                return [
+                    {
+                        "symbol": symbol,
+                        "date": end.isoformat(),
+                        "data_unavailable": True,
+                        "reason": f"no_technical_data_within_10d_of_{end}",
+                        "reason_type": "not_applicable",
+                    }
+                ]
 
             # Validate upstream loader completeness before generating signals.
             # buy_sell_daily depends on price_daily and technical_data_daily.
