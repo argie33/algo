@@ -587,17 +587,10 @@ function RankingsTab({
                   </th>
                   <th style={{ width: 70 }}>Symbol</th>
                   <th style={{ width: 180 }}>Company</th>
-                  <th>Sector</th>
-                  <th className="num">Composite</th>
-                  <th>Grade</th>
-                  <th className="num">Quality</th>
-                  <th className="num">Mom</th>
-                  <th className="num">Value</th>
-                  <th className="num">Growth</th>
-                  <th className="num">Pos</th>
-                  <th className="num">Stab</th>
-                  <th className="num">Price</th>
-                  <th className="num">Δ</th>
+                  <th className="num" style={{ width: 60 }}>Score</th>
+                  <th className="num" style={{ width: 60 }}>Growth</th>
+                  <th className="num" style={{ width: 60 }}>Quality</th>
+                  <th className="num" style={{ width: 70 }}>Momentum</th>
                 </tr>
               </thead>
               <tbody>
@@ -639,17 +632,6 @@ function RankingsTab({
                       {s.company_name || "—"}
                     </td>
                     <td
-                      className="t-xs muted"
-                      style={{
-                        maxWidth: 140,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {s.sector || "—"}
-                    </td>
-                    <td
                       className="num mono tnum"
                       style={{ fontWeight: "var(--w-semibold)" }}
                     >
@@ -659,16 +641,11 @@ function RankingsTab({
                         {num(s.composite_score, 1)}
                       </span>
                     </td>
-                    <td>
-                      <span
-                        className="t-xs mono"
-                        style={{
-                          color: scoreColor(s.composite_score),
-                          fontWeight: "var(--w-semibold)",
-                        }}
-                      >
-                        {grade(s.composite_score)}
-                      </span>
+                    <td
+                      className="num mono tnum t-xs"
+                      style={{ color: scoreColor(s.growth_score) }}
+                    >
+                      <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
@@ -681,40 +658,6 @@ function RankingsTab({
                       style={{ color: scoreColor(s.momentum_score) }}
                     >
                       <SafeMetricValue value={s.momentum_score} formatter="number" fallback="—" />
-                    </td>
-                    <td
-                      className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.value_score) }}
-                    >
-                      <SafeMetricValue value={s.value_score} formatter="number" fallback="—" />
-                    </td>
-                    <td
-                      className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.growth_score) }}
-                    >
-                      <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
-                    </td>
-                    <td
-                      className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.positioning_score) }}
-                    >
-                      <SafeMetricValue value={s.positioning_score} formatter="number" fallback="—" />
-                    </td>
-                    <td
-                      className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.stability_score) }}
-                    >
-                      <SafeMetricValue value={s.stability_score} formatter="number" fallback="—" />
-                    </td>
-                    <td className="num mono tnum t-xs">
-                      {s.price != null ? `$${num(s.price, 2)}` : "—"}
-                    </td>
-                    <td
-                      className={`num mono tnum t-xs ${Number(s.change_percent) >= 0 ? "up" : "down"}`}
-                    >
-                      {s.change_percent != null
-                        ? `${Number(s.change_percent) >= 0 ? "+" : ""}${num(s.change_percent, 2)}%`
-                        : "—"}
                     </td>
                   </tr>
                 ))}
