@@ -705,7 +705,14 @@ class ValueAtRisk:
                 cvar_metrics = None
 
             try:
-                stressed_var = self.stressed_var()
+                stressed_var: dict[str, Any] | None = self.stressed_var()
+                if stressed_var and stressed_var.get("data_unavailable"):
+                    # Expected for a young portfolio (< 365 days of snapshots) -- stressed_var()
+                    # returns this instead of raising specifically so callers can treat it like
+                    # beta/concentration/cvar below (None until enough history accumulates),
+                    # not as the "corrupted data" RuntimeError case handled below.
+                    logger.warning(f"Stressed VaR unavailable: {stressed_var.get('reason')}")
+                    stressed_var = None
             except RuntimeError as e:
                 logger.critical(f"[CRITICAL] Stressed VaR calculation failed: {e}")
                 raise RuntimeError(
