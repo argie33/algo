@@ -141,9 +141,20 @@ class AlpacaMarketData:
         if not symbols:
             raise ValueError("symbols list cannot be empty")
 
+        # Alpaca's /v2/stocks endpoints serve equities only: index symbols (^DJI,
+        # ^VIX, ^GSPC...) are yfinance-isms and 400 the WHOLE multi-symbol request.
+        # Skip them here; they stay on the yfinance path (absent from the result).
+        unsupported = [s for s in symbols if s.startswith("^")]
+        if unsupported:
+            logger.info(
+                f"[ALPACA_DATA] Skipping {len(unsupported)} non-equity symbols not served by "
+                f"Alpaca stocks endpoints (fall back to yfinance): {unsupported[:10]}"
+            )
+        tradable = [s for s in symbols if not s.startswith("^")]
+
         results: dict[str, list[dict[str, Any]]] = {}
-        for chunk_start in range(0, len(symbols), self.symbols_per_request):
-            chunk = symbols[chunk_start : chunk_start + self.symbols_per_request]
+        for chunk_start in range(0, len(tradable), self.symbols_per_request):
+            chunk = tradable[chunk_start : chunk_start + self.symbols_per_request]
             self._fetch_chunk(chunk, start, end, results)
         return results
 
@@ -187,6 +198,18 @@ class AlpacaMarketData:
                     f"older than 15 minutes (feed=iex has no window restriction). "
                     f"Response: {resp.text[:200]}"
                 )
+            if resp.status_code == 400 and "invalid symbol" in resp.text.lower():
+                # One unknown symbol 400s the entire multi-symbol request. Drop the
+                # named symbol and retry the chunk without it (it will be absent from
+                # the result, i.e. left to the yfinance path / unavailable marker).
+                bad = resp.json().get("message", "").split(":")[-1].strip()
+                remaining = [s for s in chunk if s != bad]
+                if bad and len(remaining) < len(chunk):
+                    logger.warning(f"[ALPACA_DATA] Dropping invalid symbol {bad!r} and retrying chunk")
+                    if remaining:
+                        self._fetch_chunk(remaining, start, end, results)
+                    return
+                raise AlpacaDataError(f"Alpaca bars API 400 (unparseable invalid-symbol): {resp.text[:300]}")
             if resp.status_code != 200:
                 raise AlpacaDataError(f"Alpaca bars API error {resp.status_code}: {resp.text[:300]}")
 
