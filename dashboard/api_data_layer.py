@@ -464,6 +464,47 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
     return cached_data
 
 
+def _try_stale_cache_fallback(endpoint: str) -> dict[str, Any] | None:
+    """Try to return stale cache data when API is unavailable.
+
+    RESILIENCE FIX: Dashboard should show stale data with [STALE] warning rather than
+    blank panels when API is temporarily unavailable. This is better UX for finance apps
+    where operators can still see positions/risk even if data is 30+ minutes old.
+
+    Returns cached data with _stale_cache=True flag if available (even if >30 min old).
+    This allows dashboard panels to render stale data with warnings instead of blanking.
+
+    Args:
+        endpoint: API endpoint path
+
+    Returns:
+        Cached data with _stale_cache=True if cache available (any age), or None
+    """
+    with _response_cache_lock:
+        cached = _response_cache.get(endpoint)
+        if not cached:
+            return None
+
+    try:
+        cached_data = cached.get("data")
+        if not isinstance(cached_data, dict):
+            return None
+
+        # Mark as stale and return for dashboard rendering
+        timestamp = cached.get("timestamp")
+        if isinstance(timestamp, datetime):
+            age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
+            cached_data = {**cached_data, "_stale_cache": True, "_cache_age_seconds": int(age_seconds)}
+        else:
+            cached_data = {**cached_data, "_stale_cache": True}
+
+        logger.info(f"[CACHE_FALLBACK] Returning stale cache for {endpoint} (age={age_seconds}s)")
+        return cached_data
+    except Exception as e:
+        logger.warning(f"[CACHE_FALLBACK] Failed to use stale cache for {endpoint}: {e}")
+        return None
+
+
 def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = "GET") -> dict[str, Any]:  # noqa: C901
     """Call API endpoint with exponential backoff retry logic and circuit breaker.
 
@@ -572,8 +613,12 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                     continue
                 _record_api_failure()
                 max_att = API_MAX_RETRIES + 1
+                # FIX: Try stale cache for 503/504 before failing completely (dashboard resilience)
+                stale_fallback = _try_stale_cache_fallback(endpoint)
+                if stale_fallback:
+                    logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after {resp.status_code} error")
+                    return stale_fallback
                 # Mark 503/504 Service Unavailable and Gateway Timeout as transient (temporary issues, not permanent failures)
-                # CRITICAL: Callers must NOT attempt stale cache fallback - get_cached_response() raises on stale (>30min)
                 error_result: dict[str, Any] = {"_error": f"API error {resp.status_code} after {max_att} attempts"}
                 if resp.status_code == 503:
                     error_result["_is_transient_503"] = True
@@ -674,6 +719,11 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 continue
             logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES + 1} attempts")
             _record_api_failure()
+            # FIX: Try stale cache before failing completely (dashboard resilience)
+            stale_fallback = _try_stale_cache_fallback(endpoint)
+            if stale_fallback:
+                logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after timeout")
+                return stale_fallback
             error_msg = "API timeout - Lambda endpoint not responding"
             # Provide helpful guidance if using AWS endpoint
             if "execute-api" in api_url or "lambda" in api_url.lower():
@@ -692,6 +742,11 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             max_att = API_MAX_RETRIES + 1
             logger.error(f"API {endpoint}: connection unavailable after {max_att} attempts")
             _record_api_failure()
+            # FIX: Try stale cache before failing completely (dashboard resilience)
+            stale_fallback = _try_stale_cache_fallback(endpoint)
+            if stale_fallback:
+                logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after connection failure")
+                return stale_fallback
             return {
                 "_error": f"API unavailable after {max_att} attempts",
                 "_is_transient_503": True,
