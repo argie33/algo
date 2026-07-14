@@ -20,12 +20,10 @@
 ### AWS Mode (Production/Cloud)
 
 ```bash
-# Simplest: Just run it (AWS by default if credentials set)
-python run_dashboard.py
-python run_dashboard.py -w 30    # Auto-refresh every 30s
-
-# Or with explicit AWS startup script:
-python start_dashboard_aws.py
+# Simplest: Just run it (AWS by default if credentials set; auto-fetches
+# Cognito/API creds from Secrets Manager via dashboard/credentials_provider.py)
+python dashboard.py
+python dashboard.py -w 30    # Auto-refresh every 30s
 ```
 
 AWS mode requires these credentials (auto-fetched from Secrets Manager):
