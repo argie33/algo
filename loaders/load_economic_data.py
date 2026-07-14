@@ -31,6 +31,7 @@ import requests  # noqa: E402
 from config.api_endpoints import get_fred_url  # noqa: E402
 from loaders.timeout_config import configure_socket_timeout, get_http_timeout  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
+from utils.external.yfinance_circuit_breaker import get_circuit_breaker  # noqa: E402
 from utils.loaders import get_api_key  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -45,6 +46,9 @@ FRED_SERIES = [
     "BAMLH0A0HYM2",  # High Yield OAS
     "ICSA",  # Initial Claims
 ]
+
+# Mirrors utils/data/source_router.py's rate-limit detection keywords
+_YF_RATE_LIMIT_KEYWORDS = ("429", "rate", "too many", "invalid crumb", "unauthorized")
 
 
 def get_fred_api_key() -> str:
@@ -142,6 +146,14 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
 
     http_timeout = get_http_timeout()
 
+    # Consult the shared cross-ECS-task IP circuit breaker before hitting yfinance
+    # (mirrors utils/data/source_router.py's _yf_download_with_circuit_breaker).
+    # wait_or_raise() blocks briefly for short shared-IP bans; long bans raise
+    # YFinanceStillBannedError (a RuntimeError), which load() catches and records
+    # as DXY_ICE unavailable — no unthrottled request is fired during an active ban.
+    circuit_breaker = get_circuit_breaker()
+    circuit_breaker.wait_or_raise()
+
     try:
         dxy = yf.download(
             "DX-Y.NYB",
@@ -153,7 +165,11 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
     except TimeoutError as e:
         raise RuntimeError(f"[ECONOMIC/DXY] Yahoo Finance fetch timed out: {e}") from e
     except Exception as e:
+        if any(keyword in str(e).lower() for keyword in _YF_RATE_LIMIT_KEYWORDS):
+            circuit_breaker.report_rate_limit_error()
         raise RuntimeError(f"[ECONOMIC/DXY] Failed to fetch from Yahoo Finance: {e}") from e
+
+    circuit_breaker.report_success()
 
     if dxy is None or len(dxy) == 0:
         raise RuntimeError("[ECONOMIC/DXY] No data available from Yahoo Finance for DX-Y.NYB")

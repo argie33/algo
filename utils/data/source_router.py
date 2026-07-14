@@ -9,7 +9,6 @@ Sources by data type (in priority order):
     OHLCV:        yfinance (sole source — Alpaca data subscription required for alternative)
     Fundamentals: SEC EDGAR → yfinance
     Economic:     FRED (only)
-    Earnings:     yfinance → SEC EDGAR
 
 Health tracking:
     Each source has a rolling success rate. If success rate drops below
@@ -40,10 +39,9 @@ from typing import TYPE_CHECKING, Any, cast
 import requests
 import yfinance as yf
 
-from algo.infrastructure import RateLimiter, retry
+from algo.infrastructure import retry
 from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 from utils.infrastructure import EASTERN_TZ
-from utils.loaders.transient_errors import TransientAPIError
 
 if TYPE_CHECKING:
     from utils.external import SecEdgarClient
@@ -57,32 +55,6 @@ def _is_data_unavailable_marker(result: Any) -> bool:
     Marker dicts have data_unavailable=True and should trigger fallback to next source.
     """
     return isinstance(result, dict) and result.get("data_unavailable") is True
-
-
-# Global/shared rate limiters to prevent multiple DataSourceRouter instances from exceeding API limits
-# Multiple concurrent loaders each call DataSourceRouter, which would create multiple rate limiters.
-# Instead, use a single global limiter shared across all loaders to stay under yfinance's actual rate limits.
-# Set to 30 calls/min (2s minimum interval) to match yfinance_wrapper's conservative throttling
-# and account for yf.download() making multiple internal requests per visible API call.
-_GLOBAL_YFINANCE_LIMITER = None
-_GLOBAL_LIMITER_LOCK = threading.Lock()
-
-
-def get_global_yfinance_limiter() -> RateLimiter:
-    """Get or create the global yfinance rate limiter (shared across all loaders).
-
-    Uses 30 calls/min (2s interval) to conservatively throttle requests and prevent
-    'Too Many Requests' (429) errors when multiple loaders run concurrently.
-    """
-    global _GLOBAL_YFINANCE_LIMITER
-    if _GLOBAL_YFINANCE_LIMITER is None:
-        with _GLOBAL_LIMITER_LOCK:
-            if _GLOBAL_YFINANCE_LIMITER is None:
-                # For per-process rate limiting, create a conservative limiter
-                # Each ECS loader task has its own process, and when 4 run concurrently,
-                # we need to stay under global yfinance rate limits
-                _GLOBAL_YFINANCE_LIMITER = RateLimiter(calls_per_minute=30)
-    return _GLOBAL_YFINANCE_LIMITER
 
 
 def _call_with_timeout(fn: Callable[[], Any], timeout_sec: float = 30, retries: int = 3) -> Any:
@@ -645,151 +617,6 @@ class DataSourceRouter:
             return df.to_dict(orient="index")
         except TimeoutError as e:
             raise TimeoutError(f"yfinance cashflow timeout for {symbol}") from e
-
-    # ============== EARNINGS ==============
-
-    def fetch_earnings(self, symbol: str) -> Any | None:
-        sources = [
-            ("yfinance", lambda: self._yf_earnings(symbol)),
-            ("sec_edgar", lambda: self._sec_eps(symbol)),
-        ]
-        return self._try_chain(sources, f"Earnings[{symbol}]")
-
-    def _yf_earnings(self, symbol: str) -> Any:
-        try:
-            from utils.external import get_ticker
-
-            def fetch() -> Any:
-                ticker = get_ticker(symbol)
-                if not ticker:
-                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
-                    return {
-                        "data_unavailable": True,
-                        "reason": "ticker_fetch_failed",
-                        "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
-                    }
-
-                df: Any = None
-                try:
-                    cal = ticker.calendar
-                    if cal is not None and not (hasattr(cal, "empty") and cal.empty):
-                        if isinstance(cal, dict):
-                            return cal
-                        df = cal
-                except (requests.Timeout, requests.ConnectionError) as e:
-                    logger.warning(
-                        f"[EARNINGS_DATES] API timeout/connection error for ticker.calendar ({symbol}): {e} (transient, will retry)"
-                    )
-                    raise TransientAPIError(
-                        f"yfinance API timeout/connection fetching earnings calendar for {symbol}"
-                    ) from e
-                except Exception as e:
-                    logger.warning(f"[EARNINGS_DATES] ticker.calendar unavailable for {symbol} (falling back): {e}")
-
-                try:
-                    df = ticker.earnings_dates
-                except (requests.Timeout, requests.ConnectionError) as e:
-                    logger.warning(
-                        f"[EARNINGS_DATES] API timeout/connection error for ticker.earnings_dates ({symbol}): {e} (transient, will retry)"
-                    )
-                    raise TransientAPIError(
-                        f"yfinance API timeout/connection fetching earnings dates for {symbol}"
-                    ) from e
-                except Exception as e:
-                    logger.warning(f"[EARNINGS_DATES] ticker.earnings_dates unavailable for {symbol} (skipping): {e}")
-
-                return df
-
-            result = _call_with_timeout(fetch, timeout_sec=30)
-            if result is None:
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "earnings_unavailable",
-                }
-            if hasattr(result, "empty") and result.empty:
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "earnings_unavailable",
-                }
-            if isinstance(result, dict):
-                return result
-            return result.to_dict(orient="index")
-        except TimeoutError as e:
-            raise TimeoutError(f"yfinance earnings_dates timeout for {symbol}") from e
-
-    def _sec_eps(self, symbol: str) -> Any:
-        return self._sec_client().get_quarterly_concept(symbol, "EarningsPerShareDiluted")
-
-    def fetch_eps_revisions(self, symbol: str) -> Any | None:
-        sources = [
-            ("yfinance", lambda: self._fetch_yfinance_eps_revisions(symbol)),
-        ]
-        return self._try_chain(sources, f"EpsRevisions[{symbol}]")
-
-    def _fetch_yfinance_eps_revisions(self, symbol: str) -> Any:
-        try:
-            from utils.external import get_ticker
-
-            def fetch() -> Any:
-                # Use wrapper's get_ticker to ensure rate-limited access
-                ticker = get_ticker(symbol)
-                if not ticker:
-                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
-                    return {
-                        "data_unavailable": True,
-                        "reason": "ticker_fetch_failed",
-                        "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
-                    }
-                return ticker.eps_revisions
-
-            df = _call_with_timeout(fetch, timeout_sec=30)
-            if df is None or df.empty:
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "eps_revisions_unavailable",
-                }
-            return df
-        except TimeoutError as e:
-            raise TimeoutError(f"yfinance eps_revisions timeout for {symbol}") from e
-
-    def fetch_eps_trend(self, symbol: str) -> Any | None:
-        sources = [
-            ("yfinance", lambda: self._fetch_yfinance_eps_trend(symbol)),
-        ]
-        return self._try_chain(sources, f"EpsTrend[{symbol}]")
-
-    def _fetch_yfinance_eps_trend(self, symbol: str) -> Any:
-        try:
-            from utils.external import get_ticker
-
-            def fetch() -> Any:
-                # Use wrapper's get_ticker to ensure rate-limited access
-                ticker = get_ticker(symbol)
-                if not ticker:
-                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
-                    return {
-                        "data_unavailable": True,
-                        "reason": "ticker_fetch_failed",
-                        "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
-                    }
-                return ticker.eps_trend
-
-            df = _call_with_timeout(fetch, timeout_sec=30)
-            if df is None or df.empty:
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "eps_trend_unavailable",
-                }
-            return df
-        except TimeoutError as e:
-            raise TimeoutError(f"yfinance eps_trend timeout for {symbol}") from e
 
     # ============== MARKET CLOSE DATA CHECK ==============
 

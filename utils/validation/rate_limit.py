@@ -114,10 +114,14 @@ class RateLimitValidator:
 
         # Check yfinance (used by price loader)
         try:
-            import yfinance
+            # Route through YFinanceWrapper so the health check respects the shared
+            # IP circuit breaker and per-process throttle instead of firing a raw
+            # unthrottled yfinance.Ticker().info request (which could worsen an
+            # active rate-limit ban). get_ticker() raises on failure, which the
+            # except below converts into the same yfinance_available=False contract.
+            from utils.external import get_ticker
 
-            # Quick test: try to fetch ticker info (lightweight)
-            ticker = yfinance.Ticker(DEFAULT_HEALTH_CHECK_TICKER)
+            ticker = get_ticker(DEFAULT_HEALTH_CHECK_TICKER)
             info = ticker.info
             if info and "currentPrice" in info:
                 health["yfinance_available"] = True
