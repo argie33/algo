@@ -83,6 +83,73 @@ class WatermarkManager:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
+    def get_watermarks_bulk(self, symbols: list[str]) -> dict[str, _date]:
+        """Read watermarks for many symbols in ONE query (symbol granularity only).
+
+        Replaces per-symbol get_current_watermark round trips (one query per symbol,
+        20-100 per price batch). Symbols with no watermark are absent from the result.
+        """
+        if self.granularity != "symbol":
+            raise ValueError("get_watermarks_bulk requires granularity='symbol'")
+        if not symbols:
+            return {}
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT symbol, watermark FROM loader_watermarks
+                    WHERE loader = %s AND granularity = %s AND symbol = ANY(%s)
+                    """,
+                    (self.loader_name, "symbol", list(symbols)),
+                )
+                result: dict[str, _date] = {}
+                for sym, watermark_str in cur.fetchall():
+                    if watermark_str:
+                        if "T" in watermark_str:
+                            result[sym] = _date.fromisoformat(watermark_str.split("T")[0])
+                        else:
+                            result[sym] = _date.fromisoformat(watermark_str)
+                return result
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
+
+    def advance_watermarks_bulk(self, updates: dict[str, tuple[_date, int]]) -> None:
+        """Advance watermarks for many symbols in ONE transaction (symbol granularity).
+
+        Args:
+            updates: symbol -> (new_watermark, rows_loaded). Call AFTER the data insert
+            succeeds, mirroring advance_watermark's contract.
+        """
+        if self.granularity != "symbol":
+            raise ValueError("advance_watermarks_bulk requires granularity='symbol'")
+        if not updates:
+            return
+        params = []
+        for sym, (new_watermark, rows_loaded) in updates.items():
+            watermark_date = new_watermark.date() if hasattr(new_watermark, "date") else new_watermark
+            watermark_str = watermark_date.isoformat()
+            params.append((self.loader_name, sym, "symbol", watermark_str, rows_loaded, watermark_str, rows_loaded))
+        try:
+            with DatabaseContext("write") as cur:
+                cur.executemany(
+                    """
+                    INSERT INTO loader_watermarks
+                    (loader, symbol, granularity, watermark, rows_loaded, last_run_at, last_success_at)
+                    VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
+                    ON CONFLICT (loader, symbol, granularity)
+                    DO UPDATE SET
+                        watermark = %s,
+                        rows_loaded = loader_watermarks.rows_loaded + %s,
+                        last_run_at = NOW(),
+                        last_success_at = NOW(),
+                        error_count = 0,
+                        last_error = NULL
+                    """,
+                    params,
+                )
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            raise RuntimeError(f"Operation failed: {e}") from e
+
     def advance_watermark(
         self,
         new_watermark: _date,

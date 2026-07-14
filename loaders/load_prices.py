@@ -1901,36 +1901,47 @@ class PriceLoader(OptimalLoader):
 
         return self._stats.to_dict()
 
+    @staticmethod
+    def _row_date(row: dict[str, Any]) -> date:
+        """Normalize a row's date field to a date (transformers may emit ISO strings)."""
+        value = row["date"]
+        if isinstance(value, str):
+            return datetime.fromisoformat(value).date()
+        if isinstance(value, datetime):
+            return value.date()
+        return cast(date, value)
+
     def _load_batch(self, symbols: list[str]) -> None:
-        """Load a batch of symbols using batch API fetch (50x reduction in API calls)."""
+        """Load a batch of symbols using batch API fetch (50x reduction in API calls).
+
+        WRITE-PATH BATCHING (2026-07-13): rows for ALL symbols in the batch are staged
+        and written through ONE chunked bulk_insert instead of one staging-table
+        CREATE/COPY/UPSERT/DROP cycle per symbol (~16k cycles per run before), and
+        watermarks are read (one query) and advanced (one transaction) per batch
+        instead of per symbol. Watermarks still only advance after the insert commits.
+        """
         wm_store = self._watermark
-        # Determine the watermark date for all symbols in batch
-        # (simplified: use same date for all, finest-grained would be per-symbol)
+        # Determine the watermark date for all symbols in batch. The batch API fetch
+        # needs a single start date (min across the batch); per-symbol trimming below
+        # keeps one stale symbol from forcing re-WRITES of other symbols' history.
+        symbol_watermarks: dict[str, date] = {}
         if self._backfill_days > 0:
             # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
             previous_date: date | None = datetime.now(EASTERN_TZ).date() - timedelta(days=self._backfill_days)
         else:
-            # Use earliest watermark from batch
             # CRITICAL: Fail-fast if watermark store invalid (no silent None defaults)
             if wm_store is None:
                 raise RuntimeError(
                     f"[{self.table_name}] CRITICAL: Watermark store is None. "
                     f"Cannot determine previous watermark date for incremental loads."
                 )
-            # BUG FIX: Read watermarks from database, not just in-memory cache
-            # In-memory cache is empty on first load - must query DB to get prior watermarks
-            watermarks = []
-            for s in symbols:
-                # Read watermark from database (WatermarkManager.get_current_watermark is the real API)
-                db_wm = wm_store.get_current_watermark(symbol=s)
-                watermarks.append(db_wm)
-
-            previous_dates: list[date | None] = [w if isinstance(w, date) else None for w in watermarks]
-            valid_dates: list[date] = [d for d in previous_dates if d is not None]
-            if valid_dates:
-                previous_date = min(valid_dates)
+            # N+1 FIX: one query for the whole batch instead of one round trip per symbol
+            symbol_watermarks = wm_store.get_watermarks_bulk(symbols)
+            if symbol_watermarks:
+                previous_date = min(symbol_watermarks.values())
                 logger.info(
-                    f"[{self.table_name}] Batch watermark: min={previous_date} from {len(valid_dates)}/{len(symbols)} symbols"
+                    f"[{self.table_name}] Batch watermark: min={previous_date} from "
+                    f"{len(symbol_watermarks)}/{len(symbols)} symbols"
                 )
             else:
                 # CRITICAL: If no watermarks available for any symbol, this indicates first load
@@ -1943,6 +1954,12 @@ class PriceLoader(OptimalLoader):
 
         # Batch fetch all symbols at once
         batch_results = self.fetch_batch_incremental(symbols, previous_date)
+
+        # Rows staged across the whole batch; written once after the symbol loop.
+        pending_rows: list[dict[str, Any]] = []
+        pending_symbol_rowcounts: dict[str, int] = {}
+        pending_watermarks: dict[str, tuple[date, int]] = {}
+        marker_rows: list[dict[str, Any]] = []
 
         # Process each symbol's results
         for symbol in symbols:
@@ -1996,22 +2013,36 @@ class PriceLoader(OptimalLoader):
             rows = [r for r in rows if self._validate_row(r)]
             self._stats["rows_quality_dropped"] += before_quality - len(rows)
 
-            # Bloom dedup (cheap pre-filter)
-            # SKIP for price_daily: EOD price data is immutable, dedup not needed
-            # Prevents filtering out fresh May 23 data that yfinance returns with May 22 date
-            dedup = None  # self._get_dedup()
-            if dedup and self.primary_key:
-                before_dedup = len(rows)
-                rows = self._dedup_filter(dedup, rows)
-                self._stats["rows_dedup_skipped"] += before_dedup - len(rows)
+            # WRITE TRIM: the batch fetch window starts at the OLDEST watermark in the
+            # batch, so a fresher symbol's results include dates it already has loaded.
+            # Drop rows at/before this symbol's own watermark (keeping the standard
+            # 1-day overlap for cross-checking) so one stale symbol no longer forces
+            # dead re-upserts of every other symbol's history.
+            sym_wm = symbol_watermarks.get(symbol)
+            if sym_wm is not None and self._backfill_days == 0:
+                overlap_cutoff = sym_wm - timedelta(days=1)
+                before_trim = len(rows)
+                rows = [r for r in rows if self._row_date(r) >= overlap_cutoff]
+                if before_trim != len(rows):
+                    logger.debug(
+                        f"[{self.table_name}] {symbol}: trimmed {before_trim - len(rows)} already-loaded rows "
+                        f"(own watermark {sym_wm}, batch window {previous_date})"
+                    )
+                if not rows:
+                    # Everything fetched is already loaded — watermark current, not a failure.
+                    self._stats["symbols_skipped_by_watermark"] += 1
+                    self._stats["symbols_processed"] += 1
+                    continue
 
             if not rows:
                 # GOVERNANCE FIX: Mark symbol as having unavailable price data
                 # BUT: Do NOT update watermark when data unavailable.
                 # This allows next run to retry fetching - yfinance may have the data next time.
                 # If watermark is updated on unavailable data, symbols become permanently stuck.
-                try:
-                    unavailable_marker = {
+                # Staged separately from real rows: marker insert failure is tolerated,
+                # real-row insert failure is fatal for the batch.
+                marker_rows.append(
+                    {
                         "symbol": symbol,
                         "date": datetime.now(timezone.utc).date(),
                         "open": None,
@@ -2023,53 +2054,46 @@ class PriceLoader(OptimalLoader):
                         "data_unavailable_reason": "no_price_data_after_validation",
                         "reason_type": "loader_failed",
                     }
-                    self._bulk_insert_mgr.bulk_insert(
-                        [unavailable_marker],
-                        symbol=None,  # Don't pass symbol so watermark isn't updated
-                        new_watermark=None,  # Explicitly don't update watermark
-                        watermark_mgr=None,  # Don't track watermark for unavailable data
-                    )
-                    logger.warning(
-                        f"[{self.table_name}] {symbol}: Marked as data_unavailable (no valid prices after validation). "
-                        "Watermark NOT updated - next run will retry this symbol."
-                    )
-                except Exception as e:
-                    logger.warning(f"[{self.table_name}] {symbol}: Could not mark as unavailable: {e} (continuing)")
-
+                )
+                logger.warning(
+                    f"[{self.table_name}] {symbol}: Marked as data_unavailable (no valid prices after validation). "
+                    "Watermark NOT updated - next run will retry this symbol."
+                )
                 self._stats["symbols_processed"] += 1
                 continue
 
-            # Calculate new watermark BEFORE insert
-            new_wm = self.watermark_from_rows(rows)
+            # Stage this symbol's rows; the whole batch is written in one chunked
+            # bulk_insert below (was: one staging-table cycle per symbol).
+            pending_rows.extend(rows)
+            pending_symbol_rowcounts[symbol] = len(rows)
+            pending_watermarks[symbol] = (self.watermark_from_rows(rows), len(rows))
 
-            # Bulk insert in chunks
+        # ---- Batch write: one chunked insert for all symbols, then watermarks ----
+        if pending_rows:
             inserted = 0
-            for chunk_start in range(0, len(rows), self.chunk_size):
-                chunk = rows[chunk_start : chunk_start + self.chunk_size]
-                is_final_chunk = chunk_start + self.chunk_size >= len(rows)
-                chunk_wm = new_wm if is_final_chunk else None
-                inserted += self._bulk_insert_mgr.bulk_insert(
-                    chunk,
-                    symbol=symbol if is_final_chunk else None,
-                    new_watermark=chunk_wm,
-                    watermark_mgr=self._watermark if is_final_chunk else None,
-                )
+            for chunk_start in range(0, len(pending_rows), self.chunk_size):
+                chunk = pending_rows[chunk_start : chunk_start + self.chunk_size]
+                inserted += self._bulk_insert_mgr.bulk_insert(chunk)
 
-            if dedup and self.primary_key:
-                for row in rows:
-                    # Validate all primary key fields present before deduplication
-                    for pk_field in self.primary_key:
-                        if pk_field not in row or row[pk_field] is None:
-                            raise ValueError(
-                                f"[PRICES] Primary key field '{pk_field}' missing or None for symbol {symbol}. "
-                                "Cannot deduplicate without complete primary key. "
-                                f"Row: {row}"
-                            )
-                    key = ":".join(str(row[c]) for c in self.primary_key)
-                    dedup.add(key)
+            # Watermarks advance ONLY after the insert committed (same contract as
+            # before), in one transaction instead of one write round trip per symbol.
+            if wm_store is None:
+                raise RuntimeError(
+                    f"[{self.table_name}] CRITICAL: Watermark store is None after successful insert. "
+                    f"Cannot record progress for {len(pending_watermarks)} symbols."
+                )
+            wm_store.advance_watermarks_bulk(pending_watermarks)
 
             self._stats["rows_inserted"] += inserted
-            self._stats["symbols_processed"] += 1
+            self._stats["symbols_processed"] += len(pending_symbol_rowcounts)
+
+        if marker_rows:
+            try:
+                self._bulk_insert_mgr.bulk_insert(marker_rows)
+            except Exception as e:
+                logger.warning(
+                    f"[{self.table_name}] Could not mark {len(marker_rows)} symbols as unavailable: {e} (continuing)"
+                )
 
 
 def _invalidate_phase1_cache() -> None:
