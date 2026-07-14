@@ -14,11 +14,15 @@ Consolidates redundant calls from:
 - analyst_upgrade_downgrade (analyst counts)
 - analyst_sentiment_analysis (recommendation key, analyst counts)
 
-OPTIMIZATION 2026-07-12: Implemented batch fetching of yfinance.Ticker() calls.
-Instead of fetching each symbol individually, batches 50 symbols per request.
-Reduces fetch time from 2+ hours to 5-10 minutes.
-Single fetch per symbol → yfinance_snapshot table → all loaders read from table.
-Fetches once per symbol, caches 24 hours. Eliminates 30,000+ redundant API calls.
+FRESHNESS SKIP 2026-07-14: symbols with an available snapshot row newer than
+YFINANCE_SNAPSHOT_MAX_AGE_HOURS (default 20h) are skipped entirely — re-runs and
+crash-retries fetch only the unfetched tail instead of restarting all ~5,300
+quoteSummary requests from zero. (The earlier "batches 50 symbols per request"
+claim was false: batch_tickers groups symbols for iteration, but every symbol
+still costs one quoteSummary HTTP request; requests are serialized through
+YFinanceWrapper with the shared IP circuit breaker.)
+Single fetch per symbol → yfinance_snapshot table → all downstream loaders read
+from the table instead of calling yfinance themselves.
 """
 
 import logging
@@ -50,13 +54,44 @@ class YFinanceSnapshotLoader(OptimalLoader):
         super().__init__(*args, **kwargs)
         self._ticker_batch_cache: dict[str, Any] = {}  # Cache for batched ticker fetches
         self._batch_prefetch_done = False  # Track if we've done the initial batch prefetch
+        self._fresh_symbols: set[str] = set()
+
+    def _prepare_batch_context(self) -> None:
+        """Read existing snapshot freshness once so already-fresh symbols skip the API.
+
+        RESILIENCE FIX: every run used to refetch ALL ~5,300 symbols' quoteSummary,
+        including when a run was killed partway (timeout guardian / SLA) and Step
+        Functions relaunched it — the retry started from zero, doubling API volume
+        exactly when Yahoo was already throttling us (the observed 2h+ runs and
+        shared-IP ban storms). With a freshness horizon, a retry only fetches the
+        tail that wasn't committed yet. Fails open to a full refetch.
+        """
+        self._batch_context = {}
+        max_age_hours = float(os.getenv("YFINANCE_SNAPSHOT_MAX_AGE_HOURS", "20"))
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT symbol FROM yfinance_snapshot "
+                    "WHERE data_available = TRUE AND fetched_at >= NOW() - INTERVAL '1 hour' * %s",
+                    (max_age_hours,),
+                )
+                self._fresh_symbols = {row[0] for row in cur.fetchall()}
+        except Exception as e:
+            logger.warning(f"[YFINANCE_SNAPSHOT] Freshness read failed ({e}); refetching everything")
+            self._fresh_symbols = set()
+        if self._fresh_symbols:
+            logger.info(
+                f"[YFINANCE_SNAPSHOT] {len(self._fresh_symbols)} symbols already fresh "
+                f"(<{max_age_hours}h) — skipping their API fetch this run"
+            )
 
     def _do_batch_prefetch(self) -> None:
-        """Prefetch all active stock symbols in batches to reduce API calls 50x.
+        """Prefetch active stock symbols that still need a fetch this run.
 
-        Gets all active symbols from database and fetches using batch_tickers,
-        storing results in cache for fetch_incremental() to use.
-        Reduces yfinance API calls from 5000+ to ~100 (one per 50 symbols).
+        NOTE (honesty fix): batch_tickers groups symbols for iteration but each
+        symbol still costs one quoteSummary HTTP request through YFinanceWrapper
+        (serialized + circuit-breaker-aware). The real API-volume reduction comes
+        from the freshness skip in _prepare_batch_context, not from batching.
         """
         logger.info("[YFINANCE_SNAPSHOT BATCH] Starting batch prefetch of all symbols...")
 
@@ -71,13 +106,20 @@ class YFinanceSnapshotLoader(OptimalLoader):
                 logger.warning("[YFINANCE_SNAPSHOT BATCH] No active symbols found to prefetch")
                 return
 
-            logger.info(f"[YFINANCE_SNAPSHOT BATCH] Prefetching {len(all_symbols)} symbols in batches of 50...")
+            stale_symbols = [s for s in all_symbols if s not in self._fresh_symbols]
+            if not stale_symbols:
+                logger.info("[YFINANCE_SNAPSHOT BATCH] All active symbols fresh — nothing to prefetch")
+                return
+
+            logger.info(
+                f"[YFINANCE_SNAPSHOT BATCH] Prefetching {len(stale_symbols)}/{len(all_symbols)} symbols "
+                f"({len(all_symbols) - len(stale_symbols)} skipped as fresh), one request per symbol..."
+            )
 
             prefetched_count = 0
             failed_count = 0
 
-            # Fetch all symbols in batches of 50
-            for batch_result in batch_tickers(all_symbols, batch_size=50):
+            for batch_result in batch_tickers(stale_symbols, batch_size=50):
                 for symbol, ticker in batch_result.items():
                     self._ticker_batch_cache[symbol] = ticker  # Store ticker or None
                     if ticker:
@@ -87,8 +129,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
             logger.info(
                 f"[YFINANCE_SNAPSHOT BATCH] Prefetch complete: {prefetched_count} symbols cached, "
-                f"{failed_count} unavailable. "
-                f"API calls reduced from {len(all_symbols)} to {(len(all_symbols) + 49) // 50}"
+                f"{failed_count} unavailable."
             )
 
         except Exception as e:
@@ -103,12 +144,15 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
         Returns all metrics in one row to avoid 6 separate yfinance API calls.
         Returns data_unavailable marker if ticker unavailable or data fetch fails.
-
-        OPTIMIZATION (Phase 3): On first call, batch-prefetch all active symbols in groups of 50.
-        This reduces API calls from 5000+ to ~100 (one per 50 symbols), saving ~50x API calls.
-        Subsequent calls read from the prefetch cache, falling back to on-demand for updates.
+        Symbols with a fresh, available snapshot row return [] (no-op — counted as
+        skipped-by-watermark upstream), so re-runs and crash-retries only fetch the
+        symbols that actually need it.
         """
-        # On first fetch, prefetch all symbols in batches (50 symbols per API call)
+        # Fresh snapshot already in DB — no API call needed this run.
+        if symbol in self._fresh_symbols:
+            return []
+
+        # On first fetch, prefetch all stale symbols up front
         if not self._batch_prefetch_done:
             self._do_batch_prefetch()
             self._batch_prefetch_done = True
