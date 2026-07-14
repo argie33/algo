@@ -182,6 +182,20 @@ class SignalsDailyLoader(OptimalLoader):
                     if max_date:
                         symbol_watermarks[symbol] = max_date
 
+                # N+1 FIX: per-symbol technical_data_daily freshness used to be a separate
+                # MAX(date) query inside fetch_incremental for every symbol (~10k round
+                # trips per run). One GROUP BY here replaces all of them.
+                symbol_tech_max_dates = {}
+                cur.execute(
+                    """SELECT symbol, MAX(date) FROM technical_data_daily
+                       WHERE date >= %s AND date <= %s GROUP BY symbol""",
+                    (end - timedelta(days=10), end),
+                )
+                for row in cur.fetchall():
+                    symbol, tech_max = row
+                    if tech_max:
+                        symbol_tech_max_dates[symbol] = tech_max
+
             today_et = now_et.date()
             tech_data_age = (today_et - tech_max_date).days if tech_max_date else None
 
@@ -191,6 +205,7 @@ class SignalsDailyLoader(OptimalLoader):
                 "tech_coverage_symbols": tech_coverage_symbols,
                 "tech_data_age": tech_data_age,
                 "symbol_watermarks": symbol_watermarks,
+                "symbol_tech_max_dates": symbol_tech_max_dates,
             }
             logger.debug(
                 f"Batch context: end={end}, price_coverage={price_coverage_symbols}, "
@@ -270,103 +285,104 @@ class SignalsDailyLoader(OptimalLoader):
                     "Cannot determine incremental load point for buy/sell signal computation."
                 ) from e
 
+        # LOOKBACK FIX: swing-pivot detection scans up to 50 bars back (~70+ calendar
+        # days), but incremental runs used to fetch only from since-1d — often 2 days of
+        # rows — so _find_swing_high/_find_swing_low could never see a pivot and freshly
+        # watermarked symbols silently generated no signals. Always fetch a full lookback
+        # window for CONTEXT; emission is already restricted to dates > since by the
+        # filter at the end of this method, so output dates are unchanged.
+        lookback_start = end - timedelta(days=120)
         if since is None:
-            start = end - timedelta(days=30)
+            start = lookback_start
         else:
             # FIXED Issue #22: Use since - 1 day for watermark (standard across all loaders)
             # This ensures we get overlap data for cross-checking and prevents gaps
-            start = since - timedelta(days=1)
+            start = min(since - timedelta(days=1), lookback_start)
 
         # ISSUE #7 FIX: Validate technical_data_daily COMPLETENESS, not just existence
         # Check that technical_data_daily has been loaded for ALL active symbols, not just this one
         # If loader completed but missed symbols, we'll generate signals only for covered symbols,
         # creating inconsistent signal coverage which breaks Phase 5 filtering
         try:
-            with DatabaseContext("read") as cur:
-                # Verify this symbol has recent technical data (within 10 days of end_date).
-                # On partial-coverage days some symbols' latest tech date is end-1d because
-                # TechnicalDataDaily ran before all prices were available. Accept any tech data
-                # within the window — _fetch_signal_data queries t.date <= end so it will use
-                # the most recent available row for signal computation.
-                cur.execute(
-                    """SELECT MAX(date) FROM technical_data_daily
-                       WHERE symbol = %s AND date >= %s AND date <= %s""",
-                    (symbol, end - timedelta(days=10), end),
+            # Verify this symbol has recent technical data (within 10 days of end_date).
+            # On partial-coverage days some symbols' latest tech date is end-1d because
+            # TechnicalDataDaily ran before all prices were available. Accept any tech data
+            # within the window — _fetch_signal_data queries t.date <= end so it will use
+            # the most recent available row for signal computation.
+            # N+1 FIX: looked up from the batch-context GROUP BY cache instead of a
+            # per-symbol MAX(date) query (~10k round trips per run eliminated).
+            symbol_tech_max_dates = self._batch_context.get("symbol_tech_max_dates")
+            if symbol_tech_max_dates is None:
+                raise RuntimeError(
+                    f"[BUY_SELL_DAILY] {symbol}: 'symbol_tech_max_dates' missing from batch context. "
+                    "_prepare_batch_context() must populate it before fetch_incremental()."
                 )
-                row = cur.fetchone()
-                if row is None or row[0] is None:
-                    raise RuntimeError(
-                        f"[BUY_SELL_DAILY] {symbol}: No technical data within 10 days of {end}. "
-                        "Technical data is CRITICAL for buy/sell signal generation. "
-                        "Indicates symbol was never processed by TechnicalDataDaily. Cannot proceed."
-                    )
-
-                # Validate upstream loader completeness before generating signals.
-                # buy_sell_daily depends on price_daily and technical_data_daily.
-                #
-                # DENOMINATOR FIX: Use price_daily count as the denominator, NOT all active symbols.
-                # Reason: active symbol count (10,000+) includes ETFs and newly listed symbols
-                # without price history. Comparing against all active symbols gives misleadingly
-                # low coverage even on successful load days (e.g., 73% when 80%+ loaded fine).
-                #
-                # THRESHOLD: 70% of price symbols must have technical data (normal days: ~80-83%).
-                # This correctly identifies partial failures (e.g., 46% on June 5 = anomaly)
-                # while allowing normal operations to proceed.
-
-                # ROOT CAUSE #4 FIX: Use cached counts from batch context (computed once)
-                # instead of querying per-symbol. Eliminates ~20k per-symbol database queries.
-                if not self._batch_context:
-                    raise RuntimeError(
-                        f"{symbol}: batch context not initialized. "
-                        "Cannot determine data coverage without batch context."
-                    )
-                if "price_coverage_symbols" not in self._batch_context:
-                    raise RuntimeError(
-                        f"{symbol}: batch context missing 'price_coverage_symbols'. "
-                        "Coverage validation failed - cannot verify price data availability."
-                    )
-                if "tech_coverage_symbols" not in self._batch_context:
-                    raise RuntimeError(
-                        f"{symbol}: batch context missing 'tech_coverage_symbols'. "
-                        "Coverage validation failed - cannot verify technical data availability."
-                    )
-                price_coverage_symbols = self._batch_context["price_coverage_symbols"]
-                tech_coverage_symbols = self._batch_context["tech_coverage_symbols"]
-
-                # Require minimum price coverage (warning only if less than optimal)
-                if price_coverage_symbols < 1000:
-                    raise RuntimeError(
-                        f"{symbol}: price_daily insufficient for {end}: only "
-                        f"{price_coverage_symbols} symbols (minimum 1000 required). "
-                        "Cannot generate signals without minimum price data coverage."
-                    )
-                elif price_coverage_symbols < 3000:
-                    logger.warning(
-                        f"{symbol}: Generating signals with reduced price coverage "
-                        f"({price_coverage_symbols} symbols, optimal >= 3000)"
-                    )
-                # Technical coverage relative to price coverage (normal: 80-83%)
-                tech_coverage = (
-                    (tech_coverage_symbols / price_coverage_symbols * 100) if price_coverage_symbols > 0 else 0
+            if symbol_tech_max_dates.get(symbol) is None:
+                raise RuntimeError(
+                    f"[BUY_SELL_DAILY] {symbol}: No technical data within 10 days of {end}. "
+                    "Technical data is CRITICAL for buy/sell signal generation. "
+                    "Indicates symbol was never processed by TechnicalDataDaily. Cannot proceed."
                 )
 
-                # CRITICAL: Signal generation requires COMPLETE technical data (95%+ coverage minimum).
-                # Accepting 70-80% coverage means 20-30% of symbols lack complete technical patterns.
-                # Signals generated without technical data are degraded:
-                # - Missing moving averages (trend validation breaks)
-                # - Missing momentum indicators (signal quality degrades)
-                # - Missing volume patterns (entry confirmation fails)
-                # Position sizing and exit logic depend on complete technical analysis.
-                min_tech_coverage = 95.0
-                if tech_coverage < min_tech_coverage:
-                    raise RuntimeError(
-                        f"{symbol}: technical_data_daily incomplete for {end}: "
-                        f"Only {tech_coverage:.1f}% coverage (need >= {min_tech_coverage:.1f}%). "
-                        f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols have technical data. "
-                        f"Cannot generate reliable signals with {100 - tech_coverage:.1f}% missing technical indicators. "
-                        f"({tech_coverage:.1f}%, required >= 70%). "
-                        "Cannot generate buy/sell signals without sufficient technical data coverage."
-                    )
+            # Validate upstream loader completeness before generating signals.
+            # buy_sell_daily depends on price_daily and technical_data_daily.
+            #
+            # DENOMINATOR FIX: Use price_daily count as the denominator, NOT all active symbols.
+            # Reason: active symbol count (10,000+) includes ETFs and newly listed symbols
+            # without price history. Comparing against all active symbols gives misleadingly
+            # low coverage even on successful load days (e.g., 73% when 80%+ loaded fine).
+            #
+            # ROOT CAUSE #4 FIX: Use cached counts from batch context (computed once)
+            # instead of querying per-symbol. Eliminates ~20k per-symbol database queries.
+            if not self._batch_context:
+                raise RuntimeError(
+                    f"{symbol}: batch context not initialized. Cannot determine data coverage without batch context."
+                )
+            if "price_coverage_symbols" not in self._batch_context:
+                raise RuntimeError(
+                    f"{symbol}: batch context missing 'price_coverage_symbols'. "
+                    "Coverage validation failed - cannot verify price data availability."
+                )
+            if "tech_coverage_symbols" not in self._batch_context:
+                raise RuntimeError(
+                    f"{symbol}: batch context missing 'tech_coverage_symbols'. "
+                    "Coverage validation failed - cannot verify technical data availability."
+                )
+            price_coverage_symbols = self._batch_context["price_coverage_symbols"]
+            tech_coverage_symbols = self._batch_context["tech_coverage_symbols"]
+
+            # Require minimum price coverage (warning only if less than optimal)
+            if price_coverage_symbols < 1000:
+                raise RuntimeError(
+                    f"{symbol}: price_daily insufficient for {end}: only "
+                    f"{price_coverage_symbols} symbols (minimum 1000 required). "
+                    "Cannot generate signals without minimum price data coverage."
+                )
+            elif price_coverage_symbols < 3000:
+                logger.warning(
+                    f"{symbol}: Generating signals with reduced price coverage "
+                    f"({price_coverage_symbols} symbols, optimal >= 3000)"
+                )
+            # Technical coverage relative to price coverage (normal: 80-83%)
+            tech_coverage = (tech_coverage_symbols / price_coverage_symbols * 100) if price_coverage_symbols > 0 else 0
+
+            # CRITICAL: Signal generation requires COMPLETE technical data (95%+ coverage minimum).
+            # Accepting 70-80% coverage means 20-30% of symbols lack complete technical patterns.
+            # Signals generated without technical data are degraded:
+            # - Missing moving averages (trend validation breaks)
+            # - Missing momentum indicators (signal quality degrades)
+            # - Missing volume patterns (entry confirmation fails)
+            # Position sizing and exit logic depend on complete technical analysis.
+            min_tech_coverage = 95.0
+            if tech_coverage < min_tech_coverage:
+                raise RuntimeError(
+                    f"{symbol}: technical_data_daily incomplete for {end}: "
+                    f"Only {tech_coverage:.1f}% coverage (need >= {min_tech_coverage:.1f}%). "
+                    f"{tech_coverage_symbols}/{price_coverage_symbols} price symbols have technical data. "
+                    f"Cannot generate reliable signals with {100 - tech_coverage:.1f}% missing technical indicators. "
+                    f"({tech_coverage:.1f}%, required >= 70%). "
+                    "Cannot generate buy/sell signals without sufficient technical data coverage."
+                )
         except Exception as e:
             raise RuntimeError(
                 f"[BUY_SELL_DAILY] Failed to validate data for {symbol}: {e}. "
