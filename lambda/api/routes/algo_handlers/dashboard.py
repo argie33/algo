@@ -1554,9 +1554,9 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 LIMIT %s
             )
             SELECT
-                fs.symbol, fs.composite_score, fs.growth_score, fs.momentum_score,
+                fs.symbol, fs.composite_score, COALESCE(fs.growth_score, 0.39) AS growth_score, fs.momentum_score,
                 fs.quality_score, fs.value_score, fs.stability_score, fs.positioning_score,
-                fs.rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
+                COALESCE(fs.rs_percentile, 50.0) AS rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
                 pl.close AS current_price,
                 ROUND(CASE
                     WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
