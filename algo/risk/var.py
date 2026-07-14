@@ -474,15 +474,13 @@ class ValueAtRisk:
                         s_rets = stock_returns[-n:]
                         m_rets = spy_returns[-n:]
                         s_mean = Decimal(str(sum(s_rets) / n))
-                        m_mean = Decimal(str(sum(m_rets) / n))
-                        cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n))
-                        var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
-                        if var <= 0:
+                        cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - spy_mean) for i in range(n)) / n))
+                        if spy_var <= 0:
                             raise ValueError(
-                                f"[VAR CALCULATION] {symbol}: stock variance is zero or negative ({var}). "
-                                f"Cannot compute beta with zero volatility."
+                                f"[VAR CALCULATION] {symbol}: market variance is zero or negative ({spy_var}). "
+                                f"Cannot compute beta with zero market volatility."
                             )
-                        estimated_beta = (cov / var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                        estimated_beta = (cov / spy_var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         raise RuntimeError(f"Beta calculation failed for {symbol}: {e}") from e
 
