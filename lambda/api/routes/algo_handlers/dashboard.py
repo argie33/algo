@@ -821,8 +821,8 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
             # Extract check_date timestamp and calculate data age
             check_date = cbm_row["check_date"]
             if check_date is not None:
-                # check_date is a trading date in ET timezone; convert to datetime at midnight ET
                 from datetime import datetime as dt
+                from datetime import timedelta
                 from zoneinfo import ZoneInfo
 
                 et = ZoneInfo("America/New_York")
@@ -830,17 +830,26 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 now_et = datetime.now(et)
                 data_age_seconds = int((now_et - computed_at).total_seconds())
 
-                # On weekends/holidays, accept data from previous trading day
-                # Use simple heuristic: weekday 0-4 = trading day, 5-6 = weekend
-                today_weekday = datetime.now().weekday()
-                today_trading = today_weekday < 5  # Monday-Friday
-                threshold_seconds = 86400 if today_trading else 259200  # 1 day if trading, 3 days if market closed
-                data_stale = data_age_seconds > threshold_seconds
+                # circuit_breaker_status rows are written by each orchestrator run with
+                # check_date = the run's trading date (first run of the day is 9:30 AM ET).
+                # The previous trading day's row therefore remains the freshest possible
+                # data until today's first run completes. Staleness is "check_date is older
+                # than the most recent trading day whose row should exist by now" — NOT
+                # wall-clock age anchored at midnight of check_date, which falsely flagged
+                # every pre-market morning and every Monday as stale/trading-disabled.
+                # (Market holidays still use the weekday heuristic and can false-flag
+                # after 10:00 ET on a holiday — same limitation as before.)
+                expected_date = now_et.date()
+                if now_et.weekday() >= 5 or now_et.hour < 10:
+                    expected_date -= timedelta(days=1)
+                while expected_date.weekday() >= 5:
+                    expected_date -= timedelta(days=1)
+                data_stale = check_date < expected_date
 
                 if data_stale:
                     logger.critical(
-                        f"[CIRCUIT_BREAKER_STALE] Data age {data_age_seconds}s (>{threshold_seconds}s). "
-                        f"Trading halted. Computed at: {computed_at.isoformat()}"
+                        f"[CIRCUIT_BREAKER_STALE] check_date {check_date} older than expected "
+                        f"trading day {expected_date}. Trading halted. Computed at: {computed_at.isoformat()}"
                     )
                     return json_response(
                         503,
@@ -858,7 +867,7 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                             },
                             "errorType": "stale_circuit_breaker_data",
                             "message": (
-                                f"Circuit breaker data is {data_age_seconds}s old (>{threshold_seconds}s threshold). "
+                                f"Circuit breaker data is for {check_date} but expected {expected_date}. "
                                 "All trading halted until fresh metrics available."
                             ),
                             "_error": "Circuit breaker data stale. Trading disabled.",

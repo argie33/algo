@@ -177,6 +177,14 @@ def format_handler_error(e: Exception) -> dict[str, Any]:
     Returns specific error type to client for debugging without exposing sensitive details.
     Logs full stack trace server-side for investigation.
     """
+    # APIException subclasses (NotFound, BadRequest, ServiceUnavailable, ...) declare
+    # their own status_code/error_type — honor them instead of falling through the
+    # string heuristics below (which previously turned every 404 into a 500).
+    from exceptions import APIException
+
+    if isinstance(e, APIException):
+        return build_error_response(e.status_code, e.error_type, e.message)
+
     error_type = type(e).__name__
     error_msg = str(e)
 

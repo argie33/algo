@@ -892,24 +892,38 @@ jobs:
           terraform state rm "module.pipeline.aws_iam_role_policy.loader_failure_handler_cloudwatch" 2>/dev/null || true
           echo "[OK] Orphaned pipeline loader_failure_handler state entries removed"
 
-          # aws_lambda_alias.api_live and aws_lambda_function_event_invoke_config were added for
-          # provisioned concurrency then removed after causing a Terraform cycle with psycopg2 layer.
-          # Remove from state so plan doesn't try to destroy them (which would recreate the cycle).
-          terraform state rm "module.services.aws_lambda_alias.api_live[0]" 2>/dev/null || true
-          terraform state rm "module.services.aws_lambda_alias.api_live" 2>/dev/null || true
+          # aws_lambda_alias.api_live is now a permanent resource in modules/services/main.tf
+          # (with ignore_changes on function_version specifically to avoid the earlier cycle) --
+          # it is imported above (state sync step) when it already exists in AWS. Do NOT strip it
+          # from state here: that would undo the import on every apply and make the next plan try
+          # to CREATE an alias that already exists in AWS, failing with
+          # EntityAlreadyExistsException. aws_lambda_function_event_invoke_config was a one-off
+          # experiment never added back to configuration, so stripping it is still correct.
           terraform state rm "module.services.aws_lambda_function_event_invoke_config.api_async" 2>/dev/null || true
-          echo "[OK] Orphaned Lambda alias and event invoke config state entries removed"
+          echo "[OK] Orphaned event invoke config state entry removed (if present)"
 
-          # CRITICAL: Remove provisioned concurrency configs when they're disabled (count = 0)
-          # Issue: When var.api_lambda_provisioned_concurrency=0, Terraform tries to destroy the config
-          # But if reserved_concurrent_executions < existing provisioned_concurrent_executions in AWS,
-          # the Lambda resource update fails before the config deletion can happen.
-          # Solution: Remove from state so Terraform doesn't try to manage them
+          # Remove provisioned concurrency configs ONLY when actually disabled in this apply's
+          # tfvars (count = 0). Previously this ran unconditionally, which stripped the api[0]
+          # config from state on every single apply even while terraform.tfvars had
+          # api_lambda_provisioned_concurrency = 5 (enabled) -- defeating terraform's ability to
+          # manage that resource as a stable no-op and forcing a spurious create every run.
           echo ""
-          echo "Removing provisioned concurrency configs (provisioned_concurrency=0 in terraform.tfvars)..."
-          terraform state rm "module.services.aws_lambda_provisioned_concurrency_config.api[0]" 2>/dev/null || echo "  (not in state)"
-          terraform state rm "module.services.aws_lambda_provisioned_concurrency_config.algo[0]" 2>/dev/null || echo "  (not in state)"
-          echo "[OK] Provisioned concurrency configs removed from state"
+          echo "Checking provisioned concurrency settings in terraform.tfvars..."
+          API_PC=$(grep '^api_lambda_provisioned_concurrency' terraform.tfvars | grep -oE '[0-9]+' | head -1)
+          ALGO_PC=$(grep '^algo_lambda_provisioned_concurrency' terraform.tfvars | grep -oE '[0-9]+' | head -1)
+          if [ "${API_PC:-0}" -eq 0 ]; then
+            echo "  api_lambda_provisioned_concurrency=0 -- removing api[0] config from state"
+            terraform state rm "module.services.aws_lambda_provisioned_concurrency_config.api[0]" 2>/dev/null || echo "  (not in state)"
+          else
+            echo "  api_lambda_provisioned_concurrency=$API_PC -- leaving api[0] config under terraform management"
+          fi
+          if [ "${ALGO_PC:-0}" -eq 0 ]; then
+            echo "  algo_lambda_provisioned_concurrency=0 -- removing algo[0] config from state"
+            terraform state rm "module.services.aws_lambda_provisioned_concurrency_config.algo[0]" 2>/dev/null || echo "  (not in state)"
+          else
+            echo "  algo_lambda_provisioned_concurrency=$ALGO_PC -- leaving algo[0] config under terraform management"
+          fi
+          echo "[OK] Provisioned concurrency state check complete"
 
       - name: Remove Orphaned S3 Config Bucket From State
         working-directory: terraform
