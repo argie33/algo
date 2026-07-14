@@ -234,7 +234,7 @@ resource "aws_sqs_queue_policy" "loader_dlq" {
 
 resource "aws_sqs_queue" "scheduler_dlq" {
   name                      = "${var.project_name}-scheduler-dlq-${var.environment}"
-  message_retention_seconds = 1209600  # 14 days
+  message_retention_seconds = 1209600 # 14 days
 
   tags = merge(var.common_tags, {
     Name = "${var.project_name}-scheduler-dlq"
@@ -426,8 +426,8 @@ locals {
     # incremental runs. After the multi-day price-loader stall (stock_prices_daily lock
     # bug), this task had a multi-day backlog to recompute in one run and was OOM-killed
     # (exit 137) twice in a row at 2048MB. Bumped to 4096MB for backlog-catch-up headroom.
-    "technical_data_daily"  = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
-    "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "technical_data_daily" = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
+    "trend_template_data"  = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~10-30s, 2x headroom)
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
     "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
@@ -459,7 +459,7 @@ locals {
     "market_constituents" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
     "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
     # FIXED (2026-07-12): Reduced timeout 300s→60s (actual runtime ~3-5s, 10x+ over-provisioned)
-    "market_sentiment"    = { cpu = 256, memory = 512, timeout = 60, parallelism = 1 }
+    "market_sentiment" = { cpu = 256, memory = 512, timeout = 60, parallelism = 1 }
     # Consolidated economic data loader: FRED series + DXY (lightweight: API calls + DB writes)
     "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
     # Cost-optimized: Reduced from 1024 to 512 (sector ranking DB queries, <50MB actual)
@@ -744,9 +744,9 @@ resource "aws_ecs_task_definition" "loader" {
       # If initialization fails, we want quick retry (not blocking for 60+ seconds)
       healthCheck = {
         command     = ["CMD-SHELL", "ps aux | grep -q '[p]ython.*${each.key}' || exit 1"]
-        interval    = 30 # Check every 30 seconds
-        timeout     = 5  # Timeout for health check command
-        retries     = 2  # Mark unhealthy after 2 failed checks (60s total after grace period)
+        interval    = 30  # Check every 30 seconds
+        timeout     = 5   # Timeout for health check command
+        retries     = 2   # Mark unhealthy after 2 failed checks (60s total after grace period)
         startPeriod = 120 # Grace period before first health check (was 60s, increased to 120s)
       }
     }
