@@ -73,6 +73,7 @@ def render_scores(data: dict[str, Any]) -> Panel | None:
         table.add_column("Growth", width=8, justify="right")
         table.add_column("Quality", width=8, justify="right")
         table.add_column("Momentum", width=8, justify="right")
+        table.add_column("RS%", width=6, justify="right", style="dim white")
 
         for score_row in top_scores[:20]:  # Show top 20
             score_dict = safe_get_dict(score_row)
@@ -89,6 +90,7 @@ def render_scores(data: dict[str, Any]) -> Panel | None:
             growth = safe_float(safe_get_field(score_dict, "growth_score"))
             quality = safe_float(safe_get_field(score_dict, "quality_score"))
             momentum = safe_float(safe_get_field(score_dict, "momentum_score"))
+            rs_percentile = safe_float(safe_get_field(score_dict, "rs_percentile"))
 
             comp_color = _composite_score_color(composite)
 
@@ -99,6 +101,7 @@ def render_scores(data: dict[str, Any]) -> Panel | None:
                 f"[{_composite_score_color(growth)}]{_score_cell(growth)}[/]",
                 f"[{_composite_score_color(quality)}]{_score_cell(quality)}[/]",
                 f"[{_composite_score_color(momentum)}]{_score_cell(momentum)}[/]",
+                f"[dim]{_score_cell(rs_percentile)}[/]",
             )
 
         return Panel(
