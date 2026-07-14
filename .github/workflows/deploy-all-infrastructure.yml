@@ -808,6 +808,27 @@ jobs:
             echo "loader_failure_handler Lambda not found -- Terraform will create it"
           fi
 
+          # Import the "LIVE" alias if deploy-api-lambda.yml already created it out-of-band.
+          # Terraform now owns provisioned concurrency + API Gateway routing via this alias
+          # (see modules/services/main.tf); without the import, terraform apply would try to
+          # CREATE an alias that already exists and fail with EntityAlreadyExistsException.
+          echo ""
+          echo "Querying AWS for existing algo-api-${ENVIRONMENT} LIVE alias..."
+          if aws lambda get-alias --function-name "${PROJECT_NAME}-api-${ENVIRONMENT}" --name LIVE --region $AWS_REGION >/dev/null 2>&1; then
+            import_if_missing "module.services.aws_lambda_alias.api_live[0]" "${PROJECT_NAME}-api-${ENVIRONMENT}/LIVE"
+          else
+            echo "  No existing LIVE alias -- Terraform will create it"
+          fi
+
+          # Delete the stray lowercase "live" alias (a dead leftover from earlier manual
+          # troubleshooting, pointed at version 1 and never referenced by any deploy script
+          # or terraform resource) so it stops shadowing the real "LIVE" alias in `aws lambda
+          # list-aliases` output during future debugging.
+          if aws lambda get-alias --function-name "${PROJECT_NAME}-api-${ENVIRONMENT}" --name live --region $AWS_REGION >/dev/null 2>&1; then
+            echo "-> Deleting stray lowercase 'live' alias (dead leftover, unused)"
+            aws lambda delete-alias --function-name "${PROJECT_NAME}-api-${ENVIRONMENT}" --name live --region $AWS_REGION 2>&1 || echo "[WARN] Could not delete stray 'live' alias"
+          fi
+
           # Import Secrets Manager secrets if they exist
           # Note: Terraform fails to create secrets that already exist, so we must import them first
           # Terraform requires the full ARN (not just the secret name) for aws_secretsmanager_secret import

@@ -60,11 +60,11 @@ python lambda/api/dev_server.py
 # Wait for: [INFO] Starting API dev server on http://localhost:3001
 
 # Terminal 2: Run dashboard (auto-detects localhost)
-python run_dashboard.py              # Auto-connects to localhost
-python run_dashboard.py -w 30        # Auto-refresh every 30s
+python dashboard.py              # Auto-connects to localhost
+python dashboard.py -w 30        # Auto-refresh every 30s
 
 # Or force local mode explicitly:
-python run_dashboard.py --local      # Forces localhost:3001 (ignores AWS config)
+python dashboard.py --local      # Forces localhost:3001 (ignores AWS config)
 ```
 
 ## System Health Check

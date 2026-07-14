@@ -1,5 +1,25 @@
 # AWS Lambda 503 Errors: Root Cause & Fixes
 
+## ROOT CAUSE FOUND & FIXED (2026-07-14)
+
+Provisioned concurrency was warming the wrong target. Terraform's
+`aws_lambda_provisioned_concurrency_config.api` pointed its `qualifier` at
+`aws_lambda_function.api.version` — a raw version number frozen at whatever the *last
+`terraform apply`* published. But `deploy-api-lambda.yml` (the frequent code-only deploy
+path) publishes a NEW version on every push and repoints a `LIVE` alias to it — and API
+Gateway's `integration_uri` invoked `aws_lambda_function.api.invoke_arn` (unqualified,
+always `$LATEST`). Three different targets, only one of which (`$LATEST`) ever actually
+served traffic, and it was never the one kept warm. Every real request cold-started
+(~7s VPC init, confirmed in CloudWatch logs) and concurrent cold starts produced the
+Throttles seen in `AWS/Lambda` metrics — the proximate cause of client-facing 503s.
+
+Fixed in `terraform/modules/services/main.tf`: provisioned concurrency, the API Gateway
+integration, and the Lambda invoke permission all now target the same `LIVE` alias that
+`deploy-api-lambda.yml` maintains (`ignore_changes = [function_version]` so Terraform
+doesn't fight the deploy workflow over which version the alias points to). A stray
+lowercase `live` alias (pointing at version 1, never referenced by anything) was also
+cleaned up — it was dead leftover from earlier manual troubleshooting.
+
 ## Root Causes of Lambda 503 Errors
 
 Lambda returns HTTP 503 "Service Unavailable" when:
