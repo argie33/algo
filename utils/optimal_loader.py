@@ -88,8 +88,10 @@ class OptimalLoader:
                     return
             except ValueError:
                 pass
-        # AWS environment: use smaller batch size to avoid yfinance rate limiting
-        # Local development: use larger batch size (no rate limits)
+        # chunk_size is the DATABASE INSERT chunk (rows per staging COPY+upsert), not an
+        # API batch — the old 100-500 AWS cap was justified as "avoid yfinance rate
+        # limiting", which this setting has nothing to do with. Small chunks just
+        # multiply staging-table cycles and round trips. Bound by task memory instead.
         lambda_func_name = os.getenv("AWS_LAMBDA_FUNCTION_NAME")
         exec_env = os.getenv("AWS_EXECUTION_ENV")
         is_aws = bool(lambda_func_name is not None or exec_env is not None)
@@ -97,10 +99,9 @@ class OptimalLoader:
         safe_rows = int((memory_limit_mb * 0.40 * 1024) / 1.5)
 
         if is_aws:
-            # AWS: reduce batch size to 100 to avoid yfinance rate limiting
-            self.chunk_size = max(100, min(500, safe_rows))
+            self.chunk_size = max(1_000, min(10_000, safe_rows))
         else:
-            # Local: use larger batches (no rate limit concerns)
+            # Local: use larger batches
             self.chunk_size = max(2_000, min(50_000, safe_rows))
         self._bulk_insert_mgr.chunk_size = self.chunk_size
         logger.info(f"[CONFIG] Batch size set to {self.chunk_size} (AWS={is_aws})")

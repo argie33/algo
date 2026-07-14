@@ -565,10 +565,12 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "LOADER_TIMEOUT"
           value = tostring(each.value.timeout)
         },
-        # AWS batch size configuration (reduce 1000→100 in AWS to avoid yfinance rate limiting)
+        # DATABASE insert chunk (rows per staged COPY+upsert). This is NOT an API batch —
+        # the old value of 100 was justified as yfinance rate limiting, which chunking of
+        # DB writes has nothing to do with; it just multiplied staging-table cycles.
         {
           name  = "LOADER_CHUNK_SIZE"
-          value = "100"
+          value = "5000"
         },
         # AWS memory configuration for ECS task
         {

@@ -282,7 +282,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
                 { Name = "LOADER_INTERVALS", Value = "1d" },
                 { Name = "LOADER_ASSET_CLASSES", Value = "stock,etf" },
                 { Name = "LOADER_PARALLELISM", Value = "1" },
-                { Name = "LOADER_CHUNK_SIZE", Value = "100" }
+                { Name = "LOADER_CHUNK_SIZE", Value = "5000" }
               ]
             }]
           }
@@ -1357,7 +1357,7 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                 { Name = "LOADER_INTERVALS", Value = "1d" },
                 { Name = "LOADER_ASSET_CLASSES", Value = "stock,etf" },
                 { Name = "LOADER_PARALLELISM", Value = "1" },
-                { Name = "LOADER_CHUNK_SIZE", Value = "100" }
+                { Name = "LOADER_CHUNK_SIZE", Value = "5000" }
               ]
             }]
           }
