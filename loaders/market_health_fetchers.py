@@ -269,23 +269,44 @@ class PutCallRatioFetcher:
         return None
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
-        """Internal put/call fetch implementation.
+        """Fetch put/call ratio from options chains data.
 
-        "PCRX" is NOT a CBOE put/call ratio index -- it's the NASDAQ ticker for
-        Pacira BioSciences, an unrelated equity. yfinance.download("PCRX", ...)
-        silently returns that stock's closing price, and the only validation here
-        was `value > 0`, so a real close price (e.g. $28.50) would have passed as
-        a valid put/call ratio. CBOE does not publish a real-time put/call feed
-        under any public, verified, machine-readable ticker or API, so there is no
-        drop-in replacement -- fail permanently (no retry) and let callers degrade
-        per the data_unavailable contract documented on `fetch()` above, instead of
-        reporting a stock price as options sentiment.
+        Computes SPY put/call ratio from open interest in the options_chains table.
+        This is a real options market metric based on our data, not a placeholder.
         """
-        raise ValueError(
-            f"[PUT_CALL_FETCHER] No verified real-time CBOE put/call ratio data source for {eval_date}. "
-            f"'PCRX' is Pacira BioSciences' equity ticker, not a put/call ratio index -- "
-            f"do not reintroduce it without a real, verified source."
-        )
+        try:
+            from utils.db import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                cur.execute("""
+                    SELECT
+                        COALESCE(SUM(CASE WHEN option_type = 'put' THEN open_interest ELSE 0 END), 0)::float AS total_puts,
+                        COALESCE(SUM(CASE WHEN option_type = 'call' THEN open_interest ELSE 0 END), 0)::float AS total_calls
+                    FROM options_chains
+                    WHERE symbol = 'SPY'
+                      AND trade_date = %s
+                      AND open_interest > 0
+                """, (eval_date,))
+
+                row = cur.fetchone()
+                if not row:
+                    logger.warning(f"[PUT_CALL_RATIO] No options data found for {eval_date}")
+                    return None
+
+                total_puts = float(row[0])
+                total_calls = float(row[1])
+
+                if total_calls == 0:
+                    logger.warning(f"[PUT_CALL_RATIO] No call open interest for {eval_date}")
+                    return None
+
+                pcr = total_puts / total_calls
+                logger.info(f"[PUT_CALL_RATIO] Computed {pcr:.4f} for {eval_date} from options chains")
+                return pcr
+
+        except Exception as e:
+            logger.error(f"[PUT_CALL_RATIO] Failed to compute from options chains: {e}")
+            return None
 
 
 class YieldCurveFetcher:
