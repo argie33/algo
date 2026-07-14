@@ -30,22 +30,22 @@ EASTERN_TZ = ZoneInfo("America/New_York")
 # Loader definitions for each pipeline
 LOADERS = {
     "morning": {
-        "description": "Morning pipeline (2:00 AM ET): fresh prices for market open",
-        "loaders": ["load_prices.py"],
+        "description": "Morning pipeline (2:00 AM ET): prices + technicals + market health",
+        "loaders": ["load_prices.py", "load_technical_indicators.py", "load_market_health_daily.py"],
         "interval_hours": 24,
         "target_hour": 2,
         "target_minute": 0,
     },
     "reference": {
-        "description": "Reference data (9:15 AM ET): earnings, company profile",
-        "loaders": ["load_company_profile.py"],
+        "description": "Reference data (9:15 AM ET): yfinance snapshot + derived metrics (company profile, earnings)",
+        "loaders": ["load_yfinance_snapshot.py", "load_yfinance_derived_metrics.py"],
         "interval_hours": 24,
         "target_hour": 9,
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): quality, growth, value scores",
-        "loaders": ["load_quality_growth_metrics.py", "load_momentum_metrics.py"],
+        "description": "Metrics pipeline (7:00 PM ET): quality, growth, value, risk (stability+momentum), stock scores",
+        "loaders": ["load_financial_statements.py", "load_quality_growth_metrics.py", "load_risk_metrics_daily.py", "load_stock_scores.py"],
         "interval_hours": 24,
         "target_hour": 19,
         "target_minute": 0,

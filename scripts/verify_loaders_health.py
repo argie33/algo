@@ -33,16 +33,23 @@ LOADERS = {
         "min_rows": 500000,
         "critical": True,
     },
-    "load_company_cache.py": {
+    "load_yfinance_snapshot.py": {
         "output_table": "yfinance_snapshot",
         "date_column": "updated_at",
         "min_rows": 1000,
         "critical": False,
     },
-    "load_fundamental_metrics.py": {
+    "load_yfinance_derived_metrics.py": {
         "output_table": "company_profile",
         "date_column": "updated_at",
         "min_rows": 1000,
+        "critical": True,
+        "note": "Consolidated loader: writes to company_profile, value_metrics, positioning_metrics, earnings_calendar, analyst_sentiment_analysis",
+    },
+    "load_financial_statements.py": {
+        "output_table": "annual_income_statement",
+        "date_column": None,
+        "min_rows": 100,
         "critical": True,
     },
     "load_quality_growth_metrics.py": {
@@ -53,7 +60,7 @@ LOADERS = {
     },
     "load_stock_scores.py": {
         "output_table": "stock_scores",
-        "date_column": "created_at",
+        "date_column": "updated_at",
         "min_rows": 1000,
         "critical": True,
     },
@@ -63,29 +70,35 @@ LOADERS = {
         "min_rows": 10000,
         "critical": True,
     },
-    # Consolidated: load_risk_metrics_daily.py writes to both momentum_metrics and stability_metrics
     "load_risk_metrics_daily.py": {
-        "output_table": "momentum_metrics",  # Primary table (stability_metrics is side effect)
+        "output_table": "stability_metrics",
         "date_column": None,
         "min_rows": 1000,
-        "critical": False,
-    },
-    "load_positioning_metrics.py": {
-        "output_table": "positioning_metrics",
-        "date_column": None,
-        "min_rows": 1000,
-        "critical": False,
+        "critical": True,
+        "note": "Consolidated loader: writes to stability_metrics and momentum_metrics",
     },
     "load_market_health_daily.py": {
         "output_table": "market_health_daily",
         "date_column": "date",
         "min_rows": 100,
-        "critical": False,
+        "critical": True,
+    },
+    "load_market_constituents.py": {
+        "output_table": "stock_symbols",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": True,
     },
     "load_sector_rankings.py": {
         "output_table": "sector_ranking",
         "date_column": "date",
         "min_rows": 100,
+        "critical": False,
+    },
+    "load_sector_performance.py": {
+        "output_table": "sector_performance",
+        "date_column": "date",
+        "min_rows": 10,
         "critical": False,
     },
     "load_market_exposure_daily.py": {
@@ -96,6 +109,19 @@ LOADERS = {
     },
     "load_algo_metrics_daily.py": {
         "output_table": "algo_metrics_daily",
+        "date_column": "date",
+        "min_rows": 1,
+        "critical": False,
+    },
+    "load_economic_data.py": {
+        "output_table": "economic_data",
+        "date_column": "date",
+        "min_rows": 10,
+        "critical": False,
+        "note": "Consolidated loader: writes FRED + DXY to economic_data",
+    },
+    "load_market_sentiment.py": {
+        "output_table": "market_sentiment",
         "date_column": "date",
         "min_rows": 1,
         "critical": False,
