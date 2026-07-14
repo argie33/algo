@@ -148,7 +148,9 @@ class YFinanceSnapshotLoader(OptimalLoader):
         skipped-by-watermark upstream), so re-runs and crash-retries only fetch the
         symbols that actually need it.
         """
-        # Fresh snapshot already in DB — no API call needed this run.
+        # Fresh snapshot already committed in DB (data_available=TRUE, within the
+        # freshness horizon) — NOT a data_unavailable case and nothing to re-fetch:
+        # empty list is the framework's "no new data since watermark" no-op contract.
         if symbol in self._fresh_symbols:
             return []
 
