@@ -468,7 +468,10 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
         # open_positions_count = total open positions; open_losses_count = subset with losses
         # Accept both API field names to support different versions
-        open_positions_count = perf.get("open_positions_count") or perf.get("open_positions")
+        # CRITICAL: Explicitly check for None, not falsy (0 open positions is valid)
+        open_positions_count = perf.get("open_positions_count")
+        if open_positions_count is None:
+            open_positions_count = perf.get("open_positions")
         if open_positions_count is None:
             error_msg = (
                 "Performance data missing 'open_positions' or 'open_positions_count' field. "
