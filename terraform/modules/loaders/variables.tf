@@ -137,6 +137,12 @@ variable "alpaca_api_base_url" {
   default     = "https://paper-api.alpaca.markets"
 }
 
+variable "price_data_source" {
+  description = "Primary daily-bar OHLCV source for price loaders (alpaca or yfinance; router auto-falls back to yfinance)"
+  type        = string
+  default     = "yfinance"
+}
+
 variable "execution_mode" {
   description = "Orchestrator execution mode (auto, manual, dry-run)"
   type        = string

@@ -45,16 +45,19 @@ aggregates) is what lets the same Postgres + ECS stack absorb higher-frequency
 loading later — an intraday cadence is "run the same incremental loaders more often,"
 not a redesign.
 
-**Alpaca Market Data parallel track (2026-07-14, live-verified):** the FREE Alpaca
+**Alpaca Market Data is the PRIMARY daily-bar source (prod default):** the FREE Alpaca
 plan serves full SIP consolidated-tape historical bars for anything older than 15
 minutes (200 calls/min; ~200 symbols per request → the whole universe in ~43 calls /
-~20s). `PRICE_DATA_SOURCE=alpaca` routes daily-bar batches through
-`utils/external/alpaca_market_data.py` with automatic yfinance fallback; default
-remains yfinance. Evaluate with `python scripts/compare_price_sources.py` (live
-result: 99.4% coverage, close diff median 0.0000%, volume ratio median 1.000 = true
-SIP). Switch when coverage ~100% / close p95 <0.5% / volume median ~1.0 hold across
-several trading days. Index symbols (^VIX, ^GSPC...) always stay on yfinance. The
-$99/mo plan is only needed for intraday/real-time (recent-SIP + websocket + 10k/min).
+~20s). `PRICE_DATA_SOURCE` (terraform `price_data_source`, prod default `alpaca`)
+routes daily-bar batches through `utils/external/alpaca_market_data.py`. Fallback to
+yfinance is PER-SYMBOL: anything Alpaca doesn't serve (caret indexes, OTC/delisted
+stragglers like BK/SCVL) is re-fetched via the yfinance batch and merged in, and a
+wholesale Alpaca failure (auth/outage) falls back to the full yfinance batch — no
+data holes either way. Compare sources anytime with
+`python scripts/compare_price_sources.py` (live result: 99.4% coverage, close diff
+median 0.0000%, volume ratio median 1.000 = true SIP). Index symbols (^VIX, ^GSPC...)
+always stay on yfinance. The $99/mo plan is only needed for intraday/real-time
+(recent-SIP + websocket + 10k/min).
 
 ---
 
@@ -71,8 +74,10 @@ adaptive reduction when RDS proxy connections approach saturation. yfinance- and
 SEC-facing loaders are clamped to parallelism 1-2 to protect the shared NAT IP.
 
 **Data sources (actual, per code):**
-- **Prices (OHLCV):** yfinance `yf.download` batches — the sole OHLCV source. Alpaca is
-  broker/trading API only (orders, positions); it is NOT used for bulk price data.
+- **Prices (OHLCV):** Alpaca Market Data multi-symbol daily bars (SIP, free plan) via
+  `DataSourceRouter.fetch_ohlcv_batch`, with per-symbol yfinance fallback for symbols
+  Alpaca doesn't serve and full-batch yfinance fallback on Alpaca outage. Weekly/monthly
+  bars are DERIVED in SQL from dailies (never fetched).
 - **Fundamentals/filings:** SEC EDGAR (`SecEdgarClient`, 2 req/s per task, companyfacts
   cached per CIK per run).
 - **Economic series:** FRED (4 series) + DXY via yfinance (`DX-Y.NYB`).

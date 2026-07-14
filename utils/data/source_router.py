@@ -274,26 +274,86 @@ class DataSourceRouter:
         - "yfinance" (default): unchanged legacy path.
         - "alpaca": Alpaca Market Data first (genuinely batched — ~200 symbols per
           HTTP request, full SIP historical data on the free plan for windows older
-          than 15 minutes), with automatic yfinance fallback so a bad Alpaca day
-          cannot halt price loading. Only daily bars route to Alpaca; other
+          than 15 minutes). Fallback to yfinance is PER-SYMBOL: symbols Alpaca
+          doesn't serve (caret indexes, OTC/delisted stragglers) are re-fetched
+          through the yfinance batch path and merged, so switching primaries never
+          creates per-symbol data holes. A wholesale Alpaca failure falls back to
+          the full yfinance batch. Only daily bars route to Alpaca; other
           intervals stay on yfinance.
         """
-        sources: list[tuple[str, Callable[[], Any]]] = []
+        request_desc = f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]"
         if interval == "1d" and os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca":
-            sources.append(
-                (
-                    "alpaca",
-                    lambda: self._fetch_alpaca_ohlcv_batch(symbols, start, end),
-                )
-            )
-        sources.append(
+            alpaca_results = self._alpaca_batch_or_none(symbols, start, end, request_desc)
+            if alpaca_results is not None:
+                self._fill_alpaca_residual_from_yfinance(alpaca_results, symbols, start, end)
+                return alpaca_results
+            # Wholesale Alpaca failure (auth/outage) — full yfinance fallback below.
+
+        sources: list[tuple[str, Callable[[], Any]]] = [
             (
                 "yfinance",
                 lambda: self._fetch_yfinance_ohlcv_batch(symbols, start, end, interval=interval),
             )
-        )
-        results = self._try_chain(sources, f"OHLCV_BATCH[{len(symbols)} symbols {start}..{end} {interval}]")
+        ]
+        results = self._try_chain(sources, request_desc)
         return cast(dict[str, list[dict[str, Any]] | None], results if results else dict.fromkeys(symbols))
+
+    def _alpaca_batch_or_none(
+        self, symbols: list[str], start: date, end: date, request_desc: str
+    ) -> dict[str, list[dict[str, Any]] | None] | None:
+        """Alpaca batch with router health accounting; None on wholesale failure."""
+        health = self._get_health("alpaca")
+        if health.is_paused:
+            logger.warning(f"[DataSourceRouter] Alpaca paused — full yfinance fallback for {request_desc}")
+            return None
+        try:
+            results = self._fetch_alpaca_ohlcv_batch(symbols, start, end)
+        except Exception as e:
+            health.record(False, str(e))
+            logger.warning(
+                "[DataSourceRouter] Primary source 'alpaca' failed for %s: %s. Falling back to 'yfinance'.",
+                request_desc,
+                e,
+            )
+            return None
+        health.record(True)
+        self.last_source = "alpaca"
+        return results
+
+    def _fill_alpaca_residual_from_yfinance(
+        self,
+        alpaca_results: dict[str, list[dict[str, Any]] | None],
+        symbols: list[str],
+        start: date,
+        end: date,
+    ) -> None:
+        """Re-fetch symbols Alpaca returned nothing for via yfinance and merge in place.
+
+        Best-effort: a yfinance failure here must not discard the successful
+        Alpaca batch — unresolved symbols simply stay None (same semantics as a
+        symbol with no data).
+        """
+        residual = [s for s in symbols if not alpaca_results.get(s)]
+        if not residual:
+            return
+        logger.info(
+            f"[DataSourceRouter] Alpaca served {len(symbols) - len(residual)}/{len(symbols)} symbols; "
+            f"fetching {len(residual)} residual via yfinance: {residual[:10]}"
+        )
+        try:
+            yf_results = self._fetch_yfinance_ohlcv_batch(residual, start, end, interval="1d")
+        except Exception as e:
+            logger.warning(
+                f"[DataSourceRouter] yfinance residual fetch failed for {len(residual)} symbols "
+                f"(Alpaca batch retained): {e}"
+            )
+            return
+        if not isinstance(yf_results, dict) or _is_data_unavailable_marker(yf_results):
+            return
+        for sym in residual:
+            rows = yf_results.get(sym)
+            if rows and not _is_data_unavailable_marker(rows):
+                alpaca_results[sym] = rows
 
     def _fetch_alpaca_ohlcv_batch(
         self, symbols: list[str], start: date, end: date

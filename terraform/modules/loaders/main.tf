@@ -630,6 +630,12 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "BACKFILL_DAYS"
           value = tostring(var.backfill_days)
         },
+        # Daily-bar OHLCV source (source_router: alpaca = batched SIP bars with
+        # automatic yfinance fallback; caret index symbols always stay on yfinance)
+        {
+          name  = "PRICE_DATA_SOURCE"
+          value = var.price_data_source
+        },
         {
           name  = "DISABLE_PROVENANCE_TRACKING"
           value = tostring(var.disable_provenance_tracking)

@@ -205,11 +205,11 @@ module "compute" {
 module "loaders" {
   source = "./modules/loaders"
 
-  project_name                = var.project_name
-  environment                 = var.environment
-  aws_region                  = var.aws_region
-  aws_account_id              = local.aws_account_id
-  ecs_cluster_name            = module.compute.ecs_cluster_name
+  project_name     = var.project_name
+  environment      = var.environment
+  aws_region       = var.aws_region
+  aws_account_id   = local.aws_account_id
+  ecs_cluster_name = module.compute.ecs_cluster_name
   # DISABLED: Redis cache references (cache module incomplete)
   # redis_endpoint_address      = module.cache.redis_endpoint_address
   # redis_port                  = module.cache.redis_port
@@ -236,6 +236,7 @@ module "loaders" {
   orchestrator_dry_run        = var.orchestrator_dry_run
   orchestrator_log_level      = var.orchestrator_log_level
   backfill_days               = var.backfill_days
+  price_data_source           = var.price_data_source
   disable_provenance_tracking = var.disable_provenance_tracking
   alert_email_to              = var.alert_email_to
   alert_webhook_url           = var.alert_webhook_url
