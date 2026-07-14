@@ -26,22 +26,22 @@ import psycopg2
 
 def get_rds_credentials():
     try:
-        client = boto3.client('secretsmanager', region_name='us-east-1')
-        response = client.get_secret_value(SecretId='algo-db-credentials-dev')
-        secret = json.loads(response['SecretString'])
+        client = boto3.client("secretsmanager", region_name="us-east-1")
+        response = client.get_secret_value(SecretId="algo-db-credentials-dev")
+        secret = json.loads(response["SecretString"])
 
-        if 'host' not in secret:
-            raise ValueError('[CRITICAL] RDS host missing from Secrets Manager')
-        if 'password' not in secret:
-            raise ValueError('[CRITICAL] RDS password missing from Secrets Manager')
+        if "host" not in secret:
+            raise ValueError("[CRITICAL] RDS host missing from Secrets Manager")
+        if "password" not in secret:
+            raise ValueError("[CRITICAL] RDS password missing from Secrets Manager")
 
-        host = secret['host']
+        host = secret["host"]
         return {
-            'host': host.split(':')[0] if ':' in host else host,
-            'port': int(secret.get('port', 5432)),
-            'database': secret.get('dbname', 'stocks'),
-            'user': secret.get('username', 'stocks'),
-            'password': secret['password'],
+            "host": host.split(":")[0] if ":" in host else host,
+            "port": int(secret.get("port", 5432)),
+            "database": secret.get("dbname", "stocks"),
+            "user": secret.get("username", "stocks"),
+            "password": secret["password"],
         }
     except ValueError:
         raise
@@ -231,12 +231,12 @@ def apply_migrations():
     print("\n2. Connecting to AWS RDS database...")
     try:
         conn = psycopg2.connect(
-            host=creds['host'],
-            port=creds['port'],
-            database=creds['database'],
-            user=creds['user'],
-            password=creds['password'],
-            sslmode='require',
+            host=creds["host"],
+            port=creds["port"],
+            database=creds["database"],
+            user=creds["user"],
+            password=creds["password"],
+            sslmode="require",
             connect_timeout=10,
         )
         cur = conn.cursor()
@@ -273,7 +273,7 @@ def apply_migrations():
             conn.rollback()
             failed += 1
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"COMPLETE: {applied} applied, {skipped} skipped, {failed} failed")
     print("=" * 70)
 
@@ -284,5 +284,5 @@ def apply_migrations():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     apply_migrations()

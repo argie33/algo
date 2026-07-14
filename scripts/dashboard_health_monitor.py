@@ -48,13 +48,15 @@ class DashboardHealthChecker:
 
     def add_issue(self, severity: str, component: str, message: str, remediation: str = "") -> None:
         """Record a health issue."""
-        self.issues.append({
-            "severity": severity,  # "critical", "warning", "info"
-            "component": component,  # e.g., "orchestrator", "api", "auth", "data"
-            "message": message,
-            "remediation": remediation,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        })
+        self.issues.append(
+            {
+                "severity": severity,  # "critical", "warning", "info"
+                "component": component,  # e.g., "orchestrator", "api", "auth", "data"
+                "message": message,
+                "remediation": remediation,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        )
 
     def check_api_health(self) -> bool:
         """Check if API itself is responding."""
@@ -293,16 +295,11 @@ class DashboardHealthChecker:
         """Return current check results."""
         return {
             "api": any(i["component"] == "api" and i["severity"] != "critical" for i in self.issues) is False,
-            "orchestrator": any(
-                i["component"] == "orchestrator" and i["severity"] == "critical" for i in self.issues
-            )
+            "orchestrator": any(i["component"] == "orchestrator" and i["severity"] == "critical" for i in self.issues)
             is False,
             "data_freshness": any(i["component"] == "data" and i["severity"] == "critical" for i in self.issues)
             is False,
-            "api_endpoints": any(
-                i["component"] == "api" and i["severity"] == "critical" for i in self.issues
-            )
-            is False,
+            "api_endpoints": any(i["component"] == "api" and i["severity"] == "critical" for i in self.issues) is False,
         }
 
     def print_report(self, results: dict[str, Any]) -> None:
@@ -323,7 +320,9 @@ class DashboardHealthChecker:
 
         if results["issues"]:
             print("ISSUES FOUND:")
-            for issue in sorted(results["issues"], key=lambda x: {"critical": 0, "warning": 1, "info": 2}[x["severity"]]):
+            for issue in sorted(
+                results["issues"], key=lambda x: {"critical": 0, "warning": 1, "info": 2}[x["severity"]]
+            ):
                 severity_icon = {"critical": "[CRIT]", "warning": "[WARN]", "info": "[INFO]"}[issue["severity"]]
                 print(f"\n  {severity_icon} {issue['component']}")
                 print(f"     {issue['message']}")

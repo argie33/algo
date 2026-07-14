@@ -45,9 +45,7 @@ def check_metric_loader_markers(filename: str) -> int:
                     break
 
             if not has_reason and field_name not in ["symbol", "date", "created_at", "updated_at"]:
-                violations.append(
-                    f"Line {i}: Field '{field_name}' set to None without {reason_field} marker"
-                )
+                violations.append(f"Line {i}: Field '{field_name}' set to None without {reason_field} marker")
 
     # Pattern 2: Check for data_unavailable assignments without reason
     for i, line in enumerate(lines, 1):
@@ -59,9 +57,7 @@ def check_metric_loader_markers(filename: str) -> int:
                     has_reason = True
                     break
             if not has_reason:
-                violations.append(
-                    f"Line {i}: data_unavailable=True without reason field"
-                )
+                violations.append(f"Line {i}: data_unavailable=True without reason field")
 
     # Pattern 3: Check for bare return None in metric computation
     for i, line in enumerate(lines, 1):
@@ -70,18 +66,13 @@ def check_metric_loader_markers(filename: str) -> int:
             continue
 
         # Look for patterns: return None (not return {...})
-        if re.search(r'return\s+None\s*$', line.strip()):
+        if re.search(r"return\s+None\s*$", line.strip()):
             # Check if this is in a metric computation function
             context = "\n".join(lines[max(0, i - 10) : i])
-            if any(
-                keyword in context
-                for keyword in ["def _compute", "def _calculate", "def _score", "def _get_"]
-            ):
+            if any(keyword in context for keyword in ["def _compute", "def _calculate", "def _score", "def _get_"]):
                 # Check if it's actually raising an error instead
                 if "raise" not in lines[i - 1]:
-                    violations.append(
-                        f"Line {i}: Function returns bare None without context or error"
-                    )
+                    violations.append(f"Line {i}: Function returns bare None without context or error")
 
     if violations:
         print(f"\n❌ Metric loader marker violations in {filename}:")

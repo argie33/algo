@@ -21,9 +21,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # Fix Windows console encoding for unicode output
-if sys.platform.startswith('win'):
+if sys.platform.startswith("win"):
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -100,6 +100,7 @@ def check_database() -> dict:
                     age_hours = None
                     if latest:
                         from datetime import date as date_type
+
                         if isinstance(latest, date_type) and not isinstance(latest, datetime):
                             # It's a date (not a datetime)
                             age_days = (datetime.now(timezone.utc).date() - latest).days
@@ -117,9 +118,7 @@ def check_database() -> dict:
                     status_icon = "[OK]" if fresh else "[WARN]"
                     age_str = f"{age_hours:.1f}h" if age_hours is not None else "N/A"
 
-                    result["details"].append(
-                        f"{status_icon} {table_name}: {cnt} rows, latest: {age_str} ago"
-                    )
+                    result["details"].append(f"{status_icon} {table_name}: {cnt} rows, latest: {age_str} ago")
 
                     if not fresh:
                         all_fresh = False
@@ -158,6 +157,7 @@ def check_dev_server() -> dict:
         # Try health check
         try:
             import requests
+
             resp = requests.get("http://localhost:3001/api/health", timeout=5)
             if resp.status_code == 200:
                 result["details"].append("Health check: OK")
@@ -260,6 +260,7 @@ def check_dashboard_module() -> dict:
 
     try:
         import dashboard
+
         result["status"] = "OK"
         result["details"].append("Dashboard module imports successfully")
     except ImportError as e:

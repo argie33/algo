@@ -34,7 +34,6 @@ class AWSRDSInitializationError(Exception):
     """Raised when RDS credential initialization fails."""
 
 
-
 class RDSCredentialFetcher:
     """Fetches and validates RDS credentials from AWS Secrets Manager."""
 

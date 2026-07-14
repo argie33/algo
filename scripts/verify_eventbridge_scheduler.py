@@ -84,12 +84,16 @@ def check_schedule(name: str, expected: dict) -> dict:
     # get-schedule returns fields at the top level (no "Schedule" wrapper key);
     # a nonexistent schedule is a nonzero exit + ResourceNotFoundException on
     # stderr, not a missing key in a successful response.
-    schedule = run_aws_cli([
-        "scheduler",
-        "get-schedule",
-        "--name", name,
-        "--region", "us-east-1",
-    ])
+    schedule = run_aws_cli(
+        [
+            "scheduler",
+            "get-schedule",
+            "--name",
+            name,
+            "--region",
+            "us-east-1",
+        ]
+    )
 
     if schedule is None:
         return {
@@ -142,13 +146,18 @@ def check_schedule(name: str, expected: dict) -> dict:
 def enable_schedule(name: str) -> bool:
     """Enable a disabled schedule."""
     print(f"  Enabling schedule '{name}'...", end=" ", flush=True)
-    result = run_aws_cli([
-        "scheduler",
-        "update-schedule",
-        "--name", name,
-        "--state", "ENABLED",
-        "--region", "us-east-1",
-    ])
+    result = run_aws_cli(
+        [
+            "scheduler",
+            "update-schedule",
+            "--name",
+            name,
+            "--state",
+            "ENABLED",
+            "--region",
+            "us-east-1",
+        ]
+    )
 
     if result is not None:
         print("✅ ENABLED")
@@ -190,9 +199,7 @@ def check_all_schedules() -> dict:
 def main():
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Verify EventBridge Scheduler configuration for data loaders"
-    )
+    parser = argparse.ArgumentParser(description="Verify EventBridge Scheduler configuration for data loaders")
     parser.add_argument(
         "--fix",
         action="store_true",

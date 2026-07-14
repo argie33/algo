@@ -30,6 +30,7 @@ REQUIRED_SECRETS = {
     "GITHUB_ACTIONS_ROLE_NAME": "GitHub Actions IAM Role Name",
 }
 
+
 def get_repo() -> str:
     """Auto-detect repo from git remote or use environment variable."""
     try:
@@ -51,6 +52,7 @@ def get_repo() -> str:
         pass
     return os.getenv("GITHUB_REPO", "argie33/algo")
 
+
 def get_github_secrets():
     try:
         repo = get_repo()
@@ -67,6 +69,7 @@ def get_github_secrets():
         print(f"  Install: https://cli.github.com")
         print(f"  Authenticate: gh auth login")
         return set()
+
 
 def main():
     print("=" * 80)
@@ -114,6 +117,7 @@ def main():
         print("\n[SUCCESS] All required GitHub secrets are configured!")
         print("\nDeployment ready. Terraform will use these secrets during 'terraform apply'.")
         sys.exit(0)
+
 
 if __name__ == "__main__":
     main()

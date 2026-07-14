@@ -17,11 +17,12 @@ import json
 import time
 
 # Windows encoding fix
-if sys.platform.startswith('win'):
+if sys.platform.startswith("win"):
     import io
+
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
     except Exception:
         pass
 
@@ -87,8 +88,7 @@ def get_table_age_minutes(table_name: str) -> float | None:
             ts_col = timestamp_cols[table_name]
 
             cur.execute(
-                "SELECT data_type FROM information_schema.columns "
-                "WHERE table_name = %s AND column_name = %s",
+                "SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = %s",
                 (table_name, ts_col),
             )
             col_row = cur.fetchone()
@@ -239,15 +239,8 @@ def watch_mode(interval: int) -> None:
 if __name__ == "__main__":
     import argparse
 
-    parser = argparse.ArgumentParser(
-        description="Monitor data table freshness and alert on staleness"
-    )
-    parser.add_argument(
-        "--watch",
-        type=int,
-        help="Continuous watch mode (check every N seconds)",
-        metavar="SECONDS"
-    )
+    parser = argparse.ArgumentParser(description="Monitor data table freshness and alert on staleness")
+    parser.add_argument("--watch", type=int, help="Continuous watch mode (check every N seconds)", metavar="SECONDS")
     parser.add_argument(
         "--alert",
         choices=["slack", "email", "log"],

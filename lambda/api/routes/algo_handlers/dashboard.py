@@ -1597,29 +1597,31 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
 
         # FALLBACK: If growth_score is null, fetch directly to ensure data correctness
         # This handles cases where primary query returns stale/incomplete data
-        missing_fields = [i for i, s in enumerate(top_scores) if s.get('growth_score') is None]
+        missing_fields = [i for i, s in enumerate(top_scores) if s.get("growth_score") is None]
         if missing_fields:
             logger.warning(f"[SCORES] Enriching {len(missing_fields)} rows with missing growth_score")
             for idx in missing_fields:
-                symbol = top_scores[idx].get('symbol')
+                symbol = top_scores[idx].get("symbol")
                 if symbol:
                     try:
-                        cur.execute("SELECT growth_score, rs_percentile FROM stock_scores WHERE symbol = %s LIMIT 1", (symbol,))
+                        cur.execute(
+                            "SELECT growth_score, rs_percentile FROM stock_scores WHERE symbol = %s LIMIT 1", (symbol,)
+                        )
                         enrichment = cur.fetchone()
                         if enrichment and enrichment[0] is not None:
-                            top_scores[idx]['growth_score'] = float(enrichment[0]) if enrichment[0] else 0.39
-                            top_scores[idx]['rs_percentile'] = float(enrichment[1]) if enrichment[1] else 50.0
+                            top_scores[idx]["growth_score"] = float(enrichment[0]) if enrichment[0] else 0.39
+                            top_scores[idx]["rs_percentile"] = float(enrichment[1]) if enrichment[1] else 50.0
                             logger.info(f"[SCORES] Enriched {symbol} with growth={top_scores[idx]['growth_score']}")
                         else:
                             # Fallback: set default values to indicate data issue but still show something
-                            top_scores[idx]['growth_score'] = 0.39
-                            top_scores[idx]['rs_percentile'] = 50.0
+                            top_scores[idx]["growth_score"] = 0.39
+                            top_scores[idx]["rs_percentile"] = 50.0
                             logger.warning(f"[SCORES] Using defaults for {symbol}: growth=0.39, rs=50.0")
                     except Exception as e:
                         logger.error(f"[SCORES] Failed to enrich {symbol}: {e}")
                         # Set defaults on error
-                        top_scores[idx]['growth_score'] = 0.39
-                        top_scores[idx]['rs_percentile'] = 50.0
+                        top_scores[idx]["growth_score"] = 0.39
+                        top_scores[idx]["rs_percentile"] = 50.0
 
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
 

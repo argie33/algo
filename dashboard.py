@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Direct dashboard launcher - use: python dashboard.py"""
+
 if __name__ == "__main__":
     import sys
     import os
@@ -13,6 +14,7 @@ if __name__ == "__main__":
 
     try:
         from dashboard.dashboard import main
+
         main()
     except ImportError as e:
         print(f"ERROR: Failed to import dashboard module: {e}")

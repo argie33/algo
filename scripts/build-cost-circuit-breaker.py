@@ -35,12 +35,21 @@ def build_lambda():
     print("[2/3] Installing dependencies...")
     req_file = source_lambda / "requirements.txt"
     if req_file.exists():
-        subprocess.run([
-            sys.executable, "-m", "pip", "install",
-            "-r", str(req_file),
-            "-t", str(pkg_dir),
-            "--no-cache-dir", "--quiet"
-        ], check=False)
+        subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "-r",
+                str(req_file),
+                "-t",
+                str(pkg_dir),
+                "--no-cache-dir",
+                "--quiet",
+            ],
+            check=False,
+        )
 
     # Create ZIP
     print("[3/3] Creating deployment package...")
@@ -48,10 +57,10 @@ def build_lambda():
     if zip_path.exists():
         zip_path.unlink()
 
-    with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for root, dirs, files in os.walk(pkg_dir):
             for file in files:
-                if file.endswith(('.pyc', '.dist-info')):
+                if file.endswith((".pyc", ".dist-info")):
                     continue
                 file_path = Path(root) / file
                 arcname = file_path.relative_to(pkg_dir)
@@ -68,6 +77,7 @@ def build_lambda():
     print("  cd terraform")
     print("  terraform plan")
     print("  terraform apply")
+
 
 if __name__ == "__main__":
     build_lambda()

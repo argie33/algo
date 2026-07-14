@@ -11,6 +11,7 @@ from pathlib import Path
 _repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(_repo_root))
 
+
 def check_environment():
     print("=" * 70)
     print("ENVIRONMENT CHECK")
@@ -42,6 +43,7 @@ def check_environment():
 
     return True
 
+
 def check_database():
     print("\n" + "=" * 70)
     print("DATABASE CHECK")
@@ -58,8 +60,11 @@ def check_database():
 
             # Check table row counts
             tables = [
-                'price_daily', 'stock_scores', 'algo_positions',
-                'algo_portfolio_snapshots', 'technical_data_daily'
+                "price_daily",
+                "stock_scores",
+                "algo_positions",
+                "algo_portfolio_snapshots",
+                "technical_data_daily",
             ]
 
             print("\nTable row counts:")
@@ -76,6 +81,7 @@ def check_database():
         print(f"\nERROR: {type(e).__name__}: {e}")
         return False
 
+
 def check_dev_server():
     print("\n" + "=" * 70)
     print("DEV SERVER CHECK")
@@ -89,7 +95,7 @@ def check_dev_server():
             [sys.executable, "lambda/api/dev_server.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=str(_repo_root)
+            cwd=str(_repo_root),
         )
 
         # Wait for server to start
@@ -108,9 +114,7 @@ def check_dev_server():
         for endpoint in endpoints:
             try:
                 resp = requests.get(
-                    f"http://localhost:3001{endpoint}",
-                    headers={"Authorization": "Bearer dev-admin"},
-                    timeout=3
+                    f"http://localhost:3001{endpoint}", headers={"Authorization": "Bearer dev-admin"}, timeout=3
                 )
                 status = "OK" if resp.status_code == 200 else f"ERROR {resp.status_code}"
                 print(f"  {endpoint:40} {status}")
@@ -126,6 +130,7 @@ def check_dev_server():
         print(f"ERROR: {type(e).__name__}: {e}")
         return False
 
+
 def check_fetchers():
     print("\n" + "=" * 70)
     print("DASHBOARD FETCHERS CHECK")
@@ -133,9 +138,9 @@ def check_fetchers():
 
     try:
         # Set up environment for local mode
-        os.environ['ENVIRONMENT'] = 'dev'
-        os.environ['LOCAL_MODE'] = 'true'
-        os.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
+        os.environ["ENVIRONMENT"] = "dev"
+        os.environ["LOCAL_MODE"] = "true"
+        os.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
 
         # Start dev server
         print("\nStarting dev server...")
@@ -143,7 +148,7 @@ def check_fetchers():
             [sys.executable, "lambda/api/dev_server.py"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            cwd=str(_repo_root)
+            cwd=str(_repo_root),
         )
 
         time.sleep(3)
@@ -158,8 +163,8 @@ def check_fetchers():
         for name in sorted(data.keys()):
             result = data[name]
             if isinstance(result, dict):
-                if '_error' in result:
-                    err = result.get('_error', 'unknown')[:60]
+                if "_error" in result:
+                    err = result.get("_error", "unknown")[:60]
                     errors.append((name, err))
                 else:
                     success.append(name)
@@ -180,6 +185,7 @@ def check_fetchers():
     except Exception as e:
         print(f"ERROR: {type(e).__name__}: {e}")
         return False
+
 
 def main():
     """Run all diagnostics."""
@@ -225,6 +231,7 @@ def main():
         print("\n[FAIL] Some checks failed. Please review the errors above.")
 
     return 0 if all_pass else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

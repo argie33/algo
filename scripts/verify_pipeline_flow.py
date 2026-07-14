@@ -31,8 +31,14 @@ PIPELINE_LAYERS = {
         "depends_on": [],
     },
     "Composite Metrics": {
-        "tables": ["quality_metrics", "growth_metrics", "value_metrics",
-                   "positioning_metrics", "stability_metrics", "momentum_metrics"],
+        "tables": [
+            "quality_metrics",
+            "growth_metrics",
+            "value_metrics",
+            "positioning_metrics",
+            "stability_metrics",
+            "momentum_metrics",
+        ],
         "depends_on": ["financial_data_annual", "company_profile"],
     },
     "Stock Scores": {
@@ -49,6 +55,7 @@ PIPELINE_LAYERS = {
     },
 }
 
+
 def check_table_exists(cur: Any, table: str) -> bool:
     try:
         cur.execute(f"""
@@ -60,6 +67,7 @@ def check_table_exists(cur: Any, table: str) -> bool:
         return cur.fetchone()[0]
     except:
         return False
+
 
 def get_table_stats(cur: Any, table: str) -> dict[str, Any]:
     try:
@@ -91,6 +99,7 @@ def get_table_stats(cur: Any, table: str) -> dict[str, Any]:
             "row_count": 0,
             "latest_date": None,
         }
+
 
 def verify_pipeline():
     """Verify complete pipeline flow."""
@@ -124,8 +133,10 @@ def verify_pipeline():
                     layer_healthy = False
                     all_healthy = False
                 else:
-                    print(f"  Dependency OK: {dep_table} ({dep_stats['row_count']:,} rows, "
-                          f"latest: {dep_stats['latest_date']})")
+                    print(
+                        f"  Dependency OK: {dep_table} ({dep_stats['row_count']:,} rows, "
+                        f"latest: {dep_stats['latest_date']})"
+                    )
 
             # Check output tables
             print("  Outputs:")
@@ -226,10 +237,13 @@ def verify_pipeline():
     except Exception as e:
         print(f"ERROR: Pipeline verification failed: {e!s}")
         import traceback
+
         traceback.print_exc()
         return False
 
+
 if __name__ == "__main__":
     import sys
+
     success = verify_pipeline()
     sys.exit(0 if success else 1)

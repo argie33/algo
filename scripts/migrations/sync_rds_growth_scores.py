@@ -27,20 +27,15 @@ def main():
 
     rds_password = args.rds_password or "stocks"  # Default fallback
 
-    print("="*70)
+    print("=" * 70)
     print("RDS GROWTH_SCORES SYNC")
-    print("="*70 + "\n")
+    print("=" * 70 + "\n")
 
     try:
         # Step 1: Get fresh data from LOCAL
         print("1. Connecting to LOCAL database...")
         local_conn = psycopg2.connect(
-            host="localhost",
-            user="stocks",
-            password="stocks",
-            database="stocks",
-            port=5432,
-            connect_timeout=5
+            host="localhost", user="stocks", password="stocks", database="stocks", port=5432, connect_timeout=5
         )
         local_cur = local_conn.cursor()
 
@@ -71,7 +66,7 @@ def main():
             password=rds_password,
             database="stocks",
             port=5432,
-            connect_timeout=30
+            connect_timeout=30,
         )
         rds_cur = rds_conn.cursor()
         print("   ✓ Connected to RDS\n")
@@ -84,13 +79,16 @@ def main():
         for row in fresh_data:
             symbol, comp, mom, qual, val, growth, pos, stab, rs, complete, updated_at = row
             try:
-                rds_cur.execute("""
+                rds_cur.execute(
+                    """
                     UPDATE stock_scores
                     SET composite_score=%s, momentum_score=%s, quality_score=%s,
                         value_score=%s, growth_score=%s, positioning_score=%s,
                         stability_score=%s, rs_percentile=%s, data_completeness=%s, updated_at=%s
                     WHERE symbol=%s
-                """, (comp, mom, qual, val, growth, pos, stab, rs, complete, updated_at, symbol))
+                """,
+                    (comp, mom, qual, val, growth, pos, stab, rs, complete, updated_at, symbol),
+                )
 
                 if rds_cur.rowcount > 0:
                     updated += 1
@@ -126,9 +124,9 @@ def main():
         rds_conn.close()
 
         if fresh_count > 3000:
-            print("="*70)
+            print("=" * 70)
             print("✅ SUCCESS! GROWTH_SCORES SYNCED TO RDS")
-            print("="*70)
+            print("=" * 70)
             print("\n✓ Growth scores will now display in dashboard")
             print("✓ Lambda auto-refresh activated")
             print("✓ All three system issues are now FIXED:\n")
@@ -155,8 +153,10 @@ def main():
     except Exception as e:
         print(f"\nERROR: {e}")
         import traceback
+
         traceback.print_exc()
         return False
+
 
 if __name__ == "__main__":
     success = main()

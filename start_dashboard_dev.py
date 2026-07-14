@@ -23,7 +23,7 @@ def is_port_open(port: int, timeout: float = 1.0) -> bool:
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(timeout)
-        result = sock.connect_ex(('127.0.0.1', port))
+        result = sock.connect_ex(("127.0.0.1", port))
         sock.close()
         return result == 0
     except Exception:
@@ -108,7 +108,8 @@ def main() -> int:
         epilog="Example: python start_dashboard_dev.py -w 30",
     )
     parser.add_argument(
-        "-w", "--watch",
+        "-w",
+        "--watch",
         type=int,
         dest="watch_interval",
         help="Enable watch mode with auto-refresh interval (seconds, 10-600)",
@@ -147,6 +148,7 @@ def main() -> int:
     except Exception as e:
         print(f"\n[STARTUP] Error: {e}", file=sys.stderr)
         import traceback
+
         traceback.print_exc()
         return 1
 

@@ -22,11 +22,12 @@ import sys
 
 # CRITICAL FIX: Windows console encoding (cp1252) cannot display UTF-8.
 # Redirect stdout/stderr to use UTF-8 before any Rich console creation.
-if sys.platform.startswith('win'):
+if sys.platform.startswith("win"):
     import io
+
     try:
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
     except Exception:
         pass  # If redirection fails, continue anyway - better than crashing
 
@@ -49,33 +50,35 @@ from urllib.parse import urlparse
 import socket
 import os as _os_auto
 
+
 def _is_dev_server_available() -> bool:
     """Check if dev server is running on localhost:3001."""
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(0.5)
-        result = sock.connect_ex(('localhost', 3001))
+        result = sock.connect_ex(("localhost", 3001))
         sock.close()
         return result == 0
     except Exception:
         return False
 
+
 # Parse --local flag early before any dashboard/API modules are imported
 _args_temp = argparse.ArgumentParser(add_help=False)
-_args_temp.add_argument('--local', action='store_true', help='Use local API (localhost:3001)')
+_args_temp.add_argument("--local", action="store_true", help="Use local API (localhost:3001)")
 _temp_args, _ = _args_temp.parse_known_args()
 
 # CRITICAL FIX: Only auto-detect localhost if AWS config is NOT explicitly set
 # This ensures AWS configuration is never overridden by localhost auto-detection.
 # Respects explicit AWS setup while still providing convenience for dev-only scenarios.
-_has_aws_config = _os_auto.environ.get('DASHBOARD_API_URL') is not None
+_has_aws_config = _os_auto.environ.get("DASHBOARD_API_URL") is not None
 
 # Enable local mode if:
 # 1. User explicitly passes --local flag, OR
 # 2. Dev server is running on localhost:3001 AND no AWS config is explicitly set
 if _temp_args.local or (_is_dev_server_available() and not _has_aws_config):
-    _os_auto.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
-    _os_auto.environ['LOCAL_MODE'] = 'true'
+    _os_auto.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+    _os_auto.environ["LOCAL_MODE"] = "true"
     print("[DASHBOARD_STARTUP] LOCAL MODE DETECTED/ENABLED - Using localhost:3001", flush=True)
 
 try:
@@ -393,6 +396,7 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
         try:
             from .core import DashboardContext
             from .renderers import render_header_components
+
             ctx = DashboardContext({})
             render_header_components(ctx, 0, None, None, False, "AWS")
         except Exception:
@@ -545,6 +549,7 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             try:
                 from .core import DashboardContext
                 from .renderers import render_header_components
+
                 ctx = DashboardContext({})  # empty context for warmup
                 render_header_components(ctx, 0, None, None, False, data_source)
             except Exception:
@@ -633,10 +638,11 @@ def _setup_local_api() -> str:
 
     # Check if dev_server is actually running
     import socket
+
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
-        result = sock.connect_ex(('127.0.0.1', 3001))
+        result = sock.connect_ex(("127.0.0.1", 3001))
         sock.close()
         if result != 0:
             # Dev server not running

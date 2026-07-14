@@ -21,9 +21,10 @@ import os
 from typing import List, Tuple
 
 # Fix Windows encoding
-if sys.platform == 'win32':
+if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 # Configuration
 REQUIRED_SECRETS = [
@@ -46,10 +47,12 @@ DUPLICATE_PAIRS = [
 ROTATION_THRESHOLD_DAYS = 90
 REPO = "argie33/algo"
 
+
 def run_cmd(cmd: List[str]) -> Tuple[int, str, str]:
     """Run command and return (code, stdout, stderr)."""
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return result.returncode, result.stdout.strip(), result.stderr.strip()
+
 
 def check_required_secrets() -> Tuple[bool, str]:
     returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
@@ -57,7 +60,7 @@ def check_required_secrets() -> Tuple[bool, str]:
     if returncode != 0:
         return False, f"Failed to list secrets: {stderr}"
 
-    found = {line.split('\t')[0] for line in stdout.split('\n') if line.strip()}
+    found = {line.split("\t")[0] for line in stdout.split("\n") if line.strip()}
     missing = [s for s in REQUIRED_SECRETS if s not in found]
 
     if missing:
@@ -65,13 +68,14 @@ def check_required_secrets() -> Tuple[bool, str]:
 
     return True, f"✓ All {len(REQUIRED_SECRETS)} required secrets present"
 
+
 def check_no_duplicates() -> Tuple[bool, str]:
     returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
 
     if returncode != 0:
         return True, "Could not check duplicates (skipping)"
 
-    found = {line.split('\t')[0] for line in stdout.split('\n') if line.strip()}
+    found = {line.split("\t")[0] for line in stdout.split("\n") if line.strip()}
     duplicates = []
 
     for old, new in DUPLICATE_PAIRS:
@@ -83,6 +87,7 @@ def check_no_duplicates() -> Tuple[bool, str]:
 
     return True, "✓ No duplicate secrets"
 
+
 def check_secrets_freshness() -> Tuple[bool, str]:
     returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
 
@@ -92,11 +97,11 @@ def check_secrets_freshness() -> Tuple[bool, str]:
     now = datetime.datetime.now(datetime.timezone.utc)
     stale_secrets = []
 
-    for line in stdout.split('\n'):
+    for line in stdout.split("\n"):
         if not line.strip():
             continue
 
-        parts = line.split('\t')
+        parts = line.split("\t")
         if len(parts) < 2:
             continue
 
@@ -108,7 +113,7 @@ def check_secrets_freshness() -> Tuple[bool, str]:
             continue
 
         try:
-            updated_dt = datetime.datetime.fromisoformat(updated_str.replace('Z', '+00:00'))
+            updated_dt = datetime.datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
             age_days = (now - updated_dt).days
 
             if age_days > ROTATION_THRESHOLD_DAYS:
@@ -125,9 +130,11 @@ def check_secrets_freshness() -> Tuple[bool, str]:
 
     return True, "✓ All secrets recently rotated"
 
+
 def check_credential_loading() -> Tuple[bool, str]:
     try:
         from config.credential_manager import get_credential_manager
+
         mgr = get_credential_manager()
 
         # Test key credentials
@@ -145,6 +152,7 @@ def check_credential_loading() -> Tuple[bool, str]:
         return True, "✓ Credentials can be loaded"
     except ImportError:
         return True, "Could not check credential loading (skipping)"
+
 
 def main() -> int:
     """Run all checks."""
@@ -184,6 +192,7 @@ def main() -> int:
     else:
         print("✓ All checks passed!")
         return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

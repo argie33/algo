@@ -4,11 +4,9 @@
 import logging
 import sys
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def check_database():
     """Verify database connectivity and schema."""
@@ -18,12 +16,12 @@ def check_database():
         with DatabaseContext("read") as cur:
             # Check critical tables exist
             tables = [
-                'price_daily',
-                'technical_data_daily',
-                'stock_scores',
-                'algo_trades',
-                'algo_positions',
-                'algo_signals',
+                "price_daily",
+                "technical_data_daily",
+                "stock_scores",
+                "algo_trades",
+                "algo_positions",
+                "algo_signals",
             ]
 
             for table in tables:
@@ -37,15 +35,16 @@ def check_database():
         logger.error(f"✗ Database error: {e}")
         return False
 
+
 def check_data_loaders():
     """Verify critical loaders can import and validate."""
     try:
-
         logger.info("✓ Data loaders: All import successfully")
         return True
     except Exception as e:
         logger.error(f"✗ Loader import error: {e}")
         return False
+
 
 def check_api_endpoints():
     """Verify API endpoints are accessible."""
@@ -53,16 +52,16 @@ def check_api_endpoints():
         import requests
 
         endpoints = [
-            ('http://localhost:3001/health', 'GET'),
-            ('http://localhost:3001/api/algo/positions', 'GET'),
-            ('http://localhost:3001/api/algo/portfolio', 'GET'),
-            ('http://localhost:3001/api/algo/scores', 'GET'),
+            ("http://localhost:3001/health", "GET"),
+            ("http://localhost:3001/api/algo/positions", "GET"),
+            ("http://localhost:3001/api/algo/portfolio", "GET"),
+            ("http://localhost:3001/api/algo/scores", "GET"),
         ]
 
         for url, method in endpoints:
             try:
-                headers = {'Authorization': 'Bearer dev-admin'}
-                if method == 'GET':
+                headers = {"Authorization": "Bearer dev-admin"}
+                if method == "GET":
                     resp = requests.get(url, timeout=5, headers=headers)
                 if resp.status_code == 200:
                     logger.info(f"  {url}: {resp.status_code} OK")
@@ -77,10 +76,10 @@ def check_api_endpoints():
         logger.error(f"✗ API check error: {e}")
         return False
 
+
 def check_trading_system():
     """Verify trading system can initialize."""
     try:
-
         logger.info("  AlpacaBrokerAdapter: Imports OK")
         logger.info("  OrderManager: Imports OK")
         logger.info("✓ Trading system: Core modules ready")
@@ -89,12 +88,14 @@ def check_trading_system():
         logger.error(f"✗ Trading system error: {e}")
         return False
 
+
 def check_dashboard_data():
     """Verify dashboard can load all data."""
     try:
         import os
-        os.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
-        os.environ['LOCAL_MODE'] = 'true'
+
+        os.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+        os.environ["LOCAL_MODE"] = "true"
 
         import time
 
@@ -114,6 +115,7 @@ def check_dashboard_data():
     except Exception as e:
         logger.error(f"✗ Dashboard error: {e}")
         return False
+
 
 def check_schema_integrity():
     """Verify critical schema changes are in place."""
@@ -148,6 +150,7 @@ def check_schema_integrity():
     except Exception as e:
         logger.error(f"✗ Schema check error: {e}")
         return False
+
 
 def main():
     """Run all validation checks."""
@@ -193,6 +196,7 @@ def main():
     else:
         logger.info(f"\n✗ {total - passed} checks failed - fix issues before trading")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

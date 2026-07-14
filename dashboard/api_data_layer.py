@@ -74,17 +74,20 @@ _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
 _api_base_url_cache = None
 _localhost_checked = False
 
+
 def _check_localhost_available() -> bool:
     """Check if dev_server is running on localhost:3001."""
     import socket
+
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(1)
-        result = sock.connect_ex(('127.0.0.1', 3001))
+        result = sock.connect_ex(("127.0.0.1", 3001))
         sock.close()
         return result == 0
     except Exception:
         return False
+
 
 def _get_api_base_url() -> str:
     """Get API URL with smart detection (lazy evaluation).
@@ -120,7 +123,9 @@ def _get_api_base_url() -> str:
     if not _localhost_checked and _check_localhost_available():
         _api_base_url_cache = "http://localhost:3001"
         _localhost_checked = True
-        logger.info("[API] Dev server detected on localhost:3001 - auto-switching to local mode (no --local flag needed)")
+        logger.info(
+            "[API] Dev server detected on localhost:3001 - auto-switching to local mode (no --local flag needed)"
+        )
         return _api_base_url_cache
 
     _localhost_checked = True
@@ -129,6 +134,7 @@ def _get_api_base_url() -> str:
     _api_base_url_cache = "http://localhost:3001"
     logger.info("[API] No DASHBOARD_API_URL set and dev server not detected. Falling back to localhost:3001")
     return _api_base_url_cache
+
 
 # Set initial value (will be overridden on first API call if localhost is available)
 API_BASE_URL = _get_api_base_url()
@@ -566,7 +572,9 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
         is_dev_mode = os.environ.get("LOCAL_MODE") or os.environ.get("ENVIRONMENT") == "development"
         if is_localhost or is_dev_mode:
             headers["Authorization"] = "Bearer dev-admin"
-            logger.debug(f"Using dev-admin token for API call to {endpoint} (localhost={is_localhost}, dev_mode={is_dev_mode})")
+            logger.debug(
+                f"Using dev-admin token for API call to {endpoint} (localhost={is_localhost}, dev_mode={is_dev_mode})"
+            )
     for attempt in range(API_MAX_RETRIES + 1):
         try:
             if method == "GET":

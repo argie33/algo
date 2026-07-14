@@ -6,11 +6,13 @@ Uses direct PostgreSQL connection via psycopg2 (no VPN needed).
 Database credentials are fetched from Secrets Manager using IAM role.
 This script proves that the Alpaca SIP loader successfully committed data to the database.
 """
+
 import json
 import boto3
 import psycopg2
 import sys
 from typing import Any
+
 
 def get_secret(secret_name: str) -> dict[str, Any]:
     """Retrieve secret from Secrets Manager."""
@@ -24,6 +26,7 @@ def get_secret(secret_name: str) -> dict[str, Any]:
         sys.exit(1)
     return {}
 
+
 def execute_query(connection_params: dict, database: str, sql: str) -> list[dict]:
     """Execute SQL via psycopg2."""
     try:
@@ -33,7 +36,7 @@ def execute_query(connection_params: dict, database: str, sql: str) -> list[dict
             user=connection_params["username"],
             password=connection_params["password"],
             database=database,
-            connect_timeout=10
+            connect_timeout=10,
         )
 
         cursor = conn.cursor()
@@ -56,6 +59,7 @@ def execute_query(connection_params: dict, database: str, sql: str) -> list[dict
     except Exception as e:
         print(f"[!] Query failed: {type(e).__name__}: {str(e)[:150]}")
         return []
+
 
 def main():
     print("[*] Verifying Alpaca SIP Data Load (Session 138)")
@@ -112,7 +116,7 @@ def main():
 
     result = execute_query(db_secret, database, query2)
     if result:
-        symbols = [row.get('symbol', 'N/A') for row in result]
+        symbols = [row.get("symbol", "N/A") for row in result]
         print(f"    [OK] Symbols: {', '.join(symbols)}")
     else:
         print("    [i] No symbols found")
@@ -161,7 +165,9 @@ def main():
         row = result[0]
         print(f"    [OK] Symbol: {row.get('symbol', 'N/A')}")
         print(f"    [OK] Date: {row.get('date', 'N/A')}")
-        print(f"    [OK] OHLCV: {row.get('open', 'N/A')} / {row.get('high', 'N/A')} / {row.get('low', 'N/A')} / {row.get('close', 'N/A')} / {row.get('volume', 'N/A')}")
+        print(
+            f"    [OK] OHLCV: {row.get('open', 'N/A')} / {row.get('high', 'N/A')} / {row.get('low', 'N/A')} / {row.get('close', 'N/A')} / {row.get('volume', 'N/A')}"
+        )
         print(f"    [OK] All fields populated (no NULLs)")
 
     print("\n" + "=" * 70)
@@ -170,6 +176,7 @@ def main():
     print("  [OK] Database connection working")
     print("  [OK] Alpaca SIP data verified in database")
     print("  [OK] Session 138 loader successfully committed data")
+
 
 if __name__ == "__main__":
     main()

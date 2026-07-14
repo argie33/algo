@@ -51,9 +51,7 @@ def check_critical_get_patterns(filename: str) -> int:
         # Pattern: .get("field", unsafe_default)
         for field in CRITICAL_FIELDS:
             # Match patterns like: .get("data_unavailable", []) or .get("close", 0)
-            match = re.search(
-                rf'\.get\(\s*["\']?{re.escape(field)}["\']?\s*,\s*([^)]+)\)', line
-            )
+            match = re.search(rf'\.get\(\s*["\']?{re.escape(field)}["\']?\s*,\s*([^)]+)\)', line)
             if match:
                 default_value = match.group(1).strip()
 
@@ -63,9 +61,7 @@ def check_critical_get_patterns(filename: str) -> int:
                         f"Line {i}: Unsafe .get() default on critical field '{field}': .get(..., {default_value})"
                     )
                 elif default_value == "0" and field in ["quantity", "position", "price", "volume"]:
-                    violations.append(
-                        f"Line {i}: Unsafe .get() default=0 on critical financial field '{field}'"
-                    )
+                    violations.append(f"Line {i}: Unsafe .get() default=0 on critical financial field '{field}'")
 
     if violations:
         print(f"\n❌ Critical .get() pattern violations in {filename}:")
@@ -85,10 +81,7 @@ if __name__ == "__main__":
     retval = 0
     for filename in sys.argv[1:]:
         # Check files in critical paths
-        if any(
-            part in filename
-            for part in ["loaders", "lambda/api", "dashboard", "algo/trading", "algo/risk"]
-        ):
+        if any(part in filename for part in ["loaders", "lambda/api", "dashboard", "algo/trading", "algo/risk"]):
             retval |= check_critical_get_patterns(filename)
 
     sys.exit(retval)

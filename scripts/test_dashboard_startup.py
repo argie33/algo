@@ -6,19 +6,20 @@ import sys
 import traceback
 
 # Fix Windows console encoding before doing anything else
-if sys.platform.startswith('win'):
+if sys.platform.startswith("win"):
     import io
+
     # Allow UTF-8 output even on Windows
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 # Add repo root to path
 _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-os.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
-os.environ['LOCAL_MODE'] = 'true'
+os.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+os.environ["LOCAL_MODE"] = "true"
 
 print("[TEST] Starting dashboard diagnostic...", flush=True)
 

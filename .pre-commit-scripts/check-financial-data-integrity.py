@@ -81,13 +81,15 @@ def check_financial_data_integrity(filepath: Path) -> list[dict[str, Any]]:
                 continue
 
             if is_critical:
-                violations.append({
-                    "file": filepath,
-                    "line": line_num,
-                    "pattern": "unguarded_data_access",
-                    "message": "[CRITICAL] Unguarded data[key] access in financial path (could raise KeyError)",
-                    "fix": "Use try/except, key existence check, or .get() with explicit error handling"
-                })
+                violations.append(
+                    {
+                        "file": filepath,
+                        "line": line_num,
+                        "pattern": "unguarded_data_access",
+                        "message": "[CRITICAL] Unguarded data[key] access in financial path (could raise KeyError)",
+                        "fix": "Use try/except, key existence check, or .get() with explicit error handling",
+                    }
+                )
 
         # PATTERN 2: Financial calculation with None without check
         financial_calcs = [
@@ -105,13 +107,15 @@ def check_financial_data_integrity(filepath: Path) -> list[dict[str, Any]]:
                     continue
 
                 if is_critical:
-                    violations.append({
-                        "file": filepath,
-                        "line": line_num,
-                        "pattern": "unprotected_calc",
-                        "message": "[CRITICAL] Financial calculation without None protection (could silently calculate 0 with None)",
-                        "fix": "Add explicit None check before any arithmetic: if value is None: raise ValueError(...)"
-                    })
+                    violations.append(
+                        {
+                            "file": filepath,
+                            "line": line_num,
+                            "pattern": "unprotected_calc",
+                            "message": "[CRITICAL] Financial calculation without None protection (could silently calculate 0 with None)",
+                            "fix": "Add explicit None check before any arithmetic: if value is None: raise ValueError(...)",
+                        }
+                    )
 
         # PATTERN 3: return None in financial function without Optional type hint
         if stripped == "return None":
@@ -126,22 +130,27 @@ def check_financial_data_integrity(filepath: Path) -> list[dict[str, Any]]:
                 func_sig = "\n".join(lines[func_def_line:line_num])
 
                 # Check if Optional or data_unavailable is in return type
-                if "Optional" not in func_sig and "| None" not in func_sig and \
-                   "data_unavailable" not in func_sig and "-> None" not in func_sig:
-
+                if (
+                    "Optional" not in func_sig
+                    and "| None" not in func_sig
+                    and "data_unavailable" not in func_sig
+                    and "-> None" not in func_sig
+                ):
                     # Check if in error path
                     context_start = max(0, func_def_line)
                     context = "\n".join(lines[context_start:line_num])
 
                     if any(kw in context.lower() for kw in ["error", "failed", "exception", "unavailable"]):
                         if is_critical:
-                            violations.append({
-                                "file": filepath,
-                                "line": line_num,
-                                "pattern": "unmarked_none_return",
-                                "message": "[CRITICAL] return None in error path without Optional type or data_unavailable marker",
-                                "fix": "Add '-> Optional[...]' type hint or return {'data_unavailable': True, 'reason': '...'}"
-                            })
+                            violations.append(
+                                {
+                                    "file": filepath,
+                                    "line": line_num,
+                                    "pattern": "unmarked_none_return",
+                                    "message": "[CRITICAL] return None in error path without Optional type or data_unavailable marker",
+                                    "fix": "Add '-> Optional[...]' type hint or return {'data_unavailable': True, 'reason': '...'}",
+                                }
+                            )
 
     return violations
 

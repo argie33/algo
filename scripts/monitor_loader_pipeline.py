@@ -11,36 +11,37 @@ import boto3
 
 
 def check_pipeline_execution(execution_arn: str) -> dict:
-    sfn = boto3.client('stepfunctions', region_name='us-east-1')
+    sfn = boto3.client("stepfunctions", region_name="us-east-1")
 
     try:
         response = sfn.describe_execution(executionArn=execution_arn)
         return {
-            'status': response['status'],  # RUNNING | SUCCEEDED | FAILED | TIMED_OUT | ABORTED
-            'started': response['startDate'],
-            'stopped': response.get('stopDate'),
-            'error': response.get('error'),
-            'cause': response.get('cause'),
+            "status": response["status"],  # RUNNING | SUCCEEDED | FAILED | TIMED_OUT | ABORTED
+            "started": response["startDate"],
+            "stopped": response.get("stopDate"),
+            "error": response.get("error"),
+            "cause": response.get("cause"),
         }
     except Exception as e:
-        return {'error': str(e)}
+        return {"error": str(e)}
+
 
 def check_data_freshness() -> dict:
     from datetime import date
 
     import psycopg2
 
-    conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+    conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
     cur = conn.cursor()
 
     today = date.today()
 
     try:
         tables = {
-            'price_daily': f"SELECT COUNT(*) FROM price_daily WHERE date = '{today}'",
-            'technical_data_daily': f"SELECT COUNT(*) FROM technical_data_daily WHERE date = '{today}'",
-            'buy_sell_daily': f"SELECT COUNT(*) FROM buy_sell_daily WHERE date = '{today}'",
-            'stock_scores': f"SELECT COUNT(*) FROM stock_scores WHERE date::date = '{today}'",
+            "price_daily": f"SELECT COUNT(*) FROM price_daily WHERE date = '{today}'",
+            "technical_data_daily": f"SELECT COUNT(*) FROM technical_data_daily WHERE date = '{today}'",
+            "buy_sell_daily": f"SELECT COUNT(*) FROM buy_sell_daily WHERE date = '{today}'",
+            "stock_scores": f"SELECT COUNT(*) FROM stock_scores WHERE date::date = '{today}'",
         }
 
         results = {}
@@ -57,11 +58,14 @@ def check_data_freshness() -> dict:
         cur.close()
         conn.close()
 
+
 def main():
     """Monitor pipeline progress and data freshness."""
 
     # Execution from manual trigger
-    execution_arn = 'arn:aws:states:us-east-1:626216981288:execution:algo-morning-prep-pipeline-dev:manual-recovery-20260712200938'
+    execution_arn = (
+        "arn:aws:states:us-east-1:626216981288:execution:algo-morning-prep-pipeline-dev:manual-recovery-20260712200938"
+    )
 
     print("=" * 80)
     print("LOADER PIPELINE MONITOR")
@@ -79,19 +83,22 @@ def main():
     while elapsed_min < max_wait_minutes:
         status = check_pipeline_execution(execution_arn)
 
-        if 'error' in status:
+        if "error" in status:
             print(f"❌ Error checking execution: {status['error']}")
             break
 
-        current_status = status['status']
-        elapsed_sec = (datetime.now(status['started'].tzinfo) - status['started']).total_seconds()
+        current_status = status["status"]
+        elapsed_sec = (datetime.now(status["started"].tzinfo) - status["started"]).total_seconds()
         elapsed_min = elapsed_sec / 60
 
-        print(f"[{datetime.now().strftime('%H:%M:%S')}] Status: {current_status:12} | Elapsed: {elapsed_min:6.1f} min | ", end='')
+        print(
+            f"[{datetime.now().strftime('%H:%M:%S')}] Status: {current_status:12} | Elapsed: {elapsed_min:6.1f} min | ",
+            end="",
+        )
 
-        if current_status == 'RUNNING':
+        if current_status == "RUNNING":
             print("Pipeline executing...")
-        elif current_status == 'SUCCEEDED':
+        elif current_status == "SUCCEEDED":
             print("✓ Pipeline completed successfully!")
             print(f"\n  Stopped: {status['stopped']}")
 
@@ -108,12 +115,12 @@ def main():
                     print(f"    ✗ {table:<30} {count}")
 
             break
-        elif current_status == 'FAILED':
+        elif current_status == "FAILED":
             print("❌ Pipeline FAILED!")
             print(f"\n  Error: {status.get('error', 'Unknown')}")
             print(f"  Cause: {status.get('cause', 'No details')}")
             break
-        elif current_status in ['TIMED_OUT', 'ABORTED']:
+        elif current_status in ["TIMED_OUT", "ABORTED"]:
             print(f"❌ Pipeline {current_status}!")
             break
 
@@ -126,5 +133,6 @@ def main():
 
     print("\n" + "=" * 80)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

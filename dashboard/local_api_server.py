@@ -216,10 +216,9 @@ class APIHandler(BaseHTTPRequestHandler):
 
             if snapshot is None:
                 # No data yet - return error instead of fake data
-                return self._send_json(503, {
-                    "statusCode": 503,
-                    "error": "No portfolio snapshot available. Run orchestrator first."
-                })
+                return self._send_json(
+                    503, {"statusCode": 503, "error": "No portfolio snapshot available. Run orchestrator first."}
+                )
 
             # CRITICAL: Validate required portfolio fields (no silent 0 defaults)
             required_fields = ["total_portfolio_value", "position_count"]
@@ -237,8 +236,12 @@ class APIHandler(BaseHTTPRequestHandler):
 
             # Optional fields (may be None on first run)
             total_cash = float(snapshot.get("cash_balance")) if snapshot.get("cash_balance") is not None else 0
-            daily_return_pct = float(snapshot.get("daily_return_pct")) if snapshot.get("daily_return_pct") is not None else None
-            unrealized_pnl_total = float(snapshot.get("unrealized_pnl")) if snapshot.get("unrealized_pnl") is not None else None
+            daily_return_pct = (
+                float(snapshot.get("daily_return_pct")) if snapshot.get("daily_return_pct") is not None else None
+            )
+            unrealized_pnl_total = (
+                float(snapshot.get("unrealized_pnl")) if snapshot.get("unrealized_pnl") is not None else None
+            )
             snapshot_date = snapshot.get("snapshot_date")
 
             response = {
@@ -249,8 +252,14 @@ class APIHandler(BaseHTTPRequestHandler):
                     "position_count": position_count,
                     "daily_return_pct": daily_return_pct,
                     "unrealized_pnl_total": unrealized_pnl_total,
-                    "last_run": snapshot_date.isoformat() if snapshot_date and hasattr(snapshot_date, "isoformat") else str(snapshot_date),
-                    "data_age_seconds": int((datetime.now(timezone.utc) - snapshot_date.replace(tzinfo=timezone.utc)).total_seconds()) if snapshot_date else None,
+                    "last_run": snapshot_date.isoformat()
+                    if snapshot_date and hasattr(snapshot_date, "isoformat")
+                    else str(snapshot_date),
+                    "data_age_seconds": int(
+                        (datetime.now(timezone.utc) - snapshot_date.replace(tzinfo=timezone.utc)).total_seconds()
+                    )
+                    if snapshot_date
+                    else None,
                 },
             }
             self._send_json(200, response)
@@ -311,15 +320,25 @@ class APIHandler(BaseHTTPRequestHandler):
                     "statusCode": 200,
                     "data": {
                         "total_trades": (
-                            int(metrics["total_actions"]) if ("total_actions" in metrics and metrics["total_actions"] is not None) else 0
+                            int(metrics["total_actions"])
+                            if ("total_actions" in metrics and metrics["total_actions"] is not None)
+                            else 0
                         ),
                         "winning": 0,  # Would need separate win count query
-                        "losing": 0,   # Would need separate loss count query
+                        "losing": 0,  # Would need separate loss count query
                         "breakeven": 0,  # Would need separate query
-                        "win_rate": float(metrics["win_rate"]) if ("win_rate" in metrics and metrics["win_rate"] is not None) else None,
-                        "profit_factor": float(metrics["profit_factor"]) if ("profit_factor" in metrics and metrics["profit_factor"] is not None) else None,
-                        "total_pnl": float(metrics["total_pnl"]) if "total_pnl" in metrics and metrics["total_pnl"] is not None else None,
-                        "total_pnl_pct": float(metrics["total_pnl_pct"]) if "total_pnl_pct" in metrics and metrics["total_pnl_pct"] is not None else None,
+                        "win_rate": float(metrics["win_rate"])
+                        if ("win_rate" in metrics and metrics["win_rate"] is not None)
+                        else None,
+                        "profit_factor": float(metrics["profit_factor"])
+                        if ("profit_factor" in metrics and metrics["profit_factor"] is not None)
+                        else None,
+                        "total_pnl": float(metrics["total_pnl"])
+                        if "total_pnl" in metrics and metrics["total_pnl"] is not None
+                        else None,
+                        "total_pnl_pct": float(metrics["total_pnl_pct"])
+                        if "total_pnl_pct" in metrics and metrics["total_pnl_pct"] is not None
+                        else None,
                         "avg_trade_pct": 0.0,  # Computed separately
                         "best_trade": float(metrics.get("best_trade")) if metrics.get("best_trade") else None,
                         "worst_trade": float(metrics.get("worst_trade")) if metrics.get("worst_trade") else None,
@@ -330,7 +349,9 @@ class APIHandler(BaseHTTPRequestHandler):
                         "cagr": None,  # Computed separately
                         "best_streak": 0,  # Computed separately
                         "worst_streak": 0,  # Computed separately
-                        "current_streak": int(metrics["current_streak"]) if "current_streak" in metrics and metrics["current_streak"] is not None else None,
+                        "current_streak": int(metrics["current_streak"])
+                        if "current_streak" in metrics and metrics["current_streak"] is not None
+                        else None,
                         "expectancy_r": None,  # Computed separately
                     },
                 }
@@ -371,11 +392,17 @@ class APIHandler(BaseHTTPRequestHandler):
                     risk_score = s.get("risk_score")
 
                     if entry_price is None:
-                        raise ValueError(f"[SIGNALS VALIDATION] Signal for {symbol} missing entry_price - data integrity error")
+                        raise ValueError(
+                            f"[SIGNALS VALIDATION] Signal for {symbol} missing entry_price - data integrity error"
+                        )
                     if quality_score is None:
-                        raise ValueError(f"[SIGNALS VALIDATION] Signal for {symbol} missing signal_quality_score - data integrity error")
+                        raise ValueError(
+                            f"[SIGNALS VALIDATION] Signal for {symbol} missing signal_quality_score - data integrity error"
+                        )
                     if risk_score is None:
-                        raise ValueError(f"[SIGNALS VALIDATION] Signal for {symbol} missing risk_score - data integrity error")
+                        raise ValueError(
+                            f"[SIGNALS VALIDATION] Signal for {symbol} missing risk_score - data integrity error"
+                        )
 
                     buy_sigs.append(
                         {
@@ -434,19 +461,25 @@ class APIHandler(BaseHTTPRequestHandler):
                 last_run = loader.get("last_run_time")
 
                 # Mark as failed if status is error or if last run is too old (> 24 hours)
-                if status == "error" or (last_run and (now - last_run.replace(tzinfo=timezone.utc)).total_seconds() > 86400):
+                if status == "error" or (
+                    last_run and (now - last_run.replace(tzinfo=timezone.utc)).total_seconds() > 86400
+                ):
                     ready_to_trade = False
 
                 age_hours = 0
                 if last_run:
                     age_hours = (now - last_run.replace(tzinfo=timezone.utc)).total_seconds() / 3600
 
-                items.append({
-                    "name": loader.get("loader_name", "unknown"),
-                    "st": status,
-                    "last_check": last_run.isoformat() if last_run and hasattr(last_run, "isoformat") else str(last_run),
-                    "age_hours": round(age_hours, 1),
-                })
+                items.append(
+                    {
+                        "name": loader.get("loader_name", "unknown"),
+                        "st": status,
+                        "last_check": last_run.isoformat()
+                        if last_run and hasattr(last_run, "isoformat")
+                        else str(last_run),
+                        "age_hours": round(age_hours, 1),
+                    }
+                )
 
             response = {
                 "statusCode": 200,
@@ -487,14 +520,18 @@ class APIHandler(BaseHTTPRequestHandler):
                         raise ValueError(f"Circuit breaker {b.get('breaker_name')} missing current_value")
                     if "threshold_value" not in b or b["threshold_value"] is None:
                         raise ValueError(f"Circuit breaker {b.get('breaker_name')} missing threshold_value")
-                    breaker_items.append({
-                        "name": b.get("breaker_name"),
-                        "triggered": True,
-                        "current_value": float(b["current_value"]),
-                        "threshold": float(b["threshold_value"]),
-                        "reason": b.get("trigger_reason"),
-                        "triggered_at": b.get("triggered_at", datetime.now(timezone.utc)).isoformat() if hasattr(b.get("triggered_at"), "isoformat") else str(b.get("triggered_at")),
-                    })
+                    breaker_items.append(
+                        {
+                            "name": b.get("breaker_name"),
+                            "triggered": True,
+                            "current_value": float(b["current_value"]),
+                            "threshold": float(b["threshold_value"]),
+                            "reason": b.get("trigger_reason"),
+                            "triggered_at": b.get("triggered_at", datetime.now(timezone.utc)).isoformat()
+                            if hasattr(b.get("triggered_at"), "isoformat")
+                            else str(b.get("triggered_at")),
+                        }
+                    )
 
             conn.close()
 
@@ -532,10 +569,9 @@ class APIHandler(BaseHTTPRequestHandler):
 
             if run is None:
                 # No run yet - return placeholder
-                return self._send_json(503, {
-                    "statusCode": 503,
-                    "error": "No orchestrator run available. Run orchestrator first."
-                })
+                return self._send_json(
+                    503, {"statusCode": 503, "error": "No orchestrator run available. Run orchestrator first."}
+                )
 
             success = run.get("overall_status") == "success"
             halted = run.get("overall_status") in ("halted", "halt")
@@ -550,8 +586,12 @@ class APIHandler(BaseHTTPRequestHandler):
                     "errored": errored,
                     "halt_reason": run.get("halt_reason") or "",
                     "summary": f"Orchestrator {run.get('overall_status')} ({run.get('execution_time_seconds', 0):.1f}s)",
-                    "started_at": run.get("started_at", datetime.now(timezone.utc)).isoformat() if hasattr(run.get("started_at"), "isoformat") else str(run.get("started_at")),
-                    "completed_at": run.get("completed_at", datetime.now(timezone.utc)).isoformat() if hasattr(run.get("completed_at"), "isoformat") else str(run.get("completed_at")),
+                    "started_at": run.get("started_at", datetime.now(timezone.utc)).isoformat()
+                    if hasattr(run.get("started_at"), "isoformat")
+                    else str(run.get("started_at")),
+                    "completed_at": run.get("completed_at", datetime.now(timezone.utc)).isoformat()
+                    if hasattr(run.get("completed_at"), "isoformat")
+                    else str(run.get("completed_at")),
                 },
             }
             self._send_json(200, response)
@@ -579,8 +619,13 @@ class APIHandler(BaseHTTPRequestHandler):
                 config_dict[row.get("key")] = row.get("value")
 
             # Validate all critical risk parameters are present
-            required_keys = ["execution_mode", "max_position_size_pct", "max_portfolio_exposure_pct",
-                           "sector_allocation_max_pct", "initial_capital_paper_trading"]
+            required_keys = [
+                "execution_mode",
+                "max_position_size_pct",
+                "max_portfolio_exposure_pct",
+                "sector_allocation_max_pct",
+                "initial_capital_paper_trading",
+            ]
             missing_keys = [k for k in required_keys if k not in config_dict or config_dict[k] is None]
             if missing_keys:
                 raise ValueError(f"Critical config missing from database: {missing_keys}. Check algo_config table.")
@@ -641,7 +686,9 @@ class APIHandler(BaseHTTPRequestHandler):
             # Calculate S&P 500 change if we have data
             sp500_change = 0.0
             if spy_change_row and spy_change_row.get("close") and spy_change_row.get("prev_close"):
-                sp500_change = ((spy_change_row.get("close") - spy_change_row.get("prev_close")) / spy_change_row.get("prev_close")) * 100
+                sp500_change = (
+                    (spy_change_row.get("close") - spy_change_row.get("prev_close")) / spy_change_row.get("prev_close")
+                ) * 100
 
             # CRITICAL: Validate required market data exists (no hardcoded fallback prices)
             if not spy or "close" not in spy or spy["close"] is None:

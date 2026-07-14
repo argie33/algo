@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 """Audit AWS resources for waste and cost optimization."""
 
-
 import boto3
 
-ec2 = boto3.client('ec2', region_name='us-east-1')
-rds = boto3.client('rds', region_name='us-east-1')
-s3 = boto3.client('s3')
-lambda_client = boto3.client('lambda', region_name='us-east-1')
-logs = boto3.client('logs', region_name='us-east-1')
+ec2 = boto3.client("ec2", region_name="us-east-1")
+rds = boto3.client("rds", region_name="us-east-1")
+s3 = boto3.client("s3")
+lambda_client = boto3.client("lambda", region_name="us-east-1")
+logs = boto3.client("logs", region_name="us-east-1")
 
 print("=" * 70)
 print("AWS COST AUDIT - Identifying Wasteful Resources")
@@ -18,21 +17,21 @@ print("=" * 70)
 print("\n📦 EC2 INSTANCES")
 print("-" * 70)
 try:
-    response = ec2.describe_instances(Filters=[{'Name': 'instance-state-name', 'Values': ['running', 'stopped']}])
+    response = ec2.describe_instances(Filters=[{"Name": "instance-state-name", "Values": ["running", "stopped"]}])
 
     running = 0
     stopped = 0
-    for reservation in response['Reservations']:
-        for instance in reservation['Instances']:
-            state = instance['State']['Name']
-            instance_id = instance['InstanceId']
-            instance_type = instance['InstanceType']
-            launched = instance['LaunchTime'].strftime("%Y-%m-%d")
+    for reservation in response["Reservations"]:
+        for instance in reservation["Instances"]:
+            state = instance["State"]["Name"]
+            instance_id = instance["InstanceId"]
+            instance_type = instance["InstanceType"]
+            launched = instance["LaunchTime"].strftime("%Y-%m-%d")
 
-            if state == 'running':
+            if state == "running":
                 running += 1
                 print(f"  ⚠️  RUNNING: {instance_id} ({instance_type}) - launched {launched}")
-            elif state == 'stopped':
+            elif state == "stopped":
                 stopped += 1
                 print(f"  💤 STOPPED: {instance_id} ({instance_type}) - COSTING MONEY FOR STORAGE")
 
@@ -51,7 +50,7 @@ print("-" * 70)
 try:
     response = rds.describe_db_snapshots()
     # CRITICAL FIX: Explicit check for DBSnapshots field
-    snapshots = response.get('DBSnapshots')
+    snapshots = response.get("DBSnapshots")
     if snapshots is None:
         snapshots = []
 
@@ -60,9 +59,9 @@ try:
     else:
         total_size = 0
         for snap in snapshots:
-            snap_id = snap['DBSnapshotIdentifier']
-            created = snap['SnapshotCreateTime'].strftime("%Y-%m-%d")
-            size = snap.get('AllocatedStorage', 0)
+            snap_id = snap["DBSnapshotIdentifier"]
+            created = snap["SnapshotCreateTime"].strftime("%Y-%m-%d")
+            size = snap.get("AllocatedStorage", 0)
             total_size += size
             print(f"  ⚠️  {snap_id} - {size}GB - created {created}")
 
@@ -77,7 +76,7 @@ print("-" * 70)
 try:
     response = s3.list_buckets()
     # CRITICAL FIX: Explicit check for Buckets field
-    buckets = response.get('Buckets')
+    buckets = response.get("Buckets")
     if buckets is None:
         buckets = []
 
@@ -86,22 +85,22 @@ try:
     else:
         total_size = 0
         for bucket in buckets:
-            name = bucket['Name']
+            name = bucket["Name"]
             try:
                 # List objects
                 obj_response = s3.list_objects_v2(Bucket=name, MaxKeys=1000)
                 # CRITICAL FIX: Explicit check for Contents field
-                contents = obj_response.get('Contents')
+                contents = obj_response.get("Contents")
                 if contents is None:
                     contents = []
-                size = sum([obj.get('Size') if obj.get('Size') is not None else 0 for obj in contents])
+                size = sum([obj.get("Size") if obj.get("Size") is not None else 0 for obj in contents])
                 total_size += size
-                size_mb = size / (1024*1024)
+                size_mb = size / (1024 * 1024)
                 print(f"  📦 {name}: {size_mb:.1f}MB")
             except Exception:
                 print(f"  ❌ {name}: Cannot access")
 
-        print(f"\n  💰 Total S3 storage: {total_size/(1024*1024):.1f}MB")
+        print(f"\n  💰 Total S3 storage: {total_size / (1024 * 1024):.1f}MB")
 except Exception as e:
     print(f"  ❌ Error: {e}")
 
@@ -111,7 +110,7 @@ print("-" * 70)
 try:
     response = lambda_client.list_functions()
     # CRITICAL FIX: Explicit check for Functions field
-    functions = response.get('Functions')
+    functions = response.get("Functions")
     if functions is None:
         functions = []
 
@@ -120,8 +119,8 @@ try:
     else:
         print(f"  Found {len(functions)} Lambda functions")
         for func in functions:
-            name = func['FunctionName']
-            memory = func['MemorySize']
+            name = func["FunctionName"]
+            memory = func["MemorySize"]
             print(f"    - {name} ({memory}MB memory)")
 except Exception as e:
     print(f"  ❌ Error: {e}")
@@ -132,7 +131,7 @@ print("-" * 70)
 try:
     response = logs.describe_log_groups(limit=50)
     # CRITICAL FIX: Explicit check for logGroups field
-    log_groups = response.get('logGroups')
+    log_groups = response.get("logGroups")
     if log_groups is None:
         log_groups = []
 
@@ -143,9 +142,9 @@ try:
         total_retention = 0
         unlimited = 0
         for lg in log_groups[:10]:
-            name = lg['logGroupName']
-            retention = lg.get('retentionInDays', 'unlimited')
-            if retention == 'unlimited':
+            name = lg["logGroupName"]
+            retention = lg.get("retentionInDays", "unlimited")
+            if retention == "unlimited":
                 unlimited += 1
                 print(f"    ⚠️  {name}: UNLIMITED retention - EXPENSIVE")
             else:
@@ -186,4 +185,3 @@ print("\nTo remove resources:")
 print("  - RDS Snapshots: aws rds delete-db-snapshot --db-snapshot-identifier <id>")
 print("  - EC2 Instance: aws ec2 terminate-instances --instance-ids <id>")
 print("  - Log Group: aws logs delete-log-group --log-group-name <name>")
-

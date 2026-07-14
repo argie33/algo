@@ -18,10 +18,7 @@ import json
 import argparse
 from datetime import datetime, timedelta, timezone
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -30,7 +27,8 @@ def check_loader_status(loader_name: str = "price_daily"):
         from utils.db.context import DatabaseContext
 
         with DatabaseContext("read") as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT
                     symbols_loaded,
                     symbol_count,
@@ -43,7 +41,9 @@ def check_loader_status(loader_name: str = "price_daily"):
                 WHERE table_name = %s
                 ORDER BY last_updated DESC
                 LIMIT 1
-            """, (loader_name,))
+            """,
+                (loader_name,),
+            )
 
             row = cur.fetchone()
             if not row:
@@ -51,14 +51,14 @@ def check_loader_status(loader_name: str = "price_daily"):
 
             loaded, total, pct, status, error, updated, started = row
             return {
-                'loader': loader_name,
-                'loaded': loaded or 0,
-                'total': total or 0,
-                'coverage_pct': pct or 0.0,
-                'status': status,
-                'error': error,
-                'last_updated': updated,
-                'execution_started': started,
+                "loader": loader_name,
+                "loaded": loaded or 0,
+                "total": total or 0,
+                "coverage_pct": pct or 0.0,
+                "status": status,
+                "error": error,
+                "last_updated": updated,
+                "execution_started": started,
             }
 
     except Exception as e:
@@ -74,10 +74,7 @@ def trigger_loader_retry(loader_name: str) -> bool:
 
         logger.info(f"Triggering retry for {loader_name}...")
 
-        lambda_client = boto3.client(
-            "lambda",
-            region_name=os.getenv("AWS_REGION", "us-east-1")
-        )
+        lambda_client = boto3.client("lambda", region_name=os.getenv("AWS_REGION", "us-east-1"))
 
         response = lambda_client.invoke(
             FunctionName="algo-trigger-loaders",
@@ -121,7 +118,7 @@ def monitor_loader_recovery(loader_name: str, timeout_seconds: int = 600) -> tup
             time.sleep(check_interval)
             continue
 
-        pct = status['coverage_pct']
+        pct = status["coverage_pct"]
         check_count += 1
 
         # Show progress every 30 seconds
@@ -134,9 +131,9 @@ def monitor_loader_recovery(loader_name: str, timeout_seconds: int = 600) -> tup
             logger.info(f"✅ RECOVERED: {loader_name} at {pct:.1f}% coverage")
             return True, status
 
-        if status['status'] == 'COMPLETED' and pct < 75.0:
+        if status["status"] == "COMPLETED" and pct < 75.0:
             logger.error(f"❌ Loader completed but still incomplete: {pct:.1f}%")
-            if status['error']:
+            if status["error"]:
                 logger.error(f"   Error: {status['error'][:150]}")
             return False, status
 
@@ -146,7 +143,7 @@ def monitor_loader_recovery(loader_name: str, timeout_seconds: int = 600) -> tup
     final_status = check_loader_status(loader_name)
     if final_status is None:
         raise RuntimeError(f"[RECOVERY] Could not retrieve final loader status for {loader_name} after timeout")
-    final_pct = final_status.get('coverage_pct', 0.0)
+    final_pct = final_status.get("coverage_pct", 0.0)
     logger.warning(
         f"⏱️ Timeout: {loader_name} still running after {timeout_seconds}s "
         f"(currently {final_pct:.1f}%). Will complete in background."
@@ -162,9 +159,9 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
         0 = Success or already recovered
         1 = Failed or timeout
     """
-    logger.info(f"\n{'='*60}")
+    logger.info(f"\n{'=' * 60}")
     logger.info(f"Recovering {loader_name}...")
-    logger.info(f"{'='*60}\n")
+    logger.info(f"{'=' * 60}\n")
 
     # Step 1: Check current status
     logger.info(f"📊 Checking {loader_name} status...")
@@ -174,7 +171,7 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
         logger.error(f"Could not get status for {loader_name}")
         return 1
 
-    pct = status['coverage_pct']
+    pct = status["coverage_pct"]
     logger.info(f"   Loaded: {status['loaded']}/{status['total']} ({pct:.1f}%)")
     logger.info(f"   Status: {status['status']}")
     logger.info(f"   Last updated: {status['last_updated']}")
@@ -183,7 +180,7 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
         logger.info(f"✅ Already recovered ({pct:.1f}% >= 75%)")
         return 0
 
-    if status['error']:
+    if status["error"]:
         logger.info(f"   Error: {status['error'][:150]}")
 
     if monitor_only:
@@ -214,30 +211,13 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
 
 def main():
     """Main entry point."""
-    parser = argparse.ArgumentParser(
-        description="Recover incomplete loaders from production issues"
-    )
+    parser = argparse.ArgumentParser(description="Recover incomplete loaders from production issues")
+    parser.add_argument("--loader", default="price_daily", help="Loader to recover (default: price_daily)")
     parser.add_argument(
-        "--loader",
-        default="price_daily",
-        help="Loader to recover (default: price_daily)"
+        "--all", action="store_true", help="Recover all critical loaders (price_daily, market_health_daily, etc.)"
     )
-    parser.add_argument(
-        "--all",
-        action="store_true",
-        help="Recover all critical loaders (price_daily, market_health_daily, etc.)"
-    )
-    parser.add_argument(
-        "--monitor",
-        action="store_true",
-        help="Monitor without triggering new retry"
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=600,
-        help="Timeout in seconds (default: 600 = 10 minutes)"
-    )
+    parser.add_argument("--monitor", action="store_true", help="Monitor without triggering new retry")
+    parser.add_argument("--timeout", type=int, default=600, help="Timeout in seconds (default: 600 = 10 minutes)")
 
     args = parser.parse_args()
 
@@ -256,14 +236,14 @@ def main():
         if result != 0:
             all_succeeded = False
 
-    logger.info(f"\n{'='*60}")
+    logger.info(f"\n{'=' * 60}")
     if all_succeeded:
         logger.info("✅ All loaders recovered successfully")
-        logger.info(f"{'='*60}\n")
+        logger.info(f"{'=' * 60}\n")
         return 0
     else:
         logger.warning("⚠️ Some loaders still incomplete (check status later)")
-        logger.info(f"{'='*60}\n")
+        logger.info(f"{'=' * 60}\n")
         return 1
 
 

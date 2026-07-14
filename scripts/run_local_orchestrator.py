@@ -17,6 +17,7 @@ import argparse
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run orchestrator locally (development mode)",
@@ -118,11 +119,13 @@ def main() -> None:
         except Exception as e:
             print(f"  Error: {type(e).__name__}: {e}")
             import traceback
+
             traceback.print_exc()
 
     print("\n" + "=" * 70)
     print("Orchestrator execution complete. Check database for updated data.")
     print("=" * 70)
+
 
 if __name__ == "__main__":
     main()

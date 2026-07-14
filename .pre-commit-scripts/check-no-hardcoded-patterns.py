@@ -25,15 +25,14 @@ def check_file(filepath: str) -> list[str]:
         return [f"Error reading {filepath}: {e}"]
 
     # Skip certain files that are allowed to have these patterns
-    skip_patterns = [
-        "test_", "tests/", ".pre-commit-scripts/",
-        "migrations/", "lambda/", "terraform/"
-    ]
+    skip_patterns = ["test_", "tests/", ".pre-commit-scripts/", "migrations/", "lambda/", "terraform/"]
     if any(skip in filepath for skip in skip_patterns):
         return []
 
     # Check 1: status = 'open'/'closed' (must use constants)
-    status_pattern = re.compile(r"""(?:status\s*[!=]=\s*['"](open|closed|halted|cancelled)['"]\)|\.get\(["']status["']\)\s*[!=]=""")
+    status_pattern = re.compile(
+        r"""(?:status\s*[!=]=\s*['"](open|closed|halted|cancelled)['"]\)|\.get\(["']status["']\)\s*[!=]="""
+    )
     for i, line in enumerate(lines, 1):
         if "# noqa" in line:
             continue

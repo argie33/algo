@@ -125,7 +125,7 @@ class DashboardDataQualityMonitor:
 
         logger.info(f"Total stock_scores: {total}")
         logger.info(f"  - With growth_score: {with_growth} ({coverage_pct:.1f}%)")
-        logger.info(f"  - NULL growth_score: {null_growth} ({100-coverage_pct:.1f}%)")
+        logger.info(f"  - NULL growth_score: {null_growth} ({100 - coverage_pct:.1f}%)")
         logger.info(f"  - Status: {status}")
 
         if coverage_pct < 85:

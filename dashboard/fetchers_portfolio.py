@@ -295,12 +295,14 @@ def fetch_positions(c: None) -> dict[str, Any]:
             items_coverage_pct = None
             logger.warning("[POSITIONS] API returned zero positions - positions data unavailable or portfolio empty")
         else:
-            items_coverage_pct = (len(valid_items) / total_items * 100)
+            items_coverage_pct = len(valid_items) / total_items * 100
 
         if invalid_count > 0:
             logger.warning(
                 f"Filtered {invalid_count} invalid position(s) from API response, {len(valid_items)} valid. "
-                f"Coverage: {items_coverage_pct:.1f}% ({len(valid_items)}/{total_items})" if items_coverage_pct is not None else "Invalid positions filtered, but no valid items remain"
+                f"Coverage: {items_coverage_pct:.1f}% ({len(valid_items)}/{total_items})"
+                if items_coverage_pct is not None
+                else "Invalid positions filtered, but no valid items remain"
             )
 
         return {
@@ -434,7 +436,9 @@ def fetch_perf(c: None) -> dict[str, Any]:
         if equity_vals_raw is not None:
             equity_vals = safe_get_list(equity_vals_raw)
             if not isinstance(equity_vals, list):
-                logger.warning(f"Invalid equity_vals type {type(equity_vals_raw).__name__}, expected list - using empty list")
+                logger.warning(
+                    f"Invalid equity_vals type {type(equity_vals_raw).__name__}, expected list - using empty list"
+                )
                 equity_vals = []
         else:
             logger.debug("Performance data missing 'equity_vals' field - optional for core performance metrics")
@@ -444,7 +448,9 @@ def fetch_perf(c: None) -> dict[str, Any]:
         if recent_rets_raw is not None:
             recent_rets = safe_get_list(recent_rets_raw)
             if not isinstance(recent_rets, list):
-                logger.warning(f"Invalid recent_rets type {type(recent_rets_raw).__name__}, expected list - using empty list")
+                logger.warning(
+                    f"Invalid recent_rets type {type(recent_rets_raw).__name__}, expected list - using empty list"
+                )
                 recent_rets = []
         else:
             logger.debug("Performance data missing 'recent_rets' field - optional for core performance metrics")

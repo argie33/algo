@@ -5,11 +5,13 @@ Verify growth_score and rs_percentile data in production RDS.
 Uses direct PostgreSQL connection to diagnose why dashboard shows NULL values.
 Database credentials are fetched from Secrets Manager using IAM role.
 """
+
 import json
 import boto3
 import psycopg2
 import sys
 from typing import Any
+
 
 def get_secret(secret_name: str) -> dict[str, Any]:
     """Retrieve secret from Secrets Manager."""
@@ -23,6 +25,7 @@ def get_secret(secret_name: str) -> dict[str, Any]:
         sys.exit(1)
     return {}
 
+
 def execute_query(connection_params: dict, database: str, sql: str) -> list[dict]:
     """Execute SQL via psycopg2."""
     try:
@@ -32,7 +35,7 @@ def execute_query(connection_params: dict, database: str, sql: str) -> list[dict
             user=connection_params["username"],
             password=connection_params["password"],
             database=database,
-            connect_timeout=10
+            connect_timeout=10,
         )
 
         cursor = conn.cursor()
@@ -55,6 +58,7 @@ def execute_query(connection_params: dict, database: str, sql: str) -> list[dict
     except Exception as e:
         print(f"[!] Query failed: {type(e).__name__}: {str(e)[:150]}")
         return []
+
 
 def main():
     print("[*] Verifying Growth Score & RS Percentile Data (Production RDS)")
@@ -95,12 +99,12 @@ def main():
     result = execute_query(db_secret, database, query1)
     if result:
         row = result[0]
-        total = row.get('total_rows', 0)
-        growth_non_null = row.get('growth_score_non_null', 0)
-        rs_non_null = row.get('rs_percentile_non_null', 0)
+        total = row.get("total_rows", 0)
+        growth_non_null = row.get("growth_score_non_null", 0)
+        rs_non_null = row.get("rs_percentile_non_null", 0)
         print(f"    Total rows: {total}")
-        print(f"    growth_score non-NULL: {growth_non_null} ({100*growth_non_null//max(1,total)}%)")
-        print(f"    rs_percentile non-NULL: {rs_non_null} ({100*rs_non_null//max(1,total)}%)")
+        print(f"    growth_score non-NULL: {growth_non_null} ({100 * growth_non_null // max(1, total)}%)")
+        print(f"    rs_percentile non-NULL: {rs_non_null} ({100 * rs_non_null // max(1, total)}%)")
         print(f"    growth_score range: {row.get('min_growth_score')} to {row.get('max_growth_score')}")
         print(f"    rs_percentile range: {row.get('min_rs_percentile')} to {row.get('max_rs_percentile')}")
     else:
@@ -122,7 +126,9 @@ def main():
     result = execute_query(db_secret, database, query2)
     if result:
         for row in result:
-            print(f"    {row.get('symbol')}: growth_score={row.get('growth_score')}, rs_percentile={row.get('rs_percentile')}, updated={row.get('updated_at')}")
+            print(
+                f"    {row.get('symbol')}: growth_score={row.get('growth_score')}, rs_percentile={row.get('rs_percentile')}, updated={row.get('updated_at')}"
+            )
     else:
         print("    [!] No sample data found")
 
@@ -148,6 +154,7 @@ def main():
         print("    [!] No growth_score data found")
 
     print("\n" + "=" * 70)
+
 
 if __name__ == "__main__":
     main()

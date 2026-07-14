@@ -20,7 +20,7 @@ import psycopg2
 def check_aws_credentials():
     """Verify AWS credentials are available."""
     try:
-        sts = boto3.client('sts')
+        sts = boto3.client("sts")
         identity = sts.get_caller_identity()
         print(f"\nAWS Account: {identity['Account']}")
         print(f"ARN: {identity['Arn']}")
@@ -29,6 +29,7 @@ def check_aws_credentials():
         print(f"ERROR: Cannot access AWS: {e!s}")
         return False
 
+
 def check_step_functions():
     """Verify Step Functions orchestrator is configured."""
     print("\n" + "=" * 80)
@@ -36,13 +37,13 @@ def check_step_functions():
     print("=" * 80)
 
     try:
-        sfn = boto3.client('stepfunctions')
+        sfn = boto3.client("stepfunctions")
 
         # List state machines
         response = sfn.list_state_machines()
-        machines = response.get('stateMachines', [])
+        machines = response.get("stateMachines", [])
 
-        algo_machines = [m for m in machines if 'algo' in m['name'].lower()]
+        algo_machines = [m for m in machines if "algo" in m["name"].lower()]
 
         if not algo_machines:
             print("ERROR: No algo Step Functions found")
@@ -56,14 +57,11 @@ def check_step_functions():
 
         # Check recent executions
         if algo_machines:
-            machine_arn = algo_machines[0]['stateMachineArn']
-            executions = sfn.list_executions(
-                stateMachineArn=machine_arn,
-                maxItems=5
-            )
+            machine_arn = algo_machines[0]["stateMachineArn"]
+            executions = sfn.list_executions(stateMachineArn=machine_arn, maxItems=5)
 
             print("\nRecent executions:")
-            for exec_item in executions.get('executions', []):
+            for exec_item in executions.get("executions", []):
                 print(f"  - {exec_item['name']}: {exec_item['status']}")
                 print(f"    Started: {exec_item['startDate']}")
 
@@ -73,6 +71,7 @@ def check_step_functions():
         print(f"ERROR: Step Functions check failed: {e!s}")
         return False
 
+
 def check_lambda_functions():
     """Verify Lambda functions are deployed."""
     print("\n" + "=" * 80)
@@ -80,13 +79,13 @@ def check_lambda_functions():
     print("=" * 80)
 
     try:
-        lambda_client = boto3.client('lambda')
+        lambda_client = boto3.client("lambda")
 
         # List functions
         response = lambda_client.list_functions()
-        functions = response.get('Functions', [])
+        functions = response.get("Functions", [])
 
-        algo_functions = [f for f in functions if 'algo' in f['FunctionName'].lower()]
+        algo_functions = [f for f in functions if "algo" in f["FunctionName"].lower()]
 
         print(f"\nFound {len(algo_functions)} algo Lambda functions:")
         for func in algo_functions[:10]:  # Show first 10
@@ -104,6 +103,7 @@ def check_lambda_functions():
         print(f"ERROR: Lambda check failed: {e!s}")
         return False
 
+
 def check_ecs_task_definitions():
     """Verify ECS task definitions for loaders."""
     print("\n" + "=" * 80)
@@ -111,31 +111,31 @@ def check_ecs_task_definitions():
     print("=" * 80)
 
     try:
-        ecs = boto3.client('ecs')
+        ecs = boto3.client("ecs")
 
         # List task definitions
-        response = ecs.list_task_definitions(familyPrefix='algo')
-        task_defs = response.get('taskDefinitionArns', [])
+        response = ecs.list_task_definitions(familyPrefix="algo")
+        task_defs = response.get("taskDefinitionArns", [])
 
         print(f"\nFound {len(task_defs)} algo ECS task definitions:")
 
         loader_task_defs = {}
         for task_def_arn in task_defs[:20]:  # Show first 20
             # Get task family name
-            task_family = task_def_arn.split('/')[-1].split(':')[0]
+            task_family = task_def_arn.split("/")[-1].split(":")[0]
             print(f"  - {task_family}")
 
             # Get task definition details
             task_def = ecs.describe_task_definition(taskDefinition=task_def_arn)
-            definition = task_def['taskDefinition']
+            definition = task_def["taskDefinition"]
             loader_task_defs[task_family] = {
-                'cpu': definition.get('cpu'),
-                'memory': definition.get('memory'),
-                'containers': len(definition.get('containerDefinitions', [])),
+                "cpu": definition.get("cpu"),
+                "memory": definition.get("memory"),
+                "containers": len(definition.get("containerDefinitions", [])),
             }
 
         # Count loader task definitions (should be ~20)
-        loader_count = len([k for k in loader_task_defs.keys() if 'load_' in k])
+        loader_count = len([k for k in loader_task_defs.keys() if "load_" in k])
         print(f"\nLoader task definitions: {loader_count}")
 
         if loader_count < 15:
@@ -148,6 +148,7 @@ def check_ecs_task_definitions():
         print(f"ERROR: ECS check failed: {e!s}")
         return False
 
+
 def check_rds_connection_and_data():
     """Verify RDS connection and data presence."""
     print("\n" + "=" * 80)
@@ -157,22 +158,22 @@ def check_rds_connection_and_data():
     try:
         # Try to connect to RDS
         conn = psycopg2.connect(
-            dbname='stocks',
-            user='stocks',
-            host='localhost',  # This might fail in AWS Lambda context - use RDS endpoint
+            dbname="stocks",
+            user="stocks",
+            host="localhost",  # This might fail in AWS Lambda context - use RDS endpoint
             port=5432,
-            connect_timeout=5
+            connect_timeout=5,
         )
 
         cur = conn.cursor()
 
         # Check critical tables exist
         critical_tables = [
-            'price_daily',
-            'technical_data_daily',
-            'stock_scores',
-            'buy_sell_daily',
-            'algo_orchestrator_runs',
+            "price_daily",
+            "technical_data_daily",
+            "stock_scores",
+            "buy_sell_daily",
+            "algo_orchestrator_runs",
         ]
 
         print("\nCritical tables:")
@@ -223,6 +224,7 @@ def check_rds_connection_and_data():
         print(f"ERROR: Database check failed: {e!s}")
         return False
 
+
 def check_eventbridge_schedules():
     """Verify EventBridge schedules for optional enrichment."""
     print("\n" + "=" * 80)
@@ -230,14 +232,14 @@ def check_eventbridge_schedules():
     print("=" * 80)
 
     try:
-        events = boto3.client('events')
-        scheduler = boto3.client('scheduler')
+        events = boto3.client("events")
+        scheduler = boto3.client("scheduler")
 
         # Check EventBridge rules
         response = events.list_rules()
-        rules = response.get('Rules', [])
+        rules = response.get("Rules", [])
 
-        algo_rules = [r for r in rules if 'algo' in r['Name'].lower()]
+        algo_rules = [r for r in rules if "algo" in r["Name"].lower()]
         print(f"\nEventBridge rules: {len(algo_rules)}")
         for rule in algo_rules[:5]:
             print(f"  - {rule['Name']}: {rule['State']}")
@@ -245,8 +247,7 @@ def check_eventbridge_schedules():
         # Check Scheduler schedules (if available)
         try:
             schedules = scheduler.list_schedules()
-            algo_schedules = [s for s in schedules.get('Schedules', [])
-                            if 'algo' in s['Name'].lower()]
+            algo_schedules = [s for s in schedules.get("Schedules", []) if "algo" in s["Name"].lower()]
             print(f"\nScheduler schedules: {len(algo_schedules)}")
         except:
             print("\nScheduler API not available or no schedules")
@@ -257,6 +258,7 @@ def check_eventbridge_schedules():
         print(f"ERROR: EventBridge check failed: {e!s}")
         return False
 
+
 def check_cloudwatch_logs():
     """Verify CloudWatch logs are being written."""
     print("\n" + "=" * 80)
@@ -264,13 +266,13 @@ def check_cloudwatch_logs():
     print("=" * 80)
 
     try:
-        logs = boto3.client('logs')
+        logs = boto3.client("logs")
 
         # List log groups
         response = logs.describe_log_groups()
-        log_groups = response.get('logGroups', [])
+        log_groups = response.get("logGroups", [])
 
-        algo_logs = [lg for lg in log_groups if 'algo' in lg['logGroupName'].lower()]
+        algo_logs = [lg for lg in log_groups if "algo" in lg["logGroupName"].lower()]
 
         print(f"\nAlgo log groups: {len(algo_logs)}")
         for lg in algo_logs[:5]:
@@ -279,19 +281,14 @@ def check_cloudwatch_logs():
 
         # Check for recent logs
         if algo_logs:
-            log_group = algo_logs[0]['logGroupName']
+            log_group = algo_logs[0]["logGroupName"]
             streams = logs.describe_log_streams(
-                logGroupName=log_group,
-                orderBy='LastEventTime',
-                descending=True,
-                limit=5
+                logGroupName=log_group, orderBy="LastEventTime", descending=True, limit=5
             )
 
             print(f"\nRecent log streams in {log_group}:")
-            for stream in streams.get('logStreams', []):
-                last_event = datetime.fromtimestamp(
-                    stream.get('lastEventTimestamp', 0) / 1000
-                )
+            for stream in streams.get("logStreams", []):
+                last_event = datetime.fromtimestamp(stream.get("lastEventTimestamp", 0) / 1000)
                 print(f"  - {stream['logStreamName']}: {last_event}")
 
         return len(algo_logs) > 0
@@ -299,6 +296,7 @@ def check_cloudwatch_logs():
     except Exception as e:
         print(f"ERROR: CloudWatch check failed: {e!s}")
         return False
+
 
 def generate_report():
     print("\n" + "=" * 80)
@@ -334,7 +332,8 @@ def generate_report():
 
     return all_pass
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     try:
         success = generate_report()
         sys.exit(0 if success else 1)
@@ -344,5 +343,6 @@ if __name__ == '__main__':
     except Exception as e:
         print(f"\nFATAL ERROR: {e!s}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)

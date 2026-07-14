@@ -120,44 +120,59 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             continue
 
         # Skip lines with explicit error handling (raise, data_unavailable, except)
-        if any(kw in stripped for kw in ["raise ", "data_unavailable", "except ", "try:", "logger.error", "logger.critical"]):
+        if any(
+            kw in stripped
+            for kw in ["raise ", "data_unavailable", "except ", "try:", "logger.error", "logger.critical"]
+        ):
             continue
 
         # ========== PATTERN 1: return [] without marker ==========
         if stripped == "return []":
-            context = "\n".join(lines[max(0, line_num-5):line_num])
+            context = "\n".join(lines[max(0, line_num - 5) : line_num])
             if "data_unavailable" not in context and "raise" not in context:
-                violations.append({
-                    "file": filepath,
-                    "line": line_num,
-                    "pattern": "return []",
-                    "message": "Silent fallback: returning empty array without data_unavailable marker or exception",
-                    "fix": "Raise exception for CRITICAL data OR return {'data_unavailable': True, 'reason': '...'}"
-                })
+                violations.append(
+                    {
+                        "file": filepath,
+                        "line": line_num,
+                        "pattern": "return []",
+                        "message": "Silent fallback: returning empty array without data_unavailable marker or exception",
+                        "fix": "Raise exception for CRITICAL data OR return {'data_unavailable': True, 'reason': '...'}",
+                    }
+                )
 
         # ========== PATTERN 2: return {} without marker ==========
         if stripped == "return {}":
-            context = "\n".join(lines[max(0, line_num-5):line_num])
+            context = "\n".join(lines[max(0, line_num - 5) : line_num])
             if "data_unavailable" not in context and "raise" not in context:
                 # Skip legitimate "nothing to do" empty results: an empty dict returned
                 # because the *input* was empty (no candidates/not-yet-initialized) is not
                 # data loss — it's an accurate, deliberate representation of zero work,
                 # and is explicitly documented as such right at the return site. This
                 # mirrors the is_count_return carve-out already used for PATTERN 3 below.
-                is_legitimate_empty_result = any(phrase in context.lower() for phrase in [
-                    "not an error", "not initialized", "no candidates", "nothing to process",
-                    "no entries will be executed", "not yet initialized", "no work to do",
-                ])
+                is_legitimate_empty_result = any(
+                    phrase in context.lower()
+                    for phrase in [
+                        "not an error",
+                        "not initialized",
+                        "no candidates",
+                        "nothing to process",
+                        "no entries will be executed",
+                        "not yet initialized",
+                        "no work to do",
+                    ]
+                )
                 if is_legitimate_empty_result:
                     continue
 
-                violations.append({
-                    "file": filepath,
-                    "line": line_num,
-                    "pattern": "return {}",
-                    "message": "Silent fallback: returning empty dict without data_unavailable marker or exception",
-                    "fix": "Raise exception for CRITICAL data OR return {'data_unavailable': True, 'reason': '...'}"
-                })
+                violations.append(
+                    {
+                        "file": filepath,
+                        "line": line_num,
+                        "pattern": "return {}",
+                        "message": "Silent fallback: returning empty dict without data_unavailable marker or exception",
+                        "fix": "Raise exception for CRITICAL data OR return {'data_unavailable': True, 'reason': '...'}",
+                    }
+                )
 
         # ========== PATTERN 3: return 0 / Decimal(0) for financial data ==========
         if re.match(r"^\s*return\s+(0|Decimal\(0\)|0\.0|0\.)", stripped):
@@ -166,26 +181,65 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             context = "\n".join(lines[context_start:line_num])
 
             # Skip if this is in a scoring/signal function (legitimate 0 points = no signal)
-            is_scoring_function = any(kw in context.lower() for kw in [
-                "_score", "_catalyst", "_catalyst_score", "calculate_score", "get_score", "strength", "rating",
-                "grade", "rank", "signal_strength", "pts", "points", "compute_score", "signal_computer"
-            ])
+            is_scoring_function = any(
+                kw in context.lower()
+                for kw in [
+                    "_score",
+                    "_catalyst",
+                    "_catalyst_score",
+                    "calculate_score",
+                    "get_score",
+                    "strength",
+                    "rating",
+                    "grade",
+                    "rank",
+                    "signal_strength",
+                    "pts",
+                    "points",
+                    "compute_score",
+                    "signal_computer",
+                ]
+            )
             if is_scoring_function:
                 continue
 
             # Skip if return 0 is for a count (legitimate: count executed, count found, etc.)
-            is_count_return = any(phrase in context.lower() for phrase in [
-                "count", "executed", "found", "processed", "fetched", "rows", "records", "exit_count",
-                "_engine", "circuit_breaker", "drawdown", "no open positions", "return 0"
-            ])
+            is_count_return = any(
+                phrase in context.lower()
+                for phrase in [
+                    "count",
+                    "executed",
+                    "found",
+                    "processed",
+                    "fetched",
+                    "rows",
+                    "records",
+                    "exit_count",
+                    "_engine",
+                    "circuit_breaker",
+                    "drawdown",
+                    "no open positions",
+                    "return 0",
+                ]
+            )
             if is_count_return:
                 continue
 
             # Skip if this is in a trading/risk control function returning 0 for control purposes
-            is_trading_control = any(phrase in context.lower() for phrase in [
-                "position_sizer", "exit_engine", "order_manager", "circuit", "drawdown", "halt",
-                "when no positions", "when error", "when unavailable"
-            ])
+            is_trading_control = any(
+                phrase in context.lower()
+                for phrase in [
+                    "position_sizer",
+                    "exit_engine",
+                    "order_manager",
+                    "circuit",
+                    "drawdown",
+                    "halt",
+                    "when no positions",
+                    "when error",
+                    "when unavailable",
+                ]
+            )
             if is_trading_control:
                 continue
 
@@ -195,18 +249,36 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             if has_prior_validation:
                 continue
 
-            is_financial = any(kw in context.lower() for kw in [
-                "position", "score", "size", "price", "volume", "volatility", "beta", "metric",
-                "signal", "technical", "financial", "market", "risk", "exposure", "exposure_pct"
-            ])
+            is_financial = any(
+                kw in context.lower()
+                for kw in [
+                    "position",
+                    "score",
+                    "size",
+                    "price",
+                    "volume",
+                    "volatility",
+                    "beta",
+                    "metric",
+                    "signal",
+                    "technical",
+                    "financial",
+                    "market",
+                    "risk",
+                    "exposure",
+                    "exposure_pct",
+                ]
+            )
             if is_financial:
-                violations.append({
-                    "file": filepath,
-                    "line": line_num,
-                    "pattern": "return 0",
-                    "message": "Hardcoded zero return in financial function (ambiguous: could mean 'no data' or 'error')",
-                    "fix": "Raise exception for CRITICAL data OR return {'data_unavailable': True, 'reason': '...'}"
-                })
+                violations.append(
+                    {
+                        "file": filepath,
+                        "line": line_num,
+                        "pattern": "return 0",
+                        "message": "Hardcoded zero return in financial function (ambiguous: could mean 'no data' or 'error')",
+                        "fix": "Raise exception for CRITICAL data OR return {'data_unavailable': True, 'reason': '...'}",
+                    }
+                )
 
         # ========== PATTERN 4: Unsafe .get() WITH DEFAULTS on financial data ==========
         # Only flag .get() calls that have explicit defaults (the real problem)
@@ -214,38 +286,83 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
         get_with_default = re.search(r'\.get\([^,]+,\s*(["\']|0|None|\[\]|{}|Decimal)', stripped)
         if get_with_default:
             # Skip if it's clearly a logging/error message or metadata field
-            is_logging_context = any(context in stripped.lower() for context in [
-                "logger", "print", "_error", "msg", "message", "reason", "summary",
-                "note", "description", "status", "source"
-            ])
+            is_logging_context = any(
+                context in stripped.lower()
+                for context in [
+                    "logger",
+                    "print",
+                    "_error",
+                    "msg",
+                    "message",
+                    "reason",
+                    "summary",
+                    "note",
+                    "description",
+                    "status",
+                    "source",
+                ]
+            )
             if is_logging_context:
                 continue
 
             # Check if this is likely financial data calculation
-            is_financial_get = any(pattern in stripped for pattern in [
-                "row.get(", "data.get(", "info.get(", "breadth.get(", "metrics.get(",
-                "prices.get(", "volumes.get(", "position.get(", "score.get("
-            ])
+            is_financial_get = any(
+                pattern in stripped
+                for pattern in [
+                    "row.get(",
+                    "data.get(",
+                    "info.get(",
+                    "breadth.get(",
+                    "metrics.get(",
+                    "prices.get(",
+                    "volumes.get(",
+                    "position.get(",
+                    "score.get(",
+                ]
+            )
 
             # Additional safety check: make sure it's not being used for descriptive/metadata fields
-            is_metadata = any(field in stripped for field in [
-                ".get(\"symbol", ".get(\"date", ".get(\"updated_at", ".get(\"timestamp",
-                ".get(\"reason", ".get(\"message", ".get(\"error", ".get(\"status",
-                ".get(\"source", ".get(\"note", ".get(\"_", ".get('symbol", ".get('date"
-            ])
+            is_metadata = any(
+                field in stripped
+                for field in [
+                    '.get("symbol',
+                    '.get("date',
+                    '.get("updated_at',
+                    '.get("timestamp',
+                    '.get("reason',
+                    '.get("message',
+                    '.get("error',
+                    '.get("status',
+                    '.get("source',
+                    '.get("note',
+                    '.get("_',
+                    ".get('symbol",
+                    ".get('date",
+                ]
+            )
 
             # Skip if in health/monitoring/validation paths (not core trading logic)
-            is_non_critical_path = any(module in str(filepath).lower() for module in [
-                "health", "validation", "monitoring", "diagnostic", "reconciliation"
-            ])
+            is_non_critical_path = any(
+                module in str(filepath).lower()
+                for module in ["health", "validation", "monitoring", "diagnostic", "reconciliation"]
+            )
             if is_non_critical_path:
                 continue
 
             # Skip if this is for counting/optional metrics that safely default to 0
-            is_safe_default = any(phrase in stripped.lower() for phrase in [
-                "circuit_breaker", "triggered_count", "any_triggered", "optional",
-                "if cb_metrics else", "or 0", "or false", "or {}"
-            ])
+            is_safe_default = any(
+                phrase in stripped.lower()
+                for phrase in [
+                    "circuit_breaker",
+                    "triggered_count",
+                    "any_triggered",
+                    "optional",
+                    "if cb_metrics else",
+                    "or 0",
+                    "or false",
+                    "or {}",
+                ]
+            )
             if is_safe_default:
                 continue
 
@@ -256,10 +373,16 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             # lives inside orchestrator.py alongside real trading logic.
             wide_context_start = max(0, line_num - 15)
             wide_context = "\n".join(lines[wide_context_start:line_num]).lower()
-            is_telemetry_context = any(kw in wide_context for kw in [
-                "metricspublisher", "put_signal_count", "put_orchestrator_result",
-                "cloudwatch", "non-blocking",
-            ])
+            is_telemetry_context = any(
+                kw in wide_context
+                for kw in [
+                    "metricspublisher",
+                    "put_signal_count",
+                    "put_orchestrator_result",
+                    "cloudwatch",
+                    "non-blocking",
+                ]
+            )
             if is_telemetry_context:
                 continue
 
@@ -267,21 +390,28 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             # an error/unavailable state to the caller (e.g. dashboard panels that render
             # an explicit "no data" panel). The default here is just safe type-narrowing
             # before that explicit check — nothing is hidden from the operator.
-            lookahead = "\n".join(lines[line_num:line_num + 6])
-            has_explicit_downstream_check = any(kw in lookahead for kw in [
-                "_error_panel(", "raise ", "data_unavailable",
-            ])
+            lookahead = "\n".join(lines[line_num : line_num + 6])
+            has_explicit_downstream_check = any(
+                kw in lookahead
+                for kw in [
+                    "_error_panel(",
+                    "raise ",
+                    "data_unavailable",
+                ]
+            )
             if has_explicit_downstream_check:
                 continue
 
             if is_financial_get and not is_metadata:
-                violations.append({
-                    "file": filepath,
-                    "line": line_num,
-                    "pattern": ".get(..., default)",
-                    "message": "Unsafe .get() with default on financial data (silent fallback if key missing)",
-                    "fix": "Check key presence explicitly: if 'key' in dict and dict['key'] is not None: ..."
-                })
+                violations.append(
+                    {
+                        "file": filepath,
+                        "line": line_num,
+                        "pattern": ".get(..., default)",
+                        "message": "Unsafe .get() with default on financial data (silent fallback if key missing)",
+                        "fix": "Check key presence explicitly: if 'key' in dict and dict['key'] is not None: ...",
+                    }
+                )
 
         # ========== PATTERN 5: Silent None return ==========
         if stripped == "return None" or re.match(r"return\s+None\s*$", stripped):
@@ -309,8 +439,9 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
                 # Get full function signature (might span multiple lines)
                 func_sig = "\n".join(lines[func_def_line:line_num])
                 # Check if function explicitly returns Optional/Union with None
-                if ("-> " in func_sig and ("| None" in func_sig or "Optional" in func_sig)) or \
-                   ("-> None:" in func_sig):  # Function that returns only None
+                if ("-> " in func_sig and ("| None" in func_sig or "Optional" in func_sig)) or (
+                    "-> None:" in func_sig
+                ):  # Function that returns only None
                     continue
 
                 # Skip if the enclosing function's own docstring documents that None is an
@@ -324,31 +455,59 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
                     continue
 
             # Skip if comment indicates None is intentional (cache miss, no data, etc.)
-            if any(phrase in context.lower() for phrase in [
-                "cache miss", "not cached", "no data", "optional", "not provided",
-                "expected state", "no error", "validation passed", "no duplicate",
-                "can proceed", "market closed", "fresh data"
-            ]):
+            if any(
+                phrase in context.lower()
+                for phrase in [
+                    "cache miss",
+                    "not cached",
+                    "no data",
+                    "optional",
+                    "not provided",
+                    "expected state",
+                    "no error",
+                    "validation passed",
+                    "no duplicate",
+                    "can proceed",
+                    "market closed",
+                    "fresh data",
+                ]
+            ):
                 continue
 
             # Only flag if in financial function AND context suggests error path
-            is_financial = any(kw in context.lower() for kw in [
-                "fetch", "load", "get_", "price", "metric", "data", "auth", "token",
-                "calculate", "score", "signal", "validate"
-            ])
+            is_financial = any(
+                kw in context.lower()
+                for kw in [
+                    "fetch",
+                    "load",
+                    "get_",
+                    "price",
+                    "metric",
+                    "data",
+                    "auth",
+                    "token",
+                    "calculate",
+                    "score",
+                    "signal",
+                    "validate",
+                ]
+            )
 
-            is_error_path = any(phrase in context.lower() for phrase in [
-                "error", "failed", "unavailable", "exception", "corrupted", "invalid state"
-            ])
+            is_error_path = any(
+                phrase in context.lower()
+                for phrase in ["error", "failed", "unavailable", "exception", "corrupted", "invalid state"]
+            )
 
             if is_financial and is_error_path:
-                violations.append({
-                    "file": filepath,
-                    "line": line_num,
-                    "pattern": "return None",
-                    "message": "Silent None return in error path (caller cannot distinguish 'no data' from 'error')",
-                    "fix": "Raise exception OR return {'data_unavailable': True, 'reason': '...'}"
-                })
+                violations.append(
+                    {
+                        "file": filepath,
+                        "line": line_num,
+                        "pattern": "return None",
+                        "message": "Silent None return in error path (caller cannot distinguish 'no data' from 'error')",
+                        "fix": "Raise exception OR return {'data_unavailable': True, 'reason': '...'}",
+                    }
+                )
 
     return violations
 
@@ -371,7 +530,7 @@ def main() -> int:
         # Group by pattern type
         by_pattern = {}
         for v in violations:
-            pattern = v['pattern']
+            pattern = v["pattern"]
             if pattern not in by_pattern:
                 by_pattern[pattern] = []
             by_pattern[pattern].append(v)

@@ -33,8 +33,7 @@ def get_password():
 def connect_to_rds(password):
     try:
         return psycopg2.connect(
-            host=RDS_HOST, port=RDS_PORT, database=RDS_DB,
-            user=RDS_USER, password=password, connect_timeout=10
+            host=RDS_HOST, port=RDS_PORT, database=RDS_DB, user=RDS_USER, password=password, connect_timeout=10
         )
     except psycopg2.OperationalError as e:
         print(f" Connection failed: {e}")
@@ -54,7 +53,7 @@ def drop_database(conn, db_name):
     try:
         cursor.execute(
             "SELECT pg_terminate_backend(pg_stat_activity.pid) FROM pg_stat_activity WHERE pg_stat_activity.datname = %s AND pid <> pg_backend_pid()",
-            (db_name,)
+            (db_name,),
         )
         conn.commit()
         cursor.execute(f"DROP DATABASE IF EXISTS {db_name}")

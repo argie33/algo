@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Add missing config keys to the database."""
+
 import sys
 from pathlib import Path
 
@@ -19,12 +20,15 @@ print("=" * 100)
 
 with DatabaseContext("write") as cur:
     for key, value in missing_config.items():
-        cur.execute("""
+        cur.execute(
+            """
             INSERT INTO algo_config (key, value, updated_at, updated_by)
             VALUES (%s, %s, NOW(), 'claude-code-fix')
             ON CONFLICT (key) DO UPDATE
             SET value = EXCLUDED.value, updated_at = NOW(), updated_by = 'claude-code-fix'
-        """, (key, value))
+        """,
+            (key, value),
+        )
         print(f"[OK] {key} = {value}")
 
 print("\n[OK] All missing config keys added successfully")

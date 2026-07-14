@@ -10,11 +10,12 @@ from pathlib import Path
 repo_root = Path(__file__).parent.parent
 sys.path.insert(0, str(repo_root))
 
+
 def check_orchestrator_status():
     import psycopg2
 
     try:
-        conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cur = conn.cursor()
 
         # Get last orchestrator run
@@ -34,7 +35,7 @@ def check_orchestrator_status():
         started, completed, status, halt_reason = row
         hours_ago = (datetime.now() - started).total_seconds() / 3600
 
-        if status == 'failed' or status == 'error':
+        if status == "failed" or status == "error":
             return "ERROR", f"Last run failed: {status} - {halt_reason or 'no reason'}"
 
         if hours_ago > 24:
@@ -45,27 +46,28 @@ def check_orchestrator_status():
     except Exception as e:
         return "ERROR", str(e)
 
+
 def check_data_freshness():
     import psycopg2
 
     try:
-        conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cur = conn.cursor()
 
         tables = [
-            ('price_daily', 'date'),
-            ('technical_data_daily', 'date'),
-            ('market_exposure_daily', 'date'),
-            ('stock_scores', 'updated_at'),
-            ('buy_sell_daily', 'date'),
+            ("price_daily", "date"),
+            ("technical_data_daily", "date"),
+            ("market_exposure_daily", "date"),
+            ("stock_scores", "updated_at"),
+            ("buy_sell_daily", "date"),
         ]
 
         issues = []
         for table, date_col in tables:
             try:
-                c2 = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+                c2 = psycopg2.connect("dbname=stocks user=stocks host=localhost")
                 cur2 = c2.cursor()
-                cur2.execute(f'SELECT MAX({date_col}) FROM {table}')
+                cur2.execute(f"SELECT MAX({date_col}) FROM {table}")
                 latest = cur2.fetchone()[0]
                 c2.close()
                 if not latest:
@@ -91,6 +93,7 @@ def check_data_freshness():
 
     except Exception as e:
         return "ERROR", str(e)
+
 
 def check_api_endpoints():
     """Test API endpoints."""
@@ -128,6 +131,7 @@ def check_api_endpoints():
         return "WARN", "; ".join(issues)
     return "OK", "All endpoints responding"
 
+
 def check_alpaca_integration():
     try:
         from config.alpaca_config import get_alpaca_config
@@ -146,12 +150,13 @@ def check_alpaca_integration():
     except Exception as e:
         return "WARN", f"Alpaca integration issue: {str(e)[:80]}"
 
+
 def check_dashboard_fetchers():
     """Test dashboard fetchers."""
     try:
         # Set up environment for local dev
-        os.environ['DASHBOARD_API_URL'] = 'http://localhost:3001'
-        os.environ['LOCAL_MODE'] = 'true'
+        os.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+        os.environ["LOCAL_MODE"] = "true"
 
         from dashboard.fetchers import load_all
 
@@ -171,6 +176,7 @@ def check_dashboard_fetchers():
 
     except Exception as e:
         return "ERROR", str(e)[:100]
+
 
 def main():
     """Run all checks."""
@@ -213,6 +219,7 @@ def main():
         print("[OK] All systems operational")
 
     return 0 if "ERROR" not in statuses else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -8,8 +8,9 @@ import logging
 import os
 import sys
 
-logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s: %(message)s')
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
+
 
 def validate_environment():
     logger.info("=" * 70)
@@ -60,6 +61,7 @@ def validate_environment():
     logger.info("✓ All required environment variables present")
     return True
 
+
 def validate_imports():
     logger.info("\n[2/6] Validating imports...")
 
@@ -82,6 +84,7 @@ def validate_imports():
     logger.info("✓ All imports successful")
     return True
 
+
 def validate_database():
     logger.info("\n[3/6] Validating database connection...")
 
@@ -100,6 +103,7 @@ def validate_database():
     except Exception as e:
         logger.error(f"  ✗ Database connection failed: {e}")
         return False
+
 
 def validate_required_tables():
     logger.info("\n[4/6] Validating required database tables...")
@@ -130,6 +134,7 @@ def validate_required_tables():
         logger.error(f"✗ Error checking tables: {e}")
         return False
 
+
 def validate_orchestrator_init():
     logger.info("\n[5/6] Validating orchestrator initialization...")
 
@@ -138,11 +143,7 @@ def validate_orchestrator_init():
         from algo.orchestration import Orchestrator
 
         config = get_config()
-        orchestrator = Orchestrator(
-            config=config,
-            dry_run=True,
-            verbose=False
-        )
+        orchestrator = Orchestrator(config=config, dry_run=True, verbose=False)
 
         logger.info(f"  ✓ Orchestrator initialized (run_id: {orchestrator.run_id})")
         logger.info(f"  ✓ Execution mode: {orchestrator.config.get('execution_mode')}")
@@ -151,8 +152,10 @@ def validate_orchestrator_init():
     except Exception as e:
         logger.error(f"  ✗ Orchestrator initialization failed: {e}")
         import traceback
+
         logger.error(traceback.format_exc())
         return False
+
 
 def validate_loaders():
     logger.info("\n[6/6] Validating loader infrastructure...")
@@ -170,8 +173,8 @@ def validate_loaders():
             result = cur.fetchone()
 
             if result:
-                count = result.get('count', 0)
-                latest = result.get('latest')
+                count = result.get("count", 0)
+                latest = result.get("latest")
 
                 if count > 0:
                     logger.info(f"  ✓ {count} critical loaders have run")
@@ -188,6 +191,7 @@ def validate_loaders():
     except Exception as e:
         logger.error(f"  ✗ Loader validation failed: {e}")
         return False
+
 
 def main():
     """Run all validations."""
@@ -228,6 +232,7 @@ def main():
     else:
         logger.error("\n✗ ORCHESTRATOR IS NOT READY - FIX FAILURES ABOVE")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

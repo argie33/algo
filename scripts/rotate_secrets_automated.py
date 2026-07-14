@@ -26,15 +26,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 # Fix Windows encoding
-if sys.platform == 'win32':
+if sys.platform == "win32":
     import io
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
 # Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(levelname)s] %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -66,19 +64,17 @@ class SecretsManager:
         """Audit GitHub Secrets for age, duplicates, and status."""
         logger.info("Auditing GitHub Secrets...")
 
-        returncode, stdout, stderr = self.run_command(
-            ["gh", "secret", "list", "--repo", self.repo]
-        )
+        returncode, stdout, stderr = self.run_command(["gh", "secret", "list", "--repo", self.repo])
 
         if returncode != 0:
             logger.error(f"Failed to list GitHub Secrets: {stderr}")
             return {"status": "error", "message": stderr}
 
         secrets = {}
-        for line in stdout.split('\n'):
+        for line in stdout.split("\n"):
             if not line.strip():
                 continue
-            parts = line.split('\t')
+            parts = line.split("\t")
             if len(parts) >= 2:
                 name = parts[0]
                 updated = parts[1]
@@ -90,9 +86,9 @@ class SecretsManager:
         for name, info in secrets.items():
             try:
                 # Parse ISO format date
-                updated_dt = datetime.datetime.fromisoformat(info['updated'].replace('Z', '+00:00'))
+                updated_dt = datetime.datetime.fromisoformat(info["updated"].replace("Z", "+00:00"))
                 age_days = (now - updated_dt).days
-                info['age_days'] = age_days
+                info["age_days"] = age_days
 
                 # Flag old secrets
                 if age_days > self.rotation_age_threshold_days:
@@ -103,10 +99,10 @@ class SecretsManager:
 
         # Check for duplicates
         duplicates = []
-        if 'ALPACA_API_KEY' in secrets and 'ALPACA_API_KEY_ID' in secrets:
-            duplicates.append('ALPACA_API_KEY vs ALPACA_API_KEY_ID')
-        if 'ALPACA_SECRET_KEY' in secrets and 'ALPACA_API_SECRET_KEY' in secrets:
-            duplicates.append('ALPACA_SECRET_KEY vs ALPACA_API_SECRET_KEY')
+        if "ALPACA_API_KEY" in secrets and "ALPACA_API_KEY_ID" in secrets:
+            duplicates.append("ALPACA_API_KEY vs ALPACA_API_KEY_ID")
+        if "ALPACA_SECRET_KEY" in secrets and "ALPACA_API_SECRET_KEY" in secrets:
+            duplicates.append("ALPACA_SECRET_KEY vs ALPACA_API_SECRET_KEY")
 
         return {
             "status": "ok",
@@ -120,12 +116,19 @@ class SecretsManager:
         """Audit AWS Secrets Manager secrets."""
         logger.info("Auditing AWS Secrets Manager...")
 
-        returncode, stdout, stderr = self.run_command([
-            "aws", "secretsmanager", "list-secrets",
-            "--region", self.aws_region,
-            "--query", "SecretList[?starts_with(Name, `algo/`)].{Name:Name,Updated:LastChangedDate,Accessed:LastAccessedDate,RotationEnabled:RotationEnabled}",
-            "--output", "json"
-        ])
+        returncode, stdout, stderr = self.run_command(
+            [
+                "aws",
+                "secretsmanager",
+                "list-secrets",
+                "--region",
+                self.aws_region,
+                "--query",
+                "SecretList[?starts_with(Name, `algo/`)].{Name:Name,Updated:LastChangedDate,Accessed:LastAccessedDate,RotationEnabled:RotationEnabled}",
+                "--output",
+                "json",
+            ]
+        )
 
         if returncode != 0:
             logger.warning(f"Could not access AWS Secrets Manager: {stderr}")
@@ -147,6 +150,7 @@ class SecretsManager:
 
         try:
             from config.credential_manager import get_credential_manager
+
             mgr = get_credential_manager()
 
             results = {}
@@ -154,30 +158,30 @@ class SecretsManager:
             # Test Alpaca
             try:
                 alpaca = mgr.get_alpaca_credentials()
-                results['alpaca'] = {"status": "ok", "loaded": bool(alpaca.get('key'))}
+                results["alpaca"] = {"status": "ok", "loaded": bool(alpaca.get("key"))}
             except Exception as e:
-                results['alpaca'] = {"status": "error", "error": str(e)}
+                results["alpaca"] = {"status": "error", "error": str(e)}
 
             # Test Database
             try:
                 db = mgr.get_db_credentials()
-                results['database'] = {"status": "ok", "host": db.get('host')}
+                results["database"] = {"status": "ok", "host": db.get("host")}
             except Exception as e:
-                results['database'] = {"status": "error", "error": str(e)}
+                results["database"] = {"status": "error", "error": str(e)}
 
             # Test JWT
             try:
                 jwt = mgr.get_secret("algo/jwt")
-                results['jwt'] = {"status": "ok", "loaded": bool(jwt)}
+                results["jwt"] = {"status": "ok", "loaded": bool(jwt)}
             except Exception as e:
-                results['jwt'] = {"status": "error", "error": str(e)}
+                results["jwt"] = {"status": "error", "error": str(e)}
 
             # Test FRED
             try:
                 fred = mgr.get_secret("algo/fred")
-                results['fred'] = {"status": "ok", "loaded": bool(fred)}
+                results["fred"] = {"status": "ok", "loaded": bool(fred)}
             except Exception as e:
-                results['fred'] = {"status": "error", "error": str(e)}
+                results["fred"] = {"status": "error", "error": str(e)}
 
             return {"status": "ok", "credentials": results}
         except ImportError:
@@ -191,11 +195,11 @@ class SecretsManager:
 
         gh_audit = self.audit_github_secrets()
         logger.info(f"GitHub Secrets: {gh_audit['total_secrets']} total")
-        if gh_audit.get('old_secrets'):
-            for name, age in gh_audit['old_secrets']:
+        if gh_audit.get("old_secrets"):
+            for name, age in gh_audit["old_secrets"]:
                 logger.warning(f"  ⚠️  {name} is {age} days old (rotate every {self.rotation_age_threshold_days} days)")
-        if gh_audit.get('duplicates'):
-            for dup in gh_audit['duplicates']:
+        if gh_audit.get("duplicates"):
+            for dup in gh_audit["duplicates"]:
                 logger.warning(f"  ⚠️  Duplicate found: {dup}")
 
         sm_audit = self.audit_aws_secrets_manager()
@@ -229,15 +233,13 @@ class SecretsManager:
             "DB_NAME",
         ]
 
-        returncode, stdout, _ = self.run_command(
-            ["gh", "secret", "list", "--repo", self.repo]
-        )
+        returncode, stdout, _ = self.run_command(["gh", "secret", "list", "--repo", self.repo])
 
         if returncode != 0:
             logger.error("Failed to list GitHub Secrets")
             return False
 
-        found_secrets = {line.split('\t')[0] for line in stdout.split('\n') if line.strip()}
+        found_secrets = {line.split("\t")[0] for line in stdout.split("\n") if line.strip()}
         missing = [s for s in required if s not in found_secrets]
 
         if missing:
@@ -250,13 +252,22 @@ class SecretsManager:
     def validate_database_rotation(self) -> bool:
         logger.info("Validating database password rotation...")
 
-        returncode, stdout, stderr = self.run_command([
-            "aws", "secretsmanager", "describe-secret",
-            "--secret-id", "algo/database",
-            "--region", self.aws_region,
-            "--query", "RotationRules",
-            "--output", "json"
-        ], check=False)
+        returncode, stdout, stderr = self.run_command(
+            [
+                "aws",
+                "secretsmanager",
+                "describe-secret",
+                "--secret-id",
+                "algo/database",
+                "--region",
+                self.aws_region,
+                "--query",
+                "RotationRules",
+                "--output",
+                "json",
+            ],
+            check=False,
+        )
 
         if returncode != 0:
             logger.warning(f"Could not check rotation: {stderr}")
@@ -264,7 +275,7 @@ class SecretsManager:
 
         try:
             rules = json.loads(stdout) if stdout else {}
-            if rules.get('AutomaticallyAfterDays'):
+            if rules.get("AutomaticallyAfterDays"):
                 logger.info(f"✓ Database rotation enabled (every {rules['AutomaticallyAfterDays']} days)")
                 return True
             else:
@@ -287,6 +298,7 @@ class SecretsManager:
 
         try:
             import requests
+
             base_url = os.getenv("API_BASE_URL", "http://localhost:3001")
 
             for endpoint in endpoints:
@@ -389,9 +401,9 @@ BEST PRACTICES IMPLEMENTED
         # Step 1: Audit
         audit_result = self.full_audit()
         has_issues = (
-            audit_result['github_secrets'].get('old_secrets') or
-            audit_result['github_secrets'].get('duplicates') or
-            not audit_result['secrets_manager'].get('secrets')
+            audit_result["github_secrets"].get("old_secrets")
+            or audit_result["github_secrets"].get("duplicates")
+            or not audit_result["secrets_manager"].get("secrets")
         )
 
         if has_issues:
@@ -438,11 +450,7 @@ def main():
     elif args.rotate_aws:
         mgr.print_setup_guide()
     elif args.verify:
-        success = (
-            mgr.validate_required_secrets() and
-            mgr.validate_database_rotation() and
-            mgr.validate_api_endpoints()
-        )
+        success = mgr.validate_required_secrets() and mgr.validate_database_rotation() and mgr.validate_api_endpoints()
         sys.exit(0 if success else 1)
     elif args.full_setup:
         success = mgr.full_setup()

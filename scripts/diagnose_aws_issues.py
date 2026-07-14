@@ -21,6 +21,7 @@ def run_command(cmd, description):
         print(f"  ✗ ERROR: {e}")
         return None
 
+
 def check_lambda_vpc_config():
     print("\n=== LAMBDA VPC CONFIGURATION ===")
 
@@ -40,10 +41,13 @@ def check_lambda_vpc_config():
             return False
     return True
 
+
 def check_provisioned_concurrency():
     print("\n=== PROVISIONED CONCURRENCY ===")
 
-    cmd = "aws lambda get-provisioned-concurrency-config --function-name algo-api-dev --region us-east-1 --qualifier LIVE"
+    cmd = (
+        "aws lambda get-provisioned-concurrency-config --function-name algo-api-dev --region us-east-1 --qualifier LIVE"
+    )
     output = run_command(cmd, "Checking provisioned concurrency")
     if output:
         try:
@@ -59,6 +63,7 @@ def check_provisioned_concurrency():
             print("  ⚠ Could not parse response (may mean no provisioned concurrency)")
             return False
     return True
+
 
 def check_lambda_errors():
     print("\n=== LAMBDA ERROR LOGS (Last 10 min) ===")
@@ -83,6 +88,7 @@ def check_lambda_errors():
         except json.JSONDecodeError:
             pass
 
+
 def check_api_gateway_errors():
     print("\n=== API GATEWAY 5XX ERRORS (Last hour) ===")
 
@@ -106,6 +112,7 @@ def check_api_gateway_errors():
         except json.JSONDecodeError:
             pass
 
+
 def check_database_connectivity():
     print("\n=== DATABASE CONNECTIVITY ===")
 
@@ -124,6 +131,7 @@ def check_database_connectivity():
     print("  ✓ No connection errors detected")
     return True
 
+
 def check_reserved_concurrency():
     print("\n=== RESERVED CONCURRENCY ===")
 
@@ -136,6 +144,7 @@ def check_reserved_concurrency():
             print(f"  Reserved: {reserved}")
         except json.JSONDecodeError:
             pass
+
 
 def check_lambda_code_size():
     print("\n=== LAMBDA CODE SIZE ===")
@@ -151,6 +160,7 @@ def check_lambda_code_size():
                 print("  ⚠ WARNING: Code size > 250 MB may affect performance")
         except ValueError:
             print(f"  Could not parse size: {output}")
+
 
 def main():
     """Run all diagnostics."""
@@ -205,6 +215,7 @@ def main():
         print("  1. Lambda code errors: aws logs tail /aws/lambda/algo-api-dev --follow")
         print("  2. Lambda timeout: increase timeout in terraform/variables.tf")
         print("  3. Cold start: ensure provisioned concurrency is allocated")
+
 
 if __name__ == "__main__":
     main()

@@ -226,7 +226,9 @@ def fetch_market(c: None) -> dict[str, Any]:
             try:
                 result["spy_chg"] = safe_float(spy_chg_val, field_name="market.spy_change_pct", strict=True)
             except (StrictValidationError, ValueError, TypeError) as e:
-                logger.warning(f"[MARKET] SPY change conversion failed ({type(e).__name__}): {e}. Marking as unavailable.")
+                logger.warning(
+                    f"[MARKET] SPY change conversion failed ({type(e).__name__}): {e}. Marking as unavailable."
+                )
                 result["spy_chg_unavailable"] = True
         else:
             result["spy_chg_unavailable"] = True

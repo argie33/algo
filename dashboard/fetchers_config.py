@@ -16,8 +16,6 @@ _data_status_cache: dict[str, Any] = {}
 _data_status_lock = threading.Lock()
 
 
-
-
 def clear_data_status_cache() -> None:
     """Clear the data-status cache to ensure fresh data on next fetch.
 
@@ -104,8 +102,9 @@ def fetch_run(c: None) -> dict[str, Any]:
         # Accept both field names to support different API versions
         started_at = inner.get("started_at") or inner.get("run_at")
         if not started_at:
-            error_msg = "Last-run API response missing required timestamp field (started_at or run_at). Available keys: " + str(
-                list(inner.keys())
+            error_msg = (
+                "Last-run API response missing required timestamp field (started_at or run_at). Available keys: "
+                + str(list(inner.keys()))
             )
             logger.error(error_msg)
             record_data_quality_issue("run", "critical_field", "missing_timestamp")

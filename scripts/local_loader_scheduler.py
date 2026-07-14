@@ -22,10 +22,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] %(levelname)s - %(message)s'
-)
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 EASTERN_TZ = ZoneInfo("America/New_York")
@@ -69,7 +66,7 @@ def run_loader_now(loader_name):
         result = subprocess.run(
             ["python3", loader_path],
             timeout=3600,  # 1 hour timeout
-            check=False
+            check=False,
         )
         if result.returncode == 0:
             logger.info(f"✓ Loader succeeded: {loader_name}")
@@ -92,9 +89,9 @@ def run_pipeline(pipeline_name):
         return False
 
     pipeline = LOADERS[pipeline_name]
-    logger.info(f"\n{'='*70}")
+    logger.info(f"\n{'=' * 70}")
     logger.info(f"Starting pipeline: {pipeline['description']}")
-    logger.info(f"{'='*70}\n")
+    logger.info(f"{'=' * 70}\n")
 
     success_count = 0
     for loader in pipeline["loaders"]:
@@ -113,6 +110,7 @@ def time_until_next_run(target_hour, target_minute):
     # If the time has already passed today, schedule for tomorrow
     if next_run <= now:
         from datetime import timedelta
+
         next_run += timedelta(days=1)
 
     seconds_until = (next_run - now).total_seconds()

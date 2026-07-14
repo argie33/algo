@@ -15,11 +15,9 @@ import logging
 from datetime import datetime
 
 # Setup logging
-logging.basicConfig(
-    level=logging.WARNING,
-    format='%(message)s'
-)
+logging.basicConfig(level=logging.WARNING, format="%(message)s")
 logger = logging.getLogger(__name__)
+
 
 def check_price_coverage():
     try:
@@ -85,7 +83,7 @@ def main():
             print()
             print("   3. Manual trigger (if scripts not available):")
             print("      aws lambda invoke --function-name algo-trigger-loaders \\")
-            print("        --payload '{\"loader_name\":\"price_daily\"}' /tmp/result.json")
+            print('        --payload \'{"loader_name":"price_daily"}\' /tmp/result.json')
         else:
             missing = total - loaded
             print(f"   Missing: {missing} symbols ({100 - coverage:.1f}%) — need >= 75% to proceed")

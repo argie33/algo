@@ -102,6 +102,7 @@ LOADERS = {
     },
 }
 
+
 def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
     """Verify a single loader's output."""
     cur = conn.cursor()
@@ -130,25 +131,21 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
         row_count = cur.fetchone()[0]
 
         if row_count < config["min_rows"]:
-            results["issues"].append(
-                f"Low row count: {row_count} (expected >= {config['min_rows']})"
-            )
+            results["issues"].append(f"Low row count: {row_count} (expected >= {config['min_rows']})")
 
         # Check data freshness if date column exists
         if config["date_column"]:
             try:
                 cur.execute(f"""
-                    SELECT MAX({config['date_column']}::date)
-                    FROM {config['output_table']}
+                    SELECT MAX({config["date_column"]}::date)
+                    FROM {config["output_table"]}
                 """)
                 max_date = cur.fetchone()[0]
 
                 if max_date:
                     age = datetime.now().date() - max_date
                     if age.days > 2:
-                        results["issues"].append(
-                            f"Stale data: {age.days} days old (max_date: {max_date})"
-                        )
+                        results["issues"].append(f"Stale data: {age.days} days old (max_date: {max_date})")
             except Exception:
                 # Skip if date column doesn't work
                 pass
@@ -157,7 +154,9 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
 
         # Check for excessive NULLs in key columns
         try:
-            cur.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name = '{config['output_table']}' LIMIT 5")
+            cur.execute(
+                f"SELECT column_name FROM information_schema.columns WHERE table_name = '{config['output_table']}' LIMIT 5"
+            )
             cols = [row[0] for row in cur.fetchall()]
 
             for col in cols[:3]:  # Check first 3 columns
@@ -167,9 +166,7 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                     null_pct = 100 * null_count / max(1, row_count)
 
                     if null_pct > 20:
-                        results["issues"].append(
-                            f"High NULL rate in {col}: {null_pct:.1f}%"
-                        )
+                        results["issues"].append(f"High NULL rate in {col}: {null_pct:.1f}%")
                 except:
                     pass  # Skip if column check fails
         except:
@@ -188,6 +185,7 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
         results["issues"].append(str(e))
 
     return results
+
 
 def verify_all_loaders():
     """Verify all loaders."""
@@ -267,10 +265,13 @@ def verify_all_loaders():
     except Exception as e:
         print(f"ERROR: Verification failed: {e!s}")
         import traceback
+
         traceback.print_exc()
         return False
 
+
 if __name__ == "__main__":
     import sys
+
     success = verify_all_loaders()
     sys.exit(0 if success else 1)

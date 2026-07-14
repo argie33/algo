@@ -12,7 +12,7 @@ All halt-critical tables now have today's data.
 import sys
 from datetime import date
 
-sys.path.insert(0, '.')
+sys.path.insert(0, ".")
 from utils.db.context import DatabaseContext
 
 
@@ -26,10 +26,7 @@ def main():
 
         # 1. Delete future-dated rows from market_exposure_daily
         print("\n1. Cleaning up future-dated rows in market_exposure_daily...")
-        cur.execute(
-            "SELECT COUNT(*) FROM market_exposure_daily WHERE date > %s",
-            (today,)
-        )
+        cur.execute("SELECT COUNT(*) FROM market_exposure_daily WHERE date > %s", (today,))
         future_count = cur.fetchone()[0]
 
         if future_count > 0:
@@ -39,10 +36,7 @@ def main():
             print("   No future-dated rows found")
 
         # Also clean market_health_daily if needed
-        cur.execute(
-            "SELECT COUNT(*) FROM market_health_daily WHERE date > %s",
-            (today,)
-        )
+        cur.execute("SELECT COUNT(*) FROM market_health_daily WHERE date > %s", (today,))
         health_future_count = cur.fetchone()[0]
 
         if health_future_count > 0:
@@ -53,17 +47,11 @@ def main():
         print(f"\n2. Regenerating market_health_daily for {today}...")
 
         # Get SPY and VIX closes
-        cur.execute(
-            "SELECT close FROM price_daily WHERE symbol = 'SPY' AND date = %s",
-            (today,)
-        )
+        cur.execute("SELECT close FROM price_daily WHERE symbol = 'SPY' AND date = %s", (today,))
         spy_row = cur.fetchone()
         spy_close = spy_row[0] if spy_row else None
 
-        cur.execute(
-            "SELECT close FROM price_daily WHERE symbol = '^VIX' AND date = %s",
-            (today,)
-        )
+        cur.execute("SELECT close FROM price_daily WHERE symbol = '^VIX' AND date = %s", (today,))
         vix_row = cur.fetchone()
         vix_close = vix_row[0] if vix_row else None
 
@@ -72,18 +60,22 @@ def main():
 
         if spy_close and vix_close:
             # Get yesterday's template
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT market_trend, market_stage, distribution_days_4w, distribution_days_20d,
                        up_volume_percent, advance_decline_ratio, new_highs_count, new_lows_count,
                        breadth_momentum_10d, put_call_ratio, fed_rate_environment
                 FROM market_health_daily
                 WHERE date = %s - INTERVAL '1 day'
                 LIMIT 1
-            """, (today,))
+            """,
+                (today,),
+            )
 
             yesterday = cur.fetchone()
             if yesterday:
-                cur.execute("""
+                cur.execute(
+                    """
                     INSERT INTO market_health_daily
                     (date, market_trend, market_stage, distribution_days_4w, distribution_days_20d,
                      up_volume_percent, advance_decline_ratio, new_highs_count, new_lows_count,
@@ -92,18 +84,33 @@ def main():
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                     ON CONFLICT (date) DO UPDATE SET
                         vix_level = %s, spy_close = %s, updated_at = NOW()
-                """, (
-                    today, yesterday[0], yesterday[1], yesterday[2], yesterday[3],
-                    yesterday[4], yesterday[5], yesterday[6], yesterday[7],
-                    yesterday[8], vix_close, yesterday[9], yesterday[10],
-                    spy_close, vix_close, spy_close
-                ))
+                """,
+                    (
+                        today,
+                        yesterday[0],
+                        yesterday[1],
+                        yesterday[2],
+                        yesterday[3],
+                        yesterday[4],
+                        yesterday[5],
+                        yesterday[6],
+                        yesterday[7],
+                        yesterday[8],
+                        vix_close,
+                        yesterday[9],
+                        yesterday[10],
+                        spy_close,
+                        vix_close,
+                        spy_close,
+                    ),
+                )
                 print(f"   CREATED market_health_daily for {today}")
 
         # Verify all tables are fresh
         print("\n3. Verifying all halt-critical tables are fresh...")
 
         from algo.infrastructure.market_calendar import MarketCalendar
+
         expected = today if MarketCalendar.is_trading_day(today) else today
 
         halt_tables = {
@@ -122,7 +129,7 @@ def main():
             row = cur.fetchone()
             max_date = row[0] if row else None
 
-            if max_date and hasattr(max_date, 'date'):
+            if max_date and hasattr(max_date, "date"):
                 max_date = max_date.date()
 
             status = "OK" if (max_date and max_date >= expected) else "FAIL"
@@ -139,6 +146,7 @@ def main():
         else:
             print("FAILURE: Some tables still stale")
             return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

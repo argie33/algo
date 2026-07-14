@@ -311,8 +311,8 @@ def load_all() -> dict[str, Any]:
         "audit",  # Audit log (optional for debugging)
         "exec_hist",  # Execution history (optional detailed view)
         "cb",  # Circuit breakers - moved from critical to optional.
-               # Lambda endpoint returns 503 with exponential retry backoff (12+ seconds).
-               # Not required for dashboard function; panels handle missing data gracefully.
+        # Lambda endpoint returns 503 with exponential retry backoff (12+ seconds).
+        # Not required for dashboard function; panels handle missing data gracefully.
     }
 
     def one(name: str, fn: Callable[..., Any], timeout_sec: float) -> tuple[str, Any]:
@@ -442,10 +442,7 @@ def load_all() -> dict[str, Any]:
     optional_elapsed = time.monotonic() - optional_start_time
     optional_failures = [k for k, v in optional_out.items() if isinstance(v, dict) and "_error" in v]
     if optional_failures:
-        logger.warning(
-            f"[FETCHERS] Optional fetcher failures (non-blocking): "
-            f"{', '.join(optional_failures)}"
-        )
+        logger.warning(f"[FETCHERS] Optional fetcher failures (non-blocking): {', '.join(optional_failures)}")
 
     out.update(optional_out)
     logger.info(

@@ -20,7 +20,7 @@ def run_command(cmd: list, description: str) -> dict | str | None:
             print(f"  ERROR: {result.stderr[:200]}")
             return None
         output = result.stdout.strip()
-        if output.startswith('{'):
+        if output.startswith("{"):
             return json.loads(output)
         return output
     except subprocess.TimeoutExpired:
@@ -29,6 +29,7 @@ def run_command(cmd: list, description: str) -> dict | str | None:
     except Exception as e:
         print(f"  ERROR: {type(e).__name__}: {e}")
         return None
+
 
 def main():
     print("=" * 70)
@@ -41,11 +42,18 @@ def main():
     # Step 1: Get current Lambda configuration
     print("\n1. Checking current Lambda configuration...")
     config = run_command(
-        ["aws", "lambda", "get-function-configuration",
-         "--function-name", function_name,
-         "--region", region,
-         "--output", "json"],
-        f"Fetching {function_name} configuration"
+        [
+            "aws",
+            "lambda",
+            "get-function-configuration",
+            "--function-name",
+            function_name,
+            "--region",
+            region,
+            "--output",
+            "json",
+        ],
+        f"Fetching {function_name} configuration",
     )
 
     if not config:
@@ -86,15 +94,20 @@ def main():
     print("\n3. Updating Lambda VPC configuration...")
 
     update_result = run_command(
-        ["aws", "lambda", "update-function-configuration",
-         "--function-name", function_name,
-         "--region", region,
-         "--vpc-config", json.dumps({
-             "SubnetIds": subnets,
-             "SecurityGroupIds": [sg_id]
-         }),
-         "--output", "json"],
-        f"Configuring {function_name} with VPC"
+        [
+            "aws",
+            "lambda",
+            "update-function-configuration",
+            "--function-name",
+            function_name,
+            "--region",
+            region,
+            "--vpc-config",
+            json.dumps({"SubnetIds": subnets, "SecurityGroupIds": [sg_id]}),
+            "--output",
+            "json",
+        ],
+        f"Configuring {function_name} with VPC",
     )
 
     if not update_result:
@@ -106,10 +119,8 @@ def main():
     # Step 4: Wait for update to complete
     print("\n4. Waiting for Lambda to update...")
     wait_result = run_command(
-        ["aws", "lambda", "wait", "function-updated",
-         "--function-name", function_name,
-         "--region", region],
-        "Waiting for Lambda configuration to apply"
+        ["aws", "lambda", "wait", "function-updated", "--function-name", function_name, "--region", region],
+        "Waiting for Lambda configuration to apply",
     )
 
     print("  [OK] Lambda update complete")
@@ -117,11 +128,18 @@ def main():
     # Step 5: Verify configuration
     print("\n5. Verifying Lambda VPC configuration...")
     verify = run_command(
-        ["aws", "lambda", "get-function-configuration",
-         "--function-name", function_name,
-         "--region", region,
-         "--output", "json"],
-        "Fetching updated configuration"
+        [
+            "aws",
+            "lambda",
+            "get-function-configuration",
+            "--function-name",
+            function_name,
+            "--region",
+            region,
+            "--output",
+            "json",
+        ],
+        "Fetching updated configuration",
     )
 
     if verify and verify.get("VpcConfig", {}).get("SubnetIds"):
@@ -132,6 +150,7 @@ def main():
     else:
         print("  [ERROR] Lambda VPC configuration not applied")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

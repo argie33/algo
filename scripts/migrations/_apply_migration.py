@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 from utils.db import DatabaseContext
 
-sql = open('migrations/1010_add_sql_interval_configuration.sql', encoding='utf-8').read()
+sql = open("migrations/1010_add_sql_interval_configuration.sql", encoding="utf-8").read()
 # Remove comments
-sql_lines = [line for line in sql.split('\n') if not line.strip().startswith('--')]
-sql_clean = '\n'.join(sql_lines)
+sql_lines = [line for line in sql.split("\n") if not line.strip().startswith("--")]
+sql_clean = "\n".join(sql_lines)
 
 try:
-    with DatabaseContext('write') as cur:
+    with DatabaseContext("write") as cur:
         cur.execute(sql_clean)
     print("[OK] Migration 1010 applied successfully")
     print("     13 new configuration keys added to algo_config table")

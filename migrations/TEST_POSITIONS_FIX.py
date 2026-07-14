@@ -20,6 +20,7 @@ import sys
 
 sys.path.insert(0, os.getcwd())
 
+
 def test_database_view():
     """Test 1: Database materialized view exists and has data"""
     print("\n" + "=" * 80)
@@ -74,6 +75,7 @@ def test_positions_api():
         # Clear any cache
         try:
             from dashboard import api_data_layer
+
             api_data_layer._response_cache.clear()
         except ImportError:
             # api_data_layer module may not be available in test environment
@@ -84,6 +86,7 @@ def test_positions_api():
         except Exception as e:
             # Log any other errors but continue
             import logging
+
             logging.warning(f"Could not clear API cache: {type(e).__name__}: {e}")
 
         from dashboard.api_data_layer import api_call
@@ -93,12 +96,14 @@ def test_positions_api():
 
         response = api_call("/api/algo/positions")
 
-        items = response.get('items', [])
-        coverage = response.get('coverage', {})
-        stale_alerts = response.get('stale_alerts', [])
+        items = response.get("items", [])
+        coverage = response.get("coverage", {})
+        stale_alerts = response.get("stale_alerts", [])
 
         print(f"Items returned: {len(items)}")
-        print(f"Coverage: {coverage.get('valid_count', 0)}/{coverage.get('total_count', 0)} ({coverage.get('coverage_pct', 0):.1f}%)")
+        print(
+            f"Coverage: {coverage.get('valid_count', 0)}/{coverage.get('total_count', 0)} ({coverage.get('coverage_pct', 0):.1f}%)"
+        )
 
         if stale_alerts:
             print(f"Stale alerts: {', '.join(stale_alerts)}")
