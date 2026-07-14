@@ -278,7 +278,8 @@ class PutCallRatioFetcher:
             from utils.db import DatabaseContext
 
             with DatabaseContext("read") as cur:
-                cur.execute("""
+                cur.execute(
+                    """
                     SELECT
                         COALESCE(SUM(CASE WHEN option_type = 'put' THEN open_interest ELSE 0 END), 0)::float AS total_puts,
                         COALESCE(SUM(CASE WHEN option_type = 'call' THEN open_interest ELSE 0 END), 0)::float AS total_calls
@@ -286,7 +287,9 @@ class PutCallRatioFetcher:
                     WHERE symbol = 'SPY'
                       AND trade_date = %s
                       AND open_interest > 0
-                """, (eval_date,))
+                """,
+                    (eval_date,),
+                )
 
                 row = cur.fetchone()
                 if not row:
