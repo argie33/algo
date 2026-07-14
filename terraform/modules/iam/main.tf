@@ -1513,6 +1513,7 @@ data "aws_iam_policy_document" "developer" {
   }
 
   # Secrets Manager (read + update dashboard-config only, for local credential bootstrap)
+  # ADDED: Also allow reading rds/stocks for database direct access via RDS Data API
   statement {
     sid    = "SecretsManagerRead"
     effect = "Allow"
@@ -1524,7 +1525,8 @@ data "aws_iam_policy_document" "developer" {
 
     resources = [
       "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}-*",
-      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*"
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:${var.project_name}/*",
+      "arn:aws:secretsmanager:${var.aws_region}:${var.aws_account_id}:secret:rds/stocks*"
     ]
   }
 
@@ -1674,6 +1676,28 @@ data "aws_iam_policy_document" "developer" {
     ]
 
     resources = ["*"]
+  }
+
+  # RDS Data API — query database directly via API (Session 139)
+  # Allows SQL execution for data verification and diagnostics
+  statement {
+    sid    = "RDSDataAPIExecute"
+    effect = "Allow"
+
+    actions = [
+      "rds-data:ExecuteStatement",
+      "rds-data:BatchExecuteStatement"
+    ]
+
+    resources = ["arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:*"]
+
+    condition {
+      test     = "StringLike"
+      variable = "aws:arn"
+      values = [
+        "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:*${var.project_name}*"
+      ]
+    }
   }
 
   # RDS IAM authentication — scoped to project DB users only
