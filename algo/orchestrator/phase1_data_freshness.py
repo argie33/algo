@@ -333,6 +333,8 @@ def run(  # noqa: C901
                         last_trading_day -= td(days=1)
             else:
                 # After market close (EOD context): expect same-day data if it's a trading day
+                # TOLERANCE: Allow 1 trading day grace period for data providers (yfinance delay)
+                # to have day's data available. Data should be from last trading day or same day.
                 if MarketCalendar.is_trading_day(run_date_obj):
                     last_trading_day = run_date_obj
                 else:
@@ -343,15 +345,28 @@ def run(  # noqa: C901
                             break
                         last_trading_day -= td(days=1)
 
-            if max_date < last_trading_day:
+            # TOLERANCE for data provider delays: if we're in EOD context (after 4 PM),
+            # allow previous trading day's data as acceptable (data providers may not have
+            # same-day data ready immediately after market close)
+            acceptable_min_date = last_trading_day
+            if pipeline_context == "EOD" and now_et.hour >= 16:
+                # Allow previous trading day as fallback if same-day not yet available
+                prev_trading_day = last_trading_day - td(days=1)
+                while prev_trading_day > last_trading_day - td(days=10):
+                    if MarketCalendar.is_trading_day(prev_trading_day):
+                        acceptable_min_date = prev_trading_day
+                        break
+                    prev_trading_day -= td(days=1)
+
+            if max_date < acceptable_min_date:
                 from algo.orchestrator.phase_error_handling import (
                     ErrorCategory,
                     PhaseError,
                     log_phase_error,
                 )
 
-                days_stale = (last_trading_day - max_date).days
-                logger.critical(f"[PHASE 1] Price data stale: {max_date} vs expected {last_trading_day}")
+                days_stale = (acceptable_min_date - max_date).days
+                logger.critical(f"[PHASE 1] Price data stale: {max_date} vs expected {acceptable_min_date} (or later)")
                 logger.warning("[PHASE 1] Attempting emergency price loader trigger...")
 
                 # CRITICAL FIX: Try to load fresh prices before halting
@@ -411,7 +426,7 @@ def run(  # noqa: C901
                         "halted",
                         {},
                         True,
-                        f"Price data too old: {max_date} vs {last_trading_day} (emergency load failed)",
+                        f"Price data too old: {max_date} vs {acceptable_min_date} (emergency load failed)",
                     )
 
             # Verify price coverage - accept symbols with recent data (configurable days)
