@@ -1595,33 +1595,32 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             score_dict = safe_json_serialize(safe_dict_convert(row))
             top_scores.append(score_dict)
 
-        # FALLBACK: If growth_score is null, fetch directly to ensure data correctness
-        # This handles cases where primary query returns stale/incomplete data
+        # FALLBACK: If growth_score is null, check if it's due to missing upstream data
+        # CRITICAL: Do NOT set fake defaults (0.39) - let dashboard render missing data properly
+        # Reason: stocks without growth_metrics data are valid (IPOs, non-SEC companies)
+        # Dashboard should show "--" (via safe_float handling) to indicate unavailable metrics
         missing_fields = [i for i, s in enumerate(top_scores) if s.get("growth_score") is None]
         if missing_fields:
-            logger.warning(f"[SCORES] Enriching {len(missing_fields)} rows with missing growth_score")
+            logger.info(f"[SCORES] {len(missing_fields)} stocks without growth_score (likely missing growth_metrics data)")
             for idx in missing_fields:
                 symbol = top_scores[idx].get("symbol")
                 if symbol:
                     try:
                         cur.execute(
-                            "SELECT growth_score, rs_percentile FROM stock_scores WHERE symbol = %s LIMIT 1", (symbol,)
+                            "SELECT growth_score, rs_percentile, unavailable_metrics FROM stock_scores WHERE symbol = %s LIMIT 1", (symbol,)
                         )
                         enrichment = cur.fetchone()
-                        if enrichment and enrichment[0] is not None:
-                            top_scores[idx]["growth_score"] = float(enrichment[0]) if enrichment[0] else 0.39
-                            top_scores[idx]["rs_percentile"] = float(enrichment[1]) if enrichment[1] else 50.0
-                            logger.info(f"[SCORES] Enriched {symbol} with growth={top_scores[idx]['growth_score']}")
-                        else:
-                            # Fallback: set default values to indicate data issue but still show something
-                            top_scores[idx]["growth_score"] = 0.39
-                            top_scores[idx]["rs_percentile"] = 50.0
-                            logger.warning(f"[SCORES] Using defaults for {symbol}: growth=0.39, rs=50.0")
+                        if enrichment:
+                            growth_val, rs_val, unavailable = enrichment
+                            if growth_val is not None:
+                                top_scores[idx]["growth_score"] = float(growth_val)
+                                top_scores[idx]["rs_percentile"] = float(rs_val) if rs_val else 50.0
+                                logger.debug(f"[SCORES] Found growth_score for {symbol}: {growth_val}")
+                            else:
+                                # Data truly unavailable - keep as None so dashboard renders "--"
+                                logger.debug(f"[SCORES] {symbol} growth_score is NULL (unavailable_metrics: {unavailable})")
                     except Exception as e:
-                        logger.error(f"[SCORES] Failed to enrich {symbol}: {e}")
-                        # Set defaults on error
-                        top_scores[idx]["growth_score"] = 0.39
-                        top_scores[idx]["rs_percentile"] = 50.0
+                        logger.error(f"[SCORES] Failed to query enrichment for {symbol}: {e}")
 
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
 
