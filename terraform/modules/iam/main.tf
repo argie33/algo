@@ -1689,9 +1689,11 @@ data "aws_iam_policy_document" "developer" {
       "rds-data:BatchExecuteStatement"
     ]
 
-    # RDS Data API requires cluster ARN in resource (not database-specific)
+    # RDS Data API works with both clusters and instances
     resources = [
-      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:${var.project_name}-*"
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:cluster:${var.project_name}-*",
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db:${var.project_name}-*",
+      "arn:aws:rds:${var.aws_region}:${var.aws_account_id}:db:algo-*"
     ]
   }
 
