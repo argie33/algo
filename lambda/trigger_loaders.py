@@ -1,11 +1,17 @@
 """Lambda to trigger data loaders on ECS.
 
-When dashboard detects stale data, it invokes this Lambda to kick off
-the stock_scores loader task on ECS (which has proper RDS credentials).
+When dashboard or orchestrator detects stale data, invokes this Lambda to kick off
+a loader task on ECS (which has proper RDS credentials).
+
+Response format must have statusCode + body (JSON-encoded) for compatibility with:
+  - phase1_failsafe_retry.py (expects status_code 200 + body with tasks array)
+  - run-loader.yml workflow (expects status_code + body with message)
 """
 
+import json
 import logging
 import os
+from datetime import datetime
 from typing import Any
 
 import boto3
@@ -17,7 +23,12 @@ ecs = boto3.client("ecs", region_name=os.getenv("AWS_REGION", "us-east-1"))
 
 
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """Handle request to trigger loader on ECS."""
+    """Handle request to trigger loader on ECS.
+
+    Returns:
+        {"statusCode": 200|500, "body": json_string}
+        where body is {"statusCode", "message", "tasks", "timestamp"}
+    """
     try:
         loader_name = event.get("loader_name", "stock_scores")
 
@@ -45,25 +56,39 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         tasks = response.get("tasks", [])
         if tasks:
-            task_arn = tasks[0]["taskArn"]
-            logger.info(f"[TRIGGER] Started ECS task: {task_arn}")
+            task_arns = [task["taskArn"] for task in tasks]
+            logger.info(f"[TRIGGER] Started {len(task_arns)} ECS task(s): {task_arns}")
+            body = {
+                "statusCode": 200,
+                "message": f"Loader {loader_name} started on ECS ({len(task_arns)} task(s))",
+                "tasks": task_arns,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
             return {
-                "statusCode": 202,
-                "message": f"Loader {loader_name} started on ECS",
-                "taskArn": task_arn,
+                "statusCode": 200,
+                "body": json.dumps(body),
             }
         else:
             failures = response.get("failures", [])
             logger.error(f"[TRIGGER] Failed to start task: {failures}")
+            body = {
+                "statusCode": 500,
+                "error": f"Failed to start loader task: {failures}",
+                "message": "Failed to start loader task",
+            }
             return {
                 "statusCode": 500,
-                "message": "Failed to start loader task",
-                "failures": failures,
+                "body": json.dumps(body),
             }
 
     except Exception as e:
         logger.error(f"[TRIGGER] Error: {e}", exc_info=True)
+        body = {
+            "statusCode": 500,
+            "error": str(e),
+            "message": f"Error triggering loader: {e!s}",
+        }
         return {
             "statusCode": 500,
-            "message": f"Error triggering loader: {e!s}",
+            "body": json.dumps(body),
         }
