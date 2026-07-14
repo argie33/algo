@@ -1287,6 +1287,8 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         "/api/algo/sentiment",  # Market sentiment (dashboard)
         "/api/algo/economic-calendar",  # Economic calendar (dashboard)
         "/api/algo/metrics",  # Algo metrics (dashboard)
+        "/api/algo/market-factors",  # Market factors + put/call ratio (dashboard)
+        "/api/algo/signals",  # Trading signals (dashboard)
         "/api/diagnostics",  # Data sync diagnostics (public for debugging)
         "/api/economic",  # Economic indicators (public data)
         "/api/sectors",  # Sector analysis (aggregate market data only)

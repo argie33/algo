@@ -191,8 +191,16 @@ class MarketFactorCalculator:
             if row and row[0] is not None and row[1] is not None:
                 spy = float(row[0])
                 sma = float(row[1])
+                # Calculate price vs MA percentage for dashboard display
+                price_vs_ma_pct = ((spy - sma) / sma) * 100 if sma > 0 else 0
+                # Score: 100 if above MA (bullish), 0 if below (bearish)
                 score = 100.0 if spy > sma else 0.0
-                return {"above_30wma": spy > sma, "score": score, "value": "bullish" if spy > sma else "bearish"}
+                return {
+                    "above_30wma": spy > sma,
+                    "score": score,
+                    "price_vs_ma_pct": price_vs_ma_pct,
+                    "value": "bullish" if spy > sma else "bearish",
+                }
             raise RuntimeError(
                 "[TREND CRITICAL] SPY 30-week trend data unavailable. "
                 "Check: (1) price_weekly table has recent SPY prices, (2) eval_date is not in future"
