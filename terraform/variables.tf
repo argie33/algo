@@ -1155,6 +1155,21 @@ variable "disable_provenance_tracking" {
   default     = true
 }
 
+variable "price_data_source" {
+  # 2026-07-14: switched default to Alpaca. Free plan serves full SIP consolidated-tape
+  # historical bars (verified penny-exact vs yfinance, volume ratio median 1.000 across
+  # a 500-symbol live run); genuinely batched (~200 symbols/request, ~43 calls per full
+  # universe vs ~8,500 yfinance calls). Router keeps automatic yfinance fallback and
+  # caret-symbols (^GSPC etc.) always stay on yfinance — see utils/data/source_router.py.
+  description = "Primary daily-bar OHLCV source for price loaders (alpaca or yfinance; router auto-falls back to yfinance)"
+  type        = string
+  default     = "alpaca"
+  validation {
+    condition     = contains(["alpaca", "yfinance"], var.price_data_source)
+    error_message = "price_data_source must be 'alpaca' or 'yfinance'"
+  }
+}
+
 # ============================================================
 # Lambda Configuration
 # ============================================================

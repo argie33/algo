@@ -39,6 +39,7 @@ from loaders.technical_indicators import (
 )
 from utils.data.age_validator import DataAgeValidator
 from utils.db.context import DatabaseContext
+from utils.db.retry import OptimisticLockRetry
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.helpers import get_active_symbols
 from utils.type_conversion import safe_float
@@ -205,74 +206,97 @@ class VectorizedTechnicalLoader:
             )
         return safe_float(duration, "duration_sec", allow_none=False)
 
+    # A single query for the whole universe (10k+ symbols x 400 days) keeps a
+    # transaction open long enough that a transient RDS Proxy SSL drop discards the
+    # entire fetch; chunking bounds each round trip's blast radius and lets retries
+    # redo one batch instead of the whole universe.
+    _FETCH_BATCH_SIZE = 1000
+
+    def _fetch_price_batch(self, symbols: list[str], start_date: date, end_date: date) -> list[Any]:
+        with DatabaseContext("read") as cur:
+            sql_param_markers = ",".join(["%s"] * len(symbols))
+            query = f"""
+                SELECT symbol, date, open, high, low, close, volume
+                FROM price_daily
+                WHERE symbol IN ({sql_param_markers})
+                AND date >= %s AND date <= %s
+                ORDER BY symbol, date ASC
+            """
+            cur.execute(query, [*symbols, start_date, end_date])
+            return cast(list[Any], cur.fetchall())
+
     def _fetch_all_prices(self, symbols: list[str], start_date: date, end_date: date) -> list[dict[str, Any]]:
-        """Fetch ALL price data in ONE query (institutional-scale efficiency).
+        """Fetch ALL price data in symbol-batched queries (institutional-scale efficiency).
 
         Instead of: FOR each symbol, fetch its prices (5000 queries)
-        We do: SELECT all prices WHERE symbol IN (...) (1 query)
+        We do: SELECT prices WHERE symbol IN (batch of 1000) (~11 queries for 10k symbols)
 
-        This reduces database round trips from 5000 to 1.
+        Batching keeps each query fast enough to avoid transient RDS Proxy SSL drops,
+        and retry_on_exception re-fetches only the failed batch, not the whole universe.
         """
         try:
-            with DatabaseContext("read") as cur:
-                sql_param_markers = ",".join(["%s"] * len(symbols))
-                query = f"""
-                    SELECT symbol, date, open, high, low, close, volume
-                    FROM price_daily
-                    WHERE symbol IN ({sql_param_markers})
-                    AND date >= %s AND date <= %s
-                    ORDER BY symbol, date ASC
-                """
-                cur.execute(query, [*symbols, start_date, end_date])
-                rows = cur.fetchall()
+            rows: list[Any] = []
+            for i in range(0, len(symbols), self._FETCH_BATCH_SIZE):
+                batch = symbols[i : i + self._FETCH_BATCH_SIZE]
 
-                # Convert to list of dicts for easier processing
-                result = []
-                for r in rows:
-                    close = safe_float(r[5], f"price_daily.close[{r[0]}]", allow_none=True)
-                    volume = int(r[6]) if r[6] is not None else None
+                def fetch_batch(b: list[str] = batch) -> list[Any]:
+                    return self._fetch_price_batch(b, start_date, end_date)
 
-                    # Skip invalid rows
-                    if close is None or close <= 0:
-                        continue
-                    if volume is not None and volume == 0:
-                        continue
+                batch_rows = OptimisticLockRetry.retry_on_exception(
+                    fetch_batch,
+                    operation_name="technical_data_daily.fetch_price_batch",
+                    max_attempts=3,
+                    context={"batch_start": i, "batch_size": len(batch)},
+                )
+                rows.extend(batch_rows or [])
 
-                    result.append(
-                        {
-                            "symbol": r[0],
-                            "date": r[1],
-                            "open": safe_float(r[2], f"price_daily.open[{r[0]}]", allow_none=True),
-                            "high": safe_float(r[3], f"price_daily.high[{r[0]}]", allow_none=True),
-                            "low": safe_float(r[4], f"price_daily.low[{r[0]}]", allow_none=True),
-                            "close": close,
-                            "volume": volume,
-                        }
-                    )
+            # Convert to list of dicts for easier processing
+            result = []
+            for r in rows:
+                close = safe_float(r[5], f"price_daily.close[{r[0]}]", allow_none=True)
+                volume = int(r[6]) if r[6] is not None else None
 
-                # HIGH FIX #2: Validate coverage - fail if upstream data incomplete
-                if not result:
-                    raise RuntimeError(
-                        f"No price data found for {len(symbols)} symbols in date range [{start_date}, {end_date}]. "
-                        f"price_daily loader may have failed or data is stale."
-                    )
+                # Skip invalid rows
+                if close is None or close <= 0:
+                    continue
+                if volume is not None and volume == 0:
+                    continue
 
-                # Check coverage: at least 80% of symbols have data
-                symbols_with_data = {r["symbol"] for r in result}
-                coverage_ratio = len(symbols_with_data) / len(symbols)
-                if coverage_ratio < 0.8:
-                    missing_symbols = set(symbols) - symbols_with_data
-                    logger.error(
-                        f"[COVERAGE] price_daily coverage only {coverage_ratio * 100:.1f}% ({len(symbols_with_data)}/{len(symbols)} symbols). "
-                        f"Missing: {sorted(missing_symbols)[:10]}... "
-                        f"This indicates upstream price_daily loader failed partially."
-                    )
-                    raise RuntimeError(
-                        f"Insufficient price data coverage ({coverage_ratio * 100:.1f}%). "
-                        f"Cannot compute indicators - upstream price_daily must be >80% complete."
-                    )
+                result.append(
+                    {
+                        "symbol": r[0],
+                        "date": r[1],
+                        "open": safe_float(r[2], f"price_daily.open[{r[0]}]", allow_none=True),
+                        "high": safe_float(r[3], f"price_daily.high[{r[0]}]", allow_none=True),
+                        "low": safe_float(r[4], f"price_daily.low[{r[0]}]", allow_none=True),
+                        "close": close,
+                        "volume": volume,
+                    }
+                )
 
-                return result
+            # HIGH FIX #2: Validate coverage - fail if upstream data incomplete
+            if not result:
+                raise RuntimeError(
+                    f"No price data found for {len(symbols)} symbols in date range [{start_date}, {end_date}]. "
+                    f"price_daily loader may have failed or data is stale."
+                )
+
+            # Check coverage: at least 80% of symbols have data
+            symbols_with_data = {r["symbol"] for r in result}
+            coverage_ratio = len(symbols_with_data) / len(symbols)
+            if coverage_ratio < 0.8:
+                missing_symbols = set(symbols) - symbols_with_data
+                logger.error(
+                    f"[COVERAGE] price_daily coverage only {coverage_ratio * 100:.1f}% ({len(symbols_with_data)}/{len(symbols)} symbols). "
+                    f"Missing: {sorted(missing_symbols)[:10]}... "
+                    f"This indicates upstream price_daily loader failed partially."
+                )
+                raise RuntimeError(
+                    f"Insufficient price data coverage ({coverage_ratio * 100:.1f}%). "
+                    f"Cannot compute indicators - upstream price_daily must be >80% complete."
+                )
+
+            return result
         except psycopg2.Error as e:
             raise RuntimeError(
                 f"[PRICES] Failed to fetch prices for {len(symbols)} symbols [{start_date} to {end_date}]: {e}. "

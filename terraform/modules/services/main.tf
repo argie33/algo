@@ -241,8 +241,24 @@ resource "aws_lambda_function" "api" {
 # Solution: Keep 1-2 instances pre-warmed to eliminate VPC cold-start delays
 # This is NOT a cost optimization issue — it's a correctness issue for production deployment
 #
-# Use $LATEST version (like algo Lambda) — no alias required.
-# Provisioned concurrency works on function versions, and $LATEST is the default version.
+# Provisioned concurrency cannot target $LATEST (AWS rejects it), so it must target a
+# published version or alias. deploy-api-lambda.yml does frequent code-only deploys that
+# publish a new version and repoint the "LIVE" alias to it -- but API Gateway's
+# integration_uri below (and the old PC qualifier) pointed at $LATEST / a version number
+# frozen at the last `terraform apply`, so provisioned concurrency was warming a version
+# NOTHING invoked, while every real request cold-started on $LATEST. Fix: both API Gateway
+# and provisioned concurrency now target the same "LIVE" alias; ignore_changes on
+# function_version lets deploy-api-lambda.yml keep repointing it without terraform drift.
+resource "aws_lambda_alias" "api_live" {
+  count            = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
+  name             = "LIVE"
+  function_name    = aws_lambda_function.api.function_name
+  function_version = aws_lambda_function.api.version
+
+  lifecycle {
+    ignore_changes = [function_version]
+  }
+}
 
 # AWS eventual consistency: reserved_concurrent_executions changes on aws_lambda_function.api
 # don't always propagate before the very next API call, so PutProvisionedConcurrencyConfig can
@@ -296,13 +312,15 @@ resource "aws_lambda_provisioned_concurrency_config" "api" {
   count                             = var.api_lambda_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.api.function_name
   provisioned_concurrent_executions = var.api_lambda_provisioned_concurrency
-  qualifier                         = aws_lambda_function.api.version
+  qualifier                         = aws_lambda_alias.api_live[0].name
 
-  lifecycle {
-    create_before_destroy = true
-  }
-
-  depends_on = [aws_lambda_function.api, null_resource.api_concurrency_propagation_delay]
+  # Deliberately NO create_before_destroy: the qualifier change (version number -> LIVE
+  # alias) replaces this config, and until deploy-api-lambda.yml repoints it the alias
+  # targets the exact version the old config is attached to. AWS rejects provisioned
+  # concurrency on an alias and its underlying version at the same time
+  # (ResourceConflictException), so the old config must be deleted first. The brief
+  # unwarmed window is fine -- the old config was warming a version nothing invoked.
+  depends_on = [aws_lambda_function.api, aws_lambda_alias.api_live, null_resource.api_concurrency_propagation_delay]
 }
 
 # ============================================================
@@ -341,10 +359,13 @@ resource "aws_apigatewayv2_api" "main" {
 }
 
 resource "aws_apigatewayv2_integration" "api_lambda" {
-  api_id                 = aws_apigatewayv2_api.main.id
-  integration_type       = "AWS_PROXY"
-  integration_method     = "POST"
-  integration_uri        = aws_lambda_function.api.invoke_arn
+  api_id             = aws_apigatewayv2_api.main.id
+  integration_type   = "AWS_PROXY"
+  integration_method = "POST"
+  # Route to the "LIVE" alias (same qualifier provisioned concurrency targets above) so
+  # real requests land on the pre-warmed instances instead of a cold $LATEST. Falls back
+  # to $LATEST when provisioned concurrency (and thus the alias) is disabled.
+  integration_uri        = var.api_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.api_live[0].invoke_arn : aws_lambda_function.api.invoke_arn
   payload_format_version = "2.0"
 }
 
@@ -356,8 +377,17 @@ resource "aws_lambda_permission" "api_gateway" {
   statement_id  = "AllowAPIGatewayInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.api.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+  # A permission granted on the unqualified function only covers $LATEST invocations; the
+  # integration above invokes the "LIVE" alias ARN when provisioned concurrency is enabled,
+  # which is checked against the alias's own resource policy -- must grant here too, or the
+  # alias-qualified invoke gets an AccessDenied that surfaces to clients as a 5xx.
+  qualifier  = var.api_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.api_live[0].name : null
+  principal  = "apigateway.amazonaws.com"
+  source_arn = "${aws_apigatewayv2_api.main.execution_arn}/*/*"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # ============================================================
