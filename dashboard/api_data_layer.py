@@ -500,9 +500,24 @@ def _try_stale_cache_fallback(endpoint: str) -> dict[str, Any] | None:
         timestamp = cached.get("timestamp")
         if isinstance(timestamp, datetime):
             age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
-            cached_data = {**cached_data, "_stale_cache": True, "_cache_age_seconds": int(age_seconds)}
+            age_minutes = int(age_seconds / 60)
+            age_hours = int(age_seconds / 3600)
+            if age_hours > 0:
+                age_str = f"{age_hours}h old"
+            else:
+                age_str = f"{age_minutes}m old"
+            cached_data = {
+                **cached_data,
+                "_stale_cache": True,
+                "_cache_age_seconds": int(age_seconds),
+                "_error": f"API unavailable - showing cached data [{age_str}]",
+            }
         else:
-            cached_data = {**cached_data, "_stale_cache": True}
+            cached_data = {
+                **cached_data,
+                "_stale_cache": True,
+                "_error": "API unavailable - showing cached data [age unknown]",
+            }
 
         logger.info(f"[CACHE_FALLBACK] Returning stale cache for {endpoint} (age={age_seconds}s)")
         return cached_data
