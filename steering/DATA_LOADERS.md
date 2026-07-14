@@ -43,9 +43,18 @@ Design principles (the "panel data" model — bulk everything, fetch once, write
 Scaling note: this architecture (bulk panel queries, incremental writes, derived
 aggregates) is what lets the same Postgres + ECS stack absorb higher-frequency
 loading later — an intraday cadence is "run the same incremental loaders more often,"
-not a redesign. The remaining ceiling is the free yfinance quota; if sustained
-throttling appears in the circuit-breaker logs, a paid market-data feed (e.g. Alpaca
-data subscription) slots in at the `DataSourceRouter` layer without changing loaders.
+not a redesign.
+
+**Alpaca Market Data parallel track (2026-07-14, live-verified):** the FREE Alpaca
+plan serves full SIP consolidated-tape historical bars for anything older than 15
+minutes (200 calls/min; ~200 symbols per request → the whole universe in ~43 calls /
+~20s). `PRICE_DATA_SOURCE=alpaca` routes daily-bar batches through
+`utils/external/alpaca_market_data.py` with automatic yfinance fallback; default
+remains yfinance. Evaluate with `python scripts/compare_price_sources.py` (live
+result: 99.4% coverage, close diff median 0.0000%, volume ratio median 1.000 = true
+SIP). Switch when coverage ~100% / close p95 <0.5% / volume median ~1.0 hold across
+several trading days. Index symbols (^VIX, ^GSPC...) always stay on yfinance. The
+$99/mo plan is only needed for intraday/real-time (recent-SIP + websocket + 10k/min).
 
 ---
 
