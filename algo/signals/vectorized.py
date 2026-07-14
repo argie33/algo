@@ -19,6 +19,7 @@ from datetime import date as _date
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from utils.db import DatabaseContext
 
@@ -353,9 +354,9 @@ class VectorizedSignalGenerator:
     def _rolling_mean(arr: np.ndarray[Any, Any], window: int) -> np.ndarray[Any, Any]:
         if len(arr) < window:
             return np.full(len(arr), np.nan)
-        result = np.full(len(arr), np.nan)
-        for i in range(window - 1, len(arr)):
-            result[i] = np.nanmean(arr[i - window + 1 : i + 1])
+        # pandas .rolling().mean() uses a cumulative-sum algorithm under the hood —
+        # same result as the O(n*window) Python loop this replaced, without the inner loop.
+        result: np.ndarray[Any, Any] = pd.Series(arr).rolling(window, min_periods=window).mean().to_numpy()
         return result
 
     def run(self, symbols: list[str], eval_date: _date) -> dict[str, Any]:

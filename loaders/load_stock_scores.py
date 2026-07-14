@@ -200,6 +200,58 @@ class StockScoresLoader(OptimalLoader):
                     "Proceeding with stock score computation."
                 )
 
+    def _prepare_batch_context(self) -> None:
+        """Load all 6 metric tables once instead of per-symbol (N+1 fix).
+
+        Previously each of quality/growth/value/positioning/stability_metrics was queried with
+        a separate `WHERE symbol = %s` per symbol (~5 x symbol_count round-trips per run), and
+        the momentum query re-evaluated `(SELECT MAX(date) FROM price_daily)` as an inline
+        subquery up to 4 times per symbol against an 8.6M+ row table. Now: 6 bulk queries total,
+        cached by symbol; momentum's max date is computed once and passed as a bound parameter.
+
+        Per-symbol row layout in each cache dict matches the original per-symbol SELECT exactly
+        (same column order, `data_unavailable` last), so _get_*_metrics indexing is unchanged.
+        """
+        self._batch_context = {}
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT symbol, roe, roa, operating_margin, net_margin, debt_to_equity, "
+                "current_ratio, quick_ratio, quality_score, data_unavailable FROM quality_metrics"
+            )
+            self._quality_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+
+            cur.execute(
+                "SELECT symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, "
+                "eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable FROM growth_metrics"
+            )
+            self._growth_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+
+            cur.execute(
+                "SELECT symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, "
+                "data_unavailable FROM value_metrics"
+            )
+            self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+
+            cur.execute(
+                "SELECT symbol, institutional_ownership, insider_ownership, short_interest_percent, "
+                "data_unavailable FROM positioning_metrics"
+            )
+            self._positioning_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+
+            cur.execute(
+                "SELECT symbol, volatility_252d, volatility_60d, volatility_30d, beta, data_unavailable "
+                "FROM stability_metrics"
+            )
+            self._stability_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+
+            cur.execute("SELECT MAX(date) FROM price_daily")
+            max_date_row = cur.fetchone()
+            if max_date_row is None or max_date_row[0] is None:
+                raise RuntimeError(
+                    "CRITICAL: No price_daily data found at all. Cannot compute momentum metrics without price data."
+                )
+            self._momentum_max_date: date = max_date_row[0]
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.
 
@@ -584,46 +636,39 @@ class StockScoresLoader(OptimalLoader):
         MINIMUM DATA REQUIREMENT: Row must have exactly 9 columns. Missing columns causes immediate
         fail-fast ValueError to prevent silent data corruption.
         """
-        try:
-            cur.execute(
-                "SELECT roe, roa, operating_margin, net_margin, debt_to_equity, current_ratio, quick_ratio, quality_score, data_unavailable FROM quality_metrics WHERE symbol = %s",
-                (symbol,),
-            )
-            row = cur.fetchone()
-            if row:
-                # CRITICAL: Validate row has expected 9 columns before accessing indices
-                if len(row) < 9:
-                    raise ValueError(
-                        f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 9. "
-                        f"Schema mismatch detected — cannot safely access data. Failing fast."
-                    )
-                data_unavailable = row[8]
-                quality_score = safe_float(row[7], f"{symbol}.quality_score")
-                # If marked unavailable, return marker even if row exists
-                if data_unavailable:
-                    logger.debug(
-                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in quality_metrics "
-                        f"(likely REIT or security with missing SEC filings)"
-                    )
-                    return marker_not_applicable(symbol, "quality_metrics")
-                # Row exists and data is available
-                return {
-                    "roe": safe_float(row[0], f"{symbol}.roe"),
-                    "roa": safe_float(row[1], f"{symbol}.roa"),
-                    "operating_margin": safe_float(row[2], f"{symbol}.operating_margin"),
-                    "net_margin": safe_float(row[3], f"{symbol}.net_margin"),
-                    "debt_to_equity": safe_float(row[4], f"{symbol}.debt_to_equity"),
-                    "current_ratio": safe_float(row[5], f"{symbol}.current_ratio"),
-                    "quick_ratio": safe_float(row[6], f"{symbol}.quick_ratio"),
-                    "quality_score": quality_score,  # Pre-computed by load_quality_metrics.py
-                }
-            # No row exists at all
-            logger.warning(
-                f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced"
-            )
-            return marker_loader_failed(symbol, "no_quality_metrics", "Quality metrics table missing data")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Database operation failed fetching quality metrics for {symbol}: {e}") from e
+        row = self._quality_cache.get(symbol)
+        if row:
+            # CRITICAL: Validate row has expected 9 columns before accessing indices
+            if len(row) < 9:
+                raise ValueError(
+                    f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 9. "
+                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                )
+            data_unavailable = row[8]
+            quality_score = safe_float(row[7], f"{symbol}.quality_score")
+            # If marked unavailable, return marker even if row exists
+            if data_unavailable:
+                logger.debug(
+                    f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in quality_metrics "
+                    f"(likely REIT or security with missing SEC filings)"
+                )
+                return marker_not_applicable(symbol, "quality_metrics")
+            # Row exists and data is available
+            return {
+                "roe": safe_float(row[0], f"{symbol}.roe"),
+                "roa": safe_float(row[1], f"{symbol}.roa"),
+                "operating_margin": safe_float(row[2], f"{symbol}.operating_margin"),
+                "net_margin": safe_float(row[3], f"{symbol}.net_margin"),
+                "debt_to_equity": safe_float(row[4], f"{symbol}.debt_to_equity"),
+                "current_ratio": safe_float(row[5], f"{symbol}.current_ratio"),
+                "quick_ratio": safe_float(row[6], f"{symbol}.quick_ratio"),
+                "quality_score": quality_score,  # Pre-computed by load_quality_metrics.py
+            }
+        # No row exists at all
+        logger.warning(
+            f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced"
+        )
+        return marker_loader_failed(symbol, "no_quality_metrics", "Quality metrics table missing data")
 
     def _get_growth_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch growth metrics for symbol.
@@ -646,43 +691,36 @@ class StockScoresLoader(OptimalLoader):
         MINIMUM DATA REQUIREMENT: Row must have exactly 7 columns. Missing columns causes immediate
         fail-fast ValueError. Dependent on upstream annual_income_statement availability.
         """
-        try:
-            cur.execute(
-                "SELECT revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable FROM growth_metrics WHERE symbol = %s",
-                (symbol,),
-            )
-            row = cur.fetchone()
-            if row:
-                # CRITICAL: Validate row has expected 7 columns before accessing indices
-                if len(row) < 7:
-                    raise ValueError(
-                        f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 7. "
-                        f"Schema mismatch detected — cannot safely access data. Failing fast."
-                    )
-                data_unavailable = row[6]
-                # If marked unavailable, return marker even if row exists
-                if data_unavailable:
-                    logger.debug(
-                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in growth_metrics "
-                        f"(likely security with missing SEC filings)"
-                    )
-                    return marker_not_applicable(symbol, "growth_metrics")
-                # Row exists and data is available
-                return {
-                    "revenue_growth_1y": safe_float(row[0], f"{symbol}.revenue_growth_1y"),
-                    "revenue_growth_3y": safe_float(row[1], f"{symbol}.revenue_growth_3y"),
-                    "revenue_growth_5y": safe_float(row[2], f"{symbol}.revenue_growth_5y"),
-                    "eps_growth_1y": safe_float(row[3], f"{symbol}.eps_growth_1y"),
-                    "eps_growth_3y": safe_float(row[4], f"{symbol}.eps_growth_3y"),
-                    "eps_growth_5y": safe_float(row[5], f"{symbol}.eps_growth_5y"),
-                }
-            # No row exists at all
-            logger.warning(
-                f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced"
-            )
-            return marker_loader_failed(symbol, "no_growth_metrics", "Growth metrics table missing data")
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Database operation failed fetching growth metrics for {symbol}: {e}") from e
+        row = self._growth_cache.get(symbol)
+        if row:
+            # CRITICAL: Validate row has expected 7 columns before accessing indices
+            if len(row) < 7:
+                raise ValueError(
+                    f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 7. "
+                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                )
+            data_unavailable = row[6]
+            # If marked unavailable, return marker even if row exists
+            if data_unavailable:
+                logger.debug(
+                    f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in growth_metrics "
+                    f"(likely security with missing SEC filings)"
+                )
+                return marker_not_applicable(symbol, "growth_metrics")
+            # Row exists and data is available
+            return {
+                "revenue_growth_1y": safe_float(row[0], f"{symbol}.revenue_growth_1y"),
+                "revenue_growth_3y": safe_float(row[1], f"{symbol}.revenue_growth_3y"),
+                "revenue_growth_5y": safe_float(row[2], f"{symbol}.revenue_growth_5y"),
+                "eps_growth_1y": safe_float(row[3], f"{symbol}.eps_growth_1y"),
+                "eps_growth_3y": safe_float(row[4], f"{symbol}.eps_growth_3y"),
+                "eps_growth_5y": safe_float(row[5], f"{symbol}.eps_growth_5y"),
+            }
+        # No row exists at all
+        logger.warning(
+            f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced"
+        )
+        return marker_loader_failed(symbol, "no_growth_metrics", "Growth metrics table missing data")
 
     def _get_value_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch value metrics for symbol.
@@ -705,43 +743,36 @@ class StockScoresLoader(OptimalLoader):
         MINIMUM DATA REQUIREMENT: Row must have exactly 7 columns. Missing columns causes immediate
         fail-fast ValueError. Required metric for stock scoring (critical upstream loader).
         """
-        try:
-            cur.execute(
-                "SELECT pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, data_unavailable FROM value_metrics WHERE symbol = %s",
-                (symbol,),
-            )
-            row = cur.fetchone()
-            if row:
-                # CRITICAL: Validate row has expected 7 columns before accessing indices
-                if len(row) < 7:
-                    raise ValueError(
-                        f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 7. "
-                        f"Schema mismatch detected — cannot safely access data. Failing fast."
-                    )
-                data_unavailable = row[6]
-                # If marked unavailable, return marker even if row exists
-                if data_unavailable:
-                    logger.debug(
-                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in value_metrics "
-                        f"(likely security with missing pricing data)"
-                    )
-                    return {"symbol": symbol, "data_unavailable": True, "reason": "value_data_marked_unavailable"}
-                # Row exists and data is available
-                return {
-                    "pe_ratio": safe_float(row[0], f"{symbol}.pe_ratio"),
-                    "pb_ratio": safe_float(row[1], f"{symbol}.pb_ratio"),
-                    "ps_ratio": safe_float(row[2], f"{symbol}.ps_ratio"),
-                    "peg_ratio": safe_float(row[3], f"{symbol}.peg_ratio"),
-                    "dividend_yield": safe_float(row[4], f"{symbol}.dividend_yield"),
-                    "fcf_yield": safe_float(row[5], f"{symbol}.fcf_yield"),
-                }
-            # No row exists at all
-            logger.warning(
-                f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced"
-            )
-            return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_found"}
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Database operation failed fetching value metrics for {symbol}: {e}") from e
+        row = self._value_cache.get(symbol)
+        if row:
+            # CRITICAL: Validate row has expected 7 columns before accessing indices
+            if len(row) < 7:
+                raise ValueError(
+                    f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 7. "
+                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                )
+            data_unavailable = row[6]
+            # If marked unavailable, return marker even if row exists
+            if data_unavailable:
+                logger.debug(
+                    f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in value_metrics "
+                    f"(likely security with missing pricing data)"
+                )
+                return {"symbol": symbol, "data_unavailable": True, "reason": "value_data_marked_unavailable"}
+            # Row exists and data is available
+            return {
+                "pe_ratio": safe_float(row[0], f"{symbol}.pe_ratio"),
+                "pb_ratio": safe_float(row[1], f"{symbol}.pb_ratio"),
+                "ps_ratio": safe_float(row[2], f"{symbol}.ps_ratio"),
+                "peg_ratio": safe_float(row[3], f"{symbol}.peg_ratio"),
+                "dividend_yield": safe_float(row[4], f"{symbol}.dividend_yield"),
+                "fcf_yield": safe_float(row[5], f"{symbol}.fcf_yield"),
+            }
+        # No row exists at all
+        logger.warning(
+            f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced"
+        )
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_found"}
 
     def _get_positioning_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch positioning metrics for symbol.
@@ -764,40 +795,31 @@ class StockScoresLoader(OptimalLoader):
         MINIMUM DATA REQUIREMENT: Row must have exactly 4 columns. Missing columns causes immediate
         fail-fast ValueError. Not available for REITs/special securities (expected, handled gracefully).
         """
-        try:
-            cur.execute(
-                "SELECT institutional_ownership, insider_ownership, short_interest_percent, data_unavailable FROM positioning_metrics WHERE symbol = %s",
-                (symbol,),
-            )
-            row = cur.fetchone()
-            if row:
-                # CRITICAL: Validate row has expected 4 columns before accessing indices
-                if len(row) < 4:
-                    raise ValueError(
-                        f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 4. "
-                        f"Schema mismatch detected — cannot safely access data. Failing fast."
-                    )
-                data_unavailable = row[3]
-                # If marked unavailable, return marker even if row exists
-                if data_unavailable:
-                    logger.debug(
-                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in positioning_metrics "
-                        f"(likely weird security: ETF, preferred, depositary share)"
-                    )
-                    return {"symbol": symbol, "data_unavailable": True, "reason": "positioning_data_marked_unavailable"}
-                # Row exists and data is available
-                return {
-                    "institutional_ownership": safe_float(row[0], f"{symbol}.institutional_ownership"),
-                    "insider_ownership": safe_float(row[1], f"{symbol}.insider_ownership"),
-                    "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
-                }
-            # No row exists at all
-            logger.debug(
-                f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness"
-            )
-            return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_found"}
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Database operation failed fetching positioning metrics for {symbol}: {e}") from e
+        row = self._positioning_cache.get(symbol)
+        if row:
+            # CRITICAL: Validate row has expected 4 columns before accessing indices
+            if len(row) < 4:
+                raise ValueError(
+                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 4. "
+                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                )
+            data_unavailable = row[3]
+            # If marked unavailable, return marker even if row exists
+            if data_unavailable:
+                logger.debug(
+                    f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in positioning_metrics "
+                    f"(likely weird security: ETF, preferred, depositary share)"
+                )
+                return {"symbol": symbol, "data_unavailable": True, "reason": "positioning_data_marked_unavailable"}
+            # Row exists and data is available
+            return {
+                "institutional_ownership": safe_float(row[0], f"{symbol}.institutional_ownership"),
+                "insider_ownership": safe_float(row[1], f"{symbol}.insider_ownership"),
+                "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
+            }
+        # No row exists at all
+        logger.debug(f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness")
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_found"}
 
     def _get_stability_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch stability metrics for symbol.
@@ -823,41 +845,34 @@ class StockScoresLoader(OptimalLoader):
         MINIMUM DATA REQUIREMENT: Row must have exactly 5 columns. Missing columns causes immediate
         fail-fast ValueError. Required metric for stock scoring (critical upstream loader).
         """
-        try:
-            cur.execute(
-                "SELECT volatility_252d, volatility_60d, volatility_30d, beta, data_unavailable FROM stability_metrics WHERE symbol = %s",
-                (symbol,),
-            )
-            row = cur.fetchone()
-            if row:
-                # CRITICAL: Validate row has expected 5 columns before accessing indices
-                if len(row) < 5:
-                    raise ValueError(
-                        f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 5. "
-                        f"Schema mismatch detected — cannot safely access data. Failing fast."
-                    )
-                data_unavailable = row[4]
-                # If marked unavailable, return marker even if row exists
-                if data_unavailable:
-                    logger.debug(
-                        f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in stability_metrics "
-                        f"(likely security with insufficient price history)"
-                    )
-                    return {"symbol": symbol, "data_unavailable": True, "reason": "stability_data_marked_unavailable"}
-                # Row exists and data is available
-                return {
-                    "volatility_252d": safe_float(row[0], f"{symbol}.volatility_252d"),
-                    "volatility_60d": safe_float(row[1], f"{symbol}.volatility_60d"),
-                    "volatility_30d": safe_float(row[2], f"{symbol}.volatility_30d"),
-                    "beta": safe_float(row[3], f"{symbol}.beta"),
-                }
-            # No row exists at all
-            logger.warning(
-                f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced"
-            )
-            return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_metrics_found"}
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Database operation failed fetching stability metrics for {symbol}: {e}") from e
+        row = self._stability_cache.get(symbol)
+        if row:
+            # CRITICAL: Validate row has expected 5 columns before accessing indices
+            if len(row) < 5:
+                raise ValueError(
+                    f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 5. "
+                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                )
+            data_unavailable = row[4]
+            # If marked unavailable, return marker even if row exists
+            if data_unavailable:
+                logger.debug(
+                    f"[LOAD_STOCK_SCORES] {symbol} marked data_unavailable in stability_metrics "
+                    f"(likely security with insufficient price history)"
+                )
+                return {"symbol": symbol, "data_unavailable": True, "reason": "stability_data_marked_unavailable"}
+            # Row exists and data is available
+            return {
+                "volatility_252d": safe_float(row[0], f"{symbol}.volatility_252d"),
+                "volatility_60d": safe_float(row[1], f"{symbol}.volatility_60d"),
+                "volatility_30d": safe_float(row[2], f"{symbol}.volatility_30d"),
+                "beta": safe_float(row[3], f"{symbol}.beta"),
+            }
+        # No row exists at all
+        logger.warning(
+            f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced"
+        )
+        return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_metrics_found"}
 
     def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
         """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
@@ -892,18 +907,20 @@ class StockScoresLoader(OptimalLoader):
         """
         try:
             # CRITICAL: Validate row has expected 5 columns before accessing indices
-            # FIXED: Replaced get_interval_sql() (nonexistent function) with standard SQL INTERVAL syntax
-            max_date_query = "(SELECT MAX(date) FROM price_daily)"
+            # PERF FIX: max_date used to be an inline `(SELECT MAX(date) FROM price_daily)` subquery,
+            # re-evaluated as a full-table scan up to 4x per symbol (~20,000 scans/run across ~5000
+            # symbols). Now computed once in _prepare_batch_context() and bound as a parameter.
+            max_date = self._momentum_max_date
             cur.execute(
-                f"""
+                """
                 SELECT
                     (SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1) as current,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= {max_date_query} - INTERVAL '30 days' ORDER BY date DESC LIMIT 1) as price_1m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= {max_date_query} - INTERVAL '60 days' ORDER BY date DESC LIMIT 1) as price_3m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= {max_date_query} - INTERVAL '120 days' ORDER BY date DESC LIMIT 1) as price_6m_ago,
-                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= {max_date_query} - INTERVAL '252 days' ORDER BY date DESC LIMIT 1) as price_12m_ago
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s - INTERVAL '30 days' ORDER BY date DESC LIMIT 1) as price_1m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s - INTERVAL '60 days' ORDER BY date DESC LIMIT 1) as price_3m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s - INTERVAL '120 days' ORDER BY date DESC LIMIT 1) as price_6m_ago,
+                    (SELECT close FROM price_daily WHERE symbol = %s AND date <= %s - INTERVAL '252 days' ORDER BY date DESC LIMIT 1) as price_12m_ago
             """,
-                (symbol, symbol, symbol, symbol, symbol),
+                (symbol, symbol, max_date, symbol, max_date, symbol, max_date, symbol, max_date),
             )
             row = cur.fetchone()
 
