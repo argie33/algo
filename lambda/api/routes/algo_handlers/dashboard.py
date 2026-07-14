@@ -34,7 +34,11 @@ from utils.validation import (
 )
 
 # Response caches for expensive queries - to avoid API Gateway timeout (30s limit)
-_positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 300}
+# OPTIMIZED TTL for dashboard freshness:
+# - positions_cache: 60s (positions update frequently during trading hours)
+# - scores_cache: 300s (stock scores computed daily, rarely change mid-day)
+# - signals_cache: 300s (signals updated once daily at market open)
+_positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 60}
 _scores_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 300}
 _signals_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 300}
 
