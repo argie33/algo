@@ -585,7 +585,8 @@ function RankingsTab({
                   <th style={{ width: 32 }} className="num">
                     #
                   </th>
-                  <th>Symbol</th>
+                  <th style={{ width: 70 }}>Symbol</th>
+                  <th style={{ width: 180 }}>Company</th>
                   <th>Sector</th>
                   <th className="num">Composite</th>
                   <th>Grade</th>
@@ -613,7 +614,7 @@ function RankingsTab({
                     }}
                   >
                     <td className="num mono tnum muted">{pageStart + i + 1}</td>
-                    <td>
+                    <td className="mono">
                       <span
                         style={{
                           fontWeight: "var(--w-semibold)",
@@ -626,19 +627,16 @@ function RankingsTab({
                       >
                         {s.symbol}
                       </span>
-                      {s.company_name && (
-                        <div
-                          className="t-xs muted"
-                          style={{
-                            maxWidth: 180,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {s.company_name}
-                        </div>
-                      )}
+                    </td>
+                    <td
+                      className="t-xs muted"
+                      style={{
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {s.company_name || "—"}
                     </td>
                     <td
                       className="t-xs muted"
