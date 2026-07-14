@@ -268,18 +268,18 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                         )
                     except (ValueError, OSError, OverflowError):
                         cur.execute(
-                            "INSERT INTO earnings_calendar (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                            (symbol, "invalid_earnings_timestamp", updated_at),
+                            "INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, earnings_date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                            (symbol, updated_at.date(), "invalid_earnings_timestamp", updated_at),
                         )
                 else:
                     cur.execute(
-                        "INSERT INTO earnings_calendar (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                        (symbol, "no_next_earnings_available", updated_at),
+                        "INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, earnings_date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                        (symbol, updated_at.date(), "no_next_earnings_available", updated_at),
                     )
             else:
                 cur.execute(
-                    "INSERT INTO earnings_calendar (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, record.get("reason", "unknown"), updated_at),
+                    "INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, earnings_date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                    (symbol, updated_at.date(), record.get("reason", "unknown"), updated_at),
                 )
 
             # 5. analyst_sentiment_analysis (analyst counts and recommendation)
