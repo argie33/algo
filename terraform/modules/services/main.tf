@@ -993,13 +993,14 @@ resource "aws_sns_topic_subscription" "algo_alerts_email" {
 # Publishes CloudWatch metrics for central visibility (Issue #5)
 
 resource "aws_lambda_function" "loader_failure_handler" {
-  count         = var.sns_alerts_enabled ? 1 : 0
-  filename      = "lambda/loader_failure_handler.zip"
-  function_name = "${var.project_name}-loader-failure-handler-${var.environment}"
-  role          = var.algo_lambda_role_arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.12"
-  timeout       = 60
+  count            = var.sns_alerts_enabled ? 1 : 0
+  filename         = "lambda/loader_failure_handler.zip"
+  source_code_hash = fileexists("${path.root}/lambda/loader_failure_handler.zip") ? filebase64sha256("${path.root}/lambda/loader_failure_handler.zip") : null
+  function_name    = "${var.project_name}-loader-failure-handler-${var.environment}"
+  role             = var.algo_lambda_role_arn
+  handler          = "lambda_function.lambda_handler"
+  runtime          = "python3.12"
+  timeout          = 60
 
   environment {
     variables = {
