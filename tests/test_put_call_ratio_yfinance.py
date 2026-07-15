@@ -2,7 +2,7 @@
 """Test put/call ratio fetching from yfinance options chain."""
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +17,9 @@ def test_put_call_ratio_yfinance() -> bool:
     eval_date = date.today()
     result = fetcher.fetch(eval_date)
 
-    print(f"\n{'='*60}")
-    print(f"Put/Call Ratio Test Results")
-    print(f"{'='*60}")
+    print(f"\n{'=' * 60}")
+    print("Put/Call Ratio Test Results")
+    print(f"{'=' * 60}")
     print(f"Date: {eval_date}")
     print(f"Result type: {type(result).__name__}")
     print(f"Result: {result}")
@@ -40,7 +40,6 @@ def test_put_call_ratio_yfinance() -> bool:
 def test_put_call_in_market_health() -> bool:
     """Test put/call ratio integration in market health loader."""
     from loaders.load_market_health_daily import MarketHealthDailyLoader
-    from datetime import timedelta
 
     loader = MarketHealthDailyLoader()
 
@@ -49,9 +48,9 @@ def test_put_call_in_market_health() -> bool:
     try:
         rows = loader.fetch_incremental(since=start_date)
 
-        print(f"\n{'='*60}")
-        print(f"Market Health Integration Test")
-        print(f"{'='*60}")
+        print(f"\n{'=' * 60}")
+        print("Market Health Integration Test")
+        print(f"{'=' * 60}")
         print(f"Fetched {len(rows)} rows")
 
         if rows:
@@ -69,7 +68,7 @@ def test_put_call_in_market_health() -> bool:
                 print(f"[PASS] Put/call ratio: {pcr:.4f}")
                 return True
             else:
-                print(f"[WARN] Put/call ratio is None (may be graceful degradation)")
+                print("[WARN] Put/call ratio is None (may be graceful degradation)")
                 return True
         else:
             print("[FAIL] No rows returned")
@@ -91,8 +90,8 @@ if __name__ == "__main__":
     print("\n\nTest 2: Integration with market health loader")
     test2 = test_put_call_in_market_health()
 
-    print(f"\n{'='*60}")
-    print(f"SUMMARY")
-    print(f"{'='*60}")
-    print(f"Direct fetch: {'[PASS]' if test1 else '[WARN]'}")
-    print(f"Integration: {'[PASS]' if test2 else '[FAIL]'}")
+    print(f"\n{'=' * 60}")
+    print("SUMMARY")
+    print(f"{'=' * 60}")
+    print(f"Direct fetch: {('[PASS]' if test1 else '[WARN]')}")
+    print(f"Integration: {('[PASS]' if test2 else '[FAIL]')}")
