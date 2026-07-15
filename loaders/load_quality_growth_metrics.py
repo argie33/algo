@@ -277,7 +277,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
                 # Sign change: traditional CAGR doesn't apply
                 return None
             ratio = latest_f / previous_f
-            return ((ratio ** (1.0 / years)) - 1) * 100
+            return float(((ratio ** (1.0 / years)) - 1) * 100)
 
         # 1-year revenue growth (CAGR)
         if len(revenues) >= 2:
