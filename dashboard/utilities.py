@@ -90,16 +90,24 @@ MASCOT_COLORS = [
 ]
 LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
-# Configure logging for stability monitoring
+# Configure logging for stability monitoring - thread-safe on Windows
 _log_dir = os.path.expanduser("~/.algo/logs")
 os.makedirs(_log_dir, exist_ok=True)
 _log_file = os.path.join(_log_dir, "dashboard.log")
+
+# Use QueueHandler + QueueListener for thread-safe logging on Windows
+# (RotatingFileHandler is not thread-safe and causes PermissionError on Windows when multiple threads log)
+import queue as queue_module
+_log_queue: queue_module.Queue[logging.LogRecord] = queue_module.Queue()
+_queue_handler = logging.handlers.QueueHandler(_log_queue)
+_file_handler = logging.handlers.RotatingFileHandler(_log_file, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8")
+_file_handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+_listener = logging.handlers.QueueListener(_log_queue, _file_handler, respect_handler_level=True)
+_listener.start()
+
 logging.basicConfig(
     level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.handlers.RotatingFileHandler(_log_file, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8")
-    ],
+    handlers=[_queue_handler],
 )
 logger = logging.getLogger(__name__)
 
