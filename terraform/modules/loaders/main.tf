@@ -904,6 +904,10 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
       ]
 
       environment = [
+        # CRITICAL FIX (Session 164): Set AWS_EXECUTION_ENV so credential_manager detects AWS environment
+        # Without this, credential_manager assumes local dev and doesn't use Secrets Manager fallback
+        # This causes DB credential injection to fail, making orchestrator unable to connect to RDS
+        { name = "AWS_EXECUTION_ENV", value = "ECS_FARGATE" },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "DB_HOST", value = var.db_host },
         { name = "DB_PORT", value = tostring(var.db_port) },
@@ -980,6 +984,9 @@ resource "aws_ecs_task_definition" "data_patrol" {
       ]
 
       environment = [
+        # CRITICAL FIX (Session 164): Set AWS_EXECUTION_ENV so credential_manager detects AWS environment
+        # Without this, credential_manager assumes local dev and doesn't use Secrets Manager fallback
+        { name = "AWS_EXECUTION_ENV", value = "ECS_FARGATE" },
         { name = "AWS_REGION", value = var.aws_region },
         { name = "DB_HOST", value = var.db_host },
         { name = "DB_PORT", value = tostring(var.db_port) },
