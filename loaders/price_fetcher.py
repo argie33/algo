@@ -211,7 +211,7 @@ class PriceFetcher:
                     f"No new rows to fetch (likely loaded by earlier run). Returning empty."
                 )
                 # Returning empty list (not an error - watermark is current)
-                rows = []
+                rows: list[dict[str, Any]] = []
                 return rows
 
         rows = self._try_fetch(symbol, start, end)
