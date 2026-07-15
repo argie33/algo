@@ -144,7 +144,11 @@ Orchestrator executes all 9 phases in sequence per `algo/orchestrator/phase_regi
 
 ## Key Configuration Points
 
-- **Positions:** Single source = `algo_trades` table. View: `algo_positions_with_risk` (refreshed Phase 7)
+- **Positions:** Dual-source architecture (deployed Session 171):
+  - Algo-managed: `algo_positions` table (source: `algo_trades`, refreshed Phase 7)
+  - Manual/external: `algo_untracked_positions` table (orphan detection via Alpaca sync)
+  - Dashboard returns both: `items` (algo) + `untracked_items` (manual/external)
+  - Sync process: `alpaca_sync_manager.sync_alpaca_positions()` identifies broker positions NOT in algo_positions and syncs to untracked table
 - **Technical:** `technical_data_daily` (computed 2:15 AM + 4:05 PM, vectorized)
 - **Market regime:** `market_exposure_daily` (12 quantitative factors, fail-open if EOD fails)
 - **Earnings:** `earnings_calendar` (loaded 4:29 AM, retains 60 days)
