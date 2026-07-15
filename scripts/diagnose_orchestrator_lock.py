@@ -15,10 +15,12 @@ def get_db_connection():
     """Connect to database using environment or Lambda execution context."""
     try:
         # Try Lambda/VPC endpoint first
-        host = os.getenv("DB_HOST", "localhost")
-        user = os.getenv("DB_USER", "stocks")
-        password = os.getenv("DB_PASSWORD", "stocks")
-        dbname = os.getenv("DB_NAME", "stocks")
+        host = os.getenv("DB_HOST") or "localhost"
+        user = os.getenv("DB_USER") or "stocks"
+        password = os.getenv("DB_PASSWORD")
+        if not password:
+            raise ValueError("DB_PASSWORD environment variable must be set")
+        dbname = os.getenv("DB_NAME") or "stocks"
         ssl_mode = os.getenv("DB_SSL", "require")
 
         # Normalize ssl_mode value
