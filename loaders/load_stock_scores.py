@@ -418,8 +418,8 @@ class StockScoresLoader(OptimalLoader):
                     f"Check upstream metric loaders for failures."
                 )
 
-            # NUMERIC(4,2) supports up to 99.99, but we want 100.0 for perfect scores
-            data_completeness = min(100.0, round((data_count / 6.0) * 100, 2))
+            # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
+            data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
             # CRITICAL: GOVERNANCE.md line 62 - Reject scores with <70% completeness
             # Stocks with <70% completeness (fewer than 4.2/6 metrics) must be marked data_unavailable
