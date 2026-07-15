@@ -283,6 +283,12 @@ class DailyReconciliation:
                         total_cash = EXCLUDED.total_cash,
                         total_equity = EXCLUDED.total_equity,
                         position_count = EXCLUDED.position_count,
+                        unrealized_pnl_total = EXCLUDED.unrealized_pnl_total,
+                        unrealized_pnl_pct = EXCLUDED.unrealized_pnl_pct,
+                        unrealized_pnl_winning_count = EXCLUDED.unrealized_pnl_winning_count,
+                        unrealized_pnl_losing_count = EXCLUDED.unrealized_pnl_losing_count,
+                        unrealized_pnl_breakeven_count = EXCLUDED.unrealized_pnl_breakeven_count,
+                        unrealized_pnl_source = EXCLUDED.unrealized_pnl_source,
                         updated_at = NOW()
                         """,
                         snapshot_params,

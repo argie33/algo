@@ -64,12 +64,11 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     if is_paper_mode:
         logger.info("[PHASE 3] Paper mode: updating position prices only")
         try:
-            from algo.infrastructure import MarketEventHandler
             from utils.db import DatabaseContext
 
             # Simple price update without full position analysis
             # Fetch positions with all required fields directly (not via get_open_positions which is incomplete)
-            def _update_position_prices(cur):
+            def _update_position_prices(cur: Any) -> int:
                 updated = 0
                 # Fetch open positions with required fields for price update
                 cur.execute("""
@@ -81,25 +80,28 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 positions = cur.fetchall()
                 logger.info(f"[PHASE 3] Found {len(positions)} open positions to update")
 
-                # Fetch current prices from Alpaca for all open symbols
-                meh = MarketEventHandler(config)
+                # Get latest prices from price_daily table for all open symbols
                 open_symbols = [row[1] for row in positions]  # row[1] is symbol
+                prices: dict[str, float] = {}
 
                 if open_symbols:
-                    try:
-                        prices = meh.fetch_current_prices(open_symbols)
-                    except Exception as e:
-                        logger.warning(f"[PHASE 3] Could not fetch current prices from Alpaca: {e}")
-                        prices = {}
-                else:
-                    prices = {}
+                    cur.execute(
+                        """
+                        SELECT symbol, close FROM price_daily
+                        WHERE symbol = ANY(%s)
+                        AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = ANY(%s))
+                        """,
+                        (open_symbols, open_symbols),
+                    )
+                    price_rows = cur.fetchall()
+                    prices = {row[0]: float(row[1]) for row in price_rows}
 
                 for position_id, symbol, quantity, old_price in positions:
                     try:
-                        # Use Alpaca price if available, otherwise keep existing price
+                        # Use database price if available, otherwise keep existing price
                         current_price = prices.get(symbol)
                         if current_price is None:
-                            logger.debug(f"[PHASE 3] {symbol}: no price from Alpaca, keeping existing {old_price}")
+                            logger.debug(f"[PHASE 3] {symbol}: no price in database, keeping existing {old_price}")
                             current_price = old_price
 
                         if current_price is None or quantity is None:
