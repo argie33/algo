@@ -387,7 +387,34 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
 
 
 def main() -> int:
-    return run_loader(QualityGrowthMetricsLoader)
+    result = run_loader(QualityGrowthMetricsLoader)
+
+    # CRITICAL FIX (2026-07-15): Also register growth_metrics watermark in data_loader_status
+    # The loader writes to BOTH quality_metrics and growth_metrics tables, but only registered
+    # quality_metrics in the watermark. This caused orchestrator Phase 1 to see growth_metrics as MISSING.
+    # Now we explicitly update data_loader_status for growth_metrics after the run completes.
+    if result == 0:
+        try:
+            from utils.db.context import DatabaseContext
+            from datetime import date
+
+            with DatabaseContext("write") as cur:
+                cur.execute("""
+                    INSERT INTO data_loader_status (table_name, status, latest_date, last_updated, completion_pct)
+                    SELECT 'growth_metrics', status, latest_date, NOW(), completion_pct
+                    FROM data_loader_status
+                    WHERE table_name = 'quality_metrics'
+                    ON CONFLICT (table_name) DO UPDATE SET
+                        status = EXCLUDED.status,
+                        latest_date = EXCLUDED.latest_date,
+                        last_updated = NOW(),
+                        completion_pct = EXCLUDED.completion_pct
+                """)
+                logger.info("[QUALITY_GROWTH] Also registered growth_metrics in data_loader_status")
+        except Exception as e:
+            logger.warning(f"[QUALITY_GROWTH] Could not register growth_metrics watermark: {e}. Continuing.")
+
+    return result
 
 
 if __name__ == "__main__":

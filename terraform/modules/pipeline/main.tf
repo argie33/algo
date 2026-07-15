@@ -1796,74 +1796,18 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "GrowthMetrics"
-          ResultPath  = "$.logError"
-        }]
-        Next = "GrowthMetrics"
-      }
-
-      # ── Growth Metrics (depends on financial data) ──
-      # FIXED: Realistic timeout of 110 minutes (2.7x expected 41 min max)
-      # With parallelism=2, execution takes ~20-41 minutes; 6600s provides good detection of hangs
-      GrowthMetrics = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 6600
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["growth_metrics"]
-          NetworkConfiguration = local.network_config
-          Overrides = {
-            ContainerOverrides = [{
-              Name = "algo-growth_metrics"
-              Environment = [
-                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
-                { Name = "LOADER_PARALLELISM", Value = "2" }
-              ]
-            }]
-          }
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogGrowthMetricsFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "QualityMetrics"
-      }
-
-      LogGrowthMetricsFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "growth_metrics"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
           Next        = "QualityMetrics"
           ResultPath  = "$.logError"
         }]
         Next = "QualityMetrics"
       }
 
-      # ── Quality Metrics (depends on financial data) ──
-      # FIXED: Realistic timeout of 110 minutes (2.7x expected 41 min max)
-      # With parallelism=2, execution takes ~20-41 minutes; 6600s provides good detection of hangs
+      # ── Quality + Growth Metrics (consolidated, depends on financial data) ──
+      # FIXED 2026-07-15: Removed redundant GrowthMetrics state (Session 168 issue #1)
+      # load_quality_growth_metrics.py writes to BOTH quality_metrics and growth_metrics tables.
+      # Previously QualityMetrics AND GrowthMetrics states both ran the same loader (wasteful + broke watermark tracking).
+      # Now only QualityMetrics state runs; it handles both tables internally.
+      # Result: growth_metrics now properly registered in data_loader_status, orchestrator Phase 1 no longer sees it as MISSING.
       QualityMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -1919,6 +1863,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }]
         Next = "ValueMetrics"
       }
+
 
       # ── Value Metrics (independent of financial data) ──
       # FIXED 2026-07-02: Now reads from yfinance_snapshot table (consolidated fetch) instead of calling yfinance.
