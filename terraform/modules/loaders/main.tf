@@ -907,6 +907,8 @@ resource "aws_ecs_task_definition" "algo_orchestrator" {
         { name = "ECS_CLUSTER_ARN", value = var.ecs_cluster_arn },
         { name = "HALT_FLAG_TABLE", value = "algo_orchestrator_state" },
         { name = "ALPACA_PAPER_TRADING", value = tostring(var.alpaca_paper_trading) },
+        { name = "APCA_API_BASE_URL", value = var.alpaca_api_base_url },
+        { name = "PRICE_DATA_SOURCE", value = var.price_data_source },
         { name = "ORCHESTRATOR_LOG_LEVEL", value = var.orchestrator_log_level },
         { name = "ORCHESTRATOR_EXECUTION_MODE", value = var.execution_mode },
         { name = "ORCHESTRATOR_DRY_RUN", value = tostring(var.orchestrator_dry_run) },
