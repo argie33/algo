@@ -426,8 +426,76 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             f"(missing price/value data). Showing {valid_count}/{total_positions_fetched} valid positions."
         )
 
+    # Fetch untracked positions (broker-held, not entered by algo)
+    untracked_items: list[dict[str, Any]] = []
+    try:
+        cur.execute("""
+            SELECT id, symbol, quantity, current_price, position_value, detected_at, last_seen_at
+            FROM algo_untracked_positions
+            ORDER BY position_value DESC NULLS LAST
+            LIMIT 1000
+        """)
+        untracked_positions = cur.fetchall()
+        logger.info(f"[UNTRACKED POSITIONS] Found {len(untracked_positions)} untracked positions")
+
+        for up in untracked_positions:
+            up_dict = safe_dict_convert(up)
+            symbol = up_dict.get("symbol")
+
+            if not symbol:
+                logger.warning("[UNTRACKED] Position missing symbol — skipping")
+                continue
+
+            # Validate numeric fields
+            try:
+                qty = float(up_dict.get("quantity") or 0)
+                current_price = float(up_dict.get("current_price") or 0)
+                position_value = float(up_dict.get("position_value") or 0)
+            except (ValueError, TypeError):
+                logger.warning(f"[UNTRACKED] {symbol}: invalid numeric fields — skipping")
+                continue
+
+            # Look up enrichment data (sector, company name, technical scores)
+            sector = sector_map.get(symbol, "Unknown")
+            company_name = company_name_map.get(symbol, symbol)
+            technical = technical_map.get(symbol, {})
+
+            untracked_item = {
+                "symbol": symbol,
+                "position_source": "MANUAL",  # Flag for UI to show visually distinct
+                "quantity": qty,
+                "current_price": current_price,
+                "position_value": position_value,
+                "sector": sector,
+                "company_name": company_name,
+                "weinstein_stage": technical.get("weinstein_stage"),
+                "minervini_trend_score": technical.get("minervini_trend_score"),
+                "detected_at": up_dict.get("detected_at"),
+                "last_seen_at": up_dict.get("last_seen_at"),
+                # Untracked positions have no stop/target (managed externally)
+                "stop_loss_price": None,
+                "target_1_price": None,
+                "target_2_price": None,
+                "target_3_price": None,
+                "unrealized_pnl": None,
+                "unrealized_pnl_pct": None,
+            }
+            untracked_items.append(untracked_item)
+
+        if untracked_items:
+            stale_alerts.append(
+                f"⚠️ {len(untracked_items)} position(s) held at broker but NOT managed by algo (manual/external entries). "
+                f"These have no stop/target management."
+            )
+
+    except Exception as e:
+        logger.error(f"[UNTRACKED POSITIONS] Failed to fetch untracked positions: {e}")
+        # Don't fail the entire response if untracked positions query fails
+        untracked_items = []
+
     response_data = {
         "items": items,
+        "untracked_items": untracked_items,
         "sector_allocation": sector_allocation,
         "pagination": {"total": len(items), "limit": 10000, "offset": 0},
         "coverage": {

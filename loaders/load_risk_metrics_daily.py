@@ -120,7 +120,7 @@ class RiskMetricsLoader(OptimalLoader):
                     "momentum_12m": momentum.get("momentum_12m"),
                     "momentum_12m_unavailable_reason": unavailable_reasons.get("momentum_12m_unavailable_reason"),
                     "data_unavailable": False,
-                    "created_at": datetime.now(timezone.utc),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
                 }
 
         except RuntimeError as e:
@@ -138,7 +138,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "data_unavailable": True,
                 "reason": str(e)[:150],
                 "reason_type": "loader_failed",
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
             logger.warning(f"[RISK_METRICS] Unexpected error for {symbol}: {type(e).__name__}: {e}")
@@ -155,7 +155,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "data_unavailable": True,
                 "reason": f"unexpected_error: {type(e).__name__}",
                 "reason_type": "loader_failed",
-                "created_at": datetime.now(timezone.utc),
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
 
     def _compute_stability_row(self, symbol: str) -> dict[str, Any]:

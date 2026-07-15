@@ -101,8 +101,13 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                 }
             ]
 
-        data_available = row.get("data_available", False)
-        unavailable_reason = row.get("unavailable_reason", "")
+        # CRITICAL FIX: row is a psycopg2 tuple, not dict. Use indexing instead of .get()
+        # SELECT columns: pe(0), pb(1), ps(2), peg(3), div_yield(4), fcf_yield(5), mkt_cap(6),
+        #                insider(7), institution(8), short(9), name(10), sector(11), industry(12),
+        #                exchange(13), website(14), country(15), rec_key(16), analysts(17),
+        #                earnings_date(18), earnings_dates(19), data_available(20), unavailable_reason(21)
+        data_available = row[20] if len(row) > 20 else False
+        unavailable_reason = row[21] if len(row) > 21 else ""
 
         if not data_available:
             logger.debug(f"[YFINANCE_DERIVED] {symbol}: yfinance_snapshot marked unavailable ({unavailable_reason})")
@@ -115,30 +120,30 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                 }
             ]
 
-        # Build consolidated record with all metrics
+        # Build consolidated record with all metrics (using tuple indices, not .get())
         record = {
             "symbol": symbol,
             "data_unavailable": False,
-            "pe_ratio": row.get("pe_ratio"),
-            "pb_ratio": row.get("pb_ratio"),
-            "ps_ratio": row.get("ps_ratio"),
-            "peg_ratio": row.get("peg_ratio"),
-            "dividend_yield": row.get("dividend_yield"),
-            "fcf_yield": row.get("fcf_yield"),
-            "market_cap": row.get("market_cap"),
-            "held_percent_insiders": row.get("held_percent_insiders"),
-            "held_percent_institutions": row.get("held_percent_institutions"),
-            "short_interest": row.get("short_interest"),
-            "long_name": row.get("long_name"),
-            "sector": row.get("sector"),
-            "industry": row.get("industry"),
-            "exchange": row.get("exchange"),
-            "website": row.get("website"),
-            "country": row.get("country"),
-            "analyst_recommendation": row.get("recommendation_key"),
-            "number_of_analysts": row.get("number_of_analysts"),
-            "earnings_date": row.get("earnings_date"),
-            "earnings_history_dates": row.get("earnings_dates"),
+            "pe_ratio": row[0],
+            "pb_ratio": row[1],
+            "ps_ratio": row[2],
+            "peg_ratio": row[3],
+            "dividend_yield": row[4],
+            "fcf_yield": row[5],
+            "market_cap": row[6],
+            "held_percent_insiders": row[7],
+            "held_percent_institutions": row[8],
+            "short_interest": row[9],
+            "long_name": row[10],
+            "sector": row[11],
+            "industry": row[12],
+            "exchange": row[13],
+            "website": row[14],
+            "country": row[15],
+            "analyst_recommendation": row[16],
+            "number_of_analysts": row[17],
+            "earnings_date": row[18],
+            "earnings_history_dates": row[19],
             "updated_at": now_et,
         }
         return [record]

@@ -358,15 +358,33 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         recomputed metric value for symbols that already had a row — the table was
         effectively write-once while its updated_at looked fresh. Now every non-key column
         is updated from EXCLUDED so daily recomputes actually land.
+
+        CRITICAL FIX: Remove _unavailable_reason fields that don't exist in schema.
+        These were computed during calculation but should not be inserted to DB (schema has only
+        data_unavailable boolean, not per-field reason tracking).
         """
         if not record:
             return
 
-        columns = ", ".join(record.keys())
-        placeholders = ", ".join(["%s"] * len(record))
-        update_cols = [col for col in record if col != "symbol"]
-        if not update_cols:
+        # CRITICAL: Filter out fields that don't exist in database schema
+        # Schema for quality_metrics and growth_metrics only has: symbol, metric_columns, data_unavailable, updated_at
+        # We compute _unavailable_reason fields during calculation but they shouldn't be inserted
+        schema_fields = {
+            "symbol", "revenue_growth_1y", "revenue_growth_3y", "revenue_growth_5y",
+            "eps_growth_1y", "eps_growth_3y", "eps_growth_5y",
+            "roe", "roa", "operating_margin", "net_margin", "debt_to_equity",
+            "current_ratio", "quick_ratio", "quality_score",
+            "data_unavailable", "updated_at", "reason"
+        }
+
+        cleaned_record = {k: v for k, v in record.items() if k in schema_fields}
+
+        if not cleaned_record or len(cleaned_record) <= 1:  # Only 'symbol' or empty
             return
+
+        columns = ", ".join(cleaned_record.keys())
+        placeholders = ", ".join(["%s"] * len(cleaned_record))
+        update_cols = [col for col in cleaned_record if col != "symbol"]
         set_clause = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_cols)
         query = f"""
             INSERT INTO {table} ({columns})
@@ -374,7 +392,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             ON CONFLICT (symbol) DO UPDATE SET
                 {set_clause}
         """
-        values = tuple(record.values())
+        values = tuple(cleaned_record.values())
         cur.execute(query, values)
 
     @contextmanager

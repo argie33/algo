@@ -305,11 +305,87 @@ class AlpacaSyncManager:
         db_symbols = {row[0] for row in cur.fetchall()}
         orphan_symbols = list(alpaca_symbols - db_symbols)
 
+        # Sync untracked positions to database (NEW: track broker-held positions)
+        # These are positions in Alpaca but not entered by algo (manual, pre-existing, etc.)
+        untracked_count = 0
+        untracked_closed_count = 0
+
+        if orphan_symbols:
+            for symbol in orphan_symbols:
+                # Find the position data from alpaca_positions list
+                pos_data = next((p for p in alpaca_positions if p.get("symbol") == symbol), None)
+                if not pos_data:
+                    continue
+
+                qty_float = float(pos_data.get("qty", 0))
+                current_price = pos_data.get("current_price")
+                position_value = qty_float * float(current_price) if current_price else None
+
+                try:
+                    # Check if position already exists
+                    cur.execute("SELECT id FROM algo_untracked_positions WHERE symbol = %s LIMIT 1", (symbol,))
+                    existing = cur.fetchone()
+
+                    if existing:
+                        # Update existing untracked position
+                        cur.execute(
+                            """
+                            UPDATE algo_untracked_positions
+                            SET quantity = %s,
+                                current_price = %s,
+                                position_value = %s,
+                                updated_at = CURRENT_TIMESTAMP,
+                                last_seen_at = CURRENT_TIMESTAMP
+                            WHERE symbol = %s
+                        """,
+                            (qty_float, float(current_price) if current_price else None, position_value, symbol),
+                        )
+                    else:
+                        # Insert new untracked position
+                        cur.execute(
+                            """
+                            INSERT INTO algo_untracked_positions
+                            (symbol, quantity, current_price, position_value, detected_at, updated_at, last_seen_at)
+                            VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """,
+                            (symbol, qty_float, float(current_price) if current_price else None, position_value),
+                        )
+
+                    if cur.rowcount > 0:
+                        untracked_count += 1
+                except Exception as e:
+                    logger.error(f"[POSITION_SYNC] Failed to sync untracked position {symbol}: {e}")
+                    # Don't raise here, continue syncing other untracked positions
+
+        # Mark untracked positions as closed if they're no longer in Alpaca
+        # (haven't been seen in the last sync)
+        try:
+            cur.execute(
+                """
+                UPDATE algo_untracked_positions
+                SET updated_at = CURRENT_TIMESTAMP
+                WHERE symbol != ALL(%s)
+            """,
+                (list(orphan_symbols),),
+            )
+            untracked_closed_count = cur.rowcount
+        except Exception as e:
+            logger.warning(f"[POSITION_SYNC] Failed to mark closed untracked positions: {e}")
+
+        if untracked_count > 0 or untracked_closed_count > 0:
+            logger.info(
+                f"[POSITION_SYNC] Synced {untracked_count} untracked positions, "
+                f"marked {untracked_closed_count} as stale (not seen in Alpaca)"
+            )
+
         return {
-            "message": f"Synced {synced_count} positions, marked {closed_count} as closed",
+            "message": f"Synced {synced_count} algo positions, marked {closed_count} as closed. "
+            f"Tracked {untracked_count} untracked positions.",
             "orphan_symbols": orphan_symbols,
             "synced_count": synced_count,
             "closed_count": closed_count,
+            "untracked_count": untracked_count,
+            "untracked_closed_count": untracked_closed_count,
         }
 
     def process_failed_imports(self, cur: Any, alpaca_positions: list[Any]) -> dict[str, Any]:
