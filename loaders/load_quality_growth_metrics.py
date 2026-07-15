@@ -229,25 +229,47 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             "symbol": symbol,
             "revenue_growth_1y": None,
             "revenue_growth_3y": None,
+            "revenue_growth_5y": None,
             "eps_growth_1y": None,
             "eps_growth_3y": None,
+            "eps_growth_5y": None,
             "updated_at": date.today().isoformat(),
             "data_unavailable": False,
         }
 
         # Extract revenue from rows (first element of each tuple)
         revenues = [row[0] for row in income_rows if row[0] is not None and row[0] > 0]
-        [row[1] for row in income_rows if row[1] is not None]
+        eps_values = [row[1] for row in income_rows if row[1] is not None and row[1] != 0]
 
-        # 1-year growth
+        # 1-year revenue growth
         if len(revenues) >= 2:
             rev_growth = ((revenues[0] - revenues[1]) / abs(revenues[1]) * 100) if revenues[1] != 0 else None
             metrics["revenue_growth_1y"] = float(round(rev_growth, 2)) if rev_growth else None
 
-        # 3-year growth
+        # 1-year EPS growth
+        if len(eps_values) >= 2:
+            eps_growth = ((eps_values[0] - eps_values[1]) / abs(eps_values[1]) * 100) if eps_values[1] != 0 else None
+            metrics["eps_growth_1y"] = float(round(eps_growth, 2)) if eps_growth else None
+
+        # 3-year revenue growth
         if len(revenues) >= 4:
             rev_growth = ((revenues[0] - revenues[3]) / abs(revenues[3]) * 100) if revenues[3] != 0 else None
             metrics["revenue_growth_3y"] = float(round(rev_growth, 2)) if rev_growth else None
+
+        # 3-year EPS growth
+        if len(eps_values) >= 4:
+            eps_growth = ((eps_values[0] - eps_values[3]) / abs(eps_values[3]) * 100) if eps_values[3] != 0 else None
+            metrics["eps_growth_3y"] = float(round(eps_growth, 2)) if eps_growth else None
+
+        # 5-year revenue growth
+        if len(revenues) >= 6:
+            rev_growth = ((revenues[0] - revenues[5]) / abs(revenues[5]) * 100) if revenues[5] != 0 else None
+            metrics["revenue_growth_5y"] = float(round(rev_growth, 2)) if rev_growth else None
+
+        # 5-year EPS growth
+        if len(eps_values) >= 6:
+            eps_growth = ((eps_values[0] - eps_values[5]) / abs(eps_values[5]) * 100) if eps_values[5] != 0 else None
+            metrics["eps_growth_5y"] = float(round(eps_growth, 2)) if eps_growth else None
 
         return metrics
 
