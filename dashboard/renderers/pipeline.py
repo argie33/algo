@@ -40,7 +40,6 @@ from dashboard.panels import (
     panel_signals_compact,
     panel_signals_expanded,
     panel_trades_expanded,
-    render_scores,
 )
 from dashboard.utilities import ET, logger
 
@@ -220,19 +219,6 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         Layout(sig_panel, ratio=3, name="signals"),
         Layout(sector_panel, ratio=2, name="sectors"),
     )
-
-    scores_panel = (
-        safe_render(render_scores, {"scores": ctx.scores})
-        if not has_error(ctx.scores)
-        else Panel("[red]Growth scores unavailable[/]", border_style="red")
-    )
-
-    # Only update r4 if it exists in the layout (may not exist in all render paths)
-    try:
-        outer["r4"].update(Layout(scores_panel, name="scores"))
-    except KeyError:
-        logger.warning("[RENDERER] r4 layout not found - skipping scores panel update (may be in expanded view)")
-        # Layout may have changed during render (e.g., switched to expanded view) - this is not an error
 
     pos_panel = (
         safe_render(panel_positions, ctx.pos, compact, trades=ctx.trades)
