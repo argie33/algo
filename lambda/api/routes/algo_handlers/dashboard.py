@@ -117,8 +117,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "alpaca_sync_manager.sync_alpaca_positions."
             )
             stale_alerts.append(
-                f"{broker_position_count} broker position(s) held outside algo tracking (not entered "
-                "by the algo's own execution path) — not shown in this list by design"
+                f"⚠️ {broker_position_count} broker position(s) held outside algo tracking (manual/external). "
+                "Shown in untracked_items section with no stop/target management."
             )
         else:
             logger.info("[POSITIONS] algo_positions has 0 open rows and broker also reports 0 — no open positions.")

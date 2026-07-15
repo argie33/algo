@@ -745,8 +745,15 @@ def run(  # noqa: C901
                         from decimal import Decimal
 
                         with DatabaseContext("write") as cur:
-                            # Count actual open positions from database
-                            cur.execute("SELECT COUNT(*) as open_count FROM algo_positions WHERE status = 'open'")
+                            # Count actual open positions from database (algo-managed + untracked)
+                            # CRITICAL FIX: Include algo_untracked_positions in position count so portfolio snapshot is accurate
+                            # Previously only counted algo_positions, causing dashboard alerts to show wrong broker position count
+                            cur.execute("""
+                                SELECT (
+                                    (SELECT COUNT(*) FROM algo_positions WHERE status = 'open') +
+                                    (SELECT COUNT(*) FROM algo_untracked_positions)
+                                ) as total_open_count
+                            """)
                             position_row = cur.fetchone()
                             open_position_count = position_row[0] if position_row else 0
 
