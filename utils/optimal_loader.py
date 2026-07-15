@@ -766,7 +766,9 @@ class OptimalLoader:
                         )
                         result = cur.fetchone()
                         if result is None:
-                            raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
+                            raise RuntimeError(
+                                f"Status query failed for table '{self.table_name}': query returned None"
+                            )
                         if result[0] is None:
                             raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
                         total_rows = result[0]
@@ -774,12 +776,12 @@ class OptimalLoader:
                         actual_symbols_loaded = result[2] if result[2] is not None else 0
                     else:
                         # Market-wide loader (not symbol-based): count rows only
-                        cur.execute(
-                            f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
-                        )
+                        cur.execute(f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}")
                         result = cur.fetchone()
                         if result is None:
-                            raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
+                            raise RuntimeError(
+                                f"Status query failed for table '{self.table_name}': query returned None"
+                            )
                         if result[0] is None:
                             raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
                         total_rows = result[0]
