@@ -222,6 +222,9 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
                 "updated_at": date.today().isoformat(),
             }
 
+        # CRITICAL FIX: Don't include _unavailable_reason fields in dict - they don't exist in schema
+        # These fields were computed during calculation but should not be stored in database
+        # Schema only has: symbol, revenue_growth_*, eps_growth_*, data_unavailable, updated_at
         metrics: dict[str, Any] = {
             "symbol": symbol,
             "revenue_growth_1y": None,
@@ -230,12 +233,6 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             "eps_growth_1y": None,
             "eps_growth_3y": None,
             "eps_growth_5y": None,
-            "revenue_growth_1y_unavailable_reason": None,
-            "revenue_growth_3y_unavailable_reason": None,
-            "revenue_growth_5y_unavailable_reason": None,
-            "eps_growth_1y_unavailable_reason": None,
-            "eps_growth_3y_unavailable_reason": None,
-            "eps_growth_5y_unavailable_reason": None,
             "updated_at": date.today().isoformat(),
             "data_unavailable": False,
         }
@@ -277,77 +274,50 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             ratio = latest_f / previous_f
             return float(((ratio ** (1.0 / years)) - 1) * 100)
 
+        # CRITICAL FIX: Don't add _unavailable_reason fields to dict - schema doesn't have them
+        # Just set the metric value to None and move on. The reason is implicit in None values.
+
         # 1-year revenue growth (CAGR)
         if len(revenues) >= 2:
             rev_growth = _cagr(revenues[0], revenues[1], 1)
             if rev_growth is not None:
                 metrics["revenue_growth_1y"] = float(round(rev_growth, 2))
-            else:
-                metrics["revenue_growth_1y_unavailable_reason"] = (
-                    "insufficient_data" if revenues[1] == 0 else "sign_change"
-                )
-        else:
-            metrics["revenue_growth_1y_unavailable_reason"] = "insufficient_history"
+            # else: leave as None (no _unavailable_reason field needed)
 
         # 1-year EPS growth (CAGR)
         if len(eps_values) >= 2:
             eps_growth = _cagr(eps_values[0], eps_values[1], 1)
             if eps_growth is not None:
                 metrics["eps_growth_1y"] = float(round(eps_growth, 2))
-            else:
-                metrics["eps_growth_1y_unavailable_reason"] = (
-                    "insufficient_data" if eps_values[1] == 0 else "sign_change"
-                )
-        else:
-            metrics["eps_growth_1y_unavailable_reason"] = "insufficient_history"
+            # else: leave as None
 
         # 3-year revenue growth (CAGR from 3 years ago)
         if len(revenues) >= 4:
             rev_growth = _cagr(revenues[0], revenues[3], 3)
             if rev_growth is not None:
                 metrics["revenue_growth_3y"] = float(round(rev_growth, 2))
-            else:
-                metrics["revenue_growth_3y_unavailable_reason"] = (
-                    "insufficient_data" if revenues[3] == 0 else "sign_change"
-                )
-        else:
-            metrics["revenue_growth_3y_unavailable_reason"] = "insufficient_history"
+            # else: leave as None
 
         # 3-year EPS growth (CAGR from 3 years ago)
         if len(eps_values) >= 4:
             eps_growth = _cagr(eps_values[0], eps_values[3], 3)
             if eps_growth is not None:
                 metrics["eps_growth_3y"] = float(round(eps_growth, 2))
-            else:
-                metrics["eps_growth_3y_unavailable_reason"] = (
-                    "insufficient_data" if eps_values[3] == 0 else "sign_change"
-                )
-        else:
-            metrics["eps_growth_3y_unavailable_reason"] = "insufficient_history"
+            # else: leave as None
 
         # 5-year revenue growth (CAGR from 5 years ago)
         if len(revenues) >= 6:
             rev_growth = _cagr(revenues[0], revenues[5], 5)
             if rev_growth is not None:
                 metrics["revenue_growth_5y"] = float(round(rev_growth, 2))
-            else:
-                metrics["revenue_growth_5y_unavailable_reason"] = (
-                    "insufficient_data" if revenues[5] == 0 else "sign_change"
-                )
-        else:
-            metrics["revenue_growth_5y_unavailable_reason"] = "insufficient_history"
+            # else: leave as None
 
         # 5-year EPS growth (CAGR from 5 years ago)
         if len(eps_values) >= 6:
             eps_growth = _cagr(eps_values[0], eps_values[5], 5)
             if eps_growth is not None:
                 metrics["eps_growth_5y"] = float(round(eps_growth, 2))
-            else:
-                metrics["eps_growth_5y_unavailable_reason"] = (
-                    "insufficient_data" if eps_values[5] == 0 else "sign_change"
-                )
-        else:
-            metrics["eps_growth_5y_unavailable_reason"] = "insufficient_history"
+            # else: leave as None
 
         return metrics
 
@@ -358,33 +328,15 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         recomputed metric value for symbols that already had a row — the table was
         effectively write-once while its updated_at looked fresh. Now every non-key column
         is updated from EXCLUDED so daily recomputes actually land.
-
-        CRITICAL FIX: Remove _unavailable_reason fields that don't exist in schema.
-        These were computed during calculation but should not be inserted to DB (schema has only
-        data_unavailable boolean, not per-field reason tracking).
         """
         if not record:
             return
 
-        # CRITICAL: Filter out fields that don't exist in database schema
-        # Schema for quality_metrics and growth_metrics only has: symbol, metric_columns, data_unavailable, updated_at
-        # We compute _unavailable_reason fields during calculation but they shouldn't be inserted
-        schema_fields = {
-            "symbol", "revenue_growth_1y", "revenue_growth_3y", "revenue_growth_5y",
-            "eps_growth_1y", "eps_growth_3y", "eps_growth_5y",
-            "roe", "roa", "operating_margin", "net_margin", "debt_to_equity",
-            "current_ratio", "quick_ratio", "quality_score",
-            "data_unavailable", "updated_at", "reason"
-        }
-
-        cleaned_record = {k: v for k, v in record.items() if k in schema_fields}
-
-        if not cleaned_record or len(cleaned_record) <= 1:  # Only 'symbol' or empty
+        columns = ", ".join(record.keys())
+        placeholders = ", ".join(["%s"] * len(record))
+        update_cols = [col for col in record if col != "symbol"]
+        if not update_cols:
             return
-
-        columns = ", ".join(cleaned_record.keys())
-        placeholders = ", ".join(["%s"] * len(cleaned_record))
-        update_cols = [col for col in cleaned_record if col != "symbol"]
         set_clause = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_cols)
         query = f"""
             INSERT INTO {table} ({columns})
@@ -392,7 +344,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             ON CONFLICT (symbol) DO UPDATE SET
                 {set_clause}
         """
-        values = tuple(cleaned_record.values())
+        values = tuple(record.values())
         cur.execute(query, values)
 
     @contextmanager
