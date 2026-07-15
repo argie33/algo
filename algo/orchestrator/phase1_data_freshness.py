@@ -751,6 +751,48 @@ def run(  # noqa: C901
                 metric_validator = StockScoresLoader()
                 metric_validator.validate_upstream_metrics_ready()
                 logger.info("[PHASE 1] Metric loaders validation: PASS - All metric loaders ready")
+
+                # FIXED 2026-07-15: Add stock_scores data completeness check (Issue #6 from Session 166 audit)
+                # Validate that scores have >= 70% avg completeness before proceeding to signal generation
+                try:
+                    cur.execute("""
+                        SELECT AVG(data_completeness) as avg_completeness,
+                               COUNT(*) as total_scores,
+                               COUNT(CASE WHEN data_completeness >= 70 THEN 1 END) as complete_scores
+                        FROM stock_scores
+                        WHERE updated_at > NOW() - INTERVAL '1 day'
+                    """)
+                    completeness_row = cur.fetchone()
+                    if completeness_row and completeness_row[0] is not None:
+                        avg_completeness = float(completeness_row[0])
+                        total_scores = completeness_row[1]
+                        complete_scores = completeness_row[2]
+
+                        logger.info(
+                            f"[PHASE 1] Stock scores completeness: {avg_completeness:.1f}% avg "
+                            f"({complete_scores}/{total_scores} symbols >= 70%)"
+                        )
+
+                        if avg_completeness < 70:
+                            logger.warning(
+                                f"[PHASE 1] DEGRADED: Stock scores avg completeness only {avg_completeness:.1f}%. "
+                                f"Position sizing may use incomplete metric data. "
+                                f"If this persists, check: {[t for t in halt_tables if 'metric' in t]}"
+                            )
+                            degraded_reason = (
+                                f"Stock scores only {avg_completeness:.1f}% complete "
+                                f"(missing positioning/stability/growth metrics)"
+                            )
+                    else:
+                        logger.warning(
+                            "[PHASE 1] stock_scores table empty or no recent data. "
+                            "Proceeding but scores will be unavailable for signal generation."
+                        )
+                except Exception as completeness_err:
+                    logger.warning(
+                        f"[PHASE 1] Could not check stock_scores completeness: {completeness_err}. "
+                        "Will proceed with signal generation using available scores."
+                    )
             except RuntimeError as e:
                 metric_error = str(e)
                 # RESILIENCE FIX: Instead of HALT on stale metrics, allow DEGRADED mode

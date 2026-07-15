@@ -1953,7 +1953,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogValueMetricsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "StabilityMetrics"
+        Next = "PositioningMetrics"
       }
 
       LogValueMetricsFailure = {
@@ -1961,6 +1961,65 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "value_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PositioningMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "PositioningMetrics"
+      }
+
+      # ── Positioning Metrics (writes institutional ownership, insider ownership, short interest) ──
+      # FIXED 2026-07-15: Added explicit state (Issue #2 from Session 166 audit).
+      # load_yfinance_derived_metrics.py writes to 6 tables; PositioningMetrics explicitly validates
+      # positioning_metrics table before moving to StabilityMetrics.
+      PositioningMetrics = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["positioning_metrics"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-positioning_metrics"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogPositioningMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "StabilityMetrics"
+      }
+
+      LogPositioningMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "positioning_metrics"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
