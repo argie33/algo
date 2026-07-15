@@ -13,8 +13,17 @@ Usage:
 """
 
 import boto3
+import io
 import sys
 from datetime import datetime, timedelta
+
+# Fix Windows console encoding for emoji/unicode
+if sys.platform.startswith("win"):
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 
 def check_cloudwatch_logs() -> dict:
