@@ -60,35 +60,77 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         )
 
     # CRITICAL FIX: In paper mode, we still need to update current_price and position_value
-    # so the API doesn't filter out positions. Skip halt checks and stale order checks (live-mode only).
+    # so the API doesn't filter out positions. Skip full analysis (requires sector/technical data).
     if is_paper_mode:
-        logger.info("[PHASE 3] Paper mode: updating position prices only (skipping halt/stale checks)")
+        logger.info("[PHASE 3] Paper mode: updating position prices only")
         try:
             from algo.monitoring import PositionMonitor
+            from utils.db import DatabaseContext
 
             monitor = PositionMonitor(config)
-            recommendations = monitor.review_positions(run_date)
+            open_positions = monitor.get_open_positions()
 
-            n_hold = sum(1 for r in recommendations if r["action"] == "HOLD")
-            n_failed = sum(1 for r in recommendations if r["action"] == "FAILED_VALIDATION")
+            # Simple price update without full position analysis
+            # Just fetch current prices and persist them so API doesn't filter positions
+            def _update_position_prices(cur):
+                updated = 0
+                for pos in open_positions:
+                    try:
+                        symbol = pos.get("symbol")
+                        position_id = pos.get("position_id")
+                        quantity = pos.get("quantity")
+                        current_price = pos.get("current_price")
 
-            summary = f"{len(recommendations)} positions reviewed"
-            if n_hold > 0:
-                summary += f"; {n_hold} hold"
-            if n_failed > 0:
-                summary += f", {n_failed} FAILED_VALIDATION"
+                        if not symbol or position_id is None or quantity is None or current_price is None:
+                            logger.warning(
+                                f"[PHASE 3] Skipping {symbol}: missing required fields "
+                                f"(id={position_id}, qty={quantity}, price={current_price})"
+                            )
+                            continue
+
+                        # Update position with current price and computed fields
+                        cur.execute(
+                            """
+                            UPDATE algo_positions
+                            SET current_price = %s,
+                                position_value = %s * %s,
+                                unrealized_pnl = (%s - avg_entry_price) * %s,
+                                unrealized_pnl_pct = CASE WHEN avg_entry_price > 0
+                                    THEN ((%s - avg_entry_price) / avg_entry_price) * 100 ELSE NULL END,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE position_id = %s
+                            """,
+                            (
+                                current_price,
+                                quantity,
+                                current_price,
+                                current_price,
+                                quantity,
+                                current_price,
+                                position_id,
+                            ),
+                        )
+                        updated += 1
+                    except Exception as e:
+                        logger.warning(f"[PHASE 3] Failed to update {symbol}: {type(e).__name__}: {e}")
+                        continue
+
+                return updated
+
+            with DatabaseContext("write") as cur:
+                updated_count = _update_position_prices(cur)
 
             log_phase_result_fn(
                 3,
                 "position_monitor",
                 "success",
-                summary,
+                f"{updated_count} positions updated with current prices",
             )
             return PhaseResult(
                 3,
                 "position_monitor",
                 "ok",
-                {"recommendations": recommendations, "count": len(recommendations)},
+                {"recommendations": [], "count": updated_count},
                 False,
                 None,
             )
