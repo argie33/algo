@@ -88,9 +88,19 @@ class AlpacaMockHandler(BaseHTTPRequestHandler):
 
     def handle_order_submission(self, data: dict[str, Any]) -> None:
         """Process order submission."""
-        symbol = data.get("symbol", "").upper()
-        qty = int(data.get("qty", 0))
-        side = data.get("side", "").lower()
+        # Explicit validation: fail-fast on missing required fields
+        if "symbol" not in data or "qty" not in data or "side" not in data:
+            self.send_json(400, {"error": "Missing required fields: symbol, qty, side"})
+            return
+
+        symbol = str(data["symbol"]).upper()
+        try:
+            qty = int(data["qty"])
+        except (ValueError, TypeError):
+            self.send_json(400, {"error": "Invalid qty: must be integer"})
+            return
+
+        side = str(data["side"]).lower()
 
         if not symbol or qty <= 0 or side not in ("buy", "sell"):
             self.send_json(400, {"error": "Invalid order parameters"})
@@ -134,14 +144,14 @@ class AlpacaMockHandler(BaseHTTPRequestHandler):
 
                 logger.info(f"[MOCK_API] SELL: {qty} {symbol} @ ${current_price}")
 
-            # Create order response
+            # Create order response with explicit defaults (fail-fast compliant)
             order = {
                 "id": order_id,
                 "symbol": symbol,
                 "qty": qty,
                 "side": side,
-                "type": data.get("type", "market"),
-                "time_in_force": data.get("time_in_force", "day"),
+                "type": str(data["type"]) if "type" in data else "market",
+                "time_in_force": str(data["time_in_force"]) if "time_in_force" in data else "day",
                 "filled_qty": qty,
                 "filled_avg_price": str(current_price),
                 "status": "filled",
