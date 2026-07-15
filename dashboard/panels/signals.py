@@ -716,7 +716,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             row_styles=["", "dim"],
         )
         sig_tbl.add_column("Sym", style="bold white", no_wrap=True)
-        sig_tbl.add_column("Company", no_wrap=True, width=35)
+        sig_tbl.add_column("Company", no_wrap=True, width=28)
         sig_tbl.add_column("Score", justify="right", no_wrap=True)
         sig_tbl.add_column("Mom", justify="right", no_wrap=True)
         sig_tbl.add_column("Qual", justify="right", no_wrap=True)
@@ -729,12 +729,12 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
         sig_tbl.add_column("Chg%", justify="right", no_wrap=True)
         sig_tbl.add_column("vs50%", justify="right", no_wrap=True)
         sig_tbl.add_column("vs200%", justify="right", no_wrap=True)
-        sig_tbl.add_column("Sector", no_wrap=True, max_width=14)
+        sig_tbl.add_column("Sector", no_wrap=True, width=22)
 
         for sc in top_scores:
             sym = str(safe_get_field(sc, "symbol", "--"))
             sym_norm = sym.upper().strip()
-            company = (safe_get_field(sc, "company_name", ""))[:35]
+            company = (safe_get_field(sc, "company_name", ""))[:28]
             comp = safe_get_field(sc, "composite_score")
             mom = safe_get_field(sc, "momentum_score")
             qual = safe_get_field(sc, "quality_score")
@@ -753,7 +753,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             vs200 = safe_get_field(sc, "price_vs_sma_200")
             if vs200 is None and mom_inputs and isinstance(mom_inputs, dict):
                 vs200 = safe_get_field(mom_inputs, "price_vs_sma_200")
-            sector = (safe_get_field(sc, "sector", ""))[:14]
+            sector = (safe_get_field(sc, "sector", ""))[:22]
             # CRITICAL: Fail-fast on missing composite_score. Never silently fallback to 0.
             if comp is None:
                 logger.warning(f"Signal composite_score missing for {sym_norm} - data unavailable")
