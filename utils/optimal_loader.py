@@ -756,6 +756,11 @@ class OptimalLoader:
             logger.error(f"[{self.table_name}] Failed to log execution: {e}")
 
     def _update_final_status(self, expected_symbols: int) -> None:
+        # CRITICAL FIX: Never allow None for expected_symbols - this causes data integrity failures
+        # When symbol_count is NULL, Phase 1 failsafe halts orchestrator
+        if expected_symbols is None:
+            logger.warning(f"[{self.table_name}] expected_symbols is None - using 0 as fallback (data completeness unknown)")
+            expected_symbols = 0
         try:
             with DatabaseContext("read") as cur:
                 # CRITICAL: Handle loaders with no watermark_field (e.g., stock_scores computed all-at-once)
