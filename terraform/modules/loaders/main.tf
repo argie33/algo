@@ -577,6 +577,13 @@ resource "aws_ecs_task_definition" "loader" {
           name  = "ECS_TASK_MEMORY_LIMIT"
           value = tostring(each.value.memory)
         },
+        # CRITICAL FIX (Session 164): Set AWS_EXECUTION_ENV so credential_manager detects AWS environment
+        # Without this, credential_manager assumes local dev and doesn't use Secrets Manager fallback
+        # This causes DB credential injection to fail, making loaders unable to connect to RDS
+        {
+          name  = "AWS_EXECUTION_ENV"
+          value = "ECS_FARGATE"
+        },
         # AWS configuration (region required by credential_manager)
         {
           name  = "AWS_REGION"
