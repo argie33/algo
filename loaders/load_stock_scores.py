@@ -418,8 +418,21 @@ class StockScoresLoader(OptimalLoader):
                     f"Check upstream metric loaders for failures."
                 )
 
-            # Cap at 99.99 to fit in NUMERIC(4,2) database column
-            data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
+            # NUMERIC(4,2) supports up to 99.99, but we want 100.0 for perfect scores
+            data_completeness = min(100.0, round((data_count / 6.0) * 100, 2))
+
+            # CRITICAL: GOVERNANCE.md line 62 - Reject scores with <70% completeness
+            # Stocks with <70% completeness (fewer than 4.2/6 metrics) must be marked data_unavailable
+            # to prevent trading on degraded signals. This is NOT an arbitrary threshold; it's the line
+            # between "acceptable degradation" (66.7% = 4/6 metrics OK) and "too incomplete" (<70%).
+            if data_completeness < 70.0:
+                raise RuntimeError(
+                    f"[STOCK_SCORES] {symbol}: Score rejected for insufficient completeness. "
+                    f"Completeness: {data_completeness:.2f}% ({data_count}/6 metrics). "
+                    f"GOVERNANCE.md requires minimum 70% completeness (4.2/6 metrics). "
+                    f"Available metrics: {', '.join(f'{k}={round(100*int(is_real_score(all_scores[k]))/6,0)}%' for k in all_scores.keys())}. "
+                    f"Marking as data_unavailable to protect trading signals from degraded data."
+                )
 
             # CRITICAL: Enforce minimum 3/6 metrics per GOVERNANCE.md
             # Stock scores require sufficient metric diversity to prevent single-metric bias
