@@ -268,16 +268,23 @@ class MarketHealthDailyLoader(OptimalLoader):
                     logger.warning("[MARKET_HEALTH] All dates removed (only today was computed). No data to insert.")
                 return
 
-            # For historical dates, breadth data MUST be available
-            msg = (
-                f"[MARKET_HEALTH CRITICAL] Breadth enrichment: matched {matched_count}/{len(health_metrics)} dates. "
-                f"Missing breadth data for {len(unmatched_dates)} critical date(s): "
+            # GOVERNANCE: Breadth is optional enrichment per fail-open pattern
+            # Skip dates without breadth data and continue with incomplete dataset
+            logger.warning(
+                f"[MARKET_HEALTH] Breadth data unavailable for {len(unmatched_dates)} date(s): "
                 f"{unmatched_dates[:5]}{'...' if len(unmatched_dates) > 5 else ''}. "
-                f"Breadth metrics are CRITICAL for market exposure scoring (16% of score). "
-                f"Cannot proceed without complete breadth data for all trading dates."
+                f"Skipping these dates. Breadth metrics are optional enrichment (see GOVERNANCE.md). "
+                f"Matched {matched_count}/{len(health_metrics)} dates with breadth data."
             )
-            logger.error(msg)
-            raise RuntimeError(msg)
+            # Remove dates without breadth data from health_metrics
+            health_metrics[:] = [m for m in health_metrics if m["date"] not in unmatched_dates]
+
+            if not health_metrics:
+                logger.warning(
+                    "[MARKET_HEALTH] All dates removed due to missing breadth data. "
+                    "No data to insert. This may indicate upstream loader failure."
+                )
+                return
 
     def _merge_vix_data(self, health_metrics: list[dict[str, Any]], start: date, end: date) -> None:
         """Merge VIX data into health metrics.
