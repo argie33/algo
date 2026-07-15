@@ -2299,9 +2299,10 @@ resource "aws_scheduler_schedule" "reference_data_pipeline_trigger" {
   }
 }
 
+# FIXED: Force Terraform to re-create missing EOD scheduler (Session 157)
 resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
   name                         = "${var.project_name}-eod-pipeline-${var.environment}"
-  description                  = "EOD pipeline: end-of-day analysis & swing scores (4:05 PM ET, 5 min after market close)"
+  description                  = "EOD pipeline: end-of-day analysis & swing scores (4:05 PM ET, 5 min after market close). Includes technical_data_daily loader."
   schedule_expression          = "cron(5 16 ? * MON-FRI *)"
   schedule_expression_timezone = "America/New_York"
   state                        = "ENABLED"
