@@ -1720,7 +1720,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogYFinanceSnapshotFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "GrowthMetrics"
+        Next = "FinancialDataLoaders"
       }
 
       LogYFinanceSnapshotFailure = {
@@ -1740,7 +1740,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "GrowthMetrics"
+          Next        = "FinancialDataLoaders"
           ResultPath  = "$.logError"
         }]
         Next = "FinancialDataLoaders"
@@ -1776,7 +1776,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogFinancialsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "GrowthMetrics"
+        Next = "QualityMetrics"
       }
 
       LogFinancialsFailure = {
