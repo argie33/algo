@@ -1702,7 +1702,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       YFinanceSnapshot = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 25200
+        TimeoutSeconds = 32400
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"

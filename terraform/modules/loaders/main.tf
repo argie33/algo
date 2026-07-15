@@ -430,7 +430,7 @@ locals {
     "trend_template_data"  = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~10-30s, 2x headroom)
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
-    "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 7200, parallelism = 1 }
+    "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 14400, parallelism = 1 }
     # Cost-optimized: Reduced from 2048 to 512 (yfinance API fetch + lightweight metric calc, <100MB actual)
     "growth_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
     # Cost-optimized: Reduced from 2048 to 512 (SEC filing parse + DB insert, <100MB actual)
