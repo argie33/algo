@@ -29,7 +29,7 @@ import logging
 import os
 import sys
 from datetime import date, datetime, timezone
-from typing import Any
+from typing import Any, cast
 
 from loaders.helpers.yfinance_batcher import batch_tickers
 from loaders.runner import run_loader
@@ -288,13 +288,14 @@ def main() -> int:
     Confirmed live 2026-07-13: a run exceeded 120min with no self-timeout firing.
     """
     import signal
+    import sys
 
     execution_timeout_sec = int(os.getenv("LOADER_TIMEOUT", "7200")) - 60
 
     def _timeout_handler(signum: int, frame: Any) -> None:
         raise TimeoutError(f"yfinance_snapshot exceeded {execution_timeout_sec}s timeout")
 
-    if hasattr(signal, "SIGALRM"):
+    if sys.platform != "win32" and hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, _timeout_handler)
         signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
 
