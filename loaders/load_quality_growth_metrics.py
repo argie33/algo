@@ -55,12 +55,27 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         If one symbol's INSERT fails (data_unavailable etc), don't abort entire loader.
         Each symbol gets its own transaction so failures don't cascade.
         """
+        from utils.db.context import DatabaseContext
+
         quality_inserts = 0
         growth_inserts = 0
         symbols_succeeded = 0
         symbols_failed = 0
 
         try:
+            # Mark both loaders as RUNNING
+            with DatabaseContext("write") as cur:
+                for table in ["quality_metrics", "growth_metrics"]:
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() WHERE table_name = %s",
+                        ("RUNNING", table),
+                    )
+                    if cur.rowcount == 0:
+                        cur.execute(
+                            "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
+                            (table, "RUNNING"),
+                        )
+
             for symbol in symbols:
                 try:
                     # Per-symbol transaction: commit/rollback independently
@@ -88,6 +103,15 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             logger.info(
                 f"[QUALITY_GROWTH] Consolidated load complete: {quality_inserts} quality, {growth_inserts} growth"
             )
+
+            # Mark both loaders as COMPLETED
+            with DatabaseContext("write") as cur:
+                for table in ["quality_metrics", "growth_metrics"]:
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() WHERE table_name = %s",
+                        ("COMPLETED", table),
+                    )
+
             return {
                 "symbols_succeeded": symbols_succeeded,
                 "symbols_failed": symbols_failed,
@@ -97,6 +121,14 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
 
         except Exception as e:
             logger.error(f"[QUALITY_GROWTH FATAL] {type(e).__name__}: {e!s}", exc_info=True)
+            # Mark both loaders as FAILED
+            with DatabaseContext("write") as cur:
+                error_msg = str(e)[:500]
+                for table in ["quality_metrics", "growth_metrics"]:
+                    cur.execute(
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                        ("FAILED", error_msg, table),
+                    )
             raise
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[tuple[dict[str, Any], dict[str, Any]]]:  # type: ignore[override]
