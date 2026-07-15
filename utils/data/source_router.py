@@ -252,14 +252,28 @@ class DataSourceRouter:
         end: date,
         interval: str = "1d",
     ) -> Any | None:
-        """OHLCV bars at a specified yfinance interval (1d/1wk/1mo)."""
+        """OHLCV bars at a specified interval (1d/1wk/1mo).
+
+        For daily bars (interval='1d'), routes through Alpaca if PRICE_DATA_SOURCE=alpaca.
+        Falls back to yfinance for unsupported symbols or other intervals.
+        """
+        request_desc = f"OHLCV[{symbol} {start}..{end} {interval}]"
+
+        # Only Alpaca supports daily bars; other intervals use yfinance
+        if interval == "1d" and os.getenv("PRICE_DATA_SOURCE", "yfinance").lower() == "alpaca":
+            alpaca_results = self._alpaca_batch_or_none([symbol], start, end, request_desc)
+            if alpaca_results is not None and alpaca_results.get(symbol):
+                self.last_source = "alpaca"
+                return alpaca_results[symbol]
+            # Alpaca failed or symbol not served — fall through to yfinance
+
         sources = [
             (
                 "yfinance",
                 lambda: self._fetch_yfinance_ohlcv(symbol, start, end, interval=interval),
             ),
         ]
-        return self._try_chain(sources, f"OHLCV[{symbol} {start}..{end} {interval}]")
+        return self._try_chain(sources, request_desc)
 
     def fetch_ohlcv_batch(
         self,
