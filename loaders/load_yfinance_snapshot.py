@@ -15,7 +15,7 @@ Consolidates redundant calls from:
 - analyst_sentiment_analysis (recommendation key, analyst counts)
 
 FRESHNESS SKIP 2026-07-14: symbols with an available snapshot row newer than
-YFINANCE_SNAPSHOT_MAX_AGE_HOURS (default 20h) are skipped entirely — re-runs and
+YFINANCE_SNAPSHOT_MAX_AGE_HOURS (default 20h) are skipped entirely - re-runs and
 crash-retries fetch only the unfetched tail instead of restarting all ~5,300
 quoteSummary requests from zero. (The earlier "batches 50 symbols per request"
 claim was false: batch_tickers groups symbols for iteration, but every symbol
@@ -61,7 +61,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
         RESILIENCE FIX: every run used to refetch ALL ~5,300 symbols' quoteSummary,
         including when a run was killed partway (timeout guardian / SLA) and Step
-        Functions relaunched it — the retry started from zero, doubling API volume
+        Functions relaunched it - the retry started from zero, doubling API volume
         exactly when Yahoo was already throttling us (the observed 2h+ runs and
         shared-IP ban storms). With a freshness horizon, a retry only fetches the
         tail that wasn't committed yet. Fails open to a full refetch.
@@ -82,7 +82,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
         if self._fresh_symbols:
             logger.info(
                 f"[YFINANCE_SNAPSHOT] {len(self._fresh_symbols)} symbols already fresh "
-                f"(<{max_age_hours}h) — skipping their API fetch this run"
+                f"(<{max_age_hours}h) - skipping their API fetch this run"
             )
 
     def _do_batch_prefetch(self) -> None:
@@ -108,7 +108,7 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
             stale_symbols = [s for s in all_symbols if s not in self._fresh_symbols]
             if not stale_symbols:
-                logger.info("[YFINANCE_SNAPSHOT BATCH] All active symbols fresh — nothing to prefetch")
+                logger.info("[YFINANCE_SNAPSHOT BATCH] All active symbols fresh - nothing to prefetch")
                 return
 
             logger.info(
@@ -144,12 +144,12 @@ class YFinanceSnapshotLoader(OptimalLoader):
 
         Returns all metrics in one row to avoid 6 separate yfinance API calls.
         Returns data_unavailable marker if ticker unavailable or data fetch fails.
-        Symbols with a fresh, available snapshot row return [] (no-op — counted as
+        Symbols with a fresh, available snapshot row return [] (no-op - counted as
         skipped-by-watermark upstream), so re-runs and crash-retries only fetch the
         symbols that actually need it.
         """
         # Fresh snapshot already committed in DB (data_available=TRUE, within the
-        # freshness horizon) — NOT a data_unavailable case and nothing to re-fetch:
+        # freshness horizon) - NOT a data_unavailable case and nothing to re-fetch:
         # empty list is the framework's "no new data since watermark" no-op contract.
         if symbol in self._fresh_symbols:
             return []

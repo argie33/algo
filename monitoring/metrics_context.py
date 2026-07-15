@@ -61,7 +61,7 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
                 logger.warning("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
                 return
 
-        # Fail fast on all other errors — observability loss is critical in production
+        # Fail fast on all other errors - observability loss is critical in production
         logger.critical(
             f"[OBSERVABILITY_LOSS] CloudWatch metric failed for {operation_name}: "
             f"{error_type}: {e}. "

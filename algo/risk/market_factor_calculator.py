@@ -30,7 +30,7 @@ class MarketFactorCalculator:
     def _wt_pts(factor: dict[str, Any], weight: float) -> tuple[float, float]:
         """Scale factor score to weight. Returns (pts, avail_weight).
 
-        Raises exception if score is missing — market factors are critical
+        Raises exception if score is missing - market factors are critical
         for position sizing and must not silently degrade.
         """
         score = factor.get("score")
@@ -38,7 +38,7 @@ class MarketFactorCalculator:
             factor_name = factor.get("name", "unknown")
             raise ValueError(
                 f"[MARKET_FACTOR] Missing score for factor '{factor_name}'. "
-                f"Market factors are critical for exposure calculation — missing data must be explicit."
+                f"Market factors are critical for exposure calculation - missing data must be explicit."
             )
 
         try:
@@ -57,7 +57,7 @@ class MarketFactorCalculator:
 
         Linear scale: 20% = 0 pts, 50% = 50 pts, 80% = 100 pts
         Uses most recent available date on or before eval_date (technical_data_daily may lag prices).
-        Raises RuntimeError if data unavailable — market breadth is required for position sizing.
+        Raises RuntimeError if data unavailable - market breadth is required for position sizing.
         """
         try:
             cur.execute(
@@ -171,7 +171,7 @@ class MarketFactorCalculator:
     def trend_30wk(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Trend factor: SPY vs 30-week MA (critical).
 
-        Raises RuntimeError if data unavailable — SPY trend is foundational to veto logic.
+        Raises RuntimeError if data unavailable - SPY trend is foundational to veto logic.
         Trend is a 15pt factor. Missing weekly price data is a data error, not a skip condition.
         """
         try:
@@ -216,7 +216,7 @@ class MarketFactorCalculator:
     def spy_momentum(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """SPY 12-month momentum (TSMOM, critical).
 
-        Raises RuntimeError if data unavailable — momentum is key to trend confirmation.
+        Raises RuntimeError if data unavailable - momentum is key to trend confirmation.
         Momentum is a 10pt factor. Missing historical data is a data error, not a skip condition.
         """
         try:
@@ -259,7 +259,7 @@ class MarketFactorCalculator:
     def selling_pressure(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Heavy-volume down days in last 25 sessions (critical).
 
-        Raises RuntimeError if data unavailable — selling pressure is required for veto 3.
+        Raises RuntimeError if data unavailable - selling pressure is required for veto 3.
         Selling pressure is a 10pt factor and missing volume/price data is a data error, not a skip.
         Must be TODAY's data for current market assessment.
         """
@@ -321,7 +321,7 @@ class MarketFactorCalculator:
     def vix_regime(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """VIX level + term structure (critical).
 
-        Raises RuntimeError if data unavailable — VIX is foundational to risk assessment.
+        Raises RuntimeError if data unavailable - VIX is foundational to risk assessment.
         VIX is a 10pt factor. Missing volatility data is a data error, not a skip condition.
         """
         try:
@@ -394,7 +394,7 @@ class MarketFactorCalculator:
     def new_highs_lows(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """52-week new highs vs new lows (critical).
 
-        Raises RuntimeError if data unavailable — market leadership is key to confirm trends.
+        Raises RuntimeError if data unavailable - market leadership is key to confirm trends.
         New highs/lows is a 5pt factor. Missing leadership data is a data error, not a skip.
         """
         try:
@@ -434,7 +434,7 @@ class MarketFactorCalculator:
     def ad_line(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Advance/decline line vs SPY (critical).
 
-        Raises RuntimeError if data unavailable — A/D confirmation is key to market health check.
+        Raises RuntimeError if data unavailable - A/D confirmation is key to market health check.
         A/D line is a 5pt factor. Missing breadth direction data is a data error, not a skip.
         """
         try:
@@ -466,7 +466,7 @@ class MarketFactorCalculator:
     def credit_spread(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """High-yield credit spread (HY OAS, critical).
 
-        Raises RuntimeError if data unavailable — credit stress is key systemic risk indicator.
+        Raises RuntimeError if data unavailable - credit stress is key systemic risk indicator.
         Credit spread is a 10pt factor. Missing credit data is a data error, not a skip.
         """
         try:
@@ -494,7 +494,7 @@ class MarketFactorCalculator:
     def aaii(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """AAII sentiment (contrarian at extremes, critical).
 
-        Raises RuntimeError if data unavailable — sentiment extremes are key contrarian signals.
+        Raises RuntimeError if data unavailable - sentiment extremes are key contrarian signals.
         AAII is a 3pt factor. Missing sentiment data is a data error, not a skip condition.
         """
         try:
@@ -530,7 +530,7 @@ class MarketFactorCalculator:
     def naaim(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """NAAIM exposure (contrarian positioning, critical). Uses most recent weekly reading.
 
-        Raises RuntimeError if data unavailable — professional positioning is key contrarian signal.
+        Raises RuntimeError if data unavailable - professional positioning is key contrarian signal.
         NAAIM is a 3pt factor. Missing positioning data is a data error, not a skip condition.
         """
         try:

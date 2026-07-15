@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Database query service — wraps psycopg2 cursor to decouple handlers from direct cursor access.
+"""Database query service - wraps psycopg2 cursor to decouple handlers from direct cursor access.
 
 Provides a simple interface for common query patterns used across 50+ API handlers.
 Reduces coupling: handlers call db.query(...) instead of cur.execute(...).
@@ -86,7 +86,7 @@ class DatabaseQueryService:
         if self.cursor.connection:
             self.cursor.connection.rollback()
 
-    # Passthrough for backward compatibility — allow handlers to access cursor directly if needed
+    # Passthrough for backward compatibility - allow handlers to access cursor directly if needed
     def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes to underlying cursor."""
         return getattr(self.cursor, name)

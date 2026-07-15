@@ -270,7 +270,7 @@ def lambda_handler(event, context):
             }
 
         if variance is None:
-            logger.error("Unable to calculate variance after retries — halting trading (fail-closed)")
+            logger.error("Unable to calculate variance after retries - halting trading (fail-closed)")
             try:
                 _set_halt(
                     table,

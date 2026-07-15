@@ -11,7 +11,7 @@ import re
 from typing import Any
 
 # Known safe tables (whitelist for dynamic table names)
-# Security: M-001 SQL injection prevention — table names validated against whitelist
+# Security: M-001 SQL injection prevention - table names validated against whitelist
 SAFE_TABLES = {
     # Algo core
     "algo_metrics_daily",
@@ -146,7 +146,7 @@ SAFE_TABLES = {
 }
 
 # Known safe columns (whitelist for dynamic column names)
-# Security: M-001 SQL injection prevention — column names validated against whitelist
+# Security: M-001 SQL injection prevention - column names validated against whitelist
 SAFE_COLUMNS = {
     # Time columns
     "date",
@@ -303,7 +303,7 @@ def safe_select_count(
     table_safe = assert_safe_table(table)
 
     # SECURITY FIX M-05: Validate where_clause against SQL injection
-    # These are always hardcoded internal strings — never user input (see docstring).
+    # These are always hardcoded internal strings - never user input (see docstring).
     # Validation catches the rare case of accidental user-input misuse.
     if where_clause:
         where_upper = where_clause.upper()

@@ -132,7 +132,7 @@ if __name__ == "__main__":
         print(
             "\nFix:\n"
             "  Dashboard: Use error_boundary.has_error() + direct access (see panels/data_extractors.py)\n"
-            "  Loaders: Remove numeric/dict defaults from .get() — use strict validation or raise\n"
+            "  Loaders: Remove numeric/dict defaults from .get() - use strict validation or raise\n"
             "  Finance paths: Missing data must be visible (fail fast), not silently defaulted"
         )
         sys.exit(1)

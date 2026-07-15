@@ -21,7 +21,7 @@ def handle(
 
     Every route module dispatched via api_router.route_request() must expose a
     module-level `handle(...)` entry point (see routes/data_coverage.py,
-    routes/risk_dashboard.py, etc.) — route_request() calls `handler.handle(...)`
+    routes/risk_dashboard.py, etc.) - route_request() calls `handler.handle(...)`
     directly on the imported module. This one was missing it, which raised
     `AttributeError: module 'routes.diagnostics' has no attribute 'handle'`
     on every request, surfacing as a 500 "Code bug accessing data fields".

@@ -61,7 +61,7 @@ def main():
         print(f"   Status: {status}")
         if loaded < total:
             missing = total - loaded
-            print(f"   Missing: {missing} symbols ({100 - coverage:.1f}%) — minor incompleteness")
+            print(f"   Missing: {missing} symbols ({100 - coverage:.1f}%) - minor incompleteness")
         return 0
 
     else:
@@ -85,7 +85,7 @@ def main():
             print('        --payload \'{"loader_name":"price_daily"}\' /tmp/result.json')
         else:
             missing = total - loaded
-            print(f"   Missing: {missing} symbols ({100 - coverage:.1f}%) — need >= 75% to proceed")
+            print(f"   Missing: {missing} symbols ({100 - coverage:.1f}%) - need >= 75% to proceed")
             print()
             print("   Recovery:")
             print("      python scripts/recover_incomplete_loader.py")

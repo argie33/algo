@@ -1,4 +1,4 @@
-"""Consolidated Response Validators — unified validation for all API responses.
+"""Consolidated Response Validators - unified validation for all API responses.
 
 This module consolidates dashboard and Lambda response validators into a single
 canonical implementation using a factory pattern with endpoint-specific validators.
@@ -6,7 +6,7 @@ canonical implementation using a factory pattern with endpoint-specific validato
 GOVERNANCE:
 - All API responses are validated at intake boundaries (Dashboard, Lambda routes)
 - Fail-fast approach: Missing/invalid required fields raise ResponseValidationError
-- No silent fallbacks to empty collections — explicit data_unavailable flags required
+- No silent fallbacks to empty collections - explicit data_unavailable flags required
 - Error responses (containing _error field) pass through without validation
 
 VALIDATION PATTERNS:

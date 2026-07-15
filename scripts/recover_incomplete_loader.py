@@ -115,7 +115,7 @@ def monitor_loader_recovery(loader_name: str, timeout_seconds: int = 600) -> tup
         status = check_loader_status(loader_name)
 
         if not status:
-            logger.warning("Could not check status (database error) — still waiting...")
+            logger.warning("Could not check status (database error) - still waiting...")
             time.sleep(check_interval)
             continue
 

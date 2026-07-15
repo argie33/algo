@@ -317,7 +317,7 @@ def fetch_scores(c: None) -> dict[str, Any]:
         is_error, error_msg = FetcherValidator.check_api_error(top_data)
         if is_error:
             # IMPORTANT: Distinguish between temporary service issues and real errors
-            # Scores are non-critical enrichment — 503 (unavailable) and 504 (query timeout)
+            # Scores are non-critical enrichment - 503 (unavailable) and 504 (query timeout)
             # are both transient; allow signals to display without score rankings
             # CRITICAL FIX: Check each flag explicitly (not with OR) to distinguish error types
             is_transient_503 = top_data.get("_is_transient_503") is True

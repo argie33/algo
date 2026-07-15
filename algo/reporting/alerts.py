@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Alert Escalation — Notify on critical data/trading issues
+Alert Escalation - Notify on critical data/trading issues
 
 Sends emails + SNS alerts when patrol finds critical/error issues.
 Configuration via environment variables:
@@ -111,7 +111,7 @@ class AlertManager:
 
         # Build email body
         body_lines = [
-            f"Data Patrol Alert — {datetime.now(timezone.utc).isoformat()}",
+            f"Data Patrol Alert - {datetime.now(timezone.utc).isoformat()}",
             f"Run: {patrol_run_id}",
             "",
             "Counts:",
@@ -133,7 +133,7 @@ class AlertManager:
         body_lines.append("ACTION REQUIRED: Review patrol results and halt trading if necessary.")
         body_text = "\n".join(body_lines)
 
-        # Data patrol alerts are CRITICAL — they must reach ops or trading should halt.
+        # Data patrol alerts are CRITICAL - they must reach ops or trading should halt.
         # Fail hard if any send fails (don't silently continue).
         send_errors = []
 
@@ -172,7 +172,7 @@ class AlertManager:
 
         subject = f"[ALGO ALERT] {alert_type}: {symbol}"
         body_lines = [
-            f"Position Alert — {datetime.now(timezone.utc).isoformat()}",
+            f"Position Alert - {datetime.now(timezone.utc).isoformat()}",
             f"Type: {alert_type}",
             f"Symbol: {symbol}",
             "",
@@ -217,7 +217,7 @@ class AlertManager:
         subject = f"[ALGO ALERT] {severity}: Data Loader Failure"
 
         body_lines = [
-            f"Loader Health Alert — {datetime.now(timezone.utc).isoformat()}",
+            f"Loader Health Alert - {datetime.now(timezone.utc).isoformat()}",
             "",
             f"Severity: {severity}",
             "",
@@ -270,7 +270,7 @@ class AlertManager:
             logger.debug(f"[ALERTS NOOP] critical: {message}")
             return
         subject = "[ALGO ALERT] CRITICAL"
-        body_text = f"Critical Alert — {datetime.now(timezone.utc).isoformat()}\n\n{message}"
+        body_text = f"Critical Alert - {datetime.now(timezone.utc).isoformat()}\n\n{message}"
 
         if self.email_to:
             try:

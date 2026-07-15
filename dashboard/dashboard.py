@@ -121,7 +121,7 @@ except ImportError:
             except (OSError, AttributeError, ValueError) as e:
                 raise RuntimeError(
                     f"Dashboard terminal input failed: {type(e).__name__}: {e}. "
-                    "Terminal mode is broken — cannot read user input."
+                    "Terminal mode is broken - cannot read user input."
                 ) from e
         return ""
 
@@ -670,7 +670,7 @@ def _fetch_and_validate_aws_credentials() -> tuple[str, str, str]:
 
     CRITICAL: Fails fast if any credential is missing. AWS mode requires all three
     credentials (dashboard API URL, Cognito user pool ID, and Cognito client ID).
-    No fallback to secondary sources — environment variables are the single source of truth.
+    No fallback to secondary sources - environment variables are the single source of truth.
 
     Raises: SystemExit if any credential missing or invalid.
     """

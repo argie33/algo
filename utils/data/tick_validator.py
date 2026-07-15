@@ -180,14 +180,14 @@ class TickValidator:
             self.errors.append(f"volume is negative: {volume}")
         # Zero volume is only an error if it's the only indication of staleness.
         # Market closed, no trades, or illiquid securities legitimately have zero volume.
-        # Don't reject outright — downstream phases can assess data freshness.
+        # Don't reject outright - downstream phases can assess data freshness.
 
         # Max volume sanity check
         max_volume = 1_000_000_000  # 1B shares is essentially impossible
         if volume > max_volume:
             self.errors.append(f"volume impossibly high: {volume}")
 
-        # Don't enforce min_volume thresholds — they're too strict for penny stocks,
+        # Don't enforce min_volume thresholds - they're too strict for penny stocks,
         # low-liquidity securities, and market-close thinly traded data.
         # OHLC logic and price bounds checks catch the real issues.
 

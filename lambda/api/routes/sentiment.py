@@ -249,7 +249,7 @@ def handle(  # noqa: C901
                 return error_response(
                     503,
                     "service_unavailable",
-                    f"Analyst sentiment data unavailable for {symbol} — no coverage in analyst_sentiment_analysis table",
+                    f"Analyst sentiment data unavailable for {symbol} - no coverage in analyst_sentiment_analysis table",
                 )
             if latest is None:
                 return error_response(
@@ -535,7 +535,7 @@ def handle(  # noqa: C901
             row = cur.fetchone()
             if not row:
                 return error_response(
-                    503, "no_data", "Sentiment data not available — fear_greed_index table empty or data not loaded"
+                    503, "no_data", "Sentiment data not available - fear_greed_index table empty or data not loaded"
                 )
             if row["fear_greed_value"] is None:
                 raise RuntimeError(
@@ -602,7 +602,7 @@ def _get_vix_data(cur: cursor) -> Any:
             return error_response(503, "no_data", "Market sentiment data not yet available")
 
         if not rows:
-            return error_response(503, "no_data", "VIX data not available — market_health_daily table empty")
+            return error_response(503, "no_data", "VIX data not available - market_health_daily table empty")
 
         latest = safe_json_serialize(dict(rows[0]))
         history = [safe_json_serialize(dict(r)) for r in rows]

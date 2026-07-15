@@ -260,7 +260,7 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
         # Economic indicators are CRITICAL for portfolio decisions
         if not DatabaseResultValidator.validate_rows_not_empty(latest_data, "economic latest indicators query"):
             raise ValueError(
-                "[CRITICAL] Economic latest indicators data validation failed — no data returned from query. "
+                "[CRITICAL] Economic latest indicators data validation failed - no data returned from query. "
                 "Cannot provide economic indicators without data. "
                 "Check economic_data table and data loader."
             )
@@ -281,7 +281,7 @@ def _get_leading_indicators(cur: cursor) -> Any:  # noqa: C901
             # Use strict=True to fail-fast on missing/invalid values
             value = DatabaseResultValidator.safe_get_float(row, "value", default=None, strict=True)
             if value is None:
-                error_msg = f"Economic indicator {series_id} has missing value — data unavailable"
+                error_msg = f"Economic indicator {series_id} has missing value - data unavailable"
                 logger.error(f"[ECONOMIC CRITICAL] {error_msg}")
                 skipped_indicators.append({"series_id": series_id, "reason": "value_missing"})
                 continue

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Signal Trade Performance Populator — extract component attribution + realized P&L from closed trades.
+Signal Trade Performance Populator - extract component attribution + realized P&L from closed trades.
 
 Reads closed algo_trades and computes per-trade attribution metrics and realized P&L,
 persisting to signal_trade_performance for Information Coefficient (IC) calculation per component.
@@ -190,7 +190,7 @@ class SignalTradePerformancePopulator:
 
     def get_trailing_ic(self, component: str, days: int = 60) -> list[dict[str, Any]]:
         if component not in self._VALID_COMPONENTS:
-            raise ValueError(f"Unknown component '{component}' — must be one of {self._VALID_COMPONENTS}")
+            raise ValueError(f"Unknown component '{component}' - must be one of {self._VALID_COMPONENTS}")
         try:
             with DatabaseContext("read") as cur:
                 cutoff = _date.today() - timedelta(days=days)

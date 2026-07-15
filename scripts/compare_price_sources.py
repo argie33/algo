@@ -15,7 +15,7 @@ Interpreting results (what "good" looks like before switching PRICE_DATA_SOURCE)
 - close_diff_pct p95 under ~0.5%: OHLC parity. Small diffs are expected from
   consolidated-tape closing-print handling; large ones indicate feed problems.
 - volume_ratio (alpaca/yfinance) median near 1.0: consolidated volume parity.
-  A median near 0.02 would mean we accidentally got the IEX feed — do not switch.
+  A median near 0.02 would mean we accidentally got the IEX feed - do not switch.
 - coverage: symbols Alpaca returned vs requested. Missing coverage on real,
   active symbols is disqualifying; missing OTC/tiny symbols may be acceptable.
 """

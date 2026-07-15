@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Momentum and breakout signal methods — TD Sequential, power trend, pocket pivot, distribution."""
+"""Momentum and breakout signal methods - TD Sequential, power trend, pocket pivot, distribution."""
 
 import logging
 from typing import Any, cast
@@ -74,7 +74,7 @@ class SignalMomentumMixin:
                     buy_count = buy_count + 1 if buy_count >= 1 else 1
                     sell_count = 0
                 else:
-                    # Equal — both reset
+                    # Equal - both reset
                     sell_count = 0
                     buy_count = 0
                 sell_count_history.append(sell_count)
@@ -229,12 +229,12 @@ class SignalMomentumMixin:
             if pivot <= 0:
                 raise ValueError(
                     f"[PIVOT_BREAKOUT] Pivot price invalid for {symbol}: {pivot}. "
-                    f"Cannot calculate percentage above pivot — price data corrupted."
+                    f"Cannot calculate percentage above pivot - price data corrupted."
                 )
             if avg_vol <= 0:
                 raise ValueError(
                     f"[PIVOT_BREAKOUT] Average volume invalid for {symbol}: {avg_vol}. "
-                    f"Cannot calculate volume ratio — volume data corrupted."
+                    f"Cannot calculate volume ratio - volume data corrupted."
                 )
 
             breakout = close > pivot * 1.005
@@ -324,7 +324,7 @@ class SignalMomentumMixin:
                     if max_down_vol <= 0:
                         raise ValueError(
                             f"[POCKET_PIVOT] Max down-day volume invalid for {symbol}: {max_down_vol}. "
-                            f"Cannot calculate volume ratio — volume data corrupted."
+                            f"Cannot calculate volume ratio - volume data corrupted."
                         )
                     return {
                         "pocket_pivot": True,
@@ -360,7 +360,7 @@ class SignalMomentumMixin:
                 if max_down_vol <= 0:
                     raise ValueError(
                         f"[POCKET_PIVOT] Max down-day volume invalid for {symbol}: {max_down_vol}. "
-                        f"Cannot calculate volume ratio — volume data corrupted."
+                        f"Cannot calculate volume ratio - volume data corrupted."
                     )
                 return {
                     "pocket_pivot": True,
@@ -381,7 +381,7 @@ class SignalMomentumMixin:
           - Volume is higher than the prior day's volume
 
         Returns count over lookback window (IBD standard: 25 trading days).
-        Fails fast on database errors—distribution data is required for signal filtering.
+        Fails fast on database errors-distribution data is required for signal filtering.
         """
 
         def _count_dist(cur: Any) -> int:
@@ -404,7 +404,7 @@ class SignalMomentumMixin:
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
-                raise ValueError(f"CRITICAL: Cannot calculate distribution days for {symbol} — price data unavailable")
+                raise ValueError(f"CRITICAL: Cannot calculate distribution days for {symbol} - price data unavailable")
             return int(row[0])
 
         return int(self._with_cursor(_count_dist))

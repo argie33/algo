@@ -69,7 +69,7 @@ class AdvancedFilters:
     def _load_config_val(self, key: str, default: Any) -> Any:
         """Load a config value from AlgoConfig (fail-fast).
 
-        CRITICAL: Raises on any database/connection errors — those indicate system
+        CRITICAL: Raises on any database/connection errors - those indicate system
         failure and must not be masked by silent defaults. Returns default only if
         config key is missing (not found), never for errors accessing the database.
 
@@ -84,7 +84,7 @@ class AdvancedFilters:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"CRITICAL: Database error loading config[{key}]: {e}. "
-                f"Signal evaluation requires valid config — cannot proceed with default values."
+                f"Signal evaluation requires valid config - cannot proceed with default values."
             ) from e
 
     # ---------- Pre-load: market context ----------
@@ -113,7 +113,7 @@ class AdvancedFilters:
 
             if not self._strong_sectors:
                 raise ValueError(
-                    f"No sector ranking data available for {eval_date} — "
+                    f"No sector ranking data available for {eval_date} - "
                     f"cannot proceed without sector ranking for signal evaluation"
                 )
 
@@ -134,7 +134,7 @@ class AdvancedFilters:
             industries = cur.fetchall()
             if not industries:
                 raise ValueError(
-                    f"No industry ranking data available for {eval_date} — "
+                    f"No industry ranking data available for {eval_date} - "
                     f"cannot proceed without industry ranking for signal evaluation"
                 )
             cutoff_idx = max(1, len(industries) // 4)
@@ -189,7 +189,7 @@ class AdvancedFilters:
             try:
                 days_to_earnings = self._estimate_days_to_earnings(symbol, signal_date, cur)
             except ValueError as e:
-                # Earnings data unavailability is INCOMPLETE VALIDATION — must HARD FAIL, not degrade.
+                # Earnings data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
                 # Continuing without earnings check exposes position to surprise earnings gaps.
                 hard_fail = f"Earnings data unavailable (cannot validate blackout): {e}"
                 logger.warning(f"  {symbol}: {hard_fail}")
@@ -205,7 +205,7 @@ class AdvancedFilters:
             try:
                 ext_pct = self._extension_pct(symbol, signal_date, entry_price, cur)
             except ValueError as e:
-                # SMA_50 data unavailability is INCOMPLETE VALIDATION — must HARD FAIL, not degrade.
+                # SMA_50 data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
                 # Cannot measure extension without SMA_50; trade validity is unmeasurable.
                 hard_fail = f"Extension validation failed (SMA_50 missing): {e}"
                 logger.warning(f"  {symbol}: {hard_fail}")
@@ -219,12 +219,12 @@ class AdvancedFilters:
                         f"  {symbol}: Additional violation (extension {ext_pct:.1f}%) but already failed: {hard_fail}"
                     )
 
-            # H4. Liquidity (institutional must — CRITICAL: must not skip on exception)
+            # H4. Liquidity (institutional must - CRITICAL: must not skip on exception)
             avg_dollar_vol: float | None = None
             try:
                 avg_dollar_vol = self._avg_dollar_volume(symbol, signal_date, cur)
             except ValueError as e:
-                # Liquidity data unavailability is INCOMPLETE VALIDATION — must HARD FAIL, not degrade.
+                # Liquidity data unavailability is INCOMPLETE VALIDATION - must HARD FAIL, not degrade.
                 # Cannot validate minimum liquidity; trade size calculation is unreliable.
                 hard_fail = f"Liquidity validation failed (price/volume missing): {e}"
                 logger.warning(f"  {symbol}: {hard_fail}")
@@ -243,7 +243,7 @@ class AdvancedFilters:
             # H5. Strong-sector requirement
             if self.require_strong_sector:
                 # CRITICAL: _strong_sectors must be loaded and non-empty (validated at init)
-                # Do NOT fallback to empty dict — if _strong_sectors is None/empty, signal must fail
+                # Do NOT fallback to empty dict - if _strong_sectors is None/empty, signal must fail
                 if not self._strong_sectors:
                     raise RuntimeError(
                         f"[SIGNAL CRITICAL] Strong sector filter enabled but sector ranking not loaded. "
@@ -261,7 +261,7 @@ class AdvancedFilters:
 
             # ===== SOFT scoring (always computed, even when hard-failed) =====
 
-            # MOMENTUM (40) — missing data in soft scoring is INCOMPLETE VALIDATION, hard-fail
+            # MOMENTUM (40) - missing data in soft scoring is INCOMPLETE VALIDATION, hard-fail
             try:
                 rs_pts, rs_value = self._mansfield_rs_score(symbol, signal_date, cur)
                 components["relative_strength"] = {
@@ -335,7 +335,7 @@ class AdvancedFilters:
             components["insider_net_value"] = in_net
             subscores["catalyst"] += in_pts
 
-            # RISK (15) — these are GOOD when low risk
+            # RISK (15) - these are GOOD when low risk
             try:
                 if ext_pct is not None:
                     ext_pts = self._extension_risk_score(ext_pct)
@@ -388,11 +388,11 @@ class AdvancedFilters:
 
     def _sector_momentum_score(self, sector: str | None) -> float:
         if not self._strong_sectors:
-            raise ValueError("Sector ranking data not loaded — call load_market_context() first")
+            raise ValueError("Sector ranking data not loaded - call load_market_context() first")
         if not sector:
             raise ValueError("Sector name is missing or empty")
         if not self._sector_full_ranking:
-            raise ValueError("CRITICAL: Sector ranking data unavailable — cannot score momentum")
+            raise ValueError("CRITICAL: Sector ranking data unavailable - cannot score momentum")
         if sector not in self._sector_full_ranking:
             raise ValueError(
                 f"CRITICAL: Sector '{sector}' not found in ranking data. "
@@ -407,7 +407,7 @@ class AdvancedFilters:
 
     def _industry_momentum_score(self, industry: str | None) -> float:
         if self._strong_industries is None:
-            raise ValueError("Industry ranking data not loaded — call load_market_context() first")
+            raise ValueError("Industry ranking data not loaded - call load_market_context() first")
         if not industry:
             raise ValueError("Industry name is missing or empty")
         if industry not in self._strong_industries:
@@ -435,11 +435,11 @@ class AdvancedFilters:
         )
         row = cur.fetchone()
         if row is None or len(row) < 2 or row[0] is None or row[1] is None:
-            raise ValueError(f"Volume data missing for {symbol} on {signal_date} — cannot confirm volume strength")
+            raise ValueError(f"Volume data missing for {symbol} on {signal_date} - cannot confirm volume strength")
         vol = float(row[0])
         avg = float(row[1])
         if avg <= 0:
-            raise ValueError(f"Invalid volume average (≤0) for {symbol} on {signal_date} — data corruption")
+            raise ValueError(f"Invalid volume average (≤0) for {symbol} on {signal_date} - data corruption")
         ratio = vol / avg
         momentum_vol_weight = FilterRegistry.get_weight("momentum_volume")
         vol_breakeven = FilterRegistry.get_threshold("volume_ratio_breakeven")
@@ -484,7 +484,7 @@ class AdvancedFilters:
             if cur.fetchone():
                 score += 1.0
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            # Weekly data missing or unavailable — signal quality impaired
+            # Weekly data missing or unavailable - signal quality impaired
             logger.warning(
                 f"[SIGNAL_QUALITY] Weekly alignment data unavailable for {symbol}: {e} (signal bonus not applied)"
             )
@@ -510,7 +510,7 @@ class AdvancedFilters:
             pivot = self._signal_api.detect_pivot(symbol, signal_date)
             power = self._signal_api.detect_power_trend(symbol, signal_date)
         except ValueError as e:
-            # Missing setup detection data — cannot proceed safely
+            # Missing setup detection data - cannot proceed safely
             logger.error(f"Setup quality data unavailable for {symbol}: {e}")
             raise
         # Other exceptions (RuntimeError, ConnectionError, etc.) propagate to caller
@@ -565,7 +565,7 @@ class AdvancedFilters:
         row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             raise ValueError(
-                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) — insufficient price history"
+                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) - insufficient price history"
             )
         recent = float(row[0])
         oldest = float(row[1])
@@ -874,7 +874,7 @@ class AdvancedFilters:
         row = cur.fetchone()
         if not row or row[0] is None:
             raise ValueError(
-                f"Price/volume data missing for {symbol} on {signal_date} — cannot calculate average daily dollar volume"
+                f"Price/volume data missing for {symbol} on {signal_date} - cannot calculate average daily dollar volume"
             )
         return float(row[0])
 
@@ -923,7 +923,7 @@ class AdvancedFilters:
         row = cur.fetchone()
         if row is None or len(row) < 1 or row[0] is None:
             raise ValueError(
-                f"Earnings date not available for {symbol} on {signal_date} — no calendar, estimates, or history found"
+                f"Earnings date not available for {symbol} on {signal_date} - no calendar, estimates, or history found"
             )
 
         last_report = row[0] if isinstance(row[0], _date) else row[0].date()

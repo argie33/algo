@@ -178,7 +178,7 @@ def format_handler_error(e: Exception) -> dict[str, Any]:
     Logs full stack trace server-side for investigation.
     """
     # APIException subclasses (NotFound, BadRequest, ServiceUnavailable, ...) declare
-    # their own status_code/error_type — honor them instead of falling through the
+    # their own status_code/error_type - honor them instead of falling through the
     # string heuristics below (which previously turned every 404 into a 500).
     from exceptions import APIException
 

@@ -83,7 +83,7 @@ def handle(
             return error_response(
                 401,
                 "missing_user_id",
-                "JWT missing 'sub' (user ID) — cannot audit request",
+                "JWT missing 'sub' (user ID) - cannot audit request",
             )
         user_id = jwt_claims["sub"]
 
@@ -301,7 +301,7 @@ def _get_system_health(cur: cursor) -> Any:
         for row in cur.fetchall():
             row_dict = safe_json_serialize(dict(row))
             table_name = row_dict.get("table_name")
-            # CRITICAL: Validate cnt is present and not None — don't mask data quality issues as 0
+            # CRITICAL: Validate cnt is present and not None - don't mask data quality issues as 0
             if "cnt" not in row_dict:
                 raise ValueError(
                     f"[HEALTH CRITICAL] Table {table_name}: row count query missing 'cnt' field. "

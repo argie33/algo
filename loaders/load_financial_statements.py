@@ -75,7 +75,7 @@ def get_all_statement_configs() -> list[tuple[str, str]]:
 
 # SEC snake_cased concept -> DB column mappings (BUGFIX 2026-07-14: no config ever
 # defined field_mapping, so SecEdgarStatementLoader.transform() raised "Field mapping
-# not initialized" for EVERY symbol that returned rows — this loader had never
+# not initialized" for EVERY symbol that returned rows - this loader had never
 # persisted a real row since consolidation. Keys are _to_snake()'d XBRL concept names
 # from utils/external/sec_statements.py; unmapped keys are skipped by transform().
 # Multiple revenue concepts intentionally map to "revenue": transform iterates in row
@@ -117,7 +117,7 @@ _CASHFLOW_FIELD_MAPPING = {
 }
 
 # Quarterly rows carry fiscal_period ("Q1".."Q4"), which transform() converts to the
-# integer fiscal_quarter column. Annual rows' fiscal_period ("FY") stays unmapped —
+# integer fiscal_quarter column. Annual rows' fiscal_period ("FY") stays unmapped -
 # annual tables have no fiscal_quarter column.
 _QUARTERLY_EXTRA = {"fiscal_period": "fiscal_quarter"}
 
@@ -351,7 +351,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
 def load_all_statements() -> int:
     """Load all statement/period combinations in a single symbol-major pass.
 
-    PERFORMANCE FIX 2026-07-13: the previous implementation was combo-major —
+    PERFORMANCE FIX 2026-07-13: the previous implementation was combo-major -
     it invoked run_loader() once per statement/period combo, and each of those
     runs iterated ALL ~5,300 symbols. Every combo is derived from the SAME SEC
     companyfacts JSON, so each symbol's multi-MB payload was re-downloaded once
@@ -543,7 +543,7 @@ def _run_symbol_pass(
                     f"at symbol {i}/{len(symbols)}: {health_err}"
                 )
                 raise RuntimeError(
-                    "[FINANCIAL_STATEMENTS ALL MODE] Database health check failed—connection unreliable. "
+                    "[FINANCIAL_STATEMENTS ALL MODE] Database health check failed-connection unreliable. "
                     "Halting loader."
                 ) from health_err
 
@@ -585,7 +585,7 @@ def _finalize_combo(
     if fail_rate > max_fail_rate:
         msg = (
             f"[{loader.table_name}] {symbols_failed}/{symbol_count} symbols failed "
-            f"({fail_rate:.1f}% > {max_fail_rate}% threshold)—incomplete dataset"
+            f"({fail_rate:.1f}% > {max_fail_rate}% threshold)-incomplete dataset"
         )
         logger.error(msg)
         loader._log_execution_history("failed", msg[:500])

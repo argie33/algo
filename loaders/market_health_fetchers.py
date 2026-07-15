@@ -46,7 +46,7 @@ class VIXFetcher:
                 "VIX data unavailable - circuit breaker returned None. Cannot proceed without VIX data for market halt decisions."
             )
         if not isinstance(result, dict):
-            raise RuntimeError(f"VIX fetch returned invalid data type {type(result).__name__} — expected dict")
+            raise RuntimeError(f"VIX fetch returned invalid data type {type(result).__name__} - expected dict")
         return result
 
     def _fetch_vix_data(self, start: date, end: date) -> dict[str, Any]:
@@ -58,7 +58,7 @@ class VIXFetcher:
         based on consistent, auditable data.
 
         If price_daily is unavailable, this is a CRITICAL data failure that must surface
-        immediately—trading cannot proceed without reliable VIX data for halt decisions.
+        immediately-trading cannot proceed without reliable VIX data for halt decisions.
         """
         try:
             from utils.db import DatabaseContext
@@ -527,7 +527,7 @@ class YieldCurveFetcher:
                 # CRITICAL: Yield curve is critical market data per CLAUDE.md governance
                 # Missing data must be visible to ops for market stress calculations
                 logger.error(
-                    f"[YIELD_CURVE] CRITICAL: No yield data available for date range {start}:{end} — market stress calculations may be incomplete"
+                    f"[YIELD_CURVE] CRITICAL: No yield data available for date range {start}:{end} - market stress calculations may be incomplete"
                 )
 
             return result

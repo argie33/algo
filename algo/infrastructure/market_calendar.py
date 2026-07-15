@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Market Calendar — Handle trading holidays and market hours
+Market Calendar - Handle trading holidays and market hours
 
 Prevents false alerts on market closures, early closes, and holidays.
 Uses standard US market holidays. Can be extended for other markets.

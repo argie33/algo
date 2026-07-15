@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Central Metrics Calculator — Single Source of Truth for All Performance Metrics
+"""Central Metrics Calculator - Single Source of Truth for All Performance Metrics
 
 This module consolidates ALL metric calculations (win_rate, sharpe, expectancy, etc.)
 into a single place so they NEVER diverge between loaders, API, or dashboard.

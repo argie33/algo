@@ -103,7 +103,7 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
     Returns error dict if present, otherwise returns items list.
     Raises on malformed data to prevent silent data loss.
     """
-    # Handle None explicitly — data not available yet (common on first load)
+    # Handle None explicitly - data not available yet (common on first load)
     if data is None:
         return {
             "_data_unavailable": True,
@@ -121,14 +121,14 @@ def _extract_items(data: Any) -> list[Any] | dict[str, Any]:
             return data["items"]
         if "trades" in data and isinstance(data["trades"], list):
             return data["trades"]
-        # Dict exists but doesn't have expected structure — fail fast
+        # Dict exists but doesn't have expected structure - fail fast
         raise ValueError(
             f"Data dict missing 'items' or 'trades' field. "
             f"Got keys: {list(data.keys())}. "
             f"This indicates data structure mismatch or corruption."
         )
 
-    # Unexpected data type — fail fast instead of silent empty list
+    # Unexpected data type - fail fast instead of silent empty list
     raise TypeError(
         f"Data must be None, list, or dict, got {type(data).__name__}. "
         f"This indicates a data validation or API response issue."
@@ -169,7 +169,7 @@ def _validate_trades_structure(trades: Any) -> tuple[list[Any], float | None]:
         # List format directly
         trades_list = trades
     else:
-        # Unexpected type — this is a contract violation
+        # Unexpected type - this is a contract violation
         raise TypeError(
             f"[TRADES_PANEL] API contract violation: trades must be dict or list, got {type(trades).__name__}. "
             "This indicates a data validation failure or API response mismatch. "
@@ -200,7 +200,7 @@ def panel_recent_trades(trades: Any) -> Any:
     try:
         trades_list, trades_timestamp = _validate_trades_structure(trades)
     except (RuntimeError, TypeError) as e:
-        # Data contract violation — show error instead of silent empty list
+        # Data contract violation - show error instead of silent empty list
         return Panel(
             Text(f"Data validation error: {str(e)[:80]}", style="red"),
             title="[bold red]RECENT TRADES (ERROR)[/]",
@@ -223,7 +223,7 @@ def panel_recent_trades(trades: Any) -> Any:
         except (ValueError, TypeError):
             pass
 
-    # Filter to closed trades only — open/pending are in the positions panel
+    # Filter to closed trades only - open/pending are in the positions panel
     closed_trades = [
         tr for tr in trades_list if isinstance(tr, dict) and (safe_get_field(tr, "status", "")).lower() == "closed"
     ]
@@ -267,7 +267,7 @@ def panel_recent_trades(trades: Any) -> Any:
                 return d[5:10]
         if d is None:
             logger.warning("[TRADES] Trade date field is missing (None)")
-            return "—"
+            return "-"
         return str(d)[:5]
 
     display_count = min(12, len(closed_trades))
@@ -345,7 +345,7 @@ def panel_trades_expanded(trades: Any) -> Any:
     try:
         trades_list, trades_timestamp = _validate_trades_structure(trades)
     except (RuntimeError, TypeError) as e:
-        # Data contract violation — show error instead of silent empty list
+        # Data contract violation - show error instead of silent empty list
         return Panel(
             Text(f"Data validation error: {str(e)[:80]}", style="red"),
             title="[bold cyan]TRADE HISTORY - EXPANDED (ERROR)[/]",
@@ -452,7 +452,7 @@ def panel_trades_expanded(trades: Any) -> Any:
                 return d[5:10]
         if d is None:
             logger.warning("[TRADES] Trade date field is missing (None)")
-            return "—"
+            return "-"
         return str(d)[:6]
 
     for tr in displayed_trades:

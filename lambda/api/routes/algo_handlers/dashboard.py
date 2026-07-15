@@ -119,7 +119,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "Shown in untracked_items section with no stop/target management."
             )
         else:
-            logger.info("[POSITIONS] algo_positions has 0 open rows and algo_untracked_positions empty — no open positions.")
+            logger.info("[POSITIONS] algo_positions has 0 open rows and algo_untracked_positions empty - no open positions.")
 
     # FIX: Load sector/company_name from company_profile and technical scores from
     # trend_template_data for positions. algo_positions (the base table) does not carry
@@ -201,7 +201,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         symbol = d.get("symbol")
 
         if not symbol:
-            logger.error("[POSITIONS] Position missing symbol — skipping")
+            logger.error("[POSITIONS] Position missing symbol - skipping")
             filtered_positions_count += 1
             continue
 
@@ -214,7 +214,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         except (ValueError, TypeError, AttributeError):
             logger.warning(
                 f"[POSITIONS] {symbol}: missing or invalid numeric field(s) "
-                f"(position_value, avg_entry_price, or current_price) — skipping"
+                f"(position_value, avg_entry_price, or current_price) - skipping"
             )
             filtered_positions_count += 1
             continue
@@ -223,21 +223,21 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         # All position metrics must be valid positive numbers
         if math.isnan(pos_val) or math.isinf(pos_val):
             logger.warning(
-                f"[POSITIONS] {symbol}: position_value is {pos_val} (NaN or Infinity) — data corruption — skipping"
+                f"[POSITIONS] {symbol}: position_value is {pos_val} (NaN or Infinity) - data corruption - skipping"
             )
             filtered_positions_count += 1
             continue
 
         if math.isnan(entry) or math.isinf(entry):
             logger.warning(
-                f"[POSITIONS] {symbol}: avg_entry_price is {entry} (NaN or Infinity) — data corruption — skipping"
+                f"[POSITIONS] {symbol}: avg_entry_price is {entry} (NaN or Infinity) - data corruption - skipping"
             )
             filtered_positions_count += 1
             continue
 
         if math.isnan(cur_price) or math.isinf(cur_price):
             logger.warning(
-                f"[POSITIONS] {symbol}: current_price is {cur_price} (NaN or Infinity) — data corruption — skipping"
+                f"[POSITIONS] {symbol}: current_price is {cur_price} (NaN or Infinity) - data corruption - skipping"
             )
             filtered_positions_count += 1
             continue
@@ -356,7 +356,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         elif (
             current_sector == "Unknown" or current_sector is None or current_sector == ""
         ) and symbol not in sector_map:
-            # Position has missing/invalid sector and not in company_profile — this is a data quality issue
+            # Position has missing/invalid sector and not in company_profile - this is a data quality issue
             logger.warning(
                 f"[POSITIONS DATA QUALITY] {symbol}: sector missing/invalid ({current_sector!r}) and not found in company_profile"
             )
@@ -441,7 +441,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             symbol = up_dict.get("symbol")
 
             if not symbol:
-                logger.warning("[UNTRACKED] Position missing symbol — skipping")
+                logger.warning("[UNTRACKED] Position missing symbol - skipping")
                 continue
 
             # Validate numeric fields
@@ -450,7 +450,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 current_price = float(up_dict.get("current_price") or 0)
                 position_value = float(up_dict.get("position_value") or 0)
             except (ValueError, TypeError):
-                logger.warning(f"[UNTRACKED] {symbol}: invalid numeric fields — skipping")
+                logger.warning(f"[UNTRACKED] {symbol}: invalid numeric fields - skipping")
                 continue
 
             # Look up enrichment data (sector, company name, technical scores)
@@ -904,11 +904,11 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 # check_date = the run's trading date (first run of the day is 9:30 AM ET).
                 # The previous trading day's row therefore remains the freshest possible
                 # data until today's first run completes. Staleness is "check_date is older
-                # than the most recent trading day whose row should exist by now" — NOT
+                # than the most recent trading day whose row should exist by now" - NOT
                 # wall-clock age anchored at midnight of check_date, which falsely flagged
                 # every pre-market morning and every Monday as stale/trading-disabled.
                 # (Market holidays still use the weekday heuristic and can false-flag
-                # after 10:00 ET on a holiday — same limitation as before.)
+                # after 10:00 ET on a holiday - same limitation as before.)
                 expected_date = now_et.date()
                 if now_et.weekday() >= 5 or now_et.hour < 10:
                     expected_date -= timedelta(days=1)
@@ -1602,7 +1602,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         # Allow 25 seconds for query to complete (safe before API Gateway limit)
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
         # PERFORMANCE: filter/sort/limit in a CTE first, then run per-symbol LATERAL
-        # lookups (price_daily/technical_data_daily) only against that small row set —
+        # lookups (price_daily/technical_data_daily) only against that small row set -
         # joining before the LIMIT would pay for a per-symbol index scan on every row
         # of stock_scores. See lambda/api/routes/scores.py for the same pattern.
         cur.execute(

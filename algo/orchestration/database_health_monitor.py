@@ -212,7 +212,7 @@ class DatabaseHealthMonitor:
                         continue
 
                 logger.error(
-                    f"[TASK_TERMINATION] Attempt {attempt}: Task status {task_status}/{desired_status} — stop not acknowledged"
+                    f"[TASK_TERMINATION] Attempt {attempt}: Task status {task_status}/{desired_status} - stop not acknowledged"
                 )
                 if attempt < max_retries:
                     time.sleep(retry_delay_sec)
@@ -339,7 +339,7 @@ class DatabaseHealthMonitor:
                 if not started_at:
                     task_arn = task.get("taskArn", "unknown")
                     raise ValueError(
-                        f"[CRITICAL] Task missing startedAt field — cannot assess if hung. "
+                        f"[CRITICAL] Task missing startedAt field - cannot assess if hung. "
                         f"This indicates ECS metadata corruption or schema change. "
                         f"Cannot proceed with OOM prevention. Task: {task_arn}"
                     )
@@ -367,7 +367,7 @@ class DatabaseHealthMonitor:
                             f"Task will continue consuming resources. Manual intervention required: {task_arn}"
                         )
                         failed_terminations.append((loader_name, task_arn, str(stop_err)))
-                        # Mark health monitor as degraded — don't silently continue
+                        # Mark health monitor as degraded - don't silently continue
                         log_phase_result(
                             0,
                             "oom_prevention",

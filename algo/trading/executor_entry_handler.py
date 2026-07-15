@@ -107,7 +107,7 @@ class EntryHandler:
         """Validate stage_phase against known mapping.
 
         CRITICAL: When stage_phase is provided (not None), it MUST be valid.
-        Fails fast if an invalid stage phase is provided—no silent defaults.
+        Fails fast if an invalid stage phase is provided-no silent defaults.
 
         Args:
             stage_phase: Stage phase name (early, mid, late) or None if not provided
@@ -126,7 +126,7 @@ class EntryHandler:
             raise ValueError(
                 f"[ENTRY_HANDLER] CRITICAL: Invalid stage_phase '{stage_phase}' provided. "
                 f"Must be one of: {list(STAGE_PHASE_MAPPING.keys())}. "
-                f"Cannot record trade with unknown stage phase—data integrity issue."
+                f"Cannot record trade with unknown stage phase-data integrity issue."
             )
         return STAGE_PHASE_MAPPING[stage_phase]
 
@@ -897,7 +897,7 @@ class EntryHandler:
     ) -> None:
         """Send trade entry notification. FAIL-FAST if notification system unavailable.
 
-        Entry notifications are CRITICAL—trader must be alerted immediately when
+        Entry notifications are CRITICAL-trader must be alerted immediately when
         position enters. If we cannot notify, we must not proceed with the trade.
         """
         try:

@@ -99,7 +99,7 @@ def up():
         except Exception as e:
             # Schema may differ across environments; skip indexes that can't be created
             print(f"  SKIP (error: {e!s:.120}): {sql[:70]}...")
-            # Reopen connection — autocommit mode, but failed statement may need reset
+            # Reopen connection - autocommit mode, but failed statement may need reset
             cur.close()
             conn.close()
             conn = _connect_autocommit()

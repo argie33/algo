@@ -41,7 +41,7 @@ def safe_decimal(value: Any, field_name: str = "value") -> Decimal:
     except (InvalidOperation, ValueError, TypeError) as e:
         raise RuntimeError(
             f"[DECIMAL_CONVERSION_FAILED] Cannot convert {field_name}={value!r} to Decimal: {type(e).__name__}. "
-            f"This value is required for position sizing — cannot proceed with incomplete data."
+            f"This value is required for position sizing - cannot proceed with incomplete data."
         ) from e
 
 

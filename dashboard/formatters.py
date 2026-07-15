@@ -93,7 +93,7 @@ def mkt_hours_str() -> tuple[str, str]:
         import logging
 
         logging.critical(  # noqa: LOG015
-            f"MarketCalendar unavailable: {market_err} — cannot determine market status safely"
+            f"MarketCalendar unavailable: {market_err} - cannot determine market status safely"
         )
         raise RuntimeError(
             "Market calendar required for accurate market status; refusing to trade based on hardcoded hours"
@@ -147,7 +147,7 @@ def _next_run_from_schedule(schedule: list[dict[str, Any]]) -> str:
     """Calculate next run from dynamic schedule (list of {hour, minute} dicts).
 
     CRITICAL: Validates that all schedule entries have required hour/minute fields.
-    Missing fields indicate corrupted configuration — raise error instead of defaulting.
+    Missing fields indicate corrupted configuration - raise error instead of defaulting.
     """
     now = datetime.now(ET)
     wd = now.weekday()

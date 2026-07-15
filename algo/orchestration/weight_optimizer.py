@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Dynamic Weight Optimizer — Adapts component weights based on realized Information Coefficient.
+Dynamic Weight Optimizer - Adapts component weights based on realized Information Coefficient.
 
 Reads Information Coefficient, optimizes weights (constrained), blends smoothly to avoid whip-saw,
 persists to algo_config for live reloading.
@@ -287,7 +287,7 @@ class WeightOptimizer:
             # Clamp to bounds first, then fix sum so the final sum is always 100
             weights_int = np.clip(weights_int, self.MIN_WEIGHT, self.MAX_WEIGHT)
 
-            # Fix sum if rounding/clamping caused drift — adjust an unclamped weight
+            # Fix sum if rounding/clamping caused drift - adjust an unclamped weight
             delta = 100 - int(weights_int.sum())
             if delta != 0:
                 # Find weights that can be adjusted (not at bounds)
@@ -418,7 +418,7 @@ class WeightOptimizer:
             except (RuntimeError, ValueError) as e:
                 logger.error(
                     f"Optimization failed on {report_date}: {e}. "
-                    f"Cannot proceed with weight optimization—trading continues with prior weights."
+                    f"Cannot proceed with weight optimization-trading continues with prior weights."
                 )
                 raise ValueError(
                     f"Weight optimization failed for {report_date}: {e}. "

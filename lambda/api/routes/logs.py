@@ -56,14 +56,14 @@ def ensure_log_stream(stream_name: str) -> None:
         client.create_log_stream(logGroupName=LOG_GROUP, logStreamName=stream_name)
     except Exception as e:
         e_name = type(e).__name__
-        # ResourceAlreadyExistsException means the stream exists — that's fine
+        # ResourceAlreadyExistsException means the stream exists - that's fine
         if "ResourceAlreadyExists" in e_name:
             return
-        # AccessDeniedException means IAM role lacks logs:CreateLogStream — log and continue
+        # AccessDeniedException means IAM role lacks logs:CreateLogStream - log and continue
         # (frontend logs are best-effort; missing permission should not fail the request)
         if "AccessDenied" in e_name or "AccessDenied" in str(e):
             logger.warning(
-                f"Cannot create log stream {stream_name}: {e_name} — logs:CreateLogStream permission missing"
+                f"Cannot create log stream {stream_name}: {e_name} - logs:CreateLogStream permission missing"
             )
             return
         logger.error(f"Failed to create log stream {stream_name}: {e}")
@@ -144,7 +144,7 @@ def handle(
             if "timestamp" not in log_entry:
                 raise ValueError(
                     "[CRITICAL] Log entry missing required 'timestamp' field. "
-                    "Cannot audit log without timestamp — audit trail integrity compromised."
+                    "Cannot audit log without timestamp - audit trail integrity compromised."
                 )
 
             timestamp_str = log_entry["timestamp"]

@@ -31,7 +31,7 @@ class TradeNotificationService:
     def get_recent_events(self, minutes: int = 5) -> list[dict[str, Any]]:
         """Fetch recent audit log events.
 
-        Raises exception if fetch fails — notification system requires consistent
+        Raises exception if fetch fails - notification system requires consistent
         data access to avoid silent notification queue corruption.
         """
         try:

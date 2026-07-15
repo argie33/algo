@@ -1713,7 +1713,7 @@ class AlgoConfig:
             if base_risk > 5:
                 logger.warning(f"Config: base_risk_pct ({base_risk}) is very high (typical: 0.5-2%)")
 
-            # Daily/weekly loss caps must be positive — zero values disable risk protection
+            # Daily/weekly loss caps must be positive - zero values disable risk protection
             daily_loss = float(self._config["max_daily_loss_pct"])
             weekly_loss = float(self._config["max_weekly_loss_pct"])
 

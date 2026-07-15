@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""Alpaca Market Data API client — multi-symbol daily OHLCV bars.
+"""Alpaca Market Data API client - multi-symbol daily OHLCV bars.
 
 Parallel-track price source being evaluated against yfinance (2026-07-14).
 Verified plan facts (docs.alpaca.markets, 2026):
 
 - FREE/Basic plan: 200 API calls/min, and FULL SIP consolidated-tape historical
   data for anything older than 15 minutes ("the only thing a free Basic account
-  restricts is the most recent 15 minutes of data" — Alpaca staff). For EOD
+  restricts is the most recent 15 minutes of data" - Alpaca staff). For EOD
   loading after market close this means zero data-quality compromise: correct
   consolidated volume and OHLC, since 2016.
 - The $99/mo Algo Trader Plus plan adds real-time SIP, unlimited websocket
-  symbols, and a 10,000/min rate limit — relevant only for intraday/real-time.
+  symbols, and a 10,000/min rate limit - relevant only for intraday/real-time.
 - Multi-symbol bars endpoint is genuinely batched: ~200 symbols per request,
   limit=10000 data points per page, next_page_token pagination. A full
   ~8,500-symbol EOD day is ~43 requests ≈ 15-20s at the free rate limit.
 
 Config (all plan-dependent knobs are env-tunable so upgrading is config-only):
 
-  ALPACA_DATA_FEED                 sip (default — free for data >15min old) | iex
+  ALPACA_DATA_FEED                 sip (default - free for data >15min old) | iex
   ALPACA_DATA_RATE_LIMIT_PER_MIN   default 190 (free plan allows 200/min)
   ALPACA_DATA_SYMBOLS_PER_REQUEST  default 200
   ALPACA_DATA_ADJUSTMENT           raw (default; matches the yfinance
@@ -46,7 +46,7 @@ from config.api_endpoints import get_alpaca_data_url
 
 logger = logging.getLogger(__name__)
 
-# Alpaca uses "." for class shares (BRK.B) — same as the DB convention here;
+# Alpaca uses "." for class shares (BRK.B) - same as the DB convention here;
 # no symbol translation needed (yfinance is the one that wants "-").
 
 
@@ -104,7 +104,7 @@ class AlpacaMarketData:
             secret = creds.get("secret")
             if not key or not secret:
                 raise AlpacaDataError(
-                    "Alpaca credentials missing 'key'/'secret' — cannot fetch market data. "
+                    "Alpaca credentials missing 'key'/'secret' - cannot fetch market data. "
                     "Check Secrets Manager algo/alpaca entries."
                 )
             self._headers = {
@@ -188,7 +188,7 @@ class AlpacaMarketData:
             if resp.status_code == 429:
                 # Sliding-window limiter should prevent this; if the server still
                 # throttles, honor it with a fixed backoff and retry the same page.
-                logger.warning("[ALPACA_DATA] 429 despite client-side limiter — backing off 5s")
+                logger.warning("[ALPACA_DATA] 429 despite client-side limiter - backing off 5s")
                 time.sleep(5.0)
                 continue
             if resp.status_code == 403:
@@ -242,5 +242,5 @@ class AlpacaMarketData:
             if pages > 500:
                 raise AlpacaDataError(
                     f"Alpaca pagination runaway: >500 pages for a {len(chunk)}-symbol chunk "
-                    f"({start}..{end}) — aborting to avoid an infinite loop."
+                    f"({start}..{end}) - aborting to avoid an infinite loop."
                 )

@@ -201,7 +201,7 @@ class LoaderConfigManager:
     def _check_dynamodb_available(self) -> bool:
         """Check if DynamoDB is available (cache result for efficiency).
 
-        Fails fast if unavailable — returns False rather than silently falling back.
+        Fails fast if unavailable - returns False rather than silently falling back.
         """
         if self._dynamodb_available is not None:
             return self._dynamodb_available

@@ -1,4 +1,4 @@
-"""Lambda API Response Validator — validates outbound responses against contract schemas.
+"""Lambda API Response Validator - validates outbound responses against contract schemas.
 
 This validator is used ONLY by Lambda API routes to validate responses conform to the
 published dashboard API contract (DASHBOARD_ENDPOINTS). It ensures outbound responses

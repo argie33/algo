@@ -144,7 +144,7 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
             )
             continue  # Skip events without importance level; cannot render with missing required field
         if importance_val is None:
-            logger.warning(f"Economic calendar event '{name}' has None importance_val after validation — skipping")
+            logger.warning(f"Economic calendar event '{name}' has None importance_val after validation - skipping")
             continue
         imp = str(importance_val).upper()
         ic = imp_c.get(imp, "dim")
@@ -152,7 +152,7 @@ def _build_calendar_rows(econ_cal: Any) -> list[Text | Rule]:
         forecast_val = ev.get("forecast")
         actual_val = ev.get("actual")
         previous_val = ev.get("previous")
-        # GOVERNANCE FIX: Fail-fast on schema mismatch — expect consistent field names.
+        # GOVERNANCE FIX: Fail-fast on schema mismatch - expect consistent field names.
         # Do not silently accept alternate field names (forecast_value, actual_value, previous_value).
         # This prevents silent data corruption from schema drift.
         if forecast_val is None and ev.get("forecast_value") is not None:
@@ -308,7 +308,7 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:  # noq
             parts.append(f"[dim]IG OAS:[/][{ig_c}]{ig:.2f}%[/]")
         rows.append(Text.from_markup("  ".join(parts)))
 
-    # Macro: CPI YoY + unemployment — natural pair, keep on one line
+    # Macro: CPI YoY + unemployment - natural pair, keep on one line
     macro_parts = []
     if cpi_yoy is not None:
         cpi_c = G if cpi_yoy <= 2.5 else (Y if cpi_yoy <= 4.0 else R)
@@ -319,7 +319,7 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:  # noq
     if macro_parts:
         rows.append(Text.from_markup("  ".join(macro_parts)))
 
-    # Oil + NFCI + DXY — 2-column grid so long labels don't crowd each other
+    # Oil + NFCI + DXY - 2-column grid so long labels don't crowd each other
     other_cells = []
     if oil is not None:
         other_cells.append(f"[dim]WTI Crude Oil:[/][white]${oil:.2f}[/]")
@@ -341,7 +341,7 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:  # noq
         else:
             rows.append(Text.from_markup("  ".join(other_cells)))
 
-    # Inflation breakevens + mortgage + consumer sentiment — 2-column grid
+    # Inflation breakevens + mortgage + consumer sentiment - 2-column grid
     extra_cells = []
     if be10 is not None:
         be_c = R if be10 >= 3.0 else (Y if be10 >= 2.5 else G)
@@ -379,7 +379,7 @@ def panel_economic_pulse(eco: Any, econ_cal: Any = None) -> Panel | None:  # noq
 
 
 def panel_economic_expanded(eco: Any, econ_cal: Any = None) -> Any:  # noqa: C901
-    """Full-screen economic inputs — all macro indicators, yield curve, calendar."""
+    """Full-screen economic inputs - all macro indicators, yield curve, calendar."""
     err_panel = _error_panel("economic pulse", eco, "ECONOMIC INPUTS", border="bright_magenta")
     if err_panel:
         return err_panel

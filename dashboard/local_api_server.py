@@ -91,7 +91,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 sector = p.get("sector")
                 if sector is None:
                     # CRITICAL FIX: Fail-fast on missing sector data per GOVERNANCE.md
-                    # Do not default to 'Unknown'—hide data quality issues
+                    # Do not default to 'Unknown'-hide data quality issues
                     raise RuntimeError(
                         f"[CRITICAL] Position missing sector classification: symbol={p.get('symbol')}, "
                         f"position_id={p.get('id')}. Data integrity error."
@@ -99,7 +99,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
                 position_value = p.get("position_value")
                 if position_value is None:
-                    # CRITICAL FIX: Never default to 0 per GOVERNANCE.md—finance data requires explicit availability
+                    # CRITICAL FIX: Never default to 0 per GOVERNANCE.md-finance data requires explicit availability
                     raise RuntimeError(
                         f"[CRITICAL] Position missing value: symbol={p.get('symbol')}, "
                         f"position_id={p.get('id')}, sector={sector}. Cannot calculate portfolio metrics."

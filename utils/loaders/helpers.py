@@ -76,7 +76,7 @@ def get_api_key(secret_name: str, env_var: str, default: str | None = None, requ
         )
 
     logger.warning(
-        f"[LOADERS] Could not find {secret_name} in Secrets Manager or {env_var} in environment — credentials unavailable"
+        f"[LOADERS] Could not find {secret_name} in Secrets Manager or {env_var} in environment - credentials unavailable"
     )
     logger.info(f"[LOADERS] Optional credentials unavailable: {secret_name}. Callers must handle None return value.")
     return None

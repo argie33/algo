@@ -286,8 +286,8 @@ class SignalsDailyLoader(OptimalLoader):
                 ) from e
 
         # LOOKBACK FIX: swing-pivot detection scans up to 50 bars back (~70+ calendar
-        # days), but incremental runs used to fetch only from since-1d — often 2 days of
-        # rows — so _find_swing_high/_find_swing_low could never see a pivot and freshly
+        # days), but incremental runs used to fetch only from since-1d - often 2 days of
+        # rows - so _find_swing_high/_find_swing_low could never see a pivot and freshly
         # watermarked symbols silently generated no signals. Always fetch a full lookback
         # window for CONTEXT; emission is already restricted to dates > since by the
         # filter at the end of this method, so output dates are unchanged.
@@ -307,7 +307,7 @@ class SignalsDailyLoader(OptimalLoader):
             # Verify this symbol has recent technical data (within 10 days of end_date).
             # On partial-coverage days some symbols' latest tech date is end-1d because
             # TechnicalDataDaily ran before all prices were available. Accept any tech data
-            # within the window — _fetch_signal_data queries t.date <= end so it will use
+            # within the window - _fetch_signal_data queries t.date <= end so it will use
             # the most recent available row for signal computation.
             # N+1 FIX: looked up from the batch-context GROUP BY cache instead of a
             # per-symbol MAX(date) query (~10k round trips per run eliminated).
@@ -320,14 +320,14 @@ class SignalsDailyLoader(OptimalLoader):
             if symbol_tech_max_dates.get(symbol) is None:
                 # SENTINEL, NOT CRASH (2026-07-14): ~2,900 of 10,705 active symbols are
                 # new/inactive listings with no price history and therefore no technical
-                # data — a structural per-symbol gap, not a loader failure. Raising here
+                # data - a structural per-symbol gap, not a loader failure. Raising here
                 # marked each of them failed and tripped the parallel 5% fail-rate gate,
                 # killing the entire signals run (confirmed live). Emit the same explicit
                 # data_unavailable marker this loader already uses for fetch/generation
                 # errors; SYSTEMIC technical-data failures are still caught by the 95%
                 # coverage gate below.
                 logger.debug(
-                    f"[BUY_SELL_DAILY] {symbol}: No technical data within 10 days of {end} — "
+                    f"[BUY_SELL_DAILY] {symbol}: No technical data within 10 days of {end} - "
                     "marking data_unavailable (new/inactive listing without price history)"
                 )
                 return [
@@ -552,7 +552,7 @@ class SignalsDailyLoader(OptimalLoader):
                     )
                 if dropped_rows > 0:
                     raise RuntimeError(
-                        f"[BUY_SELL] {symbol}: Dropped {dropped_rows} row(s) due to missing date or close price — "
+                        f"[BUY_SELL] {symbol}: Dropped {dropped_rows} row(s) due to missing date or close price - "
                         "cannot generate signals with incomplete technical data; all dates and closes required"
                     )
                 return rows
@@ -777,7 +777,7 @@ def main() -> int:  # noqa: C901
             # DENOMINATOR FIX (same as the one documented in fetch_incremental, which this
             # main()-level gate never received): the active-symbol list (10,000+) includes
             # ETFs and listings with no price history, so dividing by it reads misleadingly
-            # low — 7,777 tech symbols over 10,705 active = 72.6% "failed" the 73% gate
+            # low - 7,777 tech symbols over 10,705 active = 72.6% "failed" the 73% gate
             # while true coverage over price-covered symbols was 91.9%. Use symbols that
             # actually have prices on the technical max date as the denominator.
             cur.execute(

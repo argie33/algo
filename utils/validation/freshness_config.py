@@ -317,7 +317,7 @@ def get_freshness_rule(table_name: str) -> dict[str, Any] | None:
     """
     rule = FRESHNESS_RULES.get(table_name)
     if rule is None:
-        logger.debug(f"No freshness rule defined for table '{table_name}' — table has no staleness threshold")
+        logger.debug(f"No freshness rule defined for table '{table_name}' - table has no staleness threshold")
     return rule
 
 
@@ -387,7 +387,7 @@ def is_table_fresh(
         status = "STALE"
         level = "⚠️"
 
-    message = f"{level} {table_name}: {age_days}d old (threshold {max_age}d) — {status}"
+    message = f"{level} {table_name}: {age_days}d old (threshold {max_age}d) - {status}"
 
     return is_fresh, age_minutes, message
 
@@ -434,7 +434,7 @@ def get_max_age_minutes(table_name: str) -> int | None:
     if rule:
         max_age_minutes = cast(int, rule["max_age_days"] * 24 * 60)
         return max_age_minutes
-    logger.debug(f"Table '{table_name}' has no freshness rule — cannot determine max age threshold")
+    logger.debug(f"Table '{table_name}' has no freshness rule - cannot determine max age threshold")
     return None
 
 

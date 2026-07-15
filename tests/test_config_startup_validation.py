@@ -146,8 +146,8 @@ class TestConfigCriticalThresholds:
         config = AlgoConfig()
         for key in critical_keys:
             val = config.get(key)
-            assert val is not None, f"Critical threshold {key} is None — should have default value"
-            assert val != 0 and val != 0.0, f"Critical threshold {key} is zero — validation should have failed"
+            assert val is not None, f"Critical threshold {key} is None - should have default value"
+            assert val != 0 and val != 0.0, f"Critical threshold {key} is zero - validation should have failed"
 
     def _skip_test_database_connection_failure_graceful_fallback(self):
         """Should fail fast when database connection fails - no graceful fallback for safety config."""

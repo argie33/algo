@@ -1,4 +1,4 @@
-"""Centralized symbol filtering logic — all filtering rules in one place.
+"""Centralized symbol filtering logic - all filtering rules in one place.
 
 This module enforces consistent filtering across:
 - Data loaders (what data to ingest)

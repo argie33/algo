@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SEC EDGAR client — core API methods and rate limiting.
+"""SEC EDGAR client - core API methods and rate limiting.
 
 Handles SEC EDGAR XBRL API calls with rate limiting and retry logic.
 Uses TickerCache for ticker-to-CIK conversion.
@@ -100,7 +100,7 @@ class SecEdgarClient:
         # per symbol; without this cache each output re-downloaded the multi-MB
         # payload (~32,000 HTTP requests per run instead of ~5,300 at 2 req/s).
         # A None value is a negative-cache entry for a 404 (permanent per SEC
-        # semantics — see _get_json); transient failures are never cached.
+        # semantics - see _get_json); transient failures are never cached.
         self._companyfacts_cache_size = companyfacts_cache_size
         self._companyfacts_cache: OrderedDict[str, dict[str, Any] | None] = OrderedDict()
         self._companyfacts_cache_lock = threading.Lock()
@@ -127,7 +127,7 @@ class SecEdgarClient:
         Results (including 404s, which are permanent) are cached in a small
         per-CIK LRU so repeated calls for the same company within one process
         reuse a single HTTP fetch. Callers MUST treat the returned dict as
-        read-only — the same object is shared across calls.
+        read-only - the same object is shared across calls.
 
         Returns: {
             "cik": 320193,
@@ -155,7 +155,7 @@ class SecEdgarClient:
         try:
             data = self._get_json(url)
         except FileNotFoundError:
-            # 404 is permanent (data doesn't exist) — safe to negative-cache.
+            # 404 is permanent (data doesn't exist) - safe to negative-cache.
             # Transient errors (RuntimeError after retries) are NOT cached.
             self._cache_companyfacts(cik, None)
             raise
@@ -178,7 +178,7 @@ class SecEdgarClient:
         taxonomy: str,
         concept: str,
     ) -> dict[str, Any]:
-        """Specific concept (e.g. Revenues) — lighter than full company facts."""
+        """Specific concept (e.g. Revenues) - lighter than full company facts."""
         url = f"{EDGAR_BASE}/api/xbrl/companyconcept/CIK{cik}/{taxonomy}/{concept}.json"
         return self._get_json(url)
 
@@ -286,7 +286,7 @@ class SecEdgarClient:
                     }
                 )
 
-        # Sort by fiscal year, filed date — both required for correct financial statement ordering
+        # Sort by fiscal year, filed date - both required for correct financial statement ordering
         def sort_key(r: dict[str, Any]) -> tuple[int | float, str]:
             year = r.get("fiscal_year")
             filed = r.get("filed")

@@ -87,7 +87,7 @@ class TestDataRegistry:
         for name, details in TestDataRegistry.TEST_ENTRY_POINTS.items():
             test_only = details.get("test_only")
             if test_only is None:
-                # Field missing — assume not test-only by default
+                # Field missing - assume not test-only by default
                 continue
             if test_only:
                 result.append(name)

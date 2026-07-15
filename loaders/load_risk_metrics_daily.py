@@ -390,7 +390,7 @@ class RiskMetricsLoader(OptimalLoader):
             beta = float(cov_matrix[0, 1]) / spy_var
 
             if abs(beta) > 10:
-                logger.debug(f"[RISK_METRICS] {symbol}: extreme DB beta {beta:.2f} — marking unavailable.")
+                logger.debug(f"[RISK_METRICS] {symbol}: extreme DB beta {beta:.2f} - marking unavailable.")
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,

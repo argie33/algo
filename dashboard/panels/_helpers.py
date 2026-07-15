@@ -48,7 +48,7 @@ def _build_buy_sig_map(buy_sigs: Any) -> dict[str, float]:
             continue
         sym = bs.get("symbol")
         if not sym:
-            logger.debug("[HELPERS] Buy signal missing or empty symbol field — skipping")
+            logger.debug("[HELPERS] Buy signal missing or empty symbol field - skipping")
             continue
         sym_norm = str(sym).upper().strip()
 
@@ -192,8 +192,8 @@ def _is_stale(item: Any, stale_threshold_hours: float = 24) -> bool:
     """
     age = _get_age_hours(item)
     if age is None:
-        # No age data available — treat as potentially stale
-        logger.debug("Data item missing age_hours/age fields — cannot assess freshness")
+        # No age data available - treat as potentially stale
+        logger.debug("Data item missing age_hours/age fields - cannot assess freshness")
         return True
     return age > stale_threshold_hours
 

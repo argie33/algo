@@ -31,7 +31,7 @@ class PortfolioManager:
         self.config = config
 
     def get_portfolio_value(self) -> float | None:
-        """Live Alpaca equity only — raise exception if unavailable (no fallback to stale data)."""
+        """Live Alpaca equity only - raise exception if unavailable (no fallback to stale data)."""
         if not self.alpaca_key or not self.alpaca_secret:
             raise RuntimeError(
                 "[PORTFOLIO] Critical: Alpaca credentials missing. Cannot fetch portfolio value without API access."
@@ -90,7 +90,7 @@ class PortfolioManager:
                     return float(initial_capital)
                 # Live trading: NEVER fallback on credentials error
                 raise RuntimeError(
-                    f"[PORTFOLIO] CRITICAL: Alpaca 401 Unauthorized — APCA_API_KEY_ID/APCA_API_SECRET_KEY are wrong or expired. "
+                    f"[PORTFOLIO] CRITICAL: Alpaca 401 Unauthorized - APCA_API_KEY_ID/APCA_API_SECRET_KEY are wrong or expired. "
                     f"Live trading requires valid credentials. URL: {self.alpaca_base_url}. Halting."
                 )
             elif resp.status_code == 403:
@@ -107,7 +107,7 @@ class PortfolioManager:
                     )
                     return float(initial_capital)
                 raise RuntimeError(
-                    f"[PORTFOLIO] Critical: Alpaca 403 Forbidden — key may be live keys used with paper URL or vice versa. URL: {self.alpaca_base_url}"
+                    f"[PORTFOLIO] Critical: Alpaca 403 Forbidden - key may be live keys used with paper URL or vice versa. URL: {self.alpaca_base_url}"
                 )
             else:
                 if is_paper_mode:

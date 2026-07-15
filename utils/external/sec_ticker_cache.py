@@ -58,10 +58,10 @@ class TickerCache:
                 with open(self._ticker_cache_file) as f:
                     data = json.load(f)
                     self._ticker_cache = data.get("mapping")
-                    # CRITICAL FIX: Explicit check for timestamp field — missing timestamp means cache is definitely stale
+                    # CRITICAL FIX: Explicit check for timestamp field - missing timestamp means cache is definitely stale
                     cached_timestamp = data.get("timestamp")
                     if cached_timestamp is None:
-                        logger.warning("Ticker cache file missing 'timestamp' field — treating cache as stale")
+                        logger.warning("Ticker cache file missing 'timestamp' field - treating cache as stale")
                         self._ticker_cache_time = 0  # Force refresh
                     else:
                         self._ticker_cache_time = cached_timestamp

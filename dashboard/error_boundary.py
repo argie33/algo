@@ -147,9 +147,9 @@ def get_error_message_plain(data: Any) -> str | dict[str, Any]:
 
     # Fail-fast: if _error marker present, message MUST be valid
     if "_error" in data:
-        error_msg = data["_error"]  # Direct access, not .get() — required field
+        error_msg = data["_error"]  # Direct access, not .get() - required field
         if error_msg is None or (isinstance(error_msg, str) and not error_msg.strip()):
-            logger.error("Error marker present but message empty/None — invalid error state")
+            logger.error("Error marker present but message empty/None - invalid error state")
             raise ValueError("[CRITICAL] _error marker present but message is empty/None")
         return str(error_msg)
 
@@ -182,13 +182,13 @@ def get_error_message(data: Any) -> str | None:
     if is_data_stale(data):
         # If stale, error message MUST exist and be valid
         if isinstance(data, dict) and "_error" in data:
-            stale_error = data["_error"]  # Direct access — required if _stale_cache=True
+            stale_error = data["_error"]  # Direct access - required if _stale_cache=True
             if stale_error is None or (isinstance(stale_error, str) and not stale_error.strip()):
-                logger.error("Stale data marker present but error message empty/None — invalid state")
+                logger.error("Stale data marker present but error message empty/None - invalid state")
                 raise ValueError("[CRITICAL] _stale_cache=True but _error message is empty/None")
             return f"[yellow]⚠ STALE[/]: {stale_error}"
         # If stale but no error marker, this is an invalid state
-        logger.error("Data marked stale but missing _error marker — inconsistent state")
+        logger.error("Data marked stale but missing _error marker - inconsistent state")
         raise ValueError("[CRITICAL] Data marked _stale_cache=True but _error marker missing")
 
     return plain_msg
@@ -214,7 +214,7 @@ def safe_get(data: Any, key: str) -> Any:
         ValueError: If data has error marker, wrong type, or key missing
     """
     if has_error(data):
-        # Direct access to _error — it MUST exist if has_error() returned True
+        # Direct access to _error - it MUST exist if has_error() returned True
         if isinstance(data, dict) and "_error" in data:
             error_msg = data["_error"]
         else:
@@ -257,7 +257,7 @@ def safe_list(data: Any) -> list[Any]:
         ValueError: If error marker, malformed structure, or cannot extract list
     """
     if has_error(data):
-        # Direct access to _error — it MUST exist if has_error() returned True
+        # Direct access to _error - it MUST exist if has_error() returned True
         if isinstance(data, dict) and "_error" in data:
             error_msg = data["_error"]
         else:

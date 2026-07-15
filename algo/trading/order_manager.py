@@ -42,7 +42,7 @@ class OrderManager:
         stop_loss_price: float | None = None,
         take_profit_price: float | None = None,
     ) -> dict[str, Any]:
-        """Send a BRACKET order to Alpaca — entry + stop loss + take profit.
+        """Send a BRACKET order to Alpaca - entry + stop loss + take profit.
 
         This is the institutional best practice: even if our system goes down,
         Alpaca enforces the stop loss and take profit. No naked positions.
@@ -52,7 +52,7 @@ class OrderManager:
           - Take profit limit order (executes if price hits target)
 
         Falls back to simple limit order if bracket can't be sent (no stop).
-        Never returns None — always returns dict with success/error fields.
+        Never returns None - always returns dict with success/error fields.
         """
         if not self.alpaca_key or not self.alpaca_secret:
             logger.error(f"[SEND_ORDER] {symbol}: Alpaca credentials not configured")
@@ -209,7 +209,7 @@ class OrderManager:
 
         Note: For in-flight orders (status: pending/accepted), returns None only
         for paper mode. Live broker orders that are pending will raise RuntimeError
-        if they lack proper status — they must have a valid status or this is an error.
+        if they lack proper status - they must have a valid status or this is an error.
         """
         if not self.alpaca_key or not self.alpaca_secret:
             raise RuntimeError("Alpaca credentials not configured")
@@ -252,12 +252,12 @@ class OrderManager:
                         f"Fill price unavailable until order fills."
                     )
                     raise RuntimeError(
-                        f"Order {alpaca_order_id} has pending status '{status}' — "
+                        f"Order {alpaca_order_id} has pending status '{status}' - "
                         f"not yet filled. Caller must wait/retry or track via order event stream."
                     )
                 else:
                     raise RuntimeError(
-                        f"Order {alpaca_order_id} has terminal status '{status}' (likely cancelled/rejected/expired) — "
+                        f"Order {alpaca_order_id} has terminal status '{status}' (likely cancelled/rejected/expired) - "
                         f"fill price unavailable (order will not fill)."
                     )
             else:
@@ -387,7 +387,7 @@ class OrderManager:
         """Send a market sell order to Alpaca.
 
         Returns { success, order_id, filled_price }.
-        Never returns None — always returns dict with success/error fields.
+        Never returns None - always returns dict with success/error fields.
         """
         if execution_mode in ("paper", "dry", "review"):
             logger.info(f"[SEND_EXIT] {symbol}: Paper mode exit - {shares}sh")
@@ -441,7 +441,7 @@ class OrderManager:
                             "message": f"Invalid response format: {e}",
                         }
                     order_id = data.get("id")
-                    # Issue #13: filled_avg_price is required — no silent None
+                    # Issue #13: filled_avg_price is required - no silent None
                     if not order_id:
                         logger.error(f"[SEND_EXIT] {symbol}: Alpaca response missing order id")
                         return {
@@ -456,7 +456,7 @@ class OrderManager:
                     order_status = data["status"]
                     if not filled_price_raw:
                         # Market orders return null filled_avg_price when status is "new" or "pending_new"
-                        # — the fill comes asynchronously. Treat as success with pending fill price;
+                        # - the fill comes asynchronously. Treat as success with pending fill price;
                         # Phase 9 reconciliation will poll for the actual fill price.
                         logger.info(
                             f"[SEND_EXIT] {symbol}: Exit order {order_id} submitted (status={order_status}), "
@@ -492,7 +492,7 @@ class OrderManager:
                         "message": f"Alpaca 422 unprocessable: {resp.text[:200]}",
                     }
                 elif resp.status_code == 403:
-                    # Alpaca 403 "insufficient qty available" — two cases:
+                    # Alpaca 403 "insufficient qty available" - two cases:
                     # 1. DB qty != Alpaca qty (e.g. fractional fill not reconciled): retry with actual qty
                     # 2. Shares locked by open bracket order: use close-position endpoint to bypass
                     try:
@@ -501,7 +501,7 @@ class OrderManager:
                         if available_str is not None and attempt == 0:
                             available_qty = float(available_str)
                             if 0 < available_qty < shares:
-                                # Case 1: partial availability — retry with actual qty
+                                # Case 1: partial availability - retry with actual qty
                                 logger.warning(
                                     f"[SEND_EXIT] {symbol}: DB qty={shares} but Alpaca available={available_qty}. "
                                     f"Retrying with actual available qty (position out-of-sync)."
@@ -517,7 +517,7 @@ class OrderManager:
                                 )
                             held = float(err_data["held_for_orders"])
                             if available_qty == 0 and held > 0 and attempt < max_attempts - 1:
-                                # Case 2: all shares locked by open orders — use close-position endpoint
+                                # Case 2: all shares locked by open orders - use close-position endpoint
                                 logger.warning(
                                     f"[SEND_EXIT] {symbol}: All {held} shares locked by open orders. "
                                     f"Using close-position endpoint to override existing bracket."

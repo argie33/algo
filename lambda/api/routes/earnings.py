@@ -63,7 +63,7 @@ def handle(
                 timeout_sec=3,
             )
 
-            # Validate rows — fail fast on validation failure
+            # Validate rows - fail fast on validation failure
             if not DatabaseResultValidator.validate_rows_not_empty(rows, "earnings history query"):
                 return error_response(
                     503,
@@ -109,7 +109,7 @@ def handle(
             timeout_sec=5,
         )
 
-        # Validate rows — fail fast on validation failure
+        # Validate rows - fail fast on validation failure
         if not DatabaseResultValidator.validate_rows_not_empty(rows, "earnings all query"):
             return error_response(
                 503,

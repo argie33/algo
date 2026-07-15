@@ -211,7 +211,7 @@ class AlpacaSyncManager:
                 # Long-only algo: short or zero positions from Alpaca are anomalous.
                 # Close them in DB immediately rather than updating with negative values.
                 logger.warning(
-                    f"[POSITION_SYNC] Short/zero position {symbol} qty={qty_float:.4f} — "
+                    f"[POSITION_SYNC] Short/zero position {symbol} qty={qty_float:.4f} - "
                     "closing in DB (long-only algo does not hold short positions)"
                 )
                 cur.execute(
@@ -225,7 +225,7 @@ class AlpacaSyncManager:
             current_price = pos.get("current_price")
             position_value = qty_float * float(current_price) if current_price else None
 
-            # Update existing algo-tracked position — never INSERT from Alpaca sync.
+            # Update existing algo-tracked position - never INSERT from Alpaca sync.
             # The algo's entry execution is the source of truth for position creation.
             # Inserting with asset_id as position_id creates duplicate NULL-stop records
             # that trip the circuit breaker. Only update price/qty for existing positions.
@@ -250,7 +250,7 @@ class AlpacaSyncManager:
                     synced_count += 1
                 else:
                     logger.warning(
-                        f"[POSITION_SYNC] No existing open position for {symbol} — skipping (not algo-tracked)"
+                        f"[POSITION_SYNC] No existing open position for {symbol} - skipping (not algo-tracked)"
                     )
             except Exception as e:
                 logger.error(f"[POSITION_SYNC] Failed to update position {symbol}: {e}")
@@ -421,7 +421,7 @@ class AlpacaSyncManager:
         except Exception as e:
             logger.warning(f"[ALPACA_SYNC] Could not query failed imports table: {e}. Skipping recovery.")
             return {
-                "message": "Failed to query import failures — recovery skipped",
+                "message": "Failed to query import failures - recovery skipped",
                 "recovery_attempted": False,
                 "recovered_count": 0,
                 "failed_count": 0,
@@ -489,7 +489,7 @@ class AlpacaSyncManager:
                     )
                     continue
 
-                # Data is valid — increment retry count
+                # Data is valid - increment retry count
                 cur.execute(
                     "UPDATE alpaca_import_failures SET retry_count = retry_count + 1, "
                     "last_retry = CURRENT_TIMESTAMP WHERE symbol = %s",

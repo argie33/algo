@@ -167,13 +167,13 @@ class ResponseFormatter:
         from utils.error_handlers import sanitize_error_message
 
         # CRITICAL: Require message to be provided. None indicates missing error context.
-        # Do not silently replace with empty string — log the omission so operators see the problem.
+        # Do not silently replace with empty string - log the omission so operators see the problem.
         if message is None:
             logger.error(
                 f"[ResponseFormatter.error] CRITICAL: message is None for error_code={error_code}. "
                 f"Cannot create error response without context. Using placeholder message."
             )
-            message = f"Error {error_code} — no message provided"
+            message = f"Error {error_code} - no message provided"
 
         sanitized_msg = sanitize_error_message(message)
 

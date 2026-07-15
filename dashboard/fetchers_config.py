@@ -224,14 +224,14 @@ def fetch_algo_config(c: None) -> dict[str, Any]:
         # Boolean string conversion - CRITICAL: Must parse explicitly, no silent False default
         en_raw = cfg["enable_algo"]
         if en_raw is None:
-            error_msg = "Config enable_algo field has NULL value — cannot determine if algo is enabled"
+            error_msg = "Config enable_algo field has NULL value - cannot determine if algo is enabled"
             logger.error(error_msg)
             record_data_quality_issue("cfg", "validation", "null_enable_algo")
             return FetcherValidator.build_error_response(error_msg)
         try:
             enabled = str(en_raw).lower() in ("true", "1", "yes")
         except (ValueError, TypeError) as e:
-            error_msg = f"Config enable_algo field has invalid value '{en_raw}' — cannot parse as boolean. Error: {e}"
+            error_msg = f"Config enable_algo field has invalid value '{en_raw}' - cannot parse as boolean. Error: {e}"
             logger.error(error_msg)
             record_data_quality_issue("cfg", "validation", "invalid_enable_algo_value", str(en_raw))
             return FetcherValidator.build_error_response(error_msg)
@@ -313,7 +313,7 @@ def fetch_health(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
         sources = []
         for s in raw_sources:
-            # REQUIRED: name field must be present — no fallback to empty string
+            # REQUIRED: name field must be present - no fallback to empty string
             name = s.get("name")
             if not name:
                 error_msg = "Health API source entry missing required 'name' field"
@@ -335,16 +335,16 @@ def fetch_health(c: None) -> dict[str, Any]:
             # Explicit validation: age_hours required for freshness display
             age_hours = s.get("age_hours")
             if age_hours is None:
-                logger.warning(f"Data freshness missing age_hours for {name} — freshness cannot be displayed")
+                logger.warning(f"Data freshness missing age_hours for {name} - freshness cannot be displayed")
                 age_days = None
             else:
                 try:
                     age_days = round(float(age_hours) / 24, 1)
                 except (ValueError, TypeError):
-                    logger.warning(f"Invalid age_hours value for {name}: {age_hours} — freshness cannot be calculated")
+                    logger.warning(f"Invalid age_hours value for {name}: {age_hours} - freshness cannot be calculated")
                     age_days = None
 
-            # REQUIRED: status field must be present — no fallback to "unknown"
+            # REQUIRED: status field must be present - no fallback to "unknown"
             # Missing status means the API response is malformed or incomplete
             status = s.get("status")
             if status is None:
@@ -359,11 +359,11 @@ def fetch_health(c: None) -> dict[str, Any]:
             # Extract optional enrichment fields with explicit markers
             last_updated = s.get("last_updated")
             if last_updated is None:
-                logger.debug(f"Data freshness missing last_updated for {name} — optional enrichment unavailable")
+                logger.debug(f"Data freshness missing last_updated for {name} - optional enrichment unavailable")
 
             row_count = s.get("row_count")
             if row_count is None:
-                logger.debug(f"Data freshness missing row_count for {name} — optional enrichment unavailable")
+                logger.debug(f"Data freshness missing row_count for {name} - optional enrichment unavailable")
 
             sources.append(
                 {
@@ -445,7 +445,7 @@ def fetch_circuit(c: None) -> dict[str, Any]:
                 record_data_quality_issue("cb", "validation", "breaker_missing_label")
                 return FetcherValidator.build_error_response(error_msg)
 
-            # CRITICAL: Require exact field names — no fallback field substitution.
+            # CRITICAL: Require exact field names - no fallback field substitution.
             # If API changed field names, that must be fixed in the API, not hidden here.
 
             # Current value field (REQUIRED: current)

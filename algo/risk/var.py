@@ -1,5 +1,5 @@
 """
-Portfolio Risk Measures — VaR, CVaR, Concentration, Beta Exposure
+Portfolio Risk Measures - VaR, CVaR, Concentration, Beta Exposure
 
 Institutional risk measurement for portfolio monitoring.
 
@@ -61,7 +61,7 @@ class ValueAtRisk:
                 if len(rows) < 5:
                     logger.critical(
                         f"Historical VaR calculation failed: only {len(rows)} portfolio snapshots found (minimum 5 required). "
-                        "Cannot compute VaR with insufficient data — trading must halt."
+                        "Cannot compute VaR with insufficient data - trading must halt."
                     )
                     raise RuntimeError(
                         f"Insufficient historical data for VaR (only {len(rows)} snapshots, need 5+). "
@@ -70,7 +70,7 @@ class ValueAtRisk:
                 if len(rows) < 30:
                     logger.warning(f"Risk metrics using limited historical data: {len(rows)} snapshots (recommend 30+)")
 
-                # CRITICAL: Portfolio values must be present and valid — no defaults to 0.0
+                # CRITICAL: Portfolio values must be present and valid - no defaults to 0.0
                 # Using 0.0 as fallback would cause VaR to be computed on corrupted data
                 values = []
                 for i, row in enumerate(rows):
@@ -102,7 +102,7 @@ class ValueAtRisk:
                         "Cannot compute VaR: no valid portfolio return data available. Verify portfolio snapshots have valid values."
                     )
 
-                # CRITICAL: Returns must be valid — no defaults to 0.0
+                # CRITICAL: Returns must be valid - no defaults to 0.0
                 returns = []
                 for i, r in enumerate(returns_decimal):
                     try:
@@ -140,7 +140,7 @@ class ValueAtRisk:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def cvar(self, confidence: float = 0.95, lookback_days: int = 252) -> dict[str, Any]:
-        """Compute Conditional VaR (Expected Shortfall) — mean loss beyond VaR.
+        """Compute Conditional VaR (Expected Shortfall) - mean loss beyond VaR.
 
         Args:
             confidence: Confidence level
@@ -353,7 +353,7 @@ class ValueAtRisk:
                 portfolio_value = Decimal(str(float(portfolio_row[0])))
                 snapshot_date = portfolio_row[1] if len(portfolio_row) > 1 else None
 
-                # CRITICAL: Validate snapshot freshness — stale portfolio value causes incorrect beta sizing
+                # CRITICAL: Validate snapshot freshness - stale portfolio value causes incorrect beta sizing
                 if snapshot_date:
                     from datetime import date
 
@@ -574,7 +574,7 @@ class ValueAtRisk:
                     )
                 snapshot_date = portfolio_row[1]
 
-                # CRITICAL: Validate snapshot freshness — stale portfolio value causes incorrect concentration metrics
+                # CRITICAL: Validate snapshot freshness - stale portfolio value causes incorrect concentration metrics
                 if snapshot_date is None:
                     raise RuntimeError(
                         "[CONCENTRATION CRITICAL] Portfolio snapshot has NULL date. "
@@ -603,7 +603,7 @@ class ValueAtRisk:
                     if cur_price is None or float(cur_price) <= 0:
                         raise ValueError(
                             f"[CONCENTRATION CRITICAL] Position {symbol} has invalid or missing current_price ({cur_price}). "
-                            f"Concentration report cannot be computed on incomplete position data — "
+                            f"Concentration report cannot be computed on incomplete position data - "
                             f"result would be misleading and cause incorrect risk assessment. "
                             f"All positions must have valid current pricing. "
                             f"Check that positions table is up-to-date with current market prices."
@@ -633,12 +633,12 @@ class ValueAtRisk:
                     # so a single position's missing enrichment data doesn't block all risk metrics
                     if sector is None:
                         logger.warning(
-                            f"Position {symbol} missing 'sector' in company_profile — classifying as 'Unknown'"
+                            f"Position {symbol} missing 'sector' in company_profile - classifying as 'Unknown'"
                         )
                         sector = "Unknown"
                     if industry is None:
                         logger.warning(
-                            f"Position {symbol} missing 'industry' in company_profile — classifying as 'Unknown'"
+                            f"Position {symbol} missing 'industry' in company_profile - classifying as 'Unknown'"
                         )
                         industry = "Unknown"
                     if not sector:

@@ -166,7 +166,7 @@ def _audit_exit_prices_step(
             status = stale_audit.get("status")
             if status is None:
                 if stale_audit.get("implementation_required"):
-                    logger.warning("[PHASE 9] Exit price audit not yet implemented — skipping stale price check")
+                    logger.warning("[PHASE 9] Exit price audit not yet implemented - skipping stale price check")
                     return
                 raise ValueError(f"Exit price audit result missing 'status' field. Keys: {list(stale_audit.keys())}")
 
@@ -239,7 +239,7 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
             if ic_value is None or ic_pvalue is None:
                 if ic_data.get("data_unavailable"):
                     reason = ic_data.get("reason", "unknown")
-                    logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} — skipping")
+                    logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} - skipping")
                     continue
                 logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
                 raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
@@ -447,10 +447,10 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
                 else:
                     logger.warning(f"Risk metrics missing 'var_pct' field. Available keys: {list(var_metrics.keys())}")
             else:
-                # VaR unavailable due to insufficient historical data — row was still inserted with NULLs
+                # VaR unavailable due to insufficient historical data - row was still inserted with NULLs
                 logger.warning(
                     "Risk report status=ok but var_metrics unavailable (insufficient historical data). "
-                    "Row inserted with NULL VaR values — will populate as data accumulates."
+                    "Row inserted with NULL VaR values - will populate as data accumulates."
                 )
             if concentration is not None:
                 conc_pct = concentration.get("top_5_concentration_pct")
@@ -581,7 +581,7 @@ def _optimize_weights(config: Any, run_date: _date, log_phase_result_fn: Callabl
         logger.error(error_msg)
         raise RuntimeError(error_msg)
 
-    # CRITICAL: Explicit validation — no silent empty list defaults
+    # CRITICAL: Explicit validation - no silent empty list defaults
     changes = opt_result.get("changes")
     if changes is None:
         raise ValueError(
@@ -737,7 +737,7 @@ def run(  # noqa: C901
                 execution_mode = config.get("execution_mode", "paper")
                 if execution_mode in ("paper", "auto"):
                     logger.warning(
-                        f"[PHASE 9] Alpaca credentials missing — reconciliation skipped in {execution_mode} mode. "
+                        f"[PHASE 9] Alpaca credentials missing - reconciliation skipped in {execution_mode} mode. "
                         "Portfolio snapshot will be created from database state without broker sync."
                     )
                     # Create basic snapshot without broker reconciliation
@@ -988,7 +988,7 @@ def run(  # noqa: C901
             except Exception as e:
                 logger.warning(
                     f"[PHASE 9] Circuit breaker metrics failed (non-blocking): {e}. "
-                    "circuit_breaker_status table not updated — dashboard CB panel will show stale data."
+                    "circuit_breaker_status table not updated - dashboard CB panel will show stale data."
                 )
                 log_phase_result_fn(
                     9,

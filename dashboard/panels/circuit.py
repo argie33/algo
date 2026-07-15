@@ -132,7 +132,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
     any_f = any_raw if isinstance(any_raw, bool) else bool(any_raw)
     hc = R if any_f else G
     if not any_f:
-        logger.debug("[CIRCUIT] No breakers triggered — display color defaulting to GREEN")
+        logger.debug("[CIRCUIT] No breakers triggered - display color defaulting to GREEN")
     hs = f"✗ {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED" if any_f else "✓ ALL CLEAR"
     tbl = Table.grid(padding=(0, 1), expand=True)
     tbl.add_column("a", ratio=1)
@@ -163,13 +163,13 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
         lbl_raw = br.get("label")
         if lbl_raw is None:
             logger.debug("[CIRCUIT] Breaker missing 'label' field")
-            lbl_s = "[dim]—[/]"
+            lbl_s = "[dim]-[/]"
         else:
             lbl_s = str(lbl_raw)[:20]
         if thr is None or cur is None:
             thr_f = safe_float(thr, default=None)
-            thr_s = "[dim]—[/]" if thr_f is None else f"{thr_f:.0f}"
-            cur_s = "[dim]—[/]" if cur is None else str(cur)
+            thr_s = "[dim]-[/]" if thr_f is None else f"{thr_f:.0f}"
+            cur_s = "[dim]-[/]" if cur is None else str(cur)
             unit_raw = br.get("unit")
             if unit_raw is None:
                 logger.debug("[CIRCUIT] Breaker %s missing unit field 'unit'", lbl_s)
@@ -196,7 +196,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
         if not fired and util < 0.75:
             logger.debug(
                 f"[CIRCUIT] Breaker {lbl_s} not fired and utilization {util:.1%} "
-                f"below warning threshold — color defaulting to GREEN"
+                f"below warning threshold - color defaulting to GREEN"
             )
         ind = "[bold red] ![/]" if fired else ""
         pct_s = f"[dim] {util * 100:.0f}%[/]" if not fired else ""
@@ -235,7 +235,7 @@ def panel_circuit(cb: Any) -> Panel:  # noqa: C901
     description="Circuit Breakers Expanded",
 )
 def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
-    """Full-screen circuit breaker status — wide bars, % utilization, per-breaker detail."""
+    """Full-screen circuit breaker status - wide bars, % utilization, per-breaker detail."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]b[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
@@ -277,7 +277,7 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
 
     if any_f_raw is None:
         logger.warning(
-            "[CIRCUIT] Missing 'any' field in expanded circuit breaker data — defaulting to no breakers fired"
+            "[CIRCUIT] Missing 'any' field in expanded circuit breaker data - defaulting to no breakers fired"
         )
         any_f = False
     else:
@@ -285,10 +285,10 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
 
     if any_f:
         rows.append(
-            Text.from_markup(f"[bold {R}]⚠  {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED  —  TRADING HALTED[/]")
+            Text.from_markup(f"[bold {R}]⚠  {n_f} BREAKER{'S' if n_f != 1 else ''} FIRED  -  TRADING HALTED[/]")
         )
     else:
-        rows.append(Text.from_markup(f"[bold {G}]✓  ALL CLEAR  —  NO BREAKERS ACTIVE[/]"))
+        rows.append(Text.from_markup(f"[bold {G}]✓  ALL CLEAR  -  NO BREAKERS ACTIVE[/]"))
     rows.append(Rule(style="dim"))
 
     bs = cb.get("breakers")
@@ -322,7 +322,7 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
             lbl_val = br.get("label")
             if lbl_val is None:
                 logger.debug("[CIRCUIT_EXPANDED] Breaker missing 'label' field")
-                lbl = "[dim]—[/]"
+                lbl = "[dim]-[/]"
             else:
                 lbl = str(lbl_val)
 
@@ -348,9 +348,9 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
 
             util_high = False
             if cur is None or thr is None:
-                cur_s = f"{cur}{u}" if cur is not None else "[dim]—[/]"
-                thr_s = f"{thr}{u}" if thr is not None else "[dim]—[/]"
-                util_bar = Text("[dim]— / —[/]", style="dim")
+                cur_s = f"{cur}{u}" if cur is not None else "[dim]-[/]"
+                thr_s = f"{thr}{u}" if thr is not None else "[dim]-[/]"
+                util_bar = Text("[dim]- / -[/]", style="dim")
                 status = Text("UNKNOWN", style="dim")
             else:
                 try:
@@ -390,7 +390,7 @@ def panel_circuit_expanded(cb: Any) -> Panel:  # noqa: C901
                         if util < 0.75:
                             logger.debug(
                                 f"[CIRCUIT_EXPANDED] Breaker {lbl} utilization {util:.1%} "
-                                f"below threshold — status defaulting to CLEAR"
+                                f"below threshold - status defaulting to CLEAR"
                             )
                         status = Text.from_markup(f"[{G}]CLEAR[/]")
 

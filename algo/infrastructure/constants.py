@@ -5,7 +5,7 @@ Centralized constants for magic numbers across the algo system.
 This module consolidates all hardcoded thresholds, multipliers, and limits
 to make changes easier and provide a single source of truth. Thresholds that
 require runtime tuning are stored in algo_config database table and fetched
-via AlgoConfig.get() — these constants represent compile-time defaults only.
+via AlgoConfig.get() - these constants represent compile-time defaults only.
 
 Organization:
 - Rate Limiting & API Thresholds
@@ -69,7 +69,7 @@ REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION = 0.0  # Freeze weights in correction
 PATROL_SLOW_CHECK_THRESHOLD_SEC = 5.0  # Alert if any check takes > 5 seconds
 PATROL_OVERALL_SLOW_THRESHOLD_SEC = 120.0  # Alert if patrol takes > 120 seconds
 
-# Data staleness windows (days) — defaults, configurable via algo_config
+# Data staleness windows (days) - defaults, configurable via algo_config
 STALENESS_WINDOW_PRICE_DAILY = 7
 STALENESS_WINDOW_TECHNICAL_DATA = 7
 STALENESS_WINDOW_BUY_SELL_DAILY = 7

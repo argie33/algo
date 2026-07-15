@@ -287,7 +287,7 @@ def handle(  # noqa: C901
                     % limit
                 )
 
-                # Execute with single attempt at 23s — complex multi-CTE query needs headroom.
+                # Execute with single attempt at 23s - complex multi-CTE query needs headroom.
                 # Lambda timeout is 25s; provisioned concurrency keeps instance warm so no cold-start risk.
                 # Migration 060 adds a covering index (symbol, date) INCLUDE (high, low) to speed 52w stats.
                 rows = execute_with_timeout(cur, deep_value_query, timeout_sec=23, max_attempts=1)

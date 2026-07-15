@@ -16,7 +16,7 @@ PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded", "skipped")
 def _get_phase_status_badge(run: dict[str, Any] | None) -> str:
     """Determine run status badge from run object. Eliminates if/elif chains (OO abuser pattern)."""
     if not run or not isinstance(run, dict):
-        return "[dim]—[/]"
+        return "[dim]-[/]"
     success = run.get("success")
     halted = run.get("halted")
     errored = run.get("errored")
@@ -77,7 +77,7 @@ def _fmt_updated(r: dict[str, Any]) -> str:
     # CRITICAL: Explicit None check instead of OR fallback
     # Timestamp missing should not silently default to empty string
     if lat is None:
-        return "—"
+        return "-"
     return str(lat)[:5]
 
 
@@ -88,7 +88,7 @@ def _pc(v: list[Any] | int | None) -> int:
     if isinstance(v, int):
         return v
     if v is None:
-        # Early-stage runs may not have phase data yet — this is expected, not an error
+        # Early-stage runs may not have phase data yet - this is expected, not an error
         # Returning 0 here indicates "no phases recorded yet", not "data unavailable"
         # This is appropriate for initialization, not for stale/corrupted data
         return 0
@@ -237,7 +237,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     left_rows: list[Text | Table] = []
 
     if not hlth_items:
-        msg = "⚠ Data health unavailable — loaders may not have run yet.\n"
+        msg = "⚠ Data health unavailable - loaders may not have run yet.\n"
         msg += "Check Phase 1 orchestrator status or monitor logs."
         left_rows.append(Text(msg, style="dim"))
         return Panel(
@@ -282,9 +282,9 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
 
     def sort_key(r: dict[str, Any]) -> tuple[int, str]:
         role = r.get("role")
-        # CRITICAL: Explicit validation — missing role indicates data corruption
+        # CRITICAL: Explicit validation - missing role indicates data corruption
         if role is None:
-            logger.warning(f"[HEALTH] Health item missing 'role' field — data corrupted. Keys: {list(r.keys())}")
+            logger.warning(f"[HEALTH] Health item missing 'role' field - data corrupted. Keys: {list(r.keys())}")
             # Fallback to NORM for display, but log as warning (not silent)
             role = "NORM"
         elif not isinstance(role, str):
@@ -293,7 +293,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
             )
             role = "NORM"
         tbl = r.get("tbl")
-        # CRITICAL: Explicit None check — missing table name indicates incomplete data
+        # CRITICAL: Explicit None check - missing table name indicates incomplete data
         if tbl is None:
             logger.warning(f"[HEALTH] Health item missing 'tbl' field. Role: {role}, Keys: {list(r.keys())}")
             tbl_str = "unknown_table"
@@ -326,11 +326,11 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         nm = str(tbl_val if tbl_val is not None else "--")
         role_val = r.get("role")
         role = str(role_val if role_val is not None else "NORM")
-        # CRITICAL: Explicit None check — missing status indicates data quality issue
+        # CRITICAL: Explicit None check - missing status indicates data quality issue
         st_raw = r.get("st")
         if st_raw is None:
             logger.warning(
-                f"[HEALTH] Health item missing 'st' (status) field — data corrupted. Table: {tbl_val}, Keys: {list(r.keys())}"
+                f"[HEALTH] Health item missing 'st' (status) field - data corrupted. Table: {tbl_val}, Keys: {list(r.keys())}"
             )
             # Log as warning but use default for display (don't silently assume "ok")
             st = "unknown"
@@ -380,13 +380,13 @@ def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
     max_n = cfg_params.get("max_pos_n")
     # CRITICAL: Explicit check for config availability instead of silent empty string
     if max_n is None:
-        logger.debug("[HEALTH] max_pos_n config not set — position limit unavailable")
+        logger.debug("[HEALTH] max_pos_n config not set - position limit unavailable")
         slots_s = ""
     elif max_n:
         slots_s = f"[dim]max [/][white]{max_n}[/][dim] positions[/]"
     else:
         # max_n=0 is falsy but valid (unlimited positions), don't silently hide
-        logger.warning(f"[HEALTH] max_pos_n is 0 or invalid: {max_n} — position limit configuration corrupted?")
+        logger.warning(f"[HEALTH] max_pos_n is 0 or invalid: {max_n} - position limit configuration corrupted?")
         slots_s = ""
     max_sec_n = cfg_params.get("max_sec_n")
     sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n is not None and max_sec_n else ""
@@ -488,7 +488,7 @@ def panel_orch(  # noqa: C901
         error_msg = (
             f"[{R}]run fetch failed[/]: {run.get('_error')}"
             if isinstance(run, dict) and has_error(run)
-            else "[dim]run: no execution history available — orchestrator may not have run[/]"
+            else "[dim]run: no execution history available - orchestrator may not have run[/]"
         )
         if not run or (isinstance(run, dict) and not has_error(run)):
             logger.warning(
@@ -569,7 +569,7 @@ def panel_orch(  # noqa: C901
                 logger.error(
                     f"[HEALTH] CRITICAL: Execution history missing 'halt_reason' when halted. "
                     f"Available: {list(run.keys())}. "
-                    f"Cannot diagnose why algo halted — critical diagnostic information lost."
+                    f"Cannot diagnose why algo halted - critical diagnostic information lost."
                 )
             summary = run.get("summary")
             # Log if summary missing but don't fail - can use phase results as fallback
@@ -743,7 +743,7 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
             logger.error(
                 f"[HEALTH] CRITICAL: Last halt event missing 'halt_reason'. "
                 f"Available: {list(last_halt.keys())}. "
-                f"Cannot diagnose why algo last halted — critical diagnostic data lost."
+                f"Cannot diagnose why algo last halted - critical diagnostic data lost."
             )
         lph = _fmt_phases_halted(last_halt.get("phases_halted"))
         # CRITICAL: Explicit conditional instead of OR fallback
@@ -753,8 +753,8 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
         elif lph:
             body = lph
         else:
-            body = "[dim]—[/] halt reason unavailable"  # Explicit marker
-        if body and body != "[dim]—[/] halt reason unavailable":
+            body = "[dim]-[/] halt reason unavailable"  # Explicit marker
+        if body and body != "[dim]-[/] halt reason unavailable":
             # CRITICAL: Explicit None check instead of OR fallback
             # Only compare if both lhr and lph exist
             if lph and lhr and lph not in lhr:
@@ -762,7 +762,7 @@ def _format_exec_history_summary(exec_hist: list[Any] | None) -> list[Text]:
             else:
                 ph_s = ""
             rows.append(Text.from_markup(f"  [{Y}]a†³ {body[:55]}[/]{ph_s}"))
-        elif body == "[dim]—[/] halt reason unavailable":
+        elif body == "[dim]-[/] halt reason unavailable":
             rows.append(Text.from_markup(f"  [{Y}]a†³ {body}[/]"))
 
     return rows
@@ -779,7 +779,7 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
     if not act or not isinstance(act, dict):
         logger.debug(
             "[HEALTH_FORMAT] Activity data unavailable for trade events. "
-            "No recent actions to display — algo may not have executed any trades yet."
+            "No recent actions to display - algo may not have executed any trades yet."
         )
         return rows
 
@@ -834,13 +834,13 @@ def _format_recent_trade_events(act: dict[str, Any] | None) -> list[Text]:
             logger.warning(
                 f"[HEALTH] Trade event missing symbol in details. Action: {at}. Cannot identify affected position."
             )
-            sym = "—"  # Explicit marker for unavailable data
+            sym = "-"  # Explicit marker for unavailable data
         else:
             sym = sym_raw
         ic = G if ("executed" in at or at == "position_exited") else (Y if "placed" in at else R)
         lbl = at.replace("_", " ").title()[:20]
         # Show symbol availability status clearly
-        sym_display = f" ({sym})" if sym != "—" else " (symbol unavailable)"
+        sym_display = f" ({sym})" if sym != "-" else " (symbol unavailable)"
         rows.append(Text.from_markup(f"  [{ic}]{lbl}{sym_display}[/]"))
 
     return rows
@@ -852,7 +852,7 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
     if not hlth_items:
         logger.warning(
             "[HEALTH_FORMAT] Data health items unavailable for display. "
-            "Cannot assess table freshness — health check may not have completed yet."
+            "Cannot assess table freshness - health check may not have completed yet."
         )
         return rows
 
@@ -917,14 +917,14 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     except (ValueError, TypeError) as e:
         logger.error(
             f"[LOADER_FORMAT] Loader data parsing failed: {str(e)[:100]}. "
-            "Cannot validate data loader health — corrupted or missing status records."
+            "Cannot validate data loader health - corrupted or missing status records."
         )
         rows.append(Text.from_markup(f"[red]Loader data error: {str(e)[:60]}[/]"))
         return rows
     if not isinstance(valid_loader_raw, list):
         logger.error(
             f"[LOADER_FORMAT] Loader status data is not a list: {type(valid_loader_raw).__name__}. "
-            "Cannot display loader health — API returned invalid data structure."
+            "Cannot display loader health - API returned invalid data structure."
         )
         rows.append(Text.from_markup("[red]Loader data unavailable (invalid format)[/]"))
         return rows
@@ -932,14 +932,14 @@ def _format_loader_status(loader: list[Any]) -> list[Text]:
     if valid_loader is None:
         logger.error(
             "[LOADER_FORMAT] Loader status data is None. "
-            "Cannot display loader health — status API may have failed or returned null."
+            "Cannot display loader health - status API may have failed or returned null."
         )
         rows.append(Text.from_markup("[red]Loader data unavailable (None)[/]"))
         return rows
     if len(valid_loader) == 0:
         logger.warning(
             "[LOADER_FORMAT] No loaders configured in system. "
-            "Loader status display skipped — check system configuration for data feed definitions."
+            "Loader status display skipped - check system configuration for data feed definitions."
         )
         rows.append(Text.from_markup("[dim]No loaders configured[/]"))
         return rows
@@ -1016,7 +1016,7 @@ def _format_notifications_summary(notifs: list[Any]) -> list[Text]:
     if not valid_notifs_raw:
         logger.debug(
             "[HEALTH_FORMAT] Notifications unavailable for display. "
-            "No alerts to show — system is operating normally with no active notifications."
+            "No alerts to show - system is operating normally with no active notifications."
         )
         return rows
 
@@ -1062,7 +1062,7 @@ def _format_daily_metrics_summary(algo_metrics: list[Any]) -> list[Text]:
     if not valid_metrics_raw:
         logger.warning(
             "[METRICS_FORMAT] Daily algo metrics unavailable for display. "
-            "No trade activity records found — metrics table may be empty or API returned null."
+            "No trade activity records found - metrics table may be empty or API returned null."
         )
         return rows
 
@@ -1122,7 +1122,7 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     if not valid_audit_raw:
         logger.debug(
             "[AUDIT_FORMAT] Audit log unavailable for display. "
-            "No audit records found — API may have returned null or audit table is empty."
+            "No audit records found - API may have returned null or audit table is empty."
         )
         return rows
 
@@ -1147,12 +1147,12 @@ def _format_audit_log_summary(audit: list[Any]) -> list[Text]:
     for a in notable:
         action_type_val = a.get("action_type")
         if action_type_val is None:
-            logger.debug("[HEALTH] Audit entry missing action_type field — defaulting to empty string")
+            logger.debug("[HEALTH] Audit entry missing action_type field - defaulting to empty string")
             action_type_val = ""
         at = (action_type_val if action_type_val else "").replace("_", " ")
         symbol_val = a.get("symbol")
         if symbol_val is None:
-            logger.debug("[HEALTH] Audit entry missing symbol field — defaulting to empty string")
+            logger.debug("[HEALTH] Audit entry missing symbol field - defaulting to empty string")
             symbol_val = ""
         sym = symbol_val if symbol_val else ""
         st_raw = a.get("status")
@@ -1338,7 +1338,7 @@ def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any
             phase_name = p.get("name")
             if phase_name is None:
                 phase_name = "unknown"
-            logger.warning(f"Phase {phase_name} metrics incomplete: {e}—check phase output for data corruption")
+            logger.warning(f"Phase {phase_name} metrics incomplete: {e}-check phase output for data corruption")
 
     return phase_badges, signals_gen, entries_exec, exits_exec
 
@@ -1431,12 +1431,12 @@ def _format_algo_actions_and_activity(
             # Must distinguish between "0 entries executed" and "data unavailable".
             try:
                 if en is None:
-                    logger.warning("Execution metric 'entries' missing — data unavailable")
+                    logger.warning("Execution metric 'entries' missing - data unavailable")
                     en_i = None
                 else:
                     en_i = int(en)
                 if ex is None:
-                    logger.warning("Execution metric 'exits' missing — data unavailable")
+                    logger.warning("Execution metric 'exits' missing - data unavailable")
                     ex_i = None
                 else:
                     ex_i = int(ex)
@@ -1527,7 +1527,7 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
     if var95_val is None or var95_val <= 0:
         logger.debug(
             "[RISK_FORMAT] Risk metrics unavailable for display. "
-            "VaR 95% metric missing or zero — risk calculation may have failed or insufficient data."
+            "VaR 95% metric missing or zero - risk calculation may have failed or insufficient data."
         )
         return rows
 
@@ -1549,13 +1549,13 @@ def _format_risk_snapshot(risk_dict: dict[str, Any]) -> list[Text | Rule]:
 
     if var95_val is None or beta_val is None or cvar95_val is None or conc5_val is None:
         # CRITICAL: When beta = 0, show "--" instead of "0.00"
-        beta_display_na = "—" if (beta_val is None or (beta_val is not None and beta_val <= 0)) else f"{beta_val:.2f}"
+        beta_display_na = "-" if (beta_val is None or (beta_val is not None and beta_val <= 0)) else f"{beta_val:.2f}"
         rows.append(
             Text.from_markup(
-                f"[dim]VaR 95%:[/][{var_c}]{'—' if var95_val is None else f'{var95_val:.2f}%'}[/]  "
-                f"[dim]CVaR 95%:[/][{var_c}]{'—' if cvar95_val is None else f'{cvar95_val:.2f}%'}[/]  "
+                f"[dim]VaR 95%:[/][{var_c}]{'-' if var95_val is None else f'{var95_val:.2f}%'}[/]  "
+                f"[dim]CVaR 95%:[/][{var_c}]{'-' if cvar95_val is None else f'{cvar95_val:.2f}%'}[/]  "
                 f"[dim]Beta:[/][{beta_c}]{beta_display_na}[/]  "
-                f"[dim]Top-5 Conc:[/][{conc_c}]{'—' if conc5_val is None else f'{conc5_val:.0f}%'}[/]"
+                f"[dim]Top-5 Conc:[/][{conc_c}]{'-' if conc5_val is None else f'{conc5_val:.0f}%'}[/]"
             )
         )
     else:
@@ -1581,7 +1581,7 @@ def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
     if not valid_notifs:
         logger.debug(
             "[NOTIF_FORMAT] Notifications section unavailable for display. "
-            "No active alerts — system operating normally with no critical notifications."
+            "No active alerts - system operating normally with no critical notifications."
         )
         return rows
 
@@ -1590,12 +1590,12 @@ def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
     for n in valid_notifs[:5]:
         severity_val = n.get("severity")
         if severity_val is None:
-            logger.debug("[HEALTH] Notification missing severity — defaulting to 'info' (DIM color)")
+            logger.debug("[HEALTH] Notification missing severity - defaulting to 'info' (DIM color)")
             severity_val = "info"
         sc = SEV_COLORS.get(severity_val, DIM)
         title_val = n.get("title")
         if title_val is None:
-            logger.debug("[HEALTH] Notification missing title — defaulting to empty string")
+            logger.debug("[HEALTH] Notification missing title - defaulting to empty string")
             title_val = ""
         raw_t = title_val if title_val else ""
         title = next(
@@ -1670,24 +1670,24 @@ def panel_status(  # noqa: C901
         age_s = f"  [dim]{fmt_age(run_at_top)}[/]" if run_at_top else ""
         rows.append(Text.from_markup(f"{sts}{age_s}"))
 
-    # Config extraction — use helper to reduce .get() calls
+    # Config extraction - use helper to reduce .get() calls
     cfg_v = safe_get_dict(cfg)
     cfg_params = extract_config_params(cfg_v) if cfg_v else {}
     mode_raw = cfg_params.get("mode")
     mode = mode_raw if mode_raw is not None else ""
     if mode_raw is None:
-        logger.debug("[HEALTH_STATUS] Config mode missing — display color defaulting to YELLOW (paper mode)")
+        logger.debug("[HEALTH_STATUS] Config mode missing - display color defaulting to YELLOW (paper mode)")
     en_raw = cfg_params.get("enabled")
     en = en_raw if en_raw is not None else True
     if en_raw is None:
-        logger.debug("[HEALTH_STATUS] Config enabled flag missing — defaulting to True")
+        logger.debug("[HEALTH_STATUS] Config enabled flag missing - defaulting to True")
     mc = G if "LIVE" in str(mode) else Y
     ec = G if en else R
     en_s = "ENABLED" if en else "DISABLED"
     next_r = next_run_str()
     rows.append(Text.from_markup(f"[{mc}]{mode or 'PAPER'}[/]  [{ec}]{en_s}[/]  [dim]Next run:[/] [white]{next_r}[/]"))
 
-    # Trading config params — visible context for position sizing decisions
+    # Trading config params - visible context for position sizing decisions
     cfg_parts = []
     max_pos_n = cfg_params.get("max_pos_n")
     max_sec_n = cfg_params.get("max_sec_n")
@@ -1705,13 +1705,13 @@ def panel_status(  # noqa: C901
         rows.append(Text.from_markup("  ".join(cfg_parts)))
     rows.append(Rule(style="dim"))
 
-    # Execution history summary — last 7 runs
+    # Execution history summary - last 7 runs
     hist_rows = _format_exec_history_summary(exec_hist)
     if hist_rows:
         rows.extend(hist_rows)
         rows.append(Rule(style="dim"))
 
-    # Current run status — shown prominently even when history is empty
+    # Current run status - shown prominently even when history is empty
     run_id = run.get("run_id") if (run_valid and isinstance(run, dict)) else None
     run_at = run.get("run_at") if (isinstance(run, dict)) else None
     if not run_id and act_valid:
@@ -1749,7 +1749,7 @@ def panel_status(  # noqa: C901
                 err_s = f"  [{R}]{n_err} errored[/]" if n_err else ""
                 rows.append(Text.from_markup(f"  {done_s}{hlt_s}{err_s}"))
 
-    # Phase detail — named phases from exec_log with per-phase status and key data
+    # Phase detail - named phases from exec_log with per-phase status and key data
     phase_badges = []
     run_source = (run.get("_source") if isinstance(run, dict) else None) if run_valid else None
     if run_valid and isinstance(run, dict) and run_source == "exec_log":
@@ -1945,7 +1945,7 @@ def panel_status(  # noqa: C901
             d = m.get("date")
             if d is None or not hasattr(d, "strftime"):
                 logger.warning("[HEALTH] Daily metrics missing date field")
-                d_s = "—"
+                d_s = "-"
             else:
                 d_s = d.strftime("%b %d")
 
@@ -2055,7 +2055,7 @@ def panel_status(  # noqa: C901
             rows.append(Rule(style="dim"))
             rows.append(Text.from_markup(f"[{G}]OK Loaders[/]  [dim]{ok_count} feeds healthy[/]"))
 
-    # Audit log — most recent notable actions
+    # Audit log - most recent notable actions
     valid_audit_raw = safe_get_list(audit)
     if isinstance(valid_audit_raw, list) and valid_audit_raw:
         valid_audit_list: list[Any] = valid_audit_raw
@@ -2098,7 +2098,7 @@ def panel_status(  # noqa: C901
             "All data sources (run, activity, health, notifications) returned empty. "
             "Check orchestrator logs and data freshness."
         )
-        rows.append(Text("⚠ No activity data available — check system logs", style="yellow"))
+        rows.append(Text("⚠ No activity data available - check system logs", style="yellow"))
     return Panel(
         Group(*rows),
         title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]",
@@ -2388,7 +2388,7 @@ def panel_algo_health(  # noqa: C901
             "All data sources (run, activity, health, notifications) returned empty. "
             "Check orchestrator status and data loader health."
         )
-        rows.append(Text("⚠ No health data available — check logs for errors", style="yellow"))
+        rows.append(Text("⚠ No health data available - check logs for errors", style="yellow"))
     return Panel(
         Group(*rows),
         title="[bold yellow]ALGO HEALTH[/]  [dim][h] expand[/]",
@@ -2541,7 +2541,7 @@ def _build_results_panel(  # noqa: C901
     if not entries_exec:
         en = today_m_e.get("entries")
         if en is None:
-            logger.warning("Fallback: Execution metric 'entries' still missing — data unavailable")
+            logger.warning("Fallback: Execution metric 'entries' still missing - data unavailable")
             entries_exec = None
         else:
             try:
@@ -2552,7 +2552,7 @@ def _build_results_panel(  # noqa: C901
     if not exits_exec:
         ex = today_m_e.get("exits")
         if ex is None:
-            logger.warning("Fallback: Execution metric 'exits' still missing — data unavailable")
+            logger.warning("Fallback: Execution metric 'exits' still missing - data unavailable")
             exits_exec = None
         else:
             try:
@@ -2586,7 +2586,7 @@ def _build_results_panel(  # noqa: C901
             d = m.get("date")
             if d is None or not hasattr(d, "strftime"):
                 logger.warning("[HEALTH] Execution metrics missing date field")
-                d_s = "—"
+                d_s = "-"
             else:
                 d_s = d.strftime("%d")
             en = m.get("entries")
@@ -2612,7 +2612,7 @@ def _build_results_panel(  # noqa: C901
             dt = r.get("started_at")
             if dt is None or not hasattr(dt, "strftime"):
                 logger.warning("[HEALTH] Execution history missing started_at timestamp")
-                dt_s = "—"
+                dt_s = "-"
             else:
                 dt_s = dt.strftime("%b %d  %I:%M %p")
             ic = G if s in PHASE_SUCCESS_STATES else (Y if s == "halted" else R)
@@ -2622,7 +2622,7 @@ def _build_results_panel(  # noqa: C901
                 hr = ""
             lph = _fmt_phases_halted(r.get("phases_halted"))
             body = hr or lph
-            # HIGH-003 FIX: Remove redundant OR fallback — hr is already guaranteed to be string
+            # HIGH-003 FIX: Remove redundant OR fallback - hr is already guaranteed to be string
             ph_s = f"  [dim]({lph})[/]" if lph and lph not in hr else ""
             hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
@@ -2677,16 +2677,16 @@ def _build_results_panel(  # noqa: C901
                 continue
             severity_val = n.get("severity")
             if severity_val is None:
-                logger.warning("[RESULTS_PANEL] Notification missing severity — defaulting to 'info' for color")
+                logger.warning("[RESULTS_PANEL] Notification missing severity - defaulting to 'info' for color")
                 severity_val = "info"
             sc = SEV_COLORS.get(severity_val, DIM)
             if severity_val not in SEV_COLORS:
                 logger.debug(
-                    f"[RESULTS_PANEL] Notification severity '{severity_val}' not in SEV_COLORS — using DIM default"
+                    f"[RESULTS_PANEL] Notification severity '{severity_val}' not in SEV_COLORS - using DIM default"
                 )
             title_val = n.get("title")
             if title_val is None:
-                logger.warning("[RESULTS_PANEL] Notification missing title — defaulting to empty string")
+                logger.warning("[RESULTS_PANEL] Notification missing title - defaulting to empty string")
                 title_val = ""
             title = title_val if title_val else ""
             age = fmt_age(n.get("created_at"))
@@ -2705,17 +2705,17 @@ def _build_results_panel(  # noqa: C901
                 continue
             action_type_val = a.get("action_type")
             if action_type_val is None:
-                logger.debug("[RESULTS_AUDIT] Audit entry missing action_type — defaulting to empty string")
+                logger.debug("[RESULTS_AUDIT] Audit entry missing action_type - defaulting to empty string")
                 action_type_val = ""
             at = (action_type_val if action_type_val else "").replace("_", " ")
             symbol_val = a.get("symbol")
             if symbol_val is None:
-                logger.debug("[RESULTS_AUDIT] Audit entry missing symbol — defaulting to empty string")
+                logger.debug("[RESULTS_AUDIT] Audit entry missing symbol - defaulting to empty string")
                 symbol_val = ""
             sym = symbol_val if symbol_val else ""
             st_a_raw = a.get("status")
             if st_a_raw is None:
-                logger.debug("[RESULTS_AUDIT] Audit entry missing status field — defaulting to empty string")
+                logger.debug("[RESULTS_AUDIT] Audit entry missing status field - defaulting to empty string")
                 st_a_raw = ""
             st_a = st_a_raw
             sc = G if st_a in ("success", "ok") else (Y if st_a in ("warn", "warning") else R)
@@ -2749,7 +2749,7 @@ def panel_algo_health_expanded(
     exec_hist: list[Any] | None = None,
     risk: dict[str, Any] | None = None,
 ) -> Layout:
-    """Full-screen algo health — dual column: data freshness (left) | run results (right)."""
+    """Full-screen algo health - dual column: data freshness (left) | run results (right)."""
     hlth_err_exp = _error_panel("health", hlth, "HEALTH EXPANDED")
     if hlth_err_exp is not None:
         error_layout = Layout()

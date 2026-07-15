@@ -42,7 +42,7 @@ class SectorRankingLoader(OptimalLoader):
                 # Compute sector rankings from stock scores.
                 # rank_1w/4w/12w_ago use the nearest row at-or-before the lookback date
                 # (loader gaps/weekends leave no exact-date row) and bootstrap to
-                # current_rank when history is missing — sector_rotation.py hard-requires
+                # current_rank when history is missing - sector_rotation.py hard-requires
                 # all three to be non-NULL for market regime computation.
                 cur.execute(
                     """

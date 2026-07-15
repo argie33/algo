@@ -357,7 +357,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         """Upsert a single record to table.
 
         BUGFIX: ON CONFLICT previously updated only updated_at, silently discarding every
-        recomputed metric value for symbols that already had a row — the table was
+        recomputed metric value for symbols that already had a row - the table was
         effectively write-once while its updated_at looked fresh. Now every non-key column
         is updated from EXCLUDED so daily recomputes actually land.
         """

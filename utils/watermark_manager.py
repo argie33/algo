@@ -61,12 +61,12 @@ class WatermarkManager:
                 if row and row[0] is not None:
                     return self._parse_watermark_date(row[0])
                 # No row or NULL value = never fetched before (first run, not an error)
-                logger.debug(f"No watermark found for {symbol} in {self.table_name} — will perform full refresh")
+                logger.debug(f"No watermark found for {symbol} in {self.table_name} - will perform full refresh")
                 return None
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(
                 f"Failed to read watermark for {symbol} from {self.table_name}: {e}. "
-                f"Database error prevents incremental loading — cannot determine if {symbol} has been fetched before."
+                f"Database error prevents incremental loading - cannot determine if {symbol} has been fetched before."
             ) from e
 
     @staticmethod

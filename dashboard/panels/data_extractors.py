@@ -157,7 +157,7 @@ def extract_risk_metrics(risk: dict[str, Any]) -> dict[str, Any]:
     """Extract risk metrics for display (only if valid data).
 
     Fail-fast: Risk metrics (VaR, CVaR, Beta, concentration) are critical
-    financial data. Missing values raise error—cannot position size with None.
+    financial data. Missing values raise error-cannot position size with None.
     Raises KeyError if required fields missing.
     """
     if not isinstance(risk, dict):
@@ -293,7 +293,7 @@ def extract_signal_overview(sig: dict[str, Any]) -> dict[str, Any]:
 def extract_eval_funnel(sig_eval: dict[str, Any] | None) -> dict[str, Any]:
     """Extract evaluation funnel data (error already checked, data optional).
 
-    Fail-fast: Do not return empty dict—signal evaluation is critical for understanding
+    Fail-fast: Do not return empty dict-signal evaluation is critical for understanding
     how many candidates were evaluated and rejected. Empty dict hides data unavailability.
     """
     if not sig_eval:
@@ -378,7 +378,7 @@ def extract_risk_data(risk: dict[str, Any]) -> dict[str, Any]:
     """Extract risk data for display (error already checked).
 
     Fail-fast: var95, cvar95, beta, conc5 are critical financial metrics.
-    svar is optional—requires historical data accumulation.
+    svar is optional-requires historical data accumulation.
     Raises KeyError if required fields missing.
     """
     if not isinstance(risk, dict):

@@ -171,12 +171,12 @@ def panel_portfolio(
             f"Portfolio data corruption: failed to convert validated fields. "
             f"pv_raw={pv_raw}, cash_raw={cash_raw}, npos_raw={npos_raw}. Error: {e}"
         )
-        raise RuntimeError("Portfolio data format error — API validation failed") from e
+        raise RuntimeError("Portfolio data format error - API validation failed") from e
 
     # Use actual position count from positions endpoint when available
     npos = _get_actual_position_count(npos_snapshot, pos)
 
-    # STRICT: Optional enrichment metrics—explicitly handle missing data
+    # STRICT: Optional enrichment metrics-explicitly handle missing data
     # These are computed daily; missing values should not silently default to None
     # Instead, log and indicate data unavailable (not the same as zero/empty)
     from algo.infrastructure.market_calendar import MarketCalendar
@@ -239,7 +239,7 @@ def panel_portfolio(
     # Header: portfolio value + age
     header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
 
-    # 2-column grid — keeps labels from wrapping
+    # 2-column grid - keeps labels from wrapping
     def cell(label: str, value_markup: str) -> Text:
         return Text.from_markup(f"[dim]{label}[/] {value_markup}")
 
@@ -300,7 +300,7 @@ def panel_portfolio(
         conc5_v = risk.get("conc5")
         svar_v = risk.get("svar")
 
-        # All critical fields available — render
+        # All critical fields available - render
         if var_v is not None and var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:
             conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
             var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
@@ -383,7 +383,7 @@ def panel_performance_spark(  # noqa: C901
     l_val = perf.get("l")
     # CRITICAL: Fail-fast on missing closed losses count. Never silently fallback to 0.
     if l_val is None:
-        logger.error("[PORTFOLIO] Closed losses count 'l' missing — cannot calculate open losing positions")
+        logger.error("[PORTFOLIO] Closed losses count 'l' missing - cannot calculate open losing positions")
         closed_losses = 0
     elif not isinstance(l_val, (int, float)):
         logger.error(f"[PORTFOLIO] Closed losses 'l' invalid type {type(l_val).__name__}: {l_val}")
@@ -576,7 +576,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
     perf_anl: dict[str, Any] | None = None,
     pos: dict[str, Any] | None = None,
 ) -> Panel:
-    """Full-screen portfolio + performance deep dive — all metrics, risk, concentration."""
+    """Full-screen portfolio + performance deep dive - all metrics, risk, concentration."""
     # ── Error boundary checks at function entry ──────────────────────────────
     # CRITICAL: Check for error markers in primary data endpoints before processing
     # Fail-fast pattern: if core data has errors, partial rendering is better than silent failure
@@ -700,9 +700,9 @@ def panel_portfolio_perf_expanded(  # noqa: C901
         try:
             wr_v, _adj_w, adj_l = _calculate_adjusted_win_rate(perf, pos)
             if adj_l is None:
-                raise ValueError("Adjusted loss count is None — cannot calculate open losing positions")
+                raise ValueError("Adjusted loss count is None - cannot calculate open losing positions")
             if closed_losses is None:
-                raise ValueError("Closed losses count is None — cannot calculate open losing positions")
+                raise ValueError("Closed losses count is None - cannot calculate open losing positions")
             losing_open = adj_l - closed_losses
         except ValueError as e:
             logger.error(f"Win rate calculation failed: {e}")
@@ -966,7 +966,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                 if svar is not None and svar > 0:
                     if risk_date is None:
                         logger.warning("[PORTFOLIO] Risk metrics present but risk_date field missing")
-                        risk_date_str = "—"
+                        risk_date_str = "-"
                     else:
                         risk_date_str = str(risk_date)[:10]
                     rtbl.add_row(
@@ -987,7 +987,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
             rows.append(Text.from_markup("[dim bold]POSITION CONCENTRATION[/]"))
             pv_total_val = port.get("total_portfolio_value") if port and not has_error(port) else None
             if pv_total_val is None:
-                rows.append(Text("[red]Portfolio value unavailable — cannot compute concentration[/]", style="dim"))
+                rows.append(Text("[red]Portfolio value unavailable - cannot compute concentration[/]", style="dim"))
             else:
                 pv_total = float(pv_total_val)
                 if pv_total <= 0:

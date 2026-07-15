@@ -460,11 +460,11 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
     rows: list[Text | Table] = []
     if not isinstance(top_scores, list):
         logger.error(f"_build_scores_table: top_scores is not list, got {type(top_scores).__name__}")
-        rows.append(Text.from_markup(f"[{Y}]Invalid score data structure — check Data Health[/]"))
+        rows.append(Text.from_markup(f"[{Y}]Invalid score data structure - check Data Health[/]"))
         return rows
     if not top_scores:
         logger.debug("_build_scores_table: top_scores is empty (no score data available)")
-        rows.append(Text.from_markup(f"[{Y}]No score data — check Data Health[/]"))
+        rows.append(Text.from_markup(f"[{Y}]No score data - check Data Health[/]"))
         return rows
 
     rows.append(
@@ -535,7 +535,7 @@ def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
     description="Signals",
 )
 def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) -> Panel | None:
-    """Signals & screening — composite score top candidates with pipeline funnel context."""
+    """Signals & screening - composite score top candidates with pipeline funnel context."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
@@ -756,7 +756,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             sector = (safe_get_field(sc, "sector", ""))[:14]
             # CRITICAL: Fail-fast on missing composite_score. Never silently fallback to 0.
             if comp is None:
-                logger.warning(f"Signal composite_score missing for {sym_norm} — data unavailable")
+                logger.warning(f"Signal composite_score missing for {sym_norm} - data unavailable")
                 comp_v = None
                 sc_c = "dim"
             else:
@@ -798,7 +798,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             )
         rows.append(sig_tbl)
     else:
-        rows.append(Text.from_markup(f"[{Y}]No composite score data — check Data Health[/]"))
+        rows.append(Text.from_markup(f"[{Y}]No composite score data - check Data Health[/]"))
 
     title = "[bold magenta]SIGNALS & SCORES - EXPANDED[/]"
     return Panel(

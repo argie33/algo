@@ -90,7 +90,7 @@ class OptimalLoader:
             except ValueError:
                 pass
         # chunk_size is the DATABASE INSERT chunk (rows per staging COPY+upsert), not an
-        # API batch — the old 100-500 AWS cap was justified as "avoid yfinance rate
+        # API batch - the old 100-500 AWS cap was justified as "avoid yfinance rate
         # limiting", which this setting has nothing to do with. Small chunks just
         # multiply staging-table cycles and round trips. Bound by task memory instead.
         lambda_func_name = os.getenv("AWS_LAMBDA_FUNCTION_NAME")
@@ -138,10 +138,10 @@ class OptimalLoader:
                        if rows present but critical watermark_field is missing.
         """
         if not rows:
-            # Empty result set—should not call with empty rows
+            # Empty result set-should not call with empty rows
             raise ValueError(
                 f"[{self.table_name}] watermark_from_rows called with empty rows (should never happen). "
-                "This is a programming error—check caller before invoking."
+                "This is a programming error-check caller before invoking."
             )
 
         # Extract all non-None values of watermark_field with fail-fast validation
@@ -226,7 +226,7 @@ class OptimalLoader:
             ) from last_exception
 
         if rows is None or not rows:
-            # No new data since watermark—expected for incremental loads
+            # No new data since watermark-expected for incremental loads
             logger.debug(
                 f"[{self.table_name}] {symbol}: No new data since watermark (previous={previous_date}), skipping"
             )
@@ -263,7 +263,7 @@ class OptimalLoader:
             )
 
         # Watermark advance happens inside bulk_insert on the final chunk (with its own
-        # fail-fast). A second advance_watermark call here was redundant — one extra
+        # fail-fast). A second advance_watermark call here was redundant - one extra
         # write round trip per symbol per run, ~10k/run across the universe.
 
         self._stats.increment("rows_inserted", inserted)
@@ -301,7 +301,7 @@ class OptimalLoader:
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
             # Lock TTL must outlive the longest legitimate run. It used to be 1800s while
-            # real loader runtimes are 60-90+ min (price loader) — the lock silently
+            # real loader runtimes are 60-90+ min (price loader) - the lock silently
             # expired mid-run and a concurrent trigger (SFN retry, manual run) could
             # acquire it and double-write. Tie it to the loader SLA: the run() SLA
             # enforcement self-kills at this same limit, and the finally-release below
@@ -429,7 +429,7 @@ class OptimalLoader:
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
             # Lock TTL must outlive the longest legitimate run. It used to be 1800s while
-            # real loader runtimes are 60-90+ min (price loader) — the lock silently
+            # real loader runtimes are 60-90+ min (price loader) - the lock silently
             # expired mid-run and a concurrent trigger (SFN retry, manual run) could
             # acquire it and double-write. Tie it to the loader SLA: the run() SLA
             # enforcement self-kills at this same limit, and the finally-release below
@@ -533,7 +533,7 @@ class OptimalLoader:
                         f"[{self.table_name}] Database health check failed at symbol {i}/{len(symbols)}: {health_err}"
                     )
                     raise RuntimeError(
-                        f"[{self.table_name}] Database health check failed—connection unreliable. Halting loader."
+                        f"[{self.table_name}] Database health check failed-connection unreliable. Halting loader."
                     ) from health_err
             try:
                 symbol_start = time.time()
@@ -556,7 +556,7 @@ class OptimalLoader:
             max_fail_rate = getattr(self, "max_fail_rate", 60.0)
             if fail_rate > max_fail_rate:
                 raise RuntimeError(
-                    f"[{self.table_name}] {len(failed_symbols)} symbols failed—incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}"
+                    f"[{self.table_name}] {len(failed_symbols)} symbols failed-incomplete dataset. Failed: {failed_symbols[:10]}{'...' if len(failed_symbols) > 10 else ''}"
                 )
             logger.warning(
                 f"[{self.table_name}] {len(failed_symbols)}/{len(symbols)} symbols skipped "
@@ -628,14 +628,14 @@ class OptimalLoader:
 
                 # Check for stalled workers: only timeout symbols that have STARTED executing.
                 # Symbols still queued (not yet picked up by a worker) have no entry in
-                # execution_starts and are skipped — they are not hung, just waiting.
+                # execution_starts and are skipped - they are not hung, just waiting.
                 now = time.time()
                 stalled = []
                 for fut in pending_futures:
                     symbol = futures.get(fut, "unknown")
                     start = execution_starts.get(symbol)
                     if start is None:
-                        continue  # Not yet running — queued, not stalled
+                        continue  # Not yet running - queued, not stalled
                     elapsed = now - start
                     if elapsed > per_symbol_timeout:
                         logger.warning(
@@ -670,7 +670,7 @@ class OptimalLoader:
         if fail_rate > max_fail_rate:
             raise RuntimeError(
                 f"[{self.table_name}] {failed_count}/{len(symbols)} symbols failed "
-                f"({fail_rate:.1f}% > {max_fail_rate}% threshold)—incomplete dataset cannot be used"
+                f"({fail_rate:.1f}% > {max_fail_rate}% threshold)-incomplete dataset cannot be used"
             )
 
         if failed_count > 0:

@@ -79,8 +79,8 @@ class TimeoutConfig:
         CRITICAL: Must be explicitly configured or provided via environment variable.
 
         Checks (in order):
-        1. algo_config DB table (api_request_timeout_seconds) — PRIMARY
-        2. API_TIMEOUT environment variable — OVERRIDE ONLY
+        1. algo_config DB table (api_request_timeout_seconds) - PRIMARY
+        2. API_TIMEOUT environment variable - OVERRIDE ONLY
 
         Returns:
             Timeout in seconds
@@ -121,8 +121,8 @@ class TimeoutConfig:
         Note: RDS Proxy adds additional latency (connection pooling).
 
         Checks (in order):
-        1. algo_config DB table (db_connection_timeout_seconds) — PRIMARY
-        2. DB_TIMEOUT_SECONDS environment variable — OVERRIDE ONLY
+        1. algo_config DB table (db_connection_timeout_seconds) - PRIMARY
+        2. DB_TIMEOUT_SECONDS environment variable - OVERRIDE ONLY
 
         Returns:
             Timeout in seconds
@@ -239,8 +239,8 @@ class TimeoutConfig:
         Used for data loading operations that may take longer than typical API calls.
 
         Checks (in order):
-        1. algo_config DB table (loader_timeout_seconds) — PRIMARY
-        2. LOADER_TIMEOUT environment variable — OVERRIDE ONLY
+        1. algo_config DB table (loader_timeout_seconds) - PRIMARY
+        2. LOADER_TIMEOUT environment variable - OVERRIDE ONLY
 
         Returns:
             Timeout in seconds

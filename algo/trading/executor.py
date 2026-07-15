@@ -272,7 +272,7 @@ class TradeExecutor:
 
             # CRITICAL: TCA (Trade Cost Analysis) recording is part of compliance audit trail.
             # Execution quality tracking must be recorded before confirming trade entry.
-            # If TCA fails, the trade must NOT proceed — missing audit record = compliance gap.
+            # If TCA fails, the trade must NOT proceed - missing audit record = compliance gap.
             if not isinstance(trade_id, int):
                 if not (isinstance(trade_id, str) and trade_id.isdigit()):
                     raise RuntimeError(
@@ -308,7 +308,7 @@ class TradeExecutor:
                 msg = (
                     f"[TCA CRITICAL] {symbol}: Failed to record execution quality data: {tca_e}. "
                     f"TCA is part of compliance audit trail and cannot be skipped. "
-                    f"Trade entry halted — cannot proceed without audit record. "
+                    f"Trade entry halted - cannot proceed without audit record. "
                     f"Check database connection and tca schema availability."
                 )
                 logger.critical(msg)
@@ -420,7 +420,7 @@ class TradeExecutor:
                     order_result.get("rejection_reason"),
                 )
 
-            # Extract order details — all required when success=True
+            # Extract order details - all required when success=True
             alpaca_order_id = order_result.get("order_id")
             if not alpaca_order_id:
                 raise OrderExecutionError(
@@ -448,7 +448,7 @@ class TradeExecutor:
             )
 
             # FAIL-FAST: executed_price is guaranteed by validation above (line 423)
-            # No fallback to entry_price — use captured execution price directly
+            # No fallback to entry_price - use captured execution price directly
             return (
                 True,
                 alpaca_order_id,

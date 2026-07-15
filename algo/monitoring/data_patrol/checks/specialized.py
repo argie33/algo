@@ -34,31 +34,31 @@ class SpecializedChecker(BaseCheck):
             try:
                 cur.execute(f"SAVEPOINT {sp}")
             except psycopg2.DatabaseError as e:
-                logger.critical(f"Database error creating SAVEPOINT {sp}: {e} — data patrol cannot proceed safely")
+                logger.critical(f"Database error creating SAVEPOINT {sp}: {e} - data patrol cannot proceed safely")
                 self.log(
                     fn_name,
                     ERROR,
                     fn_name,
-                    "SAVEPOINT creation failed — database state unknown",
+                    "SAVEPOINT creation failed - database state unknown",
                     None,
                 )
                 continue
             try:
                 fn(cur)
             except Exception as e:
-                logger.critical(f"Specialized {fn_name} check FAILED: {e} — results are incomplete")
+                logger.critical(f"Specialized {fn_name} check FAILED: {e} - results are incomplete")
                 self.log(
                     fn_name,
                     ERROR,
                     fn_name,
-                    "Check execution failed — treating as critical failure",
+                    "Check execution failed - treating as critical failure",
                     {"error": str(e)},
                 )
             finally:
                 try:
                     cur.execute(f"ROLLBACK TO SAVEPOINT {sp}")
                 except psycopg2.DatabaseError as e:
-                    logger.warning(f"Failed to rollback SAVEPOINT {sp}: {e} — transaction state may be inconsistent")
+                    logger.warning(f"Failed to rollback SAVEPOINT {sp}: {e} - transaction state may be inconsistent")
 
         return self.results
 
@@ -108,7 +108,7 @@ class SpecializedChecker(BaseCheck):
                             {"latest": str(latest), "count": count},
                         )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                logger.critical(f"Earnings data check for {tbl} FAILED: {e} — assuming critical data missing")
+                logger.critical(f"Earnings data check for {tbl} FAILED: {e} - assuming critical data missing")
                 self.log(
                     "earnings_staleness",
                     ERROR,
@@ -132,12 +132,12 @@ class SpecializedChecker(BaseCheck):
             """)
             row = cur.fetchone()
             if row is None:
-                raise ValueError("Earnings coverage query returned no results — database state corrupted")
+                raise ValueError("Earnings coverage query returned no results - database state corrupted")
             est_syms, price_syms = row
             if est_syms is None:
-                raise ValueError("COUNT(DISTINCT e.symbol) returned NULL — earnings estimates query may have failed")
+                raise ValueError("COUNT(DISTINCT e.symbol) returned NULL - earnings estimates query may have failed")
             if price_syms is None:
-                raise ValueError("price_daily COUNT(DISTINCT symbol) returned NULL — loader may be stalled")
+                raise ValueError("price_daily COUNT(DISTINCT symbol) returned NULL - loader may be stalled")
             est_syms = int(est_syms)
             price_syms = int(price_syms)
             pct = est_syms / price_syms * 100
@@ -156,7 +156,7 @@ class SpecializedChecker(BaseCheck):
             ZeroDivisionError,
             TypeError,
         ) as e:
-            logger.critical(f"Earnings coverage check FAILED: {e} — cannot validate data completeness")
+            logger.critical(f"Earnings coverage check FAILED: {e} - cannot validate data completeness")
             self.log(
                 "earnings_coverage",
                 ERROR,
@@ -253,10 +253,10 @@ class SpecializedChecker(BaseCheck):
             """)
             row = cur.fetchone()
             if row is None:
-                raise ValueError("RSI bounds check query returned no results — database state corrupted")
+                raise ValueError("RSI bounds check query returned no results - database state corrupted")
             bad_rsi, null_rsi, total = row
             if bad_rsi is None or null_rsi is None or total is None:
-                raise ValueError("COUNT(*) FILTER for RSI check returned NULL — cannot evaluate technical data quality")
+                raise ValueError("COUNT(*) FILTER for RSI check returned NULL - cannot evaluate technical data quality")
             bad_rsi = int(bad_rsi)
             null_rsi = int(null_rsi)
 
@@ -286,10 +286,10 @@ class SpecializedChecker(BaseCheck):
             """)
             row = cur.fetchone()
             if row is None:
-                raise ValueError("NaN check query returned no results — database state corrupted")
+                raise ValueError("NaN check query returned no results - database state corrupted")
             bad_atr, bad_rsi_nan = row
             if bad_atr is None or bad_rsi_nan is None:
-                raise ValueError("COUNT(*) FILTER for NaN check returned NULL — cannot evaluate data quality")
+                raise ValueError("COUNT(*) FILTER for NaN check returned NULL - cannot evaluate data quality")
             bad_atr = int(bad_atr)
             bad_rsi_nan = int(bad_rsi_nan)
 

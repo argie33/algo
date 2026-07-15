@@ -43,16 +43,16 @@ class QualityChecker(BaseCheck):
             """)
             row = cur.fetchone()
             if row is None:
-                raise ValueError("NULL anomaly check query returned no results — database state corrupted")
+                raise ValueError("NULL anomaly check query returned no results - database state corrupted")
             today_nulls, today_total = row
             if today_nulls is None:
-                raise ValueError("SUM(CASE WHEN close IS NULL...) returned NULL — cannot determine NULL anomaly count")
+                raise ValueError("SUM(CASE WHEN close IS NULL...) returned NULL - cannot determine NULL anomaly count")
             if today_total is None:
-                raise ValueError("COUNT(*) returned NULL — loader may be stalled")
+                raise ValueError("COUNT(*) returned NULL - loader may be stalled")
             today_nulls = int(today_nulls)
             today_total = int(today_total)
             if today_total <= 0:
-                logger.warning("price_daily today_total is 0 — skipping null anomaly check (no records loaded)")
+                logger.warning("price_daily today_total is 0 - skipping null anomaly check (no records loaded)")
                 return
             null_pct = today_nulls / today_total * 100
 
@@ -214,10 +214,10 @@ class QualityChecker(BaseCheck):
             """)
             row = cur.fetchone()
             if row is None:
-                raise ValueError("OHLC sanity check query returned no results — database state corrupted")
+                raise ValueError("OHLC sanity check query returned no results - database state corrupted")
             bad_high, bad_low, negative = row
             if bad_high is None or bad_low is None or negative is None:
-                raise ValueError("OHLC COUNT(*) FILTER returned NULL — cannot determine OHLC violations")
+                raise ValueError("OHLC COUNT(*) FILTER returned NULL - cannot determine OHLC violations")
             bad_high = int(bad_high)
             bad_low = int(bad_low)
             negative = int(negative)
@@ -227,7 +227,7 @@ class QualityChecker(BaseCheck):
                     "ohlc_sanity",
                     CRIT,
                     "price_daily",
-                    f"{negative} rows with NEGATIVE prices — data corruption",
+                    f"{negative} rows with NEGATIVE prices - data corruption",
                     {"negative_count": negative},
                 )
             elif bad_high > 0 or bad_low > 0:
@@ -274,14 +274,14 @@ class QualityChecker(BaseCheck):
             )
             row = cur.fetchone()
             if row is None:
-                raise ValueError("Volume sanity check query returned no results — database state corrupted")
+                raise ValueError("Volume sanity check query returned no results - database state corrupted")
             low_new, high_vol, total = row
             if low_new is None:
-                raise ValueError("Low volume COUNT returned NULL — cannot determine volume anomalies")
+                raise ValueError("Low volume COUNT returned NULL - cannot determine volume anomalies")
             if high_vol is None:
-                raise ValueError("High volume COUNT returned NULL — cannot determine volume anomalies")
+                raise ValueError("High volume COUNT returned NULL - cannot determine volume anomalies")
             if total is None:
-                raise ValueError("price_daily COUNT(*) returned NULL — loader may be stalled")
+                raise ValueError("price_daily COUNT(*) returned NULL - loader may be stalled")
             low_new = int(low_new)
             high_vol = int(high_vol)
             total = int(total)

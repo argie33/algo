@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""AWS Production Configuration Validator — Ensures all settings correct before deployment.
+"""AWS Production Configuration Validator - Ensures all settings correct before deployment.
 
 Validates:
 1. Cognito credentials match actual AWS user pool

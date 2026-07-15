@@ -134,20 +134,20 @@ def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
             logger.error(f"[POSITIONS_DATA_ERROR] Data contains error marker: {error_msg}")
             raise ValueError(f"Positions data error: {error_msg}")
         if "items" not in data:
-            # Dict without items or error — log and fail
+            # Dict without items or error - log and fail
             logger.error(
                 f"[DATA_FORMAT] Positions dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}"
             )
             raise ValueError(
                 "Positions data is dict but missing 'items' array. "
-                "Check API response schema — may indicate upstream data corruption."
+                "Check API response schema - may indicate upstream data corruption."
             )
         items = data.get("items")
         if not isinstance(items, list):
             logger.error(f"[DATA_FORMAT] Positions 'items' field is not a list: {type(items).__name__}")
             raise ValueError(
                 f"Positions 'items' must be list, got {type(items).__name__}. "
-                "Check API response schema — may indicate upstream data corruption."
+                "Check API response schema - may indicate upstream data corruption."
             )
         # CRITICAL FIX: Include untracked_items in position count (Session 173)
         # Previously only counted algo-managed positions, missing manual/external positions
@@ -163,7 +163,7 @@ def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
         logger.error(f"[DATA_FORMAT] Positions data has unexpected type: {type(data).__name__}")
         raise TypeError(
             f"Positions data must be dict or list, got {type(data).__name__}. "
-            "Check API response schema — may indicate upstream data corruption."
+            "Check API response schema - may indicate upstream data corruption."
         )
 
 
@@ -279,10 +279,10 @@ def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
                 f"Data 'items' field must be a list, got {type(items).__name__}. "
                 "This indicates API response corruption or schema mismatch."
             )
-        # Dict without items or error — log and fail
+        # Dict without items or error - log and fail
         logger.error(f"[DATA_FORMAT] Data dict malformed: missing 'items' and no '_error'. Keys: {list(data.keys())}")
         raise ValueError(
-            "Data is dict but missing 'items' array. Check API response schema — may indicate upstream data corruption."
+            "Data is dict but missing 'items' array. Check API response schema - may indicate upstream data corruption."
         )
     elif isinstance(data, list):
         return data, None
@@ -290,7 +290,7 @@ def extract_items_and_error(data: Any) -> tuple[list[Any], str | None]:
         logger.error(f"[DATA_FORMAT] Data has unexpected type: {type(data).__name__}")
         raise TypeError(
             f"Data must be dict or list, got {type(data).__name__}. "
-            "Check API response schema — may indicate upstream data corruption."
+            "Check API response schema - may indicate upstream data corruption."
         )
 
 

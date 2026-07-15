@@ -336,7 +336,7 @@ class DatabaseSchemaValidator(Validator):
             all_errors.append(
                 f"{context}: {table_name} missing 'row_count' in schema validation data. "
                 f"Cannot validate table presence without row count metadata. "
-                f"Check schema info source — data may be incomplete."
+                f"Check schema info source - data may be incomplete."
             )
             row_count = None
         else:

@@ -32,10 +32,10 @@ def handle(
 ) -> Any:
     """Handle health check endpoints.
 
-    /api/health — PUBLIC, no auth required. Basic system status.
-    /api/health/cognito — PUBLIC, no auth required. C-7 FIX: Verify Cognito client ID matches configuration.
-    /api/health/detailed — AUTHENTICATED. Database schema and table status.
-    /api/health/pipeline — AUTHENTICATED. Data freshness of critical loaders.
+    /api/health - PUBLIC, no auth required. Basic system status.
+    /api/health/cognito - PUBLIC, no auth required. C-7 FIX: Verify Cognito client ID matches configuration.
+    /api/health/detailed - AUTHENTICATED. Database schema and table status.
+    /api/health/pipeline - AUTHENTICATED. Data freshness of critical loaders.
     """
 
     # Route to appropriate handler
@@ -152,7 +152,7 @@ def _handle_basic(cur: cursor) -> Any:
                             "market_open": market_is_open,
                         }
                 else:
-                    # No signal data available — allow graceful degradation
+                    # No signal data available - allow graceful degradation
                     # This is expected during first initialization or when loaders haven't run yet
                     # Don't mark as critical during non-market hours (loaders don't run then)
                     is_local_dev = os_module.getenv("LOCAL_MODE", "").lower() == "true"
@@ -289,7 +289,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito pool API returned invalid response type {type(pool_response).__name__} — cannot validate authentication configuration",
+                    f"Cognito pool API returned invalid response type {type(pool_response).__name__} - cannot validate authentication configuration",
                 )
 
             pool_data = pool_response.get("UserPool")
@@ -297,7 +297,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito pool API missing 'UserPool' field in response — response keys: {list(pool_response.keys())}",
+                    f"Cognito pool API missing 'UserPool' field in response - response keys: {list(pool_response.keys())}",
                 )
 
             # List app clients in this user pool
@@ -308,7 +308,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito clients API returned invalid response type {type(apps_response).__name__} — cannot validate application configuration",
+                    f"Cognito clients API returned invalid response type {type(apps_response).__name__} - cannot validate application configuration",
                 )
 
             clients = apps_response.get("UserPoolClients")
@@ -316,7 +316,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito clients API missing 'UserPoolClients' field in response — response keys: {list(apps_response.keys())}",
+                    f"Cognito clients API missing 'UserPoolClients' field in response - response keys: {list(apps_response.keys())}",
                 )
 
             # Validate clients is a list
@@ -324,7 +324,7 @@ def _handle_cognito(cur: cursor) -> Any:
                 return error_response(
                     503,
                     "cognito_configuration_error",
-                    f"Cognito 'UserPoolClients' has invalid type {type(clients).__name__}, expected list — configuration may be corrupted",
+                    f"Cognito 'UserPoolClients' has invalid type {type(clients).__name__}, expected list - configuration may be corrupted",
                 )
 
             # Find matching client

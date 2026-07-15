@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""DynamoDB Health Monitoring — Ensures halt flags and state management are working.
+"""DynamoDB Health Monitoring - Ensures halt flags and state management are working.
 
 DynamoDB is critical for:
 - orchestrator_halt flag (prevents Phase 5/6 during stale data)

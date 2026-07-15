@@ -51,7 +51,7 @@ class VectorizedSignalGenerator:
                 row = cur.fetchone()
                 if row is None or row[0] is None:
                     raise ValueError(
-                        f"Symbol count query returned NULL for {eval_date} — cannot determine price data availability"
+                        f"Symbol count query returned NULL for {eval_date} - cannot determine price data availability"
                     )
                 symbol_count = int(row[0])
                 price_date = eval_date
@@ -64,7 +64,7 @@ class VectorizedSignalGenerator:
                         f"only {symbol_count} symbols available (need >=1000). "
                         f"Cannot generate signals with incomplete price history. "
                         f"Data pipeline may be stalled or incomplete for this date. "
-                        f"Do not fall back to earlier dates — signal date must match eval date."
+                        f"Do not fall back to earlier dates - signal date must match eval date."
                     )
 
                 # Fetch 300 days of history for all symbols in ONE query
@@ -333,7 +333,7 @@ class VectorizedSignalGenerator:
                 )
 
                 # CRITICAL: Fail fast if return calculation failed
-                # Do NOT silently default to False — this masks data quality issues
+                # Do NOT silently default to False - this masks data quality issues
                 if ret_21d is None:
                     raise ValueError(
                         f"Cannot compute 21-day return for {symbol}: "
@@ -354,7 +354,7 @@ class VectorizedSignalGenerator:
     def _rolling_mean(arr: np.ndarray[Any, Any], window: int) -> np.ndarray[Any, Any]:
         if len(arr) < window:
             return np.full(len(arr), np.nan)
-        # pandas .rolling().mean() uses a cumulative-sum algorithm under the hood —
+        # pandas .rolling().mean() uses a cumulative-sum algorithm under the hood -
         # same result as the O(n*window) Python loop this replaced, without the inner loop.
         result: np.ndarray[Any, Any] = pd.Series(arr).rolling(window, min_periods=window).mean().to_numpy()
         return result
@@ -367,7 +367,7 @@ class VectorizedSignalGenerator:
 
         CRITICAL: Callers MUST filter results by checking `failed: False` before using.
         Symbols with failed=True have insufficient data and should not be used for trading.
-        This class does NOT pre-filter results — filtering is the caller's responsibility.
+        This class does NOT pre-filter results - filtering is the caller's responsibility.
 
         Result structure:
         {

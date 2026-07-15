@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 _connection_pool = None
 _pool_lock = threading.Lock()
 
-# Optional monitoring callbacks — registered by algo.monitoring to avoid circular imports.
+# Optional monitoring callbacks - registered by algo.monitoring to avoid circular imports.
 # utils.db must not depend on algo.monitoring directly (circular: connection → monitoring → utils.db).
 _on_connect = None
 _on_disconnect = None

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Trend Analysis — Compute Minervini & Weinstein trend scores for all symbols.
+Trend Analysis - Compute Minervini & Weinstein trend scores for all symbols.
 
 PURPOSE: Classify each symbol by trend strength (Minervini 0-8) and market stage
 (Weinstein 1-4). Used by market_health_daily for breadth calculations and by signal
@@ -171,7 +171,7 @@ def _upsert_batch(cur: psycopg2.extensions.cursor, rows: list) -> int:  # type: 
     if not rows:
         raise ValueError(
             "[LOAD_TREND_CRITERIA] Cannot upsert empty row batch. "
-            "Input data is required — possible stale data or upstream processing failure."
+            "Input data is required - possible stale data or upstream processing failure."
         )
 
     cur.executemany(
@@ -200,7 +200,7 @@ def run() -> dict:  # type: ignore[type-arg]
         with DatabaseContext("read") as read_cur:
             dates = _fetch_latest_dates(read_cur)
             if not dates:
-                logger.warning("[TREND] No dates found in price_daily — cannot compute trend data")
+                logger.warning("[TREND] No dates found in price_daily - cannot compute trend data")
                 elapsed = time.time() - start
                 _update_loader_status("COMPLETED")
                 return {
@@ -216,7 +216,7 @@ def run() -> dict:  # type: ignore[type-arg]
             price_df = _fetch_price_data(read_cur, dates)
 
         if tech_df.empty or price_df.empty:
-            logger.warning("[TREND] No technical or price data available — check upstream loaders")
+            logger.warning("[TREND] No technical or price data available - check upstream loaders")
             elapsed = time.time() - start
             _update_loader_status("COMPLETED")
             return {

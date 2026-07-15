@@ -75,7 +75,7 @@ def _get_db_connection():
         raise
 
 
-# Tables that trigger a halt flag when stale — must match Phase 1 HALT tables exactly.
+# Tables that trigger a halt flag when stale - must match Phase 1 HALT tables exactly.
 # trend_template_data, sector_ranking are WARN-only in Phase 1
 # and must NOT be here; setting the halt flag for them would block all trading whenever
 # these auxiliary tables are more than a few days old (e.g. after a 3-day weekend).
@@ -85,7 +85,7 @@ _HALT_TABLES = {
     "market_exposure_daily": ("market exposure", 2),
 }
 
-# Warn-only tables — logged for visibility but never trigger a halt flag.
+# Warn-only tables - logged for visibility but never trigger a halt flag.
 _WARN_TABLES = {
     "trend_template_data": ("trend template", 5),
     "sector_ranking": ("sector data", 5),
@@ -138,7 +138,7 @@ def _check_critical_table_freshness() -> dict:
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as table_err:
                 logger.error(f"[FRESHNESS] CRITICAL: Could not check {description}: {table_err}")
                 if table_name in _HALT_TABLES:
-                    logger.error(f"[FRESHNESS] Halt table {table_name} check failed — halting trading for safety")
+                    logger.error(f"[FRESHNESS] Halt table {table_name} check failed - halting trading for safety")
                     return {
                         "status": "error",
                         "error": f"Could not verify freshness of critical table {description}: {table_err}",
@@ -157,7 +157,7 @@ def _check_critical_table_freshness() -> dict:
 
         # Status and halt flag are driven by HALT tables only (matching Phase 1 behavior).
         # WARN tables (swing_trader_scores, trend_template_data, sector_ranking) are
-        # logged above but never trigger a halt flag — Phase 1 treats them as warnings.
+        # logged above but never trigger a halt flag - Phase 1 treats them as warnings.
         all_stale = halt_stale + warn_stale
         if len(halt_stale) > 2:
             return {
@@ -286,7 +286,7 @@ def lambda_handler(event, context):
 
     # Only set halt flag for HALT-table staleness (price_daily, market_health_daily,
     # market_exposure_daily). WARN tables are already logged in _check_critical_table_freshness
-    # but must never trigger the halt flag — Phase 1 treats them as non-blocking warnings.
+    # but must never trigger the halt flag - Phase 1 treats them as non-blocking warnings.
     if freshness.get("status") == "error":
         logger.error("[FRESHNESS] Data freshness check failed - failing closed (halt)")
         reason = f"Data freshness check error: {freshness.get('error', 'unknown')}"

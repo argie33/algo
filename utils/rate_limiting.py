@@ -3,9 +3,9 @@
 Unified Rate Limiting Strategy
 
 Three-layer approach:
-1. API Gateway (10,000 RPS global limit) — terraform/modules/services/main.tf
-2. Application layer (this module) — per-endpoint rate limits
-3. External APIs (yfinance, FRED) — utils/validation/rate_limit.py
+1. API Gateway (10,000 RPS global limit) - terraform/modules/services/main.tf
+2. Application layer (this module) - per-endpoint rate limits
+3. External APIs (yfinance, FRED) - utils/validation/rate_limit.py
 
 This module handles Application Layer: per-endpoint, per-user/per-IP rate limiting
 to prevent DoS attacks and protect expensive operations.

@@ -49,7 +49,7 @@ VALIDATION_SCHEMA = {
     "vix_alert_threshold": ("float", 20.0, 100.0, False, 30.0),
     "vix_caution_threshold": ("float", 20.0, 100.0, False, 25.0),
     "vix_caution_risk_reduction": ("float", 0.0, 1.0, False, 0.75),
-    # Market Exposure Engine — Veto Thresholds
+    # Market Exposure Engine - Veto Thresholds
     "market_exposure_veto1_breadth_pct": ("int", 0, 100, False, 30),
     "market_exposure_veto1_cap_pct": ("float", 0.0, 100.0, False, 25.0),
     "market_exposure_veto2_vix_threshold": ("float", 20.0, 100.0, False, 40.0),

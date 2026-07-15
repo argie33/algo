@@ -117,7 +117,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                         raise RuntimeError("[MARKET_HEALTH] Watermark query returned no rows")
                     if row[1] is None:
                         raise RuntimeError(
-                            "[MARKET_HEALTH] Row count query returned NULL — database query may have failed"
+                            "[MARKET_HEALTH] Row count query returned NULL - database query may have failed"
                         )
                     row_count = int(row[1])
                     if row and row[0] is not None:
@@ -283,7 +283,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         """Merge VIX data into health metrics.
 
         VIX fetcher returns dict with vix_close/high/low; we extract vix_close as the level.
-        VIX is CRITICAL for circuit breaker logic. NEVER forward-fill missing dates—they indicate
+        VIX is CRITICAL for circuit breaker logic. NEVER forward-fill missing dates-they indicate
         data corruption or loader failure. All trading dates MUST have valid VIX.
         FAIL-FAST: Raise error if any date missing or has NULL vix_close.
         FRESHNESS: Validate that vix_history table was updated recently before using data.
@@ -481,7 +481,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     if m["date"] == end_str:
                         matched_count += 1
                 logger.warning(
-                    f"[MARKET_HEALTH] Put/call ratio invalid/unavailable for {end} — marked all {len(health_metrics)} dates as data_unavailable. "
+                    f"[MARKET_HEALTH] Put/call ratio invalid/unavailable for {end} - marked all {len(health_metrics)} dates as data_unavailable. "
                     f"Options sentiment is optional enrichment."
                 )
         else:
@@ -507,7 +507,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                     matched_count += 1
             reason_str = f" ({error_reason})" if error_reason else ""
             logger.warning(
-                f"[MARKET_HEALTH] Put/call ratio unavailable for {end}{reason_str} — marked all {len(health_metrics)} dates as data_unavailable. "
+                f"[MARKET_HEALTH] Put/call ratio unavailable for {end}{reason_str} - marked all {len(health_metrics)} dates as data_unavailable. "
                 f"Options sentiment is optional enrichment."
             )
 
@@ -856,7 +856,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         # Filter to only dates we need to insert BEFORE fetching external data (VIX, breadth, etc.).
         # The full SPY price range is needed above for SMA calculations, but external data sources
         # (VIX in price_daily, breadth from advance_decline tables) only need to cover the
-        # incremental window — not the full 300-day backfill range. Without this filter, the loader
+        # incremental window - not the full 300-day backfill range. Without this filter, the loader
         # fails when VIX history in price_daily doesn't extend as far back as the computation window.
         if since is not None:
             since_str = since.isoformat()
@@ -873,7 +873,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         # VIX is populated by a separate daily load; on trading days the intraday run of
         # market_health_daily often runs before VIX data for today exists. Attempting to merge
         # VIX for "today" when it hasn't been loaded yet causes a hard failure. Instead, we only
-        # compute health metrics up to the latest date VIX is available — today's row is computed
+        # compute health metrics up to the latest date VIX is available - today's row is computed
         # on the next run once VIX data lands.
         try:
             with DatabaseContext("read") as cur:
@@ -881,7 +881,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                 vix_max_row = cur.fetchone()
                 max_vix_date: date | None = vix_max_row[0] if vix_max_row else None
         except Exception as e:
-            logger.warning(f"[MARKET_HEALTH] Could not query max VIX date: {e} — proceeding without cap")
+            logger.warning(f"[MARKET_HEALTH] Could not query max VIX date: {e} - proceeding without cap")
             max_vix_date = None
 
         if max_vix_date is not None:
@@ -908,7 +908,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             # Filter to only dates where VIX actually exists in price_daily.
             # The cap above removes dates AFTER the latest VIX row, but VIX coverage may be
             # sparse within the range (e.g., only recent months loaded due to rate limiting).
-            # Filtering here prevents _merge_vix_data() from failing on historical gaps —
+            # Filtering here prevents _merge_vix_data() from failing on historical gaps -
             # we compute market_health_daily for the dates we DO have VIX, rather than failing
             # for all dates because some historical dates are missing.
             vix_range_start = date.fromisoformat(health_metrics[0]["date"]) if health_metrics else start
@@ -943,7 +943,7 @@ class MarketHealthDailyLoader(OptimalLoader):
                             "Market health metrics require complete VIX coverage."
                         )
             except Exception as e:
-                logger.warning(f"[MARKET_HEALTH] Could not pre-filter by VIX dates: {e} — proceeding")
+                logger.warning(f"[MARKET_HEALTH] Could not pre-filter by VIX dates: {e} - proceeding")
 
         # Derive the actual date range for external data fetches (only covers retained dates)
         merge_start = date.fromisoformat(health_metrics[0]["date"]) if health_metrics else start
@@ -1029,7 +1029,7 @@ class MarketHealthDailyLoader(OptimalLoader):
         """Check if row should be skipped and return skip reason.
 
         Skips rows with: invalid close price, missing SMA_200 (insufficient history).
-        Breadth_10d may be NaN for early rows (< 10 days) — these are skipped too.
+        Breadth_10d may be NaN for early rows (< 10 days) - these are skipped too.
         Returns (should_skip, reason_for_logging).
         """
         if not pd.notna(row["close"]) or row["close"] <= 0:
@@ -1041,7 +1041,7 @@ class MarketHealthDailyLoader(OptimalLoader):
             return True, "SMA_200 not yet computed (insufficient history)"
 
         # Breadth_10d requires 10 full periods of data (min_periods=10)
-        # Early rows (< 10 days) will have NaN — skip these until we have 10 days
+        # Early rows (< 10 days) will have NaN - skip these until we have 10 days
         if not pd.notna(row.get("breadth_10d")) or pd.isna(row["breadth_10d"]):
             return True, "Breadth_10d not yet computed (insufficient 10-day history)"
 
@@ -1191,7 +1191,7 @@ def _extract_ohlcv(row: Any, col: str, symbol: str, d: date) -> float:
     if val is None:
         logger.warning(f"[MARKET_HEALTH] Missing {col} for {symbol} on {d}")
         raise RuntimeError(
-            f"[MARKET_HEALTH] Missing {col} data for {symbol} on {d} — "
+            f"[MARKET_HEALTH] Missing {col} data for {symbol} on {d} - "
             "cannot compute market health metrics without complete OHLCV data"
         )
     if hasattr(val, "__len__"):
@@ -1202,7 +1202,7 @@ def _extract_ohlcv(row: Any, col: str, symbol: str, d: date) -> float:
     if val is None:
         logger.warning(f"[MARKET_HEALTH] Empty {col} for {symbol} on {d}")
         raise RuntimeError(
-            f"[MARKET_HEALTH] Empty {col} data for {symbol} on {d} — "
+            f"[MARKET_HEALTH] Empty {col} data for {symbol} on {d} - "
             "cannot compute market health metrics without complete OHLCV data"
         )
     try:
@@ -1210,7 +1210,7 @@ def _extract_ohlcv(row: Any, col: str, symbol: str, d: date) -> float:
         if f != f:  # NaN check
             logger.warning(f"[MARKET_HEALTH] NaN detected in {col} for {symbol} on {d}")
             raise RuntimeError(
-                f"[MARKET_HEALTH] Invalid {col}={val!r} (NaN) for {symbol} on {d} — "
+                f"[MARKET_HEALTH] Invalid {col}={val!r} (NaN) for {symbol} on {d} - "
                 "cannot compute market health metrics with NaN values"
             )
         return round(f, 4)
@@ -1259,7 +1259,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
 
     # A symbol is "fresh" if its latest date is the previous calendar day or newer.
     # 1-day tolerance: skips re-fetch only when yesterday's data is already there.
-    # 5-day was too lenient — on Monday it treated Friday's VIX as fresh and skipped today's fetch.
+    # 5-day was too lenient - on Monday it treated Friday's VIX as fresh and skipped today's fetch.
     fresh_cutoff = end - timedelta(days=1)
     symbols_needing_refresh = {
         sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY if sym not in existing_dates or existing_dates[sym] < fresh_cutoff
@@ -1268,7 +1268,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     if not symbols_needing_refresh:
         logger.info(
             f"[MARKET_HEALTH] All {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} index symbols already "
-            f"fresh in price_daily (through {max(existing_dates.values())}) — skipping yfinance"
+            f"fresh in price_daily (through {max(existing_dates.values())}) - skipping yfinance"
         )
         return 0
 
@@ -1284,7 +1284,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         failed_symbols = {}
         for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY:
             if sym not in symbols_needing_refresh:
-                logger.debug(f"[MARKET_HEALTH] {sym} already fresh in price_daily — skipping yfinance")
+                logger.debug(f"[MARKET_HEALTH] {sym} already fresh in price_daily - skipping yfinance")
                 continue
             try:
                 ticker = YFinanceWrapper.get_ticker(sym)
@@ -1328,7 +1328,7 @@ def _write_vix_family_prices(start: date, end: date) -> int:
                     f"Error: {e}"
                 ) from e
             except RuntimeError as e:
-                # yfinance failed (rate-limit, auth error, network) — FAIL-FAST, do NOT use stale data
+                # yfinance failed (rate-limit, auth error, network) - FAIL-FAST, do NOT use stale data
                 logger.error(
                     f"[MARKET_HEALTH CRITICAL] yfinance failed for {sym}: {e}. "
                     f"Cannot use stale price_daily data (violates fail-fast governance). "

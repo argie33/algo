@@ -87,7 +87,7 @@ class DataPatrolConfig:
 
         CRITICAL: Thresholds are derived from utils/validation/freshness_config.py
         to ensure data_patrol and freshness_config agree on what "stale" means.
-        Do NOT hardcode separate thresholds here — always reference freshness_config.
+        Do NOT hardcode separate thresholds here - always reference freshness_config.
 
         Returns:
             {
@@ -344,13 +344,13 @@ class DataPatrolConfig:
             # Default documented in docstring; migration 106 adds this key to algo_config.
             # Log CRITICAL so ops can see the missing key but don't crash DataPatrol entirely.
             _log.critical(
-                "[CONFIG CRITICAL] patrol_corporate_action_lookback_days missing from algo_config — "
+                "[CONFIG CRITICAL] patrol_corporate_action_lookback_days missing from algo_config - "
                 "using default 90. Apply migration 106 to fix."
             )
             lookback = 90
         if drop is None:
             _log.critical(
-                "[CONFIG CRITICAL] patrol_corporate_action_drop_ratio missing from algo_config — "
+                "[CONFIG CRITICAL] patrol_corporate_action_drop_ratio missing from algo_config - "
                 "using default -0.30. Apply migration 106 to fix."
             )
             drop = -0.30
@@ -364,7 +364,7 @@ class DataPatrolConfig:
         """Get data patrol loader contracts with expected output thresholds.
 
         CRITICAL: These contracts define minimum data coverage for each loader.
-        Missing configuration is a safety issue—data patrol cannot monitor if contracts are undefined.
+        Missing configuration is a safety issue-data patrol cannot monitor if contracts are undefined.
 
         Returns:
             {

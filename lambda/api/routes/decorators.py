@@ -6,7 +6,7 @@ across 19+ route files. Single-place fixes for exception handling.
 Usage:
     @error_boundary
     def handle(cur, path, method, params, body=None, jwt_claims=None):
-        # Function body — exceptions automatically caught and formatted
+        # Function body - exceptions automatically caught and formatted
         ...
 """
 
@@ -58,7 +58,7 @@ def error_boundary(func: Callable[P, R]) -> Callable[P, R]:
             return error_response(e.status_code, e.error_type, e.message)
 
         except psycopg2.errors.QueryCanceled as e:
-            # Query timeout — log and return 504
+            # Query timeout - log and return 504
             with log_sanitizer("query timeout in error_boundary") as safe_log:
                 safe_log.warning(e)
             return error_response(504, "QueryTimeout", "Query execution timed out")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Loader Conflict Detection — Prevents concurrent loader conflicts during intraday updates.
+"""Loader Conflict Detection - Prevents concurrent loader conflicts during intraday updates.
 
 Monitors:
 - Lock timeouts in data_loader_status table
@@ -71,7 +71,7 @@ class LoaderConflictDetector:
                     table_name, status, execution_started, duration_sec = row
                     if duration_sec is None:
                         raise ValueError(
-                            f"Loader duration_sec is NULL for {table_name} — loader status tracking corrupted"
+                            f"Loader duration_sec is NULL for {table_name} - loader status tracking corrupted"
                         )
                     duration_sec = float(duration_sec)
 
@@ -99,7 +99,7 @@ class LoaderConflictDetector:
                 for loader in running_loaders:
                     name = loader.get("table_name")
                     if name is None:
-                        raise ValueError("Loader record missing table_name — loader status tracking corrupted")
+                        raise ValueError("Loader record missing table_name - loader status tracking corrupted")
                     # Explicit initialization for counter tracking (fail-fast if key missing)
                     if name not in table_counts:
                         table_counts[name] = 0

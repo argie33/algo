@@ -3,17 +3,17 @@
 PHASE 1: DATA FRESHNESS CHECK
 
 Verify pipeline-loaded tables are fresh before trading:
-1. price_daily: Must have last trading day data (75%+ symbol coverage) — HALT if stale
-2. market_health_daily: Market breadth metrics — HALT if stale
-3. market_exposure_daily: Market regime / exposure limits — HALT if stale
-4. earnings_calendar: Earnings dates for blackout window gating — HALT if stale
-5. growth_metrics: Multi-year revenue/EPS growth metrics — HALT if stale (ADDED 2026-07-05)
-6. quality_metrics: Financial quality metrics (ROE/margins/ratios) — HALT if stale (ADDED 2026-07-05)
-7. value_metrics: Valuation metrics (P/E, P/B, etc.) — HALT if stale (ADDED 2026-07-05)
-8. positioning_metrics: Ownership and short interest — HALT if stale (ADDED 2026-07-05)
-9. stability_metrics: Volatility and beta metrics — HALT if stale (ADDED 2026-07-05)
-10. trend_template_data: Minervini/Weinstein criteria — WARNING if stale
-11. sector_ranking: Sector data for last trading day — WARNING if stale
+1. price_daily: Must have last trading day data (75%+ symbol coverage) - HALT if stale
+2. market_health_daily: Market breadth metrics - HALT if stale
+3. market_exposure_daily: Market regime / exposure limits - HALT if stale
+4. earnings_calendar: Earnings dates for blackout window gating - HALT if stale
+5. growth_metrics: Multi-year revenue/EPS growth metrics - HALT if stale (ADDED 2026-07-05)
+6. quality_metrics: Financial quality metrics (ROE/margins/ratios) - HALT if stale (ADDED 2026-07-05)
+7. value_metrics: Valuation metrics (P/E, P/B, etc.) - HALT if stale (ADDED 2026-07-05)
+8. positioning_metrics: Ownership and short interest - HALT if stale (ADDED 2026-07-05)
+9. stability_metrics: Volatility and beta metrics - HALT if stale (ADDED 2026-07-05)
+10. trend_template_data: Minervini/Weinstein criteria - WARNING if stale
+11. sector_ranking: Sector data for last trading day - WARNING if stale
 (swing_trader_scores: removed in Session 14, no longer checked)
 
 CRITICAL FIX 2026-07-05: Metric loaders (growth, quality, value, positioning, stability)
@@ -118,7 +118,7 @@ def _check_failsafe_retry_result(
         )
         still_failing = failsafe_result.get("still_failing")
         if still_failing is None:
-            logger.error("[PHASE 1] failsafe_result missing 'still_failing' field — data quality issue")
+            logger.error("[PHASE 1] failsafe_result missing 'still_failing' field - data quality issue")
             still_failing = ["unknown"]
         log_phase_result_fn(
             1,
@@ -224,9 +224,9 @@ def run(  # noqa: C901
     3. Warns if WARNING issues found but proceeds
     4. Performs traditional freshness checks (redundant but explicit fail-safe)
 
-    Halts if price_daily, market_health_daily, or market_exposure_daily are stale —
+    Halts if price_daily, market_health_daily, or market_exposure_daily are stale -
     these are required for Phase 5 signal generation and regime gating.
-    Issues warnings for trend_template_data and sector_ranking —
+    Issues warnings for trend_template_data and sector_ranking -
     stale but trading can continue.
     Excludes stock_scores (orchestrator-generated output, not pipeline input).
     """
@@ -490,7 +490,7 @@ def run(  # noqa: C901
                     else f"coverage {coverage_pct:.1f}% < min {min_coverage_pct}%"
                 )
                 logger.critical(
-                    f"[PHASE 1] Insufficient price coverage: {symbols_loaded} symbols ({coverage_pct:.1f}%) — {fail_reason}"
+                    f"[PHASE 1] Insufficient price coverage: {symbols_loaded} symbols ({coverage_pct:.1f}%) - {fail_reason}"
                 )
 
                 # CONSISTENCY: Use error categorization so operators know why trading halted
@@ -532,8 +532,8 @@ def run(  # noqa: C901
                 "sector_ranking": "Sector rankings",
             }
 
-            halt_stale = []  # pipeline-loaded tables — stale = HALT
-            warn_stale = []  # auxiliary tables — stale = WARNING only
+            halt_stale = []  # pipeline-loaded tables - stale = HALT
+            warn_stale = []  # auxiliary tables - stale = WARNING only
 
             # Tables checked by MAX(date) vs price_daily latest date
             # Note: earnings_calendar uses earnings_date instead of date
@@ -650,14 +650,14 @@ def run(  # noqa: C901
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                         msg = f"{description} check failed: {str(e)[:50]}"
                         if is_halt_table:
-                            logger.critical(f"[PHASE 1] {msg} — FAIL-CLOSED")
+                            logger.critical(f"[PHASE 1] {msg} - FAIL-CLOSED")
                             halt_stale.append(msg)
                         else:
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.critical(
-                    f"[PHASE 1] CRITICAL: Failed to check table freshness — cannot verify data integrity: {e}",
+                    f"[PHASE 1] CRITICAL: Failed to check table freshness - cannot verify data integrity: {e}",
                     exc_info=True,
                 )
                 log_phase_result_fn(
@@ -683,7 +683,7 @@ def run(  # noqa: C901
             if halt_stale:
                 if dry_run:
                     logger.warning(
-                        f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) — BYPASSED (dry_run only): {'; '.join(halt_stale)}"
+                        f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) - BYPASSED (dry_run only): {'; '.join(halt_stale)}"
                     )
                 else:
                     # SESSION 124 FIX: removed a fake "EMERGENCY_BOOTSTRAP" that used to sit here.

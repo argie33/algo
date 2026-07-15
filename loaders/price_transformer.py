@@ -154,7 +154,7 @@ class PriceTransformer:
         except Exception as e:
             raise ValueError(
                 f"Could not determine trading day range from {len(rows)} rows: {e}. "
-                f"Date parsing failed—cannot proceed with price data missing valid dates."
+                f"Date parsing failed-cannot proceed with price data missing valid dates."
             ) from e
         if min_row_date is None or max_row_date is None:
             raise ValueError(
@@ -187,7 +187,7 @@ class PriceTransformer:
         except Exception as e:
             raise ValueError(
                 f"Could not precompute trading days for range [{min_row_date}, {max_row_date}]: {e}. "
-                f"MarketCalendar failed—cannot proceed without trading day validation."
+                f"MarketCalendar failed-cannot proceed without trading day validation."
             ) from e
 
     def _validate_row_trading_day(
@@ -279,7 +279,7 @@ class PriceTransformer:
         try:
             if not row_date_str or not isinstance(row_date_str, str):
                 raise ValueError(
-                    f"[PRICE_TRANSFORMER] {symbol}: Row missing required date field — "
+                    f"[PRICE_TRANSFORMER] {symbol}: Row missing required date field - "
                     "cannot load price data without valid dates"
                 )
             row_date = datetime.fromisoformat(row_date_str).date()

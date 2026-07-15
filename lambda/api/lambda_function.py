@@ -81,7 +81,7 @@ def _apply_critical_migrations() -> tuple[bool, str]:
 
         # GOVERNANCE: Fail-fast on missing database configuration.
         # get_db_config() validates all required fields and raises ValueError if any are missing.
-        # Use direct dict access, not .get() with defaults — no silent defaults allowed.
+        # Use direct dict access, not .get() with defaults - no silent defaults allowed.
         try:
             db_host = db_config["host"]
             db_port = db_config["port"]
@@ -616,7 +616,7 @@ def test_db_connection() -> tuple[bool, str | None]:
 MAX_REQUEST_BODY_SIZE = 1024 * 100
 
 # Public health endpoints exempt from in-Lambda rate limiting (uptime monitors hit these).
-# /health/detailed and /api/health/detailed require authentication — they are NOT exempt,
+# /health/detailed and /api/health/detailed require authentication - they are NOT exempt,
 # so authenticated clients share the same per-instance throttle as other endpoints.
 RATE_LIMIT_EXEMPT_PATHS = {
     "/health",
@@ -1082,14 +1082,14 @@ def validate_bearer_token(token: str | None) -> tuple[bool, dict[str, Any] | Non
                 if is_revoked(jti):
                     return (False, None, "Token has been revoked")
             except (ImportError, AttributeError) as e:
-                # Blocklist module unavailable — FAIL CLOSED: revocation cannot be verified
+                # Blocklist module unavailable - FAIL CLOSED: revocation cannot be verified
                 logger.critical(
                     f"[TOKEN_REVOCATION_FAILED] Blocklist module import failed: {e}. Rejecting token to prevent bypass."
                 )
                 return (False, None, "Token revocation verification failed (security check unavailable)")
             except Exception as e:
-                # Blocklist service unreachable or error — fail secure by rejecting token
-                logger.error(f"[TOKEN_REVOCATION_FAILED] Cannot verify token revocation: {e} — rejecting token")
+                # Blocklist service unreachable or error - fail secure by rejecting token
+                logger.error(f"[TOKEN_REVOCATION_FAILED] Cannot verify token revocation: {e} - rejecting token")
                 return (False, None, "Token revocation verification failed (security check required)")
 
         logger.info(f"JWT validated: user={payload.get('sub')}, valid until {payload.get('exp')}")
@@ -1155,7 +1155,7 @@ def categorize_error(e: Exception) -> str:
 def get_client_ip(event: dict[str, Any]) -> str:
     """Extract client IP for audit logging.
 
-    Uses API Gateway's requestContext.identity.sourceIp as the authoritative source —
+    Uses API Gateway's requestContext.identity.sourceIp as the authoritative source -
     this is filled by API Gateway itself and cannot be forged by a client.
 
     NOTE: When behind CloudFront, sourceIp is the CloudFront edge IP, not the user's IP.
@@ -1304,7 +1304,7 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         # /api/research intentionally NOT public: exposes backtest strategy names, returns, trade history
         "/api/data-coverage",  # Data freshness status (public metadata)
         "/api/contact",  # Public contact form (no auth required)
-        "/api/logs",  # Frontend error log ingest (intentionally unauthenticated — called by error boundaries)
+        "/api/logs",  # Frontend error log ingest (intentionally unauthenticated - called by error boundaries)
         # Backwards compatibility aliases
         "/api/portfolio",  # Alias for /api/algo/portfolio
         "/api/positions",  # Alias for /api/algo/positions
@@ -1401,7 +1401,7 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
     is_valid, claims, error = validate_bearer_token(token)
     if not is_valid:
         # CRITICAL FIX: Always return actual validation error per GOVERNANCE.md
-        # Never mask with generic fallback—operators must see why auth failed
+        # Never mask with generic fallback-operators must see why auth failed
         if error is None:
             logger.error("[CRITICAL] validate_bearer_token returned is_valid=False but error=None. This is a bug.")
             return (True, False, "Token validation failed (internal error: no error message)", None)
@@ -1486,10 +1486,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         clear_expired_credentials()
     except (ImportError, AttributeError):
-        # Credential manager not available — skip cache clearing (non-critical for this invocation)
+        # Credential manager not available - skip cache clearing (non-critical for this invocation)
         logger.debug("Credential cache clearing unavailable (module not found)")
     except Exception as e:
-        # Cache clearing should never fail — it's just removing old entries from dict
+        # Cache clearing should never fail - it's just removing old entries from dict
         logger.error(f"[CREDENTIAL_CACHE] Failed to clear expired credentials: {e}", exc_info=True)
         # Don't fail the request for this non-critical operation, but log prominently
 
@@ -1518,7 +1518,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             },
         }
 
-    # EventBridge warmup ping — return immediately without touching DB or Cognito.
+    # EventBridge warmup ping - return immediately without touching DB or Cognito.
     # Keeps one Lambda container alive to eliminate VPC cold-start 502s for real users.
     if event.get("source") == "warmup":
         return {"statusCode": 200, "body": "warm"}
@@ -1644,7 +1644,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             http_method = method.upper() if method else "GET"
             db_mode = "write" if http_method in ("POST", "PUT", "PATCH", "DELETE") else "read"
             with DatabaseContext(db_mode) as cur:
-                # statement_timeout is now set at RDS parameter group level (30s) — no per-request SET needed.
+                # statement_timeout is now set at RDS parameter group level (30s) - no per-request SET needed.
 
                 params = parse_query_params(event)
                 body = None
@@ -1661,7 +1661,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                         log_api_request(event, 400, error_msg="invalid_json")
                         return make_error_response(400, "invalid_json", "Request body must be valid JSON", event)
 
-                # O-1: POST /api/logout — revoke current token server-side
+                # O-1: POST /api/logout - revoke current token server-side
                 if method == "POST" and path == "/api/logout":
                     cors_headers = get_cors_headers(event)
                     if not is_authorized or not jwt_claims:
@@ -1748,7 +1748,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                     else json.dumps(response["body"], default=_json_default)
                 )
             else:
-                # Route handlers return data dicts directly — exclude internal routing metadata from body
+                # Route handlers return data dicts directly - exclude internal routing metadata from body
                 body_data = {k: v for k, v in response.items() if k != "headers"}
                 body = json.dumps(body_data, default=_json_default)
 

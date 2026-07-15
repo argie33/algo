@@ -162,7 +162,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             )
         except Exception as e:
             logger.warning(f"[PHASE 3] Paper mode price update failed: {type(e).__name__}: {e}")
-            # Don't halt on failure — positions without updated prices are still valid for trading
+            # Don't halt on failure - positions without updated prices are still valid for trading
             return PhaseResult(
                 3,
                 "position_monitor",
@@ -219,7 +219,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     if "error" in halt_check:
                         error_reason = halt_check.get("reason", "unknown")
                         logger.warning(
-                            f"[PHASE 3] {symbol}: halt check failed ({error_reason}) — continuing with caution"
+                            f"[PHASE 3] {symbol}: halt check failed ({error_reason}) - continuing with caution"
                         )
                         halt_check_errors.append((symbol, error_reason))
                         continue
@@ -229,7 +229,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         halts_found.append(symbol)
                         meh.handle_single_stock_halt(symbol)
                         if verbose:
-                            logger.warning(f"  [WARN] {symbol} halted — pending orders cancelled")
+                            logger.warning(f"  [WARN] {symbol} halted - pending orders cancelled")
                 except Exception as halt_exc:
                     logger.warning(
                         f"[PHASE 3] Unexpected error checking halt status for {symbol}: {type(halt_exc).__name__}: {halt_exc}"
@@ -317,7 +317,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         log_phase_error(3, error, log_phase_result_fn)
         traceback.print_exc()
 
-        # In paper trading mode, log the error but don't halt — allow phases 4-8 to continue
+        # In paper trading mode, log the error but don't halt - allow phases 4-8 to continue
         # This allows testing of trading logic even if position monitoring fails
         # CRITICAL FIX: Require explicit config - fail-fast if missing
         if "is_paper_trading" not in config:

@@ -16,14 +16,14 @@ Purpose:
 Data Quality:
 - On success: inserts row with data_unavailable=FALSE, reason=NULL
 - On any failure: inserts row with data_unavailable=TRUE, reason=<error detail>
-- Prevents silent data gaps — API/dashboard always has explicit availability status
+- Prevents silent data gaps - API/dashboard always has explicit availability status
 
 Validation & Error Handling (Fail-Fast):
 - MarketExposure.compute() raises RuntimeError on invalid/missing data (no fallback)
 - Loader validates result structure BEFORE using any fields
 - All critical fields (regime, exposure_pct, raw_score, halt_reasons, distribution_days) required
 - Invalid regime, exposure_pct outside [0,100], or missing factors cause immediate failure
-- No placeholder data or silent defaults — missing data is reported as FAILED status + data_unavailable marker
+- No placeholder data or silent defaults - missing data is reported as FAILED status + data_unavailable marker
 
 Time: ~2-5 seconds (vectorized computation, minimal DB load)
 """
@@ -128,9 +128,9 @@ def main() -> int:  # noqa: C901
             health_latest = result[0] if result else None
 
         if not spy_latest:
-            error_msg = "No price data available for SPY — cannot compute market exposure"
+            error_msg = "No price data available for SPY - cannot compute market exposure"
             logger.warning(
-                "[MARKET_EXPOSURE] No SPY price data available — critical data for market exposure computation missing"
+                "[MARKET_EXPOSURE] No SPY price data available - critical data for market exposure computation missing"
             )
             logger.error(error_msg)
             with DatabaseContext("write") as cur:
@@ -141,9 +141,9 @@ def main() -> int:  # noqa: C901
             return 1
 
         if not health_latest:
-            error_msg = "No market_health_daily data available — required for new_highs_lows computation"
+            error_msg = "No market_health_daily data available - required for new_highs_lows computation"
             logger.warning(
-                "[MARKET_EXPOSURE] No market_health_daily data available — required for new_highs_lows computation"
+                "[MARKET_EXPOSURE] No market_health_daily data available - required for new_highs_lows computation"
             )
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -338,7 +338,7 @@ def main() -> int:  # noqa: C901
                             latest_date = result[0]
                             _insert_unavailable_marker(cur, latest_date, error_detail)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError, NameError):
-                    # If we can't determine date or insert fails, that's OK — we already updated loader status
+                    # If we can't determine date or insert fails, that's OK - we already updated loader status
                     pass
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as db_err:
             logger.error(f"Failed to update loader status: {db_err}")
@@ -362,7 +362,7 @@ def main() -> int:  # noqa: C901
                             latest_date = result[0]
                             _insert_unavailable_marker(cur, latest_date, error_detail)
                 except (psycopg2.DatabaseError, psycopg2.OperationalError, NameError):
-                    # If we can't determine date or insert fails, that's OK — we already updated loader status
+                    # If we can't determine date or insert fails, that's OK - we already updated loader status
                     pass
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
             logger.error(f"Failed to update FAILED status in data_loader_status: {status_err}")

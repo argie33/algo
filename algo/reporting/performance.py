@@ -1,5 +1,5 @@
 """
-Live Performance Metrics — Compute Sharpe, win rate, expectancy, max drawdown.
+Live Performance Metrics - Compute Sharpe, win rate, expectancy, max drawdown.
 
 Institutional traders measure performance in real-time against backtested metrics.
 This module validates live performance against backtest baselines and detects drift.
@@ -31,7 +31,7 @@ def _dec_round(val: Any, places: int) -> float:
     """Round decimal to specified places. Fail-fast if data is missing.
 
     Raises:
-        ValueError: If val is None (missing data) — fail-fast governance
+        ValueError: If val is None (missing data) - fail-fast governance
     """
     if val is None:
         raise ValueError(
@@ -82,7 +82,7 @@ class LivePerformance:
                 raise ValueError(
                     f"Cannot calculate Sharpe ratio: insufficient portfolio snapshots ({len(rows)} found, need {min_snapshots}+). "
                     f"Portfolio history too short ({lookback_days} days). "
-                    f"Sharpe is critical for risk assessment — cannot use default."
+                    f"Sharpe is critical for risk assessment - cannot use default."
                 )
 
             values: list[float] = []
@@ -110,7 +110,7 @@ class LivePerformance:
             dict with win_rate_pct, avg_win_r, avg_loss_r, win_count, loss_count
 
         Raises:
-            ValueError: If no closed trades found. Win rate is critical metric — cannot use default.
+            ValueError: If no closed trades found. Win rate is critical metric - cannot use default.
         """
         try:
             from algo.infrastructure.config.sql_intervals import get_interval_sql
@@ -154,7 +154,7 @@ class LivePerformance:
             if row is None or len(row) < 1 or row[0] == 0:
                 raise ValueError(
                     "Cannot calculate win rate: no closed trades found in past 365 days. "
-                    "Win rate is critical for performance evaluation — cannot use default zero."
+                    "Win rate is critical for performance evaluation - cannot use default zero."
                 )
 
             (
@@ -244,7 +244,7 @@ class LivePerformance:
                 raise ValueError(
                     f"Cannot calculate max drawdown: insufficient portfolio snapshots ({len(rows)} found, need {min_snapshots}+). "
                     f"Need historical portfolio values to assess peak-to-trough decline. "
-                    f"Max drawdown is critical for risk assessment — cannot use default."
+                    f"Max drawdown is critical for risk assessment - cannot use default."
                 )
 
             values = []
@@ -258,7 +258,7 @@ class LivePerformance:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def rolling_sortino(self, lookback_days: int = 252) -> float | None:
-        """Annualized Sortino ratio — penalizes only downside volatility.
+        """Annualized Sortino ratio - penalizes only downside volatility.
 
         More appropriate than Sharpe for directional swing strategies where
         upside volatility is desirable.
@@ -285,7 +285,7 @@ class LivePerformance:
                 raise ValueError(
                     f"Cannot calculate Sortino ratio: insufficient portfolio snapshots ({len(rows)} found, need {min_snapshots}+). "
                     f"Portfolio history too short ({lookback_days} days). "
-                    f"Sortino is important for evaluating downside risk — cannot use default."
+                    f"Sortino is important for evaluating downside risk - cannot use default."
                 )
 
             values = [float(r[0]) for i, r in enumerate(rows)]
@@ -327,7 +327,7 @@ class LivePerformance:
                 raise ValueError(
                     f"Cannot calculate Calmar ratio: insufficient portfolio snapshots ({len(rows)} found, need {min_snapshots}+). "
                     f"Portfolio history too short ({lookback_days} days). "
-                    f"Calmar is standard benchmark for trend strategies — cannot use default."
+                    f"Calmar is standard benchmark for trend strategies - cannot use default."
                 )
 
             values = [float(r[0]) for i, r in enumerate(rows)]
@@ -443,7 +443,7 @@ class LivePerformance:
             # CRITICAL: All risk metrics must be present. No graceful degradation.
             sharpe = self.rolling_sharpe(252)
             if sharpe is None:
-                raise ValueError("Sharpe ratio is critical for risk assessment — cannot proceed with None")
+                raise ValueError("Sharpe ratio is critical for risk assessment - cannot proceed with None")
             logger.debug(f"  Sharpe ratio: {sharpe}")
             try:
                 sortino = self.rolling_sortino(252)
@@ -459,11 +459,11 @@ class LivePerformance:
                 calmar = None
             wr = self.win_rate(50)
             if wr is None:
-                raise ValueError("Win rate is critical for strategy evaluation — cannot proceed with None")
+                raise ValueError("Win rate is critical for strategy evaluation - cannot proceed with None")
             logger.debug(f"  Win rate: {wr['win_rate_pct'] if wr else None}%")
             expectancy = self.expectancy(50)
             if expectancy is None:
-                raise ValueError("Expectancy is critical for position sizing — cannot proceed with None")
+                raise ValueError("Expectancy is critical for position sizing - cannot proceed with None")
             logger.debug(f"  Expectancy: {expectancy}")
             max_dd = self.max_drawdown()
             logger.debug(f"  Max drawdown: {max_dd}%")

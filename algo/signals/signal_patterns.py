@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-"""Pattern-based signal methods — base detection, VCP, 3WT, HTF."""
+"""Pattern-based signal methods - base detection, VCP, 3WT, HTF."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ class SignalPatternsMixin:
                 for k, v in cur.fetchall():
                     thresholds[k] = int(v)
         except (ValueError, TypeError, KeyError, RuntimeError) as e:
-            logger.debug(f"Could not load signal pattern thresholds: {e} — using defaults")
+            logger.debug(f"Could not load signal pattern thresholds: {e} - using defaults")
         return thresholds
 
     def base_detection(self, symbol: str, eval_date: _date) -> dict[str, Any]:
@@ -102,7 +102,7 @@ class SignalPatternsMixin:
             base_high = max(base_highs)
             base_low = min(base_lows)
             if base_high <= 0:
-                raise ValueError(f"Base high price invalid ({base_high}) for base detection — cannot calculate depth")
+                raise ValueError(f"Base high price invalid ({base_high}) for base detection - cannot calculate depth")
             base_depth = (base_high - base_low) / base_high * 100.0
             weeks_in_base = len(base_highs) // 5
 
@@ -118,7 +118,7 @@ class SignalPatternsMixin:
             if len(volumes) < 50:
                 logger.debug(
                     f"[SIGNAL_PATTERNS] Insufficient volume history for pattern ({len(volumes)}/50 bars). "
-                    f"Volume dryup detection disabled — requires 50+ bars."
+                    f"Volume dryup detection disabled - requires 50+ bars."
                 )
                 return {
                     "in_base": in_base,
@@ -135,7 +135,7 @@ class SignalPatternsMixin:
             if len(base_vols) < self.LOOKBACK_BARS_SHORT:
                 raise ValueError(
                     f"[SIGNAL_PATTERNS] Insufficient bars for recent volume calculation ({len(base_vols)}/{self.LOOKBACK_BARS_SHORT} required). "
-                    f"Cannot compute volume dryup signal — data invalid or insufficient."
+                    f"Cannot compute volume dryup signal - data invalid or insufficient."
                 )
             recent_vol = sum(base_vols[: self.LOOKBACK_BARS_SHORT]) / self.LOOKBACK_BARS_SHORT
 
@@ -157,7 +157,7 @@ class SignalPatternsMixin:
         except (ValueError, TypeError, IndexError) as e:
             logger.error(
                 f"[BASE_DETECTION] Data error in base_detection({symbol}): {e}. "
-                f"Missing or invalid price/technical data — cannot determine base status.",
+                f"Missing or invalid price/technical data - cannot determine base status.",
                 exc_info=True,
             )
             raise RuntimeError(
@@ -225,7 +225,7 @@ class SignalPatternsMixin:
                 p1, p2 = peaks[j], peaks[j + 1]
                 window_low = min(lows[p1 : p2 + 1])
                 if highs[p1] <= 0:
-                    logger.warning(f"VCP peak price invalid ({highs[p1]}) — skipping depth calculation for peak {j}")
+                    logger.warning(f"VCP peak price invalid ({highs[p1]}) - skipping depth calculation for peak {j}")
                     continue
                 depth = (highs[p1] - window_low) / highs[p1] * 100.0
                 depths.append(round(depth, 1))
@@ -345,7 +345,7 @@ class SignalPatternsMixin:
             if recent_high <= 0:
                 raise ValueError(
                     f"[SIGNAL_PATTERNS] Recent price range invalid for {symbol} (high={recent_high}). "
-                    f"Cannot classify base type — price data corrupted."
+                    f"Cannot classify base type - price data corrupted."
                 )
             recent_spread = (recent_high - recent_low) / recent_high * 100.0
             if depth <= 15 and duration >= 5 and recent_spread <= 12:
@@ -363,7 +363,7 @@ class SignalPatternsMixin:
                 if handle_high <= 0:
                     raise ValueError(
                         f"[SIGNAL_PATTERNS] Cup handle price range invalid for {symbol} (handle_high={handle_high}). "
-                        f"Cannot calculate handle dip — price data corrupted."
+                        f"Cannot calculate handle dip - price data corrupted."
                     )
                 recent_dip = (handle_high - min(lows[-7:])) / handle_high * 100.0
                 handle_present = 5 < recent_dip < 12
@@ -396,7 +396,7 @@ class SignalPatternsMixin:
                 if low1 <= 0:
                     raise ValueError(
                         f"[SIGNAL_PATTERNS] Double bottom low price invalid for {symbol} (low1={low1}). "
-                        f"Cannot calculate pattern — price data corrupted."
+                        f"Cannot calculate pattern - price data corrupted."
                     )
                 diff_pct = abs(low2 - low1) / low1 * 100.0
                 if diff_pct <= 5 and (min_indices[-1] - min_indices[0]) >= 10:
@@ -548,7 +548,7 @@ class SignalPatternsMixin:
                 raise ValueError(
                     f"[STOP_LOSS] Stop price ${candidate:.2f} >= entry ${entry_price:.2f} for {symbol} on {eval_date}. "
                     f"Indicates corrupt data (base_type={base_type}, method={method}, atr={atr:.4f}). "
-                    f"Not using 7% fallback — fix underlying data."
+                    f"Not using 7% fallback - fix underlying data."
                 )
 
             return {
@@ -564,14 +564,14 @@ class SignalPatternsMixin:
 
     def three_weeks_tight(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
-        IBD's "3-Weeks-Tight" (3WT) — high-probability continuation pattern.
+        IBD's "3-Weeks-Tight" (3WT) - high-probability continuation pattern.
 
         After a stock has rallied from a base, it consolidates for 3 weeks where
         each weekly close is within ~1.5% of the prior weekly close. The weekly
         ranges are also tight. Breakout above the 3-week high signals continuation.
 
         Per O'Neil's leading-stock studies: 3WT patterns formed by the strongest
-        stocks during their advance phases — high reliability for adding to
+        stocks during their advance phases - high reliability for adding to
         existing winners or initiating new positions.
 
         Returns: {
@@ -650,7 +650,7 @@ class SignalPatternsMixin:
 
     def high_tight_flag(self, symbol: str, eval_date: _date) -> dict[str, Any]:
         """
-        IBD's "High Tight Flag" (HTF) — rare but highly explosive continuation.
+        IBD's "High Tight Flag" (HTF) - rare but highly explosive continuation.
 
         Definition (O'Neil's leading-stock study):
           1. Stock advances 100%+ in 4-8 weeks (parabolic move)
@@ -660,7 +660,7 @@ class SignalPatternsMixin:
 
         Per O'Neil's CAN SLIM research, HTF stocks have produced some of the
         biggest gains in market history (think early-stage biotech, tech IPOs).
-        Rare pattern — most stocks won't show it. When it appears, it's a tier-1
+        Rare pattern - most stocks won't show it. When it appears, it's a tier-1
         setup for swing traders willing to take the heat.
 
         Returns: {

@@ -48,11 +48,11 @@ def _get_markets_cached() -> dict[str, Any]:
             data = api_call("/api/algo/markets")
 
             # CRITICAL: Never fall back to stale market data. Market prices must be current.
-            # If API is unavailable (503), return error — never return stale cache.
+            # If API is unavailable (503), return error - never return stale cache.
             # Stale prices could lead to incorrect position sizing and losses.
             # The 503 response indicates service degradation, so dashboard MUST show error state.
             if data.get("_error"):
-                # API error — no caching, no fallback to stale data
+                # API error - no caching, no fallback to stale data
                 logger.error(f"API /api/algo/markets failed: {data.get('_error')}")
                 return data
 
@@ -270,7 +270,7 @@ def fetch_market(c: None) -> dict[str, Any]:
         # CRITICAL FIX: When availability flag is missing from upstream, mark as unavailable (fail-safe)
         put_call_unavailable = market_health.get("put_call_ratio_data_unavailable")
         if put_call_unavailable is None:
-            # Field missing from upstream API — this means we don't know availability status
+            # Field missing from upstream API - this means we don't know availability status
             # Fail-safe: mark as unavailable until confirmed present
             logger.warning(
                 "[MARKET] Put/call ratio availability flag missing from upstream API response. "
@@ -278,7 +278,7 @@ def fetch_market(c: None) -> dict[str, Any]:
             )
             result["pcr_unavailable"] = True
         elif not put_call_unavailable:
-            # Upstream says data is available — fetch it
+            # Upstream says data is available - fetch it
             pcr_val = market_health.get("put_call_ratio")
             if pcr_val is not None:
                 try:
@@ -292,7 +292,7 @@ def fetch_market(c: None) -> dict[str, Any]:
                     logger.error(f"[MARKET] Unexpected error converting put_call_ratio: {type(e).__name__}: {e}")
                     result["pcr_unavailable"] = True
             else:
-                # Upstream said available but value is None — flag as data quality issue
+                # Upstream said available but value is None - flag as data quality issue
                 logger.warning("[MARKET] Put/call ratio marked available but value is None")
                 result["pcr_unavailable"] = True
         else:
@@ -378,7 +378,7 @@ def fetch_exp_factors(c: None) -> dict[str, Any]:
         # Build result dict with explicit error handling for field conversions
         try:
             exposure_pct = safe_float(current.get("exposure_pct"), field_name="exposure.exposure_pct", strict=True)
-            # raw_score is optional — may be None from API, use default 0.0 in that case
+            # raw_score is optional - may be None from API, use default 0.0 in that case
             raw_score = safe_float(current.get("raw_score"), default=0.0, field_name="exposure.raw_score", strict=False)
         except Exception as e:
             error_msg = f"Exposure metrics conversion failed: {type(e).__name__}: {e}"
@@ -413,10 +413,10 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
     """API-only risk metrics. Fail-fast: error if critical risk metrics are missing.
 
     Risk metrics are CRITICAL for portfolio monitoring:
-    - VaR/CVaR (Value at Risk) — required for downside risk assessment
-    - Stressed VaR — required for stress testing
-    - Beta — required for systematic risk measurement
-    - Concentration — required for portfolio concentration risk
+    - VaR/CVaR (Value at Risk) - required for downside risk assessment
+    - Stressed VaR - required for stress testing
+    - Beta - required for systematic risk measurement
+    - Concentration - required for portfolio concentration risk
     """
     from dashboard.fetcher_validator import FetcherValidator
 

@@ -220,7 +220,7 @@ class CredentialManager:
         """Fetch from AWS Secrets Manager. Returns None if not found.
 
         Always fetches from AWS Secrets Manager. Fails fast if unavailable.
-        No local caching or fallbacks — credentials must be current.
+        No local caching or fallbacks - credentials must be current.
 
         IMPORTANT: Requires one of SecretString or SecretBinary to be present.
         Fails explicitly if both are missing.
@@ -230,7 +230,7 @@ class CredentialManager:
             if not client:
                 raise RuntimeError(
                     "Secrets Manager client is unavailable. "
-                    "Cannot fetch credentials — credentials must be fetched fresh from Secrets Manager every time."
+                    "Cannot fetch credentials - credentials must be fetched fresh from Secrets Manager every time."
                 )
 
             # Try to get the secret by name
@@ -258,7 +258,7 @@ class CredentialManager:
         secret names, which don't exist in this setup.
 
         In local dev mode (DB_SECRET_ARN not set), all credentials must be explicitly
-        provided via environment variables — no hardcoded defaults.
+        provided via environment variables - no hardcoded defaults.
 
         Result is cached in self._cache to avoid a Secrets Manager API call on every
         DatabaseContext creation (which is called 10+ times per orchestrator run).
@@ -409,7 +409,7 @@ class CredentialManager:
         the call fails hard rather than using potentially-rotated credentials. This prevents
         trades from executing with invalid API keys after credential rotation.
 
-        Uses ONLY standard Alpaca field names (APCA_API_KEY_ID / APCA_API_SECRET_KEY) — no fallback
+        Uses ONLY standard Alpaca field names (APCA_API_KEY_ID / APCA_API_SECRET_KEY) - no fallback
         logic for non-standard field names. This ensures consistency across all credential sources.
 
         Supports per-user credential isolation for multi-tenant trading.
@@ -447,13 +447,13 @@ class CredentialManager:
                             creds = _json.loads(secret_string)
                         except _json.JSONDecodeError as e:
                             raise ValueError(f"User secret contains invalid JSON: {e}") from e
-                        # CRITICAL: Validate credential fields — must use standard Alpaca field names
+                        # CRITICAL: Validate credential fields - must use standard Alpaca field names
                         # No fallback logic: one standard format only
                         key = creds.get("APCA_API_KEY_ID")
                         secret = creds.get("APCA_API_SECRET_KEY")
 
                         if not key or not secret:
-                            # User-specific secret exists but is invalid — FAIL HARD
+                            # User-specific secret exists but is invalid - FAIL HARD
                             available = list(creds.keys())
                             raise ValueError(
                                 f"User secret '{user_secret_id}' missing required credential fields. "

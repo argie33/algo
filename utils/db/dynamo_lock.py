@@ -122,15 +122,15 @@ class DynamoDBLockManager:
                 return True
 
             except self._conditional_check_failed:
-                # Someone else holds a valid lock — normal contention, keep retrying
+                # Someone else holds a valid lock - normal contention, keep retrying
                 if attempt == 1:
-                    logger.debug(f"[LOCK] Another instance holds {lock_key} — retrying with backoff...")
+                    logger.debug(f"[LOCK] Another instance holds {lock_key} - retrying with backoff...")
                 # Exponential backoff: 50ms, 100ms, 200ms up to 500ms
                 backoff = min(0.05 * (2 ** (attempt - 1)), 0.5)
                 time.sleep(backoff)
 
             except self._throttling_exception:
-                # DynamoDB throttled due to capacity — back off more aggressively
+                # DynamoDB throttled due to capacity - back off more aggressively
                 logger.warning(f"[LOCK] DynamoDB throttled on attempt {attempt} for {lock_key}")
                 time.sleep(min(0.1 * (2**attempt), 2.0))
 
@@ -138,11 +138,11 @@ class DynamoDBLockManager:
                 # Check if this is a permission error (AccessDeniedException)
                 error_str = str(type(e)) + str(e)
                 if any(x in error_str for x in ["AccessDenied", "not authorized", "UnrecognizedClientException"]):
-                    logger.warning(f"[LOCK] DynamoDB permission denied: {e} — marking as unavailable")
+                    logger.warning(f"[LOCK] DynamoDB permission denied: {e} - marking as unavailable")
                     self.is_available = False
                     return False
                 else:
-                    # Transient error — retry with backoff
+                    # Transient error - retry with backoff
                     logger.debug(f"[LOCK] Transient error on attempt {attempt} acquiring {lock_key}: {e}")
                     time.sleep(min(0.1 * (2**attempt), 1.0))
 
@@ -224,10 +224,10 @@ class DynamoDBLockManager:
                 # CRITICAL FIX: Explicit check for Items field instead of empty list default
                 items = response.get("Items")
                 if items is None:
-                    logger.warning("[LOCK_CLEANUP] DynamoDB scan returned no Items field — treating as empty")
+                    logger.warning("[LOCK_CLEANUP] DynamoDB scan returned no Items field - treating as empty")
                     items = []
                 elif not isinstance(items, list):
-                    logger.error(f"[LOCK_CLEANUP] DynamoDB Items field is not a list: {type(items)} — skipping cleanup")
+                    logger.error(f"[LOCK_CLEANUP] DynamoDB Items field is not a list: {type(items)} - skipping cleanup")
                     items = []
                 for item in items:
                     if item.get("expires_at", "") < cutoff_time:

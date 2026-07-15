@@ -90,7 +90,7 @@ def handle(  # noqa: C901
                 """).format(psycopg2.sql.Identifier(table_name))
                 rows = execute_with_timeout(cur, batch_query, [symbols, limit], timeout_sec=20)
 
-                # Validate rows is not None and not empty — fail fast if validation fails
+                # Validate rows is not None and not empty - fail fast if validation fails
                 if not DatabaseResultValidator.validate_rows_not_empty(rows, "prices batch query"):
                     raise_api_error(
                         503,
@@ -142,7 +142,7 @@ def handle(  # noqa: C901
                     """).format(psycopg2.sql.Identifier(etf_table_name))
                     etf_rows = execute_with_timeout(cur, etf_query, [missing, limit], timeout_sec=20)
 
-                    # Validate ETF rows — fail fast if validation fails
+                    # Validate ETF rows - fail fast if validation fails
                     if not DatabaseResultValidator.validate_rows_not_empty(etf_rows, "prices ETF query"):
                         raise_api_error(
                             503,
@@ -238,7 +238,7 @@ def handle(  # noqa: C901
             used_table = table_name
             asset_class_mismatch = False
             if not rows:
-                # No data in stock table — try ETF table
+                # No data in stock table - try ETF table
                 etf_query = psycopg2.sql.SQL("""
                     SELECT date, open, high, low, close, volume
                     FROM {}
@@ -285,7 +285,7 @@ def handle(  # noqa: C901
                             "no_data_available",
                             f"Price data not available for {symbol}. Symbol may not be loaded yet or not covered.",
                         )
-                    # Symbol exists but no data for this date range — valid empty result
+                    # Symbol exists but no data for this date range - valid empty result
 
             # CRITICAL: Fail-fast when asset class doesn't match (stock requested, ETF returned)
             if asset_class_mismatch:
@@ -311,7 +311,7 @@ def handle(  # noqa: C901
         # Returns {symbols: {SYM: [{date, open, high, low, close, volume}, ...]}}
         # Replaces N concurrent per-symbol calls with one batch query.
         elif len(parts) >= 4 and parts[3] == "batch-history":
-            # HIGH-007 FIX: Remove redundant OR fallback — extract_param already uses default=""
+            # HIGH-007 FIX: Remove redundant OR fallback - extract_param already uses default=""
             symbols_raw = extract_param(params, "symbols", required=False, default="")
             assert isinstance(symbols_raw, str), f"Expected str, got {type(symbols_raw).__name__}"
             symbols = [s.strip().upper() for s in symbols_raw.split(",") if s.strip()]

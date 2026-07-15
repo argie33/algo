@@ -311,11 +311,11 @@ class TradeValidator:
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
         """
-        # CRITICAL: signal_date is required for fingerprint matching — no fallback to default date
+        # CRITICAL: signal_date is required for fingerprint matching - no fallback to default date
         if signal_date is None:
             raise ValueError(
                 f"signal_date required for {symbol} duplicate check. "
-                f"Cannot match trades without valid signal date — this is a data integrity requirement."
+                f"Cannot match trades without valid signal date - this is a data integrity requirement."
             )
 
         cur.execute(
@@ -355,7 +355,7 @@ class TradeValidator:
         if result is None:
             raise RuntimeError(
                 f"[PENDING_TRADES] Unexpected NULL from database for {symbol} pending trade count. "
-                f"Database query integrity failure — cannot safely determine if duplicate entry exists."
+                f"Database query integrity failure - cannot safely determine if duplicate entry exists."
             )
         pending_count = result[0]
         if pending_count > 0:

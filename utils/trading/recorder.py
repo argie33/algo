@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Trade Recorder — logs executed trades to algo_trades and algo_positions tables.
+"""Trade Recorder - logs executed trades to algo_trades and algo_positions tables.
 
 Provides a simple interface for recording trades as they're executed by the orchestrator.
 Maintains position state and trade history for analysis and compliance.

@@ -88,10 +88,10 @@ class EarningsBlackout:
             }
         except psycopg2.errors.UndefinedTable as e:
             raise ValueError(
-                f"Earnings calendar table missing for {symbol} — explicit halt (table infrastructure failure)"
+                f"Earnings calendar table missing for {symbol} - explicit halt (table infrastructure failure)"
             ) from e
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise ValueError(f"Earnings blackout check error for {symbol}: {str(e)[:50]} — explicit halt") from e
+            raise ValueError(f"Earnings blackout check error for {symbol}: {str(e)[:50]} - explicit halt") from e
 
     def get_upcoming_earnings(self, symbol: str, days_ahead: int = 30) -> list[Any]:
         try:
@@ -112,4 +112,4 @@ class EarningsBlackout:
 
             return [{"date": row[0]} for row in rows]
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise ValueError(f"Failed to fetch earnings for {symbol}: {str(e)[:50]} — explicit halt") from e
+            raise ValueError(f"Failed to fetch earnings for {symbol}: {str(e)[:50]} - explicit halt") from e

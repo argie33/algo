@@ -106,7 +106,7 @@ class OrchestratorExecutionTracker:
                 summary = f"Error during execution: {halt_reason or 'unknown error'}"
 
             # Prepare phase results array (sorted by phase number)
-            # Keys may be int (1, 2, 3) or str ('3a', '3b') — sort as strings to handle mixed types
+            # Keys may be int (1, 2, 3) or str ('3a', '3b') - sort as strings to handle mixed types
             phase_results_array = [self.phase_results[n] for n in sorted(self.phase_results.keys(), key=str)]
 
             with DatabaseContext("write") as cur:

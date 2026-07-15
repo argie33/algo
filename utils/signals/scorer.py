@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Unified Signal Scorer — Consolidates scoring logic across all signal types.
+Unified Signal Scorer - Consolidates scoring logic across all signal types.
 
 All signal types (momentum, patterns, trend, options) use this scorer
 for consistent scoring, thresholding, and result formatting.

@@ -501,7 +501,7 @@ class MarketExposure:
             # Missing factors cause re-normalization that artificially inflates remaining factor weights.
             # Example: If 2-3 factors missing (avail_max ~75), remaining factors are re-weighted from 100 base to 75 actual,
             # causing each remaining factor to contribute ~33% more than intended.
-            # Position sizing depends on accurate market exposure — cannot degrade on missing data.
+            # Position sizing depends on accurate market exposure - cannot degrade on missing data.
 
             if avail_max < 100.0:
                 # Identify which factors returned None/0 score
@@ -511,7 +511,7 @@ class MarketExposure:
                         missing_factors.append(factor_key)
 
                 msg = (
-                    f"[MARKET EXPOSURE CRITICAL] Incomplete factor data — cannot calculate exposure. "
+                    f"[MARKET EXPOSURE CRITICAL] Incomplete factor data - cannot calculate exposure. "
                     f"Available: {avail_max:.1f}/100 points of factor weights. "
                     f"Missing factors ({len(missing_factors)}): {missing_factors}. "
                     f"Position sizing requires complete market assessment (all 12 factors). "
@@ -790,7 +790,7 @@ class MarketExposure:
             if ratio is None:
                 msg = (
                     f"[MARKET_EXPOSURE CRITICAL] A/D ratio corrupted/missing for {row_date}. "
-                    f"Cannot compute A/D line with data gaps — requires complete daily sequence. "
+                    f"Cannot compute A/D line with data gaps - requires complete daily sequence. "
                     f"Check market_health_daily table for data quality."
                 )
                 logger.error(msg)
@@ -1023,7 +1023,7 @@ class MarketExposure:
             claims_26w = float(claims_rows[-1][0])
             if claims_26w <= 0:
                 msg = (
-                    f"[MARKET_STRESS] Invalid 26-week claims baseline ({claims_26w}) — cannot compute jobless claims signal. "
+                    f"[MARKET_STRESS] Invalid 26-week claims baseline ({claims_26w}) - cannot compute jobless claims signal. "
                     "Jobless claims are REQUIRED for accurate market stress calculation. "
                     "Check economic_data table for ICSA series."
                 )

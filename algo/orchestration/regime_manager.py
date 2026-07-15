@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Regime Manager — Single authoritative source for market regime and parameter adaptation.
+Regime Manager - Single authoritative source for market regime and parameter adaptation.
 
 Reads from market_exposure_daily.regime (computed by algo_market_exposure.py).
 Maps regime to config multipliers that flow into PositionSizer and ExposurePolicy.
@@ -97,7 +97,7 @@ class RegimeManager:
         Returns: 'confirmed_uptrend'|'uptrend_under_pressure'|'caution'|'correction'
 
         FAIL-FAST: Raises RuntimeError if market exposure regime data is unavailable.
-        Market regime is critical for position sizing — missing data must halt trading.
+        Market regime is critical for position sizing - missing data must halt trading.
         """
         try:
             if as_of_date is None:
@@ -125,7 +125,7 @@ class RegimeManager:
                 raise RuntimeError(
                     f"Market regime '{regime}' is invalid. "
                     f"Expected one of: {', '.join(self.REGIMES)}. "
-                    f"Check market_exposure_daily computation — regime field corrupt."
+                    f"Check market_exposure_daily computation - regime field corrupt."
                 )
 
             return regime

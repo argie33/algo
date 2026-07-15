@@ -50,7 +50,7 @@ def compute_moving_averages(closes: pd.Series) -> dict[str, pd.Series]:
 def compute_atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
     """Compute Average True Range using Wilder's exponential smoothing (alpha=1/period).
 
-    Uses the same Wilder's EMA as RSI and ADX — NOT a simple rolling mean.
+    Uses the same Wilder's EMA as RSI and ADX - NOT a simple rolling mean.
     SMA would give discontinuous jumps as big days enter/exit the window.
     """
     # Reset frequency to avoid pandas frequency mismatch errors during operations

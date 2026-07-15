@@ -41,13 +41,13 @@ class CoverageChecker(BaseCheck):
             """)
             today_count, total_count = cur.fetchone()
             if today_count is None:
-                raise ValueError("price_daily today_count returned NULL — loader may be stalled or corrupted")
+                raise ValueError("price_daily today_count returned NULL - loader may be stalled or corrupted")
             if total_count is None:
-                raise ValueError("price_daily total_count returned NULL — loader may be stalled")
+                raise ValueError("price_daily total_count returned NULL - loader may be stalled")
             today_count = int(today_count)
             total_count = int(total_count)
             if total_count <= 0:
-                logger.warning("price_daily total_count is 0 — skipping coverage check (no expected records)")
+                logger.warning("price_daily total_count is 0 - skipping coverage check (no expected records)")
                 return
             pct = today_count / total_count * 100
 
@@ -88,7 +88,7 @@ class CoverageChecker(BaseCheck):
             cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
             row = cur.fetchone()
             if row is None or row[0] is None:
-                raise ValueError("Expected symbol count query returned NULL — cannot validate loader coverage")
+                raise ValueError("Expected symbol count query returned NULL - cannot validate loader coverage")
             expected_count = int(row[0])
 
             if expected_count == 0:
@@ -96,7 +96,7 @@ class CoverageChecker(BaseCheck):
                     "coverage",
                     ERROR,
                     "stock_symbols",
-                    "No active symbols in stock_symbols table — cannot calculate loader coverage percentages",
+                    "No active symbols in stock_symbols table - cannot calculate loader coverage percentages",
                     {"expected_count": 0},
                 )
                 return
@@ -131,20 +131,20 @@ class CoverageChecker(BaseCheck):
                     cnt = row_dict["cnt"]
                     if cnt is None:
                         raise ValueError(
-                            f"COUNT(DISTINCT symbol) returned NULL for {table_name} — table may be empty or query failed"
+                            f"COUNT(DISTINCT symbol) returned NULL for {table_name} - table may be empty or query failed"
                         )
                     results_by_table[table_name] = int(cnt)
 
                 # Verify all critical tables are represented
                 missing_tables = set(critical_tables) - set(results_by_table.keys())
                 if missing_tables:
-                    raise ValueError(f"Coverage query missing tables: {missing_tables} — UNION query may have failed")
+                    raise ValueError(f"Coverage query missing tables: {missing_tables} - UNION query may have failed")
 
                 for table_name in critical_tables:
                     try:
                         table_count = results_by_table[table_name]
                         if expected_count <= 0:
-                            logger.warning(f"{table_name} expected_count is 0 — skipping coverage check")
+                            logger.warning(f"{table_name} expected_count is 0 - skipping coverage check")
                             continue
                         coverage_pct = table_count / expected_count * 100
 

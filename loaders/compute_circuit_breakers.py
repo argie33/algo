@@ -51,7 +51,7 @@ class CircuitBreakerDef:
         """Check if this circuit breaker is triggered.
 
         CRITICAL: Fails immediately if metric is missing or None.
-        No fallback — incomplete risk assessment must fail closed.
+        No fallback - incomplete risk assessment must fail closed.
         """
         if self.metric_key not in metrics:
             msg = (
@@ -300,7 +300,7 @@ def _compute_market_stage(cur: Any) -> int:
     if not row or row["market_stage"] is None:
         logger.warning("[CIRCUIT_BREAKER] Market stage not available in market_health_daily (CB6)")
         raise ValueError(
-            "Market stage not available in market_health_daily — "
+            "Market stage not available in market_health_daily - "
             "Phase X market exposure detection must populate market_health_daily before circuit breaker metrics. "
             "CB6 (market stage break) cannot be computed without this critical market regime data."
         )
@@ -313,7 +313,7 @@ def _compute_open_risk(cur: Any) -> float:
 
     CRITICAL: Requires all open positions to have valid stop_loss_price set.
     No fallback to entry_price (that would show 0% risk when stops are missing).
-    Fails fast if any position lacks a stop — this is a data integrity error.
+    Fails fast if any position lacks a stop - this is a data integrity error.
     """
     # First, validate that all open positions have stop prices set (NO FALLBACK)
     # CRITICAL: Each position MUST have p.current_stop_price set. No fallback to trade stop_loss_price.
@@ -330,7 +330,7 @@ def _compute_open_risk(cur: Any) -> float:
             f"CRITICAL: {check_row['missing_current_stops']} open position(s) have NULL current_stop_price. "
             "Cannot calculate portfolio risk without valid CURRENT stops. "
             "All open positions MUST have current_stop_price updated before risk assessment. "
-            "NO FALLBACK to historical entry stop — current risk requires current stops."
+            "NO FALLBACK to historical entry stop - current risk requires current stops."
         )
 
     cur.execute("""
@@ -427,11 +427,11 @@ def _compute_win_rate(cur: Any) -> float:
     decisive = wins + losses
 
     if decisive == 0:
-        # No closed trades yet (e.g. fresh paper account) — CB9's trigger condition
+        # No closed trades yet (e.g. fresh paper account) - CB9's trigger condition
         # (v < threshold and v > 0) treats 0 as "not applicable", not "triggered".
         # Raising here would block persistence of all 8 other circuit breaker
         # metrics, which don't depend on trade history and can be computed fine.
-        logger.info("[CB9] No closed trades yet — win rate not applicable, defaulting to 0")
+        logger.info("[CB9] No closed trades yet - win rate not applicable, defaulting to 0")
         return 0.0
 
     win_rate = wins / decisive * 100
@@ -454,7 +454,7 @@ def _validate_all_metrics_present(metrics: dict[str, Any]) -> None:
 
     if missing_metrics:
         raise RuntimeError(
-            f"CRITICAL RISK ASSESSMENT FAILURE: Cannot evaluate circuit breakers — "
+            f"CRITICAL RISK ASSESSMENT FAILURE: Cannot evaluate circuit breakers - "
             f"missing metrics: {missing_metrics}. "
             f"Must have ALL 9 metrics to perform complete risk assessment. "
             f"Halting trading to prevent execution without complete safety checks."

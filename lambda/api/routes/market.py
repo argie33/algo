@@ -107,7 +107,7 @@ def _handle_breadth(cur: cursor) -> Any:
         LIMIT 10
     """
 
-    # 20s timeout — Lambda is 25s, APIGW is 29s; single attempt avoids double-hit.
+    # 20s timeout - Lambda is 25s, APIGW is 29s; single attempt avoids double-hit.
     try:
         breadth = execute_with_timeout(cur, breadth_query, timeout_sec=20, max_attempts=1)
     except psycopg2.errors.QueryCanceled as e:
@@ -204,7 +204,7 @@ def _handle_technicals(cur: cursor) -> Any:
         breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=3)
         cur.execute("RELEASE SAVEPOINT technicals_breadth")
         if not breadth_rows:
-            logger.critical("[TECHNICALS_BREADTH] No breadth data available — market health calculation incomplete")
+            logger.critical("[TECHNICALS_BREADTH] No breadth data available - market health calculation incomplete")
             raise RuntimeError(
                 "Critical market breadth data unavailable. "
                 "Market breadth (advancing/declining counts) required for complete market health assessment. "
@@ -422,7 +422,7 @@ def _handle_distribution_days(cur: cursor) -> Any:
         _rollback_savepoint(cur, "dist_days")
         logger.error(f"[DIST_DAYS] Error: {type(e).__name__}: {e}")
         raise_db_error(e, "distribution days query")
-        raise  # unreachable — raise_db_error is NoReturn
+        raise  # unreachable - raise_db_error is NoReturn
 
 
 def _handle_seasonality(cur: cursor) -> Any:
@@ -795,7 +795,7 @@ def _handle_naaim(cur: cursor) -> Any:
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.error(f"[NAAIM] Error: {type(e).__name__}")
         raise_db_error(e, "NAAIM query")
-        raise  # unreachable — raise_db_error is NoReturn; satisfies mypy without lambda path config
+        raise  # unreachable - raise_db_error is NoReturn; satisfies mypy without lambda path config
 
 
 @db_route_handler("get fear greed history")  # type: ignore[untyped-decorator]
@@ -1134,7 +1134,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
             f"Data integrity error in correlation matrix computation."
         )
         raise_api_error(
-            500, "correlation_computation_error", "Max correlation pair computation failed—cannot verify data integrity"
+            500, "correlation_computation_error", "Max correlation pair computation failed-cannot verify data integrity"
         )
     if min_corr is not None and min_pair is None:
         logger.error(
@@ -1142,7 +1142,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
             f"Data integrity error in correlation matrix computation."
         )
         raise_api_error(
-            500, "correlation_computation_error", "Min correlation pair computation failed—cannot verify data integrity"
+            500, "correlation_computation_error", "Min correlation pair computation failed-cannot verify data integrity"
         )
 
     avg_corr_val = round(avg_corr, 2) if avg_corr is not None else None
@@ -1223,7 +1223,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
 
 @db_route_handler("get cap distribution")  # type: ignore[untyped-decorator]
 def _get_cap_distribution(cur: cursor) -> Any:
-    # market_cap is in key_metrics, sector is in company_profile — stock_symbols has neither
+    # market_cap is in key_metrics, sector is in company_profile - stock_symbols has neither
     cur.execute("""
         SELECT ss.symbol, cp.sector, km.market_cap,
             CASE
@@ -1299,7 +1299,7 @@ def _get_cap_distribution(cur: cursor) -> Any:
     if total_cap <= 0:
         raise ValueError(
             f"[MARKET DATA CRITICAL] Total market cap is {total_cap} (must be > 0). "
-            f"All stocks have zero market cap — data quality issue. "
+            f"All stocks have zero market cap - data quality issue. "
             f"Check price_daily loader."
         )
 

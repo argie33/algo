@@ -131,7 +131,7 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         sig_name = sig_name_raw.replace("_", " ").title() if sig_name_raw is not None else ""
         wks = safe_get_field(sec_rot, "weeks")
         if wks is None:
-            logger.warning("Sector rotation missing 'weeks' field — cannot display rotation window")
+            logger.warning("Sector rotation missing 'weeks' field - cannot display rotation window")
             wks = None
         def_s = safe_get_field(sec_rot, "def_score")
         cyc_s = safe_get_field(sec_rot, "cyc_score")
@@ -373,9 +373,9 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             if sec is None:
                 sym = p.get("symbol")
                 if sym is None:
-                    raise ValueError("[DATA_CORRUPTION] Position missing symbol field — cannot identify position")
+                    raise ValueError("[DATA_CORRUPTION] Position missing symbol field - cannot identify position")
                 missing_sector_count += 1
-                logger.warning(f"Position {sym} missing sector enrichment — skipping from sector breakdown")
+                logger.warning(f"Position {sym} missing sector enrichment - skipping from sector breakdown")
                 continue
             val = safe_float(safe_get_field(p, "position_value"))
             pnl = safe_float(safe_get_field(p, "unrealized_pnl_pct"))
@@ -412,7 +412,7 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             rows.append(Text.from_markup("[dim]Portfolio value is zero - no sector breakdown[/]"))
             rows.append(Rule(style="dim"))
 
-    # All sector rankings — one per row, full names, 1wk and 4wk changes
+    # All sector rankings - one per row, full names, 1wk and 4wk changes
     # Fail-fast: skip section if API error detected
     valid_srank: list[Any] = []
     if not has_error(srank):
@@ -442,7 +442,7 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
             )
         rows.append(Rule(style="dim"))
 
-    # All industries — full names, 1wk change
+    # All industries - full names, 1wk change
     # Fail-fast: skip section if API error detected
     valid_irank: list[Any] = []
     if not has_error(irank):

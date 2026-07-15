@@ -146,7 +146,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
     def watermark_from_rows(self, rows: list[dict[str, Any]]) -> date:
         """Map the integer fiscal_year watermark onto a date (Dec 31 of the max year).
 
-        BUGFIX 2026-07-14 (found live): watermark_field here is fiscal_year — an int —
+        BUGFIX 2026-07-14 (found live): watermark_field here is fiscal_year - an int -
         and the base implementation returned that int, so WatermarkManager crashed on
         .isoformat() ('int' object has no attribute 'isoformat') AFTER rows were
         inserted, marking every symbol failed. This was masked for the loader's entire
@@ -154,7 +154,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
 
         Dec 31 of the max loaded fiscal year round-trips correctly: fetch_incremental
         derives its incremental cutoff as since.year. Marker-only batches (fiscal_year
-        0) map to Dec 31 2000 — identical to the no-watermark default (since_year
+        0) map to Dec 31 2000 - identical to the no-watermark default (since_year
         2000), so unavailable symbols keep refetching their full window.
         """
         max_year = 0
@@ -306,7 +306,7 @@ class SecEdgarStatementLoader(SecLoaderBase):
                 if sec_field not in field_mapping:
                     logger.debug(
                         f"[{self.table_name}] {r.get('symbol')}: Unmapped SEC field '{sec_field}' "
-                        f"— may indicate schema change or optional field. Skipping."
+                        f"- may indicate schema change or optional field. Skipping."
                     )
                     continue
 

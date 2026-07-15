@@ -323,7 +323,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
         tbl.add_row(Text.from_markup(a), Text.from_markup(b))
 
     if raw is None or epct is None:
-        header = Text.from_markup("[red]Exposure score calculation failed — raw_score or exposure_pct missing[/]")
+        header = Text.from_markup("[red]Exposure score calculation failed - raw_score or exposure_pct missing[/]")
     else:
         raw_bar = mini_bar(raw, 100, w=8)
         raw_s = f"{raw:.0f}"
@@ -340,7 +340,7 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
 
 
 def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
-    """Full-screen exposure score detail — all 12 factors with values, thresholds, and signal context."""
+    """Full-screen exposure score detail - all 12 factors with values, thresholds, and signal context."""
     rows: list[Text | Rule | Table] = [
         Text.from_markup("[dim]press [/][bold blue]x[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
@@ -362,7 +362,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
 
     if "factors" not in exp_f:
         logger.error("[EXPOSURE_EXPANDED] factors field missing from API response")
-        rows.append(Text.from_markup("[red]✗ Exposure data missing 'factors' field — API schema mismatch[/]"))
+        rows.append(Text.from_markup("[red]✗ Exposure data missing 'factors' field - API schema mismatch[/]"))
         return Panel(
             Group(*cast(list[ConsoleRenderable | RichCast | str], rows)),
             title="[bold blue]EXPOSURE SCORE - EXPANDED[/]  [dim][x] return[/]",
@@ -466,7 +466,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             logger.debug("[EXPOSURE_EXPANDED] factors dict has error markers, skipping factor %s", key)
             f = {}
         elif key not in factors:
-            # Factor missing from API response — log and skip
+            # Factor missing from API response - log and skip
             logger.debug("[EXPOSURE_EXPANDED] factor %s not in response", key)
             f = {}
         else:
@@ -483,7 +483,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
 
         pts_raw = f.get("pts") if f else None
         if pts_raw is None:
-            # Factor has no data — show ⚠ N/A rather than a misleading 0-point bar
+            # Factor has no data - show ⚠ N/A rather than a misleading 0-point bar
             reason_val = f.get("reason")
             if reason_val is None:
                 # Check for explicit stale marker
@@ -626,7 +626,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         sr_pts_raw = sr.get("pts")
         if sr_pts_raw is None:
             logger.error(
-                "[EXPOSURE_EXPANDED_ADJ] sector_rotation factor present but missing 'pts' field — cannot calculate adjustment"
+                "[EXPOSURE_EXPANDED_ADJ] sector_rotation factor present but missing 'pts' field - cannot calculate adjustment"
             )
         else:
             try:
@@ -637,7 +637,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
         eco_pts_raw = eco.get("pts")
         if eco_pts_raw is None:
             logger.error(
-                "[EXPOSURE_EXPANDED_ADJ] economic_overlay factor present but missing 'pts' field — cannot calculate adjustment"
+                "[EXPOSURE_EXPANDED_ADJ] economic_overlay factor present but missing 'pts' field - cannot calculate adjustment"
             )
         else:
             try:

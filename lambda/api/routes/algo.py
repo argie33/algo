@@ -142,7 +142,7 @@ def _dispatch(  # noqa: C901
 ) -> Any:
     if jwt_claims is not None:
         if "sub" not in jwt_claims or not jwt_claims["sub"]:
-            raise_api_error(401, "missing_user_id", "JWT missing 'sub' (user ID) — cannot audit request")
+            raise_api_error(401, "missing_user_id", "JWT missing 'sub' (user ID) - cannot audit request")
         user_id = jwt_claims["sub"]
     else:
         user_id = None
@@ -239,17 +239,17 @@ def _dispatch(  # noqa: C901
     # Trade preview calculation
     if method == "POST" and path == "/api/algo/preview":
         if not body:
-            logger.warning("[PREVIEW_CALC] Request body missing — raising 400 error")
+            logger.warning("[PREVIEW_CALC] Request body missing - raising 400 error")
             raise_api_error(400, "bad_request", "Request body required")
         if not isinstance(body, dict):
-            logger.warning(f"[PREVIEW_CALC] Request body is not dict, got {type(body).__name__} — raising 400 error")
+            logger.warning(f"[PREVIEW_CALC] Request body is not dict, got {type(body).__name__} - raising 400 error")
             raise_api_error(400, "bad_request", "Request body must be a JSON object")
         return _calculate_trade_preview(cur, body)
 
     # Pre-trade impact calculation
     if method == "POST" and path == "/api/algo/pre-trade-impact":
         if not isinstance(body, dict):
-            logger.warning(f"[PRE_TRADE] Request body is not dict, got {type(body).__name__} — raising 400 error")
+            logger.warning(f"[PRE_TRADE] Request body is not dict, got {type(body).__name__} - raising 400 error")
             raise_api_error(400, "bad_request", "Request body is required and must be a JSON object")
         assert isinstance(body, dict)
         return _calculate_pre_trade_impact(cur, body)
@@ -322,7 +322,7 @@ def _dispatch(  # noqa: C901
         is_admin = check_admin_access(jwt_claims)
         effective_user_id = None if is_admin else user_id
         if not status_filter:
-            logger.debug("[ALGO_TRADES] No status filter specified — returning all trade statuses")
+            logger.debug("[ALGO_TRADES] No status filter specified - returning all trade statuses")
         return _get_algo_trades(cur, limit, user_id=effective_user_id, status=status_filter)
     elif path == "/api/algo/positions":
         if jwt_claims is not None and not check_admin_access(jwt_claims):

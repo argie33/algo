@@ -211,7 +211,7 @@ class MarketConstituentsLoader(OptimalLoader):
             for text in [nas_text, oth_text]:
                 reader = csv.DictReader(text.splitlines(), delimiter="|")
                 for r in reader:
-                    # CRITICAL: Symbol is required — explicit validation, no defaults
+                    # CRITICAL: Symbol is required - explicit validation, no defaults
                     if "Symbol" not in r or not r["Symbol"]:
                         logger.debug("[MARKET_CONSTITUENTS] Skipping row with missing or empty 'Symbol' field.")
                         continue
@@ -344,7 +344,7 @@ class MarketConstituentsLoader(OptimalLoader):
     def _fetch_russell2000_symbols(self) -> list[str]:
         """Fetch Russell 2000 constituents from reliable source (optional enrichment).
 
-        Returns empty list if unavailable — Russell 2000 is optional enrichment data.
+        Returns empty list if unavailable - Russell 2000 is optional enrichment data.
         The loader continues without it rather than failing.
         """
         urls = [

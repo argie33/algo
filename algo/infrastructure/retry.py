@@ -2,7 +2,7 @@
 """
 Retry and rate-limiting utilities for the algo data pipeline.
 
-Usage — decorator:
+Usage - decorator:
     from algo.infrastructure import retry, RateLimiter
 
     @retry(max_attempts=3, exceptions=(requests.HTTPError, ConnectionError))
@@ -10,7 +10,7 @@ Usage — decorator:
         # SECURITY FIX: Use a valid HTTPS URL (this was: https://api/price/{symbol})
         return requests.get(f"https://api.example.com/price/{symbol}", timeout=get_api_timeout()).json()
 
-Usage — rate limiter (shared across threads):
+Usage - rate limiter (shared across threads):
     limiter = RateLimiter(calls_per_minute=200)   # Alpaca limit
 
     for symbol in symbols:
@@ -99,7 +99,7 @@ def retry(
 
 class RateLimiter:
     """
-    Token-bucket rate limiter — thread-safe.
+    Token-bucket rate limiter - thread-safe.
 
     Sleeps just enough so callers never exceed calls_per_minute.
 

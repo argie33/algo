@@ -695,7 +695,7 @@ class DailyReconciliation:
                         f"CRITICAL: Total equity invalid ({total_equity_dec}) for concentration calculation"
                     )
                     raise ValueError(
-                        f"CRITICAL: Total equity invalid ({total_equity_dec}) — cannot calculate concentration"
+                        f"CRITICAL: Total equity invalid ({total_equity_dec}) - cannot calculate concentration"
                     )
                 max_concentration_dec = largest_position_dec / total_equity_dec * Decimal(100)
 
@@ -723,11 +723,11 @@ class DailyReconciliation:
                 daily_return_dec = total_equity_dec - prev_value_dec
                 if prev_value_dec <= 0:
                     logger.critical(
-                        f"CRITICAL: Prior portfolio snapshot value invalid ({prev_value_dec}) — cannot calculate daily return. "
+                        f"CRITICAL: Prior portfolio snapshot value invalid ({prev_value_dec}) - cannot calculate daily return. "
                         f"Check portfolio snapshot data continuity."
                     )
                     raise ValueError(
-                        f"Prior portfolio value invalid ({prev_value_dec}) — daily return calculation requires valid historical snapshot"
+                        f"Prior portfolio value invalid ({prev_value_dec}) - daily return calculation requires valid historical snapshot"
                     )
                 daily_return_pct_dec = daily_return_dec / prev_value_dec * Decimal(100)
 
@@ -750,7 +750,7 @@ class DailyReconciliation:
                 else:
                     market_trend = market[0]
 
-                # Calculate additional metrics (no COALESCE — catch missing data explicitly)
+                # Calculate additional metrics (no COALESCE - catch missing data explicitly)
                 cur.execute(
                     """
                     SELECT
@@ -789,10 +789,10 @@ class DailyReconciliation:
                 # cumulative_pnl is None only when there are zero closed trades ever.
                 if cumulative_pnl is None:
                     cumulative_pnl = 0.0
-                    logger.info("No closed trades found — cumulative PnL is 0")
+                    logger.info("No closed trades found - cumulative PnL is 0")
                 if realized_pnl_today is None:
                     realized_pnl_today = 0.0
-                    logger.info("No trades closed today — daily realized PnL is 0")
+                    logger.info("No trades closed today - daily realized PnL is 0")
                 win_count = int(win_count)
                 loss_count = int(loss_count)
                 realized_pnl_today = float(realized_pnl_today)
@@ -1186,7 +1186,7 @@ class DailyReconciliation:
             "message": (
                 "[STALE_PRICE_AUDIT] NOT IMPLEMENTED: audit_stale_estimated_prices() requires implementation. "
                 "Price staleness auditing is CRITICAL for position reconciliation accuracy. "
-                "Cannot reconcile positions with stale or estimated prices — this can cause "
+                "Cannot reconcile positions with stale or estimated prices - this can cause "
                 "incorrect profit/loss calculations and risk miscalculation. "
             ),
             "requirements": [
@@ -1253,11 +1253,11 @@ class DailyReconciliation:
             mismatches = []
             for order in orders:
                 if "symbol" not in order or "filled_qty" not in order or "status" not in order:
-                    # CRITICAL: Alpaca API contract violation — cannot reconcile fill status without required fields
+                    # CRITICAL: Alpaca API contract violation - cannot reconcile fill status without required fields
                     raise RuntimeError(
                         f"[PARTIAL_FILL_CHECK CRITICAL] Alpaca API returned malformed order (missing required fields). "
                         f"Cannot reconcile fills: {order}. Partial fill detection disabled. "
-                        f"API contract violated — check Alpaca API response structure."
+                        f"API contract violated - check Alpaca API response structure."
                     )
                 symbol = order["symbol"]
                 alpaca_filled_qty = float(order["filled_qty"])
@@ -1329,7 +1329,7 @@ class DailyReconciliation:
                             },
                         )
                     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                        # CRITICAL: Fail fast when alert system is down — partial fill corrections must be audited
+                        # CRITICAL: Fail fast when alert system is down - partial fill corrections must be audited
                         raise RuntimeError(
                             f"[PARTIAL_FILL_ALERT CRITICAL] Failed to notify operator of fill correction "
                             f"for {symbol}: {e}. Partial fill notification is required for audit trail. "
@@ -1349,10 +1349,10 @@ class DailyReconciliation:
             json.JSONDecodeError,
             psycopg2.DatabaseError,
         ) as e:
-            # CRITICAL: Partial fill detection failure — cannot reconcile fill status
+            # CRITICAL: Partial fill detection failure - cannot reconcile fill status
             raise RuntimeError(
                 f"[PARTIAL_FILL_CHECK FAILED] {type(e).__name__}: {e}. "
-                f"Cannot reconcile fill status — algorithm cannot proceed without fill validation. "
+                f"Cannot reconcile fill status - algorithm cannot proceed without fill validation. "
                 f"Partial fills undetected could lead to position quantity mismatches. Check broker connection."
             ) from e
 
@@ -1452,7 +1452,7 @@ class DailyReconciliation:
         required for accurate cumulative return calculation. Stale data (days/months old)
         would severely distort P&L metrics and mask performance issues.
 
-        Raises ValueError if broker history unavailable — reconciliation must fail fast
+        Raises ValueError if broker history unavailable - reconciliation must fail fast
         rather than use potentially months-old snapshot data.
         """
         try:
@@ -1471,7 +1471,7 @@ class DailyReconciliation:
                 raise ValueError(
                     f"CRITICAL: Broker returned empty portfolio history (error: {error_reason}). "
                     "Initial capital cannot be determined from Alpaca. "
-                    "Reconciliation requires live broker history for accurate P&L — cannot proceed."
+                    "Reconciliation requires live broker history for accurate P&L - cannot proceed."
                 )
             if initial_val and initial_val > 0:
                 logger.info(f"Initial capital from broker history: ${initial_val:,.2f}")
@@ -1490,7 +1490,7 @@ class DailyReconciliation:
         raise ValueError(
             "CRITICAL: Broker returned no portfolio history. "
             "Initial capital cannot be determined from Alpaca. "
-            "Reconciliation requires live broker history for accurate P&L — cannot proceed."
+            "Reconciliation requires live broker history for accurate P&L - cannot proceed."
         )
 
     def validate_pnl(self, broker_equity: float, local_equity: float) -> dict[str, Any]:

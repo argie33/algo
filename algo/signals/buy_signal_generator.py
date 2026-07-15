@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Buy/sell signal generation — Swing pivot breakout logic.
+"""Buy/sell signal generation - Swing pivot breakout logic.
 
 Handles:
 - Swing pivot detection (highs and lows)
@@ -353,7 +353,7 @@ class BuySignalGenerator:
             raise ValueError(
                 f"[SIGNAL_METRICS] Cannot compute 50d volume average: no volume data in 50-bar window. "
                 f"Bar index {i}, searched {i - max(0, i - 50)} bars. "
-                f"Fail-fast: volume data missing — data quality issue in technical data loader."
+                f"Fail-fast: volume data missing - data quality issue in technical data loader."
             )
 
         return int(sum(vols_50) / len(vols_50))

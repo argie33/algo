@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Technical Data Daily Loader — Vectorized for Institutional Speed
+"""Technical Data Daily Loader - Vectorized for Institutional Speed
 
 Computes technical indicators (SMA, Bollinger Bands, RSI, MACD, ATR, ADX) for ALL symbols.
 Also consolidates VCP (Volatility Contraction Pattern) calculation from separate loader.
@@ -171,7 +171,7 @@ class VectorizedTechnicalLoader:
                 "duration_sec": round(time.time() - start_time, 2),
                 "error": str(e),
                 "latest_date": None,
-                "data_available": False,  # Computation failed — no indicators available
+                "data_available": False,  # Computation failed - no indicators available
             }
         except Exception as e:
             logger.error(f"VectorizedTechnicalLoader unexpected error: {e}", exc_info=True)
@@ -181,7 +181,7 @@ class VectorizedTechnicalLoader:
                 "duration_sec": round(time.time() - start_time, 2),
                 "error": f"Unexpected error: {e!s}",
                 "latest_date": None,
-                "data_available": False,  # Unexpected error — no indicators available
+                "data_available": False,  # Unexpected error - no indicators available
             }
 
     def _get_required_duration(self, result: dict[str, Any]) -> float:
@@ -314,7 +314,7 @@ class VectorizedTechnicalLoader:
         df = pd.DataFrame(prices)
         df["date"] = pd.to_datetime(df["date"])
 
-        # Pre-fetch SPY prices once for the full date range — cached for all symbols.
+        # Pre-fetch SPY prices once for the full date range - cached for all symbols.
         # Previously fetched per-symbol (10,635 DB queries). Now fetched once.
         all_dates = df["date"]
         spy_prices_cached = self._fetch_spy_prices(all_dates.min().date(), all_dates.max().date())
@@ -397,7 +397,7 @@ class VectorizedTechnicalLoader:
                 # Volume MA
                 symbol_df["volume_ma_50"] = compute_volume_ma(symbol_df["volume"], 50)
 
-                # Mansfield RS (SPY comparison) — optional; NaN if SPY unavailable or insufficient history
+                # Mansfield RS (SPY comparison) - optional; NaN if SPY unavailable or insufficient history
                 import numpy as np
 
                 try:
@@ -518,7 +518,7 @@ class VectorizedTechnicalLoader:
             indicators_df: DataFrame with computed technical indicators including atr_14
         """
         if indicators_df.empty or "atr_14" not in indicators_df.columns:
-            logger.warning("[VCP] No indicators or ATR data available — skipping VCP pattern computation")
+            logger.warning("[VCP] No indicators or ATR data available - skipping VCP pattern computation")
             return
 
         try:
@@ -526,7 +526,7 @@ class VectorizedTechnicalLoader:
             vcp_symbols = indicators_df[["symbol", "date", "atr_14"]].dropna(subset=["atr_14"])
 
             if vcp_symbols.empty:
-                logger.warning("[VCP] No ATR data available after filtering — skipping VCP patterns")
+                logger.warning("[VCP] No ATR data available after filtering - skipping VCP patterns")
                 return
 
             vcp_patterns: list[dict[str, Any]] = []
@@ -922,7 +922,7 @@ def _tech_heartbeat_worker(stop_event: threading.Event) -> None:
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(
-                f"HEARTBEAT FAILURE: Cannot update loader status — hung task detection DISABLED. "
+                f"HEARTBEAT FAILURE: Cannot update loader status - hung task detection DISABLED. "
                 f"Loader may hang without external detection. Database: {type(e).__name__}: {str(e)[:100]}"
             )
 
@@ -1098,7 +1098,7 @@ def main() -> int:
         stop_heartbeat.set()
         heartbeat_thread.join(timeout=15)
         if heartbeat_thread.is_alive():
-            logger.error("Heartbeat thread still running after 15s timeout — may be hung in database operation")
+            logger.error("Heartbeat thread still running after 15s timeout - may be hung in database operation")
             # Non-daemon threads will block process exit until they finish
             # This log entry flags the issue for monitoring/alerts
 

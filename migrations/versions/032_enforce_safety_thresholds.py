@@ -5,8 +5,8 @@ Migration 032: Enforce Safety Thresholds and Entry Quality Gates
 This migration ensures critical safety features are enabled with proper thresholds:
 
 1. Entry Quality Gates (Hard Guards):
-   - rs_slope_gate_enabled: false (warn-only, not hard-gate — consolidating bases show flat RS)
-   - volume_decay_gate_enabled: false (warn-only, not hard-gate — accumulation shows declining volume)
+   - rs_slope_gate_enabled: false (warn-only, not hard-gate - consolidating bases show flat RS)
+   - volume_decay_gate_enabled: false (warn-only, not hard-gate - accumulation shows declining volume)
    - Note: These are intentionally set to warn-only (false) per migration-007 to allow legitimate
      Minervini setups through while still logging concerns for review.
 

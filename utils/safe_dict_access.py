@@ -1,4 +1,4 @@
-"""Safe dictionary access utilities — Enforce fail-fast on missing required fields.
+"""Safe dictionary access utilities - Enforce fail-fast on missing required fields.
 
 Replaces unsafe .get() patterns with explicit validation.
 

@@ -145,7 +145,7 @@ class LambdaHandler(ABC):
             # Port handling: explicitly allow 0 to be invalid (catch it in validation below)
             db_port_str = str(port) if port is not None else os.environ.get("DB_PORT")
             if not db_port_str:
-                raise ValueError("Database port (DB_PORT) not configured — cannot establish connection")
+                raise ValueError("Database port (DB_PORT) not configured - cannot establish connection")
             try:
                 db_port = int(db_port_str)
             except (ValueError, TypeError) as e:

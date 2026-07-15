@@ -69,11 +69,11 @@ def get_price_coverage(cur: cursor) -> Any:
 
         if sp500_total is None or sp500_total <= 0:
             return error_response(
-                503, "configuration_error", "SP500 symbol target count missing or zero — configuration required"
+                503, "configuration_error", "SP500 symbol target count missing or zero - configuration required"
             )
 
         if not total_rows:
-            return error_response(503, "no_data", "No price rows available in last 7 days — data loading required")
+            return error_response(503, "no_data", "No price rows available in last 7 days - data loading required")
 
         days_stale = (_date.today() - latest_date).days if latest_date else None
         zero_vol_pct = (zero_vol / total_rows * 100) if total_rows else None
@@ -187,7 +187,7 @@ def get_market_data_coverage(cur: cursor) -> Any:
         mh_date = mh_row["latest_date"] if mh_row else None
         mh_rows = mh_row["rows"] if mh_row else 0
 
-        # Economic data (FRED) — uses series_id not symbol
+        # Economic data (FRED) - uses series_id not symbol
         interval_30d = get_interval_sql("30d")
         cur.execute(f"""
             SELECT MAX(date) as latest_date, COUNT(DISTINCT series_id) as indicators

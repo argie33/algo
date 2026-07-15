@@ -54,7 +54,7 @@ class TestBreadthFetcherNewHighsLows:
 
     @pytest.mark.xfail(reason="Behavior changed: NULL counts are skipped (fail-fast), not converted to 0")
     def test_compute_new_highs_lows_converts_null_counts_to_zero(self):
-        """NULL counts should be converted to 0 (not None) — deprecated behavior."""
+        """NULL counts should be converted to 0 (not None) - deprecated behavior."""
         from loaders.market_health_fetchers import BreadthFetcher
 
         fetcher = BreadthFetcher()

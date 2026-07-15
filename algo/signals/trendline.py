@@ -78,7 +78,7 @@ class TrendlineSupport:
         prices = self.get_price_history(symbol, eval_date, self.lookback_days)
         if len(prices) < 20:
             raise ValueError(
-                f"Insufficient price history for {symbol} on {eval_date} — need at least 20 days, got {len(prices)}"
+                f"Insufficient price history for {symbol} on {eval_date} - need at least 20 days, got {len(prices)}"
             )
 
         # Extract lows with dates
@@ -93,7 +93,7 @@ class TrendlineSupport:
 
         if len(swing_lows) < 2:
             raise ValueError(
-                f"No valid support trendline for {symbol} on {eval_date} — need at least 2 swing lows, found {len(swing_lows)}"
+                f"No valid support trendline for {symbol} on {eval_date} - need at least 2 swing lows, found {len(swing_lows)}"
             )
 
         best_trendline = None
@@ -150,7 +150,7 @@ class TrendlineSupport:
 
         if not best_trendline:
             raise ValueError(
-                f"No valid support trendline for {symbol} on {eval_date} — no swing low pairs with acceptable angle/distance"
+                f"No valid support trendline for {symbol} on {eval_date} - no swing low pairs with acceptable angle/distance"
             )
 
         best_trendline["reason"] = (

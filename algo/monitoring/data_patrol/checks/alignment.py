@@ -79,7 +79,7 @@ class AlignmentChecker(BaseCheck):
                 )
             elif buy_sell_count < sqs_count:
                 if sqs_count <= 0:
-                    logger.warning("SQS count is 0 — skipping buy_sell alignment check")
+                    logger.warning("SQS count is 0 - skipping buy_sell alignment check")
                 else:
                     coverage_pct = buy_sell_count / sqs_count * 100
                     self.log(
@@ -131,14 +131,14 @@ class AlignmentChecker(BaseCheck):
             """)
             row = cur.fetchone()
             if row is None:
-                raise ValueError("Signal alignment query returned no results — database state corrupted")
+                raise ValueError("Signal alignment query returned no results - database state corrupted")
             total, missing_price, missing_tech = row
             if total is None:
-                raise ValueError("COUNT(*) FILTER for total signals returned NULL — cannot evaluate signal alignment")
+                raise ValueError("COUNT(*) FILTER for total signals returned NULL - cannot evaluate signal alignment")
             if missing_price is None:
-                raise ValueError("COUNT(*) FILTER for missing_price returned NULL — cannot evaluate alignment")
+                raise ValueError("COUNT(*) FILTER for missing_price returned NULL - cannot evaluate alignment")
             if missing_tech is None:
-                raise ValueError("COUNT(*) FILTER for missing_tech returned NULL — cannot evaluate alignment")
+                raise ValueError("COUNT(*) FILTER for missing_tech returned NULL - cannot evaluate alignment")
             total = int(total)
             missing_price = int(missing_price)
             missing_tech = int(missing_tech)
@@ -263,11 +263,11 @@ class AlignmentChecker(BaseCheck):
             row = cur.fetchone()
             if row is None or row[0] is None:
                 raise ValueError(
-                    "Cross-alignment baseline query returned NULL — cannot determine symbol count for coverage validation"
+                    "Cross-alignment baseline query returned NULL - cannot determine symbol count for coverage validation"
                 )
             baseline = int(row[0])
             if baseline == 0:
-                raise ValueError("price_daily has 0 symbols on latest date — loader failure or data corruption")
+                raise ValueError("price_daily has 0 symbols on latest date - loader failure or data corruption")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             self.log(
                 "cross_align",
@@ -333,14 +333,14 @@ class AlignmentChecker(BaseCheck):
             missing_from_union = [tbl for tbl, _, _, _ in checks if tbl not in counts_by_table]
             if missing_from_union:
                 raise ValueError(
-                    f"Cross-alignment union query missing tables: {missing_from_union} — UNION may have failed"
+                    f"Cross-alignment union query missing tables: {missing_from_union} - UNION may have failed"
                 )
 
             for tbl, _where, min_ratio, sev in checks:
                 try:
                     if tbl not in counts_by_table:
                         raise ValueError(
-                            f"Table {tbl} missing from cross-alignment results — cannot determine coverage"
+                            f"Table {tbl} missing from cross-alignment results - cannot determine coverage"
                         )
                     count = counts_by_table[tbl]
                     ratio = count / baseline

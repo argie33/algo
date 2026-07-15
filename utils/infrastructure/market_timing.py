@@ -34,7 +34,7 @@ MARKET_ALT_EARLY_CLOSE_HOUR = 13
 MARKET_ALT_EARLY_CLOSE_MINUTE = 0
 MARKET_ALT_EARLY_CLOSE_TIME = time(13, 0)
 
-# Orchestrator run schedule (ET) — runs every 5 minutes during market hours
+# Orchestrator run schedule (ET) - runs every 5 minutes during market hours
 # Dashboard requires portfolio snapshots fresher than 360s, so 5-min frequency ensures data freshness
 ORCHESTRATOR_RUN_TIMES = []
 for hour in range(9, 17):  # 9 AM to 4 PM (covers 9:30 AM to 4 PM market hours)

@@ -170,7 +170,7 @@ def lambda_handler(event, context):  # noqa: C901
 
         # Fast DB availability check: if DB doesn't respond in 3s, return success
         # so Terraform doesn't block for 600s on db-init invocation during loader load.
-        # Schema and seeds are idempotent — safe to skip when DB is temporarily busy.
+        # Schema and seeds are idempotent - safe to skip when DB is temporarily busy.
         try:
             _probe = psycopg2.connect(
                 host=creds["host"],
@@ -186,10 +186,10 @@ def lambda_handler(event, context):  # noqa: C901
             _pc.execute("SELECT 1")
             _pc.close()
             _probe.close()
-            logger.info("[DB_PROBE] Database responsive — proceeding with schema init")
+            logger.info("[DB_PROBE] Database responsive - proceeding with schema init")
         except Exception as _probe_err:
             logger.warning(
-                f"[DB_PROBE] Database unresponsive ({_probe_err}) — skipping schema init this deploy. "
+                f"[DB_PROBE] Database unresponsive ({_probe_err}) - skipping schema init this deploy. "
                 "Schema is idempotent; will apply on next successful deploy."
             )
             return {
@@ -198,7 +198,7 @@ def lambda_handler(event, context):  # noqa: C901
                     {
                         "status": "skipped",
                         "reason": "Database temporarily busy (ECS loaders under heavy write load)",
-                        "message": "Schema init skipped — idempotent, will apply on next successful deploy",
+                        "message": "Schema init skipped - idempotent, will apply on next successful deploy",
                     }
                 ),
             }
@@ -236,7 +236,7 @@ def lambda_handler(event, context):  # noqa: C901
             }
 
         # Step 0: Release stale advisory locks from crashed/stuck ECS loader tasks.
-        # OptimalLoader uses pg_try_advisory_lock() — if a task crashes mid-run, the
+        # OptimalLoader uses pg_try_advisory_lock() - if a task crashes mid-run, the
         # lock hangs in idle connections in the RDS Proxy pool and blocks all subsequent
         # runs. Clearing these at deploy time is safe: they belong to loader tasks
         # that are no longer running (idle > 60 minutes).

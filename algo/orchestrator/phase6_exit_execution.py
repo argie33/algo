@@ -52,7 +52,7 @@ def run(
     # No halt flag check here: exits MUST run regardless of halt state.
     # When circuit breaker fires, we still need to exit stressed positions
     # to reduce risk. Blocking exits compounds losses.
-    # New entries are blocked by Phase 2/8 — exits are always executed.
+    # New entries are blocked by Phase 2/8 - exits are always executed.
     try:
         from algo.trading import ExitEngine
         from algo.trading.executor import TradeExecutor
@@ -81,7 +81,7 @@ def run(
             # but we may have real open positions. This is a critical data integrity error.
             if position_recs is None:
                 msg = (
-                    "[PHASE 6 CRITICAL] position_recs not set — Phase 3 did not execute properly. "
+                    "[PHASE 6 CRITICAL] position_recs not set - Phase 3 did not execute properly. "
                     "Cannot proceed with exit execution without position monitor recommendations."
                 )
                 logger.critical(msg)
@@ -136,7 +136,7 @@ def run(
                 execution_mode = config.get("execution_mode", "paper")
                 if execution_mode in ("paper", "auto"):
                     logger.warning(
-                        f"[PHASE 6] Alpaca credentials missing — skipping exit execution in {execution_mode} mode. "
+                        f"[PHASE 6] Alpaca credentials missing - skipping exit execution in {execution_mode} mode. "
                         "Open positions will remain unchanged; only database updates (stop raises, etc.) will proceed."
                     )
                     log_phase_result_fn(6, "exit_execution", "success", f"Broker unavailable - {execution_mode} mode")
@@ -166,7 +166,7 @@ def run(
 
                 if action["action"] == "force_exit":
                     # CRITICAL: Current price is mandatory for force exits
-                    # Cannot execute exit without price — would corrupt P&L reporting
+                    # Cannot execute exit without price - would corrupt P&L reporting
                     try:
                         with DatabaseContext("read") as cur_tmp:
                             cur_tmp.execute(
@@ -208,7 +208,7 @@ def run(
                         errors += 1
 
                 elif action["action"] == "partial_exit":
-                    # Need current price — fetch
+                    # Need current price - fetch
                     try:
                         with DatabaseContext("read") as cur:
                             cur.execute(
@@ -336,7 +336,7 @@ def run(
                 symbol = rec.get("symbol", "UNKNOWN")
                 logger.error(f"  Error on {symbol}: {e}")
 
-        # 4b. Exit engine — tiered targets, stops, time, Minervini break
+        # 4b. Exit engine - tiered targets, stops, time, Minervini break
         if not dry_run:
             engine = ExitEngine(config)
             engine_exits = engine.check_and_execute_exits(run_date)

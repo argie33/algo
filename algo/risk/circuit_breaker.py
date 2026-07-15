@@ -34,7 +34,7 @@ Halts trading when any of these fire:
   CB8. DATA STALENESS      latest data > N days old
 
 Each check returns (halted, reason). The orchestrator runs all checks before
-new entries — any halt blocks new positions but does NOT auto-exit existing
+new entries - any halt blocks new positions but does NOT auto-exit existing
 ones (those are managed by exit_engine + position_monitor).
 
 When a circuit breaker fires:
@@ -65,7 +65,7 @@ def _float(value: Any, default: float | None = None, context: str = "") -> float
     """Convert to float safely, rejecting NaN/Infinity.
 
     CRITICAL: When default is NOT provided (None), raises on missing data.
-    Circuit breaker checks require exact data — missing critical values must
+    Circuit breaker checks require exact data - missing critical values must
     cause failures, not silent defaults.
 
     Args:
@@ -197,7 +197,7 @@ class CircuitBreaker:
 
                         # All check failures result in fail-closed halt.
                         # If a safety check cannot be verified, trading must halt.
-                        # Do NOT skip checks with "transient" claims — that masks data loss.
+                        # Do NOT skip checks with "transient" claims - that masks data loss.
                         logger.critical(f"Circuit breaker {check_name} FAILED - HALTING TRADING: {error_type}: {e}")
                         state = {
                             "halted": True,
@@ -220,7 +220,7 @@ class CircuitBreaker:
                 return results
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"CRITICAL ERROR in circuit breaker check: {e}", exc_info=True)
-                # B12: Fail-closed — if circuit breaker logic itself fails, halt trading
+                # B12: Fail-closed - if circuit breaker logic itself fails, halt trading
                 # Do NOT allow trading when we can't verify safety checks
                 try:
                     from algo.reporting import notify
@@ -259,7 +259,7 @@ class CircuitBreaker:
         peak = _float(row[0], None, context="drawdown peak")
         cur_val = _float(row[1], None, context="drawdown current")
         if peak is None or cur_val is None or peak <= 0 or cur_val <= 0:
-            return {"halted": True, "reason": "Invalid portfolio values — fail-closed"}
+            return {"halted": True, "reason": "Invalid portfolio values - fail-closed"}
         dd = (peak - cur_val) / peak * 100.0
         halt_dd_val = self._get_required_config("halt_drawdown_pct", "in drawdown check")
         threshold = _float(
@@ -361,7 +361,7 @@ class CircuitBreaker:
                     "reason": "Recovery conditions met, but market not in Stage 2 uptrend (waiting for Follow-Through Day)",
                 }
 
-        # All conditions met — re-engagement approved
+        # All conditions met - re-engagement approved
         return {
             "halted": False,
             "reason": f"Re-engagement approved: recovered to {recovery_pct:.1f}%, {days_elapsed}d elapsed, market Stage 2",
@@ -377,7 +377,7 @@ class CircuitBreaker:
             return {"halted": False, "reason": "No today snapshot yet"}
         daily = _float(row[0], None, context="daily_loss")
         if daily is None:
-            return {"halted": True, "reason": "Daily return data invalid — fail-closed"}
+            return {"halted": True, "reason": "Daily return data invalid - fail-closed"}
         max_daily_val = self._get_required_config("max_daily_loss_pct", "in daily loss check")
         threshold = -_float(
             max_daily_val,
@@ -469,9 +469,9 @@ class CircuitBreaker:
 
         if row[0] is None or row[1] is None:
             logger.critical(
-                "Circuit breaker win/loss counts missing from database — cannot evaluate win-rate threshold"
+                "Circuit breaker win/loss counts missing from database - cannot evaluate win-rate threshold"
             )
-            return {"halted": True, "reason": "Trade count data unavailable — halting as safety precaution"}
+            return {"halted": True, "reason": "Trade count data unavailable - halting as safety precaution"}
         wins = int(row[0])
         losses = int(row[1])
         total = int(row[3])
@@ -480,7 +480,7 @@ class CircuitBreaker:
         # This avoids dilution where many break-even trades inflate the denominator
         decisive_trades = wins + losses
         if decisive_trades <= 0:
-            logger.critical("CRITICAL: No decisive trades (wins + losses = 0) — cannot calculate win rate")
+            logger.critical("CRITICAL: No decisive trades (wins + losses = 0) - cannot calculate win rate")
             return {"halted": True, "reason": "Insufficient decisive trades for win rate threshold check"}
         win_rate = wins / decisive_trades * 100.0
         win_rate_val = self._get_required_config("min_win_rate_pct", "in win rate check")
@@ -491,7 +491,7 @@ class CircuitBreaker:
             or threshold == float("inf")
             or threshold == float("-inf")
         ):  # NaN/Inf check
-            logger.critical("CRITICAL: min_win_rate_pct is invalid (NaN/Inf) — circuit breaker cannot function")
+            logger.critical("CRITICAL: min_win_rate_pct is invalid (NaN/Inf) - circuit breaker cannot function")
             return {"halted": True, "reason": "CRITICAL: min_win_rate_pct invalid (NaN/Inf)"}
         return {
             "halted": win_rate < threshold,
@@ -520,7 +520,7 @@ class CircuitBreaker:
             )
             return {
                 "halted": True,
-                "reason": f"{missing_stops_count} positions missing current stops — fail-closed halt",
+                "reason": f"{missing_stops_count} positions missing current stops - fail-closed halt",
             }
 
         cur.execute(
@@ -537,7 +537,7 @@ class CircuitBreaker:
         if result is None:
             logger.error(
                 "Position count query failed (no result). Cannot determine position count. "
-                "Position monitoring unsafe — halting to prevent blind trading."
+                "Position monitoring unsafe - halting to prevent blind trading."
             )
             raise RuntimeError(
                 "Cannot determine position count: query failed. Position monitoring unsafe. "
@@ -554,19 +554,19 @@ class CircuitBreaker:
             )
             return {
                 "halted": True,
-                "reason": f"Risk calculation failed on {position_count} positions — data corruption",
+                "reason": f"Risk calculation failed on {position_count} positions - data corruption",
             }
 
         # If no positions, risk is legitimately 0; if positions exist and calculation succeeded, use result
         total_open_risk = _float(total_open_risk_raw, 0.0, context="total_open_risk")
         if total_open_risk is None:
-            logger.critical("Cannot calculate total open risk — risk calculation failed")
-            return {"halted": True, "reason": "Risk calculation failed — fail-closed"}
+            logger.critical("Cannot calculate total open risk - risk calculation failed")
+            return {"halted": True, "reason": "Risk calculation failed - fail-closed"}
 
         cur.execute("SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1")
         row = cur.fetchone()
         if row is None or row[0] is None:
-            # First run (no portfolio snapshots yet) — skip risk check but log
+            # First run (no portfolio snapshots yet) - skip risk check but log
             logger.info("[TOTAL_RISK_CHECK] Skipping (no portfolio snapshot yet; expected on first run)")
             return {"halted": False, "reason": "No portfolio snapshot (first run?)"}
 
@@ -575,12 +575,12 @@ class CircuitBreaker:
         # Fail-closed: cannot assess total risk without portfolio value.
         if portfolio is None or portfolio <= 0:
             logger.critical(
-                f"[TOTAL_RISK_CHECK] Portfolio value invalid ({portfolio}) — cannot calculate risk. "
+                f"[TOTAL_RISK_CHECK] Portfolio value invalid ({portfolio}) - cannot calculate risk. "
                 "Halting trading to prevent blind risk-taking."
             )
             return {
                 "halted": True,
-                "reason": f"Portfolio value invalid ({portfolio}) — risk calculation impossible. Fail-closed halt.",
+                "reason": f"Portfolio value invalid ({portfolio}) - risk calculation impossible. Fail-closed halt.",
             }
 
         risk_pct = total_open_risk / portfolio * 100.0
@@ -611,24 +611,24 @@ class CircuitBreaker:
         if row is None or row[0] is None:
             vix = None
         else:
-            # Row data exists — validate with _float to reject NaN/Inf
+            # Row data exists - validate with _float to reject NaN/Inf
             try:
                 vix = _float(row[0], context="vix_level")
             except ValueError:
-                # NaN/Inf in vix_level — treat as missing data
+                # NaN/Inf in vix_level - treat as missing data
                 vix = None
 
-        # CRITICAL: VIX data unavailable — cannot safely assess volatility risk.
+        # CRITICAL: VIX data unavailable - cannot safely assess volatility risk.
         # Fail-closed: cannot use fallback estimates. Even computed estimates from SPY
         # volatility mask the real issue (missing live data) and may be inaccurate during
         # extreme market dislocations when we most need reliable circuit breaker protection.
         vix_max_val = self._get_required_config("vix_max_threshold", "in VIX circuit breaker check")
 
         if vix is None:
-            logger.critical("VIX unavailable from live data sources — halting trading")
+            logger.critical("VIX unavailable from live data sources - halting trading")
             return {
                 "halted": True,
-                "reason": "VIX data unavailable — cannot assess volatility risk. Trading halted.",
+                "reason": "VIX data unavailable - cannot assess volatility risk. Trading halted.",
                 "value": None,
                 "threshold": _float(vix_max_val, None),
             }
@@ -662,7 +662,7 @@ class CircuitBreaker:
         if row is None:
             return {
                 "halted": True,
-                "reason": "Market health data missing — fail-closed",
+                "reason": "Market health data missing - fail-closed",
             }
 
         data_date = row[0]
@@ -691,7 +691,7 @@ class CircuitBreaker:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
             logger.critical(
                 f"MarketCalendar check failed: {cal_e}. "
-                "Cannot fall back to weekday logic — holidays would be misclassified. "
+                "Cannot fall back to weekday logic - holidays would be misclassified. "
                 "Failing closed to prevent trading with incorrect market regime classification."
             )
             return {
@@ -712,14 +712,14 @@ class CircuitBreaker:
             )
             return {
                 "halted": True,
-                "reason": f"Market stage data stale ({days_stale}d old) — cannot determine regime. Fail-closed halt.",
+                "reason": f"Market stage data stale ({days_stale}d old) - cannot determine regime. Fail-closed halt.",
                 "value": None,
             }
 
         if row[1] is None:
             return {
                 "halted": True,
-                "reason": "Market stage NULL — fail-closed to prevent trading in unknown stage",
+                "reason": "Market stage NULL - fail-closed to prevent trading in unknown stage",
             }
 
         stage = int(row[1])
@@ -749,7 +749,7 @@ class CircuitBreaker:
         cur_val, week_ago_val = float(row[0]), float(row[1])
         if week_ago_val <= 0:
             logger.critical(
-                f"CRITICAL: Week-ago portfolio value invalid ({week_ago_val}) — cannot calculate weekly return"
+                f"CRITICAL: Week-ago portfolio value invalid ({week_ago_val}) - cannot calculate weekly return"
             )
             return {"halted": True, "reason": "CRITICAL: Portfolio history data invalid"}
         weekly = (cur_val - week_ago_val) / week_ago_val * 100.0
@@ -762,7 +762,7 @@ class CircuitBreaker:
                 raise ValueError(f"max_weekly_loss_pct invalid ({max_weekly_val})")
         except (ValueError, TypeError) as e:
             logger.critical(
-                f"CRITICAL: max_weekly_loss_pct configuration invalid — cannot enforce weekly loss limit: {e}"
+                f"CRITICAL: max_weekly_loss_pct configuration invalid - cannot enforce weekly loss limit: {e}"
             )
             return {"halted": True, "reason": "CRITICAL: max_weekly_loss_pct configuration invalid"}
         return {
@@ -814,7 +814,7 @@ class CircuitBreaker:
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
             logger.critical(
                 f"MarketCalendar check failed: {cal_e}. "
-                "Cannot fall back to weekday logic — holidays would be misclassified. "
+                "Cannot fall back to weekday logic - holidays would be misclassified. "
                 "Failing closed to prevent false staleness determination."
             )
             return {
@@ -859,7 +859,7 @@ class CircuitBreaker:
                     f"CIRCUIT BREAKER: Insufficient SPY price history (got {len(rows)}, need 2). "
                     "Cannot determine prior-day market movement. Halting to prevent trading in unknown market conditions."
                 )
-                return {"halted": True, "reason": "Insufficient SPY price history — cannot assess market stability"}
+                return {"halted": True, "reason": "Insufficient SPY price history - cannot assess market stability"}
 
             latest = float(rows[0][0]) if rows[0][0] is not None else None
             prior = float(rows[1][0]) if rows[1][0] is not None else None
@@ -871,12 +871,12 @@ class CircuitBreaker:
                 )
                 return {
                     "halted": True,
-                    "reason": "Invalid SPY price data — cannot assess market stability. Fail-closed halt.",
+                    "reason": "Invalid SPY price data - cannot assess market stability. Fail-closed halt.",
                 }
 
             prior_day_change = (latest - prior) / prior * 100.0
 
-            # Halt if SPY dropped >2% yesterday — significant sell-off, wait for stability
+            # Halt if SPY dropped >2% yesterday - significant sell-off, wait for stability
             if prior_day_change <= -2.0:
                 return {
                     "halted": True,
@@ -897,7 +897,7 @@ class CircuitBreaker:
             }
 
     def _check_sector_concentration(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Log warning if any sector exceeds max position cap — advisory only, no halt.
+        """Log warning if any sector exceeds max position cap - advisory only, no halt.
 
         Sector concentration is a soft limit; the circuit breaker warns but does not block.
         """
@@ -931,7 +931,7 @@ class CircuitBreaker:
             if concentrated:
                 sector_details = ", ".join(f"{s}({n})" for s, n in concentrated.items())
                 logger.warning(
-                    f"Sector at/near cap: {sector_details} (max {max_sector_positions}) — Phase 6 will block same-sector entries"
+                    f"Sector at/near cap: {sector_details} (max {max_sector_positions}) - Phase 6 will block same-sector entries"
                 )
                 return {
                     "halted": False,
@@ -958,7 +958,7 @@ class CircuitBreaker:
         daily = float(row[0])
         daily_profit_val = self._get_required_config("daily_profit_cap_pct", "in daily profit cap check")
         threshold = float(daily_profit_val)
-        # This check is a SOFT warning, not a halt — it's logged but doesn't block trading
+        # This check is a SOFT warning, not a halt - it's logged but doesn't block trading
         # Orchestrator uses this to skip NEW entries only, not to exit existing positions
         return {
             "halted": False,

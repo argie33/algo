@@ -176,12 +176,12 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
 
         # Determine dry_run: explicit event value takes priority over run_identifier defaults
         if dry_run_raw is not None:
-            # Explicit value provided — use it; run_identifier optional (used for logging only)
+            # Explicit value provided - use it; run_identifier optional (used for logging only)
             dry_run = bool(dry_run_raw)
             if not run_identifier:
                 run_identifier = "manual"
         else:
-            # No explicit dry_run — run_identifier is required to determine trading mode
+            # No explicit dry_run - run_identifier is required to determine trading mode
             if not run_identifier:
                 logger.error("run_identifier is required when dry_run is not explicitly set")
                 return {
@@ -205,9 +205,9 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             elif run_identifier in monitor_ids:
                 dry_run = True
             else:
-                # Unknown identifier — fail safe: observe-only, no trades
+                # Unknown identifier - fail safe: observe-only, no trades
                 logger.warning(
-                    f"Unknown run_identifier: '{run_identifier}' — defaulting to dry_run=True (safe mode). "
+                    f"Unknown run_identifier: '{run_identifier}' - defaulting to dry_run=True (safe mode). "
                     "Add it to _LIVE_TRADING_IDS or _MONITOR_IDS to suppress this warning."
                 )
                 dry_run = True
@@ -312,7 +312,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     "(run_id VARCHAR(255) PRIMARY KEY, run_date DATE, started_at TIMESTAMP, "
                     "completed_at TIMESTAMP, overall_status VARCHAR(50), summary TEXT, halt_reason TEXT, phase_results JSONB)"
                 )
-                # Create algo_orchestrator_runs if missing (actual table orchestrator.py writes run history to —
+                # Create algo_orchestrator_runs if missing (actual table orchestrator.py writes run history to -
                 # distinct from orchestrator_execution_log above, confirmed via live UndefinedTable error)
                 init_cur.execute(
                     "CREATE TABLE IF NOT EXISTS algo_orchestrator_runs "
@@ -321,7 +321,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 )
                 # Add missing updated_at column to algo_portfolio_snapshots (Phase 9's
                 # ON CONFLICT ... DO UPDATE SET updated_at = NOW() references it; confirmed
-                # UndefinedColumn error live — table predates this column being added)
+                # UndefinedColumn error live - table predates this column being added)
                 try:
                     init_cur.execute(
                         "ALTER TABLE algo_portfolio_snapshots ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()"
@@ -527,7 +527,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     }
                 ),
             }
-        logger.info(f"[LAMBDA STARTUP] Config validation passed — {len(required_config_keys)} required keys present")
+        logger.info(f"[LAMBDA STARTUP] Config validation passed - {len(required_config_keys)} required keys present")
 
         orchestrator = Orchestrator(
             config=config,
@@ -536,7 +536,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             verbose=not is_test,
         )
 
-        # Apply event-level config overrides (for testing only — overrides AlgoConfig defaults)
+        # Apply event-level config overrides (for testing only - overrides AlgoConfig defaults)
         # E.g.: {"config_overrides": {"min_close_quality_pct": 0.0, "min_breakout_volume_ratio": 0.5}}
         config_overrides = event.get("config_overrides")
         if config_overrides and isinstance(config_overrides, dict):
@@ -610,10 +610,10 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
             response_status_code = 200 if success else 500
             if not success:
                 logger.warning(
-                    f"[LAMBDA_RESPONSE] Orchestrator failed — returning statusCode {response_status_code} with error status"
+                    f"[LAMBDA_RESPONSE] Orchestrator failed - returning statusCode {response_status_code} with error status"
                 )
             else:
-                logger.info(f"[LAMBDA_RESPONSE] Orchestrator succeeded — returning statusCode {response_status_code}")
+                logger.info(f"[LAMBDA_RESPONSE] Orchestrator succeeded - returning statusCode {response_status_code}")
             return {
                 "statusCode": response_status_code,
                 "body": json.dumps(

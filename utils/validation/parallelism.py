@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Loader Parallelism Validator — Tests auto-scaling with full symbol datasets.
+"""Loader Parallelism Validator - Tests auto-scaling with full symbol datasets.
 
 Validates that loader parallelism auto-scaling correctly adapts to:
 - Full 5000+ symbol datasets
@@ -164,7 +164,7 @@ class ParallelismValidator:
             "technical_data": self.validate_technical_data_loader(),
         }
 
-        # Validate result structure — test_passed must be present and bool
+        # Validate result structure - test_passed must be present and bool
         passed = 0
         for name, r in results.items():
             if "test_passed" not in r:

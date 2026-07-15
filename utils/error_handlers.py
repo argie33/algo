@@ -190,7 +190,7 @@ def sanitize_error_message(msg: str) -> str:
     """Remove sensitive info (credentials, SQL, IPs, paths) from message.
 
     Prevents credential leaks, SQL injection details, IPs, and file paths from
-    being exposed to clients or logs. Does NOT redact email addresses — those
+    being exposed to clients or logs. Does NOT redact email addresses - those
     are frequently legitimate, non-sensitive content in user-facing messages
     (e.g. validation errors echoing back a submitted value).
 
@@ -204,7 +204,7 @@ def sanitize_error_message(msg: str) -> str:
         return str(msg)
 
     # Remove SQL query details (anything between common SQL keywords).
-    # CRITICAL: keywords must be word-bounded — without \b, bare "ON" (IGNORECASE)
+    # CRITICAL: keywords must be word-bounded - without \b, bare "ON" (IGNORECASE)
     # matches the substring "on" inside ordinary words like "conn[on]ection",
     # corrupting any message containing "connection", "on", "front", etc.
     sanitized = re.sub(
@@ -218,7 +218,7 @@ def sanitize_error_message(msg: str) -> str:
     sanitized = re.sub(r"(/[a-zA-Z0-9/_.-]*)+", "[path]", sanitized)
     sanitized = re.sub(r"([A-Z]:\\[a-zA-Z0-9_\\.\-]+)+", "[path]", sanitized)
 
-    # Remove credential values (password, token, key, api_key, secret) — keeps the
+    # Remove credential values (password, token, key, api_key, secret) - keeps the
     # keyword itself (e.g. "password=[redacted]") so the message stays useful for
     # debugging without leaking the actual secret value.
     sanitized = re.sub(

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""SLA Monitoring — Tracks pipeline deadlines and provides alerts.
+"""SLA Monitoring - Tracks pipeline deadlines and provides alerts.
 
 Monitors critical SLA windows:
 - Morning Prep: 2:00 AM - 9:30 AM ET (7.5h budget)

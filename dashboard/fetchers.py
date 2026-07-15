@@ -403,7 +403,7 @@ def load_all() -> dict[str, Any]:
     # Log critical fetcher failures loudly, but degrade per-panel rather than
     # blanking the whole dashboard. Every panel renderer already has its own
     # "_error" handling (dashboard/panels/*.py: economic, health, portfolio,
-    # positions, scores, signals, trades) built exactly for this — a single
+    # positions, scores, signals, trades) built exactly for this - a single
     # failed fetcher (auth hiccup, transient 503, timeout) used to discard
     # the entire merged result here, which meant every OTHER panel that had
     # already fetched fine also showed nothing. Merge the error dicts through

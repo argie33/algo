@@ -61,7 +61,7 @@ def run(
             if partial_fill_result["mismatches"] > 0:
                 logger.warning(
                     f"[PHASE_3A] Detected {partial_fill_result['mismatches']} "
-                    f"partial fills — corrected quantities to match Alpaca"
+                    f"partial fills - corrected quantities to match Alpaca"
                 )
                 result["partial_fill_corrections"] = partial_fill_result
 

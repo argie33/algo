@@ -1,4 +1,4 @@
-"""Dashboard API Response Validator — validates inbound responses at dashboard boundary.
+"""Dashboard API Response Validator - validates inbound responses at dashboard boundary.
 
 This is the CANONICAL validator for dashboard data integrity. It provides 15+ specialized
 validators for critical endpoints (Portfolio, Performance, Markets, etc.) that use a
@@ -178,7 +178,7 @@ def validate_config_response(data: dict[str, Any]) -> dict[str, Any]:
     if has_error(data):
         return data
 
-    # API returns {items: [{key, value, ...}], total: N} — flatten for field checks
+    # API returns {items: [{key, value, ...}], total: N} - flatten for field checks
     if "items" in data and isinstance(data["items"], list):
         flat = {i["key"]: i.get("value") for i in data["items"] if isinstance(i, dict) and "key" in i}
         data = {**data, **flat}

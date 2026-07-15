@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """RDS Database Cleanup Utility - Remove extra databases, keep only 'stocks'.
 
-⚠️ DEPRECATED: Emergency workaround script — bypasses RDS Proxy connection pooling.
+⚠️ DEPRECATED: Emergency workaround script - bypasses RDS Proxy connection pooling.
 This script connects directly to AWS RDS and performs database cleanup operations.
 
 DO NOT use this script except as a last resort during infrastructure failures.

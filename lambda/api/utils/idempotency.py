@@ -96,7 +96,7 @@ def check_idempotency_key(cur: Any, idempotency_key: str, endpoint: str, timeout
     ) as e:
         raise RuntimeError(
             f"IDEMPOTENCY INFRASTRUCTURE FAILURE: {type(e).__name__}: {e}. "
-            f"Cannot check idempotency key — duplicate trade protection unavailable. "
+            f"Cannot check idempotency key - duplicate trade protection unavailable. "
             f"Ensure api_idempotency_keys table exists and database connection is healthy."
         ) from e
 
@@ -144,7 +144,7 @@ def store_idempotency_key(
     ) as e:
         raise RuntimeError(
             f"IDEMPOTENCY INFRASTRUCTURE FAILURE: {type(e).__name__}: {e}. "
-            f"Cannot store idempotency key — duplicate trade protection unavailable. "
+            f"Cannot store idempotency key - duplicate trade protection unavailable. "
             f"Ensure api_idempotency_keys table exists and database connection is healthy."
         ) from e
 

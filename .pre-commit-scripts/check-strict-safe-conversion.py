@@ -58,7 +58,7 @@ def check_strict_conversion(filepath: str) -> list[str]:
         func_name = match.group(1)
 
         # Extract the call expression (from first paren to matching close paren)
-        # This is a simplified check—if line contains both open and close, check it
+        # This is a simplified check-if line contains both open and close, check it
         if "(" in line and ")" in line:
             call_start = line.find(func_name + "(")
             call_end = line.rfind(")")

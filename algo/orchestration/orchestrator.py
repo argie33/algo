@@ -76,7 +76,7 @@ class Orchestrator:
         if config is None:
             raise ValueError(
                 "Orchestrator requires explicit config parameter (dependency injection). "
-                "Remove fallback to get_config() — get config at entry point and pass it explicitly."
+                "Remove fallback to get_config() - get config at entry point and pass it explicitly."
             )
         self.config = config
 
@@ -422,7 +422,7 @@ class Orchestrator:
                             f"This indicates ECS metadata corruption or schema change. Task: {task}"
                         )
                     raise ValueError(
-                        f"[CRITICAL] Task missing startedAt field — cannot assess if hung. "
+                        f"[CRITICAL] Task missing startedAt field - cannot assess if hung. "
                         f"This indicates ECS metadata corruption or schema change. "
                         f"Cannot proceed with hung loader detection. Task: {task_arn}"
                     )
@@ -453,7 +453,7 @@ class Orchestrator:
                         )
                         self.degraded_mode = True
                         failed_terminations.append((loader_name, task_arn, str(stop_err)))
-                        # Don't silently continue — mark as degraded so operator is aware task termination failed
+                        # Don't silently continue - mark as degraded so operator is aware task termination failed
 
                     # ISSUE #5: Verify task actually stopped (with retries)
                     if self.db_monitor.verify_task_stopped(ecs, cluster, task_arn, loader_name):
@@ -545,7 +545,7 @@ class Orchestrator:
                             logger.info("[PROACTIVE WAIT] All critical loaders are at 95%+ completion")
                             return True
 
-                        # Still running — log progress and wait
+                        # Still running - log progress and wait
                         elapsed = time.time() - start_time
                         slowest = incomplete_loaders[0]
                         slowest_name, _, slowest_pct, slowest_loaded, slowest_count = slowest
@@ -586,7 +586,7 @@ class Orchestrator:
         have been executed and are up-to-date. Non-blocking advisory check that helps
         diagnose data staleness issues before Phase 1 runs.
 
-        Logs warnings if critical loaders are missing or stale (>4 hours old) — this often
+        Logs warnings if critical loaders are missing or stale (>4 hours old) - this often
         indicates EventBridge is not firing the loader schedule, or loaders are hung.
 
         CRITICAL: If ALL critical loaders are missing/stale simultaneously, this indicates
@@ -640,11 +640,11 @@ class Orchestrator:
                     else:
                         last_updated_utc = None
 
-                    # CRITICAL: Must explicitly determine staleness — no silent assumptions about loader health
+                    # CRITICAL: Must explicitly determine staleness - no silent assumptions about loader health
                     if last_updated_utc is None:
                         logger.error(
                             f"[LOADER HEALTH] {table_name} cannot determine staleness: last_updated_utc is None. "
-                            "Loader status unknown — cannot proceed without explicit timestamp."
+                            "Loader status unknown - cannot proceed without explicit timestamp."
                         )
                         raise RuntimeError(
                             f"Cannot determine loader staleness for {table_name}: no last_updated_utc timestamp. "
@@ -654,7 +654,7 @@ class Orchestrator:
                     is_stale = last_updated_utc < stale_threshold
 
                     # CRITICAL: completion_pct is None only if database query failed or loader hasn't reported yet
-                    # Treat None as incomplete (fail-safe) — don't silently use 0 (which looks like successful 0% load)
+                    # Treat None as incomplete (fail-safe) - don't silently use 0 (which looks like successful 0% load)
                     if completion_pct is None:
                         is_complete = False
                         logger.error(
@@ -774,7 +774,7 @@ class Orchestrator:
         """
         required_tables = [
             "price_daily",  # Phase 1, Phase 5 signal generation
-            "trend_template_data",  # Phase 5 (SignalComputer — Minervini, Weinstein)
+            "trend_template_data",  # Phase 5 (SignalComputer - Minervini, Weinstein)
             "sector_ranking",  # Phase 3b (sector rotation)
             "market_health_daily",  # Phase 3b (exposure), Phase 4 (distribution days)
             "market_exposure_daily",  # Phase 3b (entry constraints)
@@ -902,7 +902,7 @@ class Orchestrator:
         # Store result for Phase 5 to check degradation status
         self._phase1_result = result
 
-        # Informational DynamoDB write (phase1_degraded_mode key) — separate from halt flag
+        # Informational DynamoDB write (phase1_degraded_mode key) - separate from halt flag
         # management so a DynamoDB write failure never prevents the halt flag from being cleared.
         try:
             import boto3
@@ -1279,7 +1279,7 @@ class Orchestrator:
             with DatabaseContext("read", timeout=10) as cur:
                 logger.debug("[PREFLIGHT] Validating required tables")
                 if not self._validate_required_tables(cur):
-                    logger.error("[HALT] Required tables missing — cannot proceed")
+                    logger.error("[HALT] Required tables missing - cannot proceed")
                     return self._final_report()
                 logger.info("[OK] All pre-flight checks passed")
         except TimeoutError as e:
@@ -1431,7 +1431,7 @@ class Orchestrator:
     def run(self) -> dict[str, Any]:
         self.run_start = time.time()
         logger.info(f"\n{'#' * 70}")
-        logger.info(f"#   ALGO ORCHESTRATOR — {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
+        logger.info(f"#   ALGO ORCHESTRATOR - {self.run_date}  ({'DRY RUN' if self.dry_run else 'LIVE'})")
         logger.info(f"#   run_id: {self.run_id}")
         logger.info(f"#   START TIME: {datetime.now(timezone.utc).isoformat()}")
         logger.info(f"{'#' * 70}")
@@ -1459,7 +1459,7 @@ class Orchestrator:
 
     def _final_report(self) -> dict[str, Any]:
         logger.info(f"\n{'#' * 70}")
-        logger.info(f"#   FINAL REPORT — {self.run_id}")
+        logger.info(f"#   FINAL REPORT - {self.run_id}")
         logger.info(f"{'#' * 70}")
         for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0])):
             status_flag = {
@@ -1468,7 +1468,7 @@ class Orchestrator:
                 "fail": "[FAIL]",
                 "error": "[ERR] ",
             }.get(info["status"], "[?]   ")
-            logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} — {info['summary']}")
+            logger.info(f"  {status_flag} Phase {n}: {info['name']:22s} - {info['summary']}")
         logger.info(f"{'#' * 70}\n")
 
         any_error = any(p["status"] in ("error", "fail") for p in self.phase_results.values())
@@ -1545,7 +1545,7 @@ class Orchestrator:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.warning(f"[EXECUTION_LOG] Failed to save execution log: {e}")
 
-        # Publish CloudWatch metrics (non-blocking — never let metrics interrupt trading)
+        # Publish CloudWatch metrics (non-blocking - never let metrics interrupt trading)
         try:
             from algo.reporting import MetricsPublisher
 

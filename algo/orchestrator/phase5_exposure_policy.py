@@ -58,7 +58,7 @@ def run(
         constraints = policy.get_entry_constraints(run_date)
 
         if constraints:
-            logger.info(f"  Tier: {constraints['tier_name']} — {constraints['description']}")
+            logger.info(f"  Tier: {constraints['tier_name']} - {constraints['description']}")
             logger.info(
                 f"    risk_mult={constraints['risk_multiplier']}, "
                 f"max_new/day={constraints['max_new_positions_today']}, "
@@ -166,7 +166,7 @@ def run(
         )
         fail_halt_constraints = {
             "tier_name": "CORRECTION",
-            "description": "Market regime data missing — no entries allowed",
+            "description": "Market regime data missing - no entries allowed",
             "risk_multiplier": 0.0,
             "max_new_positions_today": 0,
             "halt_new_entries": True,
@@ -198,7 +198,7 @@ def run(
         )
         fail_halt_constraints = {
             "tier_name": "CORRECTION",
-            "description": "Exposure policy unavailable due to system error — no entries allowed",
+            "description": "Exposure policy unavailable due to system error - no entries allowed",
             "risk_multiplier": 0.0,
             "max_new_positions_today": 0,
             "halt_new_entries": True,
@@ -209,7 +209,7 @@ def run(
             5,
             "exposure_policy",
             "error",
-            f"Exposure policy error — halting entries: {str(e)[:80]}",
+            f"Exposure policy error - halting entries: {str(e)[:80]}",
         )
         return PhaseResult(
             5,

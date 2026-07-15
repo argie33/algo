@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Consolidated Economic Data Loader — US economic indicators + currency.
+"""Consolidated Economic Data Loader - US economic indicators + currency.
 
 Fetches and stores:
 - FRED Series: T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA (daily via FRED API)
@@ -150,7 +150,7 @@ def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
     # (mirrors utils/data/source_router.py's _yf_download_with_circuit_breaker).
     # wait_or_raise() blocks briefly for short shared-IP bans; long bans raise
     # YFinanceStillBannedError (a RuntimeError), which load() catches and records
-    # as DXY_ICE unavailable — no unthrottled request is fired during an active ban.
+    # as DXY_ICE unavailable - no unthrottled request is fired during an active ban.
     circuit_breaker = get_circuit_breaker()
     circuit_breaker.wait_or_raise()
 

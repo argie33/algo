@@ -68,7 +68,7 @@ AUXILIARY_DATA: set[str] = {
 }
 
 # Generated data (computed by orchestrator itself, not loaded from external APIs)
-# These should never be in "incomplete" status — they're outputs, not inputs
+# These should never be in "incomplete" status - they're outputs, not inputs
 ORCHESTRATOR_GENERATED: set[str] = {
     "stock_scores",  # Phase 5 output
     "buy_sell_daily",  # Phase 5 output

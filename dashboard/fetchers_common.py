@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def record_data_quality_issue(fetcher: str, issue_type: str, issue_subtype: str, details: str = "") -> None:
     msg = f"[DATA_QUALITY] {fetcher}: {issue_type}/{issue_subtype}"
     if details:
-        msg += f" — {details[:80]}"
+        msg += f" - {details[:80]}"
     logger.warning(msg)
 
 
@@ -132,7 +132,7 @@ def is_api_error(response: dict[str, Any]) -> bool:
         # CRITICAL: Missing statusCode means we can't validate the response
         # This could be a schema change, API error, or malformed response
         logger.warning(
-            "API response missing 'statusCode' field — cannot determine validity. "
+            "API response missing 'statusCode' field - cannot determine validity. "
             "Treating as error to prevent silent acceptance of malformed responses."
         )
         return True  # Fail-fast: treat missing statusCode as error
@@ -140,7 +140,7 @@ def is_api_error(response: dict[str, Any]) -> bool:
         try:
             status = int(status)
         except (ValueError, TypeError):
-            logger.warning(f"API statusCode '{status}' is not numeric — cannot parse. Treating as error.")
+            logger.warning(f"API statusCode '{status}' is not numeric - cannot parse. Treating as error.")
             return True  # Fail-fast: unparseable status is an error
     return status >= 400
 
@@ -169,7 +169,7 @@ def check_data_freshness(data_dict: Any, max_age_seconds: int = 3600) -> None:
         if age > max_age_seconds:
             raise ValueError(
                 f"Data too stale: {age:.0f}s old (max {max_age_seconds}s). "
-                "Cannot use stale data for trading decisions — must use fresh data or show error to user."
+                "Cannot use stale data for trading decisions - must use fresh data or show error to user."
             )
     except (ValueError, TypeError, AttributeError) as e:
         if isinstance(e, ValueError) and "too stale" in str(e):

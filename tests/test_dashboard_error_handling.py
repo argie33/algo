@@ -120,7 +120,7 @@ def test_error_panel_handles_bracket_chars_in_error_message() -> None:
         error_summary_panel_expanded,
     )
 
-    # Network errors often include [Errno NNN] — these brackets must be escaped
+    # Network errors often include [Errno NNN] - these brackets must be escaped
     bracket_errors = {
         "cb": {"_error": "Fetcher cb (/api/algo/circuit-breakers) - ConnectionError: [Errno 111] Connection refused"},
         "port": {"_error": "HTTPError: 404 Client Error: [Not Found] for url: https://api.example.com/portfolio"},
@@ -286,7 +286,7 @@ def test_error_message_fallback_for_missing_error_details() -> None:
     """Verify that missing or None _error values are rejected with fail-fast errors."""
     from dashboard.error_boundary import error_summary_panel
 
-    # Test case 1: _error is None — should raise ValueError
+    # Test case 1: _error is None - should raise ValueError
     data_none_error = {"mkt": {"_error": None}}
     try:
         panel = error_summary_panel(data_none_error)
@@ -296,7 +296,7 @@ def test_error_message_fallback_for_missing_error_details() -> None:
         assert "empty/None" in str(e), f"Error message should mention empty/None state, got: {e}"
     print("OK error_summary_panel correctly rejects None _error with fail-fast error")
 
-    # Test case 2: _error is empty string — should raise ValueError
+    # Test case 2: _error is empty string - should raise ValueError
     data_empty_error = {"mkt": {"_error": ""}}
     try:
         panel = error_summary_panel(data_empty_error)

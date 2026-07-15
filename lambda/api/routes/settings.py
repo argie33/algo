@@ -1,4 +1,4 @@
-"""Route: settings — user preferences stored per authenticated Cognito user."""
+"""Route: settings - user preferences stored per authenticated Cognito user."""
 
 from __future__ import annotations
 
@@ -92,7 +92,7 @@ def _get_settings(cur: cursor, jwt_claims: dict[str, Any]) -> Any:
             notifications = row.get("notifications")
             if notifications is None:
                 logger.error(f"User {user_id} has NULL notifications field (schema error or data corruption)")
-                raise ValueError("User notifications field is NULL — schema error or data corruption")
+                raise ValueError("User notifications field is NULL - schema error or data corruption")
 
             stored = {
                 "theme": row["theme"] or "dark",

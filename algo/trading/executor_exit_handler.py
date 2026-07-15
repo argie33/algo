@@ -242,7 +242,7 @@ class ExitHandler:
     def _fetch_and_lock_trade_data(self, cur: PsycopgCursor[Any], trade_id: int) -> tuple[Any, ...]:
         """Guard 2: Fetch all trade and position data with row locks.
 
-        Lock algo_trades (t) only — PostgreSQL forbids FOR UPDATE on nullable side
+        Lock algo_trades (t) only - PostgreSQL forbids FOR UPDATE on nullable side
         of LEFT JOIN (p may be NULL if trade has no position yet).
 
         Returns:
@@ -264,7 +264,7 @@ class ExitHandler:
         row = cur.fetchone()
         if row is None:
             raise RuntimeError(
-                f"[EXECUTOR_EXIT] Trade {trade_id} not found in database — "
+                f"[EXECUTOR_EXIT] Trade {trade_id} not found in database - "
                 "cannot execute exit for non-existent trade. Check if trade was properly recorded."
             )
         return tuple(row)

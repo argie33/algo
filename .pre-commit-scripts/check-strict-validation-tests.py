@@ -73,7 +73,7 @@ def check_strict_validation_tests() -> tuple[bool, list[str]]:
 
             # If using safe_float/safe_int, should have strict=True
             if re.search(r"\bsafe_float\(.*\)", content) or re.search(r"\bsafe_int\(.*\)", content):
-                # Just note this, don't fail — check-strict-safe-conversion.py handles this
+                # Just note this, don't fail - check-strict-safe-conversion.py handles this
                 pass
 
     return len(issues) == 0, issues

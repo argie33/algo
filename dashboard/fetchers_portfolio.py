@@ -24,7 +24,7 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
     Missing data triggers error, not silent 0 values which are catastrophically misleading.
 
     NOTE: Portfolio data is updated by Phase 9 daily reconciliation. If data is stale
-    (>7 days old), Phase 9 orchestration may be halted or failed — check orchestration
+    (>7 days old), Phase 9 orchestration may be halted or failed - check orchestration
     logs and algo_portfolio_snapshots table for recent updates.
 
     Non-trading days: On weekends and holidays, portfolio data is NOT updated because
@@ -103,7 +103,7 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
         data_freshness = port.get("data_freshness")
         is_stale_from_api = None
         if data_freshness is None:
-            # No freshness data available — continue without freshness check
+            # No freshness data available - continue without freshness check
             logger.debug("Portfolio API did not provide data_freshness field; skipping freshness validation")
         else:
             # data_freshness field exists; extract is_stale flag
@@ -179,12 +179,12 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
 
         # These are derived analytics (daily/cumulative return, drawdown, largest position)
         # that are legitimately None on the first trading day, when Phase 9 hasn't computed
-        # them yet, or with zero open positions — not a sign of a data failure. Log for
+        # them yet, or with zero open positions - not a sign of a data failure. Log for
         # visibility but pass None through: dashboard/panels/portfolio.py already handles
         # each of these being None explicitly (renders the rest of the portfolio panel,
         # only warns if it's a trading day). Previously this hard-failed the ENTIRE
-        # portfolio fetch over any one of these being unset, which — combined with "port"
-        # being a critical fetcher in fetchers.py's load_all() — blanked the whole
+        # portfolio fetch over any one of these being unset, which - combined with "port"
+        # being a critical fetcher in fetchers.py's load_all() - blanked the whole
         # dashboard, not just this panel, whenever one derived metric was momentarily
         # unavailable (e.g. right after an orchestrator halt).
         missing_metrics = []

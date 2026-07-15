@@ -213,7 +213,7 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
             return "healthy", []
 
         # CRITICAL: ANY stale critical table is unhealthy (not degraded).
-        # Even one stale table means data pipeline has failed — that's a critical issue.
+        # Even one stale table means data pipeline has failed - that's a critical issue.
         critical_count = sum(1 for t in stale_tables if t.get("status") in ["EMPTY", "CHECK_FAILED"])
         logger.error(
             f"[DATA_STALENESS_ALERT] {len(stale_tables)} critical tables are stale/empty. "

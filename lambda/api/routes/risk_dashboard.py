@@ -291,7 +291,7 @@ def _fetch_exposure_tier_info(cur: cursor) -> Any:
     """Get current market exposure tier (NORMAL/CAUTION/PRESSURE).
 
     FAIL-FAST: Raises if market exposure data is unavailable or invalid.
-    Market tier is critical for position sizing — missing/invalid data must halt trading.
+    Market tier is critical for position sizing - missing/invalid data must halt trading.
     No defaults allowed for exposure_pct or tier fields.
     """
     rows = execute_with_timeout(
@@ -340,7 +340,7 @@ def _fetch_exposure_tier_info(cur: cursor) -> Any:
             raise ValueError(
                 f"CRITICAL: Invalid regime '{tier}' from market_exposure_daily. "
                 f"Expected one of: {', '.join(tier_multipliers.keys())}. "
-                f"Check market exposure computation — regime field corrupt."
+                f"Check market exposure computation - regime field corrupt."
             )
 
         rationale = row["halt_reasons"]

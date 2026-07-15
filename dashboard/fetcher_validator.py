@@ -137,7 +137,7 @@ class FetcherValidator:
             if part not in current:
                 if required:
                     return None, f"Missing required field: {field_path}"
-                # Optional field missing — log for visibility but return None with no error
+                # Optional field missing - log for visibility but return None with no error
                 logger.debug(f"[FETCHER_VALIDATOR] Optional field not present: {field_path} (unavailable)")
                 return None, None
             current = current[part]
@@ -157,23 +157,23 @@ class FetcherValidator:
         Returns:
             dict with _error key and message
 
-        Requires error message to contain actual error details — fails fast on None or empty messages.
+        Requires error message to contain actual error details - fails fast on None or empty messages.
 
         Args:
             error_message: Error message to include (must be non-empty)
 
         Returns:
-            {"_error": "<message>"} — always includes detailed error text
+            {"_error": "<message>"} - always includes detailed error text
 
         Raises:
             ValueError: If error_message is None or empty after strip
         """
         if error_message is None:
-            logger.error("build_error_response called with None message — this is a caller error")
+            logger.error("build_error_response called with None message - this is a caller error")
             raise ValueError("build_error_response requires a non-None error message with actual error details")
         error_str = str(error_message).strip()
         if not error_str:
-            logger.error("build_error_response called with empty message after strip — this is a caller error")
+            logger.error("build_error_response called with empty message after strip - this is a caller error")
             raise ValueError("build_error_response requires a non-empty error message with actual error details")
         return {"_error": error_str}
 
@@ -191,7 +191,7 @@ class FetcherValidator:
             (valid: bool, error_message: str|None)
 
         When freshness validation is enabled (max_age_seconds and timestamp_field specified),
-        timestamp field MUST be present and valid — missing timestamp triggers freshness error.
+        timestamp field MUST be present and valid - missing timestamp triggers freshness error.
         """
         # Check for API error
         is_error, error_msg = FetcherValidator.check_api_error(response)

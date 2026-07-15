@@ -113,7 +113,7 @@ class MarketSymbolsConfig:
             # Database connection error or other issues
             msg = (
                 f"[MARKET_SYMBOLS_CONFIG CRITICAL] Failed to fetch config key '{key}' from algo_config: {e}. "
-                f"Cannot reliably fall back to hardcoded defaults—database is required for accurate symbol configuration. "
+                f"Cannot reliably fall back to hardcoded defaults-database is required for accurate symbol configuration. "
                 f"Check database connectivity and algo_config table."
             )
             logger.error(msg)

@@ -265,7 +265,7 @@ def _check_liquidity_parallel(
         liquidity = LiquidityChecks(config=config)
         liq_ok, liq_reason = liquidity.run_all(candidate["symbol"], 0, run_date)
         if not liq_ok:
-            logger.debug(f"[PHASE 7] {candidate['symbol']}: liquidity — {liq_reason}")
+            logger.debug(f"[PHASE 7] {candidate['symbol']}: liquidity - {liq_reason}")
         return candidate, liq_ok
     except (ValueError, ZeroDivisionError, TypeError) as e:
         logger.warning(f"[PHASE 7] {candidate['symbol']}: liquidity check error ({type(e).__name__}): {e!s}")
@@ -392,7 +392,7 @@ def _get_candidates_from_stock_scores_fallback(
 
         logger.info(
             f"[PHASE 7 FALLBACK] {len(candidates)} candidates from stock_scores only "
-            f"(no buy_sell_daily — EOD pipeline pending)"
+            f"(no buy_sell_daily - EOD pipeline pending)"
         )
         return candidates
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -409,7 +409,7 @@ def _get_candidates_from_buysell(
     that was above SMA_50) AND a high composite_score. The breakout confirms the entry timing;
     composite_score ranks quality.
 
-    Lookback: last _BUYSELL_LOOKBACK_DAYS calendar days — covers the prior EOD pipeline's
+    Lookback: last _BUYSELL_LOOKBACK_DAYS calendar days - covers the prior EOD pipeline's
     signals for morning/afternoon orchestrator runs, plus today's signals for the 5:30 PM run.
 
     SWING SCORE MIGRATION: Removed swing_trader_scores LEFT JOIN (was fetched but never used).
@@ -512,7 +512,7 @@ def _get_candidates_from_buysell(
             # Composite score guaranteed by JOIN (stock_scores inner join)
             if r[1] is None:
                 raise ValueError(
-                    f"[PHASE 7] {symbol}: composite_score is NULL — "
+                    f"[PHASE 7] {symbol}: composite_score is NULL - "
                     "stock_scores join guarantees non-null composite_score"
                 )
             composite = float(r[1])
@@ -520,14 +520,14 @@ def _get_candidates_from_buysell(
             # Close guaranteed by LATERAL price_daily join
             if r[6] is None:
                 raise ValueError(
-                    f"[PHASE 7] {symbol}: close price is NULL — price_daily lateral join guarantees latest close"
+                    f"[PHASE 7] {symbol}: close price is NULL - price_daily lateral join guarantees latest close"
                 )
             close = float(r[6])
 
             # Signal strength guaranteed by WHERE clause (bsd.strength IS NOT NULL)
             if r[15] is None:
                 raise ValueError(
-                    f"[PHASE 7] {symbol}: signal_strength is NULL — WHERE clause guarantees non-null strength"
+                    f"[PHASE 7] {symbol}: signal_strength is NULL - WHERE clause guarantees non-null strength"
                 )
             raw_strength = float(r[15])
 
@@ -722,7 +722,7 @@ def run(  # noqa: C901
 
     min_close_quality = float(config["min_close_quality_pct"]) / 100.0
 
-    # ISSUE #8 FIX: Guard rails — check critical dependencies BEFORE signal generation
+    # ISSUE #8 FIX: Guard rails - check critical dependencies BEFORE signal generation
     # Fails fast if ANY dependency is unavailable, preventing silent degradation
     ok, dep_error = _check_critical_dependencies(run_date, log_phase_result_fn)
     if not ok:
@@ -733,7 +733,7 @@ def run(  # noqa: C901
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
         logger.critical(
-            "[PHASE 7] Halt flag set by Phase 1 — data quality degradation detected. Halting signal generation."
+            "[PHASE 7] Halt flag set by Phase 1 - data quality degradation detected. Halting signal generation."
         )
         log_phase_result_fn(7, "signal_generation", "halt", "Halt flag set: data quality degradation")
         return PhaseResult(
@@ -770,7 +770,7 @@ def run(  # noqa: C901
             reasons[:100],
         )
 
-    # ISSUE #7 FIX: Exposure policy gate — fail-closed if constraints not provided
+    # ISSUE #7 FIX: Exposure policy gate - fail-closed if constraints not provided
     if exposure_constraints is None:
         msg = (
             "[PHASE 7 CRITICAL] Exposure constraints not provided by Phase 5. "
@@ -899,7 +899,7 @@ def run(  # noqa: C901
 
     quality_filtered.sort(key=lambda s: float(s["composite_score"]), reverse=True)
 
-    # Liquidity checks on top candidates — parallelized
+    # Liquidity checks on top candidates - parallelized
     liq_passed = []
     liq_checked = 0
     to_check = quality_filtered[:_LIQUIDITY_CHECK_LIMIT]

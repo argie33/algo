@@ -85,7 +85,7 @@ class PhaseCompletedEvent(PhaseEvent):
         if metrics is None:
             raise ValueError(
                 f"[PHASE_EVENT] Phase completion event for '{phase_name}' missing metrics. "
-                f"Cannot publish phase completion without metrics data—events with missing metrics hide phase progress. "
+                f"Cannot publish phase completion without metrics data-events with missing metrics hide phase progress. "
                 f"Ensure phase executor populates metrics before firing PhaseCompletedEvent."
             )
         super().__init__(

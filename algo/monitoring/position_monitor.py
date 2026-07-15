@@ -296,7 +296,7 @@ class PositionMonitor:
                 """)
                 count_row = cur.fetchone()
                 if count_row is None:
-                    raise PositionValidationError("Query for open positions returned None — database error")
+                    raise PositionValidationError("Query for open positions returned None - database error")
                 position_count = count_row[0]
                 pos_value_sum = count_row[1] if len(count_row) > 1 else None
 
@@ -311,12 +311,12 @@ class PositionMonitor:
                 pos_value = float(pos_value_sum) if pos_value_sum is not None else 0.0
                 if pos_value < 0:
                     # Negative total may be caused by a short position written during
-                    # an Alpaca sync anomaly. Log at ERROR but do not halt — Phase 4
+                    # an Alpaca sync anomaly. Log at ERROR but do not halt - Phase 4
                     # reconciliation will close any short positions in DB. A true
                     # corruption scenario (negative equity from math error) is caught
                     # by the total_equity <= 0 check above.
                     logger.error(
-                        f"[MARGIN_CHECK] Total position value {pos_value:.2f} < 0 — "
+                        f"[MARGIN_CHECK] Total position value {pos_value:.2f} < 0 - "
                         "likely stale short position in algo_positions. "
                         "Reconciliation (Phase 4) will close it. Continuing with pos_value=0."
                     )
@@ -464,7 +464,7 @@ class PositionMonitor:
         active_stop = float(current_stop) if current_stop else init_stop
         if target_hits is None:
             logger.critical(
-                f"CRITICAL: {symbol} — target_hits is NULL in algo_trades. "
+                f"CRITICAL: {symbol} - target_hits is NULL in algo_trades. "
                 f"Cannot evaluate position without target hit count. "
                 f"Database schema or trade data corrupted."
             )
@@ -545,14 +545,14 @@ class PositionMonitor:
         if days_held >= max_hold * 0.5 and target_hits == 0 and r_multiple < 0.5:
             flags.append("TIME_DECAY_NO_PROGRESS")
 
-        # 3e. Earnings proximity (warn and skip if data unavailable — earnings data is optional enrichment)
+        # 3e. Earnings proximity (warn and skip if data unavailable - earnings data is optional enrichment)
         days_to_earn: int | None = None
         try:
             days_to_earn = self._days_to_earnings(symbol, current_date, cur)
             if 0 <= days_to_earn <= 3:
                 flags.append(f"EARNINGS_IN_{days_to_earn}D")
         except ValueError as e:
-            logger.warning(f"[POSITION_MONITOR] Earnings data unavailable for {symbol} — skipping proximity check: {e}")
+            logger.warning(f"[POSITION_MONITOR] Earnings data unavailable for {symbol} - skipping proximity check: {e}")
         except RuntimeError as e:
             raise PositionValidationError(f"Cannot evaluate earnings proximity for {symbol}: {e}") from e
 
@@ -775,7 +775,7 @@ class PositionMonitor:
 
         # CRITICAL: Trailing stop calculations REQUIRE both ATR and SMA_50
         # ATR provides volatility-based placement; SMA_50 provides trend context
-        # Both are REQUIRED for proper risk management—cannot silently degrade
+        # Both are REQUIRED for proper risk management-cannot silently degrade
         if atr is None or sma_50 is None:
             raise ValueError(
                 f"[POSITION_MONITOR] Cannot compute trailing stop for {symbol} on {current_date}: "
@@ -846,7 +846,7 @@ class PositionMonitor:
         except (ValueError, RuntimeError) as e:
             raise PositionValidationError(
                 f"[RS_CALCULATION_FAILED] Cannot evaluate relative strength for {symbol}: {e}. "
-                f"Period return calculation failed — cannot proceed without RS data for position health assessment."
+                f"Period return calculation failed - cannot proceed without RS data for position health assessment."
             ) from e
 
         try:
@@ -1256,7 +1256,7 @@ class PositionMonitor:
         if "qty" not in alpaca_pos or alpaca_pos["qty"] is None:
             raise RuntimeError(
                 f"Alpaca response for {symbol} missing qty field (malformed response). "
-                f"Response: {alpaca_pos}. Cannot verify position quantity — halting corporate action check."
+                f"Response: {alpaca_pos}. Cannot verify position quantity - halting corporate action check."
             )
         return int(alpaca_pos["qty"])
 
@@ -1293,7 +1293,7 @@ class PositionMonitor:
             raise RuntimeError(
                 f"[POSITION_MONITOR] Cannot calculate quantity variance for {symbol} (db_qty={db_qty}). "
                 f"Position has invalid or missing quantity in database. "
-                f"Data integrity check failed — reconciliation cannot proceed without valid position data."
+                f"Data integrity check failed - reconciliation cannot proceed without valid position data."
             )
         qty_change_pct = abs(alpaca_qty - db_qty) / db_qty * 100
         if qty_change_pct <= 20:
@@ -1315,11 +1315,11 @@ class PositionMonitor:
 
         Raises:
             RuntimeError: If stop_loss is missing when stock split detected. Missing
-            stop loss means position has no protection — cannot silently proceed.
+            stop loss means position has no protection - cannot silently proceed.
         """
         if db_qty <= 0:
             raise PositionValidationError(
-                f"CRITICAL: Database position quantity invalid ({db_qty}) — cannot calculate split ratio. "
+                f"CRITICAL: Database position quantity invalid ({db_qty}) - cannot calculate split ratio. "
                 f"Position data corruption detected for {symbol}."
             )
         split_ratio = alpaca_qty / db_qty
@@ -1327,7 +1327,7 @@ class PositionMonitor:
         if not db_stop:
             raise RuntimeError(
                 f"STOCK SPLIT DETECTED for {symbol} but current_stop_price is NULL in database. "
-                f"Cannot adjust stop loss — position protection broken. "
+                f"Cannot adjust stop loss - position protection broken. "
                 f"Manual intervention required to restore stop loss protection before trading continues."
             )
 

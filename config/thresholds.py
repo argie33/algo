@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-Unified Threshold Configuration — Fail-Fast, Single Source of Truth
+Unified Threshold Configuration - Fail-Fast, Single Source of Truth
 
 Consolidates all signal grades, risk levels, and market indicators that were
 previously scattered across 5+ files and hardcoded defaults.
 
 Architecture (CRITICAL SAFETY):
 - Database (algo_config table) is PRIMARY and ONLY source of truth
-- NO fallback defaults — all thresholds must be explicitly configured in database
-- NO secondary sources — direct database lookup only
+- NO fallback defaults - all thresholds must be explicitly configured in database
+- NO secondary sources - direct database lookup only
 - FAIL-FAST: Missing or invalid thresholds raise RuntimeError immediately
 - No silent degradation, no trading with undefined safety gates
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class ThresholdConfig:
-    """Unified threshold configuration — delegates to algo_config."""
+    """Unified threshold configuration - delegates to algo_config."""
 
     @staticmethod
     def _get_config_value(key: str) -> Any:

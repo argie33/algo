@@ -503,7 +503,7 @@ class MarketEventHandler:
             }
             resp = requests.get(url, headers=headers, timeout=get_api_timeout())
             if resp.status_code != 200:
-                # CRITICAL: Cannot determine delisting status — must fail fast
+                # CRITICAL: Cannot determine delisting status - must fail fast
                 raise RuntimeError(
                     f"[DELISTING CHECK CRITICAL] Cannot verify delisting status for {symbol}: "
                     f"API returned {resp.status_code}. Cannot trade without delisting verification. "
@@ -520,7 +520,7 @@ class MarketEventHandler:
 
             status = data.get("status")
             if not status:
-                # CRITICAL: API contract violation — cannot determine delisting status
+                # CRITICAL: API contract violation - cannot determine delisting status
                 raise RuntimeError(
                     f"[DELISTING CHECK CRITICAL] API response missing 'status' field for {symbol}. "
                     f"Cannot verify delisting status. API contract violated or symbol data incomplete. "

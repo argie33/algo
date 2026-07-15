@@ -523,7 +523,7 @@ def execute_with_timeout(
         with log_sanitizer("query execution final") as safe_log:
             safe_log.error(last_error)
         raise last_error
-    # Fallback — this should not happen
+    # Fallback - this should not happen
     raise RuntimeError("Query execution failed without error")
 
 
@@ -795,7 +795,7 @@ def safe_dict_convert(row: Any) -> Any:
         ValueError: If row is None
     """
     if row is None:
-        raise ValueError("Database row is None — cannot convert None to dict")
+        raise ValueError("Database row is None - cannot convert None to dict")
 
     # If it's already a dict, return it
     if isinstance(row, dict):
@@ -882,7 +882,7 @@ def handle_db_error(
     from utils.error_handlers import classify_exception, log_sanitizer
 
     # Use centralized classification (handles both psycopg2 and custom exceptions)
-    # If classification fails, raise to alert ops — don't fall back to generic status
+    # If classification fails, raise to alert ops - don't fall back to generic status
     status_code, error_type, message = classify_exception(error)
 
     # Log with sanitization to prevent PII/SQL leakage

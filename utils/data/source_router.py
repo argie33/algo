@@ -6,7 +6,7 @@ with health-check based fallback. Tracks per-source success rate so
 unhealthy sources are temporarily skipped.
 
 Sources by data type (in priority order):
-    OHLCV:        yfinance (sole source — Alpaca data subscription required for alternative)
+    OHLCV:        yfinance (sole source - Alpaca data subscription required for alternative)
     Fundamentals: SEC EDGAR → yfinance
     Economic:     FRED (only)
 
@@ -152,7 +152,7 @@ class DataSourceRouter:
         self._lock = threading.Lock()
         self.last_source: str | None = None
 
-        # Lazy clients — only construct when needed
+        # Lazy clients - only construct when needed
         self._alpaca: Any = None
         self._alpaca_data: Any = None  # AlpacaMarketData, lazily constructed
         self._sec: SecEdgarClient | None = None
@@ -189,11 +189,11 @@ class DataSourceRouter:
                 # Check for explicit unavailability markers
                 if _is_data_unavailable_marker(result):
                     last_marker = result
-                    # Treat marker like None — no data from this source, try next
+                    # Treat marker like None - no data from this source, try next
                     continue
                 if result is None or (hasattr(result, "__len__") and len(result) == 0):
                     # Empty result = symbol doesn't exist or has no data (not a source problem)
-                    # Don't count as source failure — skip gracefully without affecting health
+                    # Don't count as source failure - skip gracefully without affecting health
                     continue
                 health.record(True)
                 self.last_source = name
@@ -227,8 +227,8 @@ class DataSourceRouter:
                 sources_attempted=sources_attempted,
                 last_error=last_exc,
             )
-        # No sources attempted (all paused) — fail-fast with explicit marker
-        logger.warning("[SOURCE_ROUTER] All data sources paused or unavailable — marking data_unavailable")
+        # No sources attempted (all paused) - fail-fast with explicit marker
+        logger.warning("[SOURCE_ROUTER] All data sources paused or unavailable - marking data_unavailable")
         return {"data_unavailable": True, "reason": "all_sources_paused"}
 
     # ============== OHLCV ==============
@@ -265,7 +265,7 @@ class DataSourceRouter:
             if alpaca_results is not None and alpaca_results.get(symbol):
                 self.last_source = "alpaca"
                 return alpaca_results[symbol]
-            # Alpaca failed or symbol not served — fall through to yfinance
+            # Alpaca failed or symbol not served - fall through to yfinance
 
         sources = [
             (
@@ -286,7 +286,7 @@ class DataSourceRouter:
 
         Source selection (PRICE_DATA_SOURCE env / algo config):
         - "yfinance" (default): unchanged legacy path.
-        - "alpaca": Alpaca Market Data first (genuinely batched — ~200 symbols per
+        - "alpaca": Alpaca Market Data first (genuinely batched - ~200 symbols per
           HTTP request, full SIP historical data on the free plan for windows older
           than 15 minutes). Fallback to yfinance is PER-SYMBOL: symbols Alpaca
           doesn't serve (caret indexes, OTC/delisted stragglers) are re-fetched
@@ -301,7 +301,7 @@ class DataSourceRouter:
             if alpaca_results is not None:
                 self._fill_alpaca_residual_from_yfinance(alpaca_results, symbols, start, end)
                 return alpaca_results
-            # Wholesale Alpaca failure (auth/outage) — full yfinance fallback below.
+            # Wholesale Alpaca failure (auth/outage) - full yfinance fallback below.
 
         sources: list[tuple[str, Callable[[], Any]]] = [
             (
@@ -318,7 +318,7 @@ class DataSourceRouter:
         """Alpaca batch with router health accounting; None on wholesale failure."""
         health = self._get_health("alpaca")
         if health.is_paused:
-            logger.warning(f"[DataSourceRouter] Alpaca paused — full yfinance fallback for {request_desc}")
+            logger.warning(f"[DataSourceRouter] Alpaca paused - full yfinance fallback for {request_desc}")
             return None
         try:
             results = self._fetch_alpaca_ohlcv_batch(symbols, start, end)
@@ -344,7 +344,7 @@ class DataSourceRouter:
         """Re-fetch symbols Alpaca returned nothing for via yfinance and merge in place.
 
         Best-effort: a yfinance failure here must not discard the successful
-        Alpaca batch — unresolved symbols simply stay None (same semantics as a
+        Alpaca batch - unresolved symbols simply stay None (same semantics as a
         symbol with no data).
         """
         residual = [s for s in symbols if not alpaca_results.get(s)]

@@ -69,8 +69,8 @@ class StockScoresLoader(OptimalLoader):
         Prevents silent score computation failure when metrics are missing due to loader timeouts.
 
         Two tiers:
-        - required: value/positioning/stability — must have real coverage thresholds met
-        - optional_sec: quality/growth — depend on SEC annual financials; may be all-unavailable
+        - required: value/positioning/stability - must have real coverage thresholds met
+        - optional_sec: quality/growth - depend on SEC annual financials; may be all-unavailable
           if the annual_income_statement upstream is empty. Fail only if table is completely empty
           (loader never ran). All-unavailable is acceptable; per-symbol scoring handles gracefully.
         """
@@ -254,7 +254,7 @@ class StockScoresLoader(OptimalLoader):
 
             # Momentum prices for the whole universe in 5 index scans instead of one
             # 5-subquery round trip per symbol (~5000 queries/run). Each query returns the
-            # latest close per symbol at/before the horizon cutoff — identical semantics to
+            # latest close per symbol at/before the horizon cutoff - identical semantics to
             # the per-symbol scalar subqueries this replaces (no lower date bound: a symbol
             # whose newest row predates the cutoff still gets that row, as before).
             horizon_days = {"current": None, "1m": 30, "3m": 60, "6m": 120, "12m": 252}
@@ -294,7 +294,7 @@ class StockScoresLoader(OptimalLoader):
             if not score_result:
                 # This should not occur (internal _compute_stock_score raises on failure),
                 # but safeguard against unexpected None returns
-                logger.warning(f"[STOCK_SCORES] Unexpected None return for {symbol} — marking data unavailable")
+                logger.warning(f"[STOCK_SCORES] Unexpected None return for {symbol} - marking data unavailable")
                 # Return explicit data_unavailable marker so symbol appears in DB with clear status
                 return [
                     {
@@ -342,7 +342,7 @@ class StockScoresLoader(OptimalLoader):
         """Compute composite stock score from REAL metrics only (no fake defaults).
 
         CRITICAL: Fails fast if stock has insufficient real data (>=50% completeness required).
-        Do not return None or fake markers — callers must know immediately if scoring failed.
+        Do not return None or fake markers - callers must know immediately if scoring failed.
 
         Returns dict with keys: symbol, composite_score, quality_score, growth_score,
         value_score, momentum_score, positioning_score, stability_score, rs_percentile,
@@ -536,7 +536,7 @@ class StockScoresLoader(OptimalLoader):
                 if weight > 0:
                     # Handle marker dicts (data unavailable) separately from float scores
                     if isinstance(clamped_value_score, dict) and clamped_value_score.get("data_unavailable"):
-                        # Marker returned — data unavailable for this metric
+                        # Marker returned - data unavailable for this metric
                         # CRITICAL: Validate reason field exists when data_unavailable=True (fail-fast if missing)
                         reason = clamped_value_score.get("reason")
                         if reason is None:
@@ -600,7 +600,7 @@ class StockScoresLoader(OptimalLoader):
     # RETURN TYPES (STRICT):
     # - All 6 _get_*() methods return dict[str, Any] (either real metrics or data_unavailable marker)
     # - All 6 _score_*() methods return float | dict[str, Any] (score or data_unavailable marker)
-    # - No None returns anywhere — either real data or explicit data_unavailable marker
+    # - No None returns anywhere - either real data or explicit data_unavailable marker
     # - Marker dicts always have {"data_unavailable": True, "reason": "..."}
     #
     # FIELD CONVERSION (CRITICAL SAFETY):
@@ -671,7 +671,7 @@ class StockScoresLoader(OptimalLoader):
             if len(row) < 9:
                 raise ValueError(
                     f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 9. "
-                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                    f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
             data_unavailable = row[8]
             quality_score = safe_float(row[7], f"{symbol}.quality_score")
@@ -695,7 +695,7 @@ class StockScoresLoader(OptimalLoader):
             }
         # No row exists at all
         logger.warning(
-            f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} — score completeness will be reduced"
+            f"[LOAD_STOCK_SCORES] No quality metrics available for {symbol} - score completeness will be reduced"
         )
         return marker_loader_failed(symbol, "no_quality_metrics", "Quality metrics table missing data")
 
@@ -726,7 +726,7 @@ class StockScoresLoader(OptimalLoader):
             if len(row) < 7:
                 raise ValueError(
                     f"[STOCK_SCORES] {symbol}: growth_metrics row has {len(row)} columns, expected 7. "
-                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                    f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
             data_unavailable = row[6]
             # If marked unavailable, return marker even if row exists
@@ -747,7 +747,7 @@ class StockScoresLoader(OptimalLoader):
             }
         # No row exists at all
         logger.warning(
-            f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} — score completeness will be reduced"
+            f"[LOAD_STOCK_SCORES] No growth metrics available for {symbol} - score completeness will be reduced"
         )
         return marker_loader_failed(symbol, "no_growth_metrics", "Growth metrics table missing data")
 
@@ -778,7 +778,7 @@ class StockScoresLoader(OptimalLoader):
             if len(row) < 7:
                 raise ValueError(
                     f"[STOCK_SCORES] {symbol}: value_metrics row has {len(row)} columns, expected 7. "
-                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                    f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
             data_unavailable = row[6]
             # If marked unavailable, return marker even if row exists
@@ -799,7 +799,7 @@ class StockScoresLoader(OptimalLoader):
             }
         # No row exists at all
         logger.warning(
-            f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} — score completeness will be reduced"
+            f"[LOAD_STOCK_SCORES] No value metrics available for {symbol} - score completeness will be reduced"
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_found"}
 
@@ -830,7 +830,7 @@ class StockScoresLoader(OptimalLoader):
             if len(row) < 4:
                 raise ValueError(
                     f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 4. "
-                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                    f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
             data_unavailable = row[3]
             # If marked unavailable, return marker even if row exists
@@ -848,7 +848,7 @@ class StockScoresLoader(OptimalLoader):
             }
         # No row exists at all
         logger.debug(
-            f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} — will reduce score completeness"
+            f"[LOAD_STOCK_SCORES] No positioning metrics available for {symbol} - will reduce score completeness"
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_found"}
 
@@ -882,7 +882,7 @@ class StockScoresLoader(OptimalLoader):
             if len(row) < 5:
                 raise ValueError(
                     f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 5. "
-                    f"Schema mismatch detected — cannot safely access data. Failing fast."
+                    f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
             data_unavailable = row[4]
             # If marked unavailable, return marker even if row exists
@@ -901,7 +901,7 @@ class StockScoresLoader(OptimalLoader):
             }
         # No row exists at all
         logger.warning(
-            f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} — score completeness will be reduced"
+            f"[LOAD_STOCK_SCORES] No stability metrics available for {symbol} - score completeness will be reduced"
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_metrics_found"}
 
@@ -941,7 +941,7 @@ class StockScoresLoader(OptimalLoader):
             # _prepare_batch_context() (5 bulk queries total). This replaced a per-symbol
             # 5-subquery round trip (~5000 queries/run), which itself replaced inline
             # MAX(date) subqueries (~20,000 full-table scans/run). A symbol absent from the
-            # cache has no price_daily rows at all — the original scalar subqueries returned
+            # cache has no price_daily rows at all - the original scalar subqueries returned
             # a row of 5 NULLs in that case, so we preserve that exact shape here.
             row = self._momentum_cache.get(symbol, (None, None, None, None, None))
 
@@ -949,7 +949,7 @@ class StockScoresLoader(OptimalLoader):
                 if len(row) < 5:
                     raise ValueError(
                         f"[STOCK_SCORES] {symbol}: momentum cache returned {len(row)} columns, expected 5. "
-                        f"Schema mismatch detected — cannot safely access price data. Failing fast."
+                        f"Schema mismatch detected - cannot safely access price data. Failing fast."
                     )
 
                 prices = {
@@ -1000,7 +1000,7 @@ class StockScoresLoader(OptimalLoader):
 
             # CRITICAL: Momentum is HIGH-priority technical indicator data (price history)
             # Logging at WARNING to ensure ops visibility of degraded scoring
-            logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} — insufficient price history")
+            logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - insufficient price history")
             logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_data_available"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -1176,7 +1176,7 @@ class StockScoresLoader(OptimalLoader):
         logger.warning(
             f"[STOCK_SCORES] {symbol} growth_score computation FAILED: all fields are None. "
             f"ROOT CAUSE: growth_metrics row exists but all 6 fields are NULL. "
-            f"ACTION: Check growth_metrics loader — SEC data fetch may be returning empty results."
+            f"ACTION: Check growth_metrics loader - SEC data fetch may be returning empty results."
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "all_growth_fields_null"}
 
@@ -1555,7 +1555,7 @@ class StockScoresLoader(OptimalLoader):
                 """)
             logger.info("RS percentiles updated via batch rank")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            error_msg = f"RS percentile batch update failed — stock scores cannot be finalized: {e}"
+            error_msg = f"RS percentile batch update failed - stock scores cannot be finalized: {e}"
             logger.error(error_msg)
             raise RuntimeError(error_msg) from e
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-UNIFIED Data Age Validator — Single Source of Truth for Data Freshness
+UNIFIED Data Age Validator - Single Source of Truth for Data Freshness
 
 Consolidates watermark tracking and freshness checking into one system.
 Uses rules from utils/validation/freshness_config.py as ground truth.
@@ -77,7 +77,7 @@ class DataAgeValidator:
                 "age_days": None,
                 "max_date": None,
                 "rule": rule,
-                "message": f"✗ {table_name}: Query failed — {e}",
+                "message": f"✗ {table_name}: Query failed - {e}",
                 "is_critical": rule["critical"],
             }
 
@@ -150,7 +150,7 @@ class DataAgeValidator:
             level = "STALE"
             logger.warning(f"[{table_name}] Data is {age_days} days old (threshold {adjusted_threshold}d)")
 
-        message = f"{status} {table_name}: {age_days}d old (threshold {adjusted_threshold}d) — {level}"
+        message = f"{status} {table_name}: {age_days}d old (threshold {adjusted_threshold}d) - {level}"
         if verbose and rule:
             applies_to = rule.get("applies_to")
             applies_to_str = ", ".join(applies_to) if applies_to else ""

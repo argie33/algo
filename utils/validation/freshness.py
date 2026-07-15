@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def get_staleness_threshold_days() -> int:
     """DEPRECATED: Get max data staleness from config.
 
-    This was the old approach — using a single global threshold.
+    This was the old approach - using a single global threshold.
     New code should use DataAgeValidator.check() which respects
     per-table thresholds from freshness_config.
     """

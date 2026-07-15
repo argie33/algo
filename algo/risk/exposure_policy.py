@@ -18,13 +18,13 @@ logger = logging.getLogger(__name__)
 #   caution              25-45%
 #   correction           < 25%
 #
-# Upper bounds are exclusive (except the top tier) — no boundary overlap.
+# Upper bounds are exclusive (except the top tier) - no boundary overlap.
 EXPOSURE_TIERS: list[dict[str, Any]] = [
     {
         "name": "confirmed_uptrend",
         "min_pct": 70,
         "max_pct": 100,
-        "description": "Confirmed bull market — full deployment",
+        "description": "Confirmed bull market - full deployment",
         "risk_multiplier": 1.0,
         "max_new_positions_today": 5,
         "min_composite_score": 50.0,
@@ -39,7 +39,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "name": "uptrend_under_pressure",
         "min_pct": 45,
         "max_pct": 70,
-        "description": "Uptrend intact but weakening — reduced position size",
+        "description": "Uptrend intact but weakening - reduced position size",
         "risk_multiplier": 0.65,
         "max_new_positions_today": 3,
         "min_composite_score": 60.0,
@@ -54,7 +54,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "name": "caution",
         "min_pct": 25,
         "max_pct": 45,
-        "description": "Market under significant stress — reduced position size",
+        "description": "Market under significant stress - reduced position size",
         "risk_multiplier": 0.35,
         "max_new_positions_today": 2,
         "min_composite_score": 70.0,
@@ -69,7 +69,7 @@ EXPOSURE_TIERS: list[dict[str, Any]] = [
         "name": "correction",
         "min_pct": 0,
         "max_pct": 25,
-        "description": "Market correction — preserve capital, no new entries",
+        "description": "Market correction - preserve capital, no new entries",
         "risk_multiplier": 0.0,
         "max_new_positions_today": 0,
         "min_composite_score": 80.0,
@@ -88,7 +88,7 @@ def tier_for_exposure(exposure_pct: float | None) -> dict[str, Any]:
 
     Upper bounds are exclusive so exact boundary values (e.g. 70.0) land in the
     higher (more aggressive) tier, matching the >= thresholds in algo_market_exposure.py.
-    CRITICAL: Fails fast (raises) if exposure_pct is None or NaN — never silently defaults.
+    CRITICAL: Fails fast (raises) if exposure_pct is None or NaN - never silently defaults.
     Missing market exposure indicates Phase 4 failure; trading must halt to prevent stale data usage.
     """
     if exposure_pct is None or (isinstance(exposure_pct, float) and math.isnan(exposure_pct)):
@@ -110,7 +110,7 @@ def tier_for_exposure(exposure_pct: float | None) -> dict[str, Any]:
 
     # If no tier matched, the exposure_pct is outside the defined range. This indicates either
     # a bug in tier definitions (gaps) or data corruption (exposure_pct > 100% or < 0%).
-    # Never silently fallback—raise error to surface the problem.
+    # Never silently fallback-raise error to surface the problem.
     tier_ranges = [f"{t['min_pct']}-{t['max_pct']}%" for t in EXPOSURE_TIERS]
     msg = (
         f"[EXPOSURE POLICY] Exposure percentage {exposure_pct:.1f}% does not match any tier. "
@@ -170,12 +170,12 @@ class ExposurePolicy:
         Returns list of recommended actions per position:
           { trade_id, symbol, action, reason, new_stop, exit_fraction }
 
-        Actions are recommendations — orchestrator decides whether to execute.
+        Actions are recommendations - orchestrator decides whether to execute.
         """
         active = self.get_active_tier(eval_date)
         if not active:
             raise RuntimeError(
-                f"No active exposure policy tier for {eval_date} — cannot generate position recommendations"
+                f"No active exposure policy tier for {eval_date} - cannot generate position recommendations"
             )
 
         tier = active["tier"]
@@ -228,7 +228,7 @@ class ExposurePolicy:
         init_stop = float(init_stop)
         if not cur_stop:
             raise ValueError(
-                f"CRITICAL: {symbol} — current_stop_price is NULL in algo_trades. "
+                f"CRITICAL: {symbol} - current_stop_price is NULL in algo_trades. "
                 f"Cannot evaluate exposure policy without live stop loss. "
                 f"Position tracking or database integrity compromised."
             )
@@ -237,7 +237,7 @@ class ExposurePolicy:
         # CRITICAL: target_hits configuration must be present. Do not mask missing config with fallback to 0.
         if target_hits is None:
             raise ValueError(
-                f"CRITICAL: {symbol} — target_hits is NULL in algo_trades. "
+                f"CRITICAL: {symbol} - target_hits is NULL in algo_trades. "
                 f"Cannot evaluate exposure policy without target hit history. "
                 f"Database schema or trade data corrupted. Cannot proceed with position evaluation."
             )
@@ -247,14 +247,14 @@ class ExposurePolicy:
         # cur_price must be valid; if missing, skip this position.
         if not cur_price:
             raise ValueError(
-                f"CRITICAL: {symbol} — current_price is NULL in algo_positions. "
+                f"CRITICAL: {symbol} - current_price is NULL in algo_positions. "
                 f"Cannot evaluate exposure policy without live price. "
                 f"Price data missing for open position. Cannot calculate current R-multiple or exit levels."
             )
         cur_price_float = float(cur_price)
         if cur_price_float <= 0:
             raise ValueError(
-                f"CRITICAL: {symbol} — current_price={cur_price_float} <= 0. "
+                f"CRITICAL: {symbol} - current_price={cur_price_float} <= 0. "
                 f"Invalid price data in algo_positions. Cannot evaluate position risk. "
                 f"Database integrity issue or price data corruption."
             )
@@ -335,7 +335,7 @@ class ExposurePolicy:
 
         Raises:
             RuntimeError: If exposure data unavailable. Entry constraints are critical
-            for position sizing policy — missing them violates risk management.
+            for position sizing policy - missing them violates risk management.
         """
         active = self.get_active_tier(eval_date)
         tier = active["tier"]

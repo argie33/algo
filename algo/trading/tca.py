@@ -277,7 +277,7 @@ class TCAEngine:
             logger.critical(f"[TCA_AUDIT] daily_report FAILED: {e}")
             raise RuntimeError(
                 f"TCA daily report generation failed (audit trail interrupted): {e}. "
-                "This is critical — all fills must be audited. Check database connectivity and data integrity."
+                "This is critical - all fills must be audited. Check database connectivity and data integrity."
             ) from e
 
     def monthly_summary(self, year: int, month: int) -> dict[str, Any]:
@@ -352,5 +352,5 @@ class TCAEngine:
             logger.critical(f"[TCA_AUDIT] monthly_summary FAILED: {e}")
             raise RuntimeError(
                 f"TCA monthly summary generation failed (audit trail interrupted): {e}. "
-                "This is critical — all fills must be audited. Check database connectivity and data integrity."
+                "This is critical - all fills must be audited. Check database connectivity and data integrity."
             ) from e

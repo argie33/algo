@@ -88,12 +88,12 @@ def _fetch_sector_exposure(cur: cursor) -> dict[str, Any] | Any:
                 sector_val_raw = sr["sector_value"]
                 if sector_val_raw is None:
                     error_msg = (
-                        f"Sector {sr['sector']} has NULL position_value sum — "
+                        f"Sector {sr['sector']} has NULL position_value sum - "
                         "cannot proceed without complete sector exposure"
                     )
                     logger.error(error_msg)
                     return error_response(503, "sector_exposure_incomplete", error_msg)
-                # Validate type before conversion — non-numeric values cause silent failures downstream
+                # Validate type before conversion - non-numeric values cause silent failures downstream
                 if not isinstance(sector_val_raw, (int, float)):
                     error_msg = (
                         f"Sector {sr['sector']} has non-numeric position_value: {type(sector_val_raw).__name__} "
@@ -105,7 +105,7 @@ def _fetch_sector_exposure(cur: cursor) -> dict[str, Any] | Any:
                     sector_val = float(sector_val_raw)
                     if sector_val < 0:
                         error_msg = (
-                            f"Sector {sr['sector']} has negative exposure ({sector_val}) — data corruption detected"
+                            f"Sector {sr['sector']} has negative exposure ({sector_val}) - data corruption detected"
                         )
                         logger.error(error_msg)
                         return error_response(503, "data_corruption", error_msg)
@@ -145,7 +145,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         assert isinstance(portfolio_value, (int, float)) and isinstance(open_positions, int)
 
         # Determine position size - CRITICAL: both position_dollars and position_pct are optional,
-        # but at least one must be provided. Do NOT default to implicit 0.75% — caller must specify intent.
+        # but at least one must be provided. Do NOT default to implicit 0.75% - caller must specify intent.
         entry_price = req.entry_price
         if req.position_dollars:
             position_dollars = req.position_dollars
@@ -156,7 +156,7 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
                 400,
                 "missing_position_size",
                 "Pre-trade impact requires either position_dollars or position_pct. "
-                "Cannot default to implicit 0.75% — caller must explicitly specify intended position size.",
+                "Cannot default to implicit 0.75% - caller must explicitly specify intended position size.",
             )
 
         if not entry_price or entry_price <= 0:
@@ -313,7 +313,7 @@ def _calculate_trade_preview(cur: cursor, body: dict[str, Any]) -> Any:
             return error_response(
                 503,
                 "service_unavailable",
-                "Portfolio value field is NULL — snapshot data incomplete",
+                "Portfolio value field is NULL - snapshot data incomplete",
             )
 
         try:

@@ -11,11 +11,11 @@ Strategy:
 3. For each incomplete loader:
    - Log diagnostic info (how many symbols missing, last error, etc.)
    - Trigger a retry by starting the loader's ECS task (via algo-trigger-loaders,
-     the same mechanism the regular schedule uses) — runs independently of this Lambda
+     the same mechanism the regular schedule uses) - runs independently of this Lambda
    - Briefly poll status (up to RETRY_MONITOR_TIMEOUT_SECONDS) in case it finishes fast
    - If retry succeeds (>=95%) within that short window, mark as recovered and proceed
    - Otherwise mark as still incomplete for THIS run (halt if critical, warn if
-     auxiliary) — the ECS task keeps running in the background and the next
+     auxiliary) - the ECS task keeps running in the background and the next
      scheduled orchestrator run will see the completed data
 """
 
@@ -46,7 +46,7 @@ CRITICAL_INCOMPLETE_LOADERS = {
     "etf_price_daily",
     "etf_price_weekly",
     "etf_price_monthly",
-    # Market regime tables (halt if stale — must run on FARGATE, not SPOT)
+    # Market regime tables (halt if stale - must run on FARGATE, not SPOT)
     "market_health_daily",
     "market_exposure_daily",
     # Other critical loaders
@@ -78,13 +78,13 @@ AUXILIARY_INCOMPLETE_LOADERS = {
 
 # Time to wait before retrying. Retries now trigger an independent ECS task
 # (see invoke_loader_retry) instead of making API calls in-process, so there's
-# no in-process throttling to wait out — this is just a brief settling delay.
+# no in-process throttling to wait out - this is just a brief settling delay.
 RETRY_WAIT_SECONDS = 5
 
 # Timeout for monitoring retry (how long THIS phase blocks waiting to see if the
 # retry already completed, before giving up and letting the run proceed/halt on
 # current data). Real loaders (positioning_metrics, value_metrics, etc.) can take
-# 20-40 minutes on ECS — this Lambda cannot wait that long: its own configured
+# 20-40 minutes on ECS - this Lambda cannot wait that long: its own configured
 # timeout is 300s (terraform.tfvars algo_lambda_timeout) shared with phases 2,6,9
 # which always run afterward. So this is a short best-effort poll, not a real wait
 # for completion: invoke_loader_retry() already fired the ECS task asynchronously;
@@ -169,7 +169,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                 if completion_pct is None:
                     logger.warning(
                         f"[PHASE 1 FAILSAFE] Incomplete loader detected: {table_name} "
-                        f"status unknown ({symbols_loaded}/{symbol_count} symbols, {symbols_missing} missing) — loader may still be running"
+                        f"status unknown ({symbols_loaded}/{symbol_count} symbols, {symbols_missing} missing) - loader may still be running"
                     )
                 else:
                     logger.warning(
@@ -194,14 +194,14 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                         logger.warning(
                             f"[PHASE 1 FAILSAFE] AUXILIARY LOADER INCOMPLETE: {table_name} "
                             f"{completion_pct:.1f}% ({symbols_missing} missing). "
-                            f"No retry attempted—auxiliary enrichment data is optional. "
+                            f"No retry attempted-auxiliary enrichment data is optional. "
                             f"Stock scores will reflect missing data via data_unavailable flags. "
                             f"This is correct behavior per GOVERNANCE (explicit unavailability markers)."
                         )
                         results["still_failing"].append(table_name)
                         continue
 
-                    # Trigger retry — may raise RuntimeError or TimeoutError on failure
+                    # Trigger retry - may raise RuntimeError or TimeoutError on failure
                     try:
                         retry_result = retry_loader(table_name, symbols_missing, is_crit)
 
@@ -222,7 +222,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                                 if status_reason == "timeout":
                                     reason_msg = (
                                         f"not yet confirmed recovered after {RETRY_MONITOR_TIMEOUT_SECONDS}s poll "
-                                        "(ECS task still running in background — next scheduled run will re-check)"
+                                        "(ECS task still running in background - next scheduled run will re-check)"
                                     )
                                 elif status_reason == "failed":
                                     reason_msg = f"failed (completed with {pct_str} completion)"
@@ -230,7 +230,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                                     reason_msg = f"failed ({pct_str} completion)"
 
                                 logger.error(
-                                    f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} — {reason_msg}"
+                                    f"[PHASE 1 FAILSAFE] Loader still failing after retry: {table_name} - {reason_msg}"
                                 )
 
                                 if is_crit:
@@ -368,11 +368,11 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
     """Invoke loader retry by triggering its ECS Fargate task, asynchronously.
 
     The orchestrator Lambda package deliberately excludes loaders/ heavy
-    dependencies (pandas/numpy — see lambda/algo_orchestrator/requirements.txt)
+    dependencies (pandas/numpy - see lambda/algo_orchestrator/requirements.txt)
     so loaders cannot run in-process here. Instead this reuses the same
     "algo-trigger-loaders" Lambda (lambda/trigger-loaders/lambda_function.py)
     that EventBridge uses for the regular schedule: it does ecs:RunTask for
-    the named loader and returns immediately — the loader itself runs on its
+    the named loader and returns immediately - the loader itself runs on its
     own ECS task, independent of this Lambda's lifetime/timeout.
 
     Args:
@@ -465,7 +465,7 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
                     status, completion_pct = row
 
                     if completion_pct is None:
-                        # Status unknown, likely still running — wait before checking again
+                        # Status unknown, likely still running - wait before checking again
                         logger.debug(
                             f"[PHASE 1 FAILSAFE] {loader_name} status unknown, still running (will check again in 10s)"
                         )
@@ -489,7 +489,7 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
                 "Cannot determine loader status without database access."
             ) from e
 
-    # Timeout reached — loader still running, didn't complete within deadline
+    # Timeout reached - loader still running, didn't complete within deadline
     logger.error(
         f"[PHASE 1 FAILSAFE] Timeout waiting for retry of {loader_name} (waited {timeout_seconds}s, loader still running)"
     )

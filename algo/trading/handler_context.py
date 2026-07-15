@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Handler context — encapsulates dependencies for entry/exit handlers.
+"""Handler context - encapsulates dependencies for entry/exit handlers.
 
 Extracted from TradeExecutor to decouple EntryHandler and ExitHandler from direct executor access.
 Handlers receive a context object instead of the whole executor, reducing coupling and improving testability.

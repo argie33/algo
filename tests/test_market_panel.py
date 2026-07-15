@@ -165,11 +165,11 @@ class TestMarketPanelValidation:
     def test_panel_market_full_halts_as_string_raises_error(self):
         """Halts as string - _get_market_halts fails-fast internally, but
         panel_market_full catches it and renders an in-panel error instead of
-        propagating — same error-boundary pattern used by every other panel,
+        propagating - same error-boundary pattern used by every other panel,
         so one malformed field can't crash the whole dashboard render loop.
 
         safe_get_list() itself degrades a bad type to a data_unavailable marker
-        (documented, intentional — an unmapped optional field shouldn't crash
+        (documented, intentional - an unmapped optional field shouldn't crash
         rendering). _get_market_halts() then rejects that non-list marker and
         raises RuntimeError, since halts is not optional for this panel; that
         RuntimeError is what panel_market_full converts into the error panel.

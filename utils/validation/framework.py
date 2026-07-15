@@ -8,7 +8,7 @@ Supports both:
 2. Functional API (backward compatible with existing code)
 
 All validation is fail-closed with explicit error logging and context tracking.
-No silent defaults—missing data returns None, conversions are logged.
+No silent defaults-missing data returns None, conversions are logged.
 """
 
 import json
@@ -251,7 +251,7 @@ def get_global_registry() -> ValidatorRegistry:
 # UNIFIED FUNCTIONAL API - FOR BACKWARD COMPATIBILITY & EASE OF USE
 # ──────────────────────────────────────────────────────────────────────────────
 # These wrap the class-based system with a simpler functional interface.
-# All validation is centralized here — one source of truth for all data conversion.
+# All validation is centralized here - one source of truth for all data conversion.
 
 
 def safe_float(
@@ -275,7 +275,7 @@ def safe_float(
         Float value or default if conversion fails
 
     Raises:
-        ValueError: If value is NaN or Infinity (always fails fast — required for calculations)
+        ValueError: If value is NaN or Infinity (always fails fast - required for calculations)
         StrictValidationError: If strict=True and conversion fails
     """
     error_ctx = f"for {field_name}" if field_name else context
@@ -284,9 +284,9 @@ def safe_float(
         if strict:
             raise StrictValidationError(f"Cannot convert None to float {error_ctx}")
         if default is None:
-            logger.warning(f"None value in float conversion {error_ctx} — returning None (must be handled by caller)")
+            logger.warning(f"None value in float conversion {error_ctx} - returning None (must be handled by caller)")
         else:
-            logger.warning(f"Converting None to {default} {error_ctx}—explicitly requested default")
+            logger.warning(f"Converting None to {default} {error_ctx} - explicitly requested default")
         return default
 
     if isinstance(value, bool):
@@ -303,21 +303,21 @@ def safe_float(
             ) from e
         if default is None:
             logger.warning(
-                f"Failed to convert {value!r} to float {error_ctx} (returning None—caller must handle missing data): {e}"
+                f"Failed to convert {value!r} to float {error_ctx} (returning None-caller must handle missing data): {e}"
             )
         else:
             logger.warning(f"Failed to convert {value!r} to float {error_ctx} (returning {default}): {e}")
         return default
 
-    # Reject NaN and Infinity explicitly — fail fast instead of silently returning 0.0.
+    # Reject NaN and Infinity explicitly - fail fast instead of silently returning 0.0.
     # Position sizing, risk calculations, and other critical paths require valid data.
     # Silent degradation to 0.0 masks data errors that should be fixed, not ignored.
     if math.isnan(f):
-        msg = f"NaN value in critical calculation {error_ctx} — data error must be fixed"
+        msg = f"NaN value in critical calculation {error_ctx} - data error must be fixed"
         logger.error(msg)
         raise ValueError(msg)
     if math.isinf(f):
-        msg = f"Infinity value in critical calculation {error_ctx} — data error must be fixed"
+        msg = f"Infinity value in critical calculation {error_ctx} - data error must be fixed"
         logger.error(msg)
         raise ValueError(msg)
 
@@ -345,7 +345,7 @@ def format_decimal_string(value: Any, precision: int = 2, allow_none: bool = Tru
     """
     if value is None:
         if allow_none:
-            logger.debug("Value is None — returning None as specified by allow_none=True")
+            logger.debug("Value is None - returning None as specified by allow_none=True")
             return None
         raise ValueError("Cannot convert None to decimal string")
 
@@ -422,7 +422,7 @@ def safe_parse_date(value: Any, context: str = "", strict: bool = True) -> date 
         if strict:
             logger.error(f"Value is None in safe_parse_date {context}")
         else:
-            logger.debug(f"Value is None in safe_parse_date {context} — returning None")
+            logger.debug(f"Value is None in safe_parse_date {context} - returning None")
         return None
 
     if isinstance(value, date) and not isinstance(value, datetime):

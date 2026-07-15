@@ -169,7 +169,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
             padding=(0, 1),
         )
 
-    # Optional enrichment fields — fetcher validates; strict conversion in panel to catch data quality issues
+    # Optional enrichment fields - fetcher validates; strict conversion in panel to catch data quality issues
     # If fetcher provided the data, it must be convertible or marked data_unavailable
     upvol = safe_float(mkt.get("upvol"), field_name="upvol", strict=True) if mkt.get("upvol") is not None else None
     adr = safe_float(mkt.get("adr"), field_name="adr", strict=True) if mkt.get("adr") is not None else None
@@ -194,7 +194,7 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     halt_s = " ".join(str(h)[:16] for h in halts[:2]) if halts else "none"
     hc = Y if halts else DIM
     if not halts:
-        logger.debug("[MARKET_PANEL] No trading halts — display color defaulting to DIM")
+        logger.debug("[MARKET_PANEL] No trading halts - display color defaulting to DIM")
 
     uvc = G if upvol is not None and upvol >= 60 else (Y if upvol is not None and upvol >= 50 else R)
     pcr_c = DIM if pcr is None else (G if pcr <= 0.8 else (Y if pcr <= 1.0 else R))
@@ -210,8 +210,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
         spy_chg_s = f" [{G if spy_chg >= 0 else R}]{sign(spy_chg)}{spy_chg:.1f}%[/]"
         spy_s += spy_chg_s
 
-    dist_s = f"[white]{dist}[/]" if dist is not None else "[dim]—[/]"
-    stage_s = f"[white]{stage}[/]" if stage is not None else "[dim]—[/]"
+    dist_s = f"[white]{dist}[/]" if dist is not None else "[dim]-[/]"
+    stage_s = f"[white]{stage}[/]" if stage is not None else "[dim]-[/]"
 
     lines = [
         f"[{tc}][bold]{lbl}[/]  [dim]exposure[/][{tc}]{exp_s}[/]  {bar}",
@@ -298,8 +298,8 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     tc = TIER_COLOR.get(tier, "dim")
     lbl = TIER_SHORT.get(tier, "LOADING")
     exp = mkt.get("pct")
-    exp_s = f"{float(exp):.0f}%" if exp is not None else "[dim]—[/]"
-    bar = exp_bar(exp, w=14) if exp is not None else "[dim]—[/]"
+    exp_s = f"{float(exp):.0f}%" if exp is not None else "[dim]-[/]"
+    bar = exp_bar(exp, w=14) if exp is not None else "[dim]-[/]"
     vix_raw = mkt.get("vix")
     vix = safe_float(vix_raw, field_name="vix", strict=True) if vix_raw is not None else None
     vc = DIM if vix is None else (R if vix >= 30 else (Y if vix >= 20 else G))
@@ -316,9 +316,9 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
         safe_float(mkt.get("spy_chg"), field_name="spy_chg", strict=True) if mkt.get("spy_chg") is not None else None
     )
     stage_raw = mkt.get("stage")
-    stage = str(stage_raw) if stage_raw else "[dim]—[/]"
+    stage = str(stage_raw) if stage_raw else "[dim]-[/]"
     trend_raw = mkt.get("trend")
-    trend = trend_raw.upper() if trend_raw else "[dim]—[/]"
+    trend = trend_raw.upper() if trend_raw else "[dim]-[/]"
     if not trend_raw:
         logger.debug("[MARKET_EXPANDED] Market trend not available - optional directional analysis incomplete")
     dist = safe_float(mkt.get("dist"), field_name="dist", strict=True) if mkt.get("dist") is not None else None
@@ -326,7 +326,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
         logger.warning("[MARKET_EXPANDED] Distribution days data missing - market stage analysis incomplete")
     _fed_raw = mkt.get("fed")
     fed = (
-        "[dim]—[/]" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
+        "[dim]-[/]" if (_fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", "")) else str(_fed_raw)
     )
     if _fed_raw is None or str(_fed_raw).lower() in ("unknown", "n/a", "none", ""):
         logger.debug("[MARKET_EXPANDED] Fed environment data unavailable - optional macro context missing")
@@ -419,7 +419,7 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     rows.append(Rule(style="dim"))
     hc = Y if halts else G
     if not halts:
-        logger.debug("[MARKET_EXPANDED] No trading halts — display color defaulting to GREEN")
+        logger.debug("[MARKET_EXPANDED] No trading halts - display color defaulting to GREEN")
     halt_s = "  |  ".join(str(h)[:35] for h in halts[:3]) if halts else "none"
     rows.append(Text.from_markup(f"  [dim]Trading Halt:[/] [{hc}]{halt_s}[/]"))
 
@@ -538,7 +538,7 @@ def panel_header_market(  # noqa: C901
         halt_s = " ".join(str(h)[:14] for h in halts[:2]) if halts else "none"
         hc_col = Y if halts else DIM
         if not halts:
-            logger.debug("[MARKET_HEADER] No trading halts — display color defaulting to DIM")
+            logger.debug("[MARKET_HEADER] No trading halts - display color defaulting to DIM")
         line5 = f"[dim]Halt:[/][{hc_col}]{halt_s}[/]"
         if _fed_ok:
             line5 += f"  [dim]Fed:[/][white]{str(fed)[:18]}[/]"
@@ -557,12 +557,12 @@ def panel_header_market(  # noqa: C901
         if cfg:
             mode = cfg.get("mode")
             if mode is None:
-                logger.debug("[MARKET_HEADER] Config mode not available — defaulting to '?'")
+                logger.debug("[MARKET_HEADER] Config mode not available - defaulting to '?'")
                 mode = "?"
             mc2 = G if "LIVE" in str(mode) else Y
             enabled = cfg.get("enabled")
             if enabled is None:
-                logger.debug("[MARKET_HEADER] Config enabled flag missing — defaulting to True")
+                logger.debug("[MARKET_HEADER] Config enabled flag missing - defaulting to True")
                 enabled = True
             en_s = "ENABLED" if enabled else "DISABLED"
             ec = G if enabled else R

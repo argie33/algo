@@ -938,7 +938,7 @@ class ExitEngine:
 
             elif response.status_code == 404:
                 raise RuntimeError(
-                    f"[EXIT_ENGINE] Alpaca quote API returned 404 for {symbol} — "
+                    f"[EXIT_ENGINE] Alpaca quote API returned 404 for {symbol} - "
                     f"symbol unavailable (possibly delisted or not in paper trading). "
                     f"Cannot proceed with exit execution without valid symbol."
                 )
@@ -1072,7 +1072,7 @@ class ExitEngine:
         if not row or row[0] is None:
             raise RuntimeError(
                 f"[MARKET_DIST_DAYS_MISSING] Market distribution data unavailable for {current_date}. "
-                f"Cannot evaluate exit conditions — distribution day counts are required for risk control decisions."
+                f"Cannot evaluate exit conditions - distribution day counts are required for risk control decisions."
             )
         return int(row[0])
 

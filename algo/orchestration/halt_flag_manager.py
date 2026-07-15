@@ -93,7 +93,7 @@ class HaltFlagManager:
                         if now_et >= market_open_et:
                             logger.info(
                                 f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
-                                f"on {now_date_et} — auto-clearing"
+                                f"on {now_date_et} - auto-clearing"
                             )
                             table.put_item(
                                 Item={
@@ -349,7 +349,7 @@ class HaltFlagManager:
                         return False
 
                 logger.debug(
-                    f"[PROACTIVE_CLEAR] Halt is from today ({trigger_date}). Leaving it active — Phase 1 will evaluate."
+                    f"[PROACTIVE_CLEAR] Halt is from today ({trigger_date}). Leaving it active - Phase 1 will evaluate."
                 )
                 return False
 

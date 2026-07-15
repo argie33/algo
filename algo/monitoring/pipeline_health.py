@@ -45,11 +45,11 @@ class TableHealth:
     def is_critical(self) -> bool:
         """Check if table is critical for algo execution.
 
-        buy_sell_daily and stock_scores are excluded — they are orchestrator OUTPUTS
+        buy_sell_daily and stock_scores are excluded - they are orchestrator OUTPUTS
         (written by Phase 5/6), not upstream inputs. Treating them as critical halts
         Phase 1 before Phase 5/6 can populate them (circular dependency).
 
-        economic_data is excluded — it stores FRED macro series with no pipeline loader;
+        economic_data is excluded - it stores FRED macro series with no pipeline loader;
         algo_market_exposure.py handles missing rows with safe defaults.
         """
         critical_tables = {
@@ -157,7 +157,7 @@ class PipelineHealth:
                 health.error_message = "Table is empty"
                 return health
 
-            # Use ORDER BY + LIMIT 1 instead of MAX() — forces an index scan and
+            # Use ORDER BY + LIMIT 1 instead of MAX() - forces an index scan and
             # avoids sequential scans when PostgreSQL statistics are stale (reltuples=0
             # on t4g.micro after bulk inserts). MAX() with stale stats can take 30s+.
             cur.execute(f"SELECT {safe_date_col}::DATE FROM {safe_table} ORDER BY {safe_date_col} DESC LIMIT 1")

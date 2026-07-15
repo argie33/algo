@@ -165,7 +165,7 @@ class ExecutionConfig:
         if value is None:
             raise RuntimeError(
                 "[EXECUTION_CONFIG] CRITICAL: default_portfolio_value config key missing. "
-                "Portfolio value must be explicitly configured — no fallback to $100k. "
+                "Portfolio value must be explicitly configured - no fallback to $100k. "
                 "Set 'default_portfolio_value' in algo_config table to proceed. "
                 "Check database: SELECT * FROM algo_config WHERE key = 'default_portfolio_value';"
             )

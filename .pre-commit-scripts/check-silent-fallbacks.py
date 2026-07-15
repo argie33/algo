@@ -57,7 +57,7 @@ SKIP_PATHS = {
 }
 
 # Repo-root ad-hoc diagnostic/verification scripts follow the same convention as
-# `scripts/` (print()-based, one-off, run manually to inspect DB/API state — never
+# `scripts/` (print()-based, one-off, run manually to inspect DB/API state - never
 # imported by the trading system). They just happen to live at the repo root instead
 # of scripts/. Only filenames directly at the repo root are exempted (see the
 # `filepath.parent == repo_root` check below) so real package modules that happen to
@@ -146,7 +146,7 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             if "data_unavailable" not in context and "raise" not in context:
                 # Skip legitimate "nothing to do" empty results: an empty dict returned
                 # because the *input* was empty (no candidates/not-yet-initialized) is not
-                # data loss — it's an accurate, deliberate representation of zero work,
+                # data loss - it's an accurate, deliberate representation of zero work,
                 # and is explicitly documented as such right at the return site. This
                 # mirrors the is_count_return carve-out already used for PATTERN 3 below.
                 is_legitimate_empty_result = any(
@@ -367,7 +367,7 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
                 continue
 
             # Skip telemetry/observability publishing (e.g. CloudWatch metrics counters).
-            # These values are never used for trading decisions — only for dashboards/alarms —
+            # These values are never used for trading decisions - only for dashboards/alarms -
             # so a defensive default here cannot cause a silent, mispriced trade. Detected via
             # nearby telemetry-publisher markers rather than by module path, since this code
             # lives inside orchestrator.py alongside real trading logic.
@@ -389,7 +389,7 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
             # Skip if the very next few lines explicitly check for emptiness and surface
             # an error/unavailable state to the caller (e.g. dashboard panels that render
             # an explicit "no data" panel). The default here is just safe type-narrowing
-            # before that explicit check — nothing is hidden from the operator.
+            # before that explicit check - nothing is hidden from the operator.
             lookahead = "\n".join(lines[line_num : line_num + 6])
             has_explicit_downstream_check = any(
                 kw in lookahead
@@ -449,7 +449,7 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
                 # marker is the caller's documented responsibility (e.g. a private
                 # `_fetch_with_retries` helper wrapped by a public `fetch()` that performs
                 # the conversion). This is the governance-compliant pattern already, just
-                # split across two functions — flagging the private helper is a false
+                # split across two functions - flagging the private helper is a false
                 # positive since the marker genuinely does get set, one call frame up.
                 if "data_unavailable" in func_sig:
                     continue

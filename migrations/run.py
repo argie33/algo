@@ -132,7 +132,7 @@ def _load_credentials():
                 sys.exit(1)
             password = creds.get("password")
             if not password:
-                logger.error("[CRITICAL] Password missing from credentials JSON — cannot authenticate to database")
+                logger.error("[CRITICAL] Password missing from credentials JSON - cannot authenticate to database")
                 sys.exit(1)
             return (
                 host,
@@ -153,7 +153,7 @@ def _load_credentials():
 
     db_password = os.getenv("DB_PASSWORD")
     if not db_password:
-        logger.error("[CRITICAL] DB_PASSWORD environment variable is required — cannot authenticate to database")
+        logger.error("[CRITICAL] DB_PASSWORD environment variable is required - cannot authenticate to database")
         sys.exit(1)
 
     return (

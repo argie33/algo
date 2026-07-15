@@ -118,7 +118,7 @@ def _aggregate_concepts(
     cik = client.symbol_to_cik(symbol)
 
     # Fetch all facts for this company in a single API call.
-    # FileNotFoundError (404) means the CIK has no XBRL filings — mutual funds,
+    # FileNotFoundError (404) means the CIK has no XBRL filings - mutual funds,
     # special-purpose vehicles, REITs, and some investment trusts never file XBRL.
     # GOVERNANCE: Fail-fast on missing data with explicit context.
     try:
@@ -173,7 +173,7 @@ def _aggregate_concepts(
                     continue
 
                 # Use period end year as the fiscal year key, not SEC's fy field.
-                # SEC tags ALL periods in a 10-K with fy=FILING_YEAR — so prior-year
+                # SEC tags ALL periods in a 10-K with fy=FILING_YEAR - so prior-year
                 # comparison data (end='2022-06-30') included in a FY2024 10-K would
                 # have fy=2024 instead of fy=2022. Deriving year from end date correctly
                 # separates current-year data from the multi-year comparison tables.

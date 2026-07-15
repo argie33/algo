@@ -101,7 +101,7 @@ class OrchestratorPhaseExecutor:
             raise MissingPhaseDataError(f"Phase {phase_num} not executed. Available: {list(self.phase_results.keys())}")
 
         if not result.ok:
-            raise MissingPhaseDataError(f"Phase {phase_num} failed: {result.status} — {result.error}")
+            raise MissingPhaseDataError(f"Phase {phase_num} failed: {result.status} - {result.error}")
 
         data = extract_required_data(phase_num, result.data, *keys)
 
@@ -233,7 +233,7 @@ class OrchestratorPhaseExecutor:
             self.phase_results[phase_num] = result
 
             if result.halted:
-                logger.critical(f"[PHASE {phase_num}] HALTED — {result.error or 'unknown reason'}")
+                logger.critical(f"[PHASE {phase_num}] HALTED - {result.error or 'unknown reason'}")
 
             log_level = "error" if not result.ok else "info"
             logger.log(
@@ -337,7 +337,7 @@ class OrchestratorPhaseExecutor:
                 error_message = error
                 if not phase_def.always_run:
                     halted = True
-                    logger.critical(f"[EXECUTOR] Phase {phase_num} halted — continuing to always_run phases")
+                    logger.critical(f"[EXECUTOR] Phase {phase_num} halted - continuing to always_run phases")
 
         logger.info(f"\n{'#' * 70}")
         logger.info("#   ORCHESTRATOR EXECUTOR COMPLETE")

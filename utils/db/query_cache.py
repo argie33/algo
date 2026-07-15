@@ -171,7 +171,7 @@ class QueryCache(Generic[T]):
                 if allow_stale:
                     logger.warning(
                         f"[{self.cache_name}] STALE CACHE REQUESTED: {key} age={age:.0f}s ttl={self.ttl_seconds}s "
-                        f"— caller explicitly requested stale data (high risk for finance operations) {context}"
+                        f"- caller explicitly requested stale data (high risk for finance operations) {context}"
                     )
                     # Only return stale if caller EXPLICITLY allows (rare case for UI/diagnostics)
                     self._stats.stale_hits += 1

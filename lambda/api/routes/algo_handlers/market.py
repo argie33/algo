@@ -166,7 +166,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # FRESHNESS_RULES optional - use empty dict if not found
         _fr: dict[str, dict[str, int | bool]] = getattr(validation_module, "FRESHNESS_RULES", {})
 
-        # Tables intentionally removed from the EOD pipeline — orchestrator Phase 5
+        # Tables intentionally removed from the EOD pipeline - orchestrator Phase 5
         # computes these signals on-the-fly. Excluding them prevents permanent false-stale
         # alerts on the health panel (they will never be refreshed again by a loader).
         pipeline_removed_tables = {
@@ -224,7 +224,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         rows = loader_rows + algo_rows
 
         # Use freshness_config critical set; fail-fast if configuration is empty.
-        # Note: trend_template_data is warning-only in Phase 1 — stale does NOT prevent
+        # Note: trend_template_data is warning-only in Phase 1 - stale does NOT prevent
         # trading, so it remains non-critical even though freshness_config marks it otherwise.
         critical_tables = {t for t, r in _fr.items() if r.get("critical")}
         if not critical_tables:
@@ -247,7 +247,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     break
                 expected_date -= timedelta(days=1)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            # Fail fast if MarketCalendar unavailable — weekday check is wrong for holidays
+            # Fail fast if MarketCalendar unavailable - weekday check is wrong for holidays
             raise RuntimeError(
                 f"Data freshness check requires MarketCalendar: {e}. "
                 f"Cannot accurately determine expected data date (weekday check ignores holidays). "
@@ -741,7 +741,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             return error_response(
                 503,
                 "data_unavailable",
-                "Market regime data unavailable — cannot determine risk tier for position sizing",
+                "Market regime data unavailable - cannot determine risk tier for position sizing",
             )
         tier_key = str(regime_val).lower()
         tier_conf = _TIER_CONFIG.get(tier_key)
@@ -754,13 +754,13 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             return error_response(
                 503,
                 "data_unavailable",
-                f"Unknown market regime '{tier_key}' — cannot apply risk tier constraints",
+                f"Unknown market regime '{tier_key}' - cannot apply risk tier constraints",
             )
         active_tier = {"name": tier_key, **tier_conf}
         if "halt" not in tier_conf:
             logger.error(
                 f"[MARKETS API] Tier config for '{tier_key}' missing 'halt' field. "
-                f"Configuration incomplete—cannot determine entry eligibility rules."
+                f"Configuration incomplete-cannot determine entry eligibility rules."
             )
             return error_response(
                 500,

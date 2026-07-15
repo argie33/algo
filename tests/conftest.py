@@ -157,7 +157,7 @@ def pytest_collection_modifyitems(items: list) -> None:
         elif "/integration/" in path or "\\integration\\" in path:
             item.add_marker(pytest.mark.integration)
         else:
-            # Top-level tests/ files — treat as unit tests
+            # Top-level tests/ files - treat as unit tests
             item.add_marker(pytest.mark.unit)
 
 

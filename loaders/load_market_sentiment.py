@@ -31,10 +31,10 @@ def compute_market_sentiment() -> None:
         row = cur.fetchone()
 
         # CRITICAL DATA QUALITY GATE: Fail-fast if VIX data missing
-        # Do NOT silently fallback to 20.0 — this corrupts risk controls (investors think VIX is known when it's not)
+        # Do NOT silently fallback to 20.0 - this corrupts risk controls (investors think VIX is known when it's not)
         if not row or row["vix_level"] is None:
             logger.error(
-                f"[CRITICAL] VIX data missing for {today} — cannot compute market sentiment. "
+                f"[CRITICAL] VIX data missing for {today} - cannot compute market sentiment. "
                 "Risk assessment requires current VIX level. Aborting market sentiment update."
             )
             # Upsert data_unavailable flag instead of computing with fallback
@@ -76,7 +76,7 @@ def compute_market_sentiment() -> None:
         # Bull/bear/neutral percentages come from the AAII weekly investor survey
         # (aaii_sentiment table). The survey is weekly, so accept the latest row up
         # to 14 days old (one missed week of slack). If no fresh survey exists,
-        # these fields are NULL — never fabricated. (This loader previously wrote a
+        # these fields are NULL - never fabricated. (This loader previously wrote a
         # hardcoded 33.33/33.33/33.34 split with data_unavailable=False, presenting
         # invented neutrality as real survey data.)
         sentiment_score: Decimal | None = None
@@ -112,12 +112,12 @@ def compute_market_sentiment() -> None:
                 reason = "aaii_survey_percentages_invalid"
                 logger.error(
                     f"[DATA_QUALITY] aaii_sentiment row {aaii['date']} fractions sum to {total:.4f} "
-                    "(expected ~1.0) — refusing to publish invalid survey data"
+                    "(expected ~1.0) - refusing to publish invalid survey data"
                 )
         else:
             reason = "aaii_survey_data_unavailable"
             logger.warning(
-                f"No AAII survey data within 14 days of {today} — "
+                f"No AAII survey data within 14 days of {today} - "
                 "bullish/bearish/neutral published as NULL (fear/greed from VIX still real)"
             )
 

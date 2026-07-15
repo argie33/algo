@@ -55,7 +55,7 @@ class TestCircuitBreakerBasic:
         all_pass = {"halted": False, "passed": True}
         # check_all() dispatches via circuit_breaker._checks[name], a dict of bound
         # methods captured at __init__ time (see circuit_breaker.py's comment on
-        # self._checks — deliberate, to keep these methods visible to dead-code
+        # self._checks - deliberate, to keep these methods visible to dead-code
         # tooling). patch.object(circuit_breaker, "_check_x", ...) only replaces the
         # instance attribute, not the bound method already stored in that dict, so
         # the dict entries must be patched directly instead.

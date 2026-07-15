@@ -61,7 +61,7 @@ class SignalBase(ABC):
         row = cur.fetchone()
         if not row or row[0] is None or row[1] is None:
             raise ValueError(
-                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) — insufficient price history"
+                f"Period return data missing for {symbol} on {end_date} ({lookback_days}d lookback) - insufficient price history"
             )
         recent = float(row[0])
         oldest = float(row[1])

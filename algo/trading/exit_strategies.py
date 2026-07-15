@@ -97,7 +97,7 @@ class ExitStrategy(ABC):
     def _get_config(self, key: str) -> Any:
         """Get config value (supports both AlgoConfig and dict).
 
-        CRITICAL: Raises KeyError if key missing. NO defaults allowed — exit strategy
+        CRITICAL: Raises KeyError if key missing. NO defaults allowed - exit strategy
         config must be explicit and consistent across all callers.
         """
         if hasattr(self.config, "get"):
@@ -112,7 +112,7 @@ class ExitStrategy(ABC):
         if value is None:
             raise KeyError(
                 f"[EXIT_STRATEGY] Config key '{key}' required but missing. "
-                "Exit strategy parameters must be explicitly configured in algo_config — no implicit defaults allowed."
+                "Exit strategy parameters must be explicitly configured in algo_config - no implicit defaults allowed."
             )
         return value
 

@@ -85,7 +85,7 @@ def check_file(filepath: Path) -> list[str]:
             if is_critical_credential(var_name):
                 violations.append(
                     f"{filepath}:{line_num}: critical credential '{var_name}' has default {default_value} "
-                    f"— must fail-fast with no default"
+                    f"- must fail-fast with no default"
                 )
 
     return violations

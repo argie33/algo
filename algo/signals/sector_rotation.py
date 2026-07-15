@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Sector Rotation Detector — defensive leadership early warning
+Sector Rotation Detector - defensive leadership early warning
 
 Mansfield RS rotation research and IBD's leadership-rotation studies show
 that defensive sectors (Utilities, Consumer Staples, Healthcare) typically
@@ -128,7 +128,7 @@ class SectorRotationDetector:
             if any(x is None for x in (r1w, r4w, r12w, momentum)):
                 missing = [n for n, v in [("1w", r1w), ("4w", r4w), ("12w", r12w), ("momentum", momentum)] if v is None]
                 logger.warning(
-                    f"[SECTOR ROTATION] {sector_name}: missing {', '.join(missing)} data for {eval_date} — "
+                    f"[SECTOR ROTATION] {sector_name}: missing {', '.join(missing)} data for {eval_date} - "
                     "skipping sector from rotation signal (lookback data not yet available)"
                 )
                 continue
@@ -154,30 +154,30 @@ class SectorRotationDetector:
         if r1w is None:
             logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 1w rank data for {eval_date}")
             raise ValueError(
-                f"Sector {sector_name} missing rank_1w_ago for {eval_date} — "
+                f"Sector {sector_name} missing rank_1w_ago for {eval_date} - "
                 "incomplete sector_ranking data; cannot compute rotation signal"
             )
         if r4w is None:
             logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 4w rank data for {eval_date}")
             raise ValueError(
-                f"Sector {sector_name} missing rank_4w_ago for {eval_date} — "
+                f"Sector {sector_name} missing rank_4w_ago for {eval_date} - "
                 "incomplete sector_ranking data; cannot compute rotation signal"
             )
         if r12w is None:
             logger.warning(f"[SECTOR ROTATION] {sector_name}: missing 12w rank data for {eval_date}")
             raise ValueError(
-                f"Sector {sector_name} missing rank_12w_ago for {eval_date} — "
+                f"Sector {sector_name} missing rank_12w_ago for {eval_date} - "
                 "incomplete sector_ranking data; cannot compute rotation signal"
             )
         if momentum is None:
             logger.warning(f"[SECTOR ROTATION] {sector_name}: missing momentum_score for {eval_date}")
             raise ValueError(
-                f"Sector {sector_name} missing momentum_score for {eval_date} — incomplete sector_ranking data"
+                f"Sector {sector_name} missing momentum_score for {eval_date} - incomplete sector_ranking data"
             )
 
     def _validate_sector_coverage(self, sector_data: dict[str, dict[str, Any]], eval_date: _date) -> None:
         if not sector_data:
-            raise ValueError(f"No sector ranking data found for {eval_date} — sector_ranking table may be empty")
+            raise ValueError(f"No sector ranking data found for {eval_date} - sector_ranking table may be empty")
         defensive = [d for d in sector_data.values() if d["is_defensive"]]
         cyclical = [d for d in sector_data.values() if d["is_cyclical"]]
         if not defensive or not cyclical:
@@ -293,7 +293,7 @@ class SectorRotationDetector:
                 raise ValueError(
                     f"[CRITICAL] Sector rotation scoring incomplete for {eval_date}: "
                     f"missing fields: {', '.join(missing_fields)}. "
-                    f"Cannot persist incomplete sector rotation signal — affects market exposure calculation."
+                    f"Cannot persist incomplete sector rotation signal - affects market exposure calculation."
                 )
 
             details_dict: dict[str, Any] = {
@@ -359,7 +359,7 @@ if __name__ == "__main__":
     d = SectorRotationDetector()
     result = d.compute(_date(2026, 4, 24))
     if result:
-        logger.info(f"SECTOR ROTATION — {result['eval_date']}")
+        logger.info(f"SECTOR ROTATION - {result['eval_date']}")
         logger.info(f"Signal: {result['signal']}")
         logger.info(f"Defensive lead score: {result['defensive_lead_score']}/100")
         logger.info(f"Cyclical weak score: {result['cyclical_weak_score']}/100")

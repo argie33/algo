@@ -2,7 +2,7 @@
 """
 Test that production_readiness_check validates column data types, not just existence.
 
-This verifies the fix for: "Schema validation missing types — Only checks column existence, not data types"
+This verifies the fix for: "Schema validation missing types - Only checks column existence, not data types"
 
 Before fix: check_database_connectivity() only checked if tables existed (information_schema.tables)
 After fix: check_database_connectivity() validates column types using validate_table_schema()

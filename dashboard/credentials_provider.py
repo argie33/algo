@@ -25,7 +25,7 @@ class CredentialsProvider:
         """Fetch dashboard credentials from AWS Secrets Manager.
 
         CRITICAL: Fails fast on any credential missing. No fallback behavior.
-        Credentials are required for AWS mode — missing values are fatal errors.
+        Credentials are required for AWS mode - missing values are fatal errors.
 
         Returns: (dashboard_api_url, cognito_user_pool_id, cognito_client_id)
         Raises: RuntimeError if any credential missing or unavailable
@@ -93,7 +93,7 @@ class CredentialsProvider:
         """Fetch dashboard credentials from Terraform outputs.
 
         CRITICAL: Fails fast. Raises RuntimeError if credentials cannot be obtained.
-        No fallback behavior — missing Terraform credentials are a fatal error for AWS mode.
+        No fallback behavior - missing Terraform credentials are a fatal error for AWS mode.
 
         Returns: (dashboard_api_url, cognito_user_pool_id, cognito_client_id)
         Raises: RuntimeError if Terraform unavailable or credentials missing
@@ -223,7 +223,7 @@ class CredentialsProvider:
             return bool(parsed.scheme and parsed.netloc)
         except Exception as e:
             logger.error(
-                f"URL validation failed for API endpoint: {e}. Cannot validate API URL format — check configuration."
+                f"URL validation failed for API endpoint: {e}. Cannot validate API URL format - check configuration."
             )
             raise RuntimeError(
                 f"URL validation failed: {e}. API endpoint configuration is invalid. Cannot proceed."

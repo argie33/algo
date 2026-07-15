@@ -153,7 +153,7 @@ def get_failed_runs(days: int = 30) -> list[dict[str, Any]]:
 
 
 def get_halt_patterns(days: int = 30) -> list[dict[str, Any]]:
-    """Analyze halt patterns — which phases halt most often and why.
+    """Analyze halt patterns - which phases halt most often and why.
 
     Args:
         days: How many days back to analyze (default 30)
@@ -240,7 +240,7 @@ def get_success_rate(days: int = 7) -> dict[str, Any]:
 
             for status_key in ["success", "halted", "error"]:
                 if status_key not in stats:
-                    raise ValueError(f"Missing '{status_key}' count in orchestrator stats — data incomplete")
+                    raise ValueError(f"Missing '{status_key}' count in orchestrator stats - data incomplete")
 
             return {
                 "total_runs": total,

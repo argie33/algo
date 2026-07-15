@@ -121,7 +121,7 @@ class HealthCheckConfig:
             ) from e
 
 
-# Global singleton — initialized at Lambda cold start (thread-safe)
+# Global singleton - initialized at Lambda cold start (thread-safe)
 _config = None
 _config_lock = threading.Lock()
 

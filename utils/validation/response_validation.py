@@ -39,7 +39,7 @@ def get_required_field(data: dict[str, Any], field: str, field_type: type | None
         raise RuntimeError(
             f"Required field '{field}' missing from response data. "
             f"Available fields: {list(data.keys())}. "
-            f"Response validation failed — incomplete data structure."
+            f"Response validation failed - incomplete data structure."
         )
 
     value = data[field]

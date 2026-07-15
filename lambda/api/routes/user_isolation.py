@@ -38,7 +38,7 @@ def get_user_id(jwt_claims: dict[str, Any] | None) -> str:
         ValueError: If JWT claims missing or sub claim not present
     """
     if not jwt_claims:
-        raise ValueError("[AUTH] JWT claims missing — authentication required")
+        raise ValueError("[AUTH] JWT claims missing - authentication required")
 
     user_id = jwt_claims.get("sub")
     if not user_id:
@@ -173,10 +173,10 @@ def get_user_alpaca_credentials(cur: cursor, user_id: str, default_to_shared: bo
             # Validate shared credentials structure
             if creds and not _validate_credentials_structure(creds):
                 logger.error("[ALPACA] Shared credentials failed validation")
-                raise RuntimeError("[CRITICAL] Shared Alpaca credentials invalid — trading unavailable")
+                raise RuntimeError("[CRITICAL] Shared Alpaca credentials invalid - trading unavailable")
 
             if not creds:
-                raise RuntimeError("[CRITICAL] Shared Alpaca credentials not found — trading unavailable")
+                raise RuntimeError("[CRITICAL] Shared Alpaca credentials not found - trading unavailable")
 
             return creds
         except RuntimeError:

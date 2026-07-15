@@ -174,7 +174,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
     sorted_pos_items = sorted(pos_items, key=lambda x: float(x.get("position_value")), reverse=True)
     for p in sorted_pos_items:
         # TRUST API FILTERING: All positions here are already validated by API layer
-        # If data is invalid, it's a contract violation — don't silently skip, raise to catch bugs
+        # If data is invalid, it's a contract violation - don't silently skip, raise to catch bugs
         symbol = p.get("symbol")
         entry = p.get("avg_entry_price")
         price = p.get("current_price")
@@ -189,7 +189,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
                 f"(2) Dashboard data contract in shared_contracts/"
             )
 
-        # Convert to float (safe, no try-except needed — API already validated these are numeric)
+        # Convert to float (safe, no try-except needed - API already validated these are numeric)
         entry = float(entry) if not isinstance(entry, float) else entry
         price = float(price) if not isinstance(price, float) else price
         pval = float(pval) if not isinstance(pval, float) else pval
@@ -198,7 +198,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         stop = safe_float(p.get("stop_loss_price"), default=None, field_name=f"{symbol}.stop")
         pnl = safe_float(p.get("unrealized_pnl_pct"), default=None, field_name=f"{symbol}.pnl")
 
-        # Extract optional enrichment fields (low-priority data — graceful degradation)
+        # Extract optional enrichment fields (low-priority data - graceful degradation)
         days_raw = p.get("days_since_entry")
         if days_raw is None:
             logger.debug(f"[POSITIONS_PANEL] Position {symbol}: days_since_entry unavailable (optional enrichment)")
@@ -229,12 +229,12 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             p.get("distance_to_t1_pct"), default=None, field_name=f"{symbol}.distance_to_t1_pct"
         )  # Optional: target distance
 
-        # Extract display name — NO SECONDARY FALLBACK (remove name field secondary source)
+        # Extract display name - NO SECONDARY FALLBACK (remove name field secondary source)
         # Use only company_name if available, don't fall back to generic name field
-        # CRITICAL: Don't silently default company_name to empty string — log if missing
+        # CRITICAL: Don't silently default company_name to empty string - log if missing
         company_name_val = p.get("company_name")
         if company_name_val is None:
-            logger.debug(f"[POSITIONS] company_name enrichment missing for {symbol} — position tracking incomplete")
+            logger.debug(f"[POSITIONS] company_name enrichment missing for {symbol} - position tracking incomplete")
             name = "?"  # Explicit indicator that enrichment unavailable
         else:
             name = company_name_val[:16]

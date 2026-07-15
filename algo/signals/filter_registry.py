@@ -120,7 +120,7 @@ class FilterRegistry:
             category="Catalyst",
             description="Insider buying net of selling (60-day window)",
         ),
-        # Risk category (total: 15) — lower is BETTER for risk
+        # Risk category (total: 15) - lower is BETTER for risk
         "risk_extension": FilterWeight(
             name="risk_extension",
             value=13,

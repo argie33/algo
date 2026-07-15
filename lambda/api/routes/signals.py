@@ -83,7 +83,7 @@ def handle(
             return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
         elif path == "/api/signals/etf":
             # Extract and validate limit parameter (optional, default 500)
-            # CRITICAL FIX: Don't mask missing parameters with empty list — explicit None check
+            # CRITICAL FIX: Don't mask missing parameters with empty list - explicit None check
             limit_list = params.get("limit")
             if limit_list is None:
                 limit_str = "500"
@@ -255,7 +255,7 @@ def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
                     WHEN tt.weinstein_stage IN (3, 4) THEN 'SELL'
                     ELSE 'HOLD'
                 END AS signal,
-                COALESCE(tt.weinstein_stage::text, '—') AS strength,
+                COALESCE(tt.weinstein_stage::text, '-') AS strength,
                 NULL::text AS reason,
                 pd.close,
                 NULL::numeric AS rsi,

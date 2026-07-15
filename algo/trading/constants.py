@@ -1,4 +1,4 @@
-"""Trading constants — single source of truth for all status values, thresholds, and enums.
+"""Trading constants - single source of truth for all status values, thresholds, and enums.
 
 Principle: No hardcoded strings or magic numbers outside this module.
 All status checks use these enums. All thresholds come from algo_config table.

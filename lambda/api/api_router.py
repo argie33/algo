@@ -43,7 +43,7 @@ except ImportError:
             return {"statusCode": code, "errorType": err_type, "message": msg}
 
 
-# health is the only truly critical route — if it fails the API can't self-report its own status
+# health is the only truly critical route - if it fails the API can't self-report its own status
 try:
     from routes import health
 except ImportError as e:
@@ -54,7 +54,7 @@ _ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import: {module_name: 
 _AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
 _CRITICAL_ROUTES = {"health"}
 
-# All optional routes: loaded with graceful fallback — one module failing doesn't break others
+# All optional routes: loaded with graceful fallback - one module failing doesn't break others
 _OPTIONAL_ROUTE_MODULES = [
     "algo",
     "openapi_spec",
@@ -224,13 +224,13 @@ if all(m in _AVAILABLE_ROUTES for m in ["economic", "market", "sentiment", "pric
 # Note: /api/positions and /api/portfolio aliases are now in PUBLIC_HANDLERS
 _HANDLER_CONFIG = [
     ("/api/algo/risk-dashboard", "risk_dashboard"),
-    # NOTE: /api/algo/scores is NOT routed to the "scores" module here — /api/algo below
+    # NOTE: /api/algo/scores is NOT routed to the "scores" module here - /api/algo below
     # matches it first (matches_route() is a prefix match), so it always dispatches to
     # routes/algo.py's _get_dashboard_scores instead. That's the live, working handler;
     # routes/scores.py's _get_stock_scores is a separate, considerably richer query
     # (sortBy, valuation fields) that was never actually reachable through this route.
     # Wiring it up would need its own verification pass against the dashboard/API
-    # contract, not a routing reorder — left as-is to avoid an unverified regression.
+    # contract, not a routing reorder - left as-is to avoid an unverified regression.
     ("/api/algo", "algo"),
     ("/api/financials", "financials"),
     ("/api/earnings", "earnings"),

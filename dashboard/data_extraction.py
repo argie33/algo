@@ -145,19 +145,19 @@ class DashboardDataExtractor:
         return cast(dict[str, Any], extract_data_or_empty(self.data.get("mkt"), dict))
 
     def portfolio(self) -> dict[str, Any]:
-        """Extract portfolio (critical financial data—fail if missing)."""
+        """Extract portfolio (critical financial data-fail if missing)."""
         return cast(dict[str, Any], extract_data_or_empty(self.data.get("port"), dict, allow_empty=False))
 
     def performance(self) -> dict[str, Any]:
-        """Extract performance metrics (critical financial data—fail if missing)."""
+        """Extract performance metrics (critical financial data-fail if missing)."""
         return cast(dict[str, Any], extract_data_or_empty(self.data.get("perf"), dict, allow_empty=False))
 
     def positions(self) -> dict[str, Any]:
-        """Extract positions (critical financial data—fail if missing)."""
+        """Extract positions (critical financial data-fail if missing)."""
         return cast(dict[str, Any], extract_data_or_empty(self.data.get("pos"), dict, allow_empty=False))
 
     def signals(self) -> dict[str, Any]:
-        """Extract active signals (critical for trading—fail if missing)."""
+        """Extract active signals (critical for trading-fail if missing)."""
         return cast(dict[str, Any], extract_data_or_empty(self.data.get("sig"), dict, allow_empty=False))
 
     def health(self) -> dict[str, Any]:

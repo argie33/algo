@@ -21,7 +21,7 @@ class VolatilityFactor(ExposureFactorStrategy):
     def calculate(self, market_data: dict[str, Any]) -> float:
         """Calculate volatility exposure.
 
-        Raises ValueError if VIX data is missing — exposure calculations
+        Raises ValueError if VIX data is missing - exposure calculations
         require accurate volatility; defaulting to 20 would mask data issues.
         """
         if "vix_level" not in market_data or market_data["vix_level"] is None:
@@ -40,7 +40,7 @@ class BetaFactor(ExposureFactorStrategy):
     def calculate(self, market_data: dict[str, Any]) -> float:
         """Calculate beta exposure.
 
-        Raises ValueError if correlation data is missing — exposure calculations
+        Raises ValueError if correlation data is missing - exposure calculations
         require accurate beta; defaulting to 0.7 would mask missing market data.
         """
         if "correlation_to_market" not in market_data or market_data["correlation_to_market"] is None:
@@ -59,7 +59,7 @@ class LiquidityFactor(ExposureFactorStrategy):
     def calculate(self, market_data: dict[str, Any]) -> float:
         """Calculate liquidity exposure.
 
-        Raises ValueError if spread data is missing — exposure calculations
+        Raises ValueError if spread data is missing - exposure calculations
         require accurate liquidity metrics; defaulting to 5 bps would mask stale data.
         """
         if "spread_bps" not in market_data or market_data["spread_bps"] is None:
@@ -78,7 +78,7 @@ class DrawdownFactor(ExposureFactorStrategy):
     def calculate(self, market_data: dict[str, Any]) -> float:
         """Calculate drawdown exposure.
 
-        Raises ValueError if drawdown data is missing — exposure calculations
+        Raises ValueError if drawdown data is missing - exposure calculations
         require accurate risk metrics; defaulting to 0% would hide portfolio losses.
         """
         if "max_drawdown_pct" not in market_data or market_data["max_drawdown_pct"] is None:
@@ -103,7 +103,7 @@ class ExposureFactorCalculator:
     def calculate_factor(self, name: str, market_data: dict[str, Any]) -> float:
         """Calculate single exposure factor.
 
-        Raises ValueError if factor is unknown. Do not return 0.0 — that masks
+        Raises ValueError if factor is unknown. Do not return 0.0 - that masks
         missing factors in composite calculations.
         """
         factor = self.factors.get(name)

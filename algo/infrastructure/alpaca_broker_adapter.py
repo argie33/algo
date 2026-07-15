@@ -347,7 +347,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             history = self.fetch_portfolio_history()
             if not history:
                 raise ValueError(
-                    "Alpaca portfolio history is empty — cannot determine initial capital. "
+                    "Alpaca portfolio history is empty - cannot determine initial capital. "
                     "Ensure portfolio has at least one historical equity entry."
                 )
             return float(history[0])

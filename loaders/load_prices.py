@@ -416,7 +416,7 @@ class PriceLoader(OptimalLoader):
         # ISSUE #6 FIX: Proactive conservative sizing during EOD to avoid timeout
         # Even though 160/min rate limit theoretically allows batch=150,
         # if API lag or rate limiting persists, conservative batch sizing ensures completion.
-        # Worst case: batch=20 Ã— 250 symbols/batch = 12500 API calls at 160/min = ~78 min,
+        # Worst case: batch=20 Ã- 250 symbols/batch = 12500 API calls at 160/min = ~78 min,
         # well under Step Function timeout (27000s = 450 min).
         if self._is_eod_pipeline and self._batch_total_count == 0:
             logger.info(
@@ -436,7 +436,7 @@ class PriceLoader(OptimalLoader):
 
         success_rate = self._batch_success_count / self._batch_total_count
 
-        # CRITICAL: Price data quality is essential — no silent degradation to low success rates.
+        # CRITICAL: Price data quality is essential - no silent degradation to low success rates.
         # Require 95%+ success rate to confirm data integrity.
         # - >95% success: normal batch size (100)
         # - <95% success: fail-hard instead of silently adapting to low quality
@@ -452,7 +452,7 @@ class PriceLoader(OptimalLoader):
         if success_rate < 0.95:
             logger.critical(
                 f"[PRICE_LOADER] Success rate ({success_rate:.1%}) below 95% threshold. "
-                f"Price data is CRITICAL — cannot continue with degraded quality. "
+                f"Price data is CRITICAL - cannot continue with degraded quality. "
                 f"Batch count: {self._batch_success_count}/{self._batch_total_count}. "
                 f"Failing fast instead of silently adapting batch size to degrade gracefully."
             )
@@ -1251,7 +1251,7 @@ class PriceLoader(OptimalLoader):
                         )
                     # If reduced_attempt is None or all values None, continue to next reduced size
 
-                # All reduced sizes failed — circuit breaker triggered, fail immediately
+                # All reduced sizes failed - circuit breaker triggered, fail immediately
                 logger.critical(
                     f"[CIRCUIT_BREAKER] Rate limiting persisted {error_duration / 60:.1f}min despite batch size reduction. "
                     "yfinance API experiencing degradation. Cannot proceed without price data. Failing fast."
@@ -1655,7 +1655,7 @@ class PriceLoader(OptimalLoader):
             logger.critical(error_msg)
             raise RuntimeError(error_msg)
 
-        # Timeout check passed — execution should continue.
+        # Timeout check passed - execution should continue.
         # Returns explicit status dict to signal caller that no circuit breaker was triggered
         # and normal batch processing should resume.
         logger.debug(
@@ -1763,7 +1763,7 @@ class PriceLoader(OptimalLoader):
                     f"(expected int): {symbols_successfully_loaded!r}"
                 )
                 raise RuntimeError(
-                    f"[{self.table_name}] Stats tracking is broken — 'symbols_processed' should be int, not {type(symbols_successfully_loaded).__name__}. "
+                    f"[{self.table_name}] Stats tracking is broken - 'symbols_processed' should be int, not {type(symbols_successfully_loaded).__name__}. "
                     f"Cannot determine loader completion state. Data load status is UNKNOWN."
                 )
 
@@ -1827,7 +1827,7 @@ class PriceLoader(OptimalLoader):
             logger.warning("Failed to update data_loader_status for {self.table_name}: %s", e)
 
         # Finalization complete. Implicit None return signals successful cleanup.
-        # Caller expects None return — this method is responsible for:
+        # Caller expects None return - this method is responsible for:
         #   1. Publishing metrics to CloudWatch via MetricsPublisher
         #   2. Recording loader status in data_loader_status table
         #   3. Invalidating Phase 1 cache to prevent stale data consumption
@@ -2029,7 +2029,7 @@ class PriceLoader(OptimalLoader):
                         f"(own watermark {sym_wm}, batch window {previous_date})"
                     )
                 if not rows:
-                    # Everything fetched is already loaded — watermark current, not a failure.
+                    # Everything fetched is already loaded - watermark current, not a failure.
                     self._stats["symbols_skipped_by_watermark"] += 1
                     self._stats["symbols_processed"] += 1
                     continue
@@ -2211,8 +2211,8 @@ def derive_aggregate_prices(asset_class: str) -> None:
 
     Replaces fetching 1wk/1mo bars from yfinance for the whole universe (~10,700
     requests/day when it ran; production disabled those fetches on 2026-07-10 which
-    left price_weekly/price_monthly with live readers — signal_patterns,
-    market_factor_calculator, dashboard price routes — and a critical 7-day Phase 1
+    left price_weekly/price_monthly with live readers - signal_patterns,
+    market_factor_calculator, dashboard price routes - and a critical 7-day Phase 1
     freshness gate, but NO writer). Bar labeling matches the yfinance rows already in
     the tables: weekly bars keyed by week start (Monday), monthly by the 1st.
 
@@ -2381,13 +2381,13 @@ def main() -> int:
 
     # Read from environment variables (no CLI args, cleaner for containerized execution)
     # Weekly/monthly bars are DERIVED from daily bars in SQL after the 1d load
-    # (see derive_aggregate_prices) — fetching them from yfinance is no longer the
+    # (see derive_aggregate_prices) - fetching them from yfinance is no longer the
     # default. Set LOADER_INTERVALS=1wk or 1mo explicitly for a manual API backfill.
     intervals_str = os.getenv("LOADER_INTERVALS", "1d")
     asset_classes_str = os.getenv("LOADER_ASSET_CLASSES", "stock,etf")
     symbols_str = os.getenv("LOADER_SYMBOLS", "")
     # CRITICAL: Use higher parallelism for stock_prices_daily to complete in reasonable time
-    # Loading 5000 symbols Ã— 3 intervals = 15000+ records; parallelism=2 takes 6+ hours
+    # Loading 5000 symbols Ã- 3 intervals = 15000+ records; parallelism=2 takes 6+ hours
     # parallelism=8 reduces to ~2 hours while RDS Proxy handles connection pooling
     # FIXED Issue #13: Read parallelism from DynamoDB (dynamic), fallback to env var
     parallelism = get_parallelism("stock_prices_daily")

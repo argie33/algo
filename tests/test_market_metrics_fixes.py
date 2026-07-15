@@ -86,7 +86,7 @@ class TestBreadthFetcherValidation:
 
     @pytest.mark.xfail(reason="Behavior changed: fail-fast (skip NULL), not convert to 0")
     def test_handles_null_values_in_counts(self):
-        """Converts NULL counts to 0 — deprecated behavior."""
+        """Converts NULL counts to 0 - deprecated behavior."""
         fetcher = BreadthFetcher()
 
         mock_cur = Mock()

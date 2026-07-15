@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Trend signal methods — Minervini trend template, Weinstein stage, Mansfield RS.
+Trend signal methods - Minervini trend template, Weinstein stage, Mansfield RS.
 
 These methods read from pre-computed trend_template_data (populated by loaders)
 and compute Mansfield RS on-demand using price returns. Falls back to on-the-fly
@@ -62,7 +62,7 @@ class SignalTrendMixin:
             row = cur.fetchone()
             if row is None or len(row) < 1 or row[0] is None:
                 raise ValueError(
-                    f"Weinstein stage classification unavailable for {symbol} on {eval_date} — "
+                    f"Weinstein stage classification unavailable for {symbol} on {eval_date} - "
                     f"technical analysis required to determine market stage"
                 )
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""RDS Connection Pool Monitoring — Critical for preventing exhaustion during EOD pipeline.
+"""RDS Connection Pool Monitoring - Critical for preventing exhaustion during EOD pipeline.
 
 Monitors connection pool saturation during high-load periods:
 - Morning prep (2:45-9:30 AM): expect <30 connections
@@ -14,7 +14,7 @@ from typing import Any
 
 import psycopg2
 
-# Inlined from algo.infrastructure.constants — avoids importing the algo package
+# Inlined from algo.infrastructure.constants - avoids importing the algo package
 # at module load time, which is not available in the API Lambda runtime.
 DB_MAX_CONNECTIONS = 100  # db.t4g.small safety threshold
 DB_POOL_ALERT_THRESHOLD_PCT = 80  # Alert when pool usage > 80%

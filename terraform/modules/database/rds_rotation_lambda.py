@@ -149,7 +149,7 @@ def handler(event: Any, context: Any) -> dict[str, Any]:
             db_port = current_secret.get("port")
             if not db_port:
                 raise ValueError(
-                    "[RDS_ROTATION] Database port not found in secret — cannot proceed with password rotation"
+                    "[RDS_ROTATION] Database port not found in secret - cannot proceed with password rotation"
                 )
 
             update_rds_password(
@@ -174,7 +174,7 @@ def handler(event: Any, context: Any) -> dict[str, Any]:
                 # Using a fallback port masks configuration errors
                 db_port = pending_secret.get("port")
                 if not db_port:
-                    raise ValueError("[RDS_ROTATION] Database port not found in secret — cannot verify credentials")
+                    raise ValueError("[RDS_ROTATION] Database port not found in secret - cannot verify credentials")
 
                 conn = psycopg2.connect(
                     host=pending_secret["host"],

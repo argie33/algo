@@ -114,7 +114,7 @@ def _load_db_credentials() -> dict[str, Any]:
             }
 
         # In production mode, raise exception for Lambda handler to return 500 error
-        # Don't call sys.exit(1) — that's inappropriate for Lambda (terminates process)
+        # Don't call sys.exit(1) - that's inappropriate for Lambda (terminates process)
         error_detail = (
             f"FATAL: AWS Secrets Manager failed. "
             f"Error: {error_msg}. "

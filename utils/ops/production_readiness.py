@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Production Readiness Check — Comprehensive validation before deploying to AWS.
+"""Production Readiness Check - Comprehensive validation before deploying to AWS.
 
 Validates all critical systems are configured correctly:
 - Database connectivity and schema

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 """
-Options-Based Alpha Signals — IV rank, put/call ratio, implied move.
+Options-Based Alpha Signals - IV rank, put/call ratio, implied move.
 
 All signals return bonus points (0-3 pts max) to momentum component.
 Gracefully handle missing options data (many small-caps have no options).
@@ -52,7 +52,7 @@ class SignalOptionsMixin:
             # Validate all three IV values are present (fail-fast on incomplete data)
             if row[1] is None or row[2] is None:
                 raise ValueError(
-                    f"IV data incomplete for {symbol}: iv_high or iv_low is NULL — "
+                    f"IV data incomplete for {symbol}: iv_high or iv_low is NULL - "
                     "cannot compute IV rank without complete historical range"
                 )
 
@@ -68,7 +68,7 @@ class SignalOptionsMixin:
             # Avoid division by zero
             if iv_high == iv_low:
                 raise ValueError(
-                    f"IV range invalid for {symbol}: iv_high == iv_low ({iv_high}) — "
+                    f"IV range invalid for {symbol}: iv_high == iv_low ({iv_high}) - "
                     "cannot compute IV rank without volatility range"
                 )
 
@@ -212,12 +212,12 @@ class SignalOptionsMixin:
 
             implied_move = current_iv * (days_to_exp / 365.0) ** 0.5 * 100
 
-            # Get base depth from technical analysis — required if we have IV data
+            # Get base depth from technical analysis - required if we have IV data
             try:
                 base_type = self.classify_base_type(symbol, eval_date)  # type: ignore[attr-defined]
                 if base_type is None:
                     raise ValueError(
-                        f"{symbol}: Base type classification unavailable — "
+                        f"{symbol}: Base type classification unavailable - "
                         f"cannot evaluate implied move vs base depth. "
                         f"Options signal evaluation requires technical base analysis."
                     )
@@ -225,7 +225,7 @@ class SignalOptionsMixin:
                 base_depth = base_type.get("depth_pct")
                 if base_depth is None:
                     raise ValueError(
-                        f"{symbol}: Base depth missing from classification — "
+                        f"{symbol}: Base depth missing from classification - "
                         f"cannot compare implied move to setup depth. "
                         f"Options signal evaluation requires complete base analysis."
                     )

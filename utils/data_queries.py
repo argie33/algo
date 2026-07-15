@@ -1,4 +1,4 @@
-"""Centralized database queries — single source of truth for data filtering.
+"""Centralized database queries - single source of truth for data filtering.
 
 All position, trade, and signal queries go through this module to ensure consistency
 across API, dashboard, and orchestration. Changes to filtering/status logic need only

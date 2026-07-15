@@ -29,8 +29,8 @@ class CircuitBreakerState(Enum):
     """Circuit breaker state transitions."""
 
     CLOSED = "closed"  # Normal operation
-    OPEN = "open"  # Failing — all requests denied
-    HALF_OPEN = "half_open"  # Testing recovery — allow 1 request
+    OPEN = "open"  # Failing - all requests denied
+    HALF_OPEN = "half_open"  # Testing recovery - allow 1 request
 
 
 class DataImportance(Enum):
@@ -117,13 +117,13 @@ class CircuitBreaker:
         self.last_failure_time = time.time()
 
         if self.state == CircuitBreakerState.HALF_OPEN:
-            # Failure during recovery attempt — go back to OPEN
+            # Failure during recovery attempt - go back to OPEN
             logger.warning(f"[CIRCUIT_BREAKER:{self.name}] Recovery test failed, reopening circuit (was in HALF_OPEN)")
             self.state = CircuitBreakerState.OPEN
             self.opened_at = time.time()
             self.success_count_in_half_open = 0
         elif self.failure_count >= self.failure_threshold:
-            # Threshold reached — open circuit
+            # Threshold reached - open circuit
             logger.critical(
                 f"[CIRCUIT_BREAKER:{self.name}] ⚠️  CIRCUIT OPEN: "
                 f"{self.failure_count}/{self.failure_threshold} failures detected. "
@@ -173,7 +173,7 @@ class CircuitBreaker:
 
             if importance == DataImportance.CRITICAL:
                 # CRITICAL data: Fail immediately, don't use stale cache
-                logger.critical(f"{error_msg}. CRITICAL DATA UNAVAILABLE — PIPELINE MUST HALT")
+                logger.critical(f"{error_msg}. CRITICAL DATA UNAVAILABLE - PIPELINE MUST HALT")
                 raise RuntimeError(
                     f"[CIRCUIT_OPEN] {self.name} unavailable and data is CRITICAL. "
                     "Cannot proceed without this data. "
@@ -182,7 +182,7 @@ class CircuitBreaker:
             elif importance == DataImportance.REQUIRED:
                 # REQUIRED data: Fail but with clearer recovery guidance
                 logger.error(
-                    f"{error_msg}. REQUIRED DATA UNAVAILABLE — phase execution blocked. "
+                    f"{error_msg}. REQUIRED DATA UNAVAILABLE - phase execution blocked. "
                     "Check API status and RDS connectivity."
                 )
                 raise RuntimeError(
@@ -192,12 +192,12 @@ class CircuitBreaker:
             else:
                 # OPTIONAL enrichment: Graceful degradation
                 logger.warning(
-                    f"{error_msg}. OPTIONAL DATA UNAVAILABLE — continuing without enrichment. "
+                    f"{error_msg}. OPTIONAL DATA UNAVAILABLE - continuing without enrichment. "
                     f"Returning fallback: {fallback_value}"
                 )
                 return fallback_value
 
-        # Circuit not open — try to fetch
+        # Circuit not open - try to fetch
         try:
             result = fetch_func()
             self.record_success()
@@ -209,20 +209,20 @@ class CircuitBreaker:
             if importance == DataImportance.CRITICAL:
                 logger.critical(
                     f"{error_msg} (failure {self.failure_count}/{self.failure_threshold}). "
-                    "CRITICAL DATA FETCH FAILED — pipeline must halt."
+                    "CRITICAL DATA FETCH FAILED - pipeline must halt."
                 )
                 raise RuntimeError(f"Critical data fetch failed for {self.name}: {e}") from e
             elif importance == DataImportance.REQUIRED:
                 logger.error(
                     f"{error_msg} (failure {self.failure_count}/{self.failure_threshold}). "
-                    "REQUIRED DATA FETCH FAILED — phase execution blocked."
+                    "REQUIRED DATA FETCH FAILED - phase execution blocked."
                 )
                 raise RuntimeError(f"Required data fetch failed for {self.name}: {e}") from e
             else:
                 # OPTIONAL: Log warning, return fallback, don't raise
                 logger.warning(
                     f"{error_msg} (failure {self.failure_count}/{self.failure_threshold}). "
-                    "OPTIONAL DATA FETCH FAILED — continuing with fallback value. "
+                    "OPTIONAL DATA FETCH FAILED - continuing with fallback value. "
                     f"Will open circuit after {self.failure_threshold} failures."
                 )
                 return fallback_value

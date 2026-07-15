@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Rate Limit Validator — Ensures critical APIs can handle full data volume.
+"""Rate Limit Validator - Ensures critical APIs can handle full data volume.
 
 Validates that:
 - yfinance doesn't block critical price loads (160 req/min limit)

@@ -3,7 +3,7 @@
 API Response Validation and Sanitization
 
 Sanitizes API response data:
-- None dict values → preserved as None (JSON null) — nullable fields are valid
+- None dict values → preserved as None (JSON null) - nullable fields are valid
 - None list items → filtered out (null array elements cause frontend iteration bugs)
 - Nested structures → recursively processed
 """
@@ -122,7 +122,7 @@ class APIResponseValidator:
     def validate_critical_response(data: Any, operation: str = "API response") -> None:
         """Validate response for critical endpoints. Raises if nulls detected.
 
-        Critical endpoints must have complete data — validation failures are fatal.
+        Critical endpoints must have complete data - validation failures are fatal.
         Use this instead of log_null_findings() for user-facing or trading endpoints.
 
         Args:

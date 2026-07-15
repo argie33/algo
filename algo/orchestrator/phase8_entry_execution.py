@@ -11,7 +11,7 @@ For each qualified signal from Phase 5:
 3. Run liquidity checks (ADV, dollar volume, price history age)
 4. Compute true ATR (max of H-L, |H-prev_C|, |L-prev_C|) anchored to run_date
 5. Compute SMA_50 anchored to run_date
-6. Stop loss: min(SMA_50 - ATR, entry - 2*ATR) — lower stop = more room for the trade
+6. Stop loss: min(SMA_50 - ATR, entry - 2*ATR) - lower stop = more room for the trade
 7. Use PositionSizer for regime-aware, drawdown-adjusted sizing
 8. Run PreTradeChecks (size cap, duplicate prevention, minimum order)
 9. Execute trade
@@ -125,7 +125,7 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
         if skipped_count:
             logger.warning(
                 f"[PERSIST SIGNALS] Inserted {inserted_count}/{len(qualified_trades)} signals for {run_date} "
-                f"({skipped_count} skipped — see warnings above)"
+                f"({skipped_count} skipped - see warnings above)"
             )
         else:
             logger.info(f"[PERSIST SIGNALS] Inserted {inserted_count} signals for {run_date}")
@@ -164,7 +164,7 @@ def _batch_fetch_technical_data(
 
     if not symbols_with_precomputed:
         # Phase 5 didn't run or produced no candidates (e.g., circuit breaker halted entry)
-        # This is not an error—it means no entries are allowed. Return empty dict (no candidates to process).
+        # This is not an error-it means no entries are allowed. Return empty dict (no candidates to process).
         logger.warning(
             "[PHASE8] No precomputed technical data available for entry execution. "
             "Phase 5 likely halted or produced no candidates. No entries will be executed this run."
@@ -402,7 +402,7 @@ def run(
     # Halt flag check before any trades
 
     if check_halt_flag and check_halt_flag():
-        logger.warning("[PHASE 8] Halt flag set — skipping all entries")
+        logger.warning("[PHASE 8] Halt flag set - skipping all entries")
 
         log_phase_result_fn(8, "entry_execution", "halt", "Halt flag active")
 
@@ -449,11 +449,11 @@ def run(
 
             result = cur.fetchone()
             if result is None:
-                raise ValueError("Price data freshness query returned no results — price_daily table may be empty")
+                raise ValueError("Price data freshness query returned no results - price_daily table may be empty")
 
             latest_price_date = result[0]
 
-            # Determine expected last trading day — allow previous trading day's data
+            # Determine expected last trading day - allow previous trading day's data
             # Phase 8 may run intraday (9 AM, 1 PM, 3 PM) before EOD data is available,
             # so we require prices to be at most 1 trading day old (not necessarily same-day).
             most_recent_trading_day = run_date
@@ -475,7 +475,7 @@ def run(
                     f"[PHASE 8 CRITICAL] Price data is not current (latest: {latest_price_date}, "
                     f"expected: {expected_price_date}, run_date: {run_date}). "
                     f"Cannot execute trades without current market data. "
-                    f"EOD price loader may not have completed — check data_loader_status and CloudWatch logs."
+                    f"EOD price loader may not have completed - check data_loader_status and CloudWatch logs."
                 )
 
                 logger.critical(msg)
@@ -598,7 +598,7 @@ def run(
 
     liquidity = LiquidityChecks(config=config)
 
-    # Fetch portfolio value once — avoids one Alpaca API call per symbol
+    # Fetch portfolio value once - avoids one Alpaca API call per symbol
     # For paper mode, use configured capital if Alpaca API unavailable
     execution_mode = config.get("execution_mode", "paper")
     try:
@@ -778,7 +778,7 @@ def run(
                     "Verify signal_generation phase produced valid signals."
                 )
 
-            # Re-check halt flag each iteration — this loop can run for minutes
+            # Re-check halt flag each iteration - this loop can run for minutes
 
             if check_halt_flag and check_halt_flag():
                 logger.warning(f"[PHASE 8] Halt flag set mid-loop at {symbol}, stopping")
@@ -802,7 +802,7 @@ def run(
             )
 
             if not liq_ok:
-                logger.debug(f"[PHASE 8] {symbol}: liquidity — {liq_reason}")
+                logger.debug(f"[PHASE 8] {symbol}: liquidity - {liq_reason}")
 
                 skipped_count += 1
 
@@ -899,7 +899,7 @@ def run(
                         f"[PHASE 8] {symbol}: Position sizer returned status != 'ok' but no 'reason' field. "
                         f"Sizer must provide reason for rejection. Response: {sizing}"
                     )
-                logger.info(f"[PHASE 8] {symbol}: sizer blocked — {reason}")
+                logger.info(f"[PHASE 8] {symbol}: sizer blocked - {reason}")
                 skipped_count += 1
                 continue
 
@@ -912,7 +912,7 @@ def run(
                     f"Position sizer failed to provide shares for {symbol}. Cannot proceed with zero-share position."
                 )
             elif sizing["shares"] < 1:
-                logger.info(f"[PHASE 8] {symbol}: sizer blocked — insufficient shares ({sizing['shares']})")
+                logger.info(f"[PHASE 8] {symbol}: sizer blocked - insufficient shares ({sizing['shares']})")
 
                 skipped_count += 1
 
@@ -934,7 +934,7 @@ def run(
                 ) from e
 
             if not pt_ok:
-                logger.info(f"[PHASE 8] {symbol}: pre-trade check — {pt_reason}")
+                logger.info(f"[PHASE 8] {symbol}: pre-trade check - {pt_reason}")
 
                 skipped_count += 1
 
@@ -944,12 +944,12 @@ def run(
             rs_pct = signal.get("rs_percentile")
             if composite_score is None:
                 raise RuntimeError(
-                    f"[PHASE 8] Signal for {symbol} missing required 'composite_score' field — "
+                    f"[PHASE 8] Signal for {symbol} missing required 'composite_score' field - "
                     f"cannot execute trade without signal quality validation."
                 )
             if rs_pct is None:
                 raise RuntimeError(
-                    f"[PHASE 8] Signal for {symbol} missing required 'rs_percentile' field — "
+                    f"[PHASE 8] Signal for {symbol} missing required 'rs_percentile' field - "
                     f"cannot execute trade without relative strength validation."
                 )
             logger.info(

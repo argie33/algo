@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared IP Circuit Breaker for yfinance — Coordinates rate limiting across all ECS tasks.
+"""Shared IP Circuit Breaker for yfinance - Coordinates rate limiting across all ECS tasks.
 
 Problem: 6 ECS tasks share the same NAT IP when accessing yfinance. When one task
 detects rate limiting, the others don't know and keep making requests, causing Yahoo
@@ -37,7 +37,7 @@ class YFinanceIPCircuitBreaker:
     All tasks read the same shared ban_until from PostgreSQL. Without jitter,
     every task wakes up and retries at the exact same instant the ban clears,
     causing a synchronized retry storm that immediately re-triggers Yahoo's
-    rate limit — a self-inflicted thundering herd that can keep the shared IP
+    rate limit - a self-inflicted thundering herd that can keep the shared IP
     banned indefinitely regardless of how long the real underlying block is.
     JITTER_FRACTION spreads task wake-ups across a window instead of a point.
     """
@@ -47,7 +47,7 @@ class YFinanceIPCircuitBreaker:
 
     # Exponential backoff configuration
     INITIAL_BACKOFF_SECS = 10  # Start with 10s
-    MAX_BACKOFF_SECS = 1800  # Cap at 30 minutes — long enough to outlast sustained real bans
+    MAX_BACKOFF_SECS = 1800  # Cap at 30 minutes - long enough to outlast sustained real bans
     BACKOFF_MULTIPLIER = 2  # Double on each failure
     JITTER_FRACTION = 0.3  # +/- 30% randomization so ~70 concurrent tasks don't retry in lockstep
 
@@ -95,7 +95,7 @@ class YFinanceIPCircuitBreaker:
             raise ValueError("Circuit breaker state corrupted: is_banned=TRUE but ban_until is NULL")
 
         if ban_until <= datetime.now(timezone.utc):
-            # Ban has expired — clear it
+            # Ban has expired - clear it
             self._clear_ban()
             return False
         return True
@@ -103,7 +103,7 @@ class YFinanceIPCircuitBreaker:
     def wait_or_raise(self) -> None:
         """Block briefly if banned; raise YFinanceStillBannedError if the wait is too long.
 
-        Callers must use this instead of `time.sleep(get_backoff_seconds())` — a running
+        Callers must use this instead of `time.sleep(get_backoff_seconds())` - a running
         ECS task is billed for wall-clock time, so blocking it for the full shared ban
         duration wastes paid compute. Short bans are waited out in-process; long ones
         fail fast so the task exits and the next scheduled run retries at zero extra cost.
@@ -116,7 +116,7 @@ class YFinanceIPCircuitBreaker:
             return
         raise YFinanceStillBannedError(
             f"Shared IP rate limited and still banned for {backoff:.0f}s more "
-            f"(exceeds {self.MAX_IN_PROCESS_WAIT_SECS}s in-task wait budget) — "
+            f"(exceeds {self.MAX_IN_PROCESS_WAIT_SECS}s in-task wait budget) - "
             f"failing fast instead of blocking a billed task; will retry on next scheduled run"
         )
 
@@ -143,7 +143,7 @@ class YFinanceIPCircuitBreaker:
         state = self._get_ban_state()
 
         if state is None:
-            # First rate limit error — create initial state
+            # First rate limit error - create initial state
             failure_count = 1
             backoff: float = self.INITIAL_BACKOFF_SECS
         else:

@@ -50,10 +50,10 @@ class LiquidityChecks:
             return True, "All liquidity checks passed"
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"Liquidity check unavailable for {symbol}: {e} — blocking as safety measure")
+            logger.warning(f"Liquidity check unavailable for {symbol}: {e} - blocking as safety measure")
             return (
                 False,
-                f"Liquidity checks unavailable ({type(e).__name__}) — blocking as safety measure",
+                f"Liquidity checks unavailable ({type(e).__name__}) - blocking as safety measure",
             )
 
     def _check_adv(self, symbol: str, signal_date: _date) -> tuple[bool, str]:
@@ -91,10 +91,10 @@ class LiquidityChecks:
                 return True, f"ADV {avg_vol:,.0f} ok"
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"ADV check failed for {symbol}: {e} — blocking as safety measure")
+            logger.error(f"ADV check failed for {symbol}: {e} - blocking as safety measure")
             return (
                 False,
-                f"ADV check unavailable ({type(e).__name__}) — blocking as safety measure",
+                f"ADV check unavailable ({type(e).__name__}) - blocking as safety measure",
             )
 
     def _check_dollar_volume(self, symbol: str, signal_date: _date) -> tuple[bool, str]:
@@ -132,10 +132,10 @@ class LiquidityChecks:
                 return True, f"Dollar vol ${avg_dollar_vol:,.0f} ok"
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"Dollar volume check failed for {symbol}: {e} — blocking as safety measure")
+            logger.error(f"Dollar volume check failed for {symbol}: {e} - blocking as safety measure")
             return (
                 False,
-                f"Dollar volume check unavailable ({type(e).__name__}) — blocking as safety measure",
+                f"Dollar volume check unavailable ({type(e).__name__}) - blocking as safety measure",
             )
 
     def _check_price_history_age(self, symbol: str, signal_date: _date) -> tuple[bool, str]:
@@ -147,7 +147,7 @@ class LiquidityChecks:
         specifically avoids stocks in their first year of trading.
 
         Uses price_daily row count as a proxy for trading age (no IPO date column
-        needed). 200 trading days ≈ 10 months — long enough for a first proper base.
+        needed). 200 trading days ≈ 10 months - long enough for a first proper base.
 
         Config key: min_price_history_days (default 200)
 
@@ -186,8 +186,8 @@ class LiquidityChecks:
                 return True, f"{trading_days} trading days of history ok"
 
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.error(f"Price history age check failed for {symbol}: {e} — blocking as safety measure")
+            logger.error(f"Price history age check failed for {symbol}: {e} - blocking as safety measure")
             return (
                 False,
-                f"Price history age check unavailable ({type(e).__name__}) — blocking as safety measure",
+                f"Price history age check unavailable ({type(e).__name__}) - blocking as safety measure",
             )

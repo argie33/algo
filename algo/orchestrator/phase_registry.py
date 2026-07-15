@@ -165,7 +165,7 @@ class PhaseRegistry:
         PhaseRegistryEntry(
             phase_num=9,
             phase_name="RECONCILIATION & SNAPSHOT",
-            dependencies=[],  # always_run — no deps: runs even when Phase 8 was skipped (no signals)
+            dependencies=[],  # always_run - no deps: runs even when Phase 8 was skipped (no signals)
             execute_fn=None,
             skip_if_halted=False,
             always_run=True,

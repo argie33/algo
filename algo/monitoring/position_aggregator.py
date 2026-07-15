@@ -79,7 +79,7 @@ class PositionAggregator:
         if "halt_flag_count_for_early_exit" not in self.config:
             raise ValueError(
                 "CRITICAL CONFIG: halt_flag_count_for_early_exit missing from position aggregator config. "
-                "Cannot determine when to exit positions for health reasons — this is required configuration."
+                "Cannot determine when to exit positions for health reasons - this is required configuration."
             )
         halt_flag_count = self.config["halt_flag_count_for_early_exit"]
 

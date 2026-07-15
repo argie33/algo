@@ -17,7 +17,7 @@ FIX IMPLEMENTATION:
 2. _unwrap_api_response() returns response["data"] directly
 3. All data fetchers work with unwrapped payloads (no more nested data fields)
 
-Result: Consistent response handling — all methods access fields at same nesting level.
+Result: Consistent response handling - all methods access fields at same nesting level.
 
 Migration status:
 - Positions, Trades, Performance, Signals: ✅ API-only + standardized
@@ -141,7 +141,7 @@ API_BASE_URL = _get_api_base_url()
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
-# ISSUE #10 FIX: Cache freshness threshold (in seconds) — read from environment or default to 30 minutes
+# ISSUE #10 FIX: Cache freshness threshold (in seconds) - read from environment or default to 30 minutes
 # This allows configuring cache staleness tolerance based on deployment environment
 API_CACHE_MAX_AGE_SECONDS = int(os.environ.get("DASHBOARD_CACHE_MAX_AGE_SECONDS", "1800"))  # default 30 min
 
@@ -463,7 +463,7 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
         raise RuntimeError(
             f"API {endpoint}: cached response too stale "
             f"({cache_age_mins}+ min old, {int(age_seconds)}s). "
-            "Cannot serve stale data in finance application — risk calculations would be invalid. "
+            "Cannot serve stale data in finance application - risk calculations would be invalid. "
             "API must be restored or dashboard must show data unavailable."
         )
 
@@ -536,7 +536,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
 
     CRITICAL FAIL-FAST: Returns error dict on all failures (retries exhausted or circuit open).
     Never attempts stale cache fallback. In finance applications, data unavailability must
-    surface immediately to users—stale data for position sizing or risk calculations is
+    surface immediately to users-stale data for position sizing or risk calculations is
     unacceptable. Callers must show "data unavailable" error to users on API failures.
 
     Args:
@@ -576,7 +576,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             headers.update(auth_headers)
         except RuntimeError as auth_err:
             logger.error(f"Cognito authorization failed for {endpoint}: {auth_err}")
-            # Do NOT call _record_api_failure() — auth errors are permanent config issues, not transient API failures.
+            # Do NOT call _record_api_failure() - auth errors are permanent config issues, not transient API failures.
             # They should not trigger circuit breaker accumulation.
             return {"_error": f"Authentication failed: {auth_err}", "_auth_error": True}
     else:
@@ -731,7 +731,7 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 return validated
             except ResponseValidationError as e:
                 logger.error(f"API response validation failed for {endpoint}: {e}")
-                # DO NOT cache invalid response — next request will retry fresh
+                # DO NOT cache invalid response - next request will retry fresh
                 # Return error response so callers can handle validation failures explicitly
                 _record_api_failure()
                 return {
@@ -863,7 +863,7 @@ def _unwrap_api_response(response: dict[str, Any]) -> dict[str, Any]:
         # Copy all application fields (items, pagination, etc.) to payload
         payload = {k: v for k, v in response.items() if k not in ("statusCode", "success", "timestamp")}
     else:
-        # Neither 'data' nor 'items' field — check if this is an error response at top level
+        # Neither 'data' nor 'items' field - check if this is an error response at top level
         # Some error responses might have error information at top level
         # But if there's truly no data, this is malformed
         logger.error(

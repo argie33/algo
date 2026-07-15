@@ -6,7 +6,7 @@ Simulates the live algo strategy historically:
   - Entry trigger: BUY signal in buy_sell_daily (pivot breakout above swing high with SMA50 filter)
   - Ranking: composite_score from stock_scores (fundamentals quality: quality, growth, value,
     momentum, positioning, stability)
-  - Exit: first of — SELL signal in buy_sell_daily, profit target, stop loss, max hold
+  - Exit: first of - SELL signal in buy_sell_daily, profit target, stop loss, max hold
 
 Note: stock_scores has no date dimension (current snapshot). Composite scores used as ranking
 proxy for historical simulation. Momentum sub-score is price-based (1m/3m/6m/12m) so recency
@@ -61,7 +61,7 @@ def _get_trading_dates(start: date, end: date) -> list[date]:
 def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict[str, Any]]:
     """Get BUY signals for a date, sorted by signal_quality_score desc.
 
-    Ranks by signal_quality_score (contemporaneous — no look-ahead bias).
+    Ranks by signal_quality_score (contemporaneous - no look-ahead bias).
     Optionally also fetches composite_score from stock_scores for informational use,
     but does NOT filter or rank by it (stock_scores has no date dimension).
     min_composite is accepted for API compatibility but unused.
@@ -101,7 +101,7 @@ def _get_daily_buy_signals(signal_date: date, min_composite: float) -> list[dict
                 continue
             if r[5] is None:
                 raise ValueError(
-                    f"Signal strength missing for {r[0]} on {signal_date} — "
+                    f"Signal strength missing for {r[0]} on {signal_date} - "
                     f"cannot rank signal quality without strength data"
                 )
             signals.append(
