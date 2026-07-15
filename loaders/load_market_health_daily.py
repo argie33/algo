@@ -48,6 +48,7 @@ class MarketHealthDailyLoader(OptimalLoader):
     table_name = "market_health_daily"
     primary_key = ("date",)
     watermark_field = "date"
+    is_symbol_based = False
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)

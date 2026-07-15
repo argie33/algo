@@ -28,7 +28,7 @@ resource "aws_iam_role" "eventbridge_run_task" {
 
 # DynamoDB Table for Orchestrator Distributed Locking
 resource "aws_dynamodb_table" "orchestrator_locks" {
-  name         = "${var.project_name}-orchestrator-locks-${var.environment}"
+  table_name   = "${var.project_name}-orchestrator-locks-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "lock_key"
 
@@ -48,7 +48,7 @@ resource "aws_dynamodb_table" "orchestrator_locks" {
 
 # DynamoDB Table for Loader Distributed Locking (prevents concurrent instances)
 resource "aws_dynamodb_table" "loader_locks" {
-  name         = "${var.project_name}-loader-locks-${var.environment}"
+  table_name   = "${var.project_name}-loader-locks-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "lock_key"
 
@@ -68,7 +68,7 @@ resource "aws_dynamodb_table" "loader_locks" {
 
 # DynamoDB Table for Loader Execution Status (separate from lock TTL)
 resource "aws_dynamodb_table" "loader_execution_status" {
-  name         = "${var.project_name}-loader-status-${var.environment}"
+  table_name   = "${var.project_name}-loader-status-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "loader_name"
   range_key    = "execution_date"
@@ -94,7 +94,7 @@ resource "aws_dynamodb_table" "loader_execution_status" {
 
 # DynamoDB Table for Dynamic Loader Configuration
 resource "aws_dynamodb_table" "loader_config" {
-  name         = "${var.project_name}-loader-config-${var.environment}"
+  table_name   = "${var.project_name}-loader-config-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "loader_name"
 

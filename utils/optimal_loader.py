@@ -33,6 +33,7 @@ class OptimalLoader:
     watermark_field: str = "date"
     chunk_size: int = 10_000
     max_age_for_full_refresh: timedelta = timedelta(days=365)
+    is_symbol_based: bool = True
 
     def __init__(self, backfill_days: int | None = None):
         self._router: Any = None
@@ -759,17 +760,31 @@ class OptimalLoader:
             with DatabaseContext("read") as cur:
                 # CRITICAL: Handle loaders with no watermark_field (e.g., stock_scores computed all-at-once)
                 if self.watermark_field:
-                    cur.execute(
-                        f"SELECT COUNT(*), MAX({self.watermark_field}), COUNT(DISTINCT symbol) FROM {self.table_name}"
-                    )
-                    result = cur.fetchone()
-                    if result is None:
-                        raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
-                    if result[0] is None:
-                        raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
-                    total_rows = result[0]
-                    latest_date = result[1].date() if result[1] is not None and hasattr(result[1], "date") else None
-                    actual_symbols_loaded = result[2] if result[2] is not None else 0
+                    if self.is_symbol_based:
+                        cur.execute(
+                            f"SELECT COUNT(*), MAX({self.watermark_field}), COUNT(DISTINCT symbol) FROM {self.table_name}"
+                        )
+                        result = cur.fetchone()
+                        if result is None:
+                            raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
+                        if result[0] is None:
+                            raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
+                        total_rows = result[0]
+                        latest_date = result[1].date() if result[1] is not None and hasattr(result[1], "date") else None
+                        actual_symbols_loaded = result[2] if result[2] is not None else 0
+                    else:
+                        # Market-wide loader (not symbol-based): count rows only
+                        cur.execute(
+                            f"SELECT COUNT(*), MAX({self.watermark_field}) FROM {self.table_name}"
+                        )
+                        result = cur.fetchone()
+                        if result is None:
+                            raise RuntimeError(f"Status query failed for table '{self.table_name}': query returned None")
+                        if result[0] is None:
+                            raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
+                        total_rows = result[0]
+                        latest_date = result[1].date() if result[1] is not None and hasattr(result[1], "date") else None
+                        actual_symbols_loaded = total_rows
                 else:
                     # No watermark_field: just count rows (can't count distinct symbols for non-symbol tables)
                     cur.execute(f"SELECT COUNT(*) FROM {self.table_name}")
