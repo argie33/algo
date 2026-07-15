@@ -285,7 +285,7 @@ class PutCallRatioFetcher:
                         COALESCE(SUM(CASE WHEN option_type = 'call' THEN open_interest ELSE 0 END), 0)::float AS total_calls
                     FROM options_chains
                     WHERE symbol = 'SPY'
-                      AND date = %s
+                      AND quote_date = %s
                       AND open_interest > 0
                 """,
                     (eval_date,),
