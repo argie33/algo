@@ -95,13 +95,16 @@ def _get_connection_pool() -> Any:
                         user=db_config["user"],
                         password=db_config["password"],
                         connect_timeout=10,
-                        # TCP keepalives: prevent RDS Proxy from silently dropping idle SSL
-                        # connections on warm Lambda containers (causes "SSL connection has been
-                        # closed unexpectedly" 503s on the next request after a long idle period).
+                        # TCP keepalives: prevent RDS from silently dropping idle SSL
+                        # connections during long-running operations (causes "SSL connection
+                        # has been closed unexpectedly" errors mid-upsert).
                         keepalives=1,
-                        keepalives_idle=60,  # start probing after 60s idle
-                        keepalives_interval=10,  # probe every 10s
-                        keepalives_count=5,  # 5 failed probes → declare dead
+                        keepalives_idle=30,  # start probing after 30s idle (was 60s)
+                        keepalives_interval=5,  # probe every 5s (was 10s) - faster detection
+                        keepalives_count=3,  # 3 failed probes → declare dead (was 5) - faster failover
+                        # Explicit SSL mode: require SSL for RDS security, fail if unavailable
+                        # Prevents silent downgrade to unencrypted connections
+                        sslmode="require",
                         # Note: Do NOT pass options= parameter to RDS Proxy
                         # RDS Proxy doesn't support command-line options like -c statement_timeout
                         # Statement timeout is configured at the RDS parameter group level instead
