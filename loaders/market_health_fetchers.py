@@ -273,12 +273,12 @@ class PutCallRatioFetcher:
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Fetch put/call ratio from yfinance SPY options chain.
 
-        CRITICAL LIMITATION: yfinance only provides options chains for the CURRENT trading date.
-        Historical options data is not available. For historical dates, returns None to allow
-        graceful degradation per GOVERNANCE.md (optional enrichment).
+        CRITICAL: yfinance only provides options chains for the CURRENT trading date.
+        We always fetch for TODAY (in market timezone), never for eval_date.
+        eval_date parameter is kept for API compatibility but ignored in implementation.
 
         For current trading date:
-        - Fetches SPY options chain from yfinance (current only)
+        - Fetches SPY options chain from yfinance (current date only)
         - Sums open interest for all puts and calls across ALL expirations
         - Returns ratio: total_puts_oi / total_calls_oi
         """
@@ -290,15 +290,16 @@ class PutCallRatioFetcher:
             now_et = now_utc.astimezone(EASTERN_TZ)
             today = now_et.date()
 
-            # CRITICAL: Only fetch for today. yfinance has no historical options data.
-            if eval_date != today:
-                logger.debug(
-                    f"[PUT_CALL_RATIO] Skipping historical date {eval_date} (today={today}). "
-                    "yfinance only provides current options chains."
-                )
-                return None
+            # CRITICAL: Always fetch for TODAY in market timezone (when market is open).
+            # yfinance provides current trading day's options chains only.
+            # We don't fetch for eval_date because yfinance has no historical options data.
+            # This means put_call_ratio represents TODAY's market sentiment.
+            logger.debug(
+                f"[PUT_CALL_RATIO] Fetching for today's market ({today}). "
+                f"Requested eval_date={eval_date} is not used (yfinance only has current date options)."
+            )
 
-            # Fetch SPY options chain for current date ONLY
+            # Fetch SPY options chain for current trading date
             spy = yf.Ticker("SPY")
 
             # Get available expiration dates (only current date's expirations available)
@@ -334,17 +335,18 @@ class PutCallRatioFetcher:
                     continue
 
             if total_calls_oi == 0:
-                logger.warning(f"[PUT_CALL_RATIO] No call open interest for {today}")
+                logger.warning(f"[PUT_CALL_RATIO] No call open interest for {today}. Market may be closed or no options trading.")
                 return None
 
             if total_puts_oi == 0:
-                logger.warning(f"[PUT_CALL_RATIO] No put open interest for {today}")
+                logger.warning(f"[PUT_CALL_RATIO] No put open interest for {today}. Market may be closed or skewed to calls.")
                 return None
 
             pcr = total_puts_oi / total_calls_oi
             logger.info(
-                f"[PUT_CALL_RATIO] Computed {pcr:.4f} for {today} "
-                f"(puts: {total_puts_oi:.0f}, calls: {total_calls_oi:.0f})"
+                f"[PUT_CALL_RATIO] Computed {pcr:.4f} from {today}'s SPY options "
+                f"(puts_oi: {total_puts_oi:.0f}, calls_oi: {total_calls_oi:.0f}). "
+                f"This is TODAY's market sentiment, applied to all historical dates in the health calculation."
             )
             return pcr
 
