@@ -98,7 +98,6 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                     "data_unavailable": True,
                     "reason": "yfinance_snapshot_missing",
                     "updated_at": now_et,
-                    "reason_type": "loader_failed",
                 }
             ]
 
@@ -113,7 +112,6 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                     "data_unavailable": True,
                     "reason": unavailable_reason or "yfinance_data_unavailable",
                     "updated_at": now_et,
-                    "reason_type": "loader_failed",
                 }
             ]
 
@@ -283,17 +281,19 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                 )
 
             # 5. analyst_sentiment_analysis (analyst counts and recommendation)
+            # Note: analyst_sentiment_analysis table does not support data_unavailable markers
+            # Only insert when data is available
             if not record.get("data_unavailable") and record.get("analyst_count"):
                 cur.execute(
                     """
                     INSERT INTO analyst_sentiment_analysis
-                    (symbol, date, analyst_count, bullish_count, bearish_count, hold_count, recommendation_key, updated_at)
+                    (symbol, date, analyst_count, bullish_count, bearish_count, neutral_count, recommendation_key, updated_at)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol, date) DO UPDATE SET
                       analyst_count = EXCLUDED.analyst_count,
                       bullish_count = EXCLUDED.bullish_count,
                       bearish_count = EXCLUDED.bearish_count,
-                      hold_count = EXCLUDED.hold_count,
+                      neutral_count = EXCLUDED.neutral_count,
                       recommendation_key = EXCLUDED.recommendation_key,
                       updated_at = EXCLUDED.updated_at
                     """,
@@ -303,15 +303,10 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                         record.get("analyst_count"),
                         record.get("bullish_count"),
                         record.get("bearish_count"),
-                        record.get("hold_count"),
-                        record.get("recommendation_key"),
+                        record.get("neutral_count"),
+                        record.get("analyst_recommendation"),
                         updated_at,
                     ),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO analyst_sentiment_analysis (symbol, date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, updated_at.date(), record.get("reason", "no_analyst_data"), updated_at),
                 )
 
 
