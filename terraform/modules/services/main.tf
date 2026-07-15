@@ -150,7 +150,8 @@ resource "aws_lambda_function" "api" {
   # Reserved concurrency prevents 429 "Too Many Requests" errors when multiple requests arrive
   # Configurable via api_lambda_reserved_concurrency variable (default 50)
   # Higher values support more concurrent loaders (40+) without rate-limit cascades
-  reserved_concurrent_executions = var.api_lambda_reserved_concurrency
+  # CRITICAL FIX: reserved_concurrent_executions must be >= provisioned_concurrent_executions
+  reserved_concurrent_executions = max(var.api_lambda_reserved_concurrency, var.api_lambda_provisioned_concurrency)
 
   layers = [local.api_layer_arn, var.psycopg2_layer_arn]
 
