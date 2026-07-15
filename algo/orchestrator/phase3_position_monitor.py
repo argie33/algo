@@ -42,13 +42,13 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     Returns:
         PhaseResult with status 'ok', data containing position recommendations
     """
-    # Skip position monitor in paper trading mode (position monitoring is live-mode only)
-    # Also skip if explicitly disabled via env var
+    # In paper mode, still update prices but skip live-mode monitoring (halts, stale orders, stop raises)
+    # Skip entirely if explicitly disabled via env var
     is_paper_mode = config.get("execution_mode") == "paper"
-    skip_phase3 = is_paper_mode or os.getenv("SKIP_PHASE3_MONITOR", "").lower() in ("true", "1", "yes")
+    skip_phase3 = os.getenv("SKIP_PHASE3_MONITOR", "").lower() in ("true", "1", "yes")
 
     if skip_phase3:
-        logger.info("[PHASE 3] Position monitor SKIPPED (paper trading mode or explicitly disabled)")
+        logger.info("[PHASE 3] Position monitor SKIPPED (explicitly disabled)")
         # Return success status (not skipped) so downstream phases execute
         return PhaseResult(
             3,
@@ -58,6 +58,51 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             False,  # halted=False ensures downstream phases proceed
             None,
         )
+
+    # CRITICAL FIX: In paper mode, we still need to update current_price and position_value
+    # so the API doesn't filter out positions. Skip halt checks and stale order checks (live-mode only).
+    if is_paper_mode:
+        logger.info("[PHASE 3] Paper mode: updating position prices only (skipping halt/stale checks)")
+        try:
+            from algo.monitoring import PositionMonitor
+
+            monitor = PositionMonitor(config)
+            recommendations = monitor.review_positions(run_date)
+
+            n_hold = sum(1 for r in recommendations if r["action"] == "HOLD")
+            n_failed = sum(1 for r in recommendations if r["action"] == "FAILED_VALIDATION")
+
+            summary = f"{len(recommendations)} positions reviewed"
+            if n_hold > 0:
+                summary += f"; {n_hold} hold"
+            if n_failed > 0:
+                summary += f", {n_failed} FAILED_VALIDATION"
+
+            log_phase_result_fn(
+                3,
+                "position_monitor",
+                "success",
+                summary,
+            )
+            return PhaseResult(
+                3,
+                "position_monitor",
+                "ok",
+                {"recommendations": recommendations, "count": len(recommendations)},
+                False,
+                None,
+            )
+        except Exception as e:
+            logger.warning(f"[PHASE 3] Paper mode price update failed: {type(e).__name__}: {e}")
+            # Don't halt on failure — positions without updated prices are still valid for trading
+            return PhaseResult(
+                3,
+                "position_monitor",
+                "ok",
+                {"recommendations": [], "count": 0},
+                False,
+                None,
+            )
 
     try:
         from algo.infrastructure import MarketEventHandler
