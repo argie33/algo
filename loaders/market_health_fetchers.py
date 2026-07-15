@@ -2,10 +2,11 @@
 
 import logging
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Any
 
 from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -272,21 +273,38 @@ class PutCallRatioFetcher:
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
         """Fetch put/call ratio from yfinance SPY options chain.
 
-        Computes SPY put/call ratio from open interest in options chain:
-        - Fetches SPY options chain for the eval_date
-        - Sums open interest for all puts and calls
+        CRITICAL LIMITATION: yfinance only provides options chains for the CURRENT trading date.
+        Historical options data is not available. For historical dates, returns None to allow
+        graceful degradation per GOVERNANCE.md (optional enrichment).
+
+        For current trading date:
+        - Fetches SPY options chain from yfinance (current only)
+        - Sums open interest for all puts and calls across ALL expirations
         - Returns ratio: total_puts_oi / total_calls_oi
         """
         try:
             import yfinance as yf
 
-            # Fetch SPY options chain for this date
+            # Get current date in market timezone
+            now_utc = datetime.now(timezone.utc)
+            now_et = now_utc.astimezone(EASTERN_TZ)
+            today = now_et.date()
+
+            # CRITICAL: Only fetch for today. yfinance has no historical options data.
+            if eval_date != today:
+                logger.debug(
+                    f"[PUT_CALL_RATIO] Skipping historical date {eval_date} (today={today}). "
+                    "yfinance only provides current options chains."
+                )
+                return None
+
+            # Fetch SPY options chain for current date ONLY
             spy = yf.Ticker("SPY")
 
-            # Get available expiration dates
+            # Get available expiration dates (only current date's expirations available)
             expirations = spy.options
             if not expirations:
-                logger.warning(f"[PUT_CALL_RATIO] No option expirations available for {eval_date}")
+                logger.warning(f"[PUT_CALL_RATIO] No option expirations available today ({today})")
                 return None
 
             total_puts_oi = 0.0
@@ -316,16 +334,16 @@ class PutCallRatioFetcher:
                     continue
 
             if total_calls_oi == 0:
-                logger.warning(f"[PUT_CALL_RATIO] No call open interest for {eval_date}")
+                logger.warning(f"[PUT_CALL_RATIO] No call open interest for {today}")
                 return None
 
             if total_puts_oi == 0:
-                logger.warning(f"[PUT_CALL_RATIO] No put open interest for {eval_date}")
+                logger.warning(f"[PUT_CALL_RATIO] No put open interest for {today}")
                 return None
 
             pcr = total_puts_oi / total_calls_oi
             logger.info(
-                f"[PUT_CALL_RATIO] Computed {pcr:.4f} for {eval_date} "
+                f"[PUT_CALL_RATIO] Computed {pcr:.4f} for {today} "
                 f"(puts: {total_puts_oi:.0f}, calls: {total_calls_oi:.0f})"
             )
             return pcr
