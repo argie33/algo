@@ -64,29 +64,53 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     if is_paper_mode:
         logger.info("[PHASE 3] Paper mode: updating position prices only")
         try:
-            from algo.monitoring import PositionMonitor
             from utils.db import DatabaseContext
-
-            monitor = PositionMonitor(config)
-            open_positions = monitor.get_open_positions()
+            from algo.infrastructure import MarketEventHandler
 
             # Simple price update without full position analysis
-            # Just fetch current prices and persist them so API doesn't filter positions
+            # Fetch positions with all required fields directly (not via get_open_positions which is incomplete)
             def _update_position_prices(cur):
                 updated = 0
-                for pos in open_positions:
-                    try:
-                        symbol = pos.get("symbol")
-                        position_id = pos.get("position_id")
-                        quantity = pos.get("quantity")
-                        current_price = pos.get("current_price")
+                # Fetch open positions with required fields for price update
+                cur.execute("""
+                    SELECT position_id, symbol, quantity, current_price
+                    FROM algo_positions
+                    WHERE status = 'open' AND quantity > 0
+                    ORDER BY position_id
+                """)
+                positions = cur.fetchall()
+                logger.info(f"[PHASE 3] Found {len(positions)} open positions to update")
 
-                        if not symbol or position_id is None or quantity is None or current_price is None:
+                # Fetch current prices from Alpaca for all open symbols
+                meh = MarketEventHandler(config)
+                open_symbols = [row[1] for row in positions]  # row[1] is symbol
+
+                if open_symbols:
+                    try:
+                        prices = meh.fetch_current_prices(open_symbols)
+                    except Exception as e:
+                        logger.warning(f"[PHASE 3] Could not fetch current prices from Alpaca: {e}")
+                        prices = {}
+                else:
+                    prices = {}
+
+                for position_id, symbol, quantity, old_price in positions:
+                    try:
+                        # Use Alpaca price if available, otherwise keep existing price
+                        current_price = prices.get(symbol)
+                        if current_price is None:
+                            logger.debug(f"[PHASE 3] {symbol}: no price from Alpaca, keeping existing {old_price}")
+                            current_price = old_price
+
+                        if current_price is None or quantity is None:
                             logger.warning(
                                 f"[PHASE 3] Skipping {symbol}: missing required fields "
-                                f"(id={position_id}, qty={quantity}, price={current_price})"
+                                f"(qty={quantity}, price={current_price})"
                             )
                             continue
+
+                        current_price = float(current_price)
+                        quantity = float(quantity)
 
                         # Update position with current price and computed fields
                         cur.execute(
