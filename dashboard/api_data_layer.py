@@ -640,6 +640,11 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 stale_fallback = _try_stale_cache_fallback(endpoint)
                 if stale_fallback:
                     logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after {resp.status_code} error")
+                    # Mark stale cache as transient so callers know this is temporary
+                    if resp.status_code == 503:
+                        stale_fallback["_is_transient_503"] = True
+                    elif resp.status_code == 504:
+                        stale_fallback["_is_transient_504"] = True
                     return stale_fallback
                 # Mark 503/504 Service Unavailable and Gateway Timeout as transient (temporary issues, not permanent failures)
                 error_result: dict[str, Any] = {"_error": f"API error {resp.status_code} after {max_att} attempts"}
@@ -746,6 +751,8 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             stale_fallback = _try_stale_cache_fallback(endpoint)
             if stale_fallback:
                 logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after timeout")
+                # Mark as transient timeout so callers know this is temporary
+                stale_fallback["_is_transient_503"] = True
                 return stale_fallback
             error_msg = "API timeout - Lambda endpoint not responding"
             # Provide helpful guidance if using AWS endpoint
@@ -769,6 +776,8 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             stale_fallback = _try_stale_cache_fallback(endpoint)
             if stale_fallback:
                 logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after connection failure")
+                # Mark as transient connection error so callers know this is temporary
+                stale_fallback["_is_transient_503"] = True
                 return stale_fallback
             return {
                 "_error": f"API unavailable after {max_att} attempts",
