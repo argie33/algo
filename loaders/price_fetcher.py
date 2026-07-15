@@ -203,10 +203,14 @@ class PriceFetcher:
                     f"since market hasn't opened yet"
                 )
             else:
-                # EOD pipeline: start >= end is a real error (data should be available)
-                error_msg = f"Invalid date range: start ({start}) >= end ({end})"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
+                # EOD pipeline: start >= end means watermark is already current
+                # This can happen if a previous run already loaded today's data or if running multiple times
+                # Return empty list (no new data to fetch) - this is correct behavior, not an error
+                logger.info(
+                    f"[{symbol}] [EOD_CONTEXT] Watermark already at {start}, no new data to fetch "
+                    f"(end date is {end}). Returning empty result."
+                )
+                return []
 
         rows = self._try_fetch(symbol, start, end)
         return rows
@@ -243,10 +247,14 @@ class PriceFetcher:
                     f"since market hasn't opened yet for today"
                 )
             else:
-                # EOD pipeline: start >= end is a real error (data should be available)
-                error_msg = f"Invalid date range for batch fetch: start ({start}) >= end ({end})"
-                logger.error(error_msg)
-                raise ValueError(error_msg)
+                # EOD pipeline: start >= end means watermark is already current
+                # This can happen if a previous run already loaded today's data or if running multiple times
+                # Return empty dict (no new data to fetch) - this is correct behavior, not an error
+                logger.info(
+                    f"[EOD_CONTEXT] Watermark already at {start}, no new data to fetch "
+                    f"(end date is {end}). Returning empty result."
+                )
+                return {}
 
         adaptive_batch_size = min(len(symbols), self._get_smart_batch_size())
         logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size}")
