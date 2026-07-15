@@ -244,21 +244,41 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         }
 
         # Extract revenue from rows (first element of each tuple)
-        revenues = [row[0] for row in income_rows if row[0] is not None and row[0] > 0]
-        eps_values = [row[1] for row in income_rows if row[1] is not None and row[1] != 0]
+        # Convert to float safely (DB returns Decimal)
+        revenues = []
+        eps_values = []
+        for row in income_rows:
+            try:
+                rev = float(row[0]) if row[0] is not None else None
+                eps = float(row[1]) if row[1] is not None else None
+                if rev is not None and rev > 0:
+                    revenues.append(rev)
+                if eps is not None and eps != 0:
+                    eps_values.append(eps)
+            except (ValueError, TypeError):
+                continue
 
         def _cagr(latest: float, previous: float, years: int) -> float | None:
             """Compute CAGR (Compound Annual Growth Rate) for multi-year growth.
 
             Handles sign changes (positive→negative revenue) by returning None.
             Returns annualized growth rate as percentage.
+            Safely converts Decimal from DB to float.
             """
-            if previous == 0 or previous is None:
+            from decimal import Decimal
+
+            try:
+                latest_f = float(latest) if not isinstance(latest, float) else latest
+                previous_f = float(previous) if not isinstance(previous, float) else previous
+            except (ValueError, TypeError):
                 return None
-            if (latest > 0 and previous < 0) or (latest < 0 and previous > 0):
+
+            if previous_f == 0 or previous_f is None:
+                return None
+            if (latest_f > 0 and previous_f < 0) or (latest_f < 0 and previous_f > 0):
                 # Sign change: traditional CAGR doesn't apply
                 return None
-            ratio = latest / previous
+            ratio = latest_f / previous_f
             return ((ratio ** (1.0 / years)) - 1) * 100
 
         # 1-year revenue growth (CAGR)
