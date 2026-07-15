@@ -396,7 +396,6 @@ def main() -> int:
     if result == 0:
         try:
             from utils.db.context import DatabaseContext
-            from datetime import date
 
             with DatabaseContext("write") as cur:
                 cur.execute("""

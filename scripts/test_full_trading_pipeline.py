@@ -16,7 +16,6 @@ import logging
 import os
 import sys
 from datetime import date
-from decimal import Decimal
 
 # Set up test credentials (mock - never hit real API)
 os.environ["APCA_API_KEY_ID"] = "PK_TEST_mock_key_12345678901234567890"
@@ -53,9 +52,6 @@ def test_phase8_signal_processing():
     print("TEST 2: Phase 8 Components with Credentials")
     print("=" * 80)
 
-    from algo.trading.executor import TradeExecutor
-    from algo.trading.position_sizer import PositionSizer
-    from algo.trading.pretrade_checks import PreTradeChecks
 
     print("[OK] TradeExecutor imports")
     print("[OK] PositionSizer imports")
@@ -93,9 +89,9 @@ def test_orchestrator_phase_sequence():
     print("=" * 80)
 
     try:
+        from algo.config.algo_config import AlgoConfig
         from algo.orchestrator.phase_executor import PhaseExecutor
         from algo.reporting import AlertManager
-        from algo.config.algo_config import AlgoConfig
 
         print("[OK] Orchestrator imports successful")
 

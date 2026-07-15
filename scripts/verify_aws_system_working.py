@@ -9,10 +9,11 @@ Verify that AWS deployment actually worked by checking:
 4. Dashboard works in AWS mode
 """
 
-import os
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
+
 from config.credential_manager import CredentialManager
+
 
 def check_database_freshness():
     """Check if RDS has been updated with fresh AWS loader data"""
@@ -79,10 +80,8 @@ def check_database_freshness():
                 stale = False
             elif hours_old < 48:
                 status = f"ACCEPTABLE ({hours_old:.1f}h old)"
-                stale = False
             else:
                 status = f"STALE ({hours_old:.1f}h old)"
-                stale = True
                 stale_count += 1
 
             print(f"{table:25} {status}")

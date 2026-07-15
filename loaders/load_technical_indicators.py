@@ -949,6 +949,7 @@ def main() -> int:
     """
     # Debug: Log environment for diagnostics
     import os as _os
+
     logger.info(f"[DEBUG] AWS_REGION={_os.getenv('AWS_REGION')}")
     logger.info(f"[DEBUG] DB_HOST={_os.getenv('DB_HOST')}")
     logger.info(f"[DEBUG] DB_PORT={_os.getenv('DB_PORT')}")

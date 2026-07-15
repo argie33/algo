@@ -11,11 +11,10 @@ Usage:
 
 import json
 import logging
-from decimal import Decimal
-from datetime import datetime, timezone
-from http.server import HTTPServer, BaseHTTPRequestHandler
-import threading
 import uuid
+from datetime import datetime, timezone
+from decimal import Decimal
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -34,8 +33,7 @@ class AlpacaMockAccount:
     def to_dict(self) -> dict[str, Any]:
         """Return account as dict (Alpaca format)."""
         portfolio_value = self.cash + sum(
-            Decimal(str(p["qty"])) * Decimal(str(p["current_price"]))
-            for p in self.positions.values()
+            Decimal(str(p["qty"])) * Decimal(str(p["current_price"])) for p in self.positions.values()
         )
         return {
             "id": self.account_id,
@@ -55,9 +53,9 @@ class AlpacaMockHandler(BaseHTTPRequestHandler):
     # Shared mock account across all requests
     mock_account = AlpacaMockAccount()
 
-    def log_message(self, format, *args):
+    def log_message(self, msg, *args):
         """Suppress default HTTP logging."""
-        logger.info(f"[MOCK_API] {format % args}")
+        logger.info(f"[MOCK_API] {msg % args}")
 
     def do_GET(self):
         """Handle GET requests."""
@@ -123,8 +121,7 @@ class AlpacaMockHandler(BaseHTTPRequestHandler):
                 logger.info(f"[MOCK_API] BUY: {qty} {symbol} @ ${current_price}")
 
             elif side == "sell":
-                if symbol not in self.mock_account.positions or \
-                   self.mock_account.positions[symbol]["qty"] < qty:
+                if symbol not in self.mock_account.positions or self.mock_account.positions[symbol]["qty"] < qty:
                     self.send_json(403, {"error": "Insufficient shares"})
                     return
 
@@ -181,8 +178,5 @@ def start_mock_server(port: int = 8001, host: str = "localhost") -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     start_mock_server()

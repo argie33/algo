@@ -56,5 +56,4 @@ Checking ECS Task Definitions...")
             aws_env_status = "[OK]" if status['has_aws_execution_env'] else "[FAIL]"
             print(f"  [{task}] {aws_env_status} AWS_EXECUTION_ENV={status['value']} (v{status['revision']})")
     
-    print("
-Note: This requires AWS CLI access to ECS.")
+    print("\nNote: This requires AWS CLI access to ECS.")

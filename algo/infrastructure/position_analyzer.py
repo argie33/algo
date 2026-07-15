@@ -126,12 +126,10 @@ class PositionAnalyzer:
             )
 
         logger_obj.info(f"\n   Total Position Value: ${float(analysis['total_position_value']):,.2f}")
-        pnl_val = analysis['unrealized_pnl']
-        pnl_pct = analysis['unrealized_pnl_pct']
+        pnl_val = analysis["unrealized_pnl"]
+        pnl_pct = analysis["unrealized_pnl_pct"]
         if pnl_val is not None and pnl_pct is not None:
-            logger_obj.info(
-                f"   Unrealized P&L: {float(pnl_val):+,.2f} ({float(pnl_pct):+.2f}%)"
-            )
+            logger_obj.info(f"   Unrealized P&L: {float(pnl_val):+,.2f} ({float(pnl_pct):+.2f}%)")
         else:
             logger_obj.info("   Unrealized P&L: (insufficient data for calculation)")
         logger_obj.info(

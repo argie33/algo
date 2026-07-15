@@ -5,8 +5,8 @@ In production, real AlpacaBrokerAdapter handles actual trades.
 """
 
 import logging
-from decimal import Decimal
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -35,14 +35,18 @@ class MockAlpacaBroker:
         """Mock get_positions response."""
         result = []
         for symbol, pos_data in self.positions.items():
-            result.append({
-                "symbol": symbol,
-                "qty": pos_data["qty"],
-                "avg_fill_price": float(pos_data["entry_price"]),
-                "current_price": float(pos_data["current_price"]),
-                "market_value": float(Decimal(str(pos_data["qty"])) * pos_data["current_price"]),
-                "unrealized_pl": float((pos_data["current_price"] - pos_data["entry_price"]) * Decimal(str(pos_data["qty"]))),
-            })
+            result.append(
+                {
+                    "symbol": symbol,
+                    "qty": pos_data["qty"],
+                    "avg_fill_price": float(pos_data["entry_price"]),
+                    "current_price": float(pos_data["current_price"]),
+                    "market_value": float(Decimal(str(pos_data["qty"])) * pos_data["current_price"]),
+                    "unrealized_pl": float(
+                        (pos_data["current_price"] - pos_data["entry_price"]) * Decimal(str(pos_data["qty"]))
+                    ),
+                }
+            )
         return result
 
     def submit_order(

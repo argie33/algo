@@ -12,10 +12,11 @@ Usage:
     python scripts/verify_aws_post_deployment.py
 """
 
-import boto3
 import io
 import sys
 from datetime import datetime, timedelta
+
+import boto3
 
 # Fix Windows console encoding for emoji/unicode
 if sys.platform.startswith("win"):
@@ -46,7 +47,6 @@ def check_cloudwatch_logs() -> dict:
         ]
 
         now = datetime.utcnow()
-        one_hour_ago = now - timedelta(hours=1)
 
         for log_group in critical_logs:
             try:

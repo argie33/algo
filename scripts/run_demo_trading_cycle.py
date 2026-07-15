@@ -15,8 +15,6 @@ credentials to go live.
 
 import logging
 import sys
-from datetime import date
-from decimal import Decimal
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,15 +37,15 @@ def run_demo_trading_cycle():
 
     # Create demo account
     account = DemoBrokerAccount(initial_capital=100_000)
-    print(f"\n[STEP 1] Demo Trading Account Created")
+    print("\n[STEP 1] Demo Trading Account Created")
     print(f"  Account ID: {account.account_id}")
-    print(f"  Starting Capital: $100,000")
+    print("  Starting Capital: $100,000")
 
     account_before = account.get_account()
     print(f"  Starting Cash: ${account_before['cash']:,.0f}")
 
     # Simulate Phase 7: Generate signals
-    print(f"\n[STEP 2] Phase 7: Generate Trading Signals")
+    print("\n[STEP 2] Phase 7: Generate Trading Signals")
     signals = [
         {"symbol": "AAPL", "entry_price": 150.0, "signal_score": 85},
         {"symbol": "MSFT", "entry_price": 380.0, "signal_score": 82},
@@ -59,7 +57,7 @@ def run_demo_trading_cycle():
         print(f"    - {sig['symbol']:5} @ ${sig['entry_price']:6.2f} (Score: {sig['signal_score']})")
 
     # Simulate Phase 8: Execute entries
-    print(f"\n[STEP 3] Phase 8: Execute Entry Trades")
+    print("\n[STEP 3] Phase 8: Execute Entry Trades")
     entered_count = 0
     for signal in signals:
         try:
@@ -78,20 +76,20 @@ def run_demo_trading_cycle():
     print(f"\n  Result: {entered_count}/{len(signals)} positions entered")
 
     # Show positions
-    print(f"\n[STEP 4] Position Monitoring")
+    print("\n[STEP 4] Position Monitoring")
     positions = account.get_positions()
     print(f"  Open positions: {len(positions)}")
     for pos in positions:
         print(f"    {pos['symbol']:5} | Qty: {pos['qty']:3} | Entry: ${pos['avg_fill_price']:7.2f} | Value: ${pos['market_value']:10,.0f}")
 
     account_mid = account.get_account()
-    print(f"\n  Account Status:")
+    print("\n  Account Status:")
     print(f"    Cash: ${account_mid['cash']:,.0f}")
     print(f"    Portfolio Value: ${account_mid['portfolio_value']:,.0f}")
     print(f"    Buying Power: ${account_mid['buying_power']:,.0f}")
 
     # Simulate price movement
-    print(f"\n[STEP 5] Simulate Price Movement")
+    print("\n[STEP 5] Simulate Price Movement")
     price_moves = {
         "AAPL": 152.5,  # +2.5 = +1.67%
         "MSFT": 382.0,  # +2.0 = +0.53%
@@ -99,7 +97,7 @@ def run_demo_trading_cycle():
         "TSLA": 240.0,  # -5.0 = -2.04%
     }
     account.update_prices(price_moves)
-    print(f"  Price updates applied:")
+    print("  Price updates applied:")
     for symbol, price in price_moves.items():
         old_price = next((p["avg_fill_price"] for p in positions if p["symbol"] == symbol), 0)
         change_pct = (price - old_price) / old_price * 100 if old_price else 0
@@ -107,14 +105,14 @@ def run_demo_trading_cycle():
 
     # Show updated positions
     positions_after = account.get_positions()
-    print(f"\n  Updated Positions:")
+    print("\n  Updated Positions:")
     total_unrealized = 0
     for pos in positions_after:
         print(f"    {pos['symbol']:5} | Qty: {pos['qty']:3} | P&L: ${pos['unrealized_pl']:+8,.0f} ({pos['unrealized_pl_pct']:+.2f}%)")
         total_unrealized += pos["unrealized_pl"]
 
     # Simulate Phase 6: Execute exits (take profits on winners)
-    print(f"\n[STEP 6] Phase 6: Execute Exit Trades")
+    print("\n[STEP 6] Phase 6: Execute Exit Trades")
     exits = [
         {"symbol": "AAPL", "qty": 10},  # Take profit
         {"symbol": "MSFT", "qty": 10},  # Take profit
@@ -136,17 +134,17 @@ def run_demo_trading_cycle():
     print(f"\n  Result: {exited_count}/{len(exits)} exit orders executed")
 
     # Final account state
-    print(f"\n[STEP 7] Final P&L Calculation")
+    print("\n[STEP 7] Final P&L Calculation")
     summary = account.get_portfolio_summary()
     final_account = summary["account"]
     final_summary = summary["summary"]
 
-    print(f"\n  Trading Results:")
+    print("\n  Trading Results:")
     print(f"    Starting Capital: ${account_before['equity']:,.0f}")
     print(f"    Final Portfolio Value: ${final_account['portfolio_value']:,.0f}")
     print(f"    Total P&L: ${final_account['unrealized_pl']:+,.0f}")
     print(f"    Return: {final_account['unrealized_pl_pct']:+.2f}%")
-    print(f"\n  Trade Summary:")
+    print("\n  Trade Summary:")
     print(f"    Winning Trades: {final_summary['winning_trades']}")
     print(f"    Losing Trades: {final_summary['losing_trades']}")
     print(f"    Total Closed: {final_summary['closed_trades_count']}")
@@ -157,7 +155,7 @@ def run_demo_trading_cycle():
 
     # Closed trades detail
     if summary["closed_trades"]:
-        print(f"\n  Closed Trades Detail:")
+        print("\n  Closed Trades Detail:")
         for trade in summary["closed_trades"]:
             print(f"    {trade['symbol']} | Entry: ${trade['entry_price']:.2f} -> Exit: ${trade['exit_price']:.2f} | P&L: ${trade['pnl']:+,.0f} ({trade['pnl_pct']:+.2f}%)")
 

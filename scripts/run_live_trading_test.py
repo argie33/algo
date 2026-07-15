@@ -20,7 +20,6 @@ import os
 import subprocess
 import sys
 import time
-from threading import Thread
 
 logging.basicConfig(
     level=logging.INFO,
@@ -91,11 +90,11 @@ def run_trading_test():
             "execution_mode": "paper",
         }
         broker = AlpacaBrokerAdapter(test_config)
-        print(f"  [OK] Broker adapter created")
+        print("  [OK] Broker adapter created")
 
         # Get account (real HTTP call to mock API)
         account = broker.get_account()
-        print(f"  [OK] Account fetched via HTTP:")
+        print("  [OK] Account fetched via HTTP:")
         print(f"       Cash: ${account.get('cash', 0)}")
         print(f"       Portfolio Value: ${account.get('portfolio_value', 0)}")
         print(f"       Buying Power: ${account.get('buying_power', 0)}")
@@ -114,7 +113,7 @@ def run_trading_test():
             side="buy",
             order_type="market",
         )
-        print(f"  [OK] Buy order submitted and filled:")
+        print("  [OK] Buy order submitted and filled:")
         print(f"       Symbol: {order.get('symbol')}")
         print(f"       Qty: {order.get('qty')}")
         print(f"       Status: {order.get('status')}")
@@ -144,7 +143,7 @@ def run_trading_test():
             side="sell",
             order_type="market",
         )
-        print(f"  [OK] Sell order submitted and filled:")
+        print("  [OK] Sell order submitted and filled:")
         print(f"       Symbol: {order.get('symbol')}")
         print(f"       Qty: {order.get('qty')}")
         print(f"       Status: {order.get('status')}")
