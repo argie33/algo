@@ -285,7 +285,9 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             if rev_growth is not None:
                 metrics["revenue_growth_1y"] = float(round(rev_growth, 2))
             else:
-                metrics["revenue_growth_1y_unavailable_reason"] = "insufficient_data" if revenues[1] == 0 else "sign_change"
+                metrics["revenue_growth_1y_unavailable_reason"] = (
+                    "insufficient_data" if revenues[1] == 0 else "sign_change"
+                )
         else:
             metrics["revenue_growth_1y_unavailable_reason"] = "insufficient_history"
 
@@ -295,7 +297,9 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             if eps_growth is not None:
                 metrics["eps_growth_1y"] = float(round(eps_growth, 2))
             else:
-                metrics["eps_growth_1y_unavailable_reason"] = "insufficient_data" if eps_values[1] == 0 else "sign_change"
+                metrics["eps_growth_1y_unavailable_reason"] = (
+                    "insufficient_data" if eps_values[1] == 0 else "sign_change"
+                )
         else:
             metrics["eps_growth_1y_unavailable_reason"] = "insufficient_history"
 
@@ -305,7 +309,9 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             if rev_growth is not None:
                 metrics["revenue_growth_3y"] = float(round(rev_growth, 2))
             else:
-                metrics["revenue_growth_3y_unavailable_reason"] = "insufficient_data" if revenues[3] == 0 else "sign_change"
+                metrics["revenue_growth_3y_unavailable_reason"] = (
+                    "insufficient_data" if revenues[3] == 0 else "sign_change"
+                )
         else:
             metrics["revenue_growth_3y_unavailable_reason"] = "insufficient_history"
 
@@ -315,7 +321,9 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             if eps_growth is not None:
                 metrics["eps_growth_3y"] = float(round(eps_growth, 2))
             else:
-                metrics["eps_growth_3y_unavailable_reason"] = "insufficient_data" if eps_values[3] == 0 else "sign_change"
+                metrics["eps_growth_3y_unavailable_reason"] = (
+                    "insufficient_data" if eps_values[3] == 0 else "sign_change"
+                )
         else:
             metrics["eps_growth_3y_unavailable_reason"] = "insufficient_history"
 
@@ -325,7 +333,9 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             if rev_growth is not None:
                 metrics["revenue_growth_5y"] = float(round(rev_growth, 2))
             else:
-                metrics["revenue_growth_5y_unavailable_reason"] = "insufficient_data" if revenues[5] == 0 else "sign_change"
+                metrics["revenue_growth_5y_unavailable_reason"] = (
+                    "insufficient_data" if revenues[5] == 0 else "sign_change"
+                )
         else:
             metrics["revenue_growth_5y_unavailable_reason"] = "insufficient_history"
 
@@ -335,7 +345,9 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             if eps_growth is not None:
                 metrics["eps_growth_5y"] = float(round(eps_growth, 2))
             else:
-                metrics["eps_growth_5y_unavailable_reason"] = "insufficient_data" if eps_values[5] == 0 else "sign_change"
+                metrics["eps_growth_5y_unavailable_reason"] = (
+                    "insufficient_data" if eps_values[5] == 0 else "sign_change"
+                )
         else:
             metrics["eps_growth_5y_unavailable_reason"] = "insufficient_history"
 
