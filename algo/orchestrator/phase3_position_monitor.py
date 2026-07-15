@@ -64,8 +64,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     if is_paper_mode:
         logger.info("[PHASE 3] Paper mode: updating position prices only")
         try:
-            from utils.db import DatabaseContext
             from algo.infrastructure import MarketEventHandler
+            from utils.db import DatabaseContext
 
             # Simple price update without full position analysis
             # Fetch positions with all required fields directly (not via get_open_positions which is incomplete)
