@@ -1385,7 +1385,7 @@ resource "aws_cloudwatch_metric_alarm" "loader_failures_accumulating" {
 # Both orchestrator and circuit breaker Lambda reference this table.
 
 resource "aws_dynamodb_table" "orchestrator_state" {
-  table_name   = "algo_orchestrator_state"
+  name   ="algo_orchestrator_state"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "key"
 
@@ -1405,7 +1405,7 @@ resource "aws_dynamodb_table" "orchestrator_state" {
 # Access: ECS loaders (invalidation on completion/failure) + orchestrator Lambda (read/write).
 
 resource "aws_dynamodb_table" "phase1_cache" {
-  table_name   = "algo_phase1_cache"
+  name   ="algo_phase1_cache"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "cache_key"
 
@@ -1459,7 +1459,7 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
 # ============================================================
 
 resource "aws_dynamodb_table" "contact_rate_limit" {
-  table_name   = "${var.project_name}-contact-rate-limit-${var.environment}"
+  name   ="${var.project_name}-contact-rate-limit-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "email"
 
@@ -1511,7 +1511,7 @@ resource "aws_iam_role_policy" "api_contact_rate_limit" {
 # Used by POST /api/logout to revoke tokens immediately.
 
 resource "aws_dynamodb_table" "token_blocklist" {
-  table_name   = "${var.project_name}-token-blocklist-${var.environment}"
+  name   ="${var.project_name}-token-blocklist-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "jti"
 
