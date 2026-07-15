@@ -149,7 +149,14 @@ def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
                 f"Positions 'items' must be list, got {type(items).__name__}. "
                 "Check API response schema — may indicate upstream data corruption."
             )
-        return items, data.get("timestamp"), False
+        # CRITICAL FIX: Include untracked_items in position count (Session 173)
+        # Previously only counted algo-managed positions, missing manual/external positions
+        untracked_items = data.get("untracked_items", [])
+        if not isinstance(untracked_items, list):
+            logger.warning(f"[DATA_FORMAT] Positions 'untracked_items' field is not a list: {type(untracked_items).__name__}. Treating as empty.")
+            untracked_items = []
+        all_positions = items + untracked_items
+        return all_positions, data.get("timestamp"), False
     elif isinstance(data, list):
         return data, None, False
     else:

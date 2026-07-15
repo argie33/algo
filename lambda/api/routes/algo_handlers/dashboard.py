@@ -103,17 +103,15 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         # algo/infrastructure/alpaca_sync_manager.py) -- inserting them with a synthetic
         # asset_id-as-position_id created duplicate NULL-stop records that tripped the
         # circuit breaker. Distinguish that expected case from a genuine sync problem by
-        # checking whether the broker-sourced portfolio snapshot also reports 0 positions.
-        cur.execute(
-            "SELECT position_count FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC, created_at DESC LIMIT 1"
-        )
-        snap_row = cur.fetchone()
-        broker_position_count = safe_dict_convert(snap_row).get("position_count") if snap_row else None
+        # checking if algo_untracked_positions has any rows (LIVE COUNT, not stale snapshot).
+        cur.execute("SELECT COUNT(*) FROM algo_untracked_positions")
+        untracked_count_row = cur.fetchone()
+        broker_position_count = untracked_count_row[0] if untracked_count_row and untracked_count_row[0] else None
         if broker_position_count:
             logger.info(
-                f"[POSITIONS] algo_positions has 0 open rows, but the broker holds "
-                f"{broker_position_count} position(s) not tracked by the algo (opened outside its own "
-                "entry execution). This is expected, not a sync failure -- see "
+                f"[POSITIONS] algo_positions has 0 open rows, but broker holds "
+                f"{broker_position_count} position(s) in algo_untracked_positions (manual/external). "
+                "This is expected, not a sync failure -- see "
                 "alpaca_sync_manager.sync_alpaca_positions."
             )
             stale_alerts.append(
@@ -121,7 +119,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "Shown in untracked_items section with no stop/target management."
             )
         else:
-            logger.info("[POSITIONS] algo_positions has 0 open rows and broker also reports 0 — no open positions.")
+            logger.info("[POSITIONS] algo_positions has 0 open rows and algo_untracked_positions empty — no open positions.")
 
     # FIX: Load sector/company_name from company_profile and technical scores from
     # trend_template_data for positions. algo_positions (the base table) does not carry

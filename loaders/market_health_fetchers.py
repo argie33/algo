@@ -105,10 +105,11 @@ class VIXFetcher:
 
 
 class PutCallRatioFetcher:
-    """Fetches CBOE Put/Call Ratio Index (PCRX) with circuit breaker and caching.
+    """Fetches SPY put/call ratio from yfinance options chains.
 
-    Uses official CBOE PCRX index (more reliable than computing from options chains):
-    - Fetches PCRX ticker from yfinance (simple, single API call)
+    Computes put/call ratio from open interest in SPY options chain:
+    - Fetches SPY options chain from yfinance for most recent trading date
+    - Calculates: sum(put open interest) / sum(call open interest)
     - Caches per trading day (fetch once morning/evening, reuse)
     - Categorizes errors as TRANSIENT vs PERMANENT for retry logic
     - Retries TRANSIENT errors up to 3 times with exponential backoff (1s, 2s, 4s)
@@ -269,46 +270,68 @@ class PutCallRatioFetcher:
         return None
 
     def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
-        """Fetch put/call ratio from options chains data.
+        """Fetch put/call ratio from yfinance SPY options chain.
 
-        Computes SPY put/call ratio from open interest in the options_chains table.
-        This is a real options market metric based on our data, not a placeholder.
+        Computes SPY put/call ratio from open interest in options chain:
+        - Fetches SPY options chain for the eval_date
+        - Sums open interest for all puts and calls
+        - Returns ratio: total_puts_oi / total_calls_oi
         """
         try:
-            from utils.db import DatabaseContext
+            import yfinance as yf
 
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        COALESCE(SUM(CASE WHEN option_type = 'put' THEN open_interest ELSE 0 END), 0)::float AS total_puts,
-                        COALESCE(SUM(CASE WHEN option_type = 'call' THEN open_interest ELSE 0 END), 0)::float AS total_calls
-                    FROM options_chains
-                    WHERE symbol = 'SPY'
-                      AND quote_date = %s
-                      AND open_interest > 0
-                """,
-                    (eval_date,),
-                )
+            # Fetch SPY options chain for this date
+            spy = yf.Ticker("SPY")
 
-                row = cur.fetchone()
-                if not row:
-                    logger.warning(f"[PUT_CALL_RATIO] No options data found for {eval_date}")
-                    return None
+            # Get available expiration dates
+            expirations = spy.options
+            if not expirations:
+                logger.warning(f"[PUT_CALL_RATIO] No option expirations available for {eval_date}")
+                return None
 
-                total_puts = float(row[0])
-                total_calls = float(row[1])
+            total_puts_oi = 0.0
+            total_calls_oi = 0.0
 
-                if total_calls == 0:
-                    logger.warning(f"[PUT_CALL_RATIO] No call open interest for {eval_date}")
-                    return None
+            # Sum open interest across all expiration dates
+            for expiration_str in expirations:
+                try:
+                    chain = spy.option_chain(expiration_str)
 
-                pcr = total_puts / total_calls
-                logger.info(f"[PUT_CALL_RATIO] Computed {pcr:.4f} for {eval_date} from options chains")
-                return pcr
+                    # Calls: sum open interest for all calls
+                    calls_df = chain.calls
+                    if calls_df is not None and not calls_df.empty:
+                        calls_oi = calls_df['openInterest'].sum()
+                        if calls_oi > 0:
+                            total_calls_oi += calls_oi
+
+                    # Puts: sum open interest for all puts
+                    puts_df = chain.puts
+                    if puts_df is not None and not puts_df.empty:
+                        puts_oi = puts_df['openInterest'].sum()
+                        if puts_oi > 0:
+                            total_puts_oi += puts_oi
+
+                except Exception as chain_err:
+                    logger.debug(f"[PUT_CALL_RATIO] Could not fetch chain for {expiration_str}: {chain_err}")
+                    continue
+
+            if total_calls_oi == 0:
+                logger.warning(f"[PUT_CALL_RATIO] No call open interest for {eval_date}")
+                return None
+
+            if total_puts_oi == 0:
+                logger.warning(f"[PUT_CALL_RATIO] No put open interest for {eval_date}")
+                return None
+
+            pcr = total_puts_oi / total_calls_oi
+            logger.info(
+                f"[PUT_CALL_RATIO] Computed {pcr:.4f} for {eval_date} "
+                f"(puts: {total_puts_oi:.0f}, calls: {total_calls_oi:.0f})"
+            )
+            return pcr
 
         except Exception as e:
-            logger.error(f"[PUT_CALL_RATIO] Failed to compute from options chains: {e}")
+            logger.error(f"[PUT_CALL_RATIO] Failed to compute from yfinance options chain: {e}")
             return None
 
 
