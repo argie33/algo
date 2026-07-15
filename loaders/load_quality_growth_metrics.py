@@ -241,35 +241,49 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
         revenues = [row[0] for row in income_rows if row[0] is not None and row[0] > 0]
         eps_values = [row[1] for row in income_rows if row[1] is not None and row[1] != 0]
 
+        def _cagr(latest: float, previous: float, years: int) -> float | None:
+            """Compute CAGR (Compound Annual Growth Rate) for multi-year growth.
+
+            Handles sign changes (positive→negative revenue) by returning None.
+            Returns annualized growth rate as percentage.
+            """
+            if previous == 0 or previous is None:
+                return None
+            if (latest > 0 and previous < 0) or (latest < 0 and previous > 0):
+                # Sign change: traditional CAGR doesn't apply
+                return None
+            ratio = latest / previous
+            return ((ratio ** (1.0 / years)) - 1) * 100
+
         # 1-year revenue growth
         if len(revenues) >= 2:
-            rev_growth = ((revenues[0] - revenues[1]) / abs(revenues[1]) * 100) if revenues[1] != 0 else None
-            metrics["revenue_growth_1y"] = float(round(rev_growth, 2)) if rev_growth else None
+            rev_growth = _cagr(revenues[0], revenues[1], 1)
+            metrics["revenue_growth_1y"] = float(round(rev_growth, 2)) if rev_growth is not None else None
 
         # 1-year EPS growth
         if len(eps_values) >= 2:
-            eps_growth = ((eps_values[0] - eps_values[1]) / abs(eps_values[1]) * 100) if eps_values[1] != 0 else None
-            metrics["eps_growth_1y"] = float(round(eps_growth, 2)) if eps_growth else None
+            eps_growth = _cagr(eps_values[0], eps_values[1], 1)
+            metrics["eps_growth_1y"] = float(round(eps_growth, 2)) if eps_growth is not None else None
 
-        # 3-year revenue growth
+        # 3-year revenue growth (CAGR from 3 years ago)
         if len(revenues) >= 4:
-            rev_growth = ((revenues[0] - revenues[3]) / abs(revenues[3]) * 100) if revenues[3] != 0 else None
-            metrics["revenue_growth_3y"] = float(round(rev_growth, 2)) if rev_growth else None
+            rev_growth = _cagr(revenues[0], revenues[3], 3)
+            metrics["revenue_growth_3y"] = float(round(rev_growth, 2)) if rev_growth is not None else None
 
-        # 3-year EPS growth
+        # 3-year EPS growth (CAGR from 3 years ago)
         if len(eps_values) >= 4:
-            eps_growth = ((eps_values[0] - eps_values[3]) / abs(eps_values[3]) * 100) if eps_values[3] != 0 else None
-            metrics["eps_growth_3y"] = float(round(eps_growth, 2)) if eps_growth else None
+            eps_growth = _cagr(eps_values[0], eps_values[3], 3)
+            metrics["eps_growth_3y"] = float(round(eps_growth, 2)) if eps_growth is not None else None
 
-        # 5-year revenue growth
+        # 5-year revenue growth (CAGR from 5 years ago)
         if len(revenues) >= 6:
-            rev_growth = ((revenues[0] - revenues[5]) / abs(revenues[5]) * 100) if revenues[5] != 0 else None
-            metrics["revenue_growth_5y"] = float(round(rev_growth, 2)) if rev_growth else None
+            rev_growth = _cagr(revenues[0], revenues[5], 5)
+            metrics["revenue_growth_5y"] = float(round(rev_growth, 2)) if rev_growth is not None else None
 
-        # 5-year EPS growth
+        # 5-year EPS growth (CAGR from 5 years ago)
         if len(eps_values) >= 6:
-            eps_growth = ((eps_values[0] - eps_values[5]) / abs(eps_values[5]) * 100) if eps_values[5] != 0 else None
-            metrics["eps_growth_5y"] = float(round(eps_growth, 2)) if eps_growth else None
+            eps_growth = _cagr(eps_values[0], eps_values[5], 5)
+            metrics["eps_growth_5y"] = float(round(eps_growth, 2)) if eps_growth is not None else None
 
         return metrics
 

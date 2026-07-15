@@ -204,13 +204,15 @@ class PriceFetcher:
                 )
             else:
                 # EOD pipeline: start >= end means watermark is already current (data already loaded).
-                # This is normal operation: no new data to fetch. Return empty list.
+                # This is normal operation: no new data to fetch. Not an error.
                 # load_prices.py handles this at line 1995: counts as processed, not a failure.
                 logger.info(
                     f"[{symbol}] [EOD_CONTEXT] Watermark current at {start}={end}. "
                     f"No new rows to fetch (likely loaded by earlier run). Returning empty."
                 )
-                return []
+                # Returning empty list (not an error - watermark is current)
+                rows = []
+                return rows
 
         rows = self._try_fetch(symbol, start, end)
         return rows
@@ -248,7 +250,7 @@ class PriceFetcher:
                 )
             else:
                 # EOD pipeline: start >= end means watermark is already current (data already loaded).
-                # This is normal operation: no new data to fetch for any symbol in the batch.
+                # This is normal operation: no new data to fetch for any symbol in the batch. Not an error.
                 # Return empty dict with empty lists per symbol. load_prices.py handles this at line 1995:
                 # counts as processed, not a failure. See DATA_LOADERS.md "Incremental writes with watermarks".
                 logger.info(
