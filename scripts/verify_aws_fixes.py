@@ -10,10 +10,9 @@ Checks:
 4. Dashboard data source - shows AWS (not stale fallback)
 """
 
-import json
 import logging
 import sys
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 import boto3
 from utils.db.context import DatabaseContext

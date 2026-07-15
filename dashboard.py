@@ -3,7 +3,6 @@
 
 if __name__ == "__main__":
     import sys
-    import os
     from pathlib import Path
 
     # Ensure we import the dashboard package from current directory
@@ -18,5 +17,5 @@ if __name__ == "__main__":
         main()
     except ImportError as e:
         print(f"ERROR: Failed to import dashboard module: {e}")
-        print(f"Make sure you're running from the repo root: python dashboard.py")
+        print("Make sure you're running from the repo root: python dashboard.py")
         sys.exit(1)
