@@ -716,6 +716,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             row_styles=["", "dim"],
         )
         sig_tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
+        sig_tbl.add_column("Company", max_width=20, no_wrap=True, min_width=12)
         sig_tbl.add_column("Score", justify="right", no_wrap=True, min_width=5)
         sig_tbl.add_column("Mom", justify="right", no_wrap=True, min_width=4)
         sig_tbl.add_column("Qual", justify="right", no_wrap=True, min_width=4)
@@ -733,6 +734,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
         for sc in top_scores:
             sym = str(safe_get_field(sc, "symbol", "--"))
             sym_norm = sym.upper().strip()
+            company = (safe_get_field(sc, "company_name", ""))[:20]
             comp = safe_get_field(sc, "composite_score")
             mom = safe_get_field(sc, "momentum_score")
             qual = safe_get_field(sc, "quality_score")
@@ -770,6 +772,7 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             comp_display = f"{comp_v:.0f}" if comp_v is not None else "N/A"
             sig_tbl.add_row(
                 sym,
+                Text(company, style=DIM),
                 Text(comp_display, style=sc_c),
                 _score_cell(mom),
                 _score_cell(qual),
