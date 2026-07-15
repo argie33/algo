@@ -772,7 +772,7 @@ DASHBOARD_ENDPOINTS = {
             required_fields=[],
             optional_fields=["top", "total", "data_freshness"],
             field_types={"top": list, "total": int},
-            description="Stock scores list with component factors (composite_score, growth_score, momentum_score, quality_score, value_score, positioning_score, stability_score)",
+            description="Stock scores list with component factors (symbol, company_name, composite_score, growth_score, momentum_score, quality_score, value_score, positioning_score, stability_score, sector, industry, current_price, change_percent, rs_percentile)",
         ),
         "freshness_max_age_seconds": 14400,
         "strict_fields": [],
