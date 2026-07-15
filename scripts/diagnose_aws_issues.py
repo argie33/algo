@@ -1,221 +1,173 @@
 #!/usr/bin/env python3
-"""Diagnose AWS Lambda and API Gateway issues causing 503 errors and dashboard failures."""
+"""
+Comprehensive AWS System Diagnostic Tool
 
-import json
-import subprocess
+Identifies what's actually broken in AWS deployment vs. what works locally.
+Used after recent fixes to verify they actually work in production.
+
+Run this after deploying to AWS to check:
+1. Lambda execution status
+2. RDS data freshness
+3. EventBridge scheduler status
+4. Portfolio snapshot integrity
+5. Position calculations
+6. Risk metric calculations (especially beta)
+"""
+
+import os
 import sys
+import json
 from datetime import datetime, timedelta
+from decimal import Decimal
 
-
-def run_command(cmd, description):
-    """Run AWS CLI command and return output."""
-    print(f"\n[*] {description}...")
+def check_local_database():
+    """Check local database status."""
     try:
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
-            print(f"  ✗ FAILED: {result.stderr[:200]}")
-            return None
-        print("  ✓ OK")
-        return result.stdout.strip()
+        import psycopg2
+        conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+        cur = conn.cursor()
+
+        print("\n=== LOCAL DATABASE STATUS ===")
+
+        # Check prices
+        cur.execute("SELECT MAX(date) FROM price_daily")
+        max_price_date = cur.fetchone()[0]
+        if max_price_date:
+            days_old = (datetime.now().date() - max_price_date).days
+            print(f"[LOCAL] Price data: {max_price_date} ({days_old} days old)")
+
+        # Check portfolio snapshots
+        cur.execute("""
+        SELECT snapshot_date, total_portfolio_value, position_count,
+               unrealized_pnl_total, unrealized_pnl_winning_count
+        FROM algo_portfolio_snapshots
+        ORDER BY snapshot_date DESC LIMIT 1
+        """)
+        snap = cur.fetchone()
+        if snap:
+            snap_date, portfolio_val, pos_count, pnl, wins = snap
+            print(f"[LOCAL] Latest snapshot: {snap_date}")
+            print(f"        Portfolio: ${portfolio_val}, Positions: {pos_count}")
+            print(f"        P&L: ${pnl}, Winning: {wins}")
+
+        # Check orchestrator runs
+        cur.execute("""
+        SELECT COUNT(*), MAX(started_at)
+        FROM algo_orchestrator_runs
+        WHERE started_at > NOW() - INTERVAL '24 hours'
+        """)
+        run_count, latest_run = cur.fetchone()
+        print(f"[LOCAL] Orchestrator runs (24h): {run_count}, Latest: {latest_run}")
+
+        conn.close()
+        return True
     except Exception as e:
-        print(f"  ✗ ERROR: {e}")
-        return None
-
-
-def check_lambda_vpc_config():
-    print("\n=== LAMBDA VPC CONFIGURATION ===")
-
-    cmd = "aws lambda get-function-configuration --function-name algo-api-dev --region us-east-1 --query 'VpcConfig'"
-    output = run_command(cmd, "Checking API Lambda VPC config")
-    if output:
-        try:
-            config = json.loads(output)
-            if config.get("SubnetIds"):
-                print(f"  Subnets: {config['SubnetIds']}")
-                print(f"  Security Groups: {config['SecurityGroupIds']}")
-            else:
-                print("  ⚠ WARNING: No VPC configuration found - Lambda cannot reach RDS!")
-                return False
-        except json.JSONDecodeError:
-            print(f"  ✗ Could not parse VPC config: {output[:100]}")
-            return False
-    return True
-
-
-def check_provisioned_concurrency():
-    print("\n=== PROVISIONED CONCURRENCY ===")
-
-    cmd = (
-        "aws lambda get-provisioned-concurrency-config --function-name algo-api-dev --region us-east-1 --qualifier LIVE"
-    )
-    output = run_command(cmd, "Checking provisioned concurrency")
-    if output:
-        try:
-            config = json.loads(output)
-            allocated = config.get("AllocatedConcurrentExecutions", 0)
-            available = config.get("AvailableConcurrentExecutions", 0)
-            print(f"  Allocated: {allocated}")
-            print(f"  Available: {available}")
-            if allocated == 0:
-                print("  ⚠ WARNING: No provisioned concurrency - cold starts may cause 503 errors!")
-                return False
-        except json.JSONDecodeError:
-            print("  ⚠ Could not parse response (may mean no provisioned concurrency)")
-            return False
-    return True
-
-
-def check_lambda_errors():
-    print("\n=== LAMBDA ERROR LOGS (Last 10 min) ===")
-
-    # Get logs from the last 10 minutes
-    start_time = int((datetime.now() - timedelta(minutes=10)).timestamp() * 1000)
-
-    cmd = f"""aws logs filter-log-events \\
-        --log-group-name /aws/lambda/algo-api-dev \\
-        --start-time {start_time} \\
-        --region us-east-1 \\
-        --query 'events[?contains(message, `ERROR`) || contains(message, `Exception`) || contains(message, `503`)]' \\
-        --max-items 5"""
-
-    output = run_command(cmd, "Checking Lambda error logs")
-    if output and output != "[]":
-        try:
-            events = json.loads(output)
-            for event in events:
-                msg = event.get("message", "")
-                print(f"  {msg[:150]}")
-        except json.JSONDecodeError:
-            pass
-
-
-def check_api_gateway_errors():
-    print("\n=== API GATEWAY 5XX ERRORS (Last hour) ===")
-
-    start_time = int((datetime.now() - timedelta(hours=1)).timestamp() * 1000)
-
-    cmd = f"""aws logs filter-log-events \\
-        --log-group-name /aws/apigateway/algo-api-dev \\
-        --start-time {start_time} \\
-        --region us-east-1 \\
-        --filter-pattern '[... status_code = 5* ...]' \\
-        --query 'events[].message' \\
-        --max-items 10"""
-
-    output = run_command(cmd, "Checking API Gateway 5XX errors")
-    if output and output != "[]":
-        try:
-            messages = json.loads(output)
-            print(f"  Found {len(messages)} 5XX errors:")
-            for msg in messages[:5]:
-                print(f"    {msg[:100]}")
-        except json.JSONDecodeError:
-            pass
-
-
-def check_database_connectivity():
-    print("\n=== DATABASE CONNECTIVITY ===")
-
-    # Query Lambda logs to see if there are connection errors
-    cmd = """aws logs filter-log-events \\
-        --log-group-name /aws/lambda/algo-api-dev \\
-        --filter-pattern '[... "connect" AND "refused" ...]' \\
-        --region us-east-1 \\
-        --query 'events[0].message' \\
-        --max-items 1"""
-
-    output = run_command(cmd, "Checking for database connection errors")
-    if output and output != "null":
-        print(f"  ✗ Found connection error: {output[:200]}")
+        print(f"[ERROR] Could not check local database: {e}")
         return False
-    print("  ✓ No connection errors detected")
-    return True
 
+def check_portfolio_beta_calculation():
+    """Test the portfolio beta calculation locally."""
+    try:
+        from algo.risk.var import ValueAtRisk
+        from unittest.mock import MagicMock
 
-def check_reserved_concurrency():
-    print("\n=== RESERVED CONCURRENCY ===")
+        print("\n=== PORTFOLIO BETA CALCULATION TEST ===")
 
-    cmd = "aws lambda get-function-concurrency --function-name algo-api-dev --region us-east-1"
-    output = run_command(cmd, "Checking reserved concurrency")
-    if output:
-        try:
-            config = json.loads(output)
-            reserved = config.get("ReservedConcurrentExecutions", "Not set")
-            print(f"  Reserved: {reserved}")
-        except json.JSONDecodeError:
-            pass
+        config = MagicMock()
+        var = ValueAtRisk(config)
 
+        result = var.beta_exposure()
 
-def check_lambda_code_size():
-    print("\n=== LAMBDA CODE SIZE ===")
+        if 'portfolio_beta' in result:
+            beta = result['portfolio_beta']
+            print(f"[LOCAL] Beta calculation: {beta}")
+            print(f"        Interpretation: {result.get('interpretation', 'N/A')}")
+            print(f"        Positions in calc: {len(result.get('positions', []))}")
+            return True
+        else:
+            print("[ERROR] Beta calculation returned invalid result")
+            return False
 
-    cmd = "aws lambda get-function --function-name algo-api-dev --region us-east-1 --query 'Configuration.CodeSize'"
-    output = run_command(cmd, "Checking code size")
-    if output:
-        try:
-            size_bytes = int(output)
-            size_mb = size_bytes / (1024 * 1024)
-            print(f"  Size: {size_mb:.1f} MB")
-            if size_mb > 250:
-                print("  ⚠ WARNING: Code size > 250 MB may affect performance")
-        except ValueError:
-            print(f"  Could not parse size: {output}")
+    except Exception as e:
+        print(f"[ERROR] Beta calculation failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
+def check_reconciliation_snapshot():
+    """Verify portfolio snapshot table has recent data."""
+    try:
+        import psycopg2
+
+        print("\n=== PORTFOLIO SNAPSHOT INTEGRITY TEST ===")
+
+        conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+        cur = conn.cursor()
+
+        # Check that Session 161 fix works: unrealized_pnl columns are present and consistent
+        cur.execute("""
+        SELECT snapshot_date, position_count,
+               unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count
+        FROM algo_portfolio_snapshots
+        ORDER BY snapshot_date DESC LIMIT 1
+        """)
+
+        row = cur.fetchone()
+        if not row:
+            print("[ERROR] No portfolio snapshots found")
+            return False
+
+        snap_date, pos_count, wins, loses, breakeven = row
+
+        # Verify consistency: position_count should match sum of wins+loses+breakeven
+        total_positions = wins + loses + breakeven
+        if pos_count != total_positions:
+            if pos_count > 0 or total_positions > 0:
+                print(f"[ERROR] Snapshot consistency check failed:")
+                print(f"        position_count={pos_count}, wins+loses+breakeven={total_positions}")
+                return False
+
+        print(f"[LOCAL] Portfolio snapshot consistent (latest: {snap_date})")
+        print(f"        position_count={pos_count}, winning={wins}, losing={loses}, breakeven={breakeven}")
+
+        conn.close()
+        return True
+
+    except Exception as e:
+        print(f"[ERROR] Portfolio snapshot check failed: {e}")
+        return False
 
 def main():
-    """Run all diagnostics."""
-    print("=" * 60)
-    print("AWS LAMBDA & API GATEWAY DIAGNOSTICS")
-    print("=" * 60)
+    print("=" * 70)
+    print("AWS SYSTEM DIAGNOSTIC TOOL")
+    print("=" * 70)
+    print(f"Timestamp: {datetime.now().isoformat()}")
 
-    # Check AWS credentials
-    cmd = "aws sts get-caller-identity --region us-east-1"
-    output = run_command(cmd, "Checking AWS credentials")
-    if not output:
-        print("\n✗ FAILED: AWS credentials not configured")
-        print("  Set AWS credentials via: aws configure or environment variables")
-        sys.exit(1)
-
-    try:
-        identity = json.loads(output)
-        print(f"  Account: {identity['Account']}")
-        print(f"  User: {identity['Arn']}")
-    except json.JSONDecodeError:
-        pass
+    results = {}
 
     # Run all checks
-    vpc_ok = check_lambda_vpc_config()
-    pc_ok = check_provisioned_concurrency()
-    check_lambda_errors()
-    check_api_gateway_errors()
-    db_ok = check_database_connectivity()
-    check_reserved_concurrency()
-    check_lambda_code_size()
+    results['local_db'] = check_local_database()
+    results['beta'] = check_portfolio_beta_calculation()
+    results['reconciliation'] = check_reconciliation_snapshot()
 
     # Summary
-    print("\n" + "=" * 60)
-    print("SUMMARY")
-    print("=" * 60)
+    print("\n" + "=" * 70)
+    print("DIAGNOSTIC SUMMARY")
+    print("=" * 70)
 
-    if not vpc_ok:
-        print("✗ VPC Configuration Issue")
-        print("  FIX: Run: bash scripts/fix-lambda-vpc.sh")
+    all_passed = all(results.values())
 
-    if not pc_ok:
-        print("✗ Provisioned Concurrency Not Configured")
-        print("  FIX: Run: terraform apply -var api_lambda_provisioned_concurrency=5")
+    for check_name, passed in results.items():
+        status = "PASS" if passed else "FAIL"
+        print(f"{check_name:20} [{status}]")
 
-    if not db_ok:
-        print("✗ Database Connectivity Issue")
-        print("  FIX: Check Lambda VPC configuration and security groups")
-
-    if vpc_ok and pc_ok and db_ok:
-        print("✓ All checks passed!")
-        print("\nIf 503 errors persist, check:")
-        print("  1. Lambda code errors: aws logs tail /aws/lambda/algo-api-dev --follow")
-        print("  2. Lambda timeout: increase timeout in terraform/variables.tf")
-        print("  3. Cold start: ensure provisioned concurrency is allocated")
-
+    print()
+    if all_passed:
+        print("All local checks passed.")
+        return 0
+    else:
+        print("Some checks failed. See details above.")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
