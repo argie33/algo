@@ -387,7 +387,7 @@ def run(  # noqa: C901
                         cur.execute("SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100")
                         trades = cur.fetchall()
                         symbols = [dict(t)["symbol"] for t in trades]
-                    result = loader.run(symbols=symbols, parallelism=1, backfill_days=1)
+                    result = loader.run(symbols=symbols, parallelism=1, backfill_days=0)
 
                     if result.get("rows_inserted", 0) > 0:
                         logger.warning(f"[PHASE 1] Emergency loader succeeded: {result['rows_inserted']} rows inserted")

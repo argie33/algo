@@ -203,12 +203,12 @@ class PriceFetcher:
                     f"since market hasn't opened yet"
                 )
             else:
-                # EOD pipeline: start >= end means watermark is already current
-                # This can happen if a previous run already loaded today's data or if running multiple times
-                # Return empty list (no new data to fetch) - this is correct behavior, not an error
+                # EOD pipeline: start >= end means watermark is already current (data already loaded).
+                # This is normal operation: no new data to fetch. Return empty list.
+                # load_prices.py handles this at line 1995: counts as processed, not a failure.
                 logger.info(
-                    f"[{symbol}] [EOD_CONTEXT] Watermark already at {start}, no new data to fetch "
-                    f"(end date is {end}). Returning empty result."
+                    f"[{symbol}] [EOD_CONTEXT] Watermark current at {start}={end}. "
+                    f"No new rows to fetch (likely loaded by earlier run). Returning empty."
                 )
                 return []
 
@@ -247,14 +247,15 @@ class PriceFetcher:
                     f"since market hasn't opened yet for today"
                 )
             else:
-                # EOD pipeline: start >= end means watermark is already current
-                # This can happen if a previous run already loaded today's data or if running multiple times
-                # Return empty dict (no new data to fetch) - this is correct behavior, not an error
+                # EOD pipeline: start >= end means watermark is already current (data already loaded).
+                # This is normal operation: no new data to fetch for any symbol in the batch.
+                # Return empty dict with empty lists per symbol. load_prices.py handles this at line 1995:
+                # counts as processed, not a failure. See DATA_LOADERS.md "Incremental writes with watermarks".
                 logger.info(
-                    f"[EOD_CONTEXT] Watermark already at {start}, no new data to fetch "
-                    f"(end date is {end}). Returning empty result."
+                    f"[EOD_CONTEXT] Watermark current at {start}={end}. "
+                    f"No new rows to fetch for batch (likely loaded by earlier run). Returning empty results."
                 )
-                return {}
+                return {symbol: [] for symbol in symbols}
 
         adaptive_batch_size = min(len(symbols), self._get_smart_batch_size())
         logger.debug(f"[FETCH] {len(symbols)} symbols, adaptive batch size: {adaptive_batch_size}")
