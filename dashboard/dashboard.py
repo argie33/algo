@@ -39,16 +39,16 @@ if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
 import argparse
-import threading
-import time
-from typing import Any
-from urllib.parse import urlparse
+import os as _os_auto
 
 # AUTO-DETECT LOCAL MODE: Check if localhost:3001 is available; if so, use it by default
 # This eliminates the need for users to remember --local flag
 # Also support explicit --local flag for backward compatibility
 import socket
-import os as _os_auto
+import threading
+import time
+from typing import Any
+from urllib.parse import urlparse
 
 
 def _is_dev_server_available() -> bool:
@@ -132,7 +132,7 @@ from rich.live import Live
 # Support both: direct execution (python dashboard/dashboard.py) and module execution (python -m dashboard)
 try:
     # Try relative imports first (module execution)
-    from .api_data_layer import reset_circuit_breaker, set_api_url, set_cognito_auth, validate_api_config
+    from .api_data_layer import reset_circuit_breaker, set_api_url, set_cognito_auth
     from .cognito_auth import get_cognito_auth as get_cognito_auth_instance
     from .cognito_auth import save_tokens
     from .core import DashboardContext, ViewMode
@@ -149,7 +149,7 @@ try:
         render_header_components,
     )
     from .utilities import CONSOLE, MASCOT_W, logger
-    from .watch import LoadState, WatchModeController, WatchState
+    from .watch import WatchModeController, WatchState
 except ImportError:
     # Fall back to absolute imports (direct script execution)
     from dashboard.api_data_layer import reset_circuit_breaker, set_api_url, set_cognito_auth
@@ -405,7 +405,6 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
     threading.Thread(target=warmup_render, daemon=True).start()
 
     first_render_with_data = False
-    data_display_start = None
     with Live(console=CONSOLE, refresh_per_second=4, screen=True) as live:
         try:
             loop_start = time.monotonic()
@@ -432,8 +431,6 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                 current_frame = state.frame
                 current_result = state.result
                 current_error = state.error
-                is_loading = state.loading
-                current_last_load = state.last_load
                 current_elapsed = state.elapsed
 
                 # CRITICAL FIX: Force data display after load completes
@@ -458,7 +455,6 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         if not first_render_with_data:
                             logger.info(f"[DASHBOARD] Transitioned to data display after {current_elapsed:.1f}s")
                             first_render_with_data = True
-                            data_display_start = time.monotonic()
                     except Exception as e:
                         logger.error(f"Render failed: {type(e).__name__}: {e}", exc_info=True)
                         try:
