@@ -7,6 +7,7 @@ Handles retries, pooling, proper credential fallback, and connection tracking.
 """
 
 import logging
+import os
 import sys
 import threading
 from pathlib import Path
@@ -84,6 +85,11 @@ def _get_connection_pool() -> Any:
                     raise psycopg2.OperationalError(f"Invalid DB_PORT: {e}") from e
 
                 try:
+                    # SSL mode: require SSL for AWS RDS, disable for local development
+                    # AWS_EXECUTION_ENV is set by Lambda/ECS, absent in local dev
+                    is_aws = bool(os.getenv("AWS_EXECUTION_ENV"))
+                    ssl_mode = "require" if is_aws else "disable"
+
                     # RDS Proxy doesn't support command-line options, so don't pass them during connection
                     # Statement timeout is set at RDS parameter group level instead
                     base_pool = psycopg2.pool.SimpleConnectionPool(
@@ -102,9 +108,10 @@ def _get_connection_pool() -> Any:
                         keepalives_idle=30,  # start probing after 30s idle (was 60s)
                         keepalives_interval=5,  # probe every 5s (was 10s) - faster detection
                         keepalives_count=3,  # 3 failed probes → declare dead (was 5) - faster failover
-                        # Explicit SSL mode: require SSL for RDS security, fail if unavailable
-                        # Prevents silent downgrade to unencrypted connections
-                        sslmode="require",
+                        # Conditional SSL mode:
+                        # - AWS RDS requires SSL for security (sslmode='require')
+                        # - Local dev typically uses unencrypted connections (sslmode='disable')
+                        sslmode=ssl_mode,
                         # Note: Do NOT pass options= parameter to RDS Proxy
                         # RDS Proxy doesn't support command-line options like -c statement_timeout
                         # Statement timeout is configured at the RDS parameter group level instead
