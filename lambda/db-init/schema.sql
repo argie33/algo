@@ -14,8 +14,6 @@ CREATE TABLE IF NOT EXISTS growth_metrics (
     eps_growth_1y NUMERIC(6, 2),
     eps_growth_3y NUMERIC(6, 2),
     eps_growth_5y NUMERIC(6, 2),
-    quarterly_growth_momentum NUMERIC(6, 2),
-    revenue_growth_yoy NUMERIC(6, 2),
     revenue_growth_1y_unavailable_reason VARCHAR(255),
     revenue_growth_3y_unavailable_reason VARCHAR(255),
     revenue_growth_5y_unavailable_reason VARCHAR(255),
