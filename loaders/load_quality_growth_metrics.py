@@ -240,14 +240,15 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             "data_unavailable": False,
         }
 
-        # Extract revenue from rows (first element of each tuple)
+        # Extract revenue and EPS from rows
+        # Rows from _fetch_annual_income_statement_history are (revenue, operating_income, net_income, earnings_per_share)
         # Convert to float safely (DB returns Decimal)
         revenues = []
         eps_values = []
         for row in income_rows:
             try:
                 rev = float(row[0]) if row[0] is not None else None
-                eps = float(row[1]) if row[1] is not None else None
+                eps = float(row[3]) if row[3] is not None else None
                 if rev is not None and rev > 0:
                     revenues.append(rev)
                 if eps is not None and eps != 0:

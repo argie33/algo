@@ -453,7 +453,7 @@ class SecFinancialsLoader(SecLoaderBase):
             logger.error(f"[{self.table_name}] Failed to fetch balance sheet for {symbol}: {e}")
             raise RuntimeError(f"Cannot fetch balance sheet for {symbol}: {e}") from e
 
-    def _fetch_annual_income_statement_history(self, symbol: str, years: int = 10) -> list[tuple[Any, Any, Any]] | None:
+    def _fetch_annual_income_statement_history(self, symbol: str, years: int = 10) -> list[tuple[Any, ...]] | None:
         """Fetch historical annual income statements for multi-year analysis.
 
         Args:
@@ -461,7 +461,8 @@ class SecFinancialsLoader(SecLoaderBase):
             years: Number of years to fetch (default 10 for 1Y/3Y/5Y lookback)
 
         Returns:
-            List of tuples (fiscal_year, revenue, earnings_per_share) ordered by fiscal_year DESC.
+            List of tuples (revenue, operating_income, net_income, earnings_per_share) ordered by fiscal_year DESC.
+            Omits fiscal_year to allow _compute_growth_metrics to treat row[0] as revenue (matching quality metrics).
             All NaN Decimal values are cleaned to None.
             Returns None if no data found.
         """
@@ -470,7 +471,7 @@ class SecFinancialsLoader(SecLoaderBase):
         try:
             rows = execute_query(
                 f"""
-                SELECT fiscal_year, revenue, earnings_per_share
+                SELECT revenue, operating_income, net_income, earnings_per_share
                 FROM annual_income_statement
                 WHERE symbol = %s
                 ORDER BY fiscal_year DESC
