@@ -215,7 +215,7 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
 
         return metrics
 
-    def _compute_growth_metrics(self, symbol: str, income_rows: list[tuple[Any, ...]]) -> dict[str, Any]:
+    def _compute_growth_metrics(self, symbol: str, income_rows: list[tuple[Any, ...]]) -> dict[str, Any]:  # noqa: C901
         if not income_rows or len(income_rows) < 2:
             return {
                 "symbol": symbol,
@@ -265,8 +265,6 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             Returns annualized growth rate as percentage.
             Safely converts Decimal from DB to float.
             """
-            from decimal import Decimal
-
             try:
                 latest_f = float(latest) if not isinstance(latest, float) else latest
                 previous_f = float(previous) if not isinstance(previous, float) else previous
