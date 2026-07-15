@@ -446,8 +446,9 @@ locals {
     "company_profile"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
     "earnings_history"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
     "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
-    # Cost-optimized: Reduced from 1024 to 512 (dividend + payout ratio queries, <50MB actual)
-    "stability_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+    # FIXED (2026-07-15): Increased timeout from 1800s (30m) to 4200s (70m) — load_risk_metrics_daily
+    # computes BOTH stability AND momentum for 5000+ symbols. Expected runtime 40-60 min (volatility + beta + momentum calculations).
+    "stability_metrics" = { cpu = 512, memory = 1024, timeout = 4200, parallelism = 2 }
     # Cost-optimized: Reduced from 1024 to 512 (return calculations on historical prices, <80MB actual)
     "momentum_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
     # Cost-optimized: Reduced from 2048 to 1024 (score aggregation, vectorized SQL, moderate memory for DF ops)

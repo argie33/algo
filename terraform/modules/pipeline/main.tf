@@ -1818,6 +1818,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
             ContainerOverrides = [{
               Name = "algo-growth_metrics"
               Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
                 { Name = "LOADER_PARALLELISM", Value = "2" }
               ]
             }]
@@ -1876,6 +1877,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
             ContainerOverrides = [{
               Name = "algo-quality_metrics"
               Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
                 { Name = "LOADER_PARALLELISM", Value = "2" }
               ]
             }]
@@ -1931,6 +1933,14 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["value_metrics"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-value_metrics"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
@@ -1970,16 +1980,26 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       }
 
       # ── Stability Metrics (independent of financial data) ──
-      # FIXED: Increase timeout from 1800s (30m) to 3600s (1h) to safely compute volatility and beta for all 5000+ symbols
+      # FIXED 2026-07-15: Increase timeout from 3600s (1h) to 4200s (70m) — load_risk_metrics_daily
+      # computes BOTH stability AND momentum metrics for 5000+ symbols (volatility + beta + momentum calculations).
+      # Expected runtime 40-60 minutes; 4200s provides safe headroom per load_stock_scores.py analysis (Session 166).
       StabilityMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 3600
+        TimeoutSeconds = 4200
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
           TaskDefinition       = var.loader_task_definition_arns["stability_metrics"]
           NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-stability_metrics"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" }
+              ]
+            }]
+          }
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
@@ -2033,6 +2053,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
             ContainerOverrides = [{
               Name = "algo-stock_scores"
               Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
                 { Name = "LOADER_PARALLELISM", Value = "2" }
               ]
             }]
