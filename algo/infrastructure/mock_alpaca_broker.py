@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 class MockAlpacaBroker:
     """Mock Alpaca broker that simulates API responses without hitting real servers."""
 
-    def __init__(self, initial_capital: float = 100_000):
+    def __init__(self, initial_capital: float = 100_000) -> None:
         self.cash = Decimal(str(initial_capital))
         self.portfolio_value = Decimal(str(initial_capital))
-        self.positions = {}  # symbol -> {qty, entry_price, current_price}
-        self.orders = []  # list of executed orders
+        self.positions: dict[str, Any] = {}  # symbol -> {qty, entry_price, current_price}
+        self.orders: list[dict[str, Any]] = []  # list of executed orders
         self.account_equity = Decimal(str(initial_capital))
 
     def get_account(self) -> dict[str, Any]:

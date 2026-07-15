@@ -23,12 +23,12 @@ logger = logging.getLogger(__name__)
 class AlpacaMockAccount:
     """Simulates Alpaca account state."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.account_id = str(uuid.uuid4())[:8]
         self.cash = Decimal("100000")
-        self.positions = {}
-        self.orders = {}
-        self.trades_history = []
+        self.positions: dict[str, Any] = {}
+        self.orders: dict[str, Any] = {}
+        self.trades_history: list[Any] = []
 
     def to_dict(self) -> dict[str, Any]:
         """Return account as dict (Alpaca format)."""
@@ -53,24 +53,24 @@ class AlpacaMockHandler(BaseHTTPRequestHandler):
     # Shared mock account across all requests
     mock_account = AlpacaMockAccount()
 
-    def log_message(self, msg, *args):
+    def log_message(self, msg: str, *args: Any) -> None:
         """Suppress default HTTP logging."""
         logger.info(f"[MOCK_API] {msg % args}")
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         """Handle GET requests."""
         if self.path == "/v2/account":
             self.send_json(200, self.mock_account.to_dict())
         elif self.path.startswith("/v2/positions"):
             positions = list(self.mock_account.positions.values())
-            self.send_json(200, positions)
+            self.send_json(200, {"positions": positions})
         elif self.path.startswith("/v2/orders"):
             orders = list(self.mock_account.orders.values())
-            self.send_json(200, orders)
+            self.send_json(200, {"orders": orders})
         else:
             self.send_json(404, {"error": "Not found"})
 
-    def do_POST(self):
+    def do_POST(self) -> None:
         """Handle POST requests (order submission)."""
         content_length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(content_length).decode()
@@ -86,7 +86,7 @@ class AlpacaMockHandler(BaseHTTPRequestHandler):
         else:
             self.send_json(404, {"error": "Not found"})
 
-    def handle_order_submission(self, data: dict) -> None:
+    def handle_order_submission(self, data: dict[str, Any]) -> None:
         """Process order submission."""
         symbol = data.get("symbol", "").upper()
         qty = int(data.get("qty", 0))
@@ -156,7 +156,7 @@ class AlpacaMockHandler(BaseHTTPRequestHandler):
             logger.error(f"[MOCK_API] Order processing error: {e}")
             self.send_json(500, {"error": str(e)})
 
-    def send_json(self, status: int, data: dict) -> None:
+    def send_json(self, status: int, data: dict[str, Any]) -> None:
         """Send JSON response."""
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
