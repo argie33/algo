@@ -434,8 +434,6 @@ class MarketHealthDailyLoader(OptimalLoader):
         """
         result = self._fetch_put_call_with_retries(end)
 
-        end_str = end.isoformat()
-
         # CRITICAL: Check if data is available - fail if marker missing (don't default to False)
         if "data_unavailable" not in result:
             logger.error(
