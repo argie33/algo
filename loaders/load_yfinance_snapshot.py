@@ -297,7 +297,7 @@ def main() -> int:
 
     if sys.platform != "win32" and hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
+        cast(Any, signal).alarm(execution_timeout_sec)
 
     try:
         return run_loader(YFinanceSnapshotLoader)
