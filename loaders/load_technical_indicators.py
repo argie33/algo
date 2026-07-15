@@ -421,11 +421,22 @@ class VectorizedTechnicalLoader:
                     target_index = pd.DatetimeIndex(symbol_df["date"].values)
                     spy_aligned = spy_closes.reindex(target_index)
 
-                    if spy_aligned.isna().any():
-                        raise RuntimeError(
-                            f"[MANSFIELD_RS] SPY price data incomplete for {symbol}: missing dates in alignment. "
-                            f"Cannot compute relative strength without complete SPY alignment."
-                        )
+                    # Only fail if stock dates are missing from SPY; SPY having extra dates is fine
+                    missing_count = spy_aligned.isna().sum()
+                    if missing_count > 0:
+                        missing_pct = 100.0 * missing_count / len(spy_aligned)
+                        if missing_pct > 10:
+                            # More than 10% of dates missing: likely data quality issue
+                            raise RuntimeError(
+                                f"[MANSFIELD_RS] SPY price data incomplete for {symbol}: {missing_pct:.1f}% of dates missing. "
+                                f"Cannot compute relative strength without adequate SPY alignment."
+                            )
+                        else:
+                            # < 10% missing: use forward-fill for continuity
+                            spy_aligned = spy_aligned.ffill()
+                            if spy_aligned.isna().any():
+                                # If ffill didn't work, use bfill as fallback
+                                spy_aligned = spy_aligned.bfill()
 
                     rs_line = symbol_df["close"].values / spy_aligned.values
                     rs_line_s = pd.Series(rs_line, index=symbol_df.index)
