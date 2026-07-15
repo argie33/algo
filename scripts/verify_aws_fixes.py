@@ -15,6 +15,7 @@ import sys
 from datetime import datetime, timedelta
 
 import boto3
+
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
 
@@ -150,8 +151,8 @@ def check_dashboard_data_source() -> bool:
     logger.info("\n=== DASHBOARD DATA SOURCE CHECK ===")
     try:
         # Try to import dashboard and check data freshness
-        from dashboard.fetchers import load_all
         from dashboard.api_data_layer import get_api_url
+        from dashboard.fetchers import load_all
 
         api_url = get_api_url()
         logger.info(f"Dashboard API URL: {api_url}")

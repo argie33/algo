@@ -16,10 +16,10 @@ REQUIRED SECRETS:
 RUN: python scripts/verify_github_secrets.py
 """
 
+import json
 import os
 import subprocess
 import sys
-import json
 
 REQUIRED_SECRETS = {
     "ALPACA_API_KEY_ID": "Alpaca API Key ID",
@@ -64,10 +64,10 @@ def get_github_secrets():
         )
         secrets = json.loads(result.stdout)
         return {s["name"] for s in secrets}
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"ERROR: Could not fetch GitHub secrets (gh CLI not installed or not authenticated)")
-        print(f"  Install: https://cli.github.com")
-        print(f"  Authenticate: gh auth login")
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("ERROR: Could not fetch GitHub secrets (gh CLI not installed or not authenticated)")
+        print("  Install: https://cli.github.com")
+        print("  Authenticate: gh auth login")
         return set()
 
 

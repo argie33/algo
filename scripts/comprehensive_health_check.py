@@ -3,14 +3,12 @@
 
 import os
 import sys
-import json
-import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from dashboard.fetchers import load_all
 from dashboard.api_data_layer import api_call
+from dashboard.fetchers import load_all
 
 
 def check_api_health():
@@ -51,7 +49,7 @@ def check_data_freshness():
                     print(f"  [OK] Market data is fresh ({age:.1f}h old)")
                     return True
             else:
-                print(f"  [OK] Market data available")
+                print("  [OK] Market data available")
                 return True
         else:
             print(f"  [FAIL] Market data fetch returned unexpected type: {type(market_data)}")
@@ -165,13 +163,13 @@ def check_scores_data():
                         if missing:
                             print(f"    [WARN] Missing fields in first row: {missing}")
                         else:
-                            print(f"    [OK] All required fields present")
+                            print("    [OK] All required fields present")
                     return True
                 else:
-                    print(f"  [WARN] Scores: Empty or not a list")
+                    print("  [WARN] Scores: Empty or not a list")
                     return False
             else:
-                print(f"  [WARN] Scores: Missing 'top' field")
+                print("  [WARN] Scores: Missing 'top' field")
                 return False
         else:
             print(f"  [FAIL] Scores data is {type(scores_data)}, expected dict")

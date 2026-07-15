@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Monitor AWS Lambda orchestrator execution progress."""
 
-import psycopg2
 import sys
 import time
+
+import psycopg2
+
 
 def check_orchestrator_status():
     try:
@@ -63,7 +65,7 @@ if __name__ == '__main__':
         else:
             runs = status['runs']
             if runs:
-                print(f"  Recent runs:")
+                print("  Recent runs:")
                 for run_id, started, completed, status_val, halt in runs:
                     if completed:
                         print(f"    {run_id}: COMPLETED [{status_val}]")

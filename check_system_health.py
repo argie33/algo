@@ -12,11 +12,9 @@ Run: python check_system_health.py
 """
 
 import io
-import json
 import os
 import socket
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 

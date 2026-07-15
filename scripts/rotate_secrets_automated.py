@@ -17,13 +17,13 @@ Usage:
   python3 scripts/rotate_secrets_automated.py --full-setup      # Everything
 """
 
-import os
-import sys
-import json
-import subprocess
 import datetime
-from typing import Any, Dict, List, Optional, Tuple
+import json
 import logging
+import os
+import subprocess
+import sys
+from typing import Any, Dict, List, Tuple
 
 # Fix Windows encoding
 if sys.platform == "win32":

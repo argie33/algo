@@ -15,13 +15,11 @@ Usage:
   python3 scripts/health_check_complete.py --fix      # Attempt to fix minor issues
 """
 
-import json
 import os
 import socket
-import subprocess
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))

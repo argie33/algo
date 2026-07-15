@@ -10,9 +10,8 @@ Exit Codes:
     1 = Prices incomplete (<75% coverage) or database error
 """
 
-import sys
 import logging
-from datetime import datetime
+import sys
 
 # Setup logging
 logging.basicConfig(level=logging.WARNING, format="%(message)s")

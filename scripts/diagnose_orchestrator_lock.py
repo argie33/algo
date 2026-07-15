@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Diagnose and clear stale orchestrator locks."""
-import psycopg2
 import os
 import sys
-from datetime import datetime, timedelta
 from typing import Optional
+
+import psycopg2
 
 # Fix encoding on Windows
 if sys.platform == "win32":
@@ -108,7 +108,7 @@ def clear_stale_locks(max_age_seconds: int = 300) -> bool:
             print(f"[OK] Cleared {deleted} stale lock(s) (age > {max_age_seconds}s)")
             return True
         else:
-            print(f"[INFO]  No stale locks to clear")
+            print("[INFO]  No stale locks to clear")
             return False
 
     except Exception as e:

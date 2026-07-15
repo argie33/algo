@@ -10,10 +10,8 @@ Usage:
   python scripts/run_local_orchestrator.py --evening     # runs evening orchestrator
 """
 
-import os
-import sys
-import subprocess
 import argparse
+import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -74,14 +72,14 @@ def main() -> None:
 
         # Import and run orchestrator module
         try:
-            from algo.orchestration.orchestrator import Orchestrator
             from algo.infrastructure.config import get_config
+            from algo.orchestration.orchestrator import Orchestrator
 
             # Generate run_id
             run_id = f"LOCAL-{run_type.upper()}-{now.strftime('%Y%m%d-%H%M%S')}"
 
             print(f"  Run ID: {run_id}")
-            print(f"  Mode: paper (local development)")
+            print("  Mode: paper (local development)")
 
             # Get AlgoConfig singleton (required for WeightOptimizer.get/set methods)
             config = get_config()
@@ -107,12 +105,12 @@ def main() -> None:
             # phase erroring, so success=True and halted=True can both be set simultaneously -
             # halted is the more specific, more important state to surface.
             if result and result.get("halted"):
-                print(f"  Status: HALTED")
+                print("  Status: HALTED")
                 print(f"  Reason: {result.get('reason')}")
             elif result and result.get("success"):
-                print(f"  Status: OK - COMPLETED")
+                print("  Status: OK - COMPLETED")
             else:
-                print(f"  Status: FAILED")
+                print("  Status: FAILED")
                 if result:
                     print(f"  Details: {result}")
 

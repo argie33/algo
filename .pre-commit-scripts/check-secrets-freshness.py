@@ -13,12 +13,9 @@ Exit codes:
   1: One or more checks fail
 """
 
+import datetime
 import subprocess
 import sys
-import json
-import datetime
-import os
-from typing import List, Tuple
 
 # Fix Windows encoding
 if sys.platform == "win32":
@@ -48,13 +45,13 @@ ROTATION_THRESHOLD_DAYS = 90
 REPO = "argie33/algo"
 
 
-def run_cmd(cmd: List[str]) -> Tuple[int, str, str]:
+def run_cmd(cmd: list[str]) -> tuple[int, str, str]:
     """Run command and return (code, stdout, stderr)."""
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     return result.returncode, result.stdout.strip(), result.stderr.strip()
 
 
-def check_required_secrets() -> Tuple[bool, str]:
+def check_required_secrets() -> tuple[bool, str]:
     returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
 
     if returncode != 0:
@@ -69,8 +66,8 @@ def check_required_secrets() -> Tuple[bool, str]:
     return True, f"✓ All {len(REQUIRED_SECRETS)} required secrets present"
 
 
-def check_no_duplicates() -> Tuple[bool, str]:
-    returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
+def check_no_duplicates() -> tuple[bool, str]:
+    returncode, stdout, _stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
 
     if returncode != 0:
         return True, "Could not check duplicates (skipping)"
@@ -88,8 +85,8 @@ def check_no_duplicates() -> Tuple[bool, str]:
     return True, "✓ No duplicate secrets"
 
 
-def check_secrets_freshness() -> Tuple[bool, str]:
-    returncode, stdout, stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
+def check_secrets_freshness() -> tuple[bool, str]:
+    returncode, stdout, _stderr = run_cmd(["gh", "secret", "list", "--repo", REPO])
 
     if returncode != 0:
         return True, "Could not check freshness (skipping)"
@@ -131,7 +128,7 @@ def check_secrets_freshness() -> Tuple[bool, str]:
     return True, "✓ All secrets recently rotated"
 
 
-def check_credential_loading() -> Tuple[bool, str]:
+def check_credential_loading() -> tuple[bool, str]:
     try:
         from config.credential_manager import get_credential_manager
 
@@ -145,7 +142,7 @@ def check_credential_loading() -> Tuple[bool, str]:
 
         try:
             mgr.get_alpaca_credentials()
-        except Exception as e:
+        except Exception:
             # OK if Alpaca not available (paper trading optional)
             pass
 

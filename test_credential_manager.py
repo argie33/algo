@@ -2,7 +2,6 @@
 """Test credential manager loading Alpaca credentials."""
 
 import os
-import sys
 
 # Show what Python sees
 print("Environment check:")

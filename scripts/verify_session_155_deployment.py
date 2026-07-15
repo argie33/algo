@@ -134,6 +134,7 @@ def check_aws_api_growth_scores() -> bool:
 
     try:
         import requests
+
         from dashboard.credentials_provider import CredentialsProvider
 
         creds = CredentialsProvider.get_credentials()

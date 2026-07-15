@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Monitor orchestrator progress in real-time via CloudWatch logs."""
 
-import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -25,16 +24,16 @@ def check_scores_freshness():
                 growth = first.get("growth_score")
                 composite = first.get("composite_score")
 
-                print(f"\n[SCORES DATA CHECK]")
+                print("\n[SCORES DATA CHECK]")
                 print(f"  Composite Score: {composite}")
                 print(f"  Growth Score: {growth}")
                 print(f"  Last Updated: {updated}")
 
                 if growth is not None and growth > 0:
-                    print(f"  STATUS: [OK] Growth scores calculated!")
+                    print("  STATUS: [OK] Growth scores calculated!")
                     return True
                 elif growth is None:
-                    print(f"  STATUS: [PENDING] Growth scores still NULL")
+                    print("  STATUS: [PENDING] Growth scores still NULL")
                     return False
         return None
     except Exception as e:
@@ -47,7 +46,7 @@ def main():
     print("ORCHESTRATOR PROGRESS MONITORING")
     print("=" * 60)
     print(f"Time: {datetime.now(timezone.utc).isoformat()}")
-    print(f"Orchestrator request ID: 6ef18061-0f9f-4e30-ab30-2a2aa6fcac7a")
+    print("Orchestrator request ID: 6ef18061-0f9f-4e30-ab30-2a2aa6fcac7a")
     print("\nExpected execution time: 11-15 minutes")
     print("Checking growth score freshness every 30 seconds...\n")
 
@@ -64,7 +63,7 @@ def main():
             last_check = elapsed
 
             if result is True:
-                print(f"\n[SUCCESS] Orchestrator completed and scores updated!")
+                print("\n[SUCCESS] Orchestrator completed and scores updated!")
                 print(f"Elapsed time: {int(elapsed / 60)}m {int(elapsed % 60)}s")
                 return 0
 
@@ -75,7 +74,7 @@ def main():
 
             time.sleep(1)  # Small sleep to avoid tight polling
 
-    print(f"\n[TIMEOUT] Orchestrator did not complete within 20 minutes")
+    print("\n[TIMEOUT] Orchestrator did not complete within 20 minutes")
     print("Check CloudWatch logs manually:")
     print("  aws logs tail /aws/lambda/algo-algo-dev --follow")
     return 1

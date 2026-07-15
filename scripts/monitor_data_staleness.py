@@ -10,11 +10,10 @@ Usage:
   python scripts/monitor_data_staleness.py --alert slack   # Send Slack alerts on stale data
 """
 
-import sys
 import os
-from datetime import datetime, timedelta, timezone
-import json
+import sys
 import time
+from datetime import datetime, timezone
 
 # Windows encoding fix
 if sys.platform.startswith("win"):
@@ -30,7 +29,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.db.context import DatabaseContext
 from utils.logging import logger
-
 
 # Freshness thresholds (max age before each status)
 THRESHOLDS = {

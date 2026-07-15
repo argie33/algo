@@ -9,10 +9,10 @@ Usage:
   python scripts/verify_eventbridge_scheduler.py --fix # Auto-fix disabled schedules
 """
 
-import sys
+import json
 import os
 import subprocess
-import json
+import sys
 from datetime import datetime, timezone
 
 # Windows encoding fix (emoji output crashes cp1252 console otherwise)
@@ -27,7 +27,6 @@ if sys.platform.startswith("win"):
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.logging import logger
 
 # Schedule names include a project/environment suffix, e.g. "algo-morning-pipeline-dev".
 # CI/CD (deploy-all-infrastructure.yml) only ever deploys via terraform.tfvars, so

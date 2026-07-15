@@ -49,7 +49,7 @@ def run_orchestrator(args, alpaca_env):
     print("=" * 70)
     print("ORCHESTRATOR WITH ALPACA CREDENTIALS")
     print("=" * 70)
-    print(f"Credentials loaded from: AWS Secrets Manager (algo/alpaca)")
+    print("Credentials loaded from: AWS Secrets Manager (algo/alpaca)")
     print(f"  APCA_API_KEY_ID: {alpaca_env['APCA_API_KEY_ID'][:15]}...")
     print(f"  APCA_API_SECRET_KEY: (set, {len(alpaca_env['APCA_API_SECRET_KEY'])} chars)")
     print(f"  APCA_API_BASE_URL: {alpaca_env['APCA_API_BASE_URL']}")

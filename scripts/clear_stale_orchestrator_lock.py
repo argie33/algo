@@ -4,6 +4,7 @@ import os
 import sys
 from datetime import datetime
 
+
 def check_and_clear_lock():
     """Check and optionally clear stale DynamoDB orchestrator lock."""
     try:
@@ -36,7 +37,7 @@ def check_and_clear_lock():
         acquired_at = item.get("acquired_at", "unknown")
         expires_at = item.get("expires_at", "unknown")
 
-        print(f"\n[WARN] Lock detected:")
+        print("\n[WARN] Lock detected:")
         print(f"  Lock ID: {lock_id}")
         print(f"  Acquired: {acquired_at}")
         print(f"  Expires: {expires_at}")
@@ -55,14 +56,14 @@ def check_and_clear_lock():
 
             if seconds_until_expiry > 0:
                 print(f"  Time until expiry: {int(seconds_until_expiry)} seconds (~{int(seconds_until_expiry/60)} minutes)")
-                print(f"\n[WARN] Lock is still valid. Options:")
+                print("\n[WARN] Lock is still valid. Options:")
                 print(f"  1. Wait {int(seconds_until_expiry/60) + 1} minutes for automatic expiry")
-                print(f"  2. Run with --force to immediately clear stale lock")
+                print("  2. Run with --force to immediately clear stale lock")
                 return False
             else:
                 print(f"  Lock is EXPIRED by {int(-seconds_until_expiry)} seconds - clearing...")
                 table.delete_item(Key={"lock_key": "orchestrator-run-lock"})
-                print(f"[OK] Cleared expired lock")
+                print("[OK] Cleared expired lock")
                 return True
 
         except ValueError as e:
@@ -96,14 +97,14 @@ def force_clear_lock():
         response = table.get_item(Key={"lock_key": "orchestrator-run-lock"})
         if "Item" in response:
             item = response["Item"]
-            print(f"[WARN] Clearing lock:")
+            print("[WARN] Clearing lock:")
             print(f"  Lock ID: {item.get('lock_id', 'unknown')}")
             print(f"  Acquired: {item.get('acquired_at', 'unknown')}")
             print(f"  Expires: {item.get('expires_at', 'unknown')}")
 
         # Force delete
         table.delete_item(Key={"lock_key": "orchestrator-run-lock"})
-        print(f"[OK] Lock cleared - orchestrator can execute now")
+        print("[OK] Lock cleared - orchestrator can execute now")
         return True
 
     except Exception as e:

@@ -11,11 +11,11 @@ Exit Codes:
     1 = Recovery failed or timeout
 """
 
+import argparse
+import json
+import logging
 import sys
 import time
-import logging
-import json
-import argparse
 from datetime import datetime, timedelta, timezone
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -70,6 +70,7 @@ def trigger_loader_retry(loader_name: str) -> bool:
     """Trigger loader retry via Lambda."""
     try:
         import os
+
         import boto3
 
         logger.info(f"Triggering retry for {loader_name}...")
@@ -148,7 +149,7 @@ def monitor_loader_recovery(loader_name: str, timeout_seconds: int = 600) -> tup
         f"⏱️ Timeout: {loader_name} still running after {timeout_seconds}s "
         f"(currently {final_pct:.1f}%). Will complete in background."
     )
-    logger.info(f"   Check status: python scripts/verify_prices_loaded.py")
+    logger.info("   Check status: python scripts/verify_prices_loaded.py")
     return False, final_status
 
 
@@ -189,23 +190,23 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
         return 0 if recovered else 1
 
     # Step 2: Trigger retry
-    logger.info(f"\n⚡ Triggering retry...")
+    logger.info("\n⚡ Triggering retry...")
     if not trigger_loader_retry(loader_name):
         logger.error("Failed to trigger retry")
         return 1
 
     # Step 3: Monitor recovery
-    logger.info(f"\n⏳ Waiting for recovery (up to 10 minutes)...\n")
+    logger.info("\n⏳ Waiting for recovery (up to 10 minutes)...\n")
     recovered, final_status = monitor_loader_recovery(loader_name)
 
     if recovered:
         logger.info(f"\n✅ SUCCESS: {loader_name} recovered to {final_status['coverage_pct']:.1f}%")
-        logger.info(f"   Ready for trading. Run: python scripts/run_local_orchestrator.py --morning")
+        logger.info("   Ready for trading. Run: python scripts/run_local_orchestrator.py --morning")
         return 0
     else:
         logger.warning(f"\n⚠️ INCOMPLETE: {loader_name} at {final_status.get('coverage_pct', 0):.1f}%")
-        logger.info(f"   Still loading in background. Check status later:")
-        logger.info(f"   python scripts/verify_prices_loaded.py")
+        logger.info("   Still loading in background. Check status later:")
+        logger.info("   python scripts/verify_prices_loaded.py")
         return 1
 
 

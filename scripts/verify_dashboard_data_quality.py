@@ -13,11 +13,10 @@ Usage:
 """
 
 import argparse
-import json
 import logging
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import psycopg2
 import psycopg2.extras
@@ -188,8 +187,8 @@ class DashboardDataQualityMonitor:
 
         if is_stuck:
             logger.warning(
-                f"Breadth momentum stuck at same value for 7+ days. "
-                f"Check market_health_daily loader or orchestrator execution."
+                "Breadth momentum stuck at same value for 7+ days. "
+                "Check market_health_daily loader or orchestrator execution."
             )
 
         return {
@@ -226,7 +225,7 @@ class DashboardDataQualityMonitor:
 
         status = "✅ BY DESIGN" if with_pcr == 0 and unavail_flag else "❌ UNEXPECTED"
 
-        logger.info(f"Put/Call ratio in market_health_daily:")
+        logger.info("Put/Call ratio in market_health_daily:")
         logger.info(f"  - Total rows: {total}")
         logger.info(f"  - With data: {with_pcr}")
         logger.info(f"  - NULL rows: {total - with_pcr}")
