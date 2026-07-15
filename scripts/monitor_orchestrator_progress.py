@@ -6,10 +6,12 @@ import sys
 import time
 from datetime import datetime, timezone
 
+
 def check_scores_freshness():
     """Check if AWS scores have been updated."""
     import sys
-    sys.path.insert(0, '/c/Users/arger/code/algo')
+
+    sys.path.insert(0, "/c/Users/arger/code/algo")
 
     from dashboard.api_data_layer import api_call
 
@@ -39,6 +41,7 @@ def check_scores_freshness():
         print(f"  ERROR checking scores: {e}")
         return None
 
+
 def main():
     print("=" * 60)
     print("ORCHESTRATOR PROGRESS MONITORING")
@@ -62,7 +65,7 @@ def main():
 
             if result is True:
                 print(f"\n[SUCCESS] Orchestrator completed and scores updated!")
-                print(f"Elapsed time: {int(elapsed/60)}m {int(elapsed%60)}s")
+                print(f"Elapsed time: {int(elapsed / 60)}m {int(elapsed % 60)}s")
                 return 0
 
             # Show progress
@@ -76,6 +79,7 @@ def main():
     print("Check CloudWatch logs manually:")
     print("  aws logs tail /aws/lambda/algo-algo-dev --follow")
     return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

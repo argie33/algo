@@ -296,7 +296,7 @@ def main() -> int:
 
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(execution_timeout_sec)
+        signal.alarm(execution_timeout_sec)  # type: ignore[attr-defined]
 
     try:
         return run_loader(YFinanceSnapshotLoader)

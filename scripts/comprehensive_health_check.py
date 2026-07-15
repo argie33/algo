@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dashboard.fetchers import load_all
 from dashboard.api_data_layer import api_call
 
+
 def check_api_health():
     """Check if API is responding."""
     print("\n[1] CHECKING API HEALTH...")
@@ -26,6 +27,7 @@ def check_api_health():
     except Exception as e:
         print(f"  [FAIL] API health check failed: {e}")
         return False
+
 
 def check_data_freshness():
     """Check if data is fresh (not stale)."""
@@ -58,6 +60,7 @@ def check_data_freshness():
         print(f"  [FAIL] Data freshness check failed: {e}")
         return False
 
+
 def check_dashboard_fetchers():
     """Check if all dashboard fetchers are working."""
     print("\n[3] CHECKING DASHBOARD FETCHERS...")
@@ -89,6 +92,7 @@ def check_dashboard_fetchers():
     except Exception as e:
         print(f"  [FAIL] Fetcher check failed: {e}")
         return False
+
 
 def check_critical_panels():
     """Check if critical panels have data."""
@@ -134,6 +138,7 @@ def check_critical_panels():
         print(f"  [FAIL] Panel check failed: {e}")
         return False
 
+
 def check_scores_data():
     """Specifically check scores panel data."""
     print("\n[5] CHECKING SCORES DATA...")
@@ -175,6 +180,7 @@ def check_scores_data():
         print(f"  [FAIL] Scores check failed: {e}")
         return False
 
+
 def main():
     print("=" * 60)
     print("ALGO SYSTEM COMPREHENSIVE HEALTH CHECK")
@@ -201,6 +207,7 @@ def main():
     print("\n" + ("[OK] ALL CHECKS PASSED" if all_passed else "[FAIL] SOME CHECKS FAILED"))
 
     return 0 if all_passed else 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

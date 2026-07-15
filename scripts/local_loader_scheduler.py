@@ -45,7 +45,12 @@ LOADERS = {
     },
     "metrics": {
         "description": "Metrics pipeline (7:00 PM ET): quality, growth, value, risk (stability+momentum), stock scores",
-        "loaders": ["load_financial_statements.py", "load_quality_growth_metrics.py", "load_risk_metrics_daily.py", "load_stock_scores.py"],
+        "loaders": [
+            "load_financial_statements.py",
+            "load_quality_growth_metrics.py",
+            "load_risk_metrics_daily.py",
+            "load_stock_scores.py",
+        ],
         "interval_hours": 24,
         "target_hour": 19,
         "target_minute": 0,

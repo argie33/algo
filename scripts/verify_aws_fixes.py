@@ -75,7 +75,13 @@ def check_metrics_freshness() -> bool:
     """Check if metrics tables have fresh data."""
     logger.info("\n=== METRICS FRESHNESS CHECK ===")
     try:
-        metrics_tables = ["quality_metrics", "growth_metrics", "value_metrics", "positioning_metrics", "stability_metrics"]
+        metrics_tables = [
+            "quality_metrics",
+            "growth_metrics",
+            "value_metrics",
+            "positioning_metrics",
+            "stability_metrics",
+        ]
         now = datetime.now(EASTERN_TZ)
         one_hour_ago = now - timedelta(hours=1)
 
