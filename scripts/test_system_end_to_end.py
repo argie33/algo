@@ -104,7 +104,7 @@ def test_loaders():
         # Test price fetcher
         from loaders.price_fetcher import PriceFetcher
 
-        fetcher = PriceFetcher()
+        PriceFetcher()
         logger.info("  ✓ PriceFetcher initialized")
 
         # Test database context
@@ -169,7 +169,7 @@ def test_dashboard_fetchers():
         proc.terminate()
         try:
             proc.wait(timeout=5)
-        except:
+        except Exception:
             proc.kill()
 
     return success

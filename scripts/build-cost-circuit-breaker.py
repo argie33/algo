@@ -58,7 +58,7 @@ def build_lambda():
         zip_path.unlink()
 
     with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zf:
-        for root, dirs, files in os.walk(pkg_dir):
+        for root, _dirs, files in os.walk(pkg_dir):
             for file in files:
                 if file.endswith((".pyc", ".dist-info")):
                     continue

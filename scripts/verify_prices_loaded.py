@@ -42,7 +42,7 @@ def check_price_coverage():
             if not row:
                 return False, 0.0, 0, 0, "NOT_FOUND", "price_daily not in data_loader_status"
 
-            symbols_loaded, total, coverage, status, error, last_updated, exec_started = row
+            symbols_loaded, total, coverage, status, error, _last_updated, _exec_started = row
             success = coverage >= 75.0 if coverage else False
 
             return success, coverage or 0.0, symbols_loaded or 0, total or 0, status or "UNKNOWN", error

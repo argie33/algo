@@ -189,7 +189,7 @@ log_handlers = [logging.StreamHandler()]
 if log_file:
     try:
         log_handlers.append(logging.FileHandler(log_file, mode="w"))
-    except (OSError, IOError, PermissionError) as e:
+    except (OSError, PermissionError) as e:
         print(f"Warning: Cannot create log file {log_file}: {e}. Using console logging only.", flush=True)
 
 logging.basicConfig(
@@ -205,7 +205,7 @@ if log_file:
         with open(log_file, "a") as f:
             f.write("[DEV_SERVER_INIT] Script started\n")
             f.flush()
-    except (OSError, IOError, PermissionError) as e:
+    except (OSError, PermissionError) as e:
         logger.warning(f"[DEV_SERVER] Could not write to log file {log_file}: {e}")
 
 
@@ -221,7 +221,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 with open(log_file, "a") as f:
                     f.write(f"{msg}\n")
                     f.flush()
-            except (OSError, IOError, PermissionError) as e:
+            except (OSError, PermissionError) as e:
                 logger.debug(f"Could not write to log file: {e}")
         self._handle_request("GET")
 

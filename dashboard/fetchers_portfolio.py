@@ -53,17 +53,14 @@ def fetch_portfolio(c: None) -> dict[str, Any]:
 
             if now_et.time() >= market_close_time:
                 # After market close (4:00 PM): Phase 9 should run soon, expect fresh data
-                max_age_seconds = 300  # 5 minutes after close
-                grace_period_seconds = 60  # 1 minute grace
+                pass  # 1 minute grace
             else:
                 # Before/during market hours: accept data from previous trading day (up to 72 hours)
                 # This handles Friday→Monday gap where data from Friday (4 PM) is still valid Mon morning
-                max_age_seconds = 259200  # 72 hours (3 days) for pre-close trading days
-                grace_period_seconds = 3600  # 1 hour grace for trading day pre-close
+                pass  # 1 hour grace for trading day pre-close
         else:
             # Non-trading days (weekends/holidays): accept data from last trading day (extended to account for long gaps)
-            max_age_seconds = 432000  # 120 hours (5 days) for non-trading days to handle holidays
-            grace_period_seconds = 3600  # 1 hour grace period for non-trading days (clock skew, processing delays)
+            pass  # 1 hour grace period for non-trading days (clock skew, processing delays)
 
         # Comprehensive validation using FetcherValidator
         required_fields = [

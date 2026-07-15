@@ -249,7 +249,7 @@ def check_eventbridge_schedules():
             schedules = scheduler.list_schedules()
             algo_schedules = [s for s in schedules.get("Schedules", []) if "algo" in s["Name"].lower()]
             print(f"\nScheduler schedules: {len(algo_schedules)}")
-        except:
+        except Exception:
             print("\nScheduler API not available or no schedules")
 
         return len(algo_rules) > 0

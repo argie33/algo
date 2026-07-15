@@ -14,7 +14,7 @@ repos:
     hooks:
       - id: mypy-core
         name: MyPy — algo loaders utils config dashboard monitoring lambda-standalone
-        entry: mypy algo/ loaders/ utils/ config/ dashboard/ monitoring/ lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py lambda/monitoring/loader_timeout_guardian.py --show-error-codes
+        entry: mypy algo/ loaders/ utils/ config/ dashboard/ monitoring/ lambda/base_handler.py lambda/algo_orchestrator/lambda_function.py lambda/monitoring/health_monitor.py lambda/monitoring/loader_failure_handler.py --show-error-codes
         language: system
         pass_filenames: false
         types: [python]

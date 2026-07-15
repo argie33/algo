@@ -118,7 +118,7 @@ def main():
 
     # Step 4: Wait for update to complete
     print("\n4. Waiting for Lambda to update...")
-    wait_result = run_command(
+    run_command(
         ["aws", "lambda", "wait", "function-updated", "--function-name", function_name, "--region", region],
         "Waiting for Lambda configuration to apply",
     )

@@ -235,7 +235,7 @@ def load_all() -> dict[str, Any]:
     Issue #40 FIX: Per-fetcher timeout (critical: 8s, optional: 3s) prevents one slow endpoint from blocking refresh.
     CACHE FIX: Clear perpetual data status and markets caches to ensure fresh data on each refresh cycle.
     """
-    global_start = time.monotonic()
+    time.monotonic()
     # Clear perpetual caches to ensure fresh data fetching on each refresh (watch mode, scheduled tasks)
     # Without this, health and market data would be cached indefinitely and never refresh
     clear_data_status_cache()

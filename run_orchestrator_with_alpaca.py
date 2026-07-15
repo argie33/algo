@@ -60,7 +60,7 @@ def run_orchestrator(args, alpaca_env):
 
     # Run orchestrator subprocess with credentials in environment
     result = subprocess.run(
-        ["python3", "scripts/run_local_orchestrator.py"] + args,
+        ["python3", "scripts/run_local_orchestrator.py", *args],
         env=env,
     )
 

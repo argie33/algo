@@ -105,7 +105,6 @@ __all__ = [
     "panel_portfolio_perf_expanded",
     # Position panels
     "panel_positions",
-    "render_scores",
     # Trade panels
     "panel_recent_trades",
     # Sector panels
@@ -116,4 +115,5 @@ __all__ = [
     "panel_signals_expanded",
     "panel_status",
     "panel_trades_expanded",
+    "render_scores",
 ]

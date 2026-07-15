@@ -85,7 +85,7 @@ def check_database() -> dict:
             }
 
             all_fresh = True
-            for table_name, description in tables.items():
+            for table_name, _description in tables.items():
                 try:
                     if table_name == "stock_scores":
                         cur.execute(f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}")
@@ -224,7 +224,7 @@ def check_orchestrator() -> dict:
         )
 
         row = cur.fetchone()
-        runs_24h, latest_run, has_success, age_minutes = row
+        runs_24h, _latest_run, _has_success, age_minutes = row
 
         if runs_24h > 0:
             age_minutes = float(age_minutes)
@@ -257,7 +257,7 @@ def check_dashboard_module() -> dict:
     }
 
     try:
-        import dashboard
+        import dashboard  # noqa: F401
 
         result["status"] = "OK"
         result["details"].append("Dashboard module imports successfully")

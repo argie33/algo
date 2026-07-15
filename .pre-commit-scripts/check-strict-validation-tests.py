@@ -81,7 +81,7 @@ def check_strict_validation_tests() -> tuple[bool, list[str]]:
 
 def main() -> int:
     """Run the check."""
-    success, issues = check_strict_validation_tests()
+    _success, issues = check_strict_validation_tests()
 
     if issues:
         print("Strict validation testing issues found:")

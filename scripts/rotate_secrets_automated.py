@@ -23,7 +23,7 @@ import logging
 import os
 import subprocess
 import sys
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 # Fix Windows encoding
 if sys.platform == "win32":
@@ -44,7 +44,7 @@ class SecretsManager:
         self.aws_region = "us-east-1"
         self.rotation_age_threshold_days = 90  # Rotate every 90 days
 
-    def run_command(self, cmd: List[str], check: bool = True) -> Tuple[int, str, str]:
+    def run_command(self, cmd: list[str], check: bool = True) -> tuple[int, str, str]:
         """Run shell command and return (returncode, stdout, stderr)."""
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, check=False)
@@ -60,7 +60,7 @@ class SecretsManager:
     # AUDIT FUNCTIONS
     # ========================================================================
 
-    def audit_github_secrets(self) -> Dict[str, Any]:
+    def audit_github_secrets(self) -> dict[str, Any]:
         """Audit GitHub Secrets for age, duplicates, and status."""
         logger.info("Auditing GitHub Secrets...")
 
@@ -112,7 +112,7 @@ class SecretsManager:
             "duplicates": duplicates,
         }
 
-    def audit_aws_secrets_manager(self) -> Dict[str, Any]:
+    def audit_aws_secrets_manager(self) -> dict[str, Any]:
         """Audit AWS Secrets Manager secrets."""
         logger.info("Auditing AWS Secrets Manager...")
 
@@ -145,7 +145,7 @@ class SecretsManager:
             logger.error(f"Failed to parse AWS response: {e}")
             return {"status": "error", "message": str(e)}
 
-    def audit_credential_freshness(self) -> Dict[str, Any]:
+    def audit_credential_freshness(self) -> dict[str, Any]:
         logger.info("Auditing credential freshness...")
 
         try:
@@ -187,7 +187,7 @@ class SecretsManager:
         except ImportError:
             return {"status": "error", "message": "Credential manager not available"}
 
-    def full_audit(self) -> Dict[str, Any]:
+    def full_audit(self) -> dict[str, Any]:
         """Run complete audit of all secrets."""
         logger.info("=" * 80)
         logger.info("STARTING FULL SECRETS AUDIT")

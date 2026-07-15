@@ -80,7 +80,7 @@ def check_lambda_orchestrator_logs() -> bool:
         logger.info(f"Checking: {log_group}")
 
         # Get recent log streams (last hour)
-        since = int((datetime.utcnow() - timedelta(hours=1)).timestamp() * 1000)
+        int((datetime.utcnow() - timedelta(hours=1)).timestamp() * 1000)
 
         streams = logs.describe_log_streams(
             logGroupName=log_group,

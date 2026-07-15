@@ -65,7 +65,7 @@ def check_table_exists(cur: Any, table: str) -> bool:
             )
         """)
         return cur.fetchone()[0]
-    except:
+    except Exception:
         return False
 
 
@@ -93,7 +93,7 @@ def get_table_stats(cur: Any, table: str) -> dict[str, Any]:
             "row_count": count,
             "latest_date": latest_date,
         }
-    except:
+    except Exception:
         return {
             "exists": False,
             "row_count": 0,

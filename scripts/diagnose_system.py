@@ -17,7 +17,6 @@ def check_environment():
     print("ENVIRONMENT CHECK")
     print("=" * 70)
 
-    required_local = []
     required_aws = [
         "DASHBOARD_API_URL",
         "COGNITO_USER_POOL_ID",

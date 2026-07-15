@@ -323,9 +323,6 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         if "total_count" not in coverage or "valid_count" not in coverage or "filtered_count" not in coverage:
             logger.error(f"[POSITIONS] Coverage data missing required fields. Got: {coverage}")
             # Create error marker object for error panel rendering
-            error_data = {
-                "_error": "Coverage metrics missing required fields (total_count, valid_count, filtered_count)",
-            }
             return Panel(
                 Text("Coverage data integrity error - missing required fields", style="red"),
                 title="[bold red]POSITIONS COVERAGE ERROR[/]",

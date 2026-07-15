@@ -2,7 +2,6 @@
 """Diagnose and clear stale orchestrator locks."""
 import os
 import sys
-from typing import Optional
 
 import psycopg2
 
@@ -44,7 +43,7 @@ def get_db_connection():
         print(f"[ERROR] Database connection failed: {e}", file=sys.stderr)
         return None
 
-def check_locks() -> Optional[dict]:
+def check_locks() -> dict | None:
     """Check active orchestrator locks."""
     conn = get_db_connection()
     if not conn:

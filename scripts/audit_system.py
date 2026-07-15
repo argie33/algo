@@ -32,7 +32,7 @@ def check_orchestrator_status():
         if not row:
             return "ERROR", "No orchestrator runs found"
 
-        started, completed, status, halt_reason = row
+        started, _completed, status, halt_reason = row
         hours_ago = (datetime.now() - started).total_seconds() / 3600
 
         if status == "failed" or status == "error":
@@ -52,7 +52,7 @@ def check_data_freshness():
 
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
-        cur = conn.cursor()
+        conn.cursor()
 
         tables = [
             ("price_daily", "date"),
@@ -169,7 +169,7 @@ def check_dashboard_fetchers():
         errors = {k: v for k, v in data.items() if isinstance(v, dict) and "_error" in v}
         if errors:
             error_count = len(errors)
-            first_error = list(errors.values())[0].get("_error", "unknown")[:50]
+            first_error = next(iter(errors.values())).get("_error", "unknown")[:50]
             return "WARN", f"{error_count} fetchers failed: {first_error}"
 
         return "OK", f"All {len(data)} fetchers loaded"

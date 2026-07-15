@@ -109,10 +109,7 @@ def bootstrap_dashboard_database(
 
         # Import aws_rds_init module
         try:
-            from dashboard.aws_rds_init import (
-                AWSRDSInitializationError,
-                initialize_aws_rds_credentials,
-            )
+            from dashboard.aws_rds_init import initialize_aws_rds_credentials
         except ImportError as e:
             raise RuntimeError("Failed to import aws_rds_init module. Ensure dashboard/aws_rds_init.py exists.") from e
 

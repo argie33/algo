@@ -14,11 +14,9 @@ Run this after deploying to AWS to check:
 6. Risk metric calculations (especially beta)
 """
 
-import os
 import sys
-import json
-from datetime import datetime, timedelta
-from decimal import Decimal
+from datetime import datetime
+
 
 def check_local_database():
     """Check local database status."""
@@ -68,8 +66,9 @@ def check_local_database():
 def check_portfolio_beta_calculation():
     """Test the portfolio beta calculation locally."""
     try:
-        from algo.risk.var import ValueAtRisk
         from unittest.mock import MagicMock
+
+        from algo.risk.var import ValueAtRisk
 
         print("\n=== PORTFOLIO BETA CALCULATION TEST ===")
 
@@ -123,7 +122,7 @@ def check_reconciliation_snapshot():
         total_positions = wins + loses + breakeven
         if pos_count != total_positions:
             if pos_count > 0 or total_positions > 0:
-                print(f"[ERROR] Snapshot consistency check failed:")
+                print("[ERROR] Snapshot consistency check failed:")
                 print(f"        position_count={pos_count}, wins+loses+breakeven={total_positions}")
                 return False
 

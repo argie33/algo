@@ -186,7 +186,7 @@ def recover_loader(loader_name: str = "price_daily", monitor_only: bool = False)
 
     if monitor_only:
         logger.info("\n⏳ Monitoring only (not triggering retry)...")
-        recovered, final = monitor_loader_recovery(loader_name)
+        recovered, _final = monitor_loader_recovery(loader_name)
         return 0 if recovered else 1
 
     # Step 2: Trigger retry

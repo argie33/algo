@@ -59,7 +59,7 @@ def run_aws_cli(args: list) -> dict | None:
     aws_path = shutil.which("aws") or "aws"
     try:
         result = subprocess.run(
-            [aws_path] + args,
+            [aws_path, *args],
             capture_output=True,
             text=True,
             timeout=30,

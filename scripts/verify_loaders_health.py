@@ -193,9 +193,9 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
 
                     if null_pct > 20:
                         results["issues"].append(f"High NULL rate in {col}: {null_pct:.1f}%")
-                except:
+                except Exception:
                     pass  # Skip if column check fails
-        except:
+        except Exception:
             pass  # Skip if column enumeration fails
 
         # Determine overall status

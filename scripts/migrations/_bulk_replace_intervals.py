@@ -35,10 +35,10 @@ def add_import(file_content: str) -> str:
 
     for i, line in enumerate(lines):
         # Skip docstring and shebang
-        if i < 5 and (line.startswith("#") or line.startswith('"""') or line.startswith("'''")):
+        if i < 5 and (line.startswith(("#", '"""', "'''"))):
             continue
         # Find first import statement
-        if line.startswith("from ") or line.startswith("import "):
+        if line.startswith(("from ", "import ")):
             insert_pos = i
             break
 

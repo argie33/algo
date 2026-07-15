@@ -80,7 +80,7 @@ def start_dev_server() -> subprocess.Popen:
     raise RuntimeError("Dev server startup timeout")
 
 
-def start_dashboard(watch_interval: int = None) -> int:
+def start_dashboard(watch_interval: int | None = None) -> int:
     """Start dashboard (blocks until user exits)."""
     print("[STARTUP] [OK] All prerequisites met. Starting dashboard...", flush=True)
     print("[STARTUP] Press Ctrl+C to stop both dashboard and dev_server", flush=True)

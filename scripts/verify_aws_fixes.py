@@ -84,7 +84,7 @@ def check_metrics_freshness() -> bool:
             "stability_metrics",
         ]
         now = datetime.now(EASTERN_TZ)
-        one_hour_ago = now - timedelta(hours=1)
+        now - timedelta(hours=1)
 
         all_fresh = True
         with DatabaseContext("read") as cur:
