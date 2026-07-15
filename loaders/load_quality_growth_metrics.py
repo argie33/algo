@@ -233,6 +233,12 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             "eps_growth_1y": None,
             "eps_growth_3y": None,
             "eps_growth_5y": None,
+            "revenue_growth_1y_unavailable_reason": None,
+            "revenue_growth_3y_unavailable_reason": None,
+            "revenue_growth_5y_unavailable_reason": None,
+            "eps_growth_1y_unavailable_reason": None,
+            "eps_growth_3y_unavailable_reason": None,
+            "eps_growth_5y_unavailable_reason": None,
             "updated_at": date.today().isoformat(),
             "data_unavailable": False,
         }
@@ -255,35 +261,65 @@ class QualityGrowthMetricsLoader(SecFinancialsLoader):
             ratio = latest / previous
             return ((ratio ** (1.0 / years)) - 1) * 100
 
-        # 1-year revenue growth
+        # 1-year revenue growth (CAGR)
         if len(revenues) >= 2:
             rev_growth = _cagr(revenues[0], revenues[1], 1)
-            metrics["revenue_growth_1y"] = float(round(rev_growth, 2)) if rev_growth is not None else None
+            if rev_growth is not None:
+                metrics["revenue_growth_1y"] = float(round(rev_growth, 2))
+            else:
+                metrics["revenue_growth_1y_unavailable_reason"] = "insufficient_data" if revenues[1] == 0 else "sign_change"
+        else:
+            metrics["revenue_growth_1y_unavailable_reason"] = "insufficient_history"
 
-        # 1-year EPS growth
+        # 1-year EPS growth (CAGR)
         if len(eps_values) >= 2:
             eps_growth = _cagr(eps_values[0], eps_values[1], 1)
-            metrics["eps_growth_1y"] = float(round(eps_growth, 2)) if eps_growth is not None else None
+            if eps_growth is not None:
+                metrics["eps_growth_1y"] = float(round(eps_growth, 2))
+            else:
+                metrics["eps_growth_1y_unavailable_reason"] = "insufficient_data" if eps_values[1] == 0 else "sign_change"
+        else:
+            metrics["eps_growth_1y_unavailable_reason"] = "insufficient_history"
 
         # 3-year revenue growth (CAGR from 3 years ago)
         if len(revenues) >= 4:
             rev_growth = _cagr(revenues[0], revenues[3], 3)
-            metrics["revenue_growth_3y"] = float(round(rev_growth, 2)) if rev_growth is not None else None
+            if rev_growth is not None:
+                metrics["revenue_growth_3y"] = float(round(rev_growth, 2))
+            else:
+                metrics["revenue_growth_3y_unavailable_reason"] = "insufficient_data" if revenues[3] == 0 else "sign_change"
+        else:
+            metrics["revenue_growth_3y_unavailable_reason"] = "insufficient_history"
 
         # 3-year EPS growth (CAGR from 3 years ago)
         if len(eps_values) >= 4:
             eps_growth = _cagr(eps_values[0], eps_values[3], 3)
-            metrics["eps_growth_3y"] = float(round(eps_growth, 2)) if eps_growth is not None else None
+            if eps_growth is not None:
+                metrics["eps_growth_3y"] = float(round(eps_growth, 2))
+            else:
+                metrics["eps_growth_3y_unavailable_reason"] = "insufficient_data" if eps_values[3] == 0 else "sign_change"
+        else:
+            metrics["eps_growth_3y_unavailable_reason"] = "insufficient_history"
 
         # 5-year revenue growth (CAGR from 5 years ago)
         if len(revenues) >= 6:
             rev_growth = _cagr(revenues[0], revenues[5], 5)
-            metrics["revenue_growth_5y"] = float(round(rev_growth, 2)) if rev_growth is not None else None
+            if rev_growth is not None:
+                metrics["revenue_growth_5y"] = float(round(rev_growth, 2))
+            else:
+                metrics["revenue_growth_5y_unavailable_reason"] = "insufficient_data" if revenues[5] == 0 else "sign_change"
+        else:
+            metrics["revenue_growth_5y_unavailable_reason"] = "insufficient_history"
 
         # 5-year EPS growth (CAGR from 5 years ago)
         if len(eps_values) >= 6:
             eps_growth = _cagr(eps_values[0], eps_values[5], 5)
-            metrics["eps_growth_5y"] = float(round(eps_growth, 2)) if eps_growth is not None else None
+            if eps_growth is not None:
+                metrics["eps_growth_5y"] = float(round(eps_growth, 2))
+            else:
+                metrics["eps_growth_5y_unavailable_reason"] = "insufficient_data" if eps_values[5] == 0 else "sign_change"
+        else:
+            metrics["eps_growth_5y_unavailable_reason"] = "insufficient_history"
 
         return metrics
 
