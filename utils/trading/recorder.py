@@ -13,6 +13,7 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
+from utils.trade_metrics import update_trade_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -177,17 +178,28 @@ class TradeRecorder:
                 # Calculate trade duration
                 trade_duration_days = (exit_date - entry_date).days
 
-                # Update trade record (most recent entry for this symbol)
+                # Get the trade_id before updating (need it for metric calculation)
+                cursor.execute(
+                    """
+                    SELECT trade_id FROM algo_trades
+                    WHERE symbol = %s AND exit_date IS NULL
+                    ORDER BY entry_time DESC LIMIT 1
+                """,
+                    (symbol,),
+                )
+                trade_row = cursor.fetchone()
+                if not trade_row:
+                    logger.warning(f"No open trade found for {symbol} to close")
+                    return False
+                trade_id = trade_row[0]
+
+                # Update trade record
                 cursor.execute(
                     """
                     UPDATE algo_trades
                     SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s, profit_loss_pct = %s,
-                        exit_reason = %s, trade_duration_days = %s, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = (
-                        SELECT id FROM algo_trades
-                        WHERE symbol = %s AND exit_date IS NULL
-                        ORDER BY entry_time DESC LIMIT 1
-                    )
+                        exit_reason = %s, status = 'closed', updated_at = CURRENT_TIMESTAMP
+                    WHERE trade_id = %s
                 """,
                     (
                         exit_date,
@@ -195,8 +207,7 @@ class TradeRecorder:
                         Decimal(str(pnl)),
                         Decimal(str(pnl_pct)),
                         reason,
-                        trade_duration_days,
-                        symbol,
+                        trade_id,
                     ),
                 )
 
@@ -210,6 +221,9 @@ class TradeRecorder:
                 """,
                     (Decimal(str(exit_price)), Decimal(str(pnl)), symbol),
                 )
+
+                # Calculate trade metrics (R-multiple, duration, MFE/MAE, etc.)
+                update_trade_metrics(cursor, trade_id)
 
                 logger.info(
                     f"Recorded exit: {symbol} {quantity}sh @ ${exit_price} on {exit_date} "
