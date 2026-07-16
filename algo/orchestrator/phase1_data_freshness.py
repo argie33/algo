@@ -345,18 +345,25 @@ def run(  # noqa: C901
                             break
                         last_trading_day -= td(days=1)
 
-            # TOLERANCE for data provider delays: if we're in EOD context (after 4 PM),
+            # TOLERANCE for data provider delays: if we're in IMMEDIATE EOD context (4:00-4:30 PM),
             # allow previous trading day's data as acceptable (data providers may not have
-            # same-day data ready immediately after market close)
+            # same-day data ready immediately after market close).
+            # CRITICAL FIX: This tolerance should NOT apply hours later (after 4:30 PM).
+            # By 5:00 PM+, all data providers should have same-day prices ready.
             acceptable_min_date = last_trading_day
-            if pipeline_context == "EOD" and now_et.hour >= 16:
+            if pipeline_context == "EOD" and 16 <= now_et.hour < 16.5:  # Only 4:00-4:30 PM grace period
                 # Allow previous trading day as fallback if same-day not yet available
+                # (ONLY in immediate aftermath of market close, within 30 min)
                 prev_trading_day = last_trading_day - td(days=1)
                 while prev_trading_day > last_trading_day - td(days=10):
                     if MarketCalendar.is_trading_day(prev_trading_day):
                         acceptable_min_date = prev_trading_day
+                        logger.info(f"[PHASE 1] Grace period active (4:00-4:30 PM): accepting {prev_trading_day} as valid")
                         break
                     prev_trading_day -= td(days=1)
+            elif pipeline_context == "EOD" and now_et.hour >= 16.5:
+                # After 4:30 PM: must have same-day data
+                logger.info(f"[PHASE 1] Grace period expired (> 4:30 PM): requiring {last_trading_day} data")
 
             if max_date < acceptable_min_date:
                 from algo.orchestrator.phase_error_handling import (
