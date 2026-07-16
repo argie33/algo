@@ -241,9 +241,9 @@ class AlgoConfig:
             "Market Exposure",
         ),
         "market_exposure_veto3_distribution_days_threshold": (
-            "6",
+            "9",
             "int",
-            "Distribution days threshold for veto 3 (6+ days)",
+            "Distribution days threshold for veto 3 (9+ days)",
             "Market Exposure",
         ),
         "market_exposure_veto3_cap_pct": (
