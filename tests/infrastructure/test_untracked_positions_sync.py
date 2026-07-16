@@ -33,8 +33,6 @@ class TestUntrackedPositionsSync(unittest.TestCase):
             "secret": "",
         }
 
-        manager = AlpacaSyncManager(self.config)
-
         # Mock cursor with algo_positions
         mock_cursor = MagicMock()
 
@@ -64,7 +62,6 @@ class TestUntrackedPositionsSync(unittest.TestCase):
             "secret": "",
         }
 
-        manager = AlpacaSyncManager(self.config)
         mock_cursor = MagicMock()
 
         # Sample untracked position data
@@ -91,8 +88,6 @@ class TestUntrackedPositionsSync(unittest.TestCase):
             "secret": "",
         }
 
-        manager = AlpacaSyncManager(self.config)
-
         # If Alpaca has no positions and DB has none either
         alpaca_symbols: set[str] = set()
         db_symbols: set[str] = set()
@@ -115,8 +110,6 @@ class TestUntrackedPositionsSync(unittest.TestCase):
             "secret": "",
         }
 
-        manager = AlpacaSyncManager(self.config)
-
         # Test quantity conversions
         test_cases = [
             ("100", 100.0),
@@ -136,8 +129,6 @@ class TestUntrackedPositionsSync(unittest.TestCase):
             "key": "",
             "secret": "",
         }
-
-        manager = AlpacaSyncManager(self.config)
 
         # Test cases: (qty, price, expected_value)
         test_cases = [
