@@ -447,9 +447,11 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         beta_val = beta_val_f
         cvar95_val = cvar95_val_f
         conc5_val = conc5_val_f
-        # CRITICAL: When beta = 0 (no open positions), show "--" instead of "0.00"
-        beta_display = "--" if beta_val <= 0 else f"{beta_val:.2f}"
-        beta_c = "dim" if beta_val <= 0 else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
+        # CRITICAL: Show beta value if positions exist (even if beta <= 0, meaning negative/neutral correlation with market)
+        # Show "--" only when there are NO open positions
+        has_positions = risk_dict.get("has_positions", False)
+        beta_display = f"{beta_val:.2f}" if has_positions else "--"
+        beta_c = "dim" if (not has_positions or beta_val <= 0) else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
         var_c = _var_color(var95_val)
         svar_s = (
             f"\n[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]"

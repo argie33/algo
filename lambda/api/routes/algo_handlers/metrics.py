@@ -1010,6 +1010,12 @@ def _get_risk_metrics(cur: cursor) -> Any:
         stressed_var = data.get("stressed_var_pct")
         portfolio_beta = data.get("portfolio_beta")
         concentration = data.get("top_5_concentration")
+
+        # Check if there are any open positions (needed by dashboard to determine if beta should display)
+        cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
+        position_count_row = cur.fetchone()
+        has_positions = (position_count_row[0] > 0) if position_count_row else False
+
         return success_response(
             {
                 "report_date": data.get("report_date"),
@@ -1019,6 +1025,7 @@ def _get_risk_metrics(cur: cursor) -> Any:
                 "svar": (float(stressed_var) if stressed_var is not None else None),
                 "portfolio_beta": (float(portfolio_beta) if portfolio_beta is not None else None),
                 "top_5_concentration": (float(concentration) if concentration is not None else None),
+                "has_positions": has_positions,
             }
         )
     except (psycopg2.errors.UndefinedTable, psycopg2.errors.UndefinedColumn):

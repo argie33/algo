@@ -453,11 +453,14 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
         if date_unavailable:
             logger.debug("Optional risk data missing: report_date not provided by API")
 
+        has_positions = d.get("has_positions", False)
+
         result = {
             "var95": safe_float(d.get("var_pct_95"), field_name="var95", strict=True),
             "cvar95": safe_float(d.get("cvar_pct_95"), field_name="cvar95", strict=True),
             "beta": safe_float(d.get("portfolio_beta"), field_name="beta", strict=True),
             "conc5": safe_float(d.get("top_5_concentration"), field_name="conc5", strict=True),
+            "has_positions": has_positions,
         }
 
         # Stressed VaR is optional computed metric (may not be available)

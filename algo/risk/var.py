@@ -474,7 +474,8 @@ class ValueAtRisk:
                         s_rets = stock_returns[-n:]
                         m_rets = spy_returns[-n:]
                         s_mean = Decimal(str(sum(s_rets) / n))
-                        cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - spy_mean) for i in range(n)) / n))
+                        m_mean = Decimal(str(sum(m_rets) / n))
+                        cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n))
                         if spy_var <= 0:
                             raise ValueError(
                                 f"[VAR CALCULATION] {symbol}: market variance is zero or negative ({spy_var}). "
