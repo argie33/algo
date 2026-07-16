@@ -217,8 +217,9 @@ def get_trades_by_status(
         f"""
         SELECT trade_id, symbol, signal_date, trade_date, entry_time,
                entry_price, entry_quantity, entry_reason,
-               exit_price, exit_date, exit_reason,
+               exit_price, exit_date, exit_reason, exit_time,
                stop_loss_price, status, profit_loss_dollars, profit_loss_pct,
+               exit_r_multiple, trade_duration_days, mfe_pct, mae_pct,
                execution_mode, created_at
         FROM algo_trades
         {where_clause}
