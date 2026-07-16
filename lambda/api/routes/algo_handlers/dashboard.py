@@ -379,6 +379,38 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             raise ValueError(f"[POSITIONS SORT] Item missing position_value: {item.get('symbol', '?')}")
     items.sort(key=lambda x: float(x["position_value"]), reverse=True)
 
+    # OPTIMIZATION: Remove unnecessary NULL fields to reduce payload
+    # Fields that are never populated or only used for closed positions
+    unnecessary_fields = {
+        "closed_at",  # Only for closed positions
+        "cognito_sub",  # Not needed in API response
+        "days_since_entry",  # Rarely populated
+        "distribution_day_count",  # Not populated
+        "exit_reason",  # Only for closed positions
+        "initial_risk_per_share",  # Not populated
+        "is_open",  # Always true for returned positions
+        "ladder_scale_max",  # Not used by frontend
+        "ladder_scale_min",  # Not used by frontend
+        "profit_loss_dollars",  # Not populated
+        "risk_pct",  # Not populated
+        "risk_rank",  # Not populated
+        "stage_in_exit_plan",  # Not populated
+        "target_1_hit_time",  # Not used
+        "target_2_hit_time",  # Not used
+        "target_3_hit_time",  # Not used
+        "trade_duration_days",  # Not populated
+        "entry_price",  # Duplicate of avg_entry_price
+    }
+    before_count = len(items[0]) if items else 0
+    removed_count = 0
+    for item in items:
+        for field in unnecessary_fields:
+            if field in item:
+                item.pop(field)
+                removed_count += 1
+    after_count = len(items[0]) if items else 0
+    logger.info(f"[POSITIONS] Field cleanup: {before_count} → {after_count} fields/pos, {removed_count} total fields removed")
+
     # Compute sector_allocation array after processing all positions (E5 fix)
     # CRITICAL: Fail-fast if portfolio appears empty after position processing
     # Division-by-zero fallback (setting total=1) would create FAKE allocation percentages
