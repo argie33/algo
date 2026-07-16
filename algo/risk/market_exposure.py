@@ -35,7 +35,7 @@ all highly correlated. Now 4 signals at 26pt covering distinct information:
 HARD VETOES (cap exposure at ≤25-40%):
   - SPY < rising 30-wk MA AND breadth_50 < 30%
   - VIX > 40 with rising trend
-  - 6+ selling-pressure days in last 25 sessions
+  - N+ selling-pressure days in last 25 sessions (N configurable via market_exposure_veto3_distribution_days_threshold)
   - No market confirmation signal (volume-backed rally) while SPY below 30-week MA
   - HY credit spread > 8.5% (systemic stress)
 
@@ -68,6 +68,7 @@ from typing import Any, TypeVar
 import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor
 
+from algo.infrastructure.config.main import AlgoConfig
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from algo.risk.market_factor_calculator import MarketFactorCalculator
 from utils.db import DatabaseContext
@@ -608,10 +609,11 @@ class MarketExposure:
             if vix_value is not None and vix_value > 40 and vix.get("rising"):
                 halt_reasons.append(f"VIX {vix_value:.1f} rising > 40")
                 cap = min(cap, 30.0)
-            # Veto 3: 6+ selling-pressure days (severe institutional distribution)
+            # Veto 3: selling-pressure days threshold (severe institutional distribution)
             sp_count = sp.get("count")
-            if sp_count is not None and sp_count >= 6:
-                halt_reasons.append(f"{sp_count} selling-pressure days >= 6")
+            sp_threshold = int(AlgoConfig().get("market_exposure_veto3_distribution_days_threshold"))
+            if sp_count is not None and sp_count >= sp_threshold:
+                halt_reasons.append(f"{sp_count} selling-pressure days >= {sp_threshold}")
                 cap = min(cap, 35.0)
             elif sp_count is None:
                 msg = (
