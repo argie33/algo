@@ -1463,8 +1463,8 @@ class Orchestrator:
         logger.info(f"{'#' * 70}")
         for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0])):
             status_flag = {
-                "success": "[OK] ",
-                "halt": "[HALT]",
+                "ok": "[OK] ",
+                "halted": "[HALT]",
                 "fail": "[FAIL]",
                 "error": "[ERR] ",
             }.get(info["status"], "[?]   ")
@@ -1472,7 +1472,7 @@ class Orchestrator:
         logger.info(f"{'#' * 70}\n")
 
         any_error = any(p["status"] in ("error", "fail") for p in self.phase_results.values())
-        any_halt = any(p["status"] == "halt" for p in self.phase_results.values())
+        any_halt = any(p["status"] == "halted" for p in self.phase_results.values())
 
         # Determine reason for halt/skip if applicable
         skip_reason = None
@@ -1483,7 +1483,7 @@ class Orchestrator:
             )
         elif any_halt:
             skip_reason = next(
-                (p["summary"] for p in self.phase_results.values() if p["status"] == "halt"),
+                (p["summary"] for p in self.phase_results.values() if p["status"] == "halted"),
                 "circuit_breaker_halted",
             )
 
@@ -1508,7 +1508,7 @@ class Orchestrator:
             elif any_halt:
                 overall_status = "halted"
                 halt_reason = next(
-                    (p["summary"] for p in self.phase_results.values() if p["status"] == "halt"),
+                    (p["summary"] for p in self.phase_results.values() if p["status"] == "halted"),
                     None,
                 )
             else:
