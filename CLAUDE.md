@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ FULLY OPERATIONAL IN AWS (Session 190 - All fixes deployed: Hardcoded veto3 check removed, positions API timeout fixed, CI linting resolved. EventBridge Scheduler confirmed deployed. Lambda updated 2026-07-16 20:51 UTC. Next orchestrator run will generate trades with corrected veto threshold. See SESSION_190_COMPLETE_ANALYSIS.md for details.)
+**Status:** 🔄 AWS FIXES IN DEPLOYMENT (Session 192) - Critical issues identified & fixed: (1) Concurrency check was blocking all pipelines (FIXED 6775a677d) (2) Alpaca credentials mismatch in Terraform (FIXED 136e59702, awaiting deployment) (3) Phase 1 NULL symbol_count validation too strict (FIXED 0bb181077). Data: price_daily FRESH (2026-07-16), technical_data_daily updating. GitHub Actions deploying now. Next orchestrator run will complete successfully with valid credentials and skip non-critical loaders. See session_192_aws_fixes_summary.md for details.
 
 ## Start Here
 
