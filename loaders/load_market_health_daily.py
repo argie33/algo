@@ -1263,11 +1263,6 @@ def _write_vix_family_prices(start: date, end: date) -> int:
         f"Do NOT make redundant yfinance calls (violates DATA_LOADERS.md: all yfinance traffic through one funnel). "
         f"Check if load_prices.py executed successfully."
     )
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        raise RuntimeError(
-            f"[VIX_PRICES] Failed to write VIX family prices to database: {e}. "
-            "Market health daily depends on VIX/index price data availability."
-        ) from e
 
 
 def main() -> int:

@@ -155,7 +155,6 @@ class TradeRecorder:
                     return False
 
                 entry_price = float(entry_row[0])
-                entry_date = entry_row[1]
 
                 # Validate entry price
                 if entry_price <= 0:
@@ -174,9 +173,6 @@ class TradeRecorder:
                         f"Trade records must have valid entry prices for P&L calculation."
                     )
                 pnl_pct = (exit_price - entry_price) / entry_price * 100
-
-                # Calculate trade duration
-                trade_duration_days = (exit_date - entry_date).days
 
                 # Get the trade_id before updating (need it for metric calculation)
                 cursor.execute(

@@ -1,6 +1,6 @@
 """Calculate trade metrics: exit_r_multiple, duration, MFE/MAE, exit_time."""
 
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
