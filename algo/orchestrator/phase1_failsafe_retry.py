@@ -151,20 +151,36 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                 _exec_started,
                 _last_updated,
             ) in incomplete_rows:
-                # Fail-fast if symbol counts are invalid. These must be precise for diagnostics.
+                is_crit = is_critical(table_name)
+
+                # Fail-fast if symbol counts are invalid for CRITICAL loaders only.
+                # Non-critical loaders (aaii_sentiment, analyst_sentiment, etc.) may not track
+                # symbol counts and should just be skipped/warned, not halted.
                 if symbol_count is None:
-                    raise ValueError(
-                        f"[PHASE 1 FAILSAFE] Loader {table_name}: symbol_count is NULL in data_loader_status. "
-                        "Cannot determine coverage without valid symbol counts. Data integrity issue."
-                    )
+                    if is_crit:
+                        raise ValueError(
+                            f"[PHASE 1 FAILSAFE] CRITICAL Loader {table_name}: symbol_count is NULL. "
+                            "Cannot proceed with critical data. Data integrity issue."
+                        )
+                    else:
+                        logger.debug(
+                            f"[PHASE 1 FAILSAFE] Non-critical loader {table_name}: symbol_count is NULL, skipping"
+                        )
+                        continue
+
                 if symbols_loaded is None:
-                    raise ValueError(
-                        f"[PHASE 1 FAILSAFE] Loader {table_name}: symbols_loaded is NULL in data_loader_status. "
-                        "Cannot calculate missing symbols without valid counts. Data integrity issue."
-                    )
+                    if is_crit:
+                        raise ValueError(
+                            f"[PHASE 1 FAILSAFE] CRITICAL Loader {table_name}: symbols_loaded is NULL. "
+                            "Data integrity issue."
+                        )
+                    else:
+                        logger.debug(
+                            f"[PHASE 1 FAILSAFE] Non-critical loader {table_name}: symbols_loaded is NULL, skipping"
+                        )
+                        continue
 
                 symbols_missing = symbol_count - symbols_loaded
-                is_crit = is_critical(table_name)
 
                 if completion_pct is None:
                     logger.warning(
