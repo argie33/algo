@@ -8,13 +8,13 @@ variable "common_tags" {
 }
 
 # Alpaca Credentials
-variable "alpaca_api_key" {
+variable "alpaca_api_key_id" {
   description = "Alpaca API key ID for paper trading"
   type        = string
   sensitive   = true
 }
 
-variable "alpaca_api_secret" {
+variable "alpaca_api_secret_key" {
   description = "Alpaca API secret key for paper trading"
   type        = string
   sensitive   = true
