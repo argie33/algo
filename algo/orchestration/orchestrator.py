@@ -1368,7 +1368,7 @@ class Orchestrator:
             )
         for phase_num, phase_result in executor_phases.items():
             summary = phase_result.data.get("summary", "") if phase_result.data else ""
-            if phase_result.status == "error" and phase_result.error and not summary:
+            if phase_result.status in ("error", "halted", "degraded") and phase_result.error and not summary:
                 summary = phase_result.error
             self.phase_results[phase_num] = {
                 "phase": phase_num,
