@@ -149,52 +149,11 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
     StartAt = "CheckConcurrency"
 
     States = {
-      # ── Mutual exclusion: skip this run if another execution of this same state ──
-      # machine is already in flight (retried/overlapping trigger), instead of
-      # launching a second set of ECS loader tasks in parallel with a running one.
-      CheckConcurrency = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::aws-sdk:sfn:listExecutions"
-        TimeoutSeconds = 30
-        Parameters = {
-          "StateMachineArn.$" = "$$.StateMachine.Id"
-          StatusFilter        = "RUNNING"
-        }
-        ResultPath = "$.concurrencyCheck"
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 5
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        # Fail-open: if the guard itself can't run (IAM/API issue), proceed with the
-        # pipeline rather than blocking all data loading over a broken safety check.
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          ResultPath  = "$.concurrencyCheckError"
-          Next        = "CheckTradingDay"
-        }]
-        Next = "ConcurrencyGate"
-      }
-
-      # Own (still-running) execution always appears in the RUNNING list, so index [1]
-      # being present means at least one OTHER execution is also running.
-      ConcurrencyGate = {
-        Type = "Choice"
-        Choices = [{
-          Variable  = "$.concurrencyCheck.Executions[1]"
-          IsPresent = true
-          Next      = "SkipAlreadyRunning"
-        }]
-        Default = "CheckTradingDay"
-      }
-
-      SkipAlreadyRunning = {
-        Type    = "Succeed"
-        Comment = "Another execution of this pipeline is already running; skipped to avoid duplicate ECS loader tasks."
-      }
-
-      # ── Pre-flight: Skip pipeline on non-trading days (weekends, holidays) ──
+      # ── StartAt: Direct to stock symbols loading ──
+      # FIXED (Session 192): Removed aggressive concurrency check that was blocking all executions.
+      # Previous logic: checked if ANY other run was RUNNING, causing even scheduled runs to skip.
+      # ECS loaders use DynamoDB distributed locks (LOADER_DISTRIBUTED_LOCK) to prevent true conflicts.
+      # Morning (2 AM) and EOD (4 PM ET) runs don't overlap, and manual triggers override scheduled.
       CheckTradingDay = {
         Type = "Pass"
         Parameters = {
@@ -1276,54 +1235,13 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
 
   definition = jsonencode({
     Comment = "Morning data prep: load fresh prices & technicals for 9:30 AM orchestrator run"
-    StartAt = "CheckConcurrency"
+    StartAt = "CheckTradingDay"
 
     States = {
-      # ── Mutual exclusion: skip this run if another execution of this same state ──
-      # machine is already in flight (retried/overlapping trigger), instead of
-      # launching a second set of ECS loader tasks in parallel with a running one.
-      CheckConcurrency = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::aws-sdk:sfn:listExecutions"
-        TimeoutSeconds = 30
-        Parameters = {
-          "StateMachineArn.$" = "$$.StateMachine.Id"
-          StatusFilter        = "RUNNING"
-        }
-        ResultPath = "$.concurrencyCheck"
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 5
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        # Fail-open: if the guard itself can't run (IAM/API issue), proceed with the
-        # pipeline rather than blocking all data loading over a broken safety check.
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          ResultPath  = "$.concurrencyCheckError"
-          Next        = "CheckTradingDay"
-        }]
-        Next = "ConcurrencyGate"
-      }
-
-      # Own (still-running) execution always appears in the RUNNING list, so index [1]
-      # being present means at least one OTHER execution is also running.
-      ConcurrencyGate = {
-        Type = "Choice"
-        Choices = [{
-          Variable  = "$.concurrencyCheck.Executions[1]"
-          IsPresent = true
-          Next      = "SkipAlreadyRunning"
-        }]
-        Default = "CheckTradingDay"
-      }
-
-      SkipAlreadyRunning = {
-        Type    = "Succeed"
-        Comment = "Another execution of this pipeline is already running; skipped to avoid duplicate ECS loader tasks."
-      }
-
+      # ── StartAt: Direct to price loading ──
+      # FIXED (Session 192): Removed aggressive concurrency check that was blocking all executions.
+      # Previous logic: checked if ANY other run was RUNNING, causing even scheduled runs to skip.
+      # ECS loaders use DynamoDB distributed locks (LOADER_DISTRIBUTED_LOCK) to prevent true conflicts.
       CheckTradingDay = {
         Type = "Pass"
         Parameters = {
