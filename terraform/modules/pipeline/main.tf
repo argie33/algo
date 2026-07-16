@@ -146,7 +146,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 
   definition = jsonencode({
     Comment = "EOD data loading pipeline: symbols → prices → technicals → scores → signals → orchestrator"
-    StartAt = "CheckConcurrency"
+    StartAt = "CheckTradingDay"
 
     States = {
       # ── StartAt: Direct to stock symbols loading ──
@@ -1098,53 +1098,11 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
 
   definition = jsonencode({
     Comment = "Consolidated reference data: earnings, company profiles, analyst sentiment/upgrades from single yfinance_derived_metrics loader (reads snapshot once, writes to 7 tables)"
-    StartAt = "CheckConcurrency"
+    StartAt = "YfinanceDerivedMetrics"
 
     States = {
-      # ── Mutual exclusion: skip this run if another execution of this same state ──
-      # machine is already in flight (retried/overlapping trigger), instead of
-      # launching a second set of ECS loader tasks in parallel with a running one.
-      CheckConcurrency = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::aws-sdk:sfn:listExecutions"
-        TimeoutSeconds = 30
-        Parameters = {
-          "StateMachineArn.$" = "$$.StateMachine.Id"
-          StatusFilter        = "RUNNING"
-        }
-        ResultPath = "$.concurrencyCheck"
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 5
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        # Fail-open: if the guard itself can't run (IAM/API issue), proceed with the
-        # pipeline rather than blocking all data loading over a broken safety check.
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          ResultPath  = "$.concurrencyCheckError"
-          Next        = "YfinanceDerivedMetrics"
-        }]
-        Next = "ConcurrencyGate"
-      }
-
-      # Own (still-running) execution always appears in the RUNNING list, so index [1]
-      # being present means at least one OTHER execution is also running.
-      ConcurrencyGate = {
-        Type = "Choice"
-        Choices = [{
-          Variable  = "$.concurrencyCheck.Executions[1]"
-          IsPresent = true
-          Next      = "SkipAlreadyRunning"
-        }]
-        Default = "YfinanceDerivedMetrics"
-      }
-
-      SkipAlreadyRunning = {
-        Type    = "Succeed"
-        Comment = "Another execution of this pipeline is already running; skipped to avoid duplicate ECS loader tasks."
-      }
+      # ── StartAt: Direct to reference data loading ──
+      # FIXED (Session 192): Removed aggressive concurrency check.
 
       # ── Consolidated Yfinance Derived Metrics ──
       # CONSOLIDATION: Combines 6 separate loaders into 1 that writes to all 7 tables:
@@ -1565,53 +1523,11 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
 
   definition = jsonencode({
     Comment = "Daily computed metrics: quality/growth/value/stability/stock scores (depends on financial data)"
-    StartAt = "CheckConcurrency"
+    StartAt = "YFinanceSnapshot"
 
     States = {
-      # ── Mutual exclusion: skip this run if another execution of this same state ──
-      # machine is already in flight (retried/overlapping trigger), instead of
-      # launching a second set of ECS loader tasks in parallel with a running one.
-      CheckConcurrency = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::aws-sdk:sfn:listExecutions"
-        TimeoutSeconds = 30
-        Parameters = {
-          "StateMachineArn.$" = "$$.StateMachine.Id"
-          StatusFilter        = "RUNNING"
-        }
-        ResultPath = "$.concurrencyCheck"
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 5
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        # Fail-open: if the guard itself can't run (IAM/API issue), proceed with the
-        # pipeline rather than blocking all data loading over a broken safety check.
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          ResultPath  = "$.concurrencyCheckError"
-          Next        = "YFinanceSnapshot"
-        }]
-        Next = "ConcurrencyGate"
-      }
-
-      # Own (still-running) execution always appears in the RUNNING list, so index [1]
-      # being present means at least one OTHER execution is also running.
-      ConcurrencyGate = {
-        Type = "Choice"
-        Choices = [{
-          Variable  = "$.concurrencyCheck.Executions[1]"
-          IsPresent = true
-          Next      = "SkipAlreadyRunning"
-        }]
-        Default = "YFinanceSnapshot"
-      }
-
-      SkipAlreadyRunning = {
-        Type    = "Succeed"
-        Comment = "Another execution of this pipeline is already running; skipped to avoid duplicate ECS loader tasks."
-      }
+      # ── StartAt: Direct to metrics loading ──
+      # FIXED (Session 192): Removed aggressive concurrency check.
 
       # ── Fetch yfinance snapshot once (all PE, PB, PS, dividend, beta, volatility for all symbols) ──
       # CRITICAL FIX 2026-07-02: Consolidated yfinance calls into single snapshot loader to fix rate limiting.
