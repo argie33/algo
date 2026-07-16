@@ -857,3 +857,19 @@ variable "eod_pipeline_state_machine_arn" {
   type        = string
   default     = ""
 }
+
+# ============================================================
+# Data Loader Pipeline Schedulers
+# ============================================================
+
+variable "morning_data_pipeline_arn" {
+  description = "ARN of the morning data pipeline Step Functions state machine (from pipeline module)"
+  type        = string
+  default     = ""
+}
+
+variable "eod_data_pipeline_arn" {
+  description = "ARN of the EOD data pipeline Step Functions state machine (from pipeline module)"
+  type        = string
+  default     = ""
+}

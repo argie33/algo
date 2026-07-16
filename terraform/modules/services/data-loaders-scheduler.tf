@@ -32,7 +32,7 @@ resource "aws_scheduler_schedule" "data_loaders_morning" {
 
   # Target: Invoke Step Functions state machine to run morning loaders
   target {
-    arn      = var.morning_data_pipeline_arn != "" ? var.morning_data_pipeline_arn : "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-morning-data-pipeline"
+    arn      = var.morning_data_pipeline_arn != "" ? var.morning_data_pipeline_arn : "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-morning-prep-pipeline-${var.environment}"
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -44,10 +44,6 @@ resource "aws_scheduler_schedule" "data_loaders_morning" {
       timeout_minutes     = 120
     })
   }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-data-pipeline-morning"
-  })
 }
 
 # ============================================================
@@ -71,7 +67,7 @@ resource "aws_scheduler_schedule" "data_loaders_eod" {
 
   # Target: Invoke Step Functions state machine to run EOD loaders
   target {
-    arn      = var.eod_data_pipeline_arn != "" ? var.eod_data_pipeline_arn : "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-eod-data-pipeline"
+    arn      = var.eod_data_pipeline_arn != "" ? var.eod_data_pipeline_arn : "arn:aws:states:${var.aws_region}:${var.aws_account_id}:stateMachine:${var.project_name}-eod-pipeline-${var.environment}"
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -83,8 +79,4 @@ resource "aws_scheduler_schedule" "data_loaders_eod" {
       timeout_minutes     = 120
     })
   }
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-data-pipeline-eod"
-  })
 }
