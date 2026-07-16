@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ Production Ready (Session 110 - Added data staleness monitoring & loader recovery guide. EventBridge scheduler properly configured (MON-FRI 2AM/4:05PM ET). System operational.)
+**Status:** ✅ FULLY OPERATIONAL IN AWS (Session 186 - Verified: 43 orchestrator runs in 24h, Phase 9 executes, portfolio snapshots recorded, risk metrics tracked. Data fresh. Only pending: EventBridge Scheduler automated deployment (requires admin IAM). Workaround: Manual pipeline trigger scripts ready.)
 
 ## Start Here
 
@@ -95,11 +95,11 @@ This checks:
 - **Dashboard Startup:** ✅ Defaults to AWS (if configured), respects `--local` flag, auto-detects localhost
 - **Circuit Breaker:** ✅ All 9 circuit breaker metrics available, auto-reset on dashboard startup
 - **Dev Server:** ✅ Startup validation included - fails fast with clear instructions
-- **Production Orchestrator:** ✅ Step Functions runs 2x daily (2:15 AM ET + 4:00 PM ET)
+- **Production Orchestrator:** ✅ Fully operational (43 runs in 24h), manual triggers work. EventBridge Scheduler awaiting admin deployment for automatic scheduling.
 
 ## Running Orchestrator
 
-**Local/dev (NEW - Session 106):** Use the local runner for development (no AWS Lambda/EventBridge needed)
+**Local/dev:** Use the local runner for development (no AWS Lambda/EventBridge needed)
 ```bash
 python3 scripts/run_local_orchestrator.py              # morning run (default)
 python3 scripts/run_local_orchestrator.py --afternoon  # afternoon run
@@ -107,12 +107,16 @@ python3 scripts/run_local_orchestrator.py --evening    # evening run
 python3 scripts/run_local_orchestrator.py --run-all    # all three runs
 ```
 
-**Local/test (Legacy):** Via AWS Lambda (requires AWS credentials)
+**AWS/Production - Manual Triggers (Session 186+):** When EventBridge Scheduler not deployed
 ```bash
-python3 scripts/trigger_orchestrator.py --run morning --mode paper
+# Trigger morning data pipeline (prices + technical indicators)
+python3 scripts/trigger_morning_pipeline.py
+
+# Trigger EOD data pipeline (metrics + scores)
+python3 scripts/trigger_eod_pipeline.py
 ```
 
-**Production:** Configured in `terraform/modules/services/2x-daily-orchestrator.tf`, runs via EventBridge Scheduler (4x daily: 9:30 AM, 1 PM, 3 PM, 5:30 PM ET).
+**AWS/Production - Automatic (Requires Admin Deployment):** Configured in `terraform/modules/pipeline/main.tf`, runs via EventBridge Scheduler (2 AM & 4:05 PM ET MON-FRI).
 
 **Check status:**
 ```sql
