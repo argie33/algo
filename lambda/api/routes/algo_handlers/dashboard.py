@@ -77,8 +77,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         )
         return _positions_cache["data"]
 
-    # Use 2-second timeout - fast direct query completes well under this
-    cur.execute("SET LOCAL statement_timeout = '2000ms'")
+    # Use 5-second timeout for main query - enrichment queries are non-critical so they
+    # can timeout without blocking the response. Main algo_positions query must complete.
+    cur.execute("SET LOCAL statement_timeout = '5000ms'")
 
     # Initialize alerts tracking early so it can be used throughout
     stale_alerts = []
@@ -125,6 +126,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # trend_template_data for positions. algo_positions (the base table) does not carry
     # these columns at all -- they must be joined in here explicitly rather than relying
     # on algo_positions_with_risk, whose schema has drifted across many competing migrations.
+    # CRITICAL: Enrichment queries are non-critical and may timeout - use separate timeout
     sector_map: dict[str, str] = {}
     company_name_map: dict[str, str] = {}
     technical_map: dict[str, dict[str, Any]] = {}
@@ -140,46 +142,55 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                     open_symbols.append(symbol)
 
             if open_symbols:
-                # Build placeholders for SQL query
-                placeholders = ",".join(["%s"] * len(open_symbols))
-                cur.execute(
-                    f"""
-                    SELECT ticker, sector, short_name FROM company_profile
-                    WHERE ticker IN ({placeholders})
-                    """,
-                    tuple(open_symbols),
-                )
-                for row in cur.fetchall():
-                    row_dict = safe_dict_convert(row)
-                    ticker = row_dict.get("ticker")
-                    sector = row_dict.get("sector")
-                    short_name = row_dict.get("short_name")
-                    if ticker and sector:
-                        sector_map[ticker] = sector
-                    if ticker and short_name:
-                        company_name_map[ticker] = short_name
-                logger.debug(f"[POSITIONS] Loaded sector/name data for {len(sector_map)} symbols from company_profile")
+                # Set a separate, more generous timeout for enrichment queries (non-critical)
+                # These may take longer and we don't want them to block positions response
+                try:
+                    cur.execute("SET LOCAL statement_timeout = '10000ms'")
+                    # Build placeholders for SQL query
+                    placeholders = ",".join(["%s"] * len(open_symbols))
+                    cur.execute(
+                        f"""
+                        SELECT ticker, sector, short_name FROM company_profile
+                        WHERE ticker IN ({placeholders})
+                        """,
+                        tuple(open_symbols),
+                    )
+                    for row in cur.fetchall():
+                        row_dict = safe_dict_convert(row)
+                        ticker = row_dict.get("ticker")
+                        sector = row_dict.get("sector")
+                        short_name = row_dict.get("short_name")
+                        if ticker and sector:
+                            sector_map[ticker] = sector
+                        if ticker and short_name:
+                            company_name_map[ticker] = short_name
+                    logger.debug(f"[POSITIONS] Loaded sector/name data for {len(sector_map)} symbols from company_profile")
 
-                cur.execute(
-                    f"""
-                    SELECT DISTINCT ON (symbol) symbol, weinstein_stage, minervini_trend_score
-                    FROM trend_template_data
-                    WHERE symbol IN ({placeholders}) AND data_unavailable IS NOT TRUE
-                    ORDER BY symbol, date DESC
-                    """,
-                    tuple(open_symbols),
-                )
-                for row in cur.fetchall():
-                    row_dict = safe_dict_convert(row)
-                    ticker = row_dict.get("symbol")
-                    if ticker:
-                        technical_map[ticker] = {
-                            "weinstein_stage": row_dict.get("weinstein_stage"),
-                            "minervini_trend_score": row_dict.get("minervini_trend_score"),
-                        }
-                logger.debug(
-                    f"[POSITIONS] Loaded technical scores for {len(technical_map)} symbols from trend_template_data"
-                )
+                    cur.execute(
+                        f"""
+                        SELECT DISTINCT ON (symbol) symbol, weinstein_stage, minervini_trend_score
+                        FROM trend_template_data
+                        WHERE symbol IN ({placeholders}) AND data_unavailable IS NOT TRUE
+                        ORDER BY symbol, date DESC
+                        """,
+                        tuple(open_symbols),
+                    )
+                    for row in cur.fetchall():
+                        row_dict = safe_dict_convert(row)
+                        ticker = row_dict.get("symbol")
+                        if ticker:
+                            technical_map[ticker] = {
+                                "weinstein_stage": row_dict.get("weinstein_stage"),
+                                "minervini_trend_score": row_dict.get("minervini_trend_score"),
+                            }
+                    logger.debug(
+                        f"[POSITIONS] Loaded technical scores for {len(technical_map)} symbols from trend_template_data"
+                    )
+                except (psycopg2.errors.QueryCanceled, psycopg2.errors.OperationalError) as enrichment_error:
+                    # Enrichment queries timed out or failed - log but continue without enrichment
+                    logger.warning(
+                        f"[POSITIONS] Enrichment queries timed out or failed (acceptable): {type(enrichment_error).__name__}"
+                    )
     except Exception as e:
         logger.warning(
             f"[POSITIONS] Could not load company_profile/trend_template_data enrichment: {type(e).__name__}: {e}"
