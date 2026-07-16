@@ -1215,155 +1215,54 @@ def _extract_ohlcv(row: Any, col: str, symbol: str, d: date) -> float:
 
 
 def _write_vix_family_prices(start: date, end: date) -> int:
-    """Download VIX-family and market-index prices via wrapper and upsert into price_daily.
+    """Validate VIX-family and market-index prices are available in price_daily.
 
     Supplies data for:
     - VolTermStructureCard (^VIX9D / ^VIX3M / ^VIX6M)
     - Distribution Days timeline (^GSPC / ^IXIC / ^NYA / ^DJI)
-    Returns the number of rows upserted.
+
+    NOTE: These symbols are fetched by load_prices.py which runs before market_health.
+    This function validates they're fresh in price_daily. Do NOT make redundant yfinance
+    calls (violates DATA_LOADERS.md principle: "All yfinance traffic goes through one funnel").
     """
-    # On non-trading days yfinance aggressively rate-limits index/VIX fetches.
-    # Skip the fetch - existing price_daily data is still current from the last trading day.
     from algo.infrastructure import MarketCalendar
 
     today = datetime.now(EASTERN_TZ).date()
     if not MarketCalendar.is_trading_day(today):
-        logger.info(f"Market closed today ({today}) - skipping VIX/index yfinance fetch")
+        logger.info(f"Market closed today ({today}) - VIX/index prices fresh from last trading day")
         return 0
 
-    # Pre-check: find which symbols already have fresh data in price_daily.
-    # Avoids yfinance calls for symbols that are already up-to-date, preventing rate-limit cascades
-    # when multiple loaders run simultaneously.
-    existing_dates: dict[str, date] = {}
+    fresh_cutoff = end - timedelta(days=1)
     try:
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
                 SELECT symbol, MAX(date) AS max_date
                 FROM price_daily
-                WHERE symbol = ANY(%s) AND date >= %s
+                WHERE symbol = ANY(%s)
                 GROUP BY symbol
                 """,
-                (INDEX_SYMBOLS_FOR_PRICE_DAILY, start),
+                (INDEX_SYMBOLS_FOR_PRICE_DAILY,),
             )
             existing_dates = {row[0]: row[1] for row in cur.fetchall()}
     except Exception as e:
-        logger.warning(f"[MARKET_HEALTH] Could not check existing price_daily freshness: {e}")
+        raise RuntimeError(f"[MARKET_HEALTH] Failed to check price_daily freshness: {e}") from e
 
-    # A symbol is "fresh" if its latest date is the previous calendar day or newer.
-    # 1-day tolerance: skips re-fetch only when yesterday's data is already there.
-    # 5-day was too lenient - on Monday it treated Friday's VIX as fresh and skipped today's fetch.
-    fresh_cutoff = end - timedelta(days=1)
-    symbols_needing_refresh = {
-        sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY if sym not in existing_dates or existing_dates[sym] < fresh_cutoff
-    }
+    stale_symbols = {sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY if sym not in existing_dates or existing_dates[sym] < fresh_cutoff}
 
-    if not symbols_needing_refresh:
+    if not stale_symbols:
         logger.info(
-            f"[MARKET_HEALTH] All {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} index symbols already "
-            f"fresh in price_daily (through {max(existing_dates.values())}) - skipping yfinance"
+            f"[MARKET_HEALTH] All {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} index symbols fresh in price_daily "
+            f"(through {max(existing_dates.values())})"
         )
         return 0
 
-    logger.info(
-        f"[MARKET_HEALTH] Refreshing {len(symbols_needing_refresh)} symbols from yfinance: "
-        f"{sorted(symbols_needing_refresh)}"
+    raise RuntimeError(
+        f"[MARKET_HEALTH FAIL-FAST] {len(stale_symbols)} index symbols stale in price_daily: {sorted(stale_symbols)}. "
+        f"load_prices.py should have run before market_health. "
+        f"Do NOT make redundant yfinance calls (violates DATA_LOADERS.md: all yfinance traffic through one funnel). "
+        f"Check if load_prices.py executed successfully."
     )
-
-    try:
-        from utils.external.yfinance import YFinanceWrapper
-
-        records = []
-        failed_symbols = {}
-        for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY:
-            if sym not in symbols_needing_refresh:
-                logger.debug(f"[MARKET_HEALTH] {sym} already fresh in price_daily - skipping yfinance")
-                continue
-            try:
-                ticker = YFinanceWrapper.get_ticker(sym)
-                if not ticker:
-                    logger.warning(f"[MARKET_HEALTH] Ticker data unavailable for index {sym}")
-                    failed_symbols[sym] = "Ticker unavailable"
-                    continue
-
-                df = ticker.history(start=start, end=end, interval="1d", auto_adjust=True)
-                if df is None or df.empty:
-                    logger.warning(f"[MARKET_HEALTH] Price history empty for index {sym}")
-                    failed_symbols[sym] = "Empty data"
-                    continue
-
-                for idx, row in df.iterrows():
-                    d = idx.date() if hasattr(idx, "date") else date.fromisoformat(str(idx)[:10])
-
-                    close = _extract_ohlcv(row, "Close", sym, d)
-                    open_val = _extract_ohlcv(row, "Open", sym, d)
-                    high_val = _extract_ohlcv(row, "High", sym, d)
-                    low_val = _extract_ohlcv(row, "Low", sym, d)
-                    volume_val = int(_extract_ohlcv(row, "Volume", sym, d))
-
-                    records.append(
-                        (
-                            sym,
-                            d,
-                            open_val,
-                            high_val,
-                            low_val,
-                            close,
-                            volume_val,
-                        )
-                    )
-                logger.info(f"Fetched {len([r for r in records if r[0] == sym])} rows for {sym}")
-            except (AttributeError, KeyError, ValueError, TypeError) as e:
-                logger.error(f"[MARKET_HEALTH] Cannot fetch {sym}: Data format corrupted: {e}")
-                raise RuntimeError(
-                    f"[MARKET_HEALTH] Market health data corrupted for {sym}. "
-                    f"Cannot proceed with incomplete market health context. "
-                    f"Error: {e}"
-                ) from e
-            except RuntimeError as e:
-                # yfinance failed (rate-limit, auth error, network) - FAIL-FAST, do NOT use stale data
-                logger.error(
-                    f"[MARKET_HEALTH CRITICAL] yfinance failed for {sym}: {e}. "
-                    f"Cannot use stale price_daily data (violates fail-fast governance). "
-                    f"Marking as unavailable."
-                )
-                failed_symbols[sym] = f"yfinance_failed_using_stale: {e!s}"
-            except ZeroDivisionError as e:
-                logger.error(f"[MARKET_HEALTH] Unexpected calculation error for {sym}: {e}")
-                raise RuntimeError(f"[MARKET_HEALTH] Unexpected error loading market health for {sym}: {e}") from e
-
-        coverage = (len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)) / len(INDEX_SYMBOLS_FOR_PRICE_DAILY) * 100
-        if coverage < 100:
-            count_fetched = len(INDEX_SYMBOLS_FOR_PRICE_DAILY) - len(failed_symbols)
-            total_count = len(INDEX_SYMBOLS_FOR_PRICE_DAILY)
-            raise RuntimeError(
-                f"[VIX_PRICES] Insufficient coverage: {coverage:.1f}% ({count_fetched} of {total_count} symbols). "
-                f"Failed symbols: {failed_symbols}"
-            )
-
-        if not records:
-            raise RuntimeError(
-                f"[VIX_PRICES] No prices fetched for {len(INDEX_SYMBOLS_FOR_PRICE_DAILY)} symbols. "
-                "All fetch attempts failed."
-            )
-
-        with DatabaseContext("write") as cur:
-            cur.executemany(
-                """
-                INSERT INTO price_daily (symbol, date, open, high, low, close, volume)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (symbol, date) DO UPDATE SET
-                    open   = EXCLUDED.open,
-                    high   = EXCLUDED.high,
-                    low    = EXCLUDED.low,
-                    close  = EXCLUDED.close,
-                    volume = EXCLUDED.volume
-            """,
-                records,
-            )
-
-        logger.info(f"Upserted {len(records)} VIX family price rows into price_daily")
-        return len(records)
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(
             f"[VIX_PRICES] Failed to write VIX family prices to database: {e}. "
