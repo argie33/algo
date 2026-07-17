@@ -100,7 +100,7 @@ resource "aws_iam_role_policy_attachment" "trigger_loaders_db" {
 # CloudWatch log group for Lambda
 resource "aws_cloudwatch_log_group" "trigger_loaders" {
   name              = "/aws/lambda/${aws_lambda_function.trigger_loaders.function_name}"
-  retention_in_days = 7
+  retention_in_days = 3
 
   tags = {
     Environment = var.environment

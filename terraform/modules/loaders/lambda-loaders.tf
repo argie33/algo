@@ -257,7 +257,7 @@ resource "aws_cloudwatch_log_group" "lambda_loaders" {
   ]) : []
 
   name              = "/aws/lambda/${var.project_name}-loader-${each.value}-${var.environment}"
-  retention_in_days = 7
+  retention_in_days = 3
 
   tags = merge(var.common_tags, {
     Loader = each.value
