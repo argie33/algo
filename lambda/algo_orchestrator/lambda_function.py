@@ -264,19 +264,81 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 if "Item" in response:
                     item = response["Item"]
                     if item.get("halt_flag") is True:
-                        halt_reason = item.get("reason", "Emergency halt flag set in DynamoDB")
-                        logger.critical(f"[HALT_FLAG_DETECTED] Trading halted: {halt_reason}")
-                        return {
-                            "statusCode": 503,
-                            "body": json.dumps(
-                                {
-                                    "status": "halted",
-                                    "message": f"Trading halted by emergency halt flag: {halt_reason}",
-                                    "source": source,
-                                    "halt_timestamp": item.get("triggered_at"),
+                        # PROACTIVE CLEAR: Auto-clear halt flag if from prior trading day
+                        # Prevents deadlock where data staleness is fixed but halt remains
+                        # This mirrors halt_flag_manager.py logic that orchestrator.py uses
+                        from datetime import datetime, date as dt_date, timezone
+                        triggered_at_str = item.get("triggered_at", "")
+                        try:
+                            if triggered_at_str:
+                                # Parse ISO format timestamp with timezone handling
+                                if triggered_at_str.endswith("Z"):
+                                    triggered_dt = datetime.fromisoformat(triggered_at_str[:-1] + "+00:00")
+                                else:
+                                    triggered_dt = datetime.fromisoformat(triggered_at_str)
+                                # Convert to ET for comparison
+                                from zoneinfo import ZoneInfo
+                                triggered_et_date = triggered_dt.astimezone(ZoneInfo("America/New_York")).date()
+                                current_et_date = dt_date.today()
+
+                                if triggered_et_date < current_et_date:
+                                    # Halt is from prior trading day - clear it and continue
+                                    try:
+                                        table.delete_item(Key={"key": "orchestrator_halt"})
+                                        logger.info(
+                                            f"[PROACTIVE_CLEAR] Halt from {triggered_et_date} (today: {current_et_date}) "
+                                            f"- cleared stale halt flag"
+                                        )
+                                        # Don't halt - continue with orchestrator execution
+                                    except Exception as clear_err:
+                                        logger.warning(f"[PROACTIVE_CLEAR_FAILED] Could not clear stale halt: {clear_err}")
+                                        # If we can't clear, proceed anyway since it's stale
+                                        logger.info("[PROACTIVE_CLEAR] Proceeding despite clear failure (halt is stale)")
+                                else:
+                                    # Halt is from today - respect it
+                                    halt_reason = item.get("reason", "Emergency halt flag set in DynamoDB")
+                                    logger.critical(f"[HALT_FLAG_DETECTED] Trading halted: {halt_reason}")
+                                    return {
+                                        "statusCode": 503,
+                                        "body": json.dumps(
+                                            {
+                                                "status": "halted",
+                                                "message": f"Trading halted by emergency halt flag: {halt_reason}",
+                                                "source": source,
+                                                "halt_timestamp": item.get("triggered_at"),
+                                            }
+                                        ),
+                                    }
+                            else:
+                                halt_reason = item.get("reason", "Emergency halt flag set in DynamoDB")
+                                logger.critical(f"[HALT_FLAG_DETECTED] Trading halted: {halt_reason}")
+                                return {
+                                    "statusCode": 503,
+                                    "body": json.dumps(
+                                        {
+                                            "status": "halted",
+                                            "message": f"Trading halted by emergency halt flag: {halt_reason}",
+                                            "source": source,
+                                            "halt_timestamp": item.get("triggered_at"),
+                                        }
+                                    ),
                                 }
-                            ),
-                        }
+                        except Exception as parse_err:
+                            logger.warning(f"[PROACTIVE_CLEAR] Could not parse halt timestamp: {parse_err}")
+                            # If we can't parse, respect the halt for safety
+                            halt_reason = item.get("reason", "Emergency halt flag set in DynamoDB")
+                            logger.critical(f"[HALT_FLAG_DETECTED] Trading halted: {halt_reason}")
+                            return {
+                                "statusCode": 503,
+                                "body": json.dumps(
+                                    {
+                                        "status": "halted",
+                                        "message": f"Trading halted by emergency halt flag: {halt_reason}",
+                                        "source": source,
+                                        "halt_timestamp": item.get("triggered_at"),
+                                    }
+                                ),
+                            }
             except Exception as halt_err:
                 logger.critical(f"[HALT_CHECK_FAILED] Could not verify halt flag in DynamoDB: {halt_err}")
                 # Fail-closed: if we can't verify halt status, assume halt for safety
