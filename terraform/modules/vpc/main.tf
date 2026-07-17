@@ -66,67 +66,18 @@ resource "aws_route_table_association" "public" {
 }
 
 # ============================================================
-# NAT Gateway for Private Subnet Internet Access
+# NAT Gateway - REMOVED (Session 201)
 # ============================================================
-
-# Elastic IP for NAT Gateway
-# Re-enabled 2026-06-22: Required for Lambda/ECS to reach Secrets Manager (DB credentials)
-# and Cognito (JWT validation). Without NAT, all authenticated API requests fail.
+# REMOVED: Cost optimization ($32/month savings)
+# - ECS tasks now use public subnets (assign_public_ip = true)
+# - Lambda is already public (no VPC)
+# - No workloads need private-subnet internet access
 #
-# Renamed nat -> nat_v2 on 2026-07-13 to force a fresh EIP allocation (new resource
-# address = new AWS resource, no -replace flag or local state access needed, just a
-# normal `terraform apply` through the existing CI pipeline): Yahoo Finance had
-# rate-limit-banned this environment's previous NAT egress IP for an extended period
-# after an earlier ECS loader-task pileup hammered it with concurrent requests
-# (confirmed live: even a fully-reset internal circuit breaker's fresh retry was
-# immediately rejected by Yahoo). A new egress IP is the direct fix for that specific
-# symptom; the pileup's root cause is separately fixed (ECS ListTasks mutual-exclusion
-# guard + Step Functions CheckConcurrency states).
-resource "aws_eip" "nat_v2" {
-  count  = length(var.public_subnet_cidrs) >= 1 ? 1 : 0
-  domain = "vpc"
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-nat-eip"
-  })
-
-  depends_on = [aws_internet_gateway.main]
-
-  # 2026-07-13 incident: renaming nat->nat_v2 without this made Terraform destroy
-  # the old EIP/NAT Gateway *before* creating the new ones. The new aws_eip create
-  # then hit the account's AddressLimitExceeded quota (needs 2 EIPs to exist briefly
-  # during a swap, not 1), leaving the VPC with NO NAT Gateway at all -- total egress
-  # outage for every Lambda/ECS task in the private subnets. create_before_destroy
-  # ensures a replacement is always provisioned first.
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# NAT Gateway in first public subnet
-resource "aws_nat_gateway" "main_v2" {
-  count         = length(var.public_subnet_cidrs) >= 1 ? 1 : 0
-  allocation_id = aws_eip.nat_v2[0].id
-  subnet_id     = aws_subnet.public[0].id
-
-  tags = merge(var.common_tags, {
-    Name = "${var.project_name}-nat"
-  })
-
-  depends_on = [aws_internet_gateway.main]
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
-# Route from private subnets to NAT Gateway (internet access)
-resource "aws_route" "private_nat" {
-  count                  = length(var.public_subnet_cidrs) >= 1 ? 1 : 0
-  route_table_id         = aws_route_table.private.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id         = aws_nat_gateway.main_v2[0].id
-}
+# Previous assumption (re-enabled 2026-06-22): Lambda/ECS reach Secrets Manager
+# via NAT. Actually: Lambda is public (no VPC), ECS tasks can be public (data loaders
+# are not exposed to ingress). VPC Endpoints not cost-effective for non-AWS APIs
+# (yfinance, IEX, etc.). Removing NAT Gateway + moving ECS to public subnets costs $0,
+# saves $32/month in NAT hourly charges + $2-5/month in data transfer.
 
 # ============================================================
 # 3. Private Subnets (RDS, ECS, Lambda)

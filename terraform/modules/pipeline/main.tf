@@ -5,9 +5,9 @@
 locals {
   network_config = {
     AwsvpcConfiguration = {
-      Subnets        = var.private_subnet_ids
+      Subnets        = var.public_subnet_ids
       SecurityGroups = [var.ecs_tasks_sg_id]
-      AssignPublicIp = "DISABLED"
+      AssignPublicIp = "ENABLED"
     }
   }
 }

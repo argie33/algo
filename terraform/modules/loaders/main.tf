@@ -458,8 +458,10 @@ locals {
     "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~30-60s, 2x headroom)
-    "market_constituents" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
-    "market_health_daily" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 1 }
+    # OPTIMIZED (Session 201): Reduced CPU 256→128 (minimal memory operations, list download only)
+    "market_constituents" = { cpu = 128, memory = 256, timeout = 120, parallelism = 1 }
+    # OPTIMIZED (Session 201): Reduced CPU 256→128 (simple breadth calculation from API data)
+    "market_health_daily" = { cpu = 128, memory = 256, timeout = 1200, parallelism = 1 }
     # FIXED (2026-07-12): Reduced timeout 300s→60s (actual runtime ~3-5s, 10x+ over-provisioned)
     "market_sentiment" = { cpu = 256, memory = 512, timeout = 60, parallelism = 1 }
     # Consolidated economic data loader: FRED series + DXY (lightweight: API calls + DB writes)
@@ -843,9 +845,9 @@ resource "aws_cloudwatch_event_target" "scheduled_loader_target" {
     }
 
     network_configuration {
-      subnets          = var.private_subnet_ids
+      subnets          = var.public_subnet_ids
       security_groups  = [var.ecs_tasks_sg_id]
-      assign_public_ip = false
+      assign_public_ip = true
     }
   }
 
