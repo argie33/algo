@@ -481,36 +481,38 @@ class CredentialManager:
                 # Re-raise ValueError so it triggers the fail-hard logic below
                 raise
 
-        # Step 2: Try algo/alpaca secret (Terraform-managed, stored with standard field names)
-        # Uses algo/alpaca from Secrets Manager (created by Terraform in secrets module)
+        # Step 2: Try Alpaca secrets (try current name first, then fallback to Terraform standard)
+        # algo-algo-secrets-dev: current RDS module secret
+        # algo/alpaca: future Terraform-managed secret (from secrets module)
         if self._is_aws:
-            try:
-                client = self._get_secrets_client()
-                if client:
-                    response = client.get_secret_value(SecretId="algo/alpaca")
-                    secret_string = response.get("SecretString")
-                    if not secret_string:
-                        raise ValueError("[CREDENTIALS] algo/alpaca secret exists but contains no SecretString")
-                    try:
-                        creds = _json.loads(secret_string)
-                    except _json.JSONDecodeError as e:
-                        raise ValueError(f"[CREDENTIALS] algo/alpaca secret contains invalid JSON: {e}") from e
-                    key = creds.get("APCA_API_KEY_ID")
-                    secret = creds.get("APCA_API_SECRET_KEY")
-                    if key and secret:
-                        logger.info("[CREDENTIALS] Alpaca credentials loaded from algo/alpaca (Secrets Manager)")
-                        return {"key": key, "secret": secret}
-                    else:
-                        raise ValueError(
-                            f"[CREDENTIALS] algo/alpaca secret missing APCA_API_KEY_ID or APCA_API_SECRET_KEY. "
-                            f"Found fields: {list(creds.keys())}"
-                        )
-            except ValueError as e:
-                logger.debug(f"[CREDENTIALS] algo/alpaca validation: {e}")
-            except client.exceptions.ResourceNotFoundException:
-                logger.debug("[CREDENTIALS] algo/alpaca secret not found in Secrets Manager")
-            except (ClientError, BotoCoreError) as e:
-                logger.debug(f"[CREDENTIALS] Could not fetch from algo/alpaca: {_sanitize_error(e)}")
+            for secret_id in ["algo-algo-secrets-dev", "algo/alpaca"]:
+                try:
+                    client = self._get_secrets_client()
+                    if client:
+                        response = client.get_secret_value(SecretId=secret_id)
+                        secret_string = response.get("SecretString")
+                        if not secret_string:
+                            raise ValueError(f"[CREDENTIALS] {secret_id} secret exists but contains no SecretString")
+                        try:
+                            creds = _json.loads(secret_string)
+                        except _json.JSONDecodeError as e:
+                            raise ValueError(f"[CREDENTIALS] {secret_id} secret contains invalid JSON: {e}") from e
+                        key = creds.get("APCA_API_KEY_ID")
+                        secret = creds.get("APCA_API_SECRET_KEY")
+                        if key and secret:
+                            logger.info(f"[CREDENTIALS] Alpaca credentials loaded from {secret_id} (Secrets Manager)")
+                            return {"key": key, "secret": secret}
+                        else:
+                            raise ValueError(
+                                f"[CREDENTIALS] {secret_id} secret missing APCA_API_KEY_ID or APCA_API_SECRET_KEY. "
+                                f"Found fields: {list(creds.keys())}"
+                            )
+                except ValueError as e:
+                    logger.debug(f"[CREDENTIALS] {secret_id} validation: {e}")
+                except client.exceptions.ResourceNotFoundException:
+                    logger.debug(f"[CREDENTIALS] {secret_id} secret not found in Secrets Manager")
+                except (ClientError, BotoCoreError) as e:
+                    logger.debug(f"[CREDENTIALS] Could not fetch from {secret_id}: {_sanitize_error(e)}")
 
         # Step 3: Try environment variables (APCA_API_KEY_ID / APCA_API_SECRET_KEY)
         key_env = os.getenv("APCA_API_KEY_ID")

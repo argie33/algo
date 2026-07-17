@@ -56,9 +56,23 @@ def _load_alpaca_credentials_from_secrets() -> None:
         import boto3
 
         sm = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
-        secret = sm.get_secret_value(SecretId="algo/alpaca")
-        data = json.loads(secret["SecretString"])
 
+        # Try both secret names: algo-algo-secrets-dev (current) and algo/alpaca (future Terraform)
+        secret = None
+        tried_secrets = []
+        for secret_id in ["algo-algo-secrets-dev", "algo/alpaca"]:
+            tried_secrets.append(secret_id)
+            try:
+                secret = sm.get_secret_value(SecretId=secret_id)
+                logger.debug(f"[CREDENTIALS] Found credentials in {secret_id}")
+                break
+            except Exception:
+                continue
+
+        if not secret:
+            raise ValueError(f"Alpaca credentials not found in any secret: {tried_secrets}")
+
+        data = json.loads(secret["SecretString"])
         os.environ["APCA_API_KEY_ID"] = data["APCA_API_KEY_ID"]
         os.environ["APCA_API_SECRET_KEY"] = data["APCA_API_SECRET_KEY"]
         logger.info("[CREDENTIALS] Loaded Alpaca API credentials from AWS Secrets Manager")
