@@ -299,15 +299,16 @@ def panel_portfolio(
         beta_v = risk.get("beta")
         conc5_v = risk.get("conc5")
         svar_v = risk.get("svar")
+        has_positions = risk.get("has_positions", False)
 
         # All critical fields available - render
         if var_v is not None and var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:
             conc_c = R if conc5_v >= 35 else (Y if conc5_v >= 25 else "white")
             var_c = R if var_v >= 4 else (Y if var_v >= 2 else "white")
-            # CRITICAL: When beta = 0 (no positions), show "--" instead of "0.00" in green
-            beta_display = "--" if (beta_v is not None and beta_v <= 0) else f"{beta_v:.2f}"
+            # CRITICAL: Show beta value if positions exist (even if beta <= 0), show "--" only when no positions
+            beta_display = f"{beta_v:.2f}" if has_positions else "--"
             beta_c = (
-                "dim" if (beta_v is not None and beta_v <= 0) else (R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G))
+                "dim" if not has_positions else (R if beta_v >= 1.2 else (Y if beta_v >= 0.8 else G))
             )
             tbl.add_row(
                 cell("Value at Risk (95%):", f"[{var_c}]{var_v:.2f}%[/]"),
@@ -921,6 +922,7 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                 cvar95 = safe_float(risk_dict.get("cvar95"), default=None)
                 svar = safe_float(risk_dict.get("svar"), default=None)
                 risk_date = risk_dict.get("date")
+                has_positions = risk_dict.get("has_positions", False)
 
                 var_c = R if var95_f >= 4 else (Y if var95_f >= 2 else "white")
 
@@ -935,13 +937,13 @@ def panel_portfolio_perf_expanded(  # noqa: C901
                     Text(cvar_display, style=cvar_style),
                 )
 
-                # CRITICAL: When beta = 0 (no open positions), show "N/A" instead of "0.00"
+                # CRITICAL: Show beta value if positions exist (even if beta <= 0), show "N/A" only when no positions
                 if beta is None:
                     logger.warning("[PORTFOLIO] Risk metric missing: Beta unavailable in risk response")
-                beta_display = "N/A" if (beta is None or beta <= 0) else f"{beta:.2f}"
+                beta_display = f"{beta:.2f}" if (has_positions and beta is not None) else "N/A"
                 beta_c = (
                     "dim"
-                    if (beta is not None and beta <= 0)
+                    if not has_positions
                     else (
                         R
                         if (beta is not None and beta >= 1.2)
