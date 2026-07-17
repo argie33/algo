@@ -159,12 +159,16 @@ def normalize_positions_data(data: Any) -> tuple[list[Any], Any, bool]:
             )
         # CRITICAL FIX: Include untracked_items in position count (Session 173)
         # Previously only counted algo-managed positions, missing manual/external positions
-        untracked_items = data.get("untracked_items", [])
-        if not isinstance(untracked_items, list):
-            logger.warning(f"[DATA_FORMAT] Positions 'untracked_items' field is not a list: {type(untracked_items).__name__}. Treating as empty.")
+        if "untracked_items" not in data:
             untracked_items = []
+        else:
+            untracked_items = data["untracked_items"]
+            if not isinstance(untracked_items, list):
+                logger.warning(f"[DATA_FORMAT] Positions 'untracked_items' field is not a list: {type(untracked_items).__name__}. Treating as empty.")
+                untracked_items = []
         all_positions = items + untracked_items
-        return all_positions, data.get("timestamp"), False
+        timestamp = data.get("timestamp") if "timestamp" in data else None
+        return all_positions, timestamp, False
     elif isinstance(data, list):
         return data, None, False
     else:

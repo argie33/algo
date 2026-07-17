@@ -23,7 +23,6 @@ Usage:
 """
 
 import logging
-from datetime import datetime, timezone
 from typing import Any
 
 from utils.db import DatabaseContext
@@ -99,7 +98,7 @@ class LoaderStatusManager:
         """
         try:
             updates = {"last_updated": "NOW()"}
-            params = []
+            params: list[Any] = []
 
             if symbols_loaded is not None:
                 updates["symbols_loaded"] = "%s"

@@ -317,9 +317,15 @@ class AlpacaSyncManager:
                 if not pos_data:
                     continue
 
-                qty_float = float(pos_data.get("qty", 0))
-                current_price = pos_data.get("current_price")
-                position_value = qty_float * float(current_price) if current_price else None
+                if "qty" not in pos_data or pos_data["qty"] is None:
+                    logger.warning(f"[ALPACA_SYNC] Missing qty for position {symbol}")
+                    continue
+                qty_float = float(pos_data["qty"])
+                if "current_price" not in pos_data or pos_data["current_price"] is None:
+                    logger.warning(f"[ALPACA_SYNC] Missing current_price for position {symbol}")
+                    continue
+                current_price = pos_data["current_price"]
+                position_value = qty_float * float(current_price)
 
                 try:
                     # Check if position already exists
