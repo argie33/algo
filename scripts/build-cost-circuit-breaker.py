@@ -12,9 +12,9 @@ from pathlib import Path
 def build_lambda():
     script_dir = Path(__file__).parent
     project_root = script_dir.parent
-    source_lambda = project_root / "lambda" / "cost-circuit-breaker"
+    source_lambda = project_root / "lambda" / "cost_circuit_breaker"
     terraform_lambda = project_root / "terraform" / "lambda"
-    pkg_dir = Path("/tmp/cost-circuit-breaker-pkg")
+    pkg_dir = Path("/tmp/cost_circuit_breaker-pkg")
 
     print("=== Building Cost Circuit Breaker Lambda ===")
     print(f"Source: {source_lambda}")

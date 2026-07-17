@@ -61,23 +61,12 @@ disallow_untyped_decorators = true
 exclude = [
     "^migrations/",
     "^tests/",
+    "^lambda/cost_circuit_breaker/",  # Deployed Lambda function (not core codebase)
 ]
 
 [[tool.mypy.overrides]]
 module = "dashboard.panels.*"
 disallow_untyped_decorators = false
-
-[[tool.mypy.overrides]]
-module = "utils.infrastructure.timeout"
-disable_error_code = ["unused-ignore"]
-
-[[tool.mypy.overrides]]
-module = "loaders.load_prices"
-disable_error_code = ["unused-ignore"]
-
-[[tool.mypy.overrides]]
-module = "utils.decorators"
-disable_error_code = ["unused-ignore"]
 
 [tool.ruff]
 line-length = 120
