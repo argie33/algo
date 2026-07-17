@@ -310,6 +310,8 @@ DETAILED_ISSUES_WITH_FIXES.md
 FIXES_APPLIED_*.md
 *_STATUS.md
 EXECUTION_*.md
+# EXCEPTION: Core infrastructure status docs (not session-specific)
+!IaC_CLEANUP_STATUS.md
 
 # Data patrol output (generated at runtime, not source code)
 patrol_findings.json
