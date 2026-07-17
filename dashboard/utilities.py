@@ -98,6 +98,7 @@ _log_file = os.path.join(_log_dir, "dashboard.log")
 # Use QueueHandler + QueueListener for thread-safe logging on Windows
 # (RotatingFileHandler is not thread-safe and causes PermissionError on Windows when multiple threads log)
 import queue as queue_module
+
 _log_queue: queue_module.Queue[logging.LogRecord] = queue_module.Queue()
 _queue_handler = logging.handlers.QueueHandler(_log_queue)
 _file_handler = logging.handlers.RotatingFileHandler(_log_file, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8")

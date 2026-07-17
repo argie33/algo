@@ -727,7 +727,7 @@ class APIHandler(BaseHTTPRequestHandler):
 
     def _handle_optional_empty(self) -> None:
         """Return empty response for optional endpoints."""
-        response = {"statusCode": 200, "data": {"items": [] if "items" not in self.path else [], "total_count": 0}}
+        response = {"statusCode": 200, "data": {"items": [], "total_count": 0}}
         self._send_json(200, response)
 
     def _handle_health(self) -> None:

@@ -338,7 +338,7 @@ def panel_portfolio(
     optional=True,
     description="Performance",
 )
-def panel_performance_spark(  # noqa: C901
+def panel_performance_spark(
     perf: dict[str, Any], rec: Any, perf_anl: dict[str, Any] | None = None, pos: dict[str, Any] | None = None
 ) -> Panel:
     """Performance metrics + equity sparkline + rolling analytics."""
@@ -569,7 +569,7 @@ def panel_performance_spark(  # noqa: C901
     optional=True,
     description="Portfolio & Performance Expanded",
 )
-def panel_portfolio_perf_expanded(  # noqa: C901
+def panel_portfolio_perf_expanded(
     port: dict[str, Any],
     cfg: dict[str, Any] | None,
     risk: dict[str, Any] | None = None,
