@@ -177,9 +177,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -384,9 +384,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -445,9 +445,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -550,9 +550,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -601,9 +601,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -651,9 +651,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -807,9 +807,9 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1126,9 +1126,9 @@ resource "aws_sfn_state_machine" "reference_data_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1406,9 +1406,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1437,9 +1437,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1464,9 +1464,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1545,9 +1545,9 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1601,9 +1601,9 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1663,9 +1663,9 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1723,9 +1723,9 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1782,9 +1782,9 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1841,9 +1841,9 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
@@ -1899,9 +1899,9 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }
         Retry = [{
           ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
