@@ -1,0 +1,77 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'terraform/**'
+      - 'lambda/**'
+      - '.github/workflows/deploy-to-aws.yml'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      id-token: write
+      contents: read
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-1
+      
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.5.0
+      
+      - name: Terraform Format Check
+        run: |
+          cd terraform
+          terraform fmt -recursive -check
+      
+      - name: Terraform Init
+        run: |
+          cd terraform
+          terraform init -lock=false
+      
+      - name: Terraform Validate
+        run: |
+          cd terraform
+          terraform validate
+      
+      - name: Terraform Plan
+        run: |
+          cd terraform
+          terraform plan -var-file=terraform.tfvars -out=tfplan
+      
+      - name: Terraform Apply
+        run: |
+          cd terraform
+          terraform apply -lock=false tfplan
+      
+      - name: Get Outputs
+        id: tf-outputs
+        run: |
+          cd terraform
+          echo "rds_endpoint=$(terraform output -raw rds_endpoint)" >> $GITHUB_OUTPUT
+          echo "api_lambda_arn=$(terraform output -raw api_lambda_arn)" >> $GITHUB_OUTPUT
+      
+      - name: Notify Deployment
+        if: success()
+        run: |
+          echo "✅ Deployment successful!"
+          echo "RDS Endpoint: ${{ steps.tf-outputs.outputs.rds_endpoint }}"
+          echo "API Lambda: ${{ steps.tf-outputs.outputs.api_lambda_arn }}"
+      
+      - name: Notify Failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed!"
+          exit 1
