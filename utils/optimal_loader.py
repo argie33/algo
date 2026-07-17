@@ -759,7 +759,9 @@ class OptimalLoader:
         # CRITICAL FIX: Never allow None for expected_symbols - this causes data integrity failures
         # When symbol_count is NULL, Phase 1 failsafe halts orchestrator
         if expected_symbols is None:
-            logger.warning(f"[{self.table_name}] expected_symbols is None - using 0 as fallback (data completeness unknown)")
+            logger.warning(
+                f"[{self.table_name}] expected_symbols is None - using 0 as fallback (data completeness unknown)"
+            )
             expected_symbols = 0
         try:
             with DatabaseContext("read") as cur:

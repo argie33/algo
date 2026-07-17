@@ -164,24 +164,16 @@ def update_trade_metrics(cur: cursor, trade_id: str) -> dict[str, Any]:
         return {"error": f"Trade {trade_id} is not closed or has no exit_price"}
 
     # Calculate metrics
-    exit_r = calculate_exit_r_multiple(
-        trade["entry_price"], trade["exit_price"], trade["stop_loss_price"]
-    )
+    exit_r = calculate_exit_r_multiple(trade["entry_price"], trade["exit_price"], trade["stop_loss_price"])
     duration = calculate_trade_duration_days(trade["entry_date"], trade["exit_date"])
-    mfe = calculate_mfe_pct(
-        cur, trade["symbol"], trade["entry_price"], trade["entry_date"], trade["exit_date"]
-    )
-    mae = calculate_mae_pct(
-        cur, trade["symbol"], trade["entry_price"], trade["entry_date"], trade["exit_date"]
-    )
+    mfe = calculate_mfe_pct(cur, trade["symbol"], trade["entry_price"], trade["entry_date"], trade["exit_date"])
+    mae = calculate_mae_pct(cur, trade["symbol"], trade["entry_price"], trade["entry_date"], trade["exit_date"])
 
     # Use exit_time from trade, or derive from exit_date if missing
     exit_time = trade["exit_time"]
     if not exit_time and trade["exit_date"]:
         # Set to end of trading day (4 PM ET) if not specified
-        exit_time = datetime.combine(trade["exit_date"], datetime.min.time()).replace(
-            hour=16, minute=0
-        )
+        exit_time = datetime.combine(trade["exit_date"], datetime.min.time()).replace(hour=16, minute=0)
 
     # Update database
     cur.execute(

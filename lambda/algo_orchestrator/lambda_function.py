@@ -278,6 +278,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                         # Prevents deadlock where data staleness is fixed but halt remains
                         # This mirrors halt_flag_manager.py logic that orchestrator.py uses
                         from datetime import date as dt_date
+
                         triggered_at_str = item.get("triggered_at", "")
                         try:
                             if triggered_at_str:
@@ -288,6 +289,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                                     triggered_dt = datetime.fromisoformat(triggered_at_str)
                                 # Convert to ET for comparison
                                 from zoneinfo import ZoneInfo
+
                                 triggered_et_date = triggered_dt.astimezone(ZoneInfo("America/New_York")).date()
                                 current_et_date = dt_date.today()
 
@@ -301,9 +303,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                                         )
                                         # Don't halt - continue with orchestrator execution
                                     except Exception as clear_err:
-                                        logger.warning(f"[PROACTIVE_CLEAR_FAILED] Could not clear stale halt: {clear_err}")
+                                        logger.warning(
+                                            f"[PROACTIVE_CLEAR_FAILED] Could not clear stale halt: {clear_err}"
+                                        )
                                         # If we can't clear, proceed anyway since it's stale
-                                        logger.info("[PROACTIVE_CLEAR] Proceeding despite clear failure (halt is stale)")
+                                        logger.info(
+                                            "[PROACTIVE_CLEAR] Proceeding despite clear failure (halt is stale)"
+                                        )
                                 else:
                                     # Halt is from today - respect it
                                     halt_reason = item.get("reason", "Emergency halt flag set in DynamoDB")

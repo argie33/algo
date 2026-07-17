@@ -358,7 +358,9 @@ def run(  # noqa: C901
                 while prev_trading_day > last_trading_day - td(days=10):
                     if MarketCalendar.is_trading_day(prev_trading_day):
                         acceptable_min_date = prev_trading_day
-                        logger.info(f"[PHASE 1] Grace period active (4:00-4:30 PM): accepting {prev_trading_day} as valid")
+                        logger.info(
+                            f"[PHASE 1] Grace period active (4:00-4:30 PM): accepting {prev_trading_day} as valid"
+                        )
                         break
                     prev_trading_day -= td(days=1)
             elif pipeline_context == "EOD" and now_et.hour >= 16.5:

@@ -430,7 +430,7 @@ class StockScoresLoader(OptimalLoader):
                     f"[STOCK_SCORES] {symbol}: Score rejected for insufficient completeness. "
                     f"Completeness: {data_completeness:.2f}% ({data_count}/6 metrics). "
                     f"Minimum 50% completeness (3/6 metrics) required for signal reliability. "
-                    f"Available metrics: {', '.join(f'{k}={round(100*int(is_real_score(all_scores[k]))/6,0)}%' for k in all_scores.keys())}. "
+                    f"Available metrics: {', '.join(f'{k}={round(100 * int(is_real_score(all_scores[k])) / 6, 0)}%' for k in all_scores.keys())}. "
                     f"Marking as data_unavailable to protect trading signals from degraded data."
                 )
 

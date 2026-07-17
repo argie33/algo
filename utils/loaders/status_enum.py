@@ -71,8 +71,7 @@ class LoaderStatus(str, Enum):
         except ValueError as e:
             valid_values = [s.value for s in cls]
             raise ValueError(
-                f"[LOADER STATUS] Invalid status '{value}'. "
-                f"Must be one of: {', '.join(valid_values)}"
+                f"[LOADER STATUS] Invalid status '{value}'. Must be one of: {', '.join(valid_values)}"
             ) from e
 
     @classmethod

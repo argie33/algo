@@ -120,7 +120,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 "Shown in untracked_items section with no stop/target management."
             )
         else:
-            logger.info("[POSITIONS] algo_positions has 0 open rows and algo_untracked_positions empty - no open positions.")
+            logger.info(
+                "[POSITIONS] algo_positions has 0 open rows and algo_untracked_positions empty - no open positions."
+            )
 
     # FIX: Load sector/company_name from company_profile and technical scores from
     # trend_template_data for positions. algo_positions (the base table) does not carry
@@ -164,7 +166,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                             sector_map[ticker] = sector
                         if ticker and short_name:
                             company_name_map[ticker] = short_name
-                    logger.debug(f"[POSITIONS] Loaded sector/name data for {len(sector_map)} symbols from company_profile")
+                    logger.debug(
+                        f"[POSITIONS] Loaded sector/name data for {len(sector_map)} symbols from company_profile"
+                    )
 
                     cur.execute(
                         f"""
@@ -420,7 +424,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 item.pop(field)
                 removed_count += 1
     after_count = len(items[0]) if items else 0
-    logger.info(f"[POSITIONS] Field cleanup: {before_count} → {after_count} fields/pos, {removed_count} total fields removed")
+    logger.info(
+        f"[POSITIONS] Field cleanup: {before_count} → {after_count} fields/pos, {removed_count} total fields removed"
+    )
 
     # Compute sector_allocation array after processing all positions (E5 fix)
     # CRITICAL: Fail-fast if portfolio appears empty after position processing

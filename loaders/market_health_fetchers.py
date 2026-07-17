@@ -319,14 +319,14 @@ class PutCallRatioFetcher:
                     # Calls: sum open interest for all calls
                     calls_df = chain.calls
                     if calls_df is not None and not calls_df.empty:
-                        calls_oi = calls_df['openInterest'].sum()
+                        calls_oi = calls_df["openInterest"].sum()
                         if calls_oi > 0:
                             total_calls_oi += calls_oi
 
                     # Puts: sum open interest for all puts
                     puts_df = chain.puts
                     if puts_df is not None and not puts_df.empty:
-                        puts_oi = puts_df['openInterest'].sum()
+                        puts_oi = puts_df["openInterest"].sum()
                         if puts_oi > 0:
                             total_puts_oi += puts_oi
 
@@ -335,11 +335,15 @@ class PutCallRatioFetcher:
                     continue
 
             if total_calls_oi == 0:
-                logger.warning(f"[PUT_CALL_RATIO] No call open interest for {today}. Market may be closed or no options trading.")
+                logger.warning(
+                    f"[PUT_CALL_RATIO] No call open interest for {today}. Market may be closed or no options trading."
+                )
                 return None
 
             if total_puts_oi == 0:
-                logger.warning(f"[PUT_CALL_RATIO] No put open interest for {today}. Market may be closed or skewed to calls.")
+                logger.warning(
+                    f"[PUT_CALL_RATIO] No put open interest for {today}. Market may be closed or skewed to calls."
+                )
                 return None
 
             pcr = total_puts_oi / total_calls_oi

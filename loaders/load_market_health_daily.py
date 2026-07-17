@@ -1248,7 +1248,9 @@ def _write_vix_family_prices(start: date, end: date) -> int:
     except Exception as e:
         raise RuntimeError(f"[MARKET_HEALTH] Failed to check price_daily freshness: {e}") from e
 
-    stale_symbols = {sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY if sym not in existing_dates or existing_dates[sym] < fresh_cutoff}
+    stale_symbols = {
+        sym for sym in INDEX_SYMBOLS_FOR_PRICE_DAILY if sym not in existing_dates or existing_dates[sym] < fresh_cutoff
+    }
 
     if not stale_symbols:
         logger.info(

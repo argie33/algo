@@ -77,6 +77,7 @@ def test_put_call_in_market_health() -> bool:
     except Exception as e:
         print(f"[FAIL] Error: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
