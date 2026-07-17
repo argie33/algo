@@ -5,7 +5,7 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -438,54 +438,87 @@ class APIHandler(BaseHTTPRequestHandler):
         self._send_json(200, response)
 
     def _handle_data_status(self) -> None:
-        """Return data loader health status from loader_status table."""
+        """Return data loader health status from loader_status table (matches AWS Lambda schema)."""
         try:
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
             # Fetch loader status from database
             cur.execute("""
-                SELECT loader_name, status, last_run_time, error_message
+                SELECT table_name, status, last_updated, row_count
                 FROM data_loader_status
-                ORDER BY last_run_time DESC
+                ORDER BY table_name
             """)
             loaders = cur.fetchall()
             conn.close()
 
-            items = []
+            # Table name to criticality mapping (matches real API)
+            critical_tables = {"price_daily", "market_health_daily", "market_exposure_daily"}
+
+            sources = []
             ready_to_trade = True
             now = datetime.now(timezone.utc)
+            summary = {"ok": 0, "stale": 0, "empty": 0}
+            critical_stale = []
 
             for loader in loaders:
-                status = loader.get("status", "unknown")
-                last_run = loader.get("last_run_time")
+                table_name = loader.get("table_name", "unknown")
+                status = loader.get("status", "empty")
+                last_updated = loader.get("last_updated")
+                row_count = loader.get("row_count", 0)
 
-                # Mark as failed if status is error or if last run is too old (> 24 hours)
-                if status == "error" or (
-                    last_run and (now - last_run.replace(tzinfo=timezone.utc)).total_seconds() > 86400
+                # Mark as failed if status is error or stale
+                if status in ("error", "stale") or (
+                    last_updated and (now - last_updated.replace(tzinfo=timezone.utc)).total_seconds() > 86400
                 ):
                     ready_to_trade = False
 
-                age_hours = 0
-                if last_run:
-                    age_hours = (now - last_run.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+                # Calculate age in hours (None if last_updated is missing)
+                age_hours = None
+                if last_updated:
+                    age_hours = (now - last_updated.replace(tzinfo=timezone.utc)).total_seconds() / 3600
 
-                items.append(
+                # Determine role (criticality level)
+                if table_name in critical_tables:
+                    role = "CRIT"
+                elif status in ("stale", "empty"):
+                    role = "IMP"
+                else:
+                    role = "NORM"
+
+                # Track for summary
+                summary[status] = summary.get(status, 0) + 1
+                if status in ("stale", "empty") and table_name in critical_tables:
+                    critical_stale.append(table_name)
+
+                sources.append(
                     {
-                        "name": loader.get("loader_name", "unknown"),
-                        "st": status,
-                        "last_check": last_run.isoformat()
-                        if last_run and hasattr(last_run, "isoformat")
-                        else str(last_run),
-                        "age_hours": round(age_hours, 1),
+                        "name": table_name,
+                        "role": role,
+                        "status": status,
+                        "last_updated": last_updated.isoformat()
+                        if last_updated and hasattr(last_updated, "isoformat")
+                        else None,
+                        "age_hours": round(age_hours, 1) if age_hours is not None else None,
+                        "row_count": row_count,
                     }
                 )
 
+            # Match AWS Lambda API response structure using list_response wrapper
+            # (includes "items" and "total" fields automatically)
             response = {
                 "statusCode": 200,
                 "data": {
-                    "ready_to_trade": ready_to_trade and len([i for i in items if i["st"] != "error"]) > 0,
-                    "items": items,
+                    "items": sources,
+                    "total": len(sources),
+                    "limit": None,
+                    "offset": None,
+                    "sources": sources,
+                    "ready_to_trade": ready_to_trade and len(critical_stale) == 0,
+                    "summary": summary,
+                    "critical_stale": critical_stale,
+                    "expected_date": str((now - timedelta(days=1)).date()),
+                    "as_of": now.isoformat(),
                 },
             }
             self._send_json(200, response)
