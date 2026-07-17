@@ -50,13 +50,17 @@ def _load_alpaca_credentials_from_secrets() -> None:
 
     # Skip if already loaded (e.g., local development)
     if os.environ.get("APCA_API_KEY_ID"):
-        logger.debug("Alpaca credentials already in environment, skipping AWS Secrets load")
+        logger.info("[CREDENTIALS] Alpaca credentials already in environment, skipping AWS Secrets load")
         return
+
+    logger.info("[CREDENTIALS] Attempting to load from AWS Secrets Manager")
+    aws_region = os.environ.get("AWS_REGION", "us-east-1")
+    logger.info(f"[CREDENTIALS] Using AWS region: {aws_region}")
 
     try:
         import boto3
 
-        sm = boto3.client("secretsmanager", region_name=os.environ.get("AWS_REGION", "us-east-1"))
+        sm = boto3.client("secretsmanager", region_name=aws_region)
 
         # Try both secret names: algo-algo-secrets-dev (current) and algo/alpaca (future Terraform)
         secret = None
@@ -64,19 +68,24 @@ def _load_alpaca_credentials_from_secrets() -> None:
         for secret_id in ["algo-algo-secrets-dev", "algo/alpaca"]:
             tried_secrets.append(secret_id)
             try:
+                logger.info(f"[CREDENTIALS] Trying secret: {secret_id}")
                 secret = sm.get_secret_value(SecretId=secret_id)
-                logger.debug(f"[CREDENTIALS] Found credentials in {secret_id}")
+                logger.info(f"[CREDENTIALS] Found credentials in {secret_id}")
                 break
-            except Exception:
+            except Exception as e:
+                logger.info(f"[CREDENTIALS] Secret '{secret_id}' failed: {type(e).__name__}: {e}")
                 continue
 
         if not secret:
             raise ValueError(f"Alpaca credentials not found in any secret: {tried_secrets}")
 
         data = json.loads(secret["SecretString"])
-        os.environ["APCA_API_KEY_ID"] = data["APCA_API_KEY_ID"]
-        os.environ["APCA_API_SECRET_KEY"] = data["APCA_API_SECRET_KEY"]
-        logger.info("[CREDENTIALS] Loaded Alpaca API credentials from AWS Secrets Manager")
+        if "APCA_API_KEY_ID" in data and "APCA_API_SECRET_KEY" in data:
+            os.environ["APCA_API_KEY_ID"] = data["APCA_API_KEY_ID"]
+            os.environ["APCA_API_SECRET_KEY"] = data["APCA_API_SECRET_KEY"]
+            logger.info("[CREDENTIALS] Loaded Alpaca API credentials from AWS Secrets Manager (env vars set)")
+        else:
+            raise ValueError(f"Secret missing required fields. Found: {list(data.keys())}")
     except Exception as e:
         logger.warning(
             f"[CREDENTIALS] Could not load Alpaca credentials from AWS Secrets Manager: {type(e).__name__}. "
