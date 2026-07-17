@@ -166,10 +166,7 @@ resource "aws_lambda_function" "api" {
     size = var.api_lambda_ephemeral_storage
   }
 
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.api_lambda_security_group_id]
-  }
+  # REMOVED VPC: Public Lambda is cheaper (no ENI costs), dashboard doesn't need VPC security
 
   environment {
     variables = {
@@ -864,10 +861,7 @@ resource "aws_lambda_function" "algo" {
     size = var.algo_lambda_ephemeral_storage
   }
 
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.algo_lambda_security_group_id]
-  }
+  # REMOVED VPC: Public Lambda is cheaper (no ENI costs), only invokes ECS tasks in VPC
 
   environment {
     variables = {

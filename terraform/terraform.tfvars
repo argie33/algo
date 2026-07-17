@@ -1,15 +1,8 @@
-# ⚠️  WARNING: environment = "dev" — paper trading enabled (alpaca_paper_trading = true).
-# All resources named "-dev" suffix. Paper trades only — no real money.
-#
-# ENVIRONMENT-SPECIFIC CONFIGURATION:
-# - LOCAL DEV: Use this file (terraform.tfvars) — hardcoded localhost origins
-# - STAGING: Use staging.tfvars — production-like config, reduced monitoring
-# - PRODUCTION: Use prod.tfvars — full security, compliance, and monitoring
-#
-# To use environment-specific config:
-#   terraform plan -var-file=staging.tfvars
-#   terraform plan -var-file=prod.tfvars
-#   terraform plan -var-file=dev.tfvars  (or default terraform.tfvars)
+# Clean, minimal infrastructure for paper trading algo + dashboard
+# - Real algo, building for future
+# - 2x daily execution during market hours
+# - Cost-optimized: $35-45/month
+# - Scalable without rewrite
 
 environment  = "dev"
 aws_region   = "us-east-1"
@@ -44,18 +37,20 @@ enable_premarket_orchestrator = false                       # Disabled: not duri
 enable_morning_orchestrator   = false                       # DISABLED: personal use, run manually only
 enable_afternoon_orchestrator = false                       # DISABLED
 enable_preclose_orchestrator  = false                       # DISABLED
-cognito_enabled               = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
-cognito_test_user_email       = "argeropolos@gmail.com"     # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
-cognito_custom_email_enabled  = false                       # OPTIMIZED: Disabled in dev (Lambda not needed for dev testing). Cost: saves $0.50/month
+# Cognito disabled: personal dashboard only, no auth needed
+cognito_enabled               = false                       # Personal use, dashboard runs locally
+cognito_test_user_email       = "argeropolos@gmail.com"     # (unused)
+cognito_custom_email_enabled  = false
 cognito_sender_email          = "argeropolos@gmail.com"     # SES sender email for password reset codes (must be verified in SES)
 
 # AWS Config - disabled due to S3 bucket state corruption
 aws_config_enabled = false # Disable AWS Config to resolve Terraform state issues with legacy S3 buckets
 
-# Database configuration
-rds_instance_class = "db.t4g.small" # REQUIRED for loader parallelism: Graviton t4g.small (2 vCPU, 2GB, ~100 max_connections) supports concurrent loader execution. With tuned parallelism (2-3 for critical loaders), connection pool remains well below limit. Cost ~$25-30/month.
-dev_mode           = false          # Disable dev mode safety gates - enables normal testing with orchestrator_dry_run=false
-db_ssl_mode        = "require"      # PostgreSQL SSL mode (require for production, can be 'disable' for local dev troubleshooting)
+# Database: Minimal, single-AZ, no Proxy
+rds_instance_class = "db.t4g.small"  # 2 vCPU, 2GB, $25-30/month
+rds_multi_az       = false            # Single-AZ (dev, can restart manually if needed)
+dev_mode           = false
+db_ssl_mode        = "require"
 
 # Data Freshness Monitoring (F-02 CRITICAL: Must be enabled for live trading)
 enable_data_freshness_monitoring = false # DISABLED: personal use, run loaders manually when needed
@@ -67,17 +62,14 @@ orchestrator_log_level              = "warning" # Reduced from "info" to cut Clo
 data_patrol_enabled                 = true
 data_patrol_timeout_ms              = 60000 # FIXED: 30s too short for full data quality scan. Increased to 60s to prevent early timeout during slow DB queries.
 alpaca_paper_trading                = true  # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
-api_lambda_timeout                  = 40    # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
-api_lambda_reserved_concurrency     = 10    # Minimal: personal use only, reduced from 50
-api_lambda_provisioned_concurrency  = 0     # DISABLED: personal use, no need to keep warm 24/7
-algo_lambda_timeout                 = 900  # AWS Lambda max timeout is 900s (15 min). ECS runs async so Lambda doesn't wait. 900s is sufficient since Lambda only invokes the task, doesn't wait for completion.
-algo_lambda_ephemeral_storage       = 512   # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
-algo_lambda_provisioned_concurrency = 0     # Left disabled 2026-07-13 (unlike api_lambda above): this Lambda only invokes
-                                             # the orchestrator ECS task and returns, isn't hit by concurrent dashboard
-                                             # fetcher bursts, and no cold-start-driven errors observed for it. Revisit if
-                                             # orchestrator-trigger latency/errors show up.
-algo_lambda_reserved_concurrency    = 1     # Minimal: disabled orchestrator schedules, only manual triggers
-# Provisioned concurrency for API only (~$12/month) worth the 502 error fix.
+# Lambda: Minimal, public (no VPC), no provisioned concurrency
+api_lambda_timeout                  = 30    # Dashboard responses < 1s, 30s is plenty
+api_lambda_reserved_concurrency     = 1     # Only you, one request at a time
+api_lambda_provisioned_concurrency  = 0     # No need, cold starts acceptable for personal use
+algo_lambda_timeout                 = 30    # Just invokes ECS task, returns immediately (NOT 900s!)
+algo_lambda_ephemeral_storage       = 128   # Minimal, no temp files
+algo_lambda_provisioned_concurrency = 0     # Disabled
+algo_lambda_reserved_concurrency    = 1     # Minimal
 
 # RDS password: generated by Terraform's random_password.rds_master, stored in state and Secrets Manager
 # No hardcoded values — Terraform manages the full password lifecycle via IaC
@@ -126,22 +118,17 @@ developer_key_rotation_date = "2026-05-29"
 #   Outlook/Office365: smtp.office365.com:587
 #   Custom SMTP: Your email provider's SMTP hostname and port
 #
-sns_alerts_enabled  = false                   # DISABLED: personal use, no alerts needed
-sns_alert_email     = "argeropolos@gmail.com" # SNS email subscription for infrastructure alerts
-alert_email_address = "argeropolos@gmail.com" # Email for circuit breaker alerts (SNS topic subscription)
-alert_email_to      = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
-alert_webhook_url   = ""                      # Leave blank (using email alerts)
-# SMTP configuration for email alerts (REQUIRED for production)
-# For dev: Leave blank (email alerts will not send). OK for testing.
-# For production: Configure via GitHub Actions secrets (more secure than hardcoded)
-# Setup: 1) Enable 2FA in Gmail. 2) Generate app-specific password at myaccount.google.com/apppasswords
-#        3) Set GitHub Actions secrets: ALERT_SMTP_USER, ALERT_SMTP_PASSWORD
-#        4) Terraform reads from environment: $env:TF_VAR_alert_smtp_host, etc.
-alert_smtp_host     = ""  # smtp.gmail.com (for Gmail)
-alert_smtp_port     = 587 # 587 for TLS; 465 for SSL
-alert_smtp_user     = ""  # Gmail account (set via TF_VAR_alert_smtp_user env var)
-alert_smtp_password = ""  # App-specific password (set via TF_VAR_alert_smtp_password env var)
-alert_smtp_from     = ""  # From address (typically same as alert_smtp_user)
+# Alerting: disabled for personal use
+sns_alerts_enabled  = false
+sns_alert_email     = "argeropolos@gmail.com"
+alert_email_address = "argeropolos@gmail.com"
+alert_email_to      = "argeropolos@gmail.com"
+alert_webhook_url   = ""
+alert_smtp_host     = ""
+alert_smtp_port     = 587
+alert_smtp_user     = ""
+alert_smtp_password = ""
+alert_smtp_from     = ""
 
 # ============================================================
 # COST OPTIMIZATION: Storage & Database
