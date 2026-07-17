@@ -74,8 +74,10 @@ class OptimalLoader:
         loader_module_name = self.__class__.__module__.split(".")[-1]
         self._watermark = WatermarkManager(loader_module_name, self.table_name)
         self._bulk_insert_mgr = BulkInsertManager(self.table_name, self.primary_key, self.chunk_size)
+        self._last_health_check_update = 0.0  # Track health check updates
 
         self._configure_chunk_size()
+        self._init_health_check()
 
     def _configure_chunk_size(self) -> None:
         env_chunk_size = os.getenv("LOADER_CHUNK_SIZE")
@@ -106,6 +108,33 @@ class OptimalLoader:
             self.chunk_size = max(2_000, min(50_000, safe_rows))
         self._bulk_insert_mgr.chunk_size = self.chunk_size
         logger.info(f"[CONFIG] Batch size set to {self.chunk_size} (AWS={is_aws})")
+
+    def _init_health_check(self) -> None:
+        """Initialize ECS health check file for liveness detection."""
+        health_file = "/tmp/loader_health_check"
+        try:
+            with open(health_file, "w") as f:
+                f.write(datetime.now(timezone.utc).isoformat())
+            logger.debug(f"[HEALTHCHECK] Initialized: {health_file}")
+        except IOError:
+            logger.warning(f"[HEALTHCHECK] Failed to initialize (may be local dev mode): {health_file}")
+
+    def _update_health_check(self) -> None:
+        """Update ECS health check file to signal loader is responsive."""
+        health_file = "/tmp/loader_health_check"
+        now = time.time()
+
+        # Update every 5 seconds to avoid excessive I/O
+        if now - self._last_health_check_update < 5:
+            return
+
+        try:
+            with open(health_file, "w") as f:
+                f.write(datetime.now(timezone.utc).isoformat())
+            self._last_health_check_update = now
+        except IOError:
+            # Silently fail - may be local dev mode without /tmp/
+            pass
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]] | None:
         raise NotImplementedError("Implement fetch_incremental or fetch_global")
@@ -515,6 +544,7 @@ class OptimalLoader:
         batch_start = time.time()
 
         for i, symbol in enumerate(symbols, 1):
+            self._update_health_check()  # Signal ECS health check that loader is responsive
             elapsed_batch = time.time() - batch_start
             if elapsed_batch > max_batch_time:
                 logger.critical(
@@ -590,6 +620,7 @@ class OptimalLoader:
             pending_futures = set(futures.keys())
 
             while pending_futures:
+                self._update_health_check()  # Signal ECS health check that loader is responsive
                 elapsed_batch = time.time() - batch_start
                 if elapsed_batch > max_batch_time:
                     logger.critical(
