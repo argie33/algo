@@ -7,12 +7,14 @@ CRITICAL FIX 2026-07-02: Consolidates 30,000+ redundant yfinance API calls by ha
 Consolidates redundant calls from:
 - value_metrics (PE, PB, PS, dividend)
 - positioning_metrics (institutional/insider holdings, short interest)
-- stability_metrics (beta, volatility)
 - company_profile (sector, industry, country)
 - earnings_history (earnings dates)
 - earnings_calendar (next earnings date)
 - analyst_upgrade_downgrade (analyst counts)
 - analyst_sentiment_analysis (recommendation key, analyst counts)
+
+BETA OPTIMIZATION (Session 196): Removed beta fetch from yfinance - computed from
+price_daily in load_risk_metrics_daily.py instead. Reduces yfinance API calls by ~4%.
 
 FRESHNESS SKIP 2026-07-14: symbols with an available snapshot row newer than
 YFINANCE_SNAPSHOT_MAX_AGE_HOURS (default 20h) are skipped entirely - re-runs and
