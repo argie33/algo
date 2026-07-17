@@ -39,19 +39,11 @@ CYCLICAL_SECTORS = [
     "Financial Services",
 ]
 
-SECTOR_ETF = {
-    "Utilities": "XLU",
-    "Consumer Defensive": "XLP",
-    "Healthcare": "XLV",
-    "Technology": "XLK",
-    "Consumer Cyclical": "XLY",
-    "Communication Services": "XLC",
-    "Industrials": "XLI",
-    "Financial Services": "XLF",
-    "Energy": "XLE",
-    "Basic Materials": "XLB",
-    "Real Estate": "XLRE",
-}
+# Session 196: Removed dead SECTOR_ETF mapping
+# This dict was never used. Sector rotation detection uses sector_ranking table
+# (computed from individual stock scores), not ETF price data.
+# The 11 sector ETFs (XLK, XLF, XLV, etc.) were removed in Session 196
+# after analysis confirmed zero algorithm usage.
 
 
 class SectorRotationDetector:

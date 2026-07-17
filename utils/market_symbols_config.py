@@ -21,7 +21,8 @@ class MarketSymbolsConfig:
     """Manage market symbol configurations from database or defaults."""
 
     # Hardcoded defaults - used only if config not found in database
-    DEFAULT_ETF_SYMBOLS = ["SPY", "QQQ", "IWM", "DIA", "EEM", "EFA"]
+    # Session 196: Removed DIA (redundant with SPY), kept only essential index trackers
+    DEFAULT_ETF_SYMBOLS = ["SPY", "QQQ", "IWM", "EEM", "EFA"]
     DEFAULT_INDEX_SYMBOLS = ["^GSPC", "^IXIC", "^NYA", "^RUT"]
     DEFAULT_INDEX_NAMES = {
         "^GSPC": "S&P 500",

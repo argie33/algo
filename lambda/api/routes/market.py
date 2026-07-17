@@ -977,7 +977,8 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
     When data is insufficient (no price history or < 2 valid symbols), returns response
     with data_unavailable marker indicating reason for unavailable data.
     """
-    symbols = ["^GSPC", "^IXIC", "SPY", "QQQ", "IVV", "TLT", "GLD"]
+    # Session 196: Removed IVV (redundant S&P 500 tracker with perfect correlation to SPY)
+    symbols = ["^GSPC", "^IXIC", "SPY", "QQQ", "TLT", "GLD"]
 
     cur.execute("SAVEPOINT correlation_matrix")
     cur.execute("SET LOCAL statement_timeout = '12s'")  # Query on 252 days of data

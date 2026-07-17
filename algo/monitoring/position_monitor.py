@@ -865,21 +865,9 @@ class PositionMonitor:
 
     def _check_sector_health(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> str:
         """Is the symbol's sector currently weakening?"""
-        # Skip sector checks for ETFs/indices
-        if symbol in (
-            "SPY",
-            "QQQ",
-            "IWM",
-            "DIA",
-            "XLK",
-            "XLE",
-            "XLV",
-            "XLF",
-            "XLI",
-            "XLY",
-            "XLRE",
-            "XLC",
-        ):
+        # Skip sector checks for index/macro ETFs (Session 196: removed unused sector ETFs)
+        # Only kept SPY, QQQ, IWM for critical market factors; GLD, TLT for macro
+        if symbol in ("SPY", "QQQ", "IWM", "GLD", "TLT", "^GSPC", "^IXIC", "^DJI"):
             return "neutral"
 
         cur.execute(
