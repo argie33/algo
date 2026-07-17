@@ -206,6 +206,12 @@ variable "ecs_cluster_arn" {
   default     = ""
 }
 
+variable "cluster_name" {
+  description = "Name of ECS cluster (needed by auto-kill Lambda)"
+  type        = string
+  default     = "algo-cluster"
+}
+
 variable "alert_email_to" {
   description = "Email address for SNS alert subscriptions"
   type        = string

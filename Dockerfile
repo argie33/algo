@@ -43,6 +43,9 @@ COPY config/ ./config/
 COPY monitoring/ ./monitoring/
 COPY algo/ ./algo/
 COPY migrations/ ./migrations/
+COPY healthcheck.sh /healthcheck.sh
+
+RUN chmod +x /healthcheck.sh
 
 RUN useradd -r -u 1001 -g root appuser && chown -R appuser:root /app
 USER appuser

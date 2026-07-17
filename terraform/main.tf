@@ -458,6 +458,7 @@ module "monitoring" {
   # Loader monitoring (F-04: CloudWatch alarms for 28+ supporting loaders)
   ecs_log_group_name  = module.pipeline.ecs_log_group_name
   ecs_cluster_arn     = module.compute.ecs_cluster_arn
+  cluster_name        = "algo-cluster"  # Session 199: Used by auto-kill Lambda
   alert_email_to      = var.alert_email_to
   alert_email_address = var.alert_email_address
 

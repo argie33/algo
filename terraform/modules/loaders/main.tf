@@ -775,17 +775,16 @@ resource "aws_ecs_task_definition" "loader" {
         ) : []
       )
 
-      # FIXED Issue #14 & Session 101: Health check to detect stalled/zombie loaders
-      # ECS will mark task as unhealthy if loader doesn't report within timeout period
-      # CRITICAL FIX (Session 101): Increase startPeriod from 60s to 120s
-      # Loaders need time to: connect to DB, load config, initialize fetchers
-      # If initialization fails, we want quick retry (not blocking for 60+ seconds)
+      # Session 199: Enhanced health check - validates loader is responsive, not just running
+      # Checks: (1) Python process exists, (2) health check file is fresh (< 60 seconds old)
+      # If file is stale → loader is stuck → marked UNHEALTHY
+      # ECS marks UNHEALTHY after 2 failed checks (60s total after grace period)
       healthCheck = {
-        command     = ["CMD-SHELL", "ps aux | grep -q '[p]ython.*${each.key}' || exit 1"]
+        command     = ["/healthcheck.sh"]
         interval    = 30  # Check every 30 seconds
-        timeout     = 5   # Timeout for health check command
+        timeout     = 5   # Timeout for health check script
         retries     = 2   # Mark unhealthy after 2 failed checks (60s total after grace period)
-        startPeriod = 120 # Grace period before first health check (was 60s, increased to 120s)
+        startPeriod = 120 # Grace period before first health check (loaders need 10-20s startup)
       }
     }
   ])
