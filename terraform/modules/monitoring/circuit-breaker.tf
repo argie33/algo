@@ -141,6 +141,13 @@ resource "aws_iam_role_policy" "circuit_breaker_policy" {
           "ec2:DeleteNetworkInterface",
         ]
         Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sns:Publish"
+        ]
+        Resource = aws_sns_topic.circuit_breaker_alerts.arn
       }
     ]
   })
@@ -180,8 +187,9 @@ resource "aws_lambda_function" "circuit_breaker" {
 
   environment {
     variables = {
-      ENVIRONMENT = var.environment
-      LOG_LEVEL   = "INFO"
+      ENVIRONMENT          = var.environment
+      SNS_ALERT_TOPIC_ARN  = aws_sns_topic.circuit_breaker_alerts.arn
+      LOG_LEVEL            = "INFO"
     }
   }
 

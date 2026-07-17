@@ -35,6 +35,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from utils.data_queries import get_open_portfolio_totals  # noqa: E402
 
 dynamodb = boto3.resource("dynamodb")
+sns_client = boto3.client("sns")
+
+SNS_ALERT_TOPIC_ARN = os.environ.get("SNS_ALERT_TOPIC_ARN", "")
 
 
 def get_db_credentials():
@@ -238,6 +241,51 @@ def _set_halt(table, halt: bool, reason: str, check_time: str) -> None:
         logger.warning(f"[CIRCUIT_BREAKER] DynamoDB cache update failed (RDS succeeded): {e}")
 
 
+def _send_alert(action: str, reason: str, variance: float | None = None, threshold: float | None = None) -> None:
+    """Send SNS alert for circuit breaker event."""
+    if not SNS_ALERT_TOPIC_ARN:
+        logger.warning("SNS_ALERT_TOPIC_ARN not configured - skipping email alert")
+        return
+
+    try:
+        alert_type = "🚨 CRITICAL" if action == "HALT" else "✅ NORMAL"
+        subject = f"[Portfolio {action}] Circuit Breaker Alert"
+
+        if action == "HALT":
+            body = f"""Portfolio Circuit Breaker TRIGGERED
+
+Action: TRADING HALTED
+Reason: {reason}
+Check Time: {datetime.now(timezone.utc).isoformat()}
+
+Portfolio Variance: {variance:.1%} (Threshold: {threshold:.1%})
+
+All trading activity has been suspended to protect the portfolio.
+
+To resume trading, manually clear the halt flag via AWS Console or Terraform.
+Contact the team for root cause analysis before resuming."""
+        else:
+            body = f"""Portfolio Circuit Breaker RESET
+
+Action: TRADING RESUMED
+Reason: {reason}
+Check Time: {datetime.now(timezone.utc).isoformat()}
+
+Portfolio Variance: {variance:.1%} (Threshold: {threshold:.1%})
+
+Portfolio variance returned to safe levels. Trading has resumed normal operations.
+Monitor continuously for any abnormalities."""
+
+        sns_client.publish(
+            TopicArn=SNS_ALERT_TOPIC_ARN,
+            Subject=subject,
+            Message=body,
+        )
+        logger.info(f"Sent SNS alert: {action}")
+    except Exception as e:
+        logger.error(f"Failed to send SNS alert: {e}")
+
+
 def lambda_handler(event, context):
     """Circuit breaker trigger - halt trading if variance too high."""
     check_time = event.get("check_time", "unscheduled")
@@ -299,13 +347,10 @@ def lambda_handler(event, context):
 
         if variance > threshold:
             logger.critical(f"CIRCUIT BREAKER TRIGGERED: variance {variance:.1%} exceeds {threshold:.1%}")
+            reason = f"Portfolio variance {variance:.1%} exceeds {threshold:.1%}"
             try:
-                _set_halt(
-                    table,
-                    True,
-                    f"Portfolio variance {variance:.1%} exceeds {threshold:.1%}",
-                    check_time,
-                )
+                _set_halt(table, True, reason, check_time)
+                _send_alert("HALT", reason, variance, threshold)
             except (RuntimeError, Exception) as halt_err:
                 logger.critical(f"CRITICAL: Failed to set halt flag on threshold breach: {halt_err}")
                 raise
@@ -314,20 +359,17 @@ def lambda_handler(event, context):
                 "body": json.dumps(
                     {
                         "action": "HALT",
-                        "reason": f"Portfolio variance {variance:.1%} exceeds {threshold:.1%}",
+                        "reason": reason,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 ),
             }
         else:
             logger.info(f"Circuit breaker OK: variance {variance:.1%} < threshold {threshold:.1%}")
+            reason = f"Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}"
             try:
-                _set_halt(
-                    table,
-                    False,
-                    f"Circuit breaker reset: variance {variance:.1%} < {threshold:.1%}",
-                    check_time,
-                )
+                _set_halt(table, False, reason, check_time)
+                _send_alert("CONTINUE", reason, variance, threshold)
             except (RuntimeError, Exception) as halt_err:
                 logger.critical(f"CRITICAL: Failed to reset halt flag: {halt_err}")
                 raise

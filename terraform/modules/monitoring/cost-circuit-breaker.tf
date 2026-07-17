@@ -85,9 +85,9 @@ resource "aws_iam_role_policy" "cost_circuit_breaker_ecs" {
   })
 }
 
-# SES email (send cost alerts)
-resource "aws_iam_role_policy" "cost_circuit_breaker_ses" {
-  name = "${var.project_name}-cost-circuit-breaker-ses-${var.environment}"
+# SNS email (send cost alerts)
+resource "aws_iam_role_policy" "cost_circuit_breaker_sns" {
+  name = "${var.project_name}-cost-circuit-breaker-sns-${var.environment}"
   role = aws_iam_role.cost_circuit_breaker.id
   policy = jsonencode({
     Version = "2012-10-17"
@@ -95,9 +95,9 @@ resource "aws_iam_role_policy" "cost_circuit_breaker_ses" {
       {
         Effect = "Allow"
         Action = [
-          "ses:SendEmail",
+          "sns:Publish",
         ]
-        Resource = "*"
+        Resource = aws_sns_topic.cost_circuit_breaker_alerts.arn
       }
     ]
   })
@@ -156,6 +156,7 @@ resource "aws_lambda_function" "cost_circuit_breaker" {
       ALERT_EMAIL_FROM         = var.alert_email_address
       DAILY_COST_THRESHOLD_USD = var.cost_threshold_daily_usd
       ECS_CLUSTER_NAME         = "${var.project_name}-${var.environment}"
+      SNS_ALERT_TOPIC_ARN      = aws_sns_topic.cost_circuit_breaker_alerts.arn
       LOG_LEVEL                = "INFO"
     }
   }
@@ -164,7 +165,7 @@ resource "aws_lambda_function" "cost_circuit_breaker" {
     aws_iam_role_policy.cost_circuit_breaker_cost_explorer,
     aws_iam_role_policy.cost_circuit_breaker_scheduler,
     aws_iam_role_policy.cost_circuit_breaker_ecs,
-    aws_iam_role_policy.cost_circuit_breaker_ses,
+    aws_iam_role_policy.cost_circuit_breaker_sns,
     aws_iam_role_policy.cost_circuit_breaker_cloudwatch,
     aws_cloudwatch_log_group.cost_circuit_breaker,
   ]
