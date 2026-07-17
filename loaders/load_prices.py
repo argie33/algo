@@ -2467,7 +2467,7 @@ def main() -> int:
         # here too (harmless no-op on an already-clean connection) so setting autocommit can
         # never fail this way regardless of what state the pool handed back.
         _lock_conn.rollback()
-        _lock_conn.autocommit = True  # type: ignore[attr-defined]
+        _lock_conn.autocommit = True
         with _lock_conn.cursor() as _cur:
             _cur.execute(
                 """
