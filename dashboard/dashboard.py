@@ -80,7 +80,6 @@ _has_aws_config = _os_auto.environ.get("DASHBOARD_API_URL") is not None
 if _temp_args.local or (_is_dev_server_available() and not _has_aws_config):
     _os_auto.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
     _os_auto.environ["LOCAL_MODE"] = "true"
-    print("[DASHBOARD_STARTUP] LOCAL MODE DETECTED/ENABLED - Using localhost:3001", flush=True)
 
 try:
     import msvcrt

@@ -452,6 +452,12 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
                 (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'sector_ranking'),
                 EXTRACT(EPOCH FROM (NOW() - MAX(date))) / 86400.0
             FROM sector_ranking
+            UNION ALL
+            SELECT
+                'algo_metrics_daily',
+                (SELECT n_live_tup FROM pg_stat_user_tables WHERE relname = 'algo_metrics_daily'),
+                EXTRACT(EPOCH FROM (NOW() - MAX(report_date))) / 86400.0
+            FROM algo_metrics_daily
         """
         rows = execute_with_timeout(cur, query, timeout_sec=15, max_attempts=1)
         rows = [safe_json_serialize(dict(row)) for row in rows]
