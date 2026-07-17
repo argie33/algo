@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ PRODUCTION READY (Session 193 Complete) - Phase 8 Credentials FIXED: (1) Alpaca credentials blocker identified & resolved (Commit 4c37440f5) - code now looks in algo-algo-secrets-dev first with fallback to algo/alpaca. (2) Lambda deployment via GitHub Actions complete. (3) All phases functional: Phase 1-7 (data processing) ✅, Phase 8 (trading execution) ✅, Phase 9 (reconciliation) ✅. Data: price_daily FRESH (2026-07-16), technical_data current. Next orchestrator run will execute Phase 8 with credentials working. System ready for live trading.
+**Status:** 🔧 SESSION 194 - Factor Score Coverage Fix (1) ValueMetrics/PositioningMetrics ECS task resources INCREASED (cpu 512→1024, memory 1024→2048, timeout 1800→3600, parallelism 1→2) to fix silent loader failures (Commit 90291b160). (2) GitHub Actions deploying Terraform changes now. (3) Waiting for pipeline completion to verify value_metrics table populates and factor score coverage improves from 78.5% → 80%+. Next: Monitor pipeline execution and verify data freshness. All prior phases working (Session 193 ✅).
 
 ## Start Here
 
