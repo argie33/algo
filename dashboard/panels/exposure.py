@@ -74,7 +74,7 @@ _tier_formatter = TierFormatter()
 
 @register_panel(
     "exp",
-    endpoint_deps=["exp"],
+    endpoint_deps=["exp_factors"],
     optional=True,
     description="Exposure",
 )
