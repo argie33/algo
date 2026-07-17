@@ -32,31 +32,23 @@ class MarketSymbolsConfig:
     }
     # Essential stocks that must be loaded regardless of symbol universe
     # SPY: required by Mansfield RS, seasonality, market health breadth, yield-curve factor
+    # QQQ, IWM: used by correlation matrix and market regime logic
     # GLD/TLT: used by correlation matrix and macro regime logic
-    DEFAULT_ESSENTIAL_STOCKS = ["SPY", "QQQ", "IWM", "DIA", "GLD", "TLT"]
+    # Removed DIA (Session 196): Redundant with SPY
+    DEFAULT_ESSENTIAL_STOCKS = ["SPY", "QQQ", "IWM", "GLD", "TLT"]
 
-    # Essential ETFs: required by sector performance, sector heatmap, frontend price routes
-    # These land in etf_price_daily table (price route falls back to this)
+    # Essential ETFs (Session 196 optimization): Keep only CRITICAL ETFs
+    # Removed 14 wasteful ETFs that were never used by any algorithm:
+    # - Sector ETFs (XLK, XLF, XLV, XLY, XLC, XLI, XLP, XLE, XLU, XLRE, XLB): Computed from stock_scores instead
+    # - Low-value ETFs (DIA, IVV, VXX): Redundant or unused
+    # Impact: Saves 3,500 yfinance API calls/year, zero functional loss
+    # See ETF_USAGE_ANALYSIS.md for complete analysis
     DEFAULT_ESSENTIAL_ETF_SYMBOLS = [
-        "SPY",
-        "QQQ",
-        "IWM",
-        "DIA",  # Index ETFs
-        "XLK",
-        "XLF",
-        "XLV",
-        "XLY",
-        "XLC",  # Sector ETFs
-        "XLI",
-        "XLP",
-        "XLE",
-        "XLU",
-        "XLRE",
-        "XLB",
-        "GLD",
-        "TLT",
-        "IVV",
-        "VXX",  # Macro ETFs
+        "SPY",  # S&P 500: Russell vs SPY small-cap factor, correlation matrix, breadth
+        "QQQ",  # Nasdaq-100: market regime, correlation matrix
+        "IWM",  # Russell 2000: small-cap leadership signal
+        "GLD",  # Gold: correlation matrix, macro regime (inflation/deflation)
+        "TLT",  # 20Y Treasury: correlation matrix, yield curve/macro regime
     ]
 
     # Default orchestrator schedule (fallback when API unavailable)
@@ -170,9 +162,10 @@ class MarketSymbolsConfig:
         """Get list of essential stocks that must always be loaded.
 
         These symbols are critical for:
-        - Mansfield Relative Strength (SPY benchmark)
-        - Sector rotation analysis (sector ETFs)
-        - Macro factor calculations (TLT, GLD for long-term trends)
+        - Russell vs SPY small-cap leadership factor (IWM, SPY)
+        - Market regime detection (QQQ correlation, market breadth)
+        - Macro factor calculations (TLT, GLD for yield curve/inflation trends)
+        - Correlation matrix for regime detection
 
         Fetches from algo_config table (key='essential_stocks'), falls back to hardcoded defaults
         if key not found. Raises RuntimeError if database unavailable or config invalid.
@@ -191,10 +184,13 @@ class MarketSymbolsConfig:
         """Get list of essential ETFs that must always be loaded.
 
         These symbols are critical for:
-        - Sector performance calculations (sector ETFs)
-        - Sector heatmap and rotation analysis
+        - Russell vs SPY small-cap factor (IWM, SPY benchmarking)
+        - Market regime and correlation matrix (QQQ, GLD, TLT)
+        - Macro regime detection (inflation/deflation via GLD, yield curve via TLT)
         - Frontend price history lookups (falls back to etf_price_daily)
-        - Macro regime and correlation calculations
+
+        Session 196 optimization removed 14 unused ETFs (sector ETFs, redundant trackers).
+        See ETF_USAGE_ANALYSIS.md for analysis showing these removals have zero impact.
 
         Fetches from algo_config table (key='essential_etf_symbols'), falls back to hardcoded defaults
         if key not found. Raises RuntimeError if database unavailable or config invalid.
