@@ -38,12 +38,12 @@ api_cors_allowed_origins = []  # Computed by locals to include localhost for dev
 # Afternoon (1:00 PM ET): Mid-day rebalance [DISABLED for testing]
 # Pre-close (3:00 PM ET): Before market close [DISABLED for testing]
 # Evening (5:30 PM ET): After close - signal prep for next day [ENABLED]
-algo_schedule_enabled         = true                        # Enable 5:30 PM evening run (after loaders, for next day prep)
+algo_schedule_enabled         = false                       # DISABLED: personal use, run manually only
 algo_schedule_expression      = "cron(30 17 ? * MON-FRI *)" # 5:30 PM ET (signal prep for next trading day)
 enable_premarket_orchestrator = false                       # Disabled: not during market hours
-enable_morning_orchestrator   = true                        # PRIMARY: 9:30 AM ET market open, primary execution
-enable_afternoon_orchestrator = false                       # DISABLED for cost optimization: 1:00 PM mid-day rebalance removed (9:30 AM + 5:30 PM sufficient)
-enable_preclose_orchestrator  = false                       # DISABLED: 3:00 PM too close to 4 PM close, insufficient time for trade execution
+enable_morning_orchestrator   = false                       # DISABLED: personal use, run manually only
+enable_afternoon_orchestrator = false                       # DISABLED
+enable_preclose_orchestrator  = false                       # DISABLED
 cognito_enabled               = true                        # REQUIRED: Protects /api/algo, /api/signals, /api/scores, /api/audit, /api/trades, /api/admin, /api/settings endpoints.
 cognito_test_user_email       = "argeropolos@gmail.com"     # Primary/Admin user — created by Terraform, added to 'admin' group by deployment
 cognito_custom_email_enabled  = false                       # OPTIMIZED: Disabled in dev (Lambda not needed for dev testing). Cost: saves $0.50/month
@@ -58,7 +58,7 @@ dev_mode           = false          # Disable dev mode safety gates - enables no
 db_ssl_mode        = "require"      # PostgreSQL SSL mode (require for production, can be 'disable' for local dev troubleshooting)
 
 # Data Freshness Monitoring (F-02 CRITICAL: Must be enabled for live trading)
-enable_data_freshness_monitoring = true # Monitor loader data freshness and alert if stale before 9:30 AM trading window
+enable_data_freshness_monitoring = false # DISABLED: personal use, run loaders manually when needed
 
 # Orchestrator configuration (moved from GitHub Secrets)
 execution_mode                      = "auto" # Paper trading mode - credentials loaded from algo/alpaca secret, alpaca_paper_trading=true (line 54)
@@ -68,21 +68,15 @@ data_patrol_enabled                 = true
 data_patrol_timeout_ms              = 60000 # FIXED: 30s too short for full data quality scan. Increased to 60s to prevent early timeout during slow DB queries.
 alpaca_paper_trading                = true  # Paper trading enabled (using live keys, but in paper mode via Alpaca account settings)
 api_lambda_timeout                  = 40    # Right-sized: Provisioned concurrency keeps Lambda warm; VPC cold-starts eliminated. 40s sufficient for dashboard API responses (typical 500-2000ms). Was 120s from over-conservative troubleshooting.
-api_lambda_reserved_concurrency     = 50    # Increased for dashboard + loader concurrent requests. Reserved concurrency alone (without provisioned) keeps Lambda warm for most requests.
-api_lambda_provisioned_concurrency  = 5     # RE-ENABLED 2026-07-13 (was disabled Session 114 for deploy contention that has
-                                             # since resolved -- "Deploy All Infrastructure" runs have succeeded consistently
-                                             # for the last hour+). Confirmed live via API Gateway access logs: dashboard
-                                             # startup fires ~26 concurrent fetcher requests from a single client in the same
-                                             # second; with provisioned=0 every one of those is a simultaneous VPC cold start,
-                                             # measured at a 46% 503 rate (72/157 requests) in one 15-min window. Restoring to
-                                             # 5 keeps that many instances warm so a burst doesn't fan out into N cold starts.
+api_lambda_reserved_concurrency     = 10    # Minimal: personal use only, reduced from 50
+api_lambda_provisioned_concurrency  = 0     # DISABLED: personal use, no need to keep warm 24/7
 algo_lambda_timeout                 = 900  # AWS Lambda max timeout is 900s (15 min). ECS runs async so Lambda doesn't wait. 900s is sufficient since Lambda only invokes the task, doesn't wait for completion.
 algo_lambda_ephemeral_storage       = 512   # OPTIMIZED: reduced from 2048 (orchestrator doesn't write large temp files); saves $2-5/month
 algo_lambda_provisioned_concurrency = 0     # Left disabled 2026-07-13 (unlike api_lambda above): this Lambda only invokes
                                              # the orchestrator ECS task and returns, isn't hit by concurrent dashboard
                                              # fetcher bursts, and no cold-start-driven errors observed for it. Revisit if
                                              # orchestrator-trigger latency/errors show up.
-algo_lambda_reserved_concurrency    = 50    # Increased to handle concurrent orchestrator runs + manual triggers. Prevents throttling (TooManyRequestsException).
+algo_lambda_reserved_concurrency    = 1     # Minimal: disabled orchestrator schedules, only manual triggers
 # Provisioned concurrency for API only (~$12/month) worth the 502 error fix.
 
 # RDS password: generated by Terraform's random_password.rds_master, stored in state and Secrets Manager
@@ -106,8 +100,8 @@ rds_backup_retention_period = 1
 alpaca_api_base_url = "https://paper-api.alpaca.markets" # Paper trading URL
 
 # Execution Monitor - queries RDS for signals and Alpaca for trades
-enable_execution_monitor          = false # OPTIMIZED: Disabled in dev (paper trading only, low value); cost: $13/month
-enable_execution_monitor_schedule = false # Run every 2 hours during trading hours
+enable_execution_monitor          = false # DISABLED: personal paper trading, no monitor needed
+enable_execution_monitor_schedule = false # DISABLED
 
 # Developer IAM credential rotation - update to trigger key recreation
 developer_key_rotation_date = "2026-05-29"
@@ -132,7 +126,7 @@ developer_key_rotation_date = "2026-05-29"
 #   Outlook/Office365: smtp.office365.com:587
 #   Custom SMTP: Your email provider's SMTP hostname and port
 #
-sns_alerts_enabled  = true                    # Enable SNS topic for infrastructure alerts (Step Functions, RDS, CloudWatch)
+sns_alerts_enabled  = false                   # DISABLED: personal use, no alerts needed
 sns_alert_email     = "argeropolos@gmail.com" # SNS email subscription for infrastructure alerts
 alert_email_address = "argeropolos@gmail.com" # Email for circuit breaker alerts (SNS topic subscription)
 alert_email_to      = "argeropolos@gmail.com" # Email recipients for direct SMTP alerts from orchestrator
