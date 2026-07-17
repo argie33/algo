@@ -438,10 +438,11 @@ locals {
     # Consolidated yfinance readers: All read from yfinance_snapshot, write to different tables
     # Previously 6 separate tasks (value, positioning, company_profile, analyst×2, earnings×2)
     # Now consolidated into 1 loader that reads snapshot once, writes to 6 tables in parallel
-    # FIXED: Parallelism reduced from 4 to 1 to match config.py constraints and prevent yfinance rate limiting
-    # Shared NAT IP across 6 ECS tasks causes cascade failures when parallelism > 1
-    "value_metrics"       = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
-    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+    # FIXED (Session 193): Doubled resources (cpu 512→1024, memory 1024→2048, timeout 1800→3600, parallelism 1→2)
+    # Tasks were failing silently due to insufficient memory/CPU for 4711 stocks processing.
+    # Increased timeout from 30min to 60min to allow yfinance fetch + database writes for all stocks.
+    "value_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+    "positioning_metrics" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
     # Reduced memory from 1024 to 512 (actual peak usage <100MB for parsing metadata)
     "company_profile"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
     "earnings_history"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
