@@ -332,17 +332,16 @@ def fetch_health(c: None) -> dict[str, Any]:
                 logger.error(error_msg)
                 record_data_quality_issue("health", "validation", "missing_role_field", name)
                 return FetcherValidator.build_error_response(error_msg)
-            # Explicit validation: age_hours may be None if table has no recent data
-            # (e.g., loader hasn't run yet, or data not available)
+            # Explicit validation: age_hours required for freshness display
             age_hours = s.get("age_hours")
             if age_hours is None:
-                logger.debug(f"Data freshness missing age_hours for {name} - loader may not have run yet")
+                logger.warning(f"Data freshness missing age_hours for {name} - freshness cannot be displayed")
                 age_days = None
             else:
                 try:
                     age_days = round(float(age_hours) / 24, 1)
                 except (ValueError, TypeError):
-                    logger.debug(f"Invalid age_hours value for {name}: {age_hours} - freshness cannot be calculated")
+                    logger.warning(f"Invalid age_hours value for {name}: {age_hours} - freshness cannot be calculated")
                     age_days = None
 
             # REQUIRED: status field must be present - no fallback to "unknown"
