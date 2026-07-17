@@ -217,6 +217,7 @@ module "loaders" {
   task_execution_role_arn     = module.iam.ecs_task_execution_role_arn
   task_role_arn               = module.iam.ecs_task_role_arn
   private_subnet_ids          = module.vpc.private_subnet_ids
+  public_subnet_ids           = module.vpc.public_subnet_ids
   ecs_tasks_sg_id             = module.vpc.ecs_tasks_security_group_id
   db_secret_arn               = module.database.rds_credentials_secret_arn
   db_host                     = module.database.rds_proxy_address
@@ -389,6 +390,7 @@ module "pipeline" {
   aws_account_id                        = local.aws_account_id
   ecs_cluster_arn                       = module.compute.ecs_cluster_arn
   private_subnet_ids                    = module.vpc.private_subnet_ids
+  public_subnet_ids                     = module.vpc.public_subnet_ids
   ecs_tasks_sg_id                       = module.vpc.ecs_tasks_security_group_id
   task_execution_role_arn               = module.iam.ecs_task_execution_role_arn
   task_role_arn                         = module.iam.ecs_task_role_arn

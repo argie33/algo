@@ -24,7 +24,12 @@ variable "ecs_cluster_arn" {
 }
 
 variable "private_subnet_ids" {
-  description = "Private subnet IDs for Fargate task networking"
+  description = "Private subnet IDs (for reference, RDS access only)"
+  type        = list(string)
+}
+
+variable "public_subnet_ids" {
+  description = "Public subnet IDs for Fargate task networking (no NAT Gateway needed)"
   type        = list(string)
 }
 

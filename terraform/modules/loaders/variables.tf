@@ -30,12 +30,22 @@ variable "vpc_id" {
 }
 
 variable "private_subnet_ids" {
-  description = "List of private subnet IDs for ECS task placement (requires 2+ for Fargate)"
+  description = "List of private subnet IDs (for RDS placement only)"
   type        = list(string)
 
   validation {
     condition     = length(var.private_subnet_ids) >= 2
     error_message = "Must provide at least 2 private subnets for Fargate HA."
+  }
+}
+
+variable "public_subnet_ids" {
+  description = "List of public subnet IDs for ECS task placement (no NAT Gateway needed)"
+  type        = list(string)
+
+  validation {
+    condition     = length(var.public_subnet_ids) >= 2
+    error_message = "Must provide at least 2 public subnets for Fargate HA."
   }
 }
 
