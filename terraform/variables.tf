@@ -177,7 +177,7 @@ variable "rds_max_allocated_storage" {
 variable "rds_backup_retention_period" {
   description = "Backup retention period in days"
   type        = number
-  default     = 30
+  default     = 7 # REDUCED from 30 for dev cost savings ($1.40/month). Production should use 30.
   validation {
     condition     = var.rds_backup_retention_period >= 1 && var.rds_backup_retention_period <= 35
     error_message = "Retention period must be 1-35 days"
@@ -207,7 +207,7 @@ variable "rds_maintenance_window" {
 variable "enable_rds_cloudwatch_logs" {
   description = "Enable CloudWatch logs for RDS"
   type        = bool
-  default     = true
+  default     = false # DISABLED for dev cost savings (~$0.50-1/month). Production should enable for query logging.
 }
 
 variable "enable_rds_alarms" {
@@ -225,13 +225,13 @@ variable "db_deletion_protection" {
 variable "enable_rds_proxy" {
   description = "Enable RDS Proxy for connection pooling - required for production to prevent connection exhaustion"
   type        = bool
-  default     = true
+  default     = false # DISABLED for dev cost savings ($302/month). Re-enable for production if concurrent Lambdas > 20
 }
 
 variable "rds_log_retention_days" {
   description = "RDS log retention in days"
   type        = number
-  default     = 30
+  default     = 7 # REDUCED from 30 for dev cost savings (~$0.30/month). Production should use 30.
 }
 
 variable "rds_multi_az" {
