@@ -90,19 +90,37 @@ MASCOT_COLORS = [
 ]
 LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 
-# Configure logging for stability monitoring - thread-safe on Windows
+# Configure logging - disable all loggers except those we care about
 _log_dir = os.path.expanduser("~/.algo/logs")
 os.makedirs(_log_dir, exist_ok=True)
 _log_file = os.path.join(_log_dir, "dashboard.log")
 
-# Configure root logger to capture all module loggers (dashboard, fetchers, api_data_layer, etc)
+# Clear any existing handlers (from previous imports or basicConfig)
 _root_logger = logging.getLogger()
-_root_logger.setLevel(logging.DEBUG)
-_handler = logging.FileHandler(_log_file, encoding="utf-8")
-_handler.setLevel(logging.DEBUG)
+for _h in _root_logger.handlers[:]:
+    _root_logger.removeHandler(_h)
+
+# Set root to ERROR to suppress noise
+_root_logger.setLevel(logging.ERROR)
+
+# File handler: WARNING and above only
+_handler = logging.handlers.RotatingFileHandler(_log_file, encoding="utf-8", maxBytes=10*1024*1024, backupCount=3)
+_handler.setLevel(logging.WARNING)
 _formatter = logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 _handler.setFormatter(_formatter)
 _root_logger.addHandler(_handler)
+
+# Whitelist important modules at WARNING level
+_important_loggers = [
+    "dashboard",
+    "dashboard.utilities",
+    "dashboard.panels",
+    "dashboard.fetchers_common",
+    "dashboard.api_data_layer",
+    "utils.validation.framework",
+]
+for _name in _important_loggers:
+    logging.getLogger(_name).setLevel(logging.WARNING)
 
 # Module-level logger
 logger = logging.getLogger(__name__)
