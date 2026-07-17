@@ -95,15 +95,17 @@ _log_dir = os.path.expanduser("~/.algo/logs")
 os.makedirs(_log_dir, exist_ok=True)
 _log_file = os.path.join(_log_dir, "dashboard.log")
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-# File handler - captures all DEBUG and above
-_handler = logging.FileHandler(_log_file)
+# Configure root logger to capture all module loggers (dashboard, fetchers, api_data_layer, etc)
+_root_logger = logging.getLogger()
+_root_logger.setLevel(logging.DEBUG)
+_handler = logging.FileHandler(_log_file, encoding="utf-8")
 _handler.setLevel(logging.DEBUG)
 _formatter = logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 _handler.setFormatter(_formatter)
-logger.addHandler(_handler)
+_root_logger.addHandler(_handler)
+
+# Module-level logger
+logger = logging.getLogger(__name__)
 
 
 # Sector aggregation cache (E5 optimization)
