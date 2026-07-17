@@ -1,0 +1,85 @@
+# ============================================================
+# New Account (edgebrookelabs) - Terraform Variables
+# ============================================================
+# Copy this to terraform.tfvars and fill in the new account ID
+
+# Account Configuration
+new_account_id              = "XXXXXXXXXX"  # New account ID (12-digit number)
+new_account_email           = "edgebrookelabs@gmail.com"
+
+# Infrastructure Configuration (same as old account)
+project_name                = "stocks"
+environment                 = "dev"
+aws_region                  = "us-east-1"
+
+# Network Configuration
+vpc_cidr                    = "10.0.0.0/16"
+public_subnet_cidrs         = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs        = ["10.0.10.0/24", "10.0.11.0/24"]
+availability_zones          = ["us-east-1a", "us-east-1b"]
+
+# RDS Configuration (restored from snapshot)
+rds_username                = "stocks"
+rds_password                = ""  # Auto-generated, will be stored in Secrets Manager
+rds_db_name                 = "stocks"
+rds_instance_class          = "db.t4g.small"
+rds_allocated_storage       = 61
+rds_max_allocated_storage   = 100
+rds_backup_retention_period = 7
+rds_multi_az                = false
+db_deletion_protection      = true
+
+# ECS Configuration
+ecs_cluster_name            = "algo-cluster"
+ecs_capacity_providers      = ["FARGATE", "FARGATE_SPOT"]
+ecs_default_capacity_provider_strategy = [
+  { capacity_provider = "FARGATE_SPOT", weight = 4 },
+  { capacity_provider = "FARGATE", weight = 1 }
+]
+
+# Lambda Configuration
+api_lambda_memory           = 512
+api_lambda_timeout          = 120
+api_lambda_reserved_concurrency = 50
+api_lambda_provisioned_concurrency = 5
+algo_lambda_memory          = 512
+algo_lambda_timeout         = 300
+algo_lambda_reserved_concurrency = 50
+
+# Cost Optimization
+enable_s3_versioning        = true
+enable_vpc_endpoints        = false
+enable_rds_proxy            = false
+enable_rds_alarms           = true
+enable_resource_alarms      = false
+enable_performance_alarms   = false
+
+# Bastion (disabled to save costs in dev)
+bastion_enabled             = false
+
+# Cognito (optional)
+cognito_enabled             = false
+
+# Monitoring & Alerts
+sns_alerts_enabled          = true
+sns_alert_email             = ""  # Set to your alert email
+enable_data_quality_monitors = false
+
+# Trading Configuration
+alpaca_paper_trading        = true
+alpaca_api_base_url         = "https://paper-api.alpaca.markets"
+
+# Orchestrator
+execution_mode              = "auto"
+orchestrator_dry_run        = false
+enable_morning_orchestrator = true
+
+# Governance
+enforce_iac_only            = true
+require_terraform_tag       = true
+
+# Security Monitoring
+cloudtrail_enabled          = true
+guardduty_enabled           = false
+aws_config_enabled          = false
+vpc_flow_logs_enabled       = false
