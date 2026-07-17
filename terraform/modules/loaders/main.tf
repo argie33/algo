@@ -325,8 +325,45 @@ locals {
     "stock_prices_daily"    = "load_prices.py"
     "technical_data_daily"  = "load_technical_indicators.py"
     "trend_template_data"   = "load_trend_analysis.py"
-    "market_exposure_daily" = "load_market_exposure_daily.py"
     "yfinance_snapshot"     = "load_yfinance_snapshot.py"
+    # Consolidated economic data: FRED (T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA) + DXY
+    # Feeds into market_exposure calculations for regime detection
+    # CONSOLIDATION: Merged load_fred_economic_data.py + load_dxy_index.py to eliminate
+    # race condition (both were writing economic_data table with different schedules)
+    "economic_data" = "load_economic_data.py"
+
+    # Consolidated financial statements loader (replaces 8 separate loaders)
+    # ACTIVATED (2026-07-12): Loader now supports LOADER_STATEMENT_TYPE="all"
+    # to load all 8 statement/period combinations in sequence within single container.
+    # Single task replaces 8 parallel branches, saving $8-15/mo + 40-80s per execution
+    "financials_all" = "load_financial_statements.py"
+
+    # ============================================================
+    # PHASE 1-4 OPTIMIZATION: Reduce yfinance dependence (Session 204+)
+    # ============================================================
+    # Phase 1: SEC-derived valuations (replaces ~5,300 yfinance quoteSummary calls/day)
+    "sec_valuations" = "load_sec_valuations.py"
+
+    # Phase 2: Consolidated market status (merges 3 separate loaders → 1 atomic operation)
+    # Replaces: market_health_daily + market_exposure_daily + market_sentiment
+    "market_status_daily" = "load_market_status_daily.py"
+
+    # Phase 3: Consolidated value/quality/growth metrics (DEPENDS ON Phase 1)
+    # Replaces: value_metrics + quality_metrics + growth_metrics (old loaders)
+    # Uses: SEC valuations (Phase 1) + yfinance snapshot (enrichment)
+    "value_quality_growth_metrics" = "load_value_quality_growth_metrics.py"
+
+    # Phase 4: Consolidated sector/industry loader (unified OptimalLoader framework)
+    # Replaces: sector_performance + sector_ranking + industry_ranking
+    "sector_industry_daily" = "load_sector_industry_daily.py"
+
+    # ============================================================
+    # LEGACY: Old loaders (marked for retirement after validation)
+    # These will be removed once Phase 1-4 validation is complete (2 weeks)
+    # ============================================================
+    "market_health_daily" = "load_market_health_daily.py"
+    "market_exposure_daily" = "load_market_exposure_daily.py"
+    "market_sentiment"    = "load_market_sentiment.py"
     # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
     # Computed metrics from SEC financials (DEPENDS ON: financials_annual_income, financials_annual_balance)
     # Reads annual_income_statement & annual_balance_sheet tables populated by load_financial_statements.py
@@ -346,25 +383,11 @@ locals {
     "stock_scores"      = "load_stock_scores.py"
 
     "market_constituents" = "load_market_constituents.py"
-    "market_health_daily" = "load_market_health_daily.py"
-    "market_sentiment"    = "load_market_sentiment.py"
     # Consolidated market rankings loader (replaces 2 separate loaders)
     "sector_ranking"     = "load_sector_rankings.py"
     "industry_ranking"   = "load_sector_rankings.py"
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
     "buy_sell_daily"     = "load_buy_sell_daily.py"
-
-    # Consolidated economic data: FRED (T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA) + DXY
-    # Feeds into market_exposure calculations for regime detection
-    # CONSOLIDATION: Merged load_fred_economic_data.py + load_dxy_index.py to eliminate
-    # race condition (both were writing economic_data table with different schedules)
-    "economic_data" = "load_economic_data.py"
-
-    # Consolidated financial statements loader (replaces 8 separate loaders)
-    # ACTIVATED (2026-07-12): Loader now supports LOADER_STATEMENT_TYPE="all"
-    # to load all 8 statement/period combinations in sequence within single container.
-    # Single task replaces 8 parallel branches, saving $8-15/mo + 40-80s per execution
-    "financials_all" = "load_financial_statements.py"
 
     # Sector performance loader (optional, not in critical path)
     "sector_performance" = "load_sector_performance.py"
@@ -484,6 +507,35 @@ locals {
     # Consolidated: All 8 statement types in single task (runs sequentially)
     "financials_all" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
+    # ============================================================
+    # PHASE 1-4 OPTIMIZATION: Reduce yfinance dependence (Session 204+)
+    # ============================================================
+    # Phase 1: SEC-derived valuations (replaces ~5,300 yfinance quoteSummary calls/day)
+    # Computes PE/PB/PS/PEG/FCF from SEC audited data + prices
+    # Lightweight: SEC data + price lookups + arithmetic (actual ~50MB)
+    "sec_valuations" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+
+    # Phase 2: Consolidated market status (merges 3 separate loaders → 1 atomic operation)
+    # Replaces: market_health_daily (128/256) + market_exposure_daily (256/512) + market_sentiment (256/512)
+    # Combined workload: VIX + breadth + yields + regime detection + fear/greed
+    # Single pass to reduce API calls and produce consistent market view
+    # Timeout: sum of old loaders (1200 + 120 + 60) + 20% headroom = ~1600s
+    "market_status_daily" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+
+    # Phase 3: Consolidated value/quality/growth metrics (DEPENDS ON Phase 1)
+    # Replaces: value_metrics (1024/2048) + quality_metrics (512/1024) + growth_metrics (512/1024)
+    # Combined workload: SEC valuations + financial ratios + growth computations (actual ~200MB)
+    # Uses optimized sec_valuations (Phase 1) instead of yfinance quoteSummary
+    # Timeout: value_metrics was 3600s (heaviest), add 20% headroom
+    "value_quality_growth_metrics" = { cpu = 1024, memory = 2048, timeout = 4500, parallelism = 2 }
+
+    # Phase 4: Consolidated sector/industry loader (unified OptimalLoader framework)
+    # Replaces: sector_performance (512/1024) + sector_ranking (512/1024) + industry_ranking (512/1024)
+    # Combined workload: daily returns + ranking aggregation + momentum calculations
+    # Single transaction for atomic updates to all 3 tables (actual ~100MB)
+    # Timeout: sum of old loaders (900 + 900 + 900) reduced by consolidation efficiency = 1800s
+    "sector_industry_daily" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+
     # Cost-optimized: Reduced from 1024 to 512 (sector performance ranking, <50MB actual)
     "sector_performance" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
   }
@@ -498,6 +550,14 @@ locals {
     "yfinance_snapshot",
     "economic_data",  # Consolidated (FRED + DXY)
     "financials_all", # Consolidated financial statements (replaces 8 individual tasks)
+
+    # Phase 1-4 Optimization: New consolidated loaders (replacing old separate loaders)
+    "sec_valuations",                  # Phase 1: Replaces ~5,300 yfinance quoteSummary calls/day
+    "market_status_daily",             # Phase 2: Consolidates market_health + exposure + sentiment
+    "value_quality_growth_metrics",    # Phase 3: Consolidates value + quality + growth (depends on Phase 1)
+    "sector_industry_daily",           # Phase 4: Consolidates sector + industry loaders
+
+    # Legacy old loaders (marked for retirement after 2-week validation)
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
