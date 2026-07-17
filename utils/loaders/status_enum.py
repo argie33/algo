@@ -68,12 +68,12 @@ class LoaderStatus(str, Enum):
         """
         try:
             return cls(value)
-        except ValueError:
+        except ValueError as e:
             valid_values = [s.value for s in cls]
             raise ValueError(
                 f"[LOADER STATUS] Invalid status '{value}'. "
                 f"Must be one of: {', '.join(valid_values)}"
-            )
+            ) from e
 
     @classmethod
     def all_strings(cls) -> list[str]:
