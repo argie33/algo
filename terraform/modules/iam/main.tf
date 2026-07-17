@@ -366,6 +366,18 @@ data "aws_iam_policy_document" "github_actions_observability" {
     ]
     resources = ["*"]
   }
+
+  statement {
+    sid    = "CostExplorer"
+    effect = "Allow"
+    actions = [
+      "ce:GetCostAndUsage",
+      "ce:GetCostForecast",
+      "ce:DescribeCostCategoryDefinition",
+      "ce:ListCostAllocationTags"
+    ]
+    resources = ["*"]
+  }
 }
 
 # ============================================================

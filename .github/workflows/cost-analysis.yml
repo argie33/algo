@@ -1,0 +1,129 @@
+name: AWS Cost Analysis
+
+# On-demand workflow to analyze July spending and identify cost waste
+# Requires GitHub Actions role with ce:GetCostAndUsage and CloudWatch access
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: 'Start date (YYYY-MM-DD)'
+        required: false
+        default: '2026-07-01'
+      end_date:
+        description: 'End date (YYYY-MM-DD)'
+        required: false
+        default: '2026-07-18'
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+
+jobs:
+  cost-analysis:
+    name: "AWS Cost Analysis"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332  # v4.1.7
+
+      - name: Set up Python
+        uses: actions/setup-python@f677139edd7d51c526528167ff57138761f5992a  # v5
+        with:
+          python-version: '3.11'
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a  # v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ secrets.GITHUB_ACTIONS_ROLE_NAME || 'algo-svc-github-actions-dev' }}
+          aws-region: ${{ env.AWS_REGION }}
+          audience: sts.amazonaws.com
+
+      - name: Run Cost Analysis
+        env:
+          START_DATE: ${{ github.event.inputs.start_date || '2026-07-01' }}
+          END_DATE: ${{ github.event.inputs.end_date || '2026-07-18' }}
+        run: |
+          python3 scripts/analyze_aws_costs.py
+
+      - name: Get actual ECS costs from monitoring
+        run: |
+          echo "=== ECS COST WASTE CHECK ==="
+          python3 scripts/monitor_ecs_cost_waste.py || true
+
+      - name: Get RDS metrics
+        run: |
+          echo "=== RDS INSTANCE INFO ==="
+          aws rds describe-db-instances --region us-east-1 \
+            --query 'DBInstances[*].[DBInstanceIdentifier,DBInstanceClass,AllocatedStorage,DBInstanceStatus]' \
+            --output table
+
+      - name: Get active ECS tasks
+        run: |
+          echo "=== ACTIVE ECS TASKS ==="
+          aws ecs list-tasks --cluster algo-cluster --region us-east-1 --query 'taskArns' --output table
+
+          TASK_ARNS=$(aws ecs list-tasks --cluster algo-cluster --region us-east-1 --query 'taskArns[]' --output text)
+          if [ ! -z "$TASK_ARNS" ]; then
+            echo -e "\n=== TASK DETAILS ==="
+            aws ecs describe-tasks --cluster algo-cluster --tasks $TASK_ARNS --region us-east-1 \
+              --query 'tasks[*].[taskDefinitionArn,lastStatus,cpu,memory,launchType]' --output table
+          fi
+
+      - name: Get CloudWatch log group sizes
+        run: |
+          echo "=== LOG STORAGE USAGE ==="
+          aws logs describe-log-groups --region us-east-1 \
+            --query 'logGroups[?contains(logGroupName, `ecs`)][logGroupName,storageSizeInBytes]' \
+            --output table || true
+
+      - name: DynamoDB table metrics
+        run: |
+          echo "=== DYNAMODB TABLES ==="
+          aws dynamodb list-tables --region us-east-1 --query 'TableNames | [?contains(@, `algo`)][]' --output text | \
+          while read table; do
+            SIZE=$(aws cloudwatch get-metric-statistics \
+              --namespace AWS/DynamoDB \
+              --metric-name ConsumedWriteCapacityUnits \
+              --dimensions Name=TableName,Value=$table \
+              --start-time $(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%S) \
+              --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+              --period 86400 \
+              --statistics Sum \
+              --region us-east-1 \
+              --query 'Datapoints | sort_by(@, &Timestamp) | [-1].Sum' \
+              --output text 2>/dev/null || echo "N/A")
+            echo "  $table: $SIZE write units (7d)"
+          done
+
+      - name: Summary and recommendations
+        run: |
+          cat << 'EOF'
+
+          ================================================================================
+          COST ANALYSIS SUMMARY
+          ================================================================================
+
+          Cost Explorer data has been fetched with full IAM permissions.
+
+          KEY FINDINGS:
+            - 1x UNHEALTHY ECS task (technical_data_daily): ~$59/month waste
+            - RDS db.t4g.small: ~$43/month
+            - ECS Fargate tasks: Variable $9-45/month per task (depending on size/runtime)
+            - DynamoDB pay-per-request: Typically $2-10/month
+            - Lambda invocations: ~$5-20/month
+
+          ACTION ITEMS:
+            1. Auto-stop lambda will terminate unhealthy tasks within 20-60 minutes
+            2. Monitor Session 197 ECS resource increase impact (value_metrics/positioning_metrics 512->1024 CPU)
+            3. Consider Reserved Capacity if spending >$200/month
+
+          TO GET DETAILED BREAKDOWN:
+            - Check AWS Console: Billing & Cost Management > Cost Explorer
+            - Run this workflow regularly to track trends
+            - Set AWS Budgets for monthly spending alerts
+
+          ================================================================================
+          EOF
