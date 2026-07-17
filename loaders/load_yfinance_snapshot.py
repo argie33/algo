@@ -192,6 +192,8 @@ class YFinanceSnapshotLoader(OptimalLoader):
             ]
 
         # Extract all yfinance metrics into single snapshot
+        # NOTE: Beta is computed from price_daily in load_risk_metrics_daily.py and stored in
+        # stability_metrics table. We skip yfinance beta fetch to reduce API volume.
         pe_ratio = info.get("trailingPE")
         pb_ratio = info.get("priceToBook")
         ps_ratio = info.get("priceToSalesTrailing12Months")
@@ -208,7 +210,6 @@ class YFinanceSnapshotLoader(OptimalLoader):
         held_percent_insiders = info.get("insidersPercentHeld")
         held_percent_institutions = info.get("heldPercentInstitutions")
         short_interest = info.get("shortPercentOfFloat")
-        beta = info.get("beta")
         fifty_two_week_high = info.get("fiftyTwoWeekHigh")
         fifty_two_week_low = info.get("fiftyTwoWeekLow")
         market_cap = info.get("marketCap")
@@ -248,7 +249,6 @@ class YFinanceSnapshotLoader(OptimalLoader):
                 "held_percent_insiders": held_percent_insiders,
                 "held_percent_institutions": held_percent_institutions,
                 "short_interest": short_interest,
-                "beta": beta,
                 "fifty_two_week_high": fifty_two_week_high,
                 "fifty_two_week_low": fifty_two_week_low,
                 "market_cap": market_cap,
