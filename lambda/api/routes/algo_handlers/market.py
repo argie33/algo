@@ -6,7 +6,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import date, datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
 
 import psycopg2
 import psycopg2.errors
@@ -947,7 +947,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         # Build response with market data (not a list response)
         # Contract requires: spy_close, vix_level (required), plus optional market data fields
         vix_level = market_health.get("vix_level")
-        response = {
+        response: dict[str, object] = {
             "statusCode": 200,
             "data": {
                 "spy_close": spy_close,
@@ -974,17 +974,18 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         }
 
         # Add additional market indicators at top level
-        response["data"]["bmom"] = (
+        data = cast(dict[str, Any], response["data"])
+        data["bmom"] = (
             float(market_health.get("breadth_momentum_10d"))
             if market_health.get("breadth_momentum_10d") is not None
             else None
         )
-        response["data"]["ycs"] = (
+        data["ycs"] = (
             float(market_health.get("yield_curve_slope"))
             if market_health.get("yield_curve_slope") is not None
             else None
         )
-        response["data"]["fed"] = market_health.get("fed_rate_environment")
+        data["fed"] = market_health.get("fed_rate_environment")
 
         return json_response(200, response["data"])
     except (

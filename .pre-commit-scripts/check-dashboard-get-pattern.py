@@ -50,9 +50,10 @@ def check_get_patterns_with_defaults(filepath: str) -> list[str]:
     for i, line in enumerate(lines, 1):
         for pattern, description in problem_patterns:
             if re.search(pattern, line):
+                default_val = description.split("(")[1].split(")")[0]
                 violations.append(
                     f"  Line {i}: {description} in .get() call. "
-                    f"Finance paths must fail on missing data, not default to {description.split('(')[1].split(')')[0]}."
+                    f"Finance paths must fail on missing data, not default to {default_val}."
                 )
 
     return violations

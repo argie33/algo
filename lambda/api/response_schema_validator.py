@@ -16,6 +16,6 @@ class SchemaValidator:
     SCHEMAS = ResponseValidator.SCHEMAS
 
     @staticmethod
-    def validate(endpoint: str, data: dict):
+    def validate(endpoint: str, data: dict) -> dict:
         """Deprecated: Use ResponseValidator.validate_schema()."""
         return ResponseValidator.validate_schema(endpoint, data)

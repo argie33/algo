@@ -112,8 +112,14 @@ def check_financial_data_integrity(filepath: Path) -> list[dict[str, Any]]:
                             "file": filepath,
                             "line": line_num,
                             "pattern": "unprotected_calc",
-                            "message": "[CRITICAL] Financial calculation without None protection (could silently calculate 0 with None)",
-                            "fix": "Add explicit None check before any arithmetic: if value is None: raise ValueError(...)",
+                            "message": (
+                                "[CRITICAL] Financial calculation without None "
+                                "protection (could silently calculate 0 with None)"
+                            ),
+                            "fix": (
+                                "Add explicit None check before any arithmetic: "
+                                "if value is None: raise ValueError(...)"
+                            ),
                         }
                     )
 
@@ -147,8 +153,14 @@ def check_financial_data_integrity(filepath: Path) -> list[dict[str, Any]]:
                                     "file": filepath,
                                     "line": line_num,
                                     "pattern": "unmarked_none_return",
-                                    "message": "[CRITICAL] return None in error path without Optional type or data_unavailable marker",
-                                    "fix": "Add '-> Optional[...]' type hint or return {'data_unavailable': True, 'reason': '...'}",
+                                    "message": (
+                                        "[CRITICAL] return None in error path without "
+                                        "Optional type or data_unavailable marker"
+                                    ),
+                                    "fix": (
+                                        "Add '-> Optional[...]' type hint or "
+                                        "return {'data_unavailable': True, 'reason': '...'}"
+                                    ),
                                 }
                             )
 

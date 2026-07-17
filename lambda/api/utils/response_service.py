@@ -8,7 +8,7 @@ All responses follow a consistent format: {statusCode, data, errorType, message,
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, cast
 
 
 def wrap_response(response: Any) -> dict[str, Any]:
@@ -26,7 +26,7 @@ def wrap_response(response: Any) -> dict[str, Any]:
     IMPORTANT: ALL route handlers MUST return dicts (never strings or other types).
     """
     if not isinstance(response, dict):
-        return response
+        return cast(dict[str, Any], response)
 
     # Errors are returned as-is (already include errorType and _error)
     if response.get("errorType"):
@@ -110,7 +110,7 @@ def wrap_response(response: Any) -> dict[str, Any]:
             wrapped["headers"] = response["headers"]
         return wrapped
 
-    return response
+    return cast(dict[str, Any], response)
 
 
 def format_json_value(obj: Any) -> str | float:

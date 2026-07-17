@@ -22,7 +22,8 @@ import sys
 
 # CRITICAL FIX: Windows console encoding (cp1252) cannot display UTF-8.
 # Redirect stdout/stderr to use UTF-8 before any Rich console creation.
-if sys.platform.startswith("win"):
+# BUT: Only do this in production (not during pytest) to avoid breaking pytest's capture
+if sys.platform.startswith("win") and "pytest" not in sys.modules:
     import io
 
     try:

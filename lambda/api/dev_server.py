@@ -176,16 +176,17 @@ if not os.path.isdir(log_dir):
         log_dir = "."
         print(f"Warning: Cannot use {os.environ.get('TEMP', '/tmp')} for logs: {e}", flush=True)
 
-log_file = os.path.join(log_dir, "dev_server.log")
+log_file_path = os.path.join(log_dir, "dev_server.log")
+log_file: str | None = log_file_path
 
 # Verify log file path is writable before configuring logging
 try:
-    os.makedirs(os.path.dirname(log_file) or ".", exist_ok=True)
+    os.makedirs(os.path.dirname(log_file_path) or ".", exist_ok=True)
 except (OSError, PermissionError) as e:
-    print(f"Error: Cannot create log directory for {log_file}: {e}", flush=True)
+    print(f"Error: Cannot create log directory for {log_file_path}: {e}", flush=True)
     log_file = None
 
-log_handlers = [logging.StreamHandler()]
+log_handlers: list[logging.Handler] = [logging.StreamHandler()]
 if log_file:
     try:
         log_handlers.append(logging.FileHandler(log_file, mode="w"))

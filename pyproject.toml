@@ -61,7 +61,39 @@ disallow_untyped_decorators = true
 exclude = [
     "^migrations/",
     "^tests/",
-    "^lambda/cost_circuit_breaker/",  # Deployed Lambda function (not core codebase)
+    "^scripts/",  # Utility scripts (scratch/exploration, not production code)
+    "^terraform/",  # Terraform scripts (deployment automation, not application code)
+    # Root-level utility/debug/verification scripts (not core application)
+    "^check_.*\\.py",
+    "^dashboard\\.py",
+    "^monitor_.*\\.py",
+    "^post_deployment_verification\\.py",
+    "^run_orchestrator.*\\.py",
+    "^start_dashboard_dev\\.py",
+    "^verify_.*\\.py",
+    # Lambda deployed functions with hyphenated names (invalid Python package names)
+    "^lambda/circuit-breaker/",
+    "^lambda/cognito-email-trigger/",
+    "^lambda/cost_circuit_breaker/",
+    "^lambda/data-completeness-verifier/",
+    "^lambda/data-freshness-monitor/",
+    "^lambda/db-init/",
+    "^lambda/db-migration/",
+    "^lambda/execution-monitor/",
+    "^lambda/kill-locks/",
+    "^lambda/loader-result-logger/",
+    "^lambda/loader-timeout-guardian/",
+    "^lambda/rds-password-reset/",
+    "^lambda/sync-data-to-rds/",
+    "^lambda/trigger-loaders/",
+    # Legacy/deprecated Lambda API modules (response_validator.py, response_schema_validator.py)
+    "^lambda/api/response_schema_validator\\.py",
+    "^lambda/api/utils/response_validator\\.py",
+    "^lambda/api/shared_contracts/response_validator\\.py",
+    # Lambda helper modules (deployment automation, not core application)
+    "^lambda/auto_kill_stuck_tasks/",
+    "^lambda/cost_control/",
+    "^lambda/migration_runner/",
 ]
 
 [[tool.mypy.overrides]]

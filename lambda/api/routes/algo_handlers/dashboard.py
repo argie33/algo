@@ -1513,7 +1513,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         if sig is None or sig.get("n") is None or sig.get("n") == 0:
             # No signals available - return empty response instead of error
             logger.info("[DASHBOARD SIGNALS] No active signals found in last 7 days")
-            sig_response = {
+            sig_response: dict[str, Any] = {
                 "n": 0,
                 "total": 0,
                 "date": None,
