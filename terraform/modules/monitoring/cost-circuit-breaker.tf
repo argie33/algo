@@ -4,6 +4,25 @@
 # ============================================================
 
 # ============================================================
+# 0. SNS Topic for Cost Alerts
+# ============================================================
+
+resource "aws_sns_topic" "cost_circuit_breaker_alerts" {
+  name = "${var.project_name}-cost-circuit-breaker-${var.environment}"
+
+  tags = merge(var.common_tags, {
+    Name = "${var.project_name}-cost-circuit-breaker-alerts"
+  })
+}
+
+resource "aws_sns_topic_subscription" "cost_circuit_breaker_email" {
+  count     = var.alert_email_address != "" ? 1 : 0
+  topic_arn = aws_sns_topic.cost_circuit_breaker_alerts.arn
+  protocol  = "email"
+  endpoint  = var.alert_email_address
+}
+
+# ============================================================
 # 1. IAM Role for Cost Circuit Breaker Lambda
 # ============================================================
 

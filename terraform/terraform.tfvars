@@ -48,7 +48,6 @@ aws_config_enabled = false # Disable AWS Config to resolve Terraform state issue
 
 # Database: Minimal, single-AZ, no Proxy
 rds_instance_class = "db.t4g.small"  # 2 vCPU, 2GB, $25-30/month
-rds_multi_az       = false            # Single-AZ (dev, can restart manually if needed)
 dev_mode           = false
 db_ssl_mode        = "require"
 

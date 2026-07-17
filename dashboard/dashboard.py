@@ -642,6 +642,7 @@ def _setup_local_api() -> str:
         sock.close()
         if result != 0:
             # Dev server not running
+            logger.error("[FATAL] Dev server not running on localhost:3001 - dashboard requires it for local mode")
             try:
                 CONSOLE.print("\n[bold red]✗ FATAL: Dev server not running on localhost:3001[/]")
                 CONSOLE.print("[yellow]The dashboard REQUIRES dev_server to be running in another terminal[/]\n")

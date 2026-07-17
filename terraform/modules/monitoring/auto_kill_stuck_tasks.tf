@@ -44,7 +44,7 @@ resource "aws_iam_role_policy" "auto_kill_ecs" {
         Resource = "*"
         Condition = {
           StringEquals = {
-            "ecs:cluster" = var.cluster_arn
+            "ecs:cluster" = var.ecs_cluster_arn
           }
         }
       },
@@ -73,7 +73,7 @@ resource "aws_iam_role_policy" "auto_kill_sns" {
       Action = [
         "sns:Publish"
       ]
-      Resource = var.sns_alert_topic_arn != "" ? var.sns_alert_topic_arn : "*"
+      Resource = var.sns_alerts_topic_arn != "" ? var.sns_alerts_topic_arn : "*"
     }]
   })
 }
@@ -94,7 +94,7 @@ resource "aws_lambda_function" "auto_kill_stuck_tasks" {
   environment {
     variables = {
       CLUSTER_NAME       = var.cluster_name
-      SNS_ALERT_TOPIC    = var.sns_alert_topic_arn
+      SNS_ALERT_TOPIC    = var.sns_alerts_topic_arn
       PROJECT_NAME       = var.project_name
       ENVIRONMENT        = var.environment
       UNHEALTHY_TIMEOUT  = "7200"  # 2 hours in seconds
@@ -163,8 +163,6 @@ resource "aws_scheduler_schedule" "auto_kill_stuck_tasks" {
       reason = "Scheduled cost control check"
     })
   }
-
-  tags = var.common_tags
 }
 
 # IAM role for EventBridge Scheduler to invoke Lambda
