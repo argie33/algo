@@ -514,6 +514,13 @@ resource "aws_ecs_task_definition" "loader" {
 
   family = "${var.project_name}-${each.key}-loader"
 
+  # CRITICAL FIX (Session 196): Force Terraform to detect CPU/memory changes
+  # Terraform was ignoring cpu/memory changes because family name stayed the same.
+  # Incrementing this tag forces a new revision creation.
+  tags = merge(var.common_tags, {
+    force_rebuild_version = "3"
+  })
+
   # Force new task definition version to pick up environment variables (2026-06-04 12:14 UTC)
   container_definitions = jsonencode([
     {
@@ -790,7 +797,8 @@ resource "aws_ecs_task_definition" "loader" {
   execution_role_arn       = var.task_execution_role_arn
   task_role_arn            = var.task_role_arn
 
-  tags = var.common_tags
+  # Moved tags to top of resource to force detection, merged here
+  # tags = var.common_tags  # (now merged in tags block at top)
 }
 
 # Create CloudWatch Log Groups - retry if already exists to avoid state sync issues
