@@ -96,7 +96,7 @@ RETRY_WAIT_SECONDS = 5
 RETRY_MONITOR_TIMEOUT_SECONDS = 45
 
 
-def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
+def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
     """Check for incomplete loaders and retry them.
 
     Args:

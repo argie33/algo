@@ -11,6 +11,7 @@ import logging
 import os
 import sys
 from datetime import date as _date
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -267,7 +268,7 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                         # PROACTIVE CLEAR: Auto-clear halt flag if from prior trading day
                         # Prevents deadlock where data staleness is fixed but halt remains
                         # This mirrors halt_flag_manager.py logic that orchestrator.py uses
-                        from datetime import datetime, date as dt_date, timezone
+                        from datetime import date as dt_date
                         triggered_at_str = item.get("triggered_at", "")
                         try:
                             if triggered_at_str:
