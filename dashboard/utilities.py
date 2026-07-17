@@ -110,17 +110,11 @@ _formatter = logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s: %(messag
 _handler.setFormatter(_formatter)
 _root_logger.addHandler(_handler)
 
-# Whitelist important modules at WARNING level
-_important_loggers = [
-    "dashboard",
-    "dashboard.utilities",
-    "dashboard.panels",
-    "dashboard.fetchers_common",
-    "dashboard.api_data_layer",
-    "utils.validation.framework",
-]
-for _name in _important_loggers:
+# Suppress DEBUG/INFO from ALL dashboard modules - only show WARNING and above
+for _name in ["dashboard", "dashboard.utilities", "dashboard.panels", "dashboard.fetchers_common",
+              "dashboard.api_data_layer", "dashboard.cognito_auth", "utils.validation.framework"]:
     logging.getLogger(_name).setLevel(logging.WARNING)
+    logging.getLogger(_name).propagate = True  # Ensure they propagate to root
 
 # Module-level logger
 logger = logging.getLogger(__name__)
