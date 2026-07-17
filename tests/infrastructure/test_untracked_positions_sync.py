@@ -7,8 +7,8 @@ Verifies that:
 """
 
 import unittest
-from unittest.mock import MagicMock, patch
 from datetime import datetime
+from unittest.mock import MagicMock, patch
 
 from algo.infrastructure.alpaca_sync_manager import AlpacaSyncManager
 
@@ -32,9 +32,6 @@ class TestUntrackedPositionsSync(unittest.TestCase):
             "key": "",
             "secret": "",
         }
-
-        # Mock cursor with algo_positions
-        mock_cursor = MagicMock()
 
         # algo_positions has: AAPL (algo-managed)
         # Alpaca has: AAPL (algo-managed), TSLA (orphan), MSFT (orphan)
@@ -61,8 +58,6 @@ class TestUntrackedPositionsSync(unittest.TestCase):
             "key": "",
             "secret": "",
         }
-
-        mock_cursor = MagicMock()
 
         # Sample untracked position data
         untracked_data = {
