@@ -310,12 +310,11 @@ def main() -> int:
 
         rows_inserted = result["rows_inserted"]
 
-        if rows_inserted > 0:
-            logger.info(f"[LOADER] Trend criteria loader completed: {result}. Exit code 0 (SUCCESS).")
-            return 0
-        else:
-            logger.warning("[LOADER] Trend criteria loader completed but no rows inserted. Exit code 2 (NO_DATA).")
-            return 2
+        # Return 0 (success) regardless of whether rows were inserted. The run() function already
+        # handles missing/stale data gracefully. No rows inserted = data wasn't available yet, not a failure.
+        # Step Functions .sync mode treats exit code 2 as task failure, so only return non-zero on exceptions.
+        logger.info(f"[LOADER] Trend criteria loader completed: {result}. Exit code 0 (SUCCESS).")
+        return 0
     except Exception as exc:
         logger.error(f"[LOADER] Trend criteria loader failed: {exc}. Exit code 1 (ERROR).")
         return 1
