@@ -308,8 +308,6 @@ def main() -> int:
         if "rows_inserted" not in result:
             raise ValueError(f"[LOADER] Trend criteria result missing required 'rows_inserted' field. Got: {result}")
 
-        rows_inserted = result["rows_inserted"]
-
         # Return 0 (success) regardless of whether rows were inserted. The run() function already
         # handles missing/stale data gracefully. No rows inserted = data wasn't available yet, not a failure.
         # Step Functions .sync mode treats exit code 2 as task failure, so only return non-zero on exceptions.
