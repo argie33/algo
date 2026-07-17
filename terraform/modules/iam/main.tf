@@ -1823,6 +1823,21 @@ data "aws_iam_policy_document" "developer" {
       "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/states/${var.project_name}-*"
     ]
   }
+
+  # Cost Explorer (actual billing data)
+  statement {
+    sid    = "CostExplorer"
+    effect = "Allow"
+
+    actions = [
+      "ce:GetCostAndUsage",
+      "ce:GetCostForecast",
+      "ce:DescribeCostCategoryDefinition",
+      "ce:ListCostAllocationTags"
+    ]
+
+    resources = ["*"]
+  }
 }
 
 # Managed policy for Cognito (inline policies are capped at 2048 bytes combined per user;
