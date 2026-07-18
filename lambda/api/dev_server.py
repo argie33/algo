@@ -13,6 +13,7 @@ import logging
 import os
 import sys
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from socketserver import ThreadingMixIn
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -421,6 +422,12 @@ class APIHandler(BaseHTTPRequestHandler):
         """Suppress default HTTP logging."""
 
 
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    """Threaded HTTP server to handle multiple concurrent requests."""
+
+    daemon_threads = True
+
+
 def run_dev_server(port: int = 3001) -> None:
     """Run the development server."""
     # Safeguard: Check if port is already in use before starting
@@ -445,7 +452,7 @@ def run_dev_server(port: int = 3001) -> None:
         sys.exit(1)
 
     server_address = ("", port)
-    httpd = HTTPServer(server_address, APIHandler)
+    httpd = ThreadingHTTPServer(server_address, APIHandler)
     logger.info(f"Starting API dev server on http://localhost:{port}")
     logger.info("Press Ctrl+C to stop")
 

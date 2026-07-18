@@ -1630,6 +1630,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 "trend": trend,
                 "data_freshness": freshness,
             }
+            sig_response = safe_json_serialize(sig_response)
 
         return json_response(200, sig_response)
     except (

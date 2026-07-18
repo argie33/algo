@@ -23,7 +23,6 @@ from routes.utils import (
     safe_page,
 )
 
-from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
 
 logger = logging.getLogger(__name__)
@@ -54,14 +53,13 @@ def handle(  # noqa: C901
 
             if sectors:
                 placeholders = ",".join(["%s"] * len(sectors))
-                interval_1d = get_interval_sql("1d")
                 cur.execute(
                     f"""
                         SELECT cp.sector, pd.date, AVG(pd.close) AS "avgPrice"
                         FROM price_daily pd
                         JOIN company_profile cp ON pd.symbol = cp.ticker
                         WHERE cp.sector IN ({placeholders})
-                          AND pd.date >= CURRENT_DATE - (%s * {interval_1d})
+                          AND pd.date >= CURRENT_DATE - (%s || ' days')::interval
                         GROUP BY cp.sector, pd.date
                         ORDER BY cp.sector, pd.date ASC
                     """,
@@ -99,7 +97,6 @@ def handle(  # noqa: C901
                 # Set timeout for trend query (10s for window function aggregations)
                 cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 # All camelCase aliases double-quoted so psycopg2 preserves case
-                interval_1d = get_interval_sql("1d")
                 cur.execute(
                     f"""
                         WITH sector_daily_avg AS (
@@ -108,7 +105,7 @@ def handle(  # noqa: C901
                                 AVG(pd.close) AS "avgPrice"
                             FROM price_daily pd
                             JOIN company_profile cp ON pd.symbol = cp.ticker
-                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s * {interval_1d})
+                            WHERE cp.sector = %s AND pd.date >= CURRENT_DATE - (%s || ' days')::interval
                             GROUP BY pd.date
                         ),
                         sector_with_ma AS (
@@ -154,12 +151,11 @@ def handle(  # noqa: C901
             else:
                 days = safe_days(extract_param(params, "days"), max_val=365, default=90)
                 cur.execute("SET LOCAL statement_timeout = '5000ms'")
-                interval_1d_perf = get_interval_sql("1d")
                 cur.execute(
                     f"""
                         SELECT date, sector, return_pct
                         FROM sector_performance
-                        WHERE sector = %s AND date >= CURRENT_DATE - (%s * {interval_1d_perf})
+                        WHERE sector = %s AND date >= CURRENT_DATE - (%s || ' days')::interval
                         ORDER BY date DESC
                     """,
                     (sector_name, days),
