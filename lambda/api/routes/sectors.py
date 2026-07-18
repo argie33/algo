@@ -23,6 +23,7 @@ from routes.utils import (
     safe_page,
 )
 
+from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
 
 logger = logging.getLogger(__name__)
