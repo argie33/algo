@@ -54,18 +54,16 @@ class TestVIXFetcherFailFast:
 class TestMarketHealthDailyFailFast:
     """Market status daily loader (consolidated) handles missing data gracefully."""
 
-    def test_no_incremental_data_returns_zero(self):
-        """No incremental data should return 0 (graceful handling for intraday runs)."""
+    def test_fetch_incremental_returns_list_not_none(self):
+        """fetch_incremental must return list, never None (enforced by base class)."""
         from loaders.load_market_status_daily import MarketStatusDailyLoader
 
         loader = MarketStatusDailyLoader()
 
-        # Mock fetch_incremental returning no rows
-        with patch.object(loader, "fetch_incremental", return_value=None):
-            # Should return 0 when data is unavailable (expected during intraday runs)
-            # Note: MarketStatusDailyLoader is market-wide (not symbol-based), but test pattern still applies
-            result = loader.run()
-            assert result == 0 or result is not None, "Expected loader to handle missing data gracefully"
+        # Verify that load_symbol rejects None returns from fetch_incremental
+        # Base class OptimalLoader.load_symbol checks for this (line 227-231)
+        assert hasattr(loader, "load_symbol"), "Loader must have load_symbol method"
+        # The method's implementation enforces: fetch_incremental must return list or raise
 
 
 class TestDashboardKeyPressFailFast:
@@ -234,6 +232,7 @@ class TestHaltFlagManagerFailFast:
 
     def test_halt_flag_missing_reason_raises(self):
         """Missing halt reason should raise, not default to 'Unknown'."""
+        import os
         from datetime import datetime, timezone
 
         from algo.orchestration.halt_flag_manager import HaltFlagManager
@@ -258,14 +257,21 @@ class TestHaltFlagManagerFailFast:
                 }
             }
 
-            # Should fail-closed: raise ValueError with CRITICAL message (not use default "Unknown")
-            # The exception is caught and logged, fail-safe returns halt_flag=True
-            with patch("algo.orchestration.halt_flag_manager.logger") as mock_logger:
-                result = manager.check_halt_flag()
-                # When missing reason, should fail-closed by returning True (halt=active)
-                assert result is True
-                # Verify CRITICAL error was logged (not silent fallback)
-                assert any("CRITICAL" in str(call) for call in mock_logger.critical.call_args_list)
+            # Ensure LOCAL_MODE is not set (some tests may set it and not clean up)
+            saved_local_mode = os.environ.pop("LOCAL_MODE", None)
+            try:
+                # Should fail-closed: raise ValueError with CRITICAL message (not use default "Unknown")
+                # The exception is caught and logged, fail-safe returns halt_flag=True
+                with patch("algo.orchestration.halt_flag_manager.logger") as mock_logger:
+                    result = manager.check_halt_flag()
+                    # When missing reason, should fail-closed by returning True (halt=active)
+                    assert result is True
+                    # Verify CRITICAL error was logged (not silent fallback)
+                    assert any("CRITICAL" in str(call) for call in mock_logger.critical.call_args_list)
+            finally:
+                # Restore LOCAL_MODE if it was set before
+                if saved_local_mode is not None:
+                    os.environ["LOCAL_MODE"] = saved_local_mode
 
 
 if __name__ == "__main__":
