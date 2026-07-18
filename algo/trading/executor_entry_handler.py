@@ -435,7 +435,12 @@ class EntryHandler:
         cur: PsycopgCursor[Any],
         request: TradeInsertionRequest,
     ) -> None:
-        """Insert trade record into database."""
+        """Insert trade record into database.
+
+        CRITICAL: This insert MUST NOT silently fail. If there's a duplicate or constraint
+        violation, it should raise an exception so the position record is not created orphaned.
+        Removed ON CONFLICT DO NOTHING to enforce data integrity.
+        """
         cur.execute(
             """
             INSERT INTO algo_trades (
@@ -467,7 +472,6 @@ class EntryHandler:
                 %s, %s, %s,
                 CURRENT_TIMESTAMP
             )
-            ON CONFLICT (symbol, signal_date, entry_price) DO NOTHING
             """,
             (
                 request.trade_id,
