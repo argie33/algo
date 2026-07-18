@@ -109,7 +109,7 @@ def safe_get_list(data: Any) -> list[Any] | dict[str, Any]:
             "reason": "list_field_not_found",
         }
     # Gracefully handle type mismatch instead of raising - return unavailability marker
-    logger.warning(
+    logger.debug(
         f"safe_get_list: Expected dict or list but got {type(data).__name__} (value={data!r:.50}). "
         f"Returning unavailability marker."
     )
