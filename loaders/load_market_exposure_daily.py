@@ -59,12 +59,17 @@ def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason:
     # Truncate reason to 500 chars to fit column constraint
     reason_truncated = reason[:500] if reason else "Unknown error"
 
+    # CRITICAL: Include all columns in ON CONFLICT DO UPDATE to prevent nulling out
+    # previously computed fields (exposure_tier, is_entry_allowed) if this is called
+    # after a partial failure or concurrent computation. Use COALESCE to preserve
+    # existing non-NULL values when overwriting with unavailable marker.
     cur.execute(
         """
         INSERT INTO market_exposure_daily
         (date, regime, exposure_pct, raw_score, halt_reasons, distribution_days, factors,
-         data_unavailable, reason)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+         data_unavailable, reason, exposure_tier, is_entry_allowed,
+         long_exposure_pct, short_exposure_pct)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ON CONFLICT (date) DO UPDATE SET
           regime = EXCLUDED.regime,
           exposure_pct = EXCLUDED.exposure_pct,
@@ -73,7 +78,11 @@ def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason:
           distribution_days = EXCLUDED.distribution_days,
           factors = EXCLUDED.factors,
           data_unavailable = EXCLUDED.data_unavailable,
-          reason = EXCLUDED.reason
+          reason = EXCLUDED.reason,
+          exposure_tier = COALESCE(market_exposure_daily.exposure_tier, EXCLUDED.exposure_tier),
+          is_entry_allowed = COALESCE(market_exposure_daily.is_entry_allowed, EXCLUDED.is_entry_allowed),
+          long_exposure_pct = COALESCE(market_exposure_daily.long_exposure_pct, EXCLUDED.long_exposure_pct),
+          short_exposure_pct = COALESCE(market_exposure_daily.short_exposure_pct, EXCLUDED.short_exposure_pct)
         """,
         (
             eval_date,
@@ -85,6 +94,10 @@ def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason:
             None,  # factors
             True,  # data_unavailable
             reason_truncated,  # reason
+            None,  # exposure_tier - let COALESCE preserve existing value
+            None,  # is_entry_allowed - let COALESCE preserve existing value
+            None,  # long_exposure_pct - let COALESCE preserve existing value
+            None,  # short_exposure_pct - let COALESCE preserve existing value
         ),
     )
 

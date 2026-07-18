@@ -70,9 +70,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             # Fetch positions with all required fields directly (not via get_open_positions which is incomplete)
             def _update_position_prices(cur: Any) -> int:
                 updated = 0
-                # Fetch open positions with required fields for price update
+                # Fetch open positions with required fields for price update (including entry_date for days calculation)
                 cur.execute("""
-                    SELECT position_id, symbol, quantity, current_price
+                    SELECT position_id, symbol, quantity, current_price, entry_date, stop_loss_price, avg_entry_price
                     FROM algo_positions
                     WHERE status = 'open' AND quantity > 0
                     ORDER BY position_id
@@ -96,7 +96,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                     price_rows = cur.fetchall()
                     prices = {row[0]: float(row[1]) for row in price_rows}
 
-                for position_id, symbol, quantity, old_price in positions:
+                for position_id, symbol, quantity, old_price, entry_date, stop_loss, avg_entry in positions:
                     try:
                         # Use database price if available, otherwise keep existing price
                         current_price = prices.get(symbol)
@@ -114,6 +114,20 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         current_price = float(current_price)
                         quantity = float(quantity)
 
+                        # Convert Decimal values to float for consistent arithmetic
+                        avg_entry = float(avg_entry) if avg_entry else 0
+                        stop_loss = float(stop_loss) if stop_loss else 0
+
+                        # Calculate enrichment fields: days held and ladder % to stop
+                        days_since_entry = (run_date - entry_date).days if entry_date else 0
+                        ladder_pct_stop = 0.0
+                        if avg_entry and stop_loss and current_price and avg_entry > stop_loss:
+                            # ladder_pct_stop: how far we are from stop to entry as % of entry-to-stop range
+                            entry_to_stop_range = avg_entry - stop_loss
+                            current_to_stop_dist = current_price - stop_loss
+                            if entry_to_stop_range > 0:
+                                ladder_pct_stop = (current_to_stop_dist / entry_to_stop_range) * 100
+
                         # Update position with current price and computed fields
                         cur.execute(
                             """
@@ -123,6 +137,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 unrealized_pnl = (%s - avg_entry_price) * %s,
                                 unrealized_pnl_pct = CASE WHEN avg_entry_price > 0
                                     THEN ((%s - avg_entry_price) / avg_entry_price) * 100 ELSE NULL END,
+                                days_since_entry = %s,
+                                ladder_pct_stop = %s,
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE position_id = %s
                             """,
@@ -133,6 +149,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 current_price,
                                 quantity,
                                 current_price,
+                                days_since_entry,
+                                ladder_pct_stop,
                                 position_id,
                             ),
                         )
