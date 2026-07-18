@@ -604,28 +604,25 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # Phase 5 evaluates market regime and sets entry constraints for risk management
         try:
             cur.execute("""
-                SELECT market_stage, market_trend, entry_decision, max_entries_allowed,
-                       capital_deployment_pct, halt_flag, check_date
+                SELECT regime, is_entry_allowed, halt_reasons, date
                 FROM market_exposure_daily
-                ORDER BY check_date DESC LIMIT 1
+                ORDER BY date DESC LIMIT 1
             """)
             phase5_row = cur.fetchone()
             if phase5_row:
                 phase5_dict = safe_dict_convert(phase5_row)
-                market_stage = phase5_dict.get("market_stage")
-                halt_flag = phase5_dict.get("halt_flag")
-                entry_decision = phase5_dict.get("entry_decision")
-                max_entries = phase5_dict.get("max_entries_allowed")
-                cap_deploy = phase5_dict.get("capital_deployment_pct")
+                regime = phase5_dict.get("regime")
+                is_entry_allowed = phase5_dict.get("is_entry_allowed")
+                halt_reasons = phase5_dict.get("halt_reasons")
 
                 execution_health["phase_5_exposure_policy"] = {
-                    "market_regime": market_stage,
-                    "market_trend": phase5_dict.get("market_trend"),
-                    "entry_allowed": entry_decision == "allow" if entry_decision else None,
-                    "max_new_entries": int(max_entries) if max_entries is not None else None,
-                    "capital_deployment_pct": float(cap_deploy) if cap_deploy is not None else None,
-                    "halt_active": bool(halt_flag) if halt_flag is not None else False,
-                    "checked_at": phase5_dict.get("check_date").isoformat() if phase5_dict.get("check_date") else None,
+                    "market_regime": regime,
+                    "market_trend": None,
+                    "entry_allowed": is_entry_allowed,
+                    "max_new_entries": None,
+                    "capital_deployment_pct": None,
+                    "halt_active": bool(halt_reasons) if halt_reasons else False,
+                    "checked_at": phase5_dict.get("date").isoformat() if phase5_dict.get("date") else None,
                 }
             else:
                 execution_health["phase_5_exposure_policy"] = None
