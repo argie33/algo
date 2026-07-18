@@ -2559,7 +2559,7 @@ def panel_algo_health(  # noqa: C901
 
         # ── E: Phase 2-9 Execution Health (Prominent Panel) ────────────────────────────────────
         execution_health = hlth.get("execution_health") if isinstance(hlth, dict) else None
-        if execution_health:
+        if execution_health is not None:
             phase_panel = _build_phase_execution_panel(execution_health)
             if phase_panel:
                 rows.append(phase_panel)
