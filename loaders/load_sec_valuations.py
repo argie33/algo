@@ -28,6 +28,11 @@ from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
+from utils.loaders.exception_handler import (
+    handle_exception,
+    handle_invalid_data,
+    handle_no_data_found,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -159,9 +164,25 @@ class SecValuationsLoader(OptimalLoader):
                 float(latest_eps) if latest_eps else 0.0,
             )]
 
+        except TimeoutError as e:
+            marker = handle_exception(symbol, e, "querying SEC financial data")
+            return [marker]
+        except (KeyError, IndexError) as e:
+            # Schema or data structure issue
+            marker = handle_exception(symbol, e, "parsing SEC financial data")
+            return [marker]
+        except ValueError as e:
+            # Data validation or conversion error
+            marker = handle_invalid_data(symbol, e, "computing valuations")
+            return [marker]
         except Exception as e:
-            logger.warning(f"[SEC_VALUATIONS] {symbol}: Computation failed: {e}")
-            return [self._unavailable_marker(symbol, f"computation_error: {str(e)[:100]}")]
+            # Try to classify and handle, or fail-fast if truly unexpected
+            try:
+                marker = handle_exception(symbol, e, "computing valuations")
+                return [marker]
+            except Exception:
+                logger.critical(f"[SEC_VALUATIONS] {symbol}: Unexpected error: {type(e).__name__}: {e}", exc_info=True)
+                raise
 
     def _compute_valuations(
         self,

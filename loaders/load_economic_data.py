@@ -163,8 +163,13 @@ def fetch_dxy_from_fred(api_key: str, start_date: date, end_date: date) -> list[
                     dxy_proxy = 100.0 / eurusd if eurusd > 0 else None
                     if dxy_proxy is not None:
                         rows.append({"date": obs["date"], "value": dxy_proxy})
-                except ValueError:
-                    pass
+                    elif eurusd <= 0:
+                        logger.warning(f"[ECONOMIC/DXY] Invalid EUR/USD value on {obs['date']}: {eurusd} (non-positive)")
+                except ValueError as e:
+                    logger.warning(
+                        f"[ECONOMIC/DXY] Failed to parse EUR/USD value on {obs.get('date')}: {value_str!r}. "
+                        f"Error: {e}. Skipping this record."
+                    )
 
         if not rows:
             raise RuntimeError("[ECONOMIC/DXY] No valid data returned from FRED DEXUSEU")
