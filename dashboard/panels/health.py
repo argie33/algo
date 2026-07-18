@@ -245,6 +245,9 @@ def _build_phase_execution_panel(execution_health: dict[str, Any] | None) -> Pan
         (9, "Portfolio Snapshot", "portfolio_snapshot", execution_health.get("phase_9_portfolio_snapshot")),
     ]
 
+    # Track which phases have data
+    active_phases = [p for p in phases if p[3] is not None]
+
     # Build phase rows with color coding and status
     phase_rows: list[Text] = []
     has_any_data = False
@@ -294,6 +297,22 @@ def _build_phase_execution_panel(execution_health: dict[str, Any] | None) -> Pan
             if max_loss is not None:
                 loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
                 status_text += f" [dim]max loss[/] [{loss_color}]{max_loss:.1f}%[/]"
+
+            phase_rows.append(Text.from_markup(
+                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
+            ))
+
+        # Phase 4: Broker Reconciliation
+        elif phase_num == 4:
+            sync_count = phase_data.get("sync_count", 0)
+            match_pct = phase_data.get("avg_match_pct")
+
+            sync_color = G if sync_count > 0 and (match_pct is None or match_pct >= 95) else Y if sync_count > 0 else DIM
+            status_icon = f"[{sync_color}]↔[/]"
+            status_text = f"{sync_count} sync{'s' if sync_count != 1 else ''}"
+            if match_pct is not None:
+                match_color = G if match_pct >= 95 else Y if match_pct >= 80 else R
+                status_text += f" [dim]match[/] [{match_color}]{match_pct:.0f}%[/]"
 
             phase_rows.append(Text.from_markup(
                 f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
@@ -367,10 +386,11 @@ def _build_phase_execution_panel(execution_health: dict[str, Any] | None) -> Pan
     if not phase_rows:
         phase_rows.append(Text.from_markup("  [dim]No execution health data available (orchestrator may not have run yet)[/]"))
 
-    # Build panel with phase rows
+    # Build panel with phase rows (show count of phases with data)
+    phase_count = len(active_phases) if 'active_phases' in locals() else len(phase_rows)
     return Panel(
         Group(*phase_rows),
-        title="[bold cyan]PHASE EXECUTION HEALTH[/]  [dim][9 phases][/]",
+        title=f"[bold cyan]PHASE EXECUTION HEALTH[/]  [dim][{phase_count} phases][/]",
         border_style="cyan",
         padding=(0, 1),
     )
@@ -414,6 +434,17 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
         if max_loss is not None:
             pos_metrics.append(f"max {max_loss:.1f}%")
         rows.append(Text.from_markup(f"  [{pos_color}]● P3:[/] " + " ".join(pos_metrics)))
+
+    # Phase 4: Broker Reconciliation
+    recon = execution_health.get("phase_4_broker_reconciliation")
+    if recon:
+        sync_count = recon.get("sync_count", 0)
+        match_pct = recon.get("avg_match_pct")
+        recon_color = G if sync_count > 0 and (match_pct is None or match_pct >= 95) else Y if sync_count > 0 else DIM
+        recon_metrics = [f"{sync_count} syncs"]
+        if match_pct is not None:
+            recon_metrics.append(f"{match_pct:.0f}% match")
+        rows.append(Text.from_markup(f"  [{recon_color}]↔ P4:[/] " + " ".join(recon_metrics)))
 
     # Phase 6: Exit Execution
     exit_ex = execution_health.get("phase_6_exit_execution")

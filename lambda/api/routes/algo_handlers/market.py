@@ -169,9 +169,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # Tables intentionally removed from the EOD pipeline - orchestrator Phase 5
         # computes these signals on-the-fly. Excluding them prevents permanent false-stale
         # alerts on the health panel (they will never be refreshed again by a loader).
+        # EXCEPTION: buy_sell_daily is CRITICAL (Phase 7 dependency) so it's added separately below
         pipeline_removed_tables = {
             "technical_data_daily",
-            "buy_sell_daily",
             "signal_quality_scores",
         }
 
@@ -189,8 +189,13 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         loader_names = {r["table_name"] for r in loader_rows}
 
         # Algo-generated tables written by the orchestrator, not tracked in data_loader_status
+        # buy_sell_daily is CRITICAL Phase 7 dependency so it's monitored for freshness here
         algo_rows = []
         for tbl_name, query in [
+            (
+                "buy_sell_daily",
+                "SELECT COUNT(*) AS row_count, MAX(date) AS last_updated FROM buy_sell_daily",
+            ),
             (
                 "algo_portfolio_snapshots",
                 "SELECT COUNT(*) AS row_count, MAX(snapshot_date) AS last_updated FROM algo_portfolio_snapshots",
@@ -226,7 +231,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # Use freshness_config critical set; fail-fast if configuration is empty.
         # Note: trend_template_data is warning-only in Phase 1 - stale does NOT prevent
         # trading, so it remains non-critical even though freshness_config marks it otherwise.
+        # buy_sell_daily is CRITICAL Phase 7 dependency so it's added here
         critical_tables = {t for t, r in _fr.items() if r.get("critical")}
+        critical_tables.add("buy_sell_daily")  # CRITICAL: Phase 7 signal generation halts without it
         if not critical_tables:
             # FAIL-FAST: Configuration empty indicates freshness_config loading failed
             logger.error(
@@ -236,6 +243,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "price_daily",
                 "market_health_daily",
                 "market_exposure_daily",
+                "buy_sell_daily",
             }
 
         # Compute expected data date using trading-day-aware logic (match Phase 1)
@@ -394,6 +402,30 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
             logger.debug(f"[HEALTH] Phase 3 position monitor query failed: {e}")
             execution_health["phase_3_position_monitor"] = None
+
+        # Phase 4: Broker Reconciliation Health
+        try:
+            cur.execute("""
+                SELECT COUNT(*) as sync_count,
+                       MAX(reconciliation_date) as latest_sync,
+                       AVG(CAST(match_percentage AS FLOAT)) as avg_match_pct
+                FROM algo_reconciliation_log
+                WHERE reconciliation_date >= CURRENT_DATE - INTERVAL '1 day'
+            """)
+            recon_row = cur.fetchone()
+            if recon_row:
+                recon_dict = safe_dict_convert(recon_row)
+                sync_count = int(recon_dict["sync_count"]) if recon_dict.get("sync_count") else 0
+                execution_health["phase_4_broker_reconciliation"] = {
+                    "sync_count": sync_count,
+                    "latest_sync": recon_dict.get("latest_sync").isoformat() if recon_dict.get("latest_sync") else None,
+                    "avg_match_pct": float(recon_dict["avg_match_pct"]) if recon_dict.get("avg_match_pct") is not None else None,
+                }
+            else:
+                execution_health["phase_4_broker_reconciliation"] = None
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
+            logger.debug(f"[HEALTH] Phase 4 broker reconciliation query failed: {e}")
+            execution_health["phase_4_broker_reconciliation"] = None
 
         # Phase 6: Exit Execution Health (last 24h)
         try:
