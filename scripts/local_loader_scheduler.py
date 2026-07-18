@@ -28,28 +28,33 @@ logger = logging.getLogger(__name__)
 EASTERN_TZ = ZoneInfo("America/New_York")
 
 # Loader definitions for each pipeline
+# Note: Phase 2-4 consolidations mean multiple old loaders are now single consolidated loaders:
+# - Phase 2: market_health_daily + market_exposure_daily + market_sentiment → market_status_daily
+# - Phase 3: quality_growth_metrics + yfinance_derived_metrics → value_quality_growth_metrics
+# - Phase 4: sector_rankings + industry_ranking + sector_performance → sector_industry_daily
 LOADERS = {
     "morning": {
-        "description": "Morning pipeline (2:00 AM ET): prices + technicals + market health",
-        "loaders": ["load_prices.py", "load_technical_indicators.py", "load_market_health_daily.py"],
+        "description": "Morning pipeline (2:00 AM ET): prices + technicals + market status (consolidated)",
+        "loaders": ["load_prices.py", "load_technical_indicators.py", "load_market_status_daily.py"],
         "interval_hours": 24,
         "target_hour": 2,
         "target_minute": 0,
     },
     "reference": {
-        "description": "Reference data (9:15 AM ET): yfinance snapshot + derived metrics (company profile, earnings)",
-        "loaders": ["load_yfinance_snapshot.py", "load_yfinance_derived_metrics.py"],
+        "description": "Reference data (9:15 AM ET): yfinance snapshot (other metrics now in EOD pipeline)",
+        "loaders": ["load_yfinance_snapshot.py"],
         "interval_hours": 24,
         "target_hour": 9,
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): quality, growth, value, risk (stability+momentum), stock scores",
+        "description": "Metrics pipeline (7:00 PM ET): value/quality/growth (consolidated), risk, stock scores",
         "loaders": [
             "load_financial_statements.py",
-            "load_quality_growth_metrics.py",
+            "load_value_quality_growth_metrics.py",
             "load_risk_metrics_daily.py",
             "load_stock_scores.py",
+            "load_sector_industry_daily.py",
         ],
         "interval_hours": 24,
         "target_hour": 19,

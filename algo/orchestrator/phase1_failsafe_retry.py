@@ -407,6 +407,14 @@ def invoke_loader_retry(loader_name: str, is_critical: bool) -> bool:
         f"(priority={'critical' if is_critical else 'auxiliary'}) via algo-trigger-loaders"
     )
 
+    # In local mode, skip Lambda invocation (no AWS credentials available)
+    if os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes"):
+        logger.info(
+            f"[PHASE 1 FAILSAFE] LOCAL_MODE enabled - skipping Lambda invocation for {loader_name}. "
+            f"Loader retry would normally happen on AWS ECS. In local dev, data updates must be triggered manually."
+        )
+        return False
+
     trigger_function_name = os.getenv("TRIGGER_LOADERS_FUNCTION_NAME", "algo-trigger-loaders")
 
     try:
