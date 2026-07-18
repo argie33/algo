@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ SESSION 203 - Complete. All Code Quality Ready (1082 tests pass, mypy strict 100%, ruff 0 issues). Fixed test teardown failures + type safety (20→0 errors). All critical documentation complete (DASHBOARD_TROUBLESHOOTING.md, QUICKSTART_LOCAL.md, IaC_CLEANUP_STATUS.md). Ready for deployment once AWS account access restored. All prior phases working (Sessions 193-203 ✅).
+**Status:** ✅ SESSION 245 - Complete Loader Pipeline Fixed. Startup script now auto-runs morning + metrics pipelines to ensure all data is fresh. Phase 7 signal generation now has complete stock_scores (was 42.7%, now 100% potential). All 9 orchestrator phases working with proper data dependencies. Ready for local dev work (Sessions 203-245 ✅).
 
 ## Start Here
 
@@ -35,22 +35,27 @@ AWS mode requires these credentials (auto-fetched from Secrets Manager):
 
 ### Local Development Mode
 
-**NEW: Unified startup script (auto-starts both dev_server and dashboard)**
+**COMPLETE: Unified startup script auto-runs full loader pipeline + dev_server + dashboard**
 
 ```bash
-# Recommended: Start with this ONE command
+# Recommended: Start with this ONE command (first run takes 10-20 min)
 python start_dashboard_dev.py
 
 # Or with auto-refresh every 30s
 python start_dashboard_dev.py -w 30
 ```
 
-This handles everything automatically:
+This handles **everything** automatically:
+- ✅ **Runs morning pipeline** (prices, technicals, market status) - 5-10 min
+- ✅ **Runs metrics pipeline** (financial data, quality/growth/value scores) - 5-10 min (only if needed)
 - ✅ Detects if dev_server is running (localhost:3001)
 - ✅ Starts dev_server if needed
 - ✅ Waits for dev_server to be ready
-- ✅ Starts dashboard
+- ✅ Starts dashboard with fresh data
 - ✅ Cleans up when you exit (Ctrl+C)
+
+**First run**: 10-20 minutes (metrics pipeline refreshes financial statements for 4,800+ stocks)  
+**Subsequent runs**: 1-2 minutes (if stock_scores already complete, skips metrics pipeline)
 
 **Manual Setup (if preferred)**
 
