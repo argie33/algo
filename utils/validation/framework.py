@@ -261,6 +261,7 @@ def safe_float(
     context: str = "",
     strict: bool = False,
     field_name: str | None = None,
+    allow_none: bool = True,
 ) -> float | None:
     """Convert value to float safely, handling NaN, Infinity, None.
 
@@ -270,6 +271,7 @@ def safe_float(
         context: Context string for logging (e.g., "symbol=AAPL")
         strict: If True, raise StrictValidationError instead of returning default (REQUIRED for all finance paths)
         field_name: Field name for error logging (preferred over context for new code)
+        allow_none: If True and value is None, return default silently (for optional fields). If False, log warning.
 
     Returns:
         Float value or default if conversion fails
@@ -283,9 +285,9 @@ def safe_float(
     if value is None:
         if strict:
             raise StrictValidationError(f"Cannot convert None to float {error_ctx}")
-        if default is None:
+        if not allow_none and default is None:
             logger.warning(f"None value in float conversion {error_ctx} - returning None (must be handled by caller)")
-        else:
+        elif not allow_none:
             logger.warning(f"Converting None to {default} {error_ctx} - explicitly requested default")
         return default
 

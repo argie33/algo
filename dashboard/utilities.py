@@ -93,7 +93,9 @@ LOAD_SEQ = [0, 1, 4, 3]  # groove → step R → JUMP → step L
 # Configure logging - disable all loggers except those we care about
 _log_dir = os.path.expanduser("~/.algo/logs")
 os.makedirs(_log_dir, exist_ok=True)
-_log_file = os.path.join(_log_dir, "dashboard.log")
+# Separate log files for local vs AWS mode for easier debugging
+_is_local_mode = os.environ.get("LOCAL_MODE") == "true"
+_log_file = os.path.join(_log_dir, "dashboard-local.log" if _is_local_mode else "dashboard.log")
 
 # Clear any existing handlers (from previous imports or basicConfig)
 _root_logger = logging.getLogger()
@@ -218,7 +220,7 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
     if has_error(port):
         raise ValueError(f"Portfolio data contains error: {port.get('_error')}")
 
-    pv = safe_float(port.get("total_portfolio_value"), default=None)
+    pv = safe_float(port.get("total_portfolio_value"), default=None, allow_none=True)
     sd: dict[str, dict[str, Any]] = {}
     invalid_count = 0
     for p in pos_items:
@@ -240,8 +242,8 @@ def compute_sector_agg(pos: Any, port: dict[str, Any]) -> tuple[list[tuple[str, 
             if symbol is not None:
                 logger.warning(f"compute_sector_agg: skipping position {symbol} (missing sector enrichment)")
             continue
-        val = safe_float(p.get("position_value"), default=None)
-        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None)
+        val = safe_float(p.get("position_value"), default=None, allow_none=True)
+        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None, allow_none=True)
         if sec not in sd:
             sd[sec] = {"val": 0.0, "n": 0, "pnls": []}
         if val is not None:

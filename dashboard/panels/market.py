@@ -134,8 +134,8 @@ def panel_market_full(mkt: Any, sentiment: Any = None) -> Panel:  # noqa: C901
     exp = mkt.get("pct")
     vix = mkt.get("vix")
     spy_raw = mkt.get("spy")
-    vix = safe_float(vix, default=None, field_name="vix")
-    spy_raw = safe_float(spy_raw, default=None, field_name="spy")
+    vix = safe_float(vix, default=None, field_name="vix", allow_none=True)
+    spy_raw = safe_float(spy_raw, default=None, field_name="spy", allow_none=True)
     if vix is None or spy_raw is None:
         missing_fields = []
         if vix is None:

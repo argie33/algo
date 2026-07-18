@@ -363,14 +363,14 @@ def panel_performance_spark(
         str_c = G if streak >= 0 else R
     unrlzd = perf.get("unrealized_pnl")
     pnl_val_raw = perf.get("pnl")
-    pnl_val = safe_float(pnl_val_raw, default=None)
+    pnl_val = safe_float(pnl_val_raw, default=None, allow_none=True)
     pnl_c = G if pnl_val is not None and pnl_val >= 0 else R
-    pf = safe_float(perf.get("profit_factor"), default=None)
+    pf = safe_float(perf.get("profit_factor"), default=None, allow_none=True)
     pf_s = f"{pf:.2f}" if pf is not None else "--"
     pf_c = (
         G if pf is not None and pf >= 1.5 else (Y if pf is not None and pf >= 1.0 else (R if pf is not None else DIM))
     )
-    exp = safe_float(perf.get("expectancy"), default=None)
+    exp = safe_float(perf.get("expectancy"), default=None, allow_none=True)
     exp_c = G if exp is not None and exp >= 0 else (R if exp is not None else DIM)
     exp_s = f"{exp:.2f}R" if exp is not None else "--"
     sharpe_v = perf.get("sharpe")
@@ -429,7 +429,7 @@ def panel_performance_spark(
 
     # P&L row
     pnl_s = f"[{pnl_c}]{fmt_money(perf.get('pnl'))}[/]"
-    unrlzd_f = safe_float(unrlzd, default=None)
+    unrlzd_f = safe_float(unrlzd, default=None, allow_none=True)
     if unrlzd_f is not None:
         unrlzd_s = f"[{G if unrlzd_f >= 0 else R}]{fmt_money(unrlzd)}[/]"
         grid_rows.append((cell("Realized P&L:", pnl_s), cell("Unrealized P&L:", unrlzd_s)))
@@ -672,12 +672,12 @@ def panel_portfolio_perf_expanded(
         streak_val = perf.get("streak")
         streak_raw = safe_int(streak_val, default=0, field_name="win_streak")
         streak: int = streak_raw if streak_raw is not None else 0
-        pnl_val = safe_float(perf.get("pnl"), default=None)
-        unrlzd_pnl = safe_float(perf.get("unrealized_pnl"), default=None)
+        pnl_val = safe_float(perf.get("pnl"), default=None, allow_none=True)
+        unrlzd_pnl = safe_float(perf.get("unrealized_pnl"), default=None, allow_none=True)
         open_cnt = safe_int(perf.get("open_count"), default=None)
-        pf = safe_float(perf.get("profit_factor"), default=None)
-        sharpe_v = safe_float(perf.get("sharpe"), default=None)
-        exp = safe_float(perf.get("expectancy"), default=None)
+        pf = safe_float(perf.get("profit_factor"), default=None, allow_none=True)
+        sharpe_v = safe_float(perf.get("sharpe"), default=None, allow_none=True)
+        exp = safe_float(perf.get("expectancy"), default=None, allow_none=True)
         dd_val = perf.get("maxdd")
         # CRITICAL: Fail-fast on missing drawdown. Never silently fallback to 0.0 with green color.
         if dd_val is None:
@@ -824,14 +824,14 @@ def panel_portfolio_perf_expanded(
         anl.add_column("val")
         anl.add_column("label2", style="dim")
         anl.add_column("val2")
-        sharpe252 = safe_float(perf_anl.get("sharpe252"), default=None)
-        sortino = safe_float(perf_anl.get("sortino"), default=None)
-        calmar = safe_float(perf_anl.get("calmar"), default=None)
-        wr50 = safe_float(perf_anl.get("wr50"), default=None)
-        avg_w_r = safe_float(perf_anl.get("avg_w_r"), default=None)
-        avg_l_r = safe_float(perf_anl.get("avg_l_r"), default=None)
-        exp2 = safe_float(perf_anl.get("expectancy"), default=None)
-        maxdd2 = safe_float(perf_anl.get("maxdd"), default=None)
+        sharpe252 = safe_float(perf_anl.get("sharpe252"), default=None, allow_none=True)
+        sortino = safe_float(perf_anl.get("sortino"), default=None, allow_none=True)
+        calmar = safe_float(perf_anl.get("calmar"), default=None, allow_none=True)
+        wr50 = safe_float(perf_anl.get("wr50"), default=None, allow_none=True)
+        avg_w_r = safe_float(perf_anl.get("avg_w_r"), default=None, allow_none=True)
+        avg_l_r = safe_float(perf_anl.get("avg_l_r"), default=None, allow_none=True)
+        exp2 = safe_float(perf_anl.get("expectancy"), default=None, allow_none=True)
+        maxdd2 = safe_float(perf_anl.get("maxdd"), default=None, allow_none=True)
         sharpe_style = (
             G
             if (sharpe252 is not None and sharpe252 >= 1)
@@ -917,10 +917,10 @@ def panel_portfolio_perf_expanded(
                 # Extract all risk metrics with explicit None checks
                 # Mypy type narrowing: explicitly verify risk is not None
                 risk_dict: dict[str, Any] = risk
-                beta = safe_float(risk_dict.get("beta"), default=None)
-                conc5 = safe_float(risk_dict.get("conc5"), default=None)
-                cvar95 = safe_float(risk_dict.get("cvar95"), default=None)
-                svar = safe_float(risk_dict.get("svar"), default=None)
+                beta = safe_float(risk_dict.get("beta"), default=None, allow_none=True)
+                conc5 = safe_float(risk_dict.get("conc5"), default=None, allow_none=True)
+                cvar95 = safe_float(risk_dict.get("cvar95"), default=None, allow_none=True)
+                svar = safe_float(risk_dict.get("svar"), default=None, allow_none=True)
                 risk_date = risk_dict.get("date")
                 has_positions = risk_dict.get("has_positions", False)
 

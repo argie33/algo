@@ -195,8 +195,8 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         pval = float(pval) if not isinstance(pval, float) else pval
 
         # Optional fields - safe_float handles None gracefully
-        stop = safe_float(p.get("stop_loss_price"), default=None, field_name=f"{symbol}.stop")
-        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None, field_name=f"{symbol}.pnl")
+        stop = safe_float(p.get("stop_loss_price"), default=None, field_name=f"{symbol}.stop", allow_none=True)
+        pnl = safe_float(p.get("unrealized_pnl_pct"), default=None, field_name=f"{symbol}.pnl", allow_none=True)
 
         # Extract optional enrichment fields (low-priority data - graceful degradation)
         days_raw = p.get("days_since_entry")
@@ -220,13 +220,13 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         else:
             sec = str(sec_val)[:12]
         rmul = safe_float(
-            p.get("r_multiple"), default=None, field_name=f"{symbol}.r_multiple"
+            p.get("r_multiple"), default=None, field_name=f"{symbol}.r_multiple", allow_none=True
         )  # Optional: risk multiple
         dist = safe_float(
-            p.get("distance_to_stop_pct"), default=None, field_name=f"{symbol}.distance_to_stop_pct"
+            p.get("distance_to_stop_pct"), default=None, field_name=f"{symbol}.distance_to_stop_pct", allow_none=True
         )  # Optional: distance metric
         t1pct = safe_float(
-            p.get("distance_to_t1_pct"), default=None, field_name=f"{symbol}.distance_to_t1_pct"
+            p.get("distance_to_t1_pct"), default=None, field_name=f"{symbol}.distance_to_t1_pct", allow_none=True
         )  # Optional: target distance
 
         # Extract display name - NO SECONDARY FALLBACK (remove name field secondary source)
@@ -261,7 +261,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         ]
         if not compact:
             # Use safe_float to handle invalid numeric values gracefully
-            swg_s = safe_float(swg, default=None, field_name=f"{symbol}.minervini_trend_score")
+            swg_s = safe_float(swg, default=None, field_name=f"{symbol}.minervini_trend_score", allow_none=True)
             swg_c = (
                 G if (swg_s is not None and swg_s >= 80) else (Y if (swg_s is not None and swg_s >= 60) else "white")
             )
