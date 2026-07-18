@@ -498,7 +498,7 @@ class SpecializedChecker(BaseCheck):
                         row_dict = dict(row) if hasattr(row, "keys") else {}
                         count, max_updated = row_dict.get("count"), row_dict.get("max_updated")
 
-                    if count > 0 and max_updated:
+                    if count is not None and count > 0 and max_updated:
                         now = datetime.now(timezone.utc) if max_updated.tzinfo else datetime.now()
                         updated_age = (now - max_updated).total_seconds() / 3600
                         self.log(

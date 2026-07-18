@@ -42,6 +42,9 @@ SAFE_TABLES = {
     "etf_price_weekly",
     "etf_price_monthly",
     "etf_symbols",
+    # Price-derived metrics (Session 234 quick wins)
+    "price_extremes_52week",  # 52-week high/low computed from price_daily
+    "market_cap_computed",    # Market cap computed from price × shares outstanding
     # Market
     "market_health_daily",
     "market_events",

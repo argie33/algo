@@ -35,28 +35,36 @@ EASTERN_TZ = ZoneInfo("America/New_York")
 # - Phase 5 (Session 211): load_sec_valuations replaces yfinance quoteSummary calls (PE/PB/PS/PEG/FCF)
 LOADERS = {
     "morning": {
-        "description": "Morning pipeline (2:00 AM ET): prices + technicals + market status (consolidated)",
-        "loaders": ["load_prices.py", "load_technical_indicators.py", "load_market_status_daily.py"],
+        "description": "Morning pipeline (2:00 AM ET): prices + technicals + market status + FINRA short interest (Phase 1 optimization)",
+        "loaders": [
+            "load_prices.py",
+            "load_technical_indicators.py",
+            "load_market_status_daily.py",
+            "load_short_interest_finra.py",  # Phase 1: FINRA short interest (authoritative, replaces yfinance)
+            "load_price_extremes.py",  # Quick win: 52-week high/low from price_daily
+        ],
         "interval_hours": 24,
         "target_hour": 2,
         "target_minute": 0,
     },
     "reference": {
-        "description": "Reference data (9:15 AM ET): yfinance snapshot (other metrics now in EOD pipeline)",
+        "description": "Reference data (9:15 AM ET): yfinance snapshot (institutional/insider ownership, analyst data)",
         "loaders": ["load_yfinance_snapshot.py"],
         "interval_hours": 24,
         "target_hour": 9,
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): SEC valuations + value/quality/growth (consolidated), risk, stock scores",
+        "description": "Metrics pipeline (7:00 PM ET): positioning metrics + SEC valuations + value/quality/growth, risk, stock scores",
         "loaders": [
             "load_financial_statements.py",
             "load_sec_valuations.py",
+            "load_positioning_metrics.py",  # Phase 1: FINRA short interest + yfinance institutional/insider (Phase 2 will replace with SEC 13F/Form 4)
             "load_value_quality_growth_metrics.py",
             "load_risk_metrics_daily.py",
             "load_stock_scores.py",
             "load_sector_industry_daily.py",
+            "load_market_cap_computed.py",  # Quick win: market cap from shares_outstanding + price_daily
         ],
         "interval_hours": 24,
         "target_hour": 19,

@@ -1374,13 +1374,19 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         # In production Lambda, Cognito MUST be configured (this code is unreachable if properly configured)
 
         try:
-            from dev_auth import validate_dev_token
+            from dev_auth import validate_dev_token, get_dev_claims
 
             token = get_bearer_token(event)
             if token:
                 is_valid, claims, error = validate_dev_token(token)
                 if is_valid:
                     logger.info("[DEV_AUTH] Development token accepted (local dev mode)")
+                    return (True, True, None, claims)
+            else:
+                # In local dev mode, allow unauthenticated access with default dev claims
+                claims = get_dev_claims("dev-user")
+                if claims:
+                    logger.info("[DEV_AUTH] Local dev mode: allowing unauthenticated access with default dev-user claims")
                     return (True, True, None, claims)
         except ImportError:
             pass  # dev_auth not available - continue to error
