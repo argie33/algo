@@ -2563,50 +2563,7 @@ def panel_algo_health(  # noqa: C901
             if phase_panel:
                 rows.append(phase_panel)
 
-    # ── F: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
-    # CRITICAL: Do NOT silently fallback to empty dict when risk data is error or missing.
-    # Risk metrics are critical financial data. Missing/error data must be visible in error panel,
-    # not hidden by silent {} default.
-    if risk and not has_error(risk):
-        risk_dict = safe_get_dict(risk)
-    else:
-        risk_dict = None
-    if risk_dict:
-        var95_val = safe_float(risk_dict.get("var95"), default=None)
-        if var95_val is not None and var95_val > 0:
-            rows.append(Rule(style="dim"))
-            beta_val = safe_float(risk_dict.get("beta"), default=None)
-            conc5_val = safe_float(risk_dict.get("conc5"), default=None)
-            cvar95_val = safe_float(risk_dict.get("cvar95"), default=None)
-            svar_val = safe_float(risk_dict.get("svar"), default=None)
-            beta_c = (
-                R
-                if beta_val is not None and beta_val >= 1.2
-                else (Y if beta_val is not None and beta_val >= 0.8 else G)
-            )
-            conc_c = (
-                R
-                if conc5_val is not None and conc5_val >= 35
-                else (Y if conc5_val is not None and conc5_val >= 25 else "white")
-            )
-            var_c = _var_color(var95_val)
-            risk_parts = []
-            if var95_val is not None:
-                risk_parts.append(f"[dim]VaR 95%:[/][{var_c}]{var95_val:.2f}%[/]")
-            if cvar95_val is not None:
-                risk_parts.append(f"[dim]CVaR 95%:[/][{var_c}]{cvar95_val:.2f}%[/]")
-            if beta_val is not None:
-                # CRITICAL: When beta = 0, show "--" instead of "0.00"
-                beta_display_parts = "--" if beta_val <= 0 else f"{beta_val:.2f}"
-                risk_parts.append(f"[dim]Beta:[/][{beta_c}]{beta_display_parts}[/]")
-            if conc5_val is not None:
-                risk_parts.append(f"[dim]Top-5 Conc:[/][{conc_c}]{conc5_val:.0f}%[/]")
-            if svar_val is not None and svar_val > 0:
-                risk_parts.append(f"[dim]Stressed VaR:[/][{R}]{float(svar_val):.2f}%[/]")
-            if risk_parts:
-                rows.append(Text.from_markup("  ".join(risk_parts)))
-
-    # ── G: Notifications (compact) ────────────────────────────────────────────
+    # ── F: Notifications (compact) ────────────────────────────────────────────
     valid_notifs_raw = safe_get_list(notifs)
     if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
         rows.append(Rule(style="dim"))
