@@ -385,9 +385,16 @@ def run(
     if not qualified_trades:
         logger.info("[PHASE 8] No qualified trades from Phase 7")
 
-        log_phase_result_fn(8, "entry_execution", "success", "No qualified signals")
+        log_phase_result_fn(8, "entry_execution", "skipped", "No qualified signals available (upstream failure)")
 
-        return PhaseResult(8, "entry_execution", "ok", {"entered": 0}, False, "No signals to execute")
+        return PhaseResult(
+            8,
+            "entry_execution",
+            "skipped",
+            {"entered": 0},
+            False,
+            "No signals to execute (Phase 7 produced no qualified candidates)",
+        )
 
     # CRITICAL: Persist signals to database (previously missing - this caused zero signals in dashboard)
     # This is the essential link between Phase 7 signal generation and dashboard display
@@ -648,15 +655,27 @@ def run(
                 "Credential manager returned invalid data."
             )
     except (RuntimeError, ValueError, KeyError, ImportError) as e:
-        # Only fail if we have trades to execute; paper mode can skip if no credentials
+        # Only fail if we have trades to execute; paper mode can degrade if no credentials
         is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes")
         if len(qualified_trades) > 0:
             if is_local_mode:
                 logger.warning(
-                    f"[PHASE 8] LOCAL_MODE: Alpaca credentials not available, skipping {len(qualified_trades)} trades: {e}"
+                    f"[PHASE 8] LOCAL_MODE: Alpaca credentials not available, degrading {len(qualified_trades)} trades: {e}"
                 )
-                log_phase_result_fn(8, "entry_execution", "ok", "Local mode: trading skipped (no credentials)")
-                return PhaseResult(8, "entry_execution", "ok", {"entered": 0}, False, None)
+                log_phase_result_fn(
+                    8,
+                    "entry_execution",
+                    "degraded",
+                    f"Local mode: {len(qualified_trades)} trades not executed (no credentials)",
+                )
+                return PhaseResult(
+                    8,
+                    "entry_execution",
+                    "degraded",
+                    {"entered": 0},
+                    False,
+                    f"Alpaca credentials missing: {len(qualified_trades)} qualified trades not executed",
+                )
             else:
                 error_msg = (
                     f"[PHASE 8 CRITICAL] Alpaca credentials not available: {e}\n"

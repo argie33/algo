@@ -203,14 +203,22 @@ class MarketStatusDailyLoader(OptimalLoader):
 
             yield_spread = yield_data.get("yield_10y_2y_spread")
 
-            # Fetch put/call ratio (optional enrichment)
+            # Fetch put/call ratio (optional market sentiment indicator)
             put_call = None
             try:
                 put_call_result = self._put_call_fetcher.fetch(eval_date)
                 if isinstance(put_call_result, dict) and not put_call_result.get("data_unavailable"):
                     put_call = put_call_result.get("put_call_ratio")
-            except Exception:
-                logger.debug(f"[MARKET_STATUS] Put/call ratio unavailable for {eval_date}")
+                elif isinstance(put_call_result, dict) and put_call_result.get("data_unavailable"):
+                    # Put/call data unavailable - log at WARNING for visibility (not DEBUG)
+                    logger.warning(
+                        f"[MARKET_STATUS] Put/call ratio unavailable for {eval_date}: "
+                        f"{put_call_result.get('reason', 'unknown')}"
+                    )
+            except Exception as e:
+                # Exception catch is now explicit with WARNING log - not silent DEBUG
+                logger.warning(f"[MARKET_STATUS] Put/call ratio fetcher failed: {e}")
+                # put_call remains None - optional indicator
 
             return {
                 "data_unavailable": False,
