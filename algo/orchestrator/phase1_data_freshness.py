@@ -861,20 +861,40 @@ def run(  # noqa: C901
                 + (f" [DEGRADED MODE: {degraded_reason}]" if degraded_reason else ""),
             )
 
-            # Return with degraded status if metrics are stale but trading can proceed
+            # GOVERNANCE COMPLIANCE: Halt on degraded data (never allow incomplete metrics for trading)
+            # Ref: GOVERNANCE.md - "Never accept scores with <50% data completeness"
+            if degraded_reason:
+                logger.critical(
+                    f"[PHASE 1] HALTING: Degraded data not allowed for trading. "
+                    f"Reason: {degraded_reason}. "
+                    f"Fix: Ensure all metric loaders complete with >70% symbol coverage before trading."
+                )
+                log_phase_result_fn(1, "degraded_data_halt", "halt", degraded_reason)
+                return PhaseResult(
+                    1,
+                    "degraded_data_halt",
+                    "halted",
+                    {
+                        "status": "halted",
+                        "reason": degraded_reason,
+                    },
+                    True,  # HALT on degraded data
+                    degraded_reason,
+                )
+
+            # Return with ok status when all data is complete
             return PhaseResult(
                 1,
-                "all_tables_fresh_degraded" if degraded_reason else "all_tables_fresh",
-                "degraded" if degraded_reason else "ok",
+                "all_tables_fresh",
+                "ok",
                 {
-                    "status": "degraded" if degraded_reason else "ok",
+                    "status": "ok",
                     "price_date": str(max_date),
                     "symbols_loaded": symbols_loaded,
                     "coverage_pct": coverage_pct,
-                    "degradation_reason": degraded_reason,
                 },
-                False,  # Not halted, trading can proceed even in degraded mode
-                degraded_reason or "All critical data fresh and complete",
+                False,  # Not halted
+                "All critical data fresh and complete",
             )
 
     except Exception as e:
