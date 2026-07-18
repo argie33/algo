@@ -89,14 +89,19 @@ def start_dashboard(watch_interval: int | None = None) -> int:
     repo_root = Path(__file__).parent
     os.chdir(repo_root)
 
-    dashboard_args = [sys.executable, "-m", "dashboard"]
+    # Ensure dashboard gets LOCAL_MODE env var
+    env = os.environ.copy()
+    env["LOCAL_MODE"] = "true"
+    env["ENVIRONMENT"] = "development"
+
+    dashboard_args = [sys.executable, "-m", "dashboard", "--local"]
 
     if watch_interval:
         dashboard_args.extend(["-w", str(watch_interval)])
 
     # Run dashboard in foreground (blocks until user exits)
     try:
-        return subprocess.call(dashboard_args)
+        return subprocess.call(dashboard_args, env=env)
     except KeyboardInterrupt:
         return 0
 
