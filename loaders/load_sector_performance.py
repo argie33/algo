@@ -88,11 +88,12 @@ class SectorPerformanceLoader(BaseLoader):  # type: ignore[misc]
             SELECT
                 sector,
                 %s as date,
-                COALESCE(return_pct, 0) as return_pct,
+                return_pct,  -- CRITICAL: Do NOT default missing returns to 0%
                 1.0 as relative_strength,
                 NOW() as created_at,
                 NOW() as updated_at
             FROM sector_weighted_avg
+            WHERE return_pct IS NOT NULL  -- CRITICAL: Skip sectors with missing/incomplete data
             ON CONFLICT (sector, date) DO UPDATE SET
                 return_pct = EXCLUDED.return_pct,
                 updated_at = NOW()
@@ -107,6 +108,41 @@ class SectorPerformanceLoader(BaseLoader):  # type: ignore[misc]
                 "(may be weekend or missing price data)"
             )
             return 0
+
+        # CRITICAL: Log if any sectors had missing/incomplete data
+        # (These are skipped by WHERE return_pct IS NOT NULL clause)
+        self.cur.execute(
+            """
+            WITH sector_calc AS (
+                SELECT
+                    sector,
+                    SUM(daily_return * market_cap_proxy) / NULLIF(SUM(market_cap_proxy), 0) as return_pct
+                FROM (
+                    SELECT
+                        cp.sector,
+                        (pd_today.close - pd_prev.close) / NULLIF(pd_prev.close, 0) as daily_return,
+                        pd_today.close as market_cap_proxy
+                    FROM price_daily pd_today
+                    INNER JOIN price_daily pd_prev
+                        ON pd_today.symbol = pd_prev.symbol
+                        AND pd_prev.date = %s
+                    INNER JOIN company_profile cp ON pd_today.symbol = cp.symbol
+                    WHERE pd_today.date = %s
+                        AND cp.sector IS NOT NULL
+                        AND cp.sector != ''
+                ) daily_changes
+                GROUP BY sector
+            )
+            SELECT sector FROM sector_calc WHERE return_pct IS NULL
+            """,
+            (prev_date, target_date),
+        )
+        missing_sectors = [row[0] for row in self.cur.fetchall()]
+        if missing_sectors:
+            logger.warning(
+                f"[{self.name}] Sectors with missing/incomplete data (skipped): {missing_sectors}. "
+                f"Possible causes: sector has no stocks with prices, missing price data"
+            )
 
         self.cur.connection.commit()
         logger.info(f"[{self.name}] Loaded/updated {rows} sector performance records for {target_date}")

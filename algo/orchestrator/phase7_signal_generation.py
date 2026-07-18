@@ -66,7 +66,7 @@ _LIQUIDITY_CHECK_LIMIT = 10
 _HISTORICAL_SIGNAL_MEDIAN_MIN = 300  # Typical trading day has 300+ BUY signals in buy_sell_daily
 _SIGNAL_COUNT_ANOMALY_THRESHOLD = 50  # Alert if count drops below 5% of median (15 signals)
 _MAX_WORKERS = 4
-_MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0-100 scale)
+_MIN_COMPOSITE_SCORE = 30  # Minimum composite_score to qualify (0-100 scale). Median=32.75, so this filters ~60% of universe to top performers
 _BUYSELL_LOOKBACK_DAYS = 7  # Calendar days; covers full prior week including weekends and missed EOD runs
 
 

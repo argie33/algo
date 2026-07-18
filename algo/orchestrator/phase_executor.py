@@ -138,7 +138,11 @@ class OrchestratorPhaseExecutor:
         return errors
 
     def _get_default_skip_data(self, phase_num: int | str) -> dict[str, Any]:
-        """Get valid but empty data for a skipped phase."""
+        """Get valid but empty data for a skipped phase.
+
+        CRITICAL: Fails fast if phase_num is not recognized. Unknown phases
+        indicate configuration errors that must not be silently masked.
+        """
         defaults: dict[int | str, dict[str, Any]] = {
             1: {"status": "skipped"},
             2: {"status": "skipped"},
@@ -158,7 +162,14 @@ class OrchestratorPhaseExecutor:
             8: {"entered": 0},
             9: {"positions": 0},
         }
-        return defaults.get(phase_num, {})
+        if phase_num not in defaults:
+            raise ValueError(
+                f"CRITICAL: Unknown phase number {phase_num}. "
+                f"Cannot generate skip data for unregistered phase. "
+                f"Known phases: {sorted(defaults.keys())}. "
+                f"This indicates a configuration error in phase registration."
+            )
+        return defaults[phase_num]
 
     def _check_dependencies(self, phase_num: int | str) -> str | None:
         """Check if a phase's dependencies are satisfied.

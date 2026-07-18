@@ -28,6 +28,7 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.exception_handler import handle_exception, handle_invalid_data
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
@@ -123,23 +124,36 @@ class EarningsCalendarSECLoader(SecLoaderBase):
 
             # Extract 10-K and 10-Q filing dates
             for i, form_type in enumerate(forms):
+                try:
+                    filing_date_str = filing_dates[i]
+                    # Validate filing date format (ISO format expected)
                     try:
-                        filing_date_str = filing_dates[i]
                         filing_date = datetime.fromisoformat(filing_date_str).date()
+                    except (ValueError, TypeError) as e:
+                        # Skip this specific record - invalid date format in API response
+                        logger.debug(
+                            f"[{symbol}] Skipping filing at index {i}: invalid date format '{filing_date_str}': {e}"
+                        )
+                        continue
 
-                        # Only include recent filings (last 24 months)
-                        if (now_et.date() - filing_date).days <= 730:
-                            earnings_dates.append(
-                                {
-                                    "symbol": symbol,
-                                    "filing_date": filing_date,
-                                    "filing_type": form_type,  # 10-K or 10-Q
-                                    "data_unavailable": False,
-                                    "reason": None,
-                                }
-                            )
-                    except (ValueError, TypeError):
-                        pass
+                    # Only include recent filings (last 24 months)
+                    if (now_et.date() - filing_date).days <= 730:
+                        earnings_dates.append(
+                            {
+                                "symbol": symbol,
+                                "filing_date": filing_date,
+                                "filing_type": form_type,  # 10-K or 10-Q
+                                "data_unavailable": False,
+                                "reason": None,
+                            }
+                        )
+                except IndexError as e:
+                    # Array index mismatch (shouldn't happen due to earlier validation)
+                    logger.error(
+                        f"[{symbol}] Array index error at position {i}: {e}. "
+                        "This suggests data corruption in SEC API response."
+                    )
+                    break
 
             if not earnings_dates:
                 return self._unavailable_record(symbol, now_et, "no_recent_earnings_filings")

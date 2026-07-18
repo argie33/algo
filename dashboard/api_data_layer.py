@@ -126,7 +126,7 @@ def _get_api_base_url_with_source() -> tuple[str, str]:
     if _dashboard_api_url:
         _api_base_url_cache = _dashboard_api_url
         _api_base_url_source_cache = "AWS_CONFIG"
-        logger.info(f"[API] Using configured DASHBOARD_API_URL (source: AWS_CONFIG)")
+        logger.info("[API] Using configured DASHBOARD_API_URL (source: AWS_CONFIG)")
         logger.debug(f"[API] AWS endpoint: {_dashboard_api_url} (requires Cognito auth)")
         _localhost_checked = True
         return _api_base_url_cache, _api_base_url_source_cache
@@ -531,60 +531,6 @@ def get_cached_response(endpoint: str, mark_stale: bool = False) -> dict[str, An
     return cached_data
 
 
-def _try_stale_cache_fallback(endpoint: str) -> dict[str, Any] | None:
-    """Try to return stale cache data when API is unavailable.
-
-    RESILIENCE FIX: Dashboard should show stale data with [STALE] warning rather than
-    blank panels when API is temporarily unavailable. This is better UX for finance apps
-    where operators can still see positions/risk even if data is 30+ minutes old.
-
-    Returns cached data with _stale_cache=True flag if available (even if >30 min old).
-    This allows dashboard panels to render stale data with warnings instead of blanking.
-
-    Args:
-        endpoint: API endpoint path
-
-    Returns:
-        Cached data with _stale_cache=True if cache available (any age), or None
-    """
-    with _response_cache_lock:
-        cached = _response_cache.get(endpoint)
-        if not cached:
-            return None
-
-    try:
-        cached_data = cached.get("data")
-        if not isinstance(cached_data, dict):
-            return None
-
-        # Mark as stale and return for dashboard rendering
-        timestamp = cached.get("timestamp")
-        if isinstance(timestamp, datetime):
-            age_seconds = (datetime.now(timezone.utc) - timestamp).total_seconds()
-            age_minutes = int(age_seconds / 60)
-            age_hours = int(age_seconds / 3600)
-            if age_hours > 0:
-                age_str = f"{age_hours}h old"
-            else:
-                age_str = f"{age_minutes}m old"
-            cached_data = {
-                **cached_data,
-                "_stale_cache": True,
-                "_cache_age_seconds": int(age_seconds),
-                "_error": f"API unavailable - showing cached data [{age_str}]",
-            }
-        else:
-            cached_data = {
-                **cached_data,
-                "_stale_cache": True,
-                "_error": "API unavailable - showing cached data [age unknown]",
-            }
-
-        logger.info(f"[CACHE_FALLBACK] Returning stale cache for {endpoint} (age={age_seconds}s)")
-        return cached_data
-    except Exception as e:
-        logger.warning(f"[CACHE_FALLBACK] Failed to use stale cache for {endpoint}: {e}")
-        return None
 
 
 def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = "GET") -> dict[str, Any]:  # noqa: C901
@@ -594,6 +540,22 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
     Implements exponential backoff with maximum cap to prevent runaway delays.
     Circuit breaker pattern prevents hammering downed API.
     Supports Cognito auth.
+
+    CRITICAL DESIGN DECISION: NEVER USE STALE CACHE FALLBACK FOR FINANCE DATA
+    ============================================================================
+    In finance applications:
+    - Stale market data leads to wrong position sizing
+    - Stale account balances lead to incorrect risk calculations
+    - Stale signals lead to mistimed trade execution
+
+    Stale data is worse than missing data. Callers MUST see explicit errors when
+    data is unavailable so they know to halt trading or refresh manually.
+
+    If an operator wants to trade with stale data, that's their choice to make
+    explicitly - not a silent fallback that hides the problem.
+
+    Previous implementation: _try_stale_cache_fallback() function existed but was
+    never called. Removed to prevent accidental usage.
 
     CRITICAL FAIL-FAST: Returns error dict on all failures (retries exhausted or circuit open).
     Never attempts stale cache fallback. In finance applications, data unavailability must

@@ -28,6 +28,12 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
+from utils.loaders.exception_handler import (
+    handle_exception,
+    handle_no_data_found,
+    handle_resource_not_found,
+    handle_schema_mismatch,
+)
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)
@@ -129,11 +135,21 @@ class CompanyInfoSECLoader(SecLoaderBase):
                                         # Get most recent (most recent has latest end date)
                                         latest = sorted(pure_values, key=lambda x: x.get("end", ""), reverse=True)[0]
                                         shares_outstanding = latest.get("val")
+            except TimeoutError as e:
+                # Transient timeout - log but don't fail entire record
+                marker = handle_exception(symbol, e, "fetching company facts")
+                logger.debug(f"[{symbol}] Using NULL for shares_outstanding due to timeout")
+            except KeyError as e:
+                # API schema changed - log but don't fail entire record
+                marker = handle_schema_mismatch(symbol, e, "SEC API facts schema unexpected")
+                logger.debug(f"[{symbol}] Using NULL for shares_outstanding due to schema mismatch")
             except Exception as e:
-                logger.warning(
-                    f"[{symbol}] Error fetching shares outstanding from SEC API: {type(e).__name__}: {e}. "
-                    "Will use NULL for shares_outstanding."
+                # Unexpected errors should fail-fast
+                logger.critical(
+                    f"[{symbol}] Unexpected error fetching company facts: {type(e).__name__}: {e}",
+                    exc_info=True,
                 )
+                raise
 
             return [
                 {
@@ -149,9 +165,20 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 }
             ]
 
+        except TimeoutError as e:
+            marker = handle_exception(symbol, e, "fetching company info")
+            return [marker]
+        except KeyError as e:
+            marker = handle_schema_mismatch(symbol, e, "SEC API missing expected fields")
+            return [marker]
         except Exception as e:
-            logger.error(f"[{symbol}] Failed to fetch company info: {type(e).__name__}: {e}")
-            return self._unavailable_record(symbol, now_et, f"fetch_error: {str(e)[:40]}")
+            # Try to handle via classification, or fail-fast if unexpected
+            try:
+                marker = handle_exception(symbol, e, "fetching company info")
+                return [marker]
+            except Exception:
+                logger.critical(f"[{symbol}] Failed to fetch company info: {type(e).__name__}: {e}", exc_info=True)
+                raise
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record."""

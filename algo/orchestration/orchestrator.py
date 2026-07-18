@@ -1607,40 +1607,69 @@ class Orchestrator:
                     # Signal count from phase 7 (signal generation)
                     phase7_result = self.executor.get_result(7)
                     if phase7_result and hasattr(phase7_result, "data"):
-                        # Default to 0 if liquidity_passed is missing (can happen if Phase 7 failed/halted)
-                        signals = phase7_result.data.get("liquidity_passed", 0)
-                        if signals is None:
-                            signals = 0
-                        if not isinstance(signals, int):
-                            logger.warning(
-                                f"Phase 7 'liquidity_passed' has unexpected type {type(signals).__name__}: {signals!r}. "
-                                f"Will default to 0. Signal count should be explicit integer."
-                            )
-                            signals = 0
-                        m.put_signal_count(signals)
+                        # CRITICAL: Check phase status before using defaults
+                        # Distinguish: "phase halted" (0 attempted) vs "found 0 signals" (0 generated)
+                        if phase7_result.halted:
+                            # Phase was halted (upstream failure) - don't attempt to extract metrics
+                            logger.debug(f"Phase 7 halted (reason: {phase7_result.error}), skipping metrics")
+                            # Do NOT put signal count - let it remain None in metrics
+                        else:
+                            # Phase ran (halted=False) - extract signal count with explicit validation
+                            signals = phase7_result.data.get("liquidity_passed")
+                            if signals is None:
+                                # Phase succeeded but field is missing - this is an error in phase data contract
+                                logger.error(
+                                    f"Phase 7 succeeded but missing 'liquidity_passed' field. "
+                                    f"Data contract violation. Available keys: {list(phase7_result.data.keys())}"
+                                )
+                                # Don't put count - metrics will show None (data unavailable)
+                            elif not isinstance(signals, int):
+                                logger.warning(
+                                    f"Phase 7 'liquidity_passed' has unexpected type {type(signals).__name__}: {signals!r}. "
+                                    f"Signal count should be explicit integer."
+                                )
+                                # Don't put count - let it remain None
+                            else:
+                                m.put_signal_count(signals)
                     else:
-                        logger.debug("Phase 7 result not found in executor, defaulting signal count to 0")
-                        m.put_signal_count(0)
+                        logger.debug("Phase 7 result not found in executor")
+                        # Don't put signal count - let it remain None in metrics
 
                     # Trade count from phase 8 (entry execution)
                     phase8_result = self.executor.get_result(8)
                     if phase8_result and hasattr(phase8_result, "data"):
-                        trades = phase8_result.data.get("entered")
-                        if isinstance(trades, int):
-                            m.put_trade_count(trades)
+                        if phase8_result.halted:
+                            logger.debug(f"Phase 8 halted (reason: {phase8_result.error}), skipping metrics")
                         else:
-                            logger.debug(f"Phase 8 returned non-int entered count: {type(trades)}")
+                            trades = phase8_result.data.get("entered")
+                            if isinstance(trades, int):
+                                m.put_trade_count(trades)
+                            elif trades is None:
+                                logger.error(
+                                    f"Phase 8 succeeded but missing 'entered' field. "
+                                    f"Data contract violation. Available keys: {list(phase8_result.data.keys())}"
+                                )
+                            else:
+                                logger.warning(f"Phase 8 returned non-int entered count: {type(trades).__name__}")
                     else:
                         logger.debug("Phase 8 result not found in executor")
 
                     # Open position count from phase 9 (reconciliation)
                     phase9_result = self.executor.get_result(9)
                     if phase9_result and hasattr(phase9_result, "data"):
-                        positions = phase9_result.data.get("positions")
-                        if isinstance(positions, int):
-                            m.put_open_positions(positions)
+                        if phase9_result.halted:
+                            logger.debug(f"Phase 9 halted (reason: {phase9_result.error}), skipping metrics")
                         else:
-                            logger.debug(f"Phase 9 returned non-int positions: {type(positions)}")
+                            positions = phase9_result.data.get("positions")
+                            if isinstance(positions, int):
+                                m.put_open_positions(positions)
+                            elif positions is None:
+                                logger.error(
+                                    f"Phase 9 succeeded but missing 'positions' field. "
+                                    f"Data contract violation. Available keys: {list(phase9_result.data.keys())}"
+                                )
+                            else:
+                                logger.warning(f"Phase 9 returned non-int positions: {type(positions).__name__}")
                     else:
                         logger.debug("Phase 9 result not found in executor")
                 else:

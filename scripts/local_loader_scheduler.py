@@ -59,7 +59,9 @@ LOADERS = {
         "loaders": [
             "load_financial_statements.py",
             "load_sec_valuations.py",
-            "load_positioning_metrics.py",  # Phase 1: FINRA short interest + yfinance institutional/insider (Phase 2 will replace with SEC 13F/Form 4)
+            "load_institutional_holdings_13f.py",  # Phase 2: SEC 13F institutional ownership (replaces ~20% yfinance)
+            "load_insider_holdings_sec.py",  # Phase 2: SEC Form 4/5 insider holdings (replaces ~15% yfinance)
+            "load_positioning_metrics.py",  # Reads from Phase 2 SEC tables + FINRA short interest
             "load_value_quality_growth_metrics.py",
             "load_risk_metrics_daily.py",
             "load_stock_scores.py",

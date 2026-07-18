@@ -882,7 +882,10 @@ class APIHandler(BaseHTTPRequestHandler):
 
             # Extract market_regime (optional - can be unknown)
             market_regime = market.get("market_regime") if market else "unknown"
-            market_regime_confidence = market.get("market_regime_confidence", 0.5) if market else 0.5
+            # CRITICAL: Do NOT default to 0.5 confidence when data missing
+            # 0.5 looks like "neutral confidence in neutral market" which is misleading
+            # Use None to signal "data unavailable" so dashboard can show appropriate message
+            market_regime_confidence = market.get("market_regime_confidence") if market else None
 
             response = {
                 "statusCode": 200,
