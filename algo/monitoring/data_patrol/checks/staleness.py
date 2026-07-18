@@ -26,7 +26,6 @@ class StalenessChecker(BaseCheck):
             "technical_data_daily": 1,  # Computed from prices, max 1 day old
             "buy_sell_daily": 1,  # Generated signals, max 1 day old
             "trend_template_data": 1,  # Daily calculation, max 1 day old
-            "signal_quality_scores": 7,  # Quality metrics, warning if >7 days
             "market_health_daily": 1,  # VIX and market indicators, max 1 day old
             "sector_ranking": 7,  # Sector analysis, warning if >7 days old
             "industry_ranking": 7,  # Industry analysis, warning if >7 days old
@@ -61,13 +60,6 @@ class StalenessChecker(BaseCheck):
                 "daily",
                 staleness_thresholds["trend_template_data"],
                 CRIT,
-            ),
-            (
-                "signal_quality_scores",
-                "date",
-                "daily",
-                staleness_thresholds["signal_quality_scores"],
-                WARN,
             ),
             (
                 "market_health_daily",
@@ -137,7 +129,6 @@ class StalenessChecker(BaseCheck):
         today = _date.today()
         critical_signal_tables = {
             "buy_sell_daily",
-            "signal_quality_scores",
             "trend_template_data",
         }
         stale_critical_signals = []
