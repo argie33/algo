@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-import logging, sys
+import sys
 from datetime import date, datetime, timedelta
 from typing import Any
+
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
+
 
 class PriceExtremesLoader(OptimalLoader):
     table_name = "price_extremes_52week"
