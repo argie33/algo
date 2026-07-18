@@ -5,6 +5,7 @@ import json
 import logging
 import logging.handlers
 import os
+import re
 import threading
 from collections import OrderedDict
 from datetime import datetime, timedelta
@@ -97,6 +98,16 @@ os.makedirs(_log_dir, exist_ok=True)
 _is_local_mode = os.environ.get("LOCAL_MODE") == "true"
 _log_file = os.path.join(_log_dir, "dashboard-local.log" if _is_local_mode else "dashboard.log")
 
+class _AnsiStrippingFormatter(logging.Formatter):
+    """Logging formatter that strips ANSI escape codes from Rich output."""
+
+    ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+
+    def format(self, record: logging.LogRecord) -> str:
+        msg = super().format(record)
+        return self.ANSI_ESCAPE.sub("", msg)
+
+
 class _WindowsSafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
     """RotatingFileHandler that gracefully handles Windows file locking issues.
 
@@ -124,7 +135,7 @@ _root_logger.setLevel(logging.ERROR)
 # File handler: WARNING and above only (Windows-safe version)
 _handler = _WindowsSafeRotatingFileHandler(_log_file, encoding="utf-8", maxBytes=10*1024*1024, backupCount=3)
 _handler.setLevel(logging.WARNING)
-_formatter = logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+_formatter = _AnsiStrippingFormatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 _handler.setFormatter(_formatter)
 _root_logger.addHandler(_handler)
 
