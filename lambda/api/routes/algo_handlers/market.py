@@ -1318,20 +1318,15 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
 
         current_date = row.get("date")
 
-        # Validate vix_regime is present in factors; warn and use neutral if missing
+        # Validate vix_regime is present in factors; fail-fast if missing (critical market signal)
         if "vix_regime" not in factors or factors.get("vix_regime") is None:
-            logger.error(
-                f"[MARKETS API] vix_regime missing/null in factors for {current_date}: "
-                f"market exposure computation may not have run or vix_regime computation failed. "
-                f"Check market_exposure_daily and load_market_exposure_daily logs."
+            error_msg = (
+                f"vix_regime missing/null in factors for {current_date}: "
+                f"market exposure computation has not completed successfully. "
+                f"Check market_exposure_daily table and load_market_exposure_daily logs."
             )
-            factors["vix_regime"] = {
-                "score": 0,
-                "value": None,
-                "signal": "neutral",
-                "data_unavailable": True,
-                "reason": "vix_regime_missing_from_market_exposure_computation",
-            }
+            logger.error(f"[MARKETS API] {error_msg}")
+            return error_response(503, "data_unavailable", error_msg)
 
         # distribution_days is a key market factor; fail-fast if missing
         try:

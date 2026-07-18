@@ -181,6 +181,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         except Exception as e:
             logger.warning(f"[PHASE 3] Paper mode price update failed: {type(e).__name__}: {e}")
             # Don't halt on failure - positions without updated prices are still valid for trading
+            # In paper mode, price updates are best-effort; missing prices don't break reconciliation
             return PhaseResult(
                 3,
                 "position_monitor",
