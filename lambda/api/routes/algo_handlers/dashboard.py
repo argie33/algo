@@ -1539,7 +1539,16 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 ORDER BY COALESCE(s.signal_quality_score, 0) DESC NULLS LAST
                 LIMIT 30
             """)
-            buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in cur.fetchall()]
+            buy_sigs_rows = cur.fetchall()
+            buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in buy_sigs_rows]
+
+            # CRITICAL AUDIT: Track NULL signal_quality_score (COALESCE default usage)
+            null_quality_count = sum(1 for row in buy_sigs_rows if row and row[1] is None)  # column 1 = signal_quality_score
+            if null_quality_count > 0:
+                logger.warning(
+                    f"[DASHBOARD AUDIT] {null_quality_count}/{len(buy_sigs_rows)} signals have NULL quality_score. "
+                    f"These are defaulting to 0 in ranking (COALESCE fallback). If > 10%, check signal quality scorer."
+                )
 
             # Grade distribution (A/B/C/D by signal_quality_score from algo_signals)
             cur.execute("""
@@ -1706,9 +1715,29 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         logger.info(f"[SCORES] Query returned {len(rows)} rows")
 
         top_scores = []
+        null_rs_percentile_count = 0
         for row in rows:
             score_dict = safe_json_serialize(safe_dict_convert(row))
+            # CRITICAL AUDIT: Track RS percentile COALESCE fallback (when original is NULL, defaults to 50.0)
+            # The query has COALESCE(fs.rs_percentile, 50.0), so we can't detect it here directly.
+            # Instead, monitor in database query warning below.
             top_scores.append(score_dict)
+
+        # AUDIT: Add monitoring for COALESCE fallback usage in RS percentile
+        cur.execute("""
+            SELECT COUNT(*) as null_count
+            FROM stock_scores s
+            WHERE s.composite_score > 0 AND s.data_completeness >= 70 AND s.rs_percentile IS NULL
+            LIMIT 100
+        """)
+        null_rs_check = cur.fetchone()
+        if null_rs_check and null_rs_check[0] > 0:
+            null_rs_pct = (null_rs_check[0] / len(top_scores) * 100) if len(top_scores) > 0 else 0
+            logger.warning(
+                f"[DASHBOARD AUDIT] {null_rs_check[0]} scores with NULL rs_percentile in database. "
+                f"These default to 50.0 (COALESCE fallback) - momentum data missing. "
+                f"If > 5%, check momentum scorer completion rate ({null_rs_pct:.1f}% of returned {len(top_scores)} scores)."
+            )
 
         # FALLBACK: If growth_score is null, check if it's due to missing upstream data
         # CRITICAL: Do NOT set fake defaults (0.39) - let dashboard render missing data properly
