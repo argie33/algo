@@ -538,14 +538,17 @@ def run(  # noqa: C901
             # Core signals come from price_daily + technical_data_daily. See Session 221.
             halt_tables = {
                 "market_health_daily": "Market health (breadth/regime)",
-                "market_exposure_daily": "Market exposure limits",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
             }
             # Warning-only tables: enrichments + auxiliary data. Stale -> logged, trading continues.
             # Moved metric tables here (Session 221): they're website enrichments, not core to signals.
             # - growth_metrics, quality_metrics, value_metrics: Portfolio analysis only
             # - positioning_metrics, stability_metrics: Website enrichments only
+            # Moved market_exposure_daily here (Session 239): loaded by separate EOD loader at 4:05 PM,
+            # not orchestrator. Phase 5 reads via read_market_regime(date <= eval_date) so 1-day-old
+            # data works fine. Morning orchestrator runs would false-halt without this move.
             warn_tables = {
+                "market_exposure_daily": "Market exposure limits (EOD loader)",
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "sector_ranking": "Sector rankings",
                 "growth_metrics": "Growth metrics (enrichment only)",

@@ -116,6 +116,20 @@ def fetch_market(c: None) -> dict[str, Any]:
                 record_data_quality_issue("market", "critical_field", "missing_spy")
                 return FetcherValidator.build_error_response(error_msg)
 
+            # Handle case where vix_raw is list (data corruption/malformed response)
+            if isinstance(vix_raw, list):
+                if len(vix_raw) == 0:
+                    error_msg = "Critical market data invalid: VIX is empty list. Data quality issue."
+                    logger.error(error_msg)
+                    record_data_quality_issue("market", "critical_field", "invalid_vix_list", "empty_list")
+                    return FetcherValidator.build_error_response(error_msg)
+                # Use first element if it's a list
+                vix_raw = vix_raw[0]
+                logger.warning(
+                    f"[MARKET] VIX value was list (data corruption), extracting first element: {vix_raw}. "
+                    f"Check vix_history table and loader."
+                )
+
             vix = float(vix_raw)
             spy = float(spy_raw)
 
