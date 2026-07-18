@@ -823,6 +823,21 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             logger.warning(f"Could not fetch sector rankings: {se}")
 
         # Fetch market health from market_health_daily for dashboard KPIs
+        def _get_fallback_field(field_name: str, cur: cursor) -> Any:
+            """Fetch most recent non-null value for a field (for local dev incomplete data)."""
+            try:
+                cur.execute(f"""
+                        SELECT {field_name} FROM market_health_daily
+                        WHERE {field_name} IS NOT NULL
+                        ORDER BY date DESC LIMIT 1
+                    """)
+                row = cur.fetchone()
+                if row:
+                    return safe_dict_convert(row).get(field_name)
+            except Exception:
+                pass
+            return None
+
         market_health = {}
         try:
             cur.execute("""
@@ -836,6 +851,12 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             mh_row = cur.fetchone()
             if mh_row:
                 market_health = safe_json_serialize(safe_dict_convert(mh_row))
+                # Fallback for optional breadth metrics and sentiment (handle incomplete local dev data)
+                for field in ["up_volume_percent", "advance_decline_ratio", "new_highs_count", "new_lows_count", "breadth_momentum_10d", "put_call_ratio", "spy_change_pct"]:
+                    if market_health.get(field) is None:
+                        fallback_val = _get_fallback_field(field, cur)
+                        if fallback_val is not None:
+                            market_health[field] = fallback_val
                 # CRITICAL: VIX level must be > 0 (invalid values indicate data quality issue)
                 # Fail-fast if VIX is invalid (contract requires non-None vix_level)
                 vix_val = market_health.get("vix_level")
