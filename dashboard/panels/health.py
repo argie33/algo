@@ -1585,14 +1585,10 @@ def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, 
 
 def _format_health_data_stale_section(stale: list[Any], hlth_list: list[Any] | None) -> str:
     """Format data health when stale tables exist."""
-    crit_stale = [r for r in stale if r.get("role") == "CRIT"]
-    if crit_stale:
-        rtt_pfx = f"[bold {R}]CRIT STALE[/]  "
-    else:
-        rtt_pfx = f"[{Y}]{len(stale)} stale[/]  "
+    rtt_pfx = f"[bold {R}]✗ STALE[/]  "
 
     stale_parts = []
-    ordered = crit_stale + [r for r in stale if r not in crit_stale]
+    ordered = stale
     for r in ordered[:4]:
         tbl_val = r.get("tbl")
         nm = (tbl_val if tbl_val else "--")[:16]
@@ -2625,11 +2621,10 @@ def panel_algo_health(  # noqa: C901
             logger.debug("[HEALTH] Data health list is None, cannot assess table freshness")
         elif not stale and hlth_list:
             # All tables fresh
-            crit = [r for r in hlth_list if isinstance(r, dict) and r.get("role") == "CRIT"]
             ages_raw = [_age_h(r) for r in hlth_list if isinstance(r, dict)]
             # Convert dict markers (unavailability) to None for type compatibility
             ages: list[float | None] = [a if isinstance(a, float) else None for a in ages_raw]
-            health_text = _format_health_data_fresh_section(hlth_list, crit, ready_to_trade, ages)
+            health_text = _format_health_data_fresh_section(hlth_list, hlth_list, ready_to_trade, ages)
             rows.append(Text.from_markup(health_text))
         elif stale is not None and stale:
             # Some tables are stale
