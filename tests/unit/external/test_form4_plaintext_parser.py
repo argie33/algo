@@ -137,6 +137,89 @@ class TestForm4PlaintextParser(unittest.TestCase):
         self.assertEqual(net, 0)
         self.assertIsNone(latest_date)
 
+    def test_strip_html(self):
+        """Test HTML tag removal from SEC plaintext files."""
+        content_with_html = """
+        <html>
+        <body>
+        <table>
+        <tr><td>Reporting Owner Name:</td><td>John Smith</td></tr>
+        <tr><td>Shares Owned Following Transaction:</td><td>1,234,567</td></tr>
+        </table>
+        </body>
+        </html>
+        """
+        cleaned = Form4PlaintextParser._strip_html(content_with_html)
+        self.assertNotIn("<", cleaned)
+        self.assertNotIn(">", cleaned)
+        self.assertIn("John Smith", cleaned)
+        self.assertIn("1,234,567", cleaned)
+
+    def test_strip_html_entities(self):
+        """Test HTML entity decoding."""
+        content = "Shares&nbsp;Owned&nbsp;Following&nbsp;Transaction:&nbsp;1,000&nbsp;shares"
+        cleaned = Form4PlaintextParser._strip_html(content)
+        # After entity decoding and cleanup, should have normal spaces
+        self.assertNotIn("&nbsp;", cleaned)
+        self.assertIn("shares", cleaned)
+
+    def test_parse_html_embedded_form4(self):
+        """Test parsing Form 4 with HTML-embedded content."""
+        content = """
+        <html>
+        <body>
+        <div>
+        <table>
+        <tr><td>Reporting Owner Name:</td><td>Jane Doe</td></tr>
+        <tr><td>Officer Title:</td><td>Vice President</td></tr>
+        </table>
+        </div>
+
+        <section>
+        <h3>Non-Derivative Transactions</h3>
+        <table border="1">
+        <tr><td>2024-03-10</td><td>A</td><td>5,000</td></tr>
+        <tr><td>2024-03-20</td><td>D</td><td>1,000</td></tr>
+        </table>
+        </section>
+
+        <div>
+        <p>Shares Owned Following Transaction: 50,000</p>
+        <p>% of Class: 0.5%</p>
+        </div>
+        </body>
+        </html>
+        """
+        result = Form4PlaintextParser.parse(content, "AAPL")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["insider_name"], "Jane Doe")
+        self.assertEqual(result["shares_owned"], 50000)
+        self.assertAlmostEqual(result["ownership_pct"], 0.5)
+        self.assertEqual(result["recent_buys"], 1)
+        self.assertEqual(result["recent_sells"], 1)
+
+    def test_parse_form4_case_insensitive_transactions(self):
+        """Test transaction parsing with lowercase a/d."""
+        content = """
+        FORM 4
+
+        Reporting Owner Name: Jim Bob
+        Shares Owned Following Transaction: 10,000
+        % of Class: 0.1%
+
+        Non-Derivative Transactions
+
+        2024-01-15 | a | 1,000
+        2024-01-20 | d | 500
+        """
+        result = Form4PlaintextParser.parse(content, "AAPL")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["recent_buys"], 1)
+        self.assertEqual(result["recent_sells"], 1)
+        self.assertEqual(result["net_transactions"], 500)
+
 
 if __name__ == "__main__":
     unittest.main()
