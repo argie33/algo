@@ -1049,8 +1049,12 @@ def run(  # noqa: C901
 
                             cur.execute("""
                                 SELECT SUM(unrealized_pnl_total) as total_pnl
-                                FROM algo_portfolio_snapshots
-                                ORDER BY created_at DESC LIMIT 1
+                                FROM (
+                                    SELECT unrealized_pnl_total
+                                    FROM algo_portfolio_snapshots
+                                    ORDER BY created_at DESC
+                                    LIMIT 1
+                                ) t
                             """)
                             pnl_row = cur.fetchone()
                             total_pnl = float(pnl_row[0]) if (pnl_row and pnl_row[0] is not None) else 0.0
