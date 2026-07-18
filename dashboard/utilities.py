@@ -132,17 +132,17 @@ for _h in _root_logger.handlers[:]:
 # Set root to ERROR to suppress noise
 _root_logger.setLevel(logging.ERROR)
 
-# File handler: WARNING and above only (Windows-safe version)
+# File handler: INFO and above (Windows-safe version)
 _handler = _WindowsSafeRotatingFileHandler(_log_file, encoding="utf-8", maxBytes=10*1024*1024, backupCount=3)
-_handler.setLevel(logging.WARNING)
+_handler.setLevel(logging.INFO)
 _formatter = _AnsiStrippingFormatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 _handler.setFormatter(_formatter)
 _root_logger.addHandler(_handler)
 
-# Show all warnings and errors from dashboard modules
+# Show all info/warnings/errors from dashboard modules
 for _name in ["dashboard", "dashboard.utilities", "dashboard.panels", "dashboard.fetchers_common",
               "dashboard.api_data_layer", "dashboard.cognito_auth", "utils.validation.framework"]:
-    logging.getLogger(_name).setLevel(logging.WARNING)
+    logging.getLogger(_name).setLevel(logging.INFO)
     logging.getLogger(_name).propagate = True  # Ensure they propagate to root
 
 # Module-level logger
