@@ -68,7 +68,7 @@ class SectorRankingLoader(OptimalLoader):
                         ss.sector_name,
                         NOW()::date,
                         ss.current_rank,
-                        ss.current_rank - COALESCE(r1.rank, ss.current_rank),
+                        CASE WHEN r1.rank IS NOT NULL THEN ss.current_rank - r1.rank ELSE NULL END,
                         r1.rank,
                         r4.rank,
                         r12.rank
@@ -126,7 +126,7 @@ class SectorRankingLoader(OptimalLoader):
                         ist.industry_name,
                         NOW()::date,
                         ist.current_rank,
-                        ist.current_rank - COALESCE(r1.rank, ist.current_rank),
+                        CASE WHEN r1.rank IS NOT NULL THEN ist.current_rank - r1.rank ELSE NULL END,
                         r1.rank,
                         r4.rank
                     FROM industry_stats ist
