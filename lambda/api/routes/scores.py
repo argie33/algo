@@ -107,6 +107,10 @@ def _get_stock_scores(
         sort_col = allowed_sorts.get(sort_by, "composite_score")
         sort_direction = "DESC" if sort_order == "desc" else "ASC"
 
+        # ETF FILTERING (GOVERNANCE compliance): Stock scores are for equity trading signals.
+        # Exclude ETFs per GOVERNANCE.md: "financial data loaders and trading signals are stocks only".
+        # Two-condition AND for robustness: (1) etf_symbols table (definitive source), (2) etf flag.
+        # This pattern is mirrored in /api/market/breadth and Phase 7 signal generation.
         where_clause = """
             WHERE sc.composite_score > 0
             AND (ss.symbol NOT IN (SELECT symbol FROM etf_symbols) AND (ss.etf IS NULL OR ss.etf = 'N'))

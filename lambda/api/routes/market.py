@@ -78,6 +78,9 @@ def _handle_breadth(cur: cursor) -> Any:
 
     # MATERIALIZED CTEs force one evaluation each; explicit NOT LIKE on y lets
     # PostgreSQL use the idx_price_daily_date_symbol partial index for both joins.
+    # ETF FILTERING: Market breadth measures stock market participation (advance/decline).
+    # Exclude indices (^VIX, etc) and ETFs per GOVERNANCE: "financial data loaders exclude ETFs".
+    # This applies to market health calculations too - must measure stock-only breadth.
     breadth_query = """
         WITH trading_dates AS MATERIALIZED (
             SELECT DISTINCT date
@@ -100,8 +103,10 @@ def _handle_breadth(cur: cursor) -> Any:
         FROM date_pairs dp
         JOIN price_daily t ON t.date = dp.d
             AND t.symbol NOT LIKE '^%' AND t.close IS NOT NULL
+            AND t.symbol NOT IN (SELECT symbol FROM etf_symbols)
         JOIN price_daily y ON y.date = dp.prev_d AND y.symbol = t.symbol
             AND y.symbol NOT LIKE '^%' AND y.close IS NOT NULL
+            AND y.symbol NOT IN (SELECT symbol FROM etf_symbols)
         GROUP BY dp.d
         ORDER BY dp.d DESC
         LIMIT 10
@@ -181,12 +186,14 @@ def _handle_technicals(cur: cursor) -> Any:
             WITH latest AS (
                 SELECT date AS d FROM price_daily
                 WHERE close IS NOT NULL AND symbol NOT LIKE '^%'
+                  AND symbol NOT IN (SELECT symbol FROM etf_symbols)
                 ORDER BY date DESC LIMIT 1
             ),
             prev_day AS (
                 SELECT date AS d FROM price_daily
                 WHERE date < (SELECT d FROM latest)
                       AND close IS NOT NULL AND symbol NOT LIKE '^%'
+                      AND symbol NOT IN (SELECT symbol FROM etf_symbols)
                 ORDER BY date DESC LIMIT 1
             )
             SELECT
@@ -200,6 +207,7 @@ def _handle_technicals(cur: cursor) -> Any:
               AND y.date = (SELECT d FROM prev_day)
               AND t.close IS NOT NULL
               AND y.close IS NOT NULL
+              AND t.symbol NOT IN (SELECT symbol FROM etf_symbols)
         """
         breadth_rows = execute_with_timeout(cur, breadth_query, timeout_sec=3)
         cur.execute("RELEASE SAVEPOINT technicals_breadth")

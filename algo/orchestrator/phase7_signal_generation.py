@@ -279,134 +279,6 @@ def _check_liquidity_parallel(
         return candidate, False
 
 
-def _get_candidates_from_stock_scores_fallback(
-    run_date: _date, min_score: float, limit: int = 100
-) -> list[dict[str, Any]]:
-    """FALLBACK signal source: stock_scores composite ranking only (no buy_sell_daily).
-
-    Used when orchestrator runs before EOD pipeline completes (morning/afternoon runs).
-    Returns top-ranked candidates by composite_score, with technical data attached.
-
-    This is a degraded path (no breakout confirmation), but allows trading to continue.
-    """
-    try:
-        with DatabaseContext("read") as cur:
-            cur.execute("SET LOCAL statement_timeout = '15000ms'")
-            cur.execute(
-                """
-                WITH ranked AS (
-                    SELECT
-                        ss.symbol,
-                        ss.composite_score,
-                        ss.quality_score,
-                        ss.growth_score,
-                        ss.momentum_score,
-                        ss.rs_percentile,
-                        p.close,
-                        p.high,
-                        p.low,
-                        sma.avg_close AS sma_50,
-                        atr_calc.atr_14,
-                        cp.sector,
-                        cp.industry,
-                        NULL::float AS buylevel,
-                        NULL::float AS stoplevel,
-                        0.5 AS signal_strength,
-                        NULL::float AS volume_surge_pct,
-                        0 AS market_stage
-                    FROM stock_scores ss
-                    JOIN LATERAL (
-                        SELECT close, high, low
-                        FROM price_daily
-                        WHERE symbol = ss.symbol AND date <= %s
-                        ORDER BY date DESC LIMIT 1
-                    ) p ON TRUE
-                    JOIN LATERAL (
-                        SELECT AVG(close) AS avg_close
-                        FROM (
-                            SELECT close FROM price_daily
-                            WHERE symbol = ss.symbol AND date <= %s
-                            ORDER BY date DESC LIMIT 50
-                        ) t
-                    ) sma ON TRUE
-                    JOIN LATERAL (
-                        SELECT AVG(tr) AS atr_14
-                        FROM (
-                            SELECT
-                                GREATEST(
-                                    high - low,
-                                    ABS(high - LAG(close) OVER (ORDER BY date)),
-                                    ABS(low - LAG(close) OVER (ORDER BY date))
-                                ) AS tr,
-                                ROW_NUMBER() OVER (ORDER BY date DESC) AS rn
-                            FROM price_daily
-                            WHERE symbol = ss.symbol AND date <= %s
-                        ) t
-                        WHERE tr IS NOT NULL AND rn <= 14
-                    ) atr_calc ON TRUE
-                    LEFT JOIN company_profile cp ON cp.ticker = ss.symbol
-                    WHERE ss.composite_score >= %s
-                      AND ss.data_completeness >= 70
-                      AND p.close > sma.avg_close
-                      AND p.high > p.low
-                )
-                SELECT * FROM ranked
-                ORDER BY composite_score DESC
-                LIMIT %s
-                """,
-                (run_date, run_date, run_date, min_score, limit),
-            )
-            rows = cur.fetchall()
-
-        candidates = []
-        for r in rows:
-            symbol = r[0]
-            composite = float(r[1]) if r[1] is not None else min_score
-            close = float(r[6]) if r[6] is not None else None
-
-            if close is None:
-                raise RuntimeError(
-                    f"[PHASE 7 FAIL-FAST] {symbol}: missing close price from price_daily. "
-                    f"This indicates the price_daily loader failed to complete or returned incomplete data. "
-                    f"Cannot generate valid signals without current prices. Halting phase."
-                )
-
-            candidates.append(
-                {
-                    "symbol": symbol,
-                    "composite_score": composite,
-                    "quality_score": float(r[2]) if r[2] is not None else None,
-                    "growth_score": float(r[3]) if r[3] is not None else None,
-                    "momentum_score": float(r[4]) if r[4] is not None else None,
-                    "rs_percentile": float(r[5]) if r[5] is not None else None,
-                    "close": close,
-                    "high": float(r[7]) if r[7] is not None else None,
-                    "low": float(r[8]) if r[8] is not None else None,
-                    "sma_50": float(r[9]) if r[9] is not None else None,
-                    "atr_14": float(r[10]) if r[10] is not None else None,
-                    "entry_price": close,
-                    "signal_strength": 0.5,
-                    "sector": r[11],
-                    "industry": r[12],
-                    "buylevel": None,
-                    "stoplevel": None,
-                    "volume_surge_pct": None,
-                    "market_stage": 0,
-                    "signal_date": str(run_date),
-                    "risk_score": _compute_risk_score(float(r[10]) if r[10] is not None else None, close),
-                }
-            )
-
-        logger.info(
-            f"[PHASE 7 FALLBACK] {len(candidates)} candidates from stock_scores only "
-            f"(no buy_sell_daily - EOD pipeline pending)"
-        )
-        return candidates
-    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.error(f"[PHASE 7 FALLBACK] Database error: {e}")
-        raise RuntimeError(f"[PHASE 7 FALLBACK] Failed to fetch stock_scores candidates: {e}") from e
-
-
 def _get_candidates_from_buysell(
     run_date: _date, min_score: float, limit: int = 100, min_close_quality: float = 0.3
 ) -> list[dict[str, Any]]:
@@ -455,6 +327,7 @@ def _get_candidates_from_buysell(
                         WHERE signal = 'BUY'
                           AND date >= %s
                           AND date <= %s
+                          AND symbol NOT IN (SELECT symbol FROM etf_symbols)
                         ORDER BY symbol, date DESC
                     ) bsd
                     LEFT JOIN stock_scores ss ON ss.symbol = bsd.symbol
@@ -910,6 +783,12 @@ def run(  # noqa: C901
         raw_candidates = _get_candidates_from_buysell(
             run_date, min_composite_score, min_close_quality=min_close_quality
         )
+
+        # CRITICAL FIX: Filter out non-stock securities (inverse ETFs, REITs, closed-end funds, foreign stocks)
+        # These should not be included in trading signals (DX, GAIN, EPRT, etc.)
+        if raw_candidates:
+            raw_candidates = _filter_non_stock_securities(raw_candidates)
+
         if not raw_candidates:
             msg = (
                 f"[PHASE 7] buy_sell_daily has signals but NONE passed filters "
