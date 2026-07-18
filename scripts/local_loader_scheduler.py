@@ -75,10 +75,13 @@ def run_loader_now(loader_name):
         return False
 
     try:
+        env = os.environ.copy()
+        env["LOCAL_MODE"] = "1"
         result = subprocess.run(
             ["python3", loader_path],
             timeout=3600,  # 1 hour timeout
             check=False,
+            env=env,
         )
         if result.returncode == 0:
             logger.info(f"✓ Loader succeeded: {loader_name}")

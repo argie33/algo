@@ -153,13 +153,52 @@ def main():
     parser.add_argument("--backfill", type=int, default=1, help="Days to backfill")
     parser.add_argument("--limit", type=int, help="Limit for scores loader")
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+    parser.add_argument("--force-refresh", action="store_true", help="Force refresh by bypassing watermarks and updating status")
 
     args = parser.parse_args()
 
     if args.debug:
         logging.getLogger().setLevel(logging.DEBUG)
 
+    # Handle --force-refresh: bypass watermarks and update loader status
+    if args.force_refresh:
+        os.environ["TECH_FULL_REFRESH"] = "true"
+        logger.info("[FORCE_REFRESH] Enabled - bypassing watermarks and updating loader status")
+
     try:
+        # Map loader command to table names
+        table_mapping = {
+            "prices": ["price_daily"],
+            "technical": ["technical_data_daily"],
+            "market_status": ["market_health_daily"],
+            "value_quality_growth": ["value_metrics", "quality_metrics", "growth_metrics"],
+            "scores": ["stock_scores"],
+        }
+        table_names = table_mapping.get(args.loader, [])
+
+        # Mark loaders as RUNNING if force-refresh
+        if args.force_refresh and table_names:
+            import psycopg2
+            try:
+                conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+                cursor = conn.cursor()
+                for table_name in table_names:
+                    cursor.execute(
+                        "UPDATE data_loader_status SET status = %s, execution_started = NOW() WHERE table_name = %s",
+                        ("RUNNING", table_name)
+                    )
+                    if cursor.rowcount == 0:
+                        cursor.execute(
+                            "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
+                            (table_name, "RUNNING")
+                        )
+                conn.commit()
+                cursor.close()
+                conn.close()
+                logger.info(f"[FORCE_REFRESH] Marked {table_names} as RUNNING")
+            except Exception as e:
+                logger.warning(f"[FORCE_REFRESH] Could not update status to RUNNING: {e}")
+
         if args.loader == "prices":
             symbols = args.symbols.split(",") if args.symbols else None
             run_price_loader(symbols=symbols, backfill_days=args.backfill)
@@ -179,6 +218,24 @@ def main():
         else:
             logger.error(f"Loader {args.loader} not yet implemented")
             return 1
+
+        # Mark loaders as COMPLETED if force-refresh
+        if args.force_refresh and table_names:
+            import psycopg2
+            try:
+                conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+                cursor = conn.cursor()
+                for table_name in table_names:
+                    cursor.execute(
+                        "UPDATE data_loader_status SET status = %s, execution_completed = NOW(), last_updated = NOW() WHERE table_name = %s",
+                        ("COMPLETED", table_name)
+                    )
+                conn.commit()
+                cursor.close()
+                conn.close()
+                logger.info(f"[FORCE_REFRESH] Marked {table_names} as COMPLETED")
+            except Exception as e:
+                logger.warning(f"[FORCE_REFRESH] Could not update status to COMPLETED: {e}")
 
         logger.info("Loader completed successfully")
         return 0

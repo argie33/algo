@@ -55,18 +55,19 @@ class SecValuationsLoader(OptimalLoader):
             # Fetch latest financial data for symbol
             with DatabaseContext("read") as cur:
                 # Get latest annual income statement data (TTM = sum of last 4 quarters)
+                # annual_income_statement has fiscal_year and fiscal_quarter, so calculate TTM
                 cur.execute(
                     """
                     SELECT
-                        COALESCE(SUM(CASE WHEN is_ttm THEN earnings_per_share_basic ELSE NULL END), 0) as ttm_eps_basic,
-                        COALESCE(SUM(CASE WHEN is_ttm THEN earnings_per_share_diluted ELSE NULL END), 0) as ttm_eps_diluted,
-                        COALESCE(SUM(CASE WHEN is_ttm THEN revenue ELSE NULL END), 0) as ttm_revenue,
-                        COALESCE(SUM(CASE WHEN is_ttm THEN net_income ELSE NULL END), 0) as ttm_net_income,
-                        COALESCE(MAX(weighted_avg_shares_outstanding), 0) as latest_shares_outstanding,
-                        COALESCE(MAX(CASE WHEN quarter = 'Q0' THEN earnings_per_share_basic END),
-                                  MAX(earnings_per_share_basic)) as latest_eps
+                        COALESCE(SUM(eps), 0) as ttm_eps_basic,
+                        COALESCE(SUM(diluted_eps), 0) as ttm_eps_diluted,
+                        COALESCE(SUM(revenue), 0) as ttm_revenue,
+                        COALESCE(SUM(net_income), 0) as ttm_net_income,
+                        COALESCE(MAX(earnings_per_share), 0) as latest_eps,
+                        MAX(fiscal_year * 10 + COALESCE(fiscal_quarter, 0)) as latest_quarter
                     FROM annual_income_statement
                     WHERE symbol = %s AND data_unavailable = FALSE
+                    GROUP BY symbol
                     """,
                     (symbol,),
                 )
@@ -74,7 +75,22 @@ class SecValuationsLoader(OptimalLoader):
                 if not income_row:
                     return [self._unavailable_marker(symbol, "no_income_statement")]
 
-                ttm_eps_basic, ttm_eps_diluted, ttm_revenue, ttm_net_income, shares_out, latest_eps = income_row
+                ttm_eps_basic, ttm_eps_diluted, ttm_revenue, ttm_net_income, latest_eps, _ = income_row
+
+                # For shares outstanding, need to find it from the price_daily or balance sheet
+                # Using price_daily which has shares_outstanding
+                cur.execute(
+                    """
+                    SELECT shares_outstanding FROM price_daily
+                    WHERE symbol = %s AND shares_outstanding IS NOT NULL
+                    ORDER BY date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                shares_row = cur.fetchone()
+                shares_out = shares_row[0] if shares_row else None
+                if not shares_out or shares_out <= 0:
+                    return [self._unavailable_marker(symbol, "no_shares_outstanding")]
 
                 # Get latest balance sheet (book value)
                 cur.execute(

@@ -22,6 +22,7 @@ Strategy:
 import json
 import logging
 import os
+import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -96,6 +97,133 @@ RETRY_WAIT_SECONDS = 5
 RETRY_MONITOR_TIMEOUT_SECONDS = 45
 
 
+def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
+    """In LOCAL_MODE, check for stale DATA and refresh loaders locally.
+
+    Runs loaders directly using Python imports instead of AWS Lambda/ECS.
+    Checks actual data freshness (MAX(date) in tables), not loader status timestamps.
+    This catches cases where the loader ran recently but produced stale data.
+
+    Args:
+        dry_run: If True, don't actually run loaders, just report what would run
+
+    Returns:
+        Dict with refresh results (same format as AWS retry)
+    """
+    results: dict[str, Any] = {
+        "incomplete_loaders": [],
+        "retried": [],
+        "recovered": [],
+        "still_failing": [],
+        "halt_required": False,
+    }
+
+    # Critical loaders to refresh in local mode (table_name: loader_script_key)
+    loaders_to_refresh = {
+        "price_daily": "prices",
+        "technical_data_daily": "technical",
+        "stock_scores": "scores",
+        "market_health_daily": "market_status",
+        "value_metrics": "value_quality_growth",
+    }
+
+    try:
+        # Check actual data freshness (MAX(date) in each table), not loader status
+        # This catches when loader ran recently but data is stale
+        stale_loaders = []
+        now_utc = datetime.now(timezone.utc)
+
+        with DatabaseContext("read") as cur:
+            for table_name, loader_key in loaders_to_refresh.items():
+                try:
+                    if table_name == "stock_scores":
+                        # stock_scores doesn't have a date column, use updated_at instead
+                        cur.execute("SELECT MAX(updated_at) FROM stock_scores")
+                    else:
+                        cur.execute(f"SELECT MAX(date) FROM {table_name}")
+
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        max_date = row[0]
+                        # Convert to UTC for comparison
+                        if hasattr(max_date, 'tzinfo') and max_date.tzinfo is None:
+                            max_date_utc = max_date.replace(tzinfo=timezone.utc)
+                        else:
+                            max_date_utc = max_date.replace(tzinfo=timezone.utc) if hasattr(max_date, 'tzinfo') else max_date
+
+                        age_hours = (now_utc - max_date_utc).total_seconds() / 3600
+
+                        # Stale if older than 24 hours (1 trading day + some buffer)
+                        if age_hours > 24:
+                            stale_loaders.append((table_name, loader_key, age_hours))
+                            results["incomplete_loaders"].append(table_name)
+                            logger.warning(f"[PHASE 1 FAILSAFE LOCAL] {table_name} data stale: {age_hours:.1f}h old")
+                    else:
+                        # No data at all
+                        stale_loaders.append((table_name, loader_key, 999))
+                        results["incomplete_loaders"].append(table_name)
+                        logger.warning(f"[PHASE 1 FAILSAFE LOCAL] {table_name} has no data")
+
+                except Exception as e:
+                    logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name}: {e}")
+
+        if not stale_loaders:
+            logger.info("[PHASE 1 FAILSAFE LOCAL] All data current - no refresh needed")
+            return results
+
+        logger.info(f"[PHASE 1 FAILSAFE LOCAL] Found {len(stale_loaders)} stale loaders to refresh")
+
+        if dry_run:
+            logger.info(f"[PHASE 1 FAILSAFE LOCAL] DRY RUN: Would refresh {[t[0] for t in stale_loaders]}")
+            return results
+
+        # Run each stale loader locally
+        for table_name, loader_key, age_hours in stale_loaders:
+            try:
+                logger.info(f"[PHASE 1 FAILSAFE LOCAL] Refreshing {table_name} ({age_hours:.1f}h old)")
+                results["retried"].append(table_name)
+
+                # Run loader with force-refresh to bypass watermarks
+                import subprocess
+                env = os.environ.copy()
+                env["TECH_FULL_REFRESH"] = "true"  # Bypass watermark filters
+
+                result = subprocess.run(
+                    ["python3", "scripts/run_loader.py", loader_key, "--force-refresh"],
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                    env=env,
+                    cwd=os.path.dirname(os.path.dirname(os.path.dirname(__file__)))  # Go to repo root
+                )
+
+                if result.returncode == 0:
+                    logger.info(f"[PHASE 1 FAILSAFE LOCAL] ✓ {table_name} refreshed successfully")
+                    results["recovered"].append(table_name)
+                else:
+                    logger.error(f"[PHASE 1 FAILSAFE LOCAL] ✗ {table_name} refresh failed: {result.stderr}")
+                    results["still_failing"].append(table_name)
+                    if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                        results["halt_required"] = True
+
+            except subprocess.TimeoutExpired:
+                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Timeout refreshing {table_name}")
+                results["still_failing"].append(table_name)
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                    results["halt_required"] = True
+            except Exception as e:
+                logger.error(f"[PHASE 1 FAILSAFE LOCAL] Error refreshing {table_name}: {e}")
+                results["still_failing"].append(table_name)
+                if table_name in {"price_daily", "technical_data_daily", "stock_scores"}:
+                    results["halt_required"] = True
+
+    except Exception as e:
+        logger.error(f"[PHASE 1 FAILSAFE LOCAL] Fatal error in local refresh: {e}", exc_info=True)
+        results["halt_required"] = True
+
+    return results
+
+
 def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:  # noqa: C901
     """Check for incomplete loaders and retry them.
 
@@ -120,9 +248,10 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
         "halt_required": False,
     }
 
-    # Skip loader retry logic in LOCAL_MODE (no AWS Lambda/ECS available)
+    # In LOCAL_MODE: run loaders locally instead of via AWS Lambda/ECS
     if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
-        logger.info("[PHASE 1 FAILSAFE] LOCAL_MODE enabled - skipping loader retry checks. Data updates must be triggered manually.")
+        logger.info("[PHASE 1 FAILSAFE] LOCAL_MODE enabled - triggering local loader refresh for stale data")
+        results = _check_and_refresh_local(dry_run)
         return results
 
     try:
