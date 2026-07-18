@@ -881,6 +881,8 @@ def _get_market(cur: cursor) -> Any:
         # CRITICAL: Fetch market health; fail fast if unavailable
         # Include data_unavailable markers for optional enrichment fields so API can signal
         # which fields are truly unavailable vs. present in the response
+        # Skip non-trading days (weekends/holidays) to get last valid trading day's data
+        # Filter out NULL vix_level to skip incomplete records from non-trading days
         cur.execute("""
             SELECT market_trend, market_stage, vix_level,
                    up_volume_percent, advance_decline_ratio, new_highs_count,
@@ -890,6 +892,7 @@ def _get_market(cur: cursor) -> Any:
                    fed_rate_environment, fed_rate_data_unavailable, fed_rate_unavailable_reason,
                    spy_change_pct
             FROM market_health_daily
+            WHERE vix_level IS NOT NULL
             ORDER BY date DESC LIMIT 1
         """)
         mh = cur.fetchone()
@@ -899,9 +902,11 @@ def _get_market(cur: cursor) -> Any:
         market_health = _normalize_market_health(mh_raw)
 
         # CRITICAL: Fetch exposure data; fail fast if unavailable
+        # Skip non-trading days (weekends/holidays) to get last valid trading day's data
         cur.execute("""
             SELECT exposure_pct, regime, halt_reasons, distribution_days
             FROM market_exposure_daily
+            WHERE date <= CURRENT_DATE
             ORDER BY date DESC LIMIT 1
         """)
         exp = cur.fetchone()
@@ -1094,10 +1099,11 @@ def _get_market_sentiment(cur: cursor) -> Any:
 @validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_markets(cur: cursor) -> Any:  # noqa: C901
     try:
-        # Latest exposure row
+        # Latest exposure row (skip non-trading days to get last valid trading day)
         cur.execute("""
                 SELECT date, exposure_pct, raw_score, regime, factors, halt_reasons, distribution_days
                 FROM market_exposure_daily
+                WHERE date <= CURRENT_DATE
                 ORDER BY date DESC
                 LIMIT 1
             """)
@@ -1162,12 +1168,13 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             )
         active_tier["halt"] = bool(halt_reasons) or tier_conf["halt"]
 
-        # History: last 90 sessions for ExposureHistory chart
+        # History: last 90 sessions for ExposureHistory chart (skip non-trading days)
         history = []
         try:
             cur.execute("""
                     SELECT date, exposure_pct, regime, distribution_days
                     FROM market_exposure_daily
+                    WHERE date <= CURRENT_DATE
                     ORDER BY date DESC
                     LIMIT 90
                 """)
@@ -1216,14 +1223,19 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             logger.warning(f"Could not fetch sector rankings: {se}")
 
         # Fetch market health from market_health_daily for dashboard KPIs
+        # Skip today if it's not a trading day (Saturday/Sunday or holiday)
+        # Markets only have valid data on trading days
         market_health = {}
         try:
+            from algo.infrastructure import MarketCalendar
+
             cur.execute("""
                     SELECT date, market_trend, market_stage, vix_level, spy_change_pct,
                            up_volume_percent, advance_decline_ratio, new_highs_count,
                            new_lows_count, breadth_momentum_10d, put_call_ratio,
                            yield_curve_slope, fed_rate_environment
                     FROM market_health_daily
+                    WHERE date <= CURRENT_DATE AND vix_level IS NOT NULL
                     ORDER BY date DESC LIMIT 1
                 """)
             mh_row = cur.fetchone()
@@ -1231,18 +1243,20 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 return error_response(
                     503,
                     "data_unavailable",
-                    "Market health data not available (market_health_daily empty)",
+                    "Market health data not available (market_health_daily has no rows with valid VIX)",
                 )
             market_health = safe_json_serialize(safe_dict_convert(mh_row))
 
-            # CRITICAL: Fail-fast if critical fields are NULL
-            # No fallback to historical data - that would be wrong market regime data
+            # VIX is guaranteed non-NULL from query filter (WHERE vix_level IS NOT NULL)
             vix_val = market_health.get("vix_level")
             if vix_val is None:
+                logger.error(
+                    "[MARKETS API] CRITICAL BUG: Query filtered for vix_level IS NOT NULL but got NULL. "
+                    "This should never happen - indicates database or query logic error."
+                )
                 raise ValueError(
-                    "VIX level is NULL in market_health_daily. "
-                    "Data loader has not completed successfully. "
-                    "Check load_market_health_daily logs and yfinance API availability."
+                    "Market health VIX validation failed (query logic error). "
+                    "Check API query and database state."
                 )
 
             # Validate VIX is numeric and > 0 (VIX is never zero or negative)
