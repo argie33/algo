@@ -22,25 +22,18 @@ try:
         wrap_response,
     )
 except ImportError:
-    # Fallback for different import contexts
+    # CRITICAL: response_service is required for API error handling - fail-fast if missing
     try:
         from api_utils.response_service import (
             build_error_response,
             format_handler_error,
             wrap_response,
         )
-    except ImportError:
-        # If response_service doesn't exist, create stubs (shouldn't happen in production)
-        logger.warning("response_service.py not found - using stub implementations")
-
-        def wrap_response(r: Any) -> Any:
-            return r
-
-        def format_handler_error(e: Exception) -> dict[str, Any]:
-            return {"statusCode": 500, "errorType": "error", "message": str(e)}
-
-        def build_error_response(code: int, err_type: str, msg: str) -> dict[str, Any]:
-            return {"statusCode": code, "errorType": err_type, "message": msg}
+    except ImportError as e:
+        raise RuntimeError(
+            f"CRITICAL: Failed to import response_service - API error handling unavailable. "
+            f"This module is required for proper error responses. ImportError: {e}"
+        ) from e
 
 
 # health is the only truly critical route - if it fails the API can't self-report its own status
