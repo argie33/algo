@@ -160,6 +160,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     "shares_outstanding": shares_outstanding,
                     "data_unavailable": False,
                     "reason": None,
+                    "data_source": "sec_edgar_submissions",
                 }
             ]
 
