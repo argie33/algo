@@ -103,35 +103,78 @@ class PositioningMetricsLoader(OptimalLoader):
                 short_interest_unavailable = True
                 short_interest_reason = "finra_and_yfinance_unavailable"
 
-        # Fetch institutional/insider from yfinance_snapshot (temporary; will replace in Phase 2)
+        # PHASE 2 (Session 234): Fetch institutional/insider from SEC sources (13F/Form 4), fallback to yfinance
         institutional_pct = None
         insider_pct = None
+        sec_unavailable = False
         yfinance_unavailable = False
+        sec_reason = None
         yfinance_reason = None
 
+        # Try SEC 13F for institutional holdings (Phase 2)
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT
-                    held_percent_institutions,
-                    held_percent_insiders,
-                    data_available,
-                    unavailable_reason
-                FROM yfinance_snapshot
-                WHERE symbol = %s
+                SELECT institutional_ownership_pct, data_unavailable, reason
+                FROM institutional_holdings_13f
+                WHERE symbol = %s AND data_unavailable = FALSE
+                ORDER BY filing_date DESC LIMIT 1
                 """,
                 (symbol,),
             )
-            yfinance_row = cur.fetchone()
+            sec_inst_row = cur.fetchone()
 
-        if yfinance_row:
-            institutional_pct = yfinance_row[0]
-            insider_pct = yfinance_row[1]
-            yfinance_unavailable = not yfinance_row[2] if len(yfinance_row) > 2 else False
-            yfinance_reason = yfinance_row[3] if len(yfinance_row) > 3 else None
+        if sec_inst_row and sec_inst_row[0] is not None:
+            institutional_pct = sec_inst_row[0]
         else:
-            yfinance_unavailable = True
-            yfinance_reason = "yfinance_snapshot_missing"
+            sec_unavailable = True
+            sec_reason = "sec_13f_unavailable"
+
+        # Try SEC Form 4/5 for insider holdings (Phase 2)
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT insider_ownership_pct, data_unavailable, reason
+                FROM insider_holdings_sec
+                WHERE symbol = %s AND data_unavailable = FALSE
+                ORDER BY filing_date DESC LIMIT 1
+                """,
+                (symbol,),
+            )
+            sec_insider_row = cur.fetchone()
+
+        if sec_insider_row and sec_insider_row[0] is not None:
+            insider_pct = sec_insider_row[0]
+        else:
+            sec_unavailable = True
+
+        # Fallback to yfinance if SEC data unavailable
+        if institutional_pct is None or insider_pct is None:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT
+                        held_percent_institutions,
+                        held_percent_insiders,
+                        data_available,
+                        unavailable_reason
+                    FROM yfinance_snapshot
+                    WHERE symbol = %s
+                    """,
+                    (symbol,),
+                )
+                yfinance_row = cur.fetchone()
+
+            if yfinance_row:
+                if institutional_pct is None:
+                    institutional_pct = yfinance_row[0]
+                if insider_pct is None:
+                    insider_pct = yfinance_row[1]
+                yfinance_unavailable = not yfinance_row[2] if len(yfinance_row) > 2 else False
+                yfinance_reason = yfinance_row[3] if len(yfinance_row) > 3 else None
+            else:
+                yfinance_unavailable = True
+                yfinance_reason = "yfinance_snapshot_missing"
 
         # Combine metrics: if any source has data, mark as available
         all_unavailable = short_interest_unavailable and yfinance_unavailable

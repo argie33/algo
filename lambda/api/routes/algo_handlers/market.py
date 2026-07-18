@@ -1219,21 +1219,6 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             logger.warning(f"Could not fetch sector rankings: {se}")
 
         # Fetch market health from market_health_daily for dashboard KPIs
-        def _get_fallback_field(field_name: str, cur: cursor) -> Any:
-            """Fetch most recent non-null value for a field (for local dev incomplete data)."""
-            try:
-                cur.execute(f"""
-                        SELECT {field_name} FROM market_health_daily
-                        WHERE {field_name} IS NOT NULL
-                        ORDER BY date DESC LIMIT 1
-                    """)
-                row = cur.fetchone()
-                if row:
-                    return safe_dict_convert(row).get(field_name)
-            except Exception:
-                pass
-            return None
-
         market_health = {}
         try:
             cur.execute("""
@@ -1245,72 +1230,50 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                     ORDER BY date DESC LIMIT 1
                 """)
             mh_row = cur.fetchone()
-            if mh_row:
-                market_health = safe_json_serialize(safe_dict_convert(mh_row))
-                # Fallback for optional breadth metrics and sentiment (handle incomplete local dev data)
-                for field in ["up_volume_percent", "advance_decline_ratio", "new_highs_count", "new_lows_count", "breadth_momentum_10d", "put_call_ratio", "spy_change_pct"]:
-                    if market_health.get(field) is None:
-                        fallback_val = _get_fallback_field(field, cur)
-                        if fallback_val is not None:
-                            market_health[field] = fallback_val
-                # CRITICAL: VIX level must be > 0 (invalid values indicate data quality issue)
-                # Fail-fast if VIX is invalid (contract requires non-None vix_level)
-                vix_val = market_health.get("vix_level")
-                if vix_val is None:
-                    # Fallback: fetch most recent non-null VIX (for local dev where today's data is incomplete)
-                    cur.execute("""
-                            SELECT vix_level FROM market_health_daily
-                            WHERE vix_level IS NOT NULL
-                            ORDER BY date DESC LIMIT 1
-                        """)
-                    vix_row = cur.fetchone()
-                    if vix_row:
-                        vix_val = safe_dict_convert(vix_row).get("vix_level")
-                        if vix_val is not None:
-                            market_health["vix_level"] = vix_val
-
-                if vix_val is None:
-                    return error_response(
-                        503,
-                        "data_unavailable",
-                        "VIX level data not available in market_health_daily",
-                    )
-                try:
-                    vix_float = float(vix_val)
-                    if vix_float <= 0:
-                        logger.error(
-                            f"[MARKETS API] CRITICAL: Invalid VIX value {vix_float} in market_health_daily - "
-                            f"VIX must be > 0. Cannot compute market risk indicators without valid VIX. "
-                            f"Check: market_health_daily table, load_market_health_daily logs, yfinance API."
-                        )
-                        return error_response(
-                            503,
-                            "data_unavailable",
-                            f"Invalid VIX data: {vix_float} (must be > 0)",
-                        )
-                except (ValueError, TypeError) as e:
-                    logger.error(
-                        f"[MARKETS API] CRITICAL: VIX conversion error - {e}. "
-                        f"Cannot parse VIX value from database: {vix_val} ({type(vix_val).__name__}). "
-                        f"Market health validation requires numeric VIX > 0."
-                    )
-                    return error_response(
-                        503,
-                        "data_unavailable",
-                        f"VIX data type error: expected numeric, got {type(vix_val).__name__}",
-                    )
-            else:
+            if not mh_row:
                 return error_response(
                     503,
                     "data_unavailable",
                     "Market health data not available (market_health_daily empty)",
                 )
+            market_health = safe_json_serialize(safe_dict_convert(mh_row))
+
+            # CRITICAL: Fail-fast if critical fields are NULL
+            # No fallback to historical data - that would be wrong market regime data
+            vix_val = market_health.get("vix_level")
+            if vix_val is None:
+                raise ValueError(
+                    "VIX level is NULL in market_health_daily. "
+                    "Data loader has not completed successfully. "
+                    "Check load_market_health_daily logs and yfinance API availability."
+                )
+
+            # Validate VIX is numeric and > 0 (VIX is never zero or negative)
+            try:
+                vix_float = float(vix_val)
+                if vix_float <= 0:
+                    raise ValueError(f"VIX {vix_float} is invalid (must be > 0). Data quality issue in market_health_daily.")
+            except (ValueError, TypeError) as e:
+                logger.error(
+                    f"[MARKETS API] CRITICAL: VIX validation failed: {e}. "
+                    f"Cannot parse VIX value: {vix_val} ({type(vix_val).__name__}). "
+                    f"Market health validation requires numeric VIX > 0."
+                )
+                raise ValueError(f"VIX data invalid: {e}") from e
+
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as mhe:
             logger.error(f"CRITICAL: Failed to fetch market_health_daily: {mhe}")
             return error_response(
                 503,
                 "data_unavailable",
                 f"Market health unavailable: {type(mhe).__name__}",
+            )
+        except ValueError as ve:
+            logger.error(f"[MARKETS API] Market health validation failed: {ve}")
+            return error_response(
+                503,
+                "data_unavailable",
+                str(ve),
             )
 
         # Fetch latest SPY close for dashboard header (critical for position sizing)
@@ -1359,15 +1322,18 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 "reason": "vix_regime_missing_from_market_exposure_computation",
             }
 
-        # distribution_days is a key market factor; warn and use 0 if missing
-        dist_days_raw = row.get("distribution_days")
-        if dist_days_raw is None:
-            logger.error(
-                f"[MARKETS API] distribution_days missing from market_exposure_daily for {current_date}: "
-                f"market exposure computation may not have run or distribution days calculation failed. "
-                f"Check load_market_exposure_daily logs. Defaulting to 0."
-            )
-            dist_days_raw = 0
+        # distribution_days is a key market factor; fail-fast if missing
+        try:
+            dist_days_raw = row.get("distribution_days")
+            if dist_days_raw is None:
+                raise ValueError(
+                    f"distribution_days missing from market_exposure_daily for {current_date}. "
+                    f"Market exposure computation has not completed successfully. "
+                    f"Check market_exposure_daily table and load_market_exposure_daily logs."
+                )
+        except ValueError as e:
+            logger.error(f"[MARKETS API] Market data validation failed: {e}")
+            return error_response(503, "data_unavailable", str(e))
 
         response_data = {
             "exposure_pct": (float(row["exposure_pct"]) if row.get("exposure_pct") is not None else None),

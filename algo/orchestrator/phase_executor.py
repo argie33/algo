@@ -270,10 +270,14 @@ class OrchestratorPhaseExecutor:
         except Exception as e:
             logger.exception(f"[PHASE {phase_num}] Exception during execution: {e}")
             error_msg = str(e)
+            # Use default skip data to ensure downstream phases get valid data contracts
+            # This prevents cascading dependency failures from a single phase exception
+            default_data = self._get_default_skip_data(phase_num)
             result = PhaseResult(
                 phase_num=phase_num,
                 phase_name=phase.phase_name,
                 status="error",
+                data=default_data,
                 error=error_msg,
                 dependencies=phase.dependencies,
             )
