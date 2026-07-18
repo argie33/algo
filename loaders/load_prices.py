@@ -2054,29 +2054,14 @@ class PriceLoader(OptimalLoader):
                     continue
 
             if not rows:
-                # GOVERNANCE FIX: Mark symbol as having unavailable price data
-                # BUT: Do NOT update watermark when data unavailable.
-                # This allows next run to retry fetching - yfinance may have the data next time.
-                # If watermark is updated on unavailable data, symbols become permanently stuck.
-                # Staged separately from real rows: marker insert failure is tolerated,
-                # real-row insert failure is fatal for the batch.
-                marker_rows.append(
-                    {
-                        "symbol": symbol,
-                        "date": datetime.now(timezone.utc).date(),
-                        "open": None,
-                        "high": None,
-                        "low": None,
-                        "close": None,
-                        "volume": None,
-                        "data_unavailable": True,
-                        "data_unavailable_reason": "no_price_data_after_validation",
-                        "reason_type": "loader_failed",
-                    }
-                )
-                logger.warning(
-                    f"[{self.table_name}] {symbol}: Marked as data_unavailable (no valid prices after validation). "
-                    "Watermark NOT updated - next run will retry this symbol."
+                # Symbol has no valid price data after validation.
+                # DO NOT update watermark - next run will retry.
+                # DO NOT create marker rows - they pollute price_daily with NULL values.
+                # This is more resilient than marking unavailable: allows silent retry without
+                # cluttering the table with phantom rows. Phase 1 has to filter them anyway.
+                logger.debug(
+                    f"[{self.table_name}] {symbol}: Skipped (no valid prices after validation). "
+                    "Watermark not updated - will retry next run."
                 )
                 self._stats["symbols_processed"] += 1
                 continue

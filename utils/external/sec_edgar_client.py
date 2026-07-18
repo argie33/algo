@@ -207,15 +207,16 @@ class SecEdgarClient:
         filings = submissions.get("filings", {})
         recent = filings.get("recent", {})
 
-        accessions = recent.get("accessionNumber", [])
-        primary_docs = recent.get("primaryDocument", [])
+        accessions_list = recent.get("accessionNumber", [])
+        primary_docs_list = recent.get("primaryDocument", [])
 
         # Find index of this accession
         try:
-            idx = accessions.index(accession_number)
-            if idx >= len(primary_docs):
+            idx = accessions_list.index(accession_number)
+            if idx >= len(primary_docs_list):
                 raise ValueError(f"primaryDocument missing for accession {accession_number}")
-            return primary_docs[idx]
+            primary_doc = cast(str, primary_docs_list[idx])
+            return primary_doc
         except ValueError as e:
             raise ValueError(f"Accession {accession_number} not found in recent filings") from e
 
