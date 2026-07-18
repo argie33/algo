@@ -31,9 +31,9 @@ class AlignmentChecker(BaseCheck):
     def check_signal_source_alignment(self, cur: Any) -> None:
         """Cross-validate SQS with its input tables."""
         try:
-            cur.execute("SELECT MAX(date) FROM signal_quality_scores")
+            cur.execute("SELECT MAX(date) as max_date FROM signal_quality_scores")
             row = cur.fetchone()
-            sqs_date = row[0] if row and row[0] is not None else None
+            sqs_date = row["max_date"] if row and row["max_date"] is not None else None
             if not sqs_date:
                 self.log(
                     "alignment",
@@ -44,9 +44,9 @@ class AlignmentChecker(BaseCheck):
                 )
                 return
 
-            cur.execute("SELECT MAX(date) FROM buy_sell_daily WHERE date <= %s", (sqs_date,))
+            cur.execute("SELECT MAX(date) as max_date FROM buy_sell_daily WHERE date <= %s", (sqs_date,))
             row = cur.fetchone()
-            buy_sell_date = row[0] if row and row[0] is not None else None
+            buy_sell_date = row["max_date"] if row and row["max_date"] is not None else None
 
             if not buy_sell_date or buy_sell_date < sqs_date:
                 self.log(
@@ -137,7 +137,7 @@ class AlignmentChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("Signal alignment query returned no results - database state corrupted")
-            total, missing_price, missing_tech = row
+            total, missing_price, missing_tech = row["total_signals"], row["missing_price"], row["missing_tech"]
             if total is None:
                 raise ValueError("COUNT(*) FILTER for total signals returned NULL - cannot evaluate signal alignment")
             if missing_price is None:
@@ -225,7 +225,8 @@ class AlignmentChecker(BaseCheck):
                     (SELECT MAX(date) FROM trend_template_data) AS trend_latest,
                     (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest
             """)
-            price_d, trend_d, sqs_d = cur.fetchone()
+            row = cur.fetchone()
+            price_d, trend_d, sqs_d = row["price_latest"], row["trend_latest"], row["sqs_latest"]
 
             for name, comp_date in [
                 ("trend_template_data", trend_d),
@@ -262,15 +263,15 @@ class AlignmentChecker(BaseCheck):
         """Dependent tables cover same symbol universe as price_daily."""
         try:
             cur.execute("""
-                SELECT COUNT(DISTINCT symbol) FROM price_daily
+                SELECT COUNT(DISTINCT symbol) as symbol_count FROM price_daily
                 WHERE date = (SELECT MAX(date) FROM price_daily)
             """)
             row = cur.fetchone()
-            if row is None or row[0] is None:
+            if row is None or row["symbol_count"] is None:
                 raise ValueError(
                     "Cross-alignment baseline query returned NULL - cannot determine symbol count for coverage validation"
                 )
-            baseline = int(row[0])
+            baseline = int(row["symbol_count"])
             if baseline == 0:
                 raise ValueError("price_daily has 0 symbols on latest date - loader failure or data corruption")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
