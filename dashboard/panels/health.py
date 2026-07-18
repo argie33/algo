@@ -363,8 +363,9 @@ def _build_phase_execution_panel(execution_health: dict[str, Any] | None) -> Pan
                 f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
             ))
 
-    if not has_any_data:
-        return None
+    # Show panel even if empty (better than nothing)
+    if not phase_rows:
+        phase_rows.append(Text.from_markup("  [dim]No execution health data available (orchestrator may not have run yet)[/]"))
 
     # Build panel with phase rows
     return Panel(
