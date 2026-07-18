@@ -1,13 +1,21 @@
 #!/usr/bin/env python3
 """Unified dashboard startup script for local development.
 
-Starts loaders → dev_server in background (if needed) → dashboard.
-This eliminates stale data by automatically loading fresh prices/indicators.
+Automatically runs COMPLETE loader pipeline before starting dashboard:
+1. Morning pipeline: prices, technicals, market status (5-10 min)
+2. Metrics pipeline: financial data, quality/growth/value scores (5-10 min, only if needed)
+3. Dev server: API backend
+4. Dashboard: Web UI
+
+This ensures dashboard has fresh data across all 9 orchestrator phases.
 
 Usage:
     python start_dashboard_dev.py              # Start with auto-refresh disabled
     python start_dashboard_dev.py -w 30        # Start with auto-refresh every 30s
     python start_dashboard_dev.py --help       # Show all options
+
+First run may take 10-20 minutes as metrics pipeline refreshes financial data.
+Subsequent runs faster if stock_scores already complete.
 """
 
 import argparse
@@ -61,62 +69,117 @@ def cleanup_orphaned_dev_servers() -> None:
         pass
 
 
-def run_morning_loaders() -> bool:
-    """Run computed loaders that work locally without AWS credentials.
+def check_stock_scores_completeness() -> float:
+    """Check what percentage of stocks have complete composite_score.
 
-    Only runs loaders that can execute locally (computed from existing data).
-    Loaders that fetch from external APIs (yfinance, FINRA, SEC) require AWS credentials.
+    Returns percentage (0-100) of stocks with scores.
+    """
+    try:
+        from utils.db import DatabaseContext
+
+        with DatabaseContext("read") as cur:
+            cur.execute("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(*) FILTER (WHERE composite_score IS NOT NULL) as scored
+                FROM stock_scores
+            """)
+            row = cur.fetchone()
+            if row and row[0] > 0:
+                return (row[1] / row[0]) * 100
+            return 0
+    except Exception as e:
+        print(f"[STARTUP] [WARN] Could not check stock_scores completeness: {e}", flush=True)
+        return 0
+
+
+def run_loader_pipeline(pipeline_name: str, timeout: int = 3600) -> bool:
+    """Run a loader pipeline using local_loader_scheduler.
+
+    Args:
+        pipeline_name: 'morning' or 'metrics'
+        timeout: Maximum seconds to wait (default 1 hour)
+
+    Returns: True if successful, False if failed/timed out
+    """
+    repo_root = Path(__file__).parent
+    scheduler_path = repo_root / "scripts" / "local_loader_scheduler.py"
+
+    if not scheduler_path.exists():
+        print(f"[STARTUP] [WARN] Loader scheduler not found at {scheduler_path}", flush=True)
+        return False
+
+    print(f"[STARTUP] Running {pipeline_name} loader pipeline (timeout: {timeout}s)...", flush=True)
+
+    try:
+        env = os.environ.copy()
+        env["LOCAL_MODE"] = "1"
+        result = subprocess.run(
+            [sys.executable, str(scheduler_path), "--now", pipeline_name],
+            cwd=str(repo_root),
+            env=env,
+            timeout=timeout,
+            capture_output=True,
+            text=True,
+        )
+
+        if result.returncode == 0:
+            print(f"[STARTUP] [OK] {pipeline_name} pipeline completed successfully", flush=True)
+            return True
+        else:
+            print(f"[STARTUP] [WARN] {pipeline_name} pipeline failed (exit code {result.returncode})", flush=True)
+            if result.stderr:
+                print(f"[STARTUP] stderr: {result.stderr[:200]}", flush=True)
+            return False
+    except subprocess.TimeoutExpired:
+        print(f"[STARTUP] [WARN] {pipeline_name} pipeline timed out after {timeout}s", flush=True)
+        return False
+    except Exception as e:
+        print(f"[STARTUP] [WARN] {pipeline_name} pipeline error: {e}", flush=True)
+        return False
+
+
+def run_complete_loader_pipeline() -> bool:
+    """Run COMPLETE loader pipeline: morning + metrics.
+
+    Ensures dashboard has fresh data for all 9 orchestrator phases:
+    1. Morning pipeline: prices, technicals, market status
+    2. Metrics pipeline: financial statements, quality/growth/value scores
 
     Returns True if successful, False if loaders failed/timed out.
     Non-critical: dashboard will still start even if loaders fail, just with stale data.
     """
-    print("[STARTUP] Refreshing computed data (requires existing prices)...", flush=True)
+    print("[STARTUP] ============================================================", flush=True)
+    print("[STARTUP] REFRESHING DATA: Running complete loader pipeline", flush=True)
+    print("[STARTUP] ============================================================", flush=True)
 
-    repo_root = Path(__file__).parent
-    # Only run loaders that work locally without AWS credentials
-    # Computed loaders: read from existing tables, don't need external APIs
-    loaders_to_run = [
-        "load_price_extremes.py",  # Computed: 52-week highs/lows from price_daily
-        "load_market_cap_computed.py",  # Computed: market_cap from shares_outstanding × latest_price
-    ]
+    # Step 1: Run morning pipeline (prices, technicals)
+    print("[STARTUP] Step 1/2: Morning pipeline (prices, technicals, market status)...", flush=True)
+    morning_ok = run_loader_pipeline("morning", timeout=600)
 
-    success_count = 0
-    for loader_name in loaders_to_run:
-        loader_path = repo_root / "loaders" / loader_name
-        if not loader_path.exists():
-            print(f"[STARTUP] [SKIP] Loader not found: {loader_name}", flush=True)
-            continue
+    if not morning_ok:
+        print("[STARTUP] [WARN] Morning pipeline failed - proceeding with stale data", flush=True)
 
-        try:
-            env = os.environ.copy()
-            env["LOCAL_MODE"] = "1"
-            result = subprocess.run(
-                [sys.executable, str(loader_path)],
-                cwd=str(repo_root),
-                env=env,
-                timeout=60,  # 1 min per loader
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                print(f"[STARTUP] [OK] {loader_name}", flush=True)
-                success_count += 1
-            else:
-                print(f"[STARTUP] [WARN] {loader_name} returned code {result.returncode}", flush=True)
-        except subprocess.TimeoutExpired:
-            print(f"[STARTUP] [WARN] {loader_name} timed out", flush=True)
-        except Exception as e:
-            print(f"[STARTUP] [WARN] {loader_name} error: {e}", flush=True)
+    # Step 2: Check if metrics pipeline needed (stock_scores completeness)
+    completeness = check_stock_scores_completeness()
+    print(f"[STARTUP] Stock scores completeness: {completeness:.1f}%", flush=True)
 
-    if success_count > 0:
-        print(f"[STARTUP] [OK] Refreshed computed data ({success_count}/{len(loaders_to_run)})", flush=True)
-        print(f"[STARTUP] [NOTE] Prices/indicators are stale. To load fresh data, set AWS credentials or run:", flush=True)
-        print(f"[STARTUP]       python scripts/local_loader_scheduler.py --now morning", flush=True)
-        return True
+    if completeness < 75:
+        print("[STARTUP] Step 2/2: Metrics pipeline (financial data, quality/growth/value scores)...", flush=True)
+        print("[STARTUP]          (This may take 5-10 minutes on first run)", flush=True)
+        metrics_ok = run_loader_pipeline("metrics", timeout=1800)  # 30 min for metrics
+
+        if metrics_ok:
+            completeness = check_stock_scores_completeness()
+            print(f"[STARTUP] [OK] Stock scores updated: {completeness:.1f}%", flush=True)
+        else:
+            print("[STARTUP] [WARN] Metrics pipeline failed - Phase 7 signal generation will be limited", flush=True)
     else:
-        print(f"[STARTUP] [WARN] No computed loaders succeeded", flush=True)
-        print(f"[STARTUP] [NOTE] Dashboard will show existing (stale) data", flush=True)
-        return False
+        print("[STARTUP] Stock scores already complete - skipping metrics pipeline", flush=True)
+
+    print("[STARTUP] [OK] Data refresh complete", flush=True)
+    print("[STARTUP] ============================================================", flush=True)
+    return morning_ok
 
 
 def start_dev_server() -> subprocess.Popen:
@@ -224,7 +287,8 @@ def main() -> int:
 
     try:
         # Load fresh data first (non-critical, continues even if loaders fail)
-        run_morning_loaders()
+        # Runs complete pipeline: morning (prices/technicals) + metrics (financial/scores)
+        run_complete_loader_pipeline()
 
         # Start dev_server (if needed)
         dev_server_process = start_dev_server()
