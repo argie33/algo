@@ -929,11 +929,19 @@ class Orchestrator:
                 # Handle invalid AWS credentials gracefully.
                 # DynamoDB write failures (permission denied, invalid token) don't block Phase 1.
                 # This is informational only - halt flag management happens separately below.
-                error_code = e.response.get("Error", {}).get("Code", "")
-                if error_code in ("UnrecognizedClientException", "AccessDenied", "AccessDeniedException"):
-                    logger.debug(f"[PHASE1] DynamoDB write failed (invalid credentials): {error_code}")
+                error_dict = e.response.get("Error")
+                if not error_dict or not isinstance(error_dict, dict):
+                    logger.warning(
+                        f"[PHASE1] AWS error response structure malformed: {e.response}. "
+                        "Cannot distinguish error type. Continuing with non-blocking failure."
+                    )
+                    logger.debug(f"[PHASE1] DynamoDB write failed (unknown error): {e}")
                 else:
-                    logger.debug(f"[PHASE1] DynamoDB write failed: {e}")
+                    error_code = error_dict.get("Code", "UNKNOWN")
+                    if error_code in ("UnrecognizedClientException", "AccessDenied", "AccessDeniedException"):
+                        logger.debug(f"[PHASE1] DynamoDB write failed (invalid credentials): {error_code}")
+                    else:
+                        logger.debug(f"[PHASE1] DynamoDB write failed: {e}")
             except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
                 logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
         else:

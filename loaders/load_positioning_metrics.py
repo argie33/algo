@@ -53,25 +53,26 @@ class PositioningMetricsLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch positioning metrics for a symbol from multiple sources (Phase 1 optimization).
+        """Fetch positioning metrics for a symbol from authoritative sources only.
 
-        PHASE 1 (Session 225): Short interest from FINRA (authoritative), institutional/insider from yfinance (temporary)
-        PHASE 2 (planned): Institutional from SEC 13F, insider from SEC insider filings
+        DATA SOURCES (Phase 2 optimization onwards):
+        - short_interest: FINRA Reg SHO (authoritative)
+        - institutional_ownership: SEC 13F filings (authoritative)
+        - insider_ownership: SEC Form 4/5 filings (authoritative)
+
+        FAIL-FAST: Returns data_unavailable marker if authoritative sources missing.
+        NO secondary fallbacks to yfinance (was masking data quality issues).
 
         Returns positioning data (institutional %, insider %, short interest %) or
         data_unavailable marker if sources missing/unavailable.
-
-        CRITICAL: Tracks source for each field so callers can distinguish SEC data from yfinance fallback.
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        # PHASE 1: Fetch short interest from FINRA (primary), fallback to yfinance
+        # Fetch short interest from FINRA (only authoritative source)
         short_interest_pct = None
-        short_interest_unavailable = False
         short_interest_source = None
 
         with DatabaseContext("read") as cur:
-            # Try FINRA first
             cur.execute(
                 """
                 SELECT short_pct, data_unavailable, reason
@@ -84,34 +85,16 @@ class PositioningMetricsLoader(OptimalLoader):
             short_row = cur.fetchone()
 
         if short_row and short_row[0] is not None:
-            # Successfully got from FINRA
             short_interest_pct = short_row[0]
-            short_interest_unavailable = False
             short_interest_source = "finra"
         else:
-            # FINRA unavailable or null; try yfinance as fallback
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    "SELECT short_interest FROM yfinance_snapshot WHERE symbol = %s",
-                    (symbol,),
-                )
-                yf_row = cur.fetchone()
+            # FINRA data missing - no yfinance fallback (fail-fast)
+            short_interest_source = "unavailable"
 
-            if yf_row and yf_row[0] is not None:
-                short_interest_pct = yf_row[0]
-                short_interest_unavailable = False
-                short_interest_source = "yfinance_fallback"  # Track source degradation
-            else:
-                short_interest_unavailable = True
-                short_interest_source = "unavailable"
-
-        # PHASE 2 (Session 234): Fetch institutional/insider from SEC sources (13F/Form 4), fallback to yfinance
+        # Fetch institutional ownership from SEC 13F (only authoritative source)
         institutional_pct = None
-        insider_pct = None
         institutional_source = None
-        insider_source = None
 
-        # Try SEC 13F for institutional holdings (Phase 2)
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
@@ -128,9 +111,13 @@ class PositioningMetricsLoader(OptimalLoader):
             institutional_pct = sec_inst_row[0]
             institutional_source = "sec_13f"
         else:
-            institutional_source = None
+            # SEC 13F data missing - no yfinance fallback (fail-fast)
+            institutional_source = "unavailable"
 
-        # Try SEC Form 4/5 for insider holdings (Phase 2)
+        # Fetch insider ownership from SEC Form 4/5 (only authoritative source)
+        insider_pct = None
+        insider_source = None
+
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
@@ -147,38 +134,15 @@ class PositioningMetricsLoader(OptimalLoader):
             insider_pct = sec_insider_row[0]
             insider_source = "sec_form4"
         else:
-            insider_source = None
+            # SEC Form 4/5 data missing - no yfinance fallback (fail-fast)
+            insider_source = "unavailable"
 
-        # Fallback to yfinance if SEC data unavailable
-        if institutional_pct is None or insider_pct is None:
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT
-                        held_percent_institutions,
-                        held_percent_insiders,
-                        data_available,
-                        unavailable_reason
-                    FROM yfinance_snapshot
-                    WHERE symbol = %s
-                    """,
-                    (symbol,),
-                )
-                yfinance_row = cur.fetchone()
-
-            if yfinance_row:
-                if institutional_pct is None:
-                    institutional_pct = yfinance_row[0]
-                    institutional_source = "yfinance_fallback" if institutional_pct is not None else "unavailable"
-                if insider_pct is None:
-                    insider_pct = yfinance_row[1]
-                    insider_source = "yfinance_fallback" if insider_pct is not None else "unavailable"
-            else:
-                institutional_source = institutional_source or "unavailable"
-                insider_source = insider_source or "unavailable"
-
-        # Combine metrics: if any source has data, mark as available
-        all_unavailable = short_interest_unavailable and institutional_pct is None and insider_pct is None
+        # Mark unavailable only if ALL three sources missing (any one source makes data available)
+        all_unavailable = (
+            short_interest_source == "unavailable"
+            and institutional_source == "unavailable"
+            and insider_source == "unavailable"
+        )
 
         return [
             {

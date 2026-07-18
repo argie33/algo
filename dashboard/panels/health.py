@@ -306,22 +306,29 @@ def _build_phase_execution_panel(
         # Build phase line with status and metrics (if available)
         metrics_str = ""
 
-        # Render phase-specific metrics only if data exists
+        # Render phase-specific metrics only if data exists and is valid
         if phase_data is None:
             phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]"
         elif phase_num == 1:  # Data Freshness Check
-            tables_validated = phase_data.get("tables_validated", 0)
-            tables_fresh = phase_data.get("tables_fresh", 0)
-            tables_stale = phase_data.get("tables_stale", 0)
-            validation_status = phase_data.get("validation_status", "unknown")
-
-            if tables_stale > 0:
-                stale_color = R if tables_stale >= 3 else Y
-                metrics_str = f" [dim]stale:[/] [{stale_color}]{tables_stale}[/]"
+            # Validate required fields for Phase 1
+            required_fields = {"tables_validated", "tables_fresh", "tables_stale", "validation_status"}
+            missing_fields = required_fields - set(phase_data.keys()) if isinstance(phase_data, dict) else required_fields
+            if missing_fields and status_str in ("success", "completed", "ok", "halt", "halted", "warn", "degraded"):
+                # Phase ran but data corrupted - render error
+                phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
             else:
-                metrics_str = f" [dim]all:[/] [{G}]{tables_fresh}[/] fresh"
+                tables_validated = phase_data.get("tables_validated") if isinstance(phase_data, dict) else 0
+                tables_fresh = phase_data.get("tables_fresh") if isinstance(phase_data, dict) else 0
+                tables_stale = phase_data.get("tables_stale") if isinstance(phase_data, dict) else 0
+                validation_status = phase_data.get("validation_status", "unknown") if isinstance(phase_data, dict) else "unknown"
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+                if tables_stale > 0:
+                    stale_color = R if tables_stale >= 3 else Y
+                    metrics_str = f" [dim]stale:[/] [{stale_color}]{tables_stale}[/]"
+                else:
+                    metrics_str = f" [dim]all:[/] [{G}]{tables_fresh}[/] fresh"
+
+                phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 2:  # Circuit Breakers
             any_triggered = phase_data.get("any_triggered", False)
             dd = phase_data.get("drawdown_pct")
@@ -340,47 +347,68 @@ def _build_phase_execution_panel(
 
             phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 3:  # Position Monitor
-            open_count = phase_data.get("open_positions", 0)
-            oldest = phase_data.get("oldest_days")
-            max_loss = phase_data.get("max_loss_pct")
+            # Validate required fields for Phase 3
+            required_fields = {"open_positions"}
+            missing_fields = required_fields - set(phase_data.keys()) if isinstance(phase_data, dict) else required_fields
+            if missing_fields and status_str in ("success", "completed", "ok", "halt", "halted", "warn", "degraded"):
+                # Phase ran but data corrupted - render error
+                phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
+            else:
+                open_count = phase_data.get("open_positions", 0) if isinstance(phase_data, dict) else 0
+                oldest = phase_data.get("oldest_days") if isinstance(phase_data, dict) else None
+                max_loss = phase_data.get("max_loss_pct") if isinstance(phase_data, dict) else None
 
-            pos_color = G if open_count == 0 else Y if open_count <= 5 else R
-            metrics_str = f" [dim]open:[/] [{pos_color}]{open_count}[/]"
-            if oldest is not None:
-                metrics_str += f" [dim]age:[/] {oldest}d"
-            if max_loss is not None:
-                loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
-                metrics_str += f" [dim]loss:[/] [{loss_color}]{max_loss:.1f}%[/]"
+                pos_color = G if open_count == 0 else Y if open_count <= 5 else R
+                metrics_str = f" [dim]open:[/] [{pos_color}]{open_count}[/]"
+                if oldest is not None:
+                    metrics_str += f" [dim]age:[/] {oldest}d"
+                if max_loss is not None:
+                    loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
+                    metrics_str += f" [dim]loss:[/] [{loss_color}]{max_loss:.1f}%[/]"
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+                phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 4:  # Broker Reconciliation
-            sync_count = phase_data.get("sync_count", 0)
-            match_pct = phase_data.get("avg_match_pct")
-
-            if match_pct is not None:
-                match_color = G if match_pct >= 95 else Y if match_pct >= 80 else R
-                metrics_str = f" [dim]sync:[/] {sync_count} [dim]match:[/] [{match_color}]{match_pct:.0f}%[/]"
+            # Validate required fields for Phase 4
+            required_fields = {"sync_count"}
+            missing_fields = required_fields - set(phase_data.keys()) if isinstance(phase_data, dict) else required_fields
+            if missing_fields and status_str in ("success", "completed", "ok", "halt", "halted", "warn", "degraded"):
+                # Phase ran but data corrupted - render error
+                phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
             else:
-                metrics_str = f" [dim]sync:[/] {sync_count}"
+                sync_count = phase_data.get("sync_count", 0) if isinstance(phase_data, dict) else 0
+                match_pct = phase_data.get("avg_match_pct") if isinstance(phase_data, dict) else None
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+                if match_pct is not None:
+                    match_color = G if match_pct >= 95 else Y if match_pct >= 80 else R
+                    metrics_str = f" [dim]sync:[/] {sync_count} [dim]match:[/] [{match_color}]{match_pct:.0f}%[/]"
+                else:
+                    metrics_str = f" [dim]sync:[/] {sync_count}"
+
+                phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 5:  # Exposure Policy
-            market_regime = phase_data.get("market_regime")
-            entry_allowed = phase_data.get("entry_allowed")
-            halt_active = phase_data.get("halt_active", False)
-            max_entries = phase_data.get("max_new_entries")
-
-            if halt_active:
-                metrics_str = f" [bold {R}]HALT[/]"
-            elif entry_allowed is False:
-                metrics_str = f" [dim]entries:[/] [{R}]blocked[/]"
-            elif entry_allowed is True:
-                entry_info = f" [{G}]{max_entries}[/]" if max_entries else ""
-                metrics_str = f" [dim]entries:[/]{entry_info}"
+            # Validate required fields for Phase 5
+            required_fields = {"market_regime", "entry_allowed", "halt_active"}
+            missing_fields = required_fields - set(phase_data.keys()) if isinstance(phase_data, dict) else required_fields
+            if missing_fields and status_str in ("success", "completed", "ok", "halt", "halted", "warn", "degraded"):
+                # Phase ran but data corrupted - render error
+                phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
             else:
-                metrics_str = f" [dim]regime:[/] {market_regime}" if market_regime else ""
+                market_regime = phase_data.get("market_regime") if isinstance(phase_data, dict) else None
+                entry_allowed = phase_data.get("entry_allowed") if isinstance(phase_data, dict) else None
+                halt_active = phase_data.get("halt_active", False) if isinstance(phase_data, dict) else False
+                max_entries = phase_data.get("max_new_entries") if isinstance(phase_data, dict) else None
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+                if halt_active:
+                    metrics_str = f" [bold {R}]HALT[/]"
+                elif entry_allowed is False:
+                    metrics_str = f" [dim]entries:[/] [{R}]blocked[/]"
+                elif entry_allowed is True:
+                    entry_info = f" [{G}]{max_entries}[/]" if max_entries else ""
+                    metrics_str = f" [dim]entries:[/]{entry_info}"
+                else:
+                    metrics_str = f" [dim]regime:[/] {market_regime}" if market_regime else ""
+
+                phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 6:  # Exit Execution
             exits = phase_data.get("exits_executed", 0)
             success_rate = phase_data.get("success_rate", 0)
@@ -564,7 +592,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         )
 
     stale_count = sum(1 for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok")
-    crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT" and r.get("st") != "ok"]
+    crit_stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
 
     if crit_stale:
         # CRITICAL: Explicit None check instead of OR fallback
@@ -594,28 +622,15 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         )
     )
 
-    _role_order = {"CRIT": 0, "IMP": 1, "NORM": 2}
-
-    def sort_key(r: dict[str, Any]) -> tuple[int, str]:
-        role = r.get("role")
-        # CRITICAL: Explicit validation - missing role indicates data corruption
-        if role is None:
-            logger.warning(f"[HEALTH] Health item missing 'role' field - data corrupted. Keys: {list(r.keys())}")
-            # Fallback to NORM for display, but log as warning (not silent)
-            role = "NORM"
-        elif not isinstance(role, str):
-            logger.warning(
-                f"[HEALTH] Health item role invalid type {type(role).__name__} (expected str). Data corrupted."
-            )
-            role = "NORM"
+    def sort_key(r: dict[str, Any]) -> str:
         tbl = r.get("tbl")
         # CRITICAL: Explicit None check - missing table name indicates incomplete data
         if tbl is None:
-            logger.warning(f"[HEALTH] Health item missing 'tbl' field. Role: {role}, Keys: {list(r.keys())}")
+            logger.warning(f"[HEALTH] Health item missing 'tbl' field. Keys: {list(r.keys())}")
             tbl_str = "unknown_table"
         else:
             tbl_str = str(tbl)
-        return (_role_order.get(role, 2), tbl_str)
+        return tbl_str
 
     sorted_items = sorted(
         [r for r in hlth_items if isinstance(r, dict)],
@@ -630,7 +645,6 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         expand=True,
         row_styles=["", "dim"],
     )
-    all_tbl.add_column("Role", no_wrap=True, min_width=4)
     all_tbl.add_column("Table", no_wrap=True, min_width=26)
     all_tbl.add_column("Age", no_wrap=True, min_width=5, justify="right")
     all_tbl.add_column("Updated", no_wrap=True, min_width=5)
@@ -640,8 +654,6 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     for r in sorted_items:
         tbl_val = r.get("tbl")
         nm = str(tbl_val if tbl_val is not None else "--")
-        role_val = r.get("role")
-        role = str(role_val if role_val is not None else "NORM")
         # CRITICAL: Explicit None check - missing status indicates data quality issue
         st_raw = r.get("st")
         if st_raw is None:
@@ -662,13 +674,11 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         if st not in ("ok", "empty"):
             logger.debug(f"[HEALTH] Health item {nm} status '{st}' mapped to RED color indicator")
         ii = "✓" if ok else ("-" if st == "empty" else "✗")
-        rc = "bold white" if role == "CRIT" else (Y if role == "IMP" else DIM)
         row_count = safe_int(r.get("row_count"), default=None)
         rc_s = f"{row_count:,}" if row_count is not None else "--"
         st_label = "ok" if ok else st.upper()
         all_tbl.add_row(
-            Text(role, style=rc),
-            Text.from_markup(f"[{ic}]{ii}[/] [{rc}]{nm}[/]"),
+            Text.from_markup(f"[{ic}]{ii}[/] {nm}"),
             Text(_fmt_age(r), style=DIM if ok else Y),
             Text(_fmt_updated(r), style="dim"),
             Text(rc_s, style="dim"),
@@ -1203,19 +1213,6 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
     stale = [r for r in hlth_items if isinstance(r, dict) and r.get("st") != "ok"]
     if not stale:
         rows.append(Text.from_markup(f"[{G}]OK Data OK[/]  [dim]{len(hlth_items)} tables[/]"))
-        crit = [r for r in hlth_items if isinstance(r, dict) and r.get("role") == "CRIT"]
-        if crit:
-            # CRITICAL: Explicit None check instead of OR fallback
-            # Missing critical table name is a data integrity issue
-            def get_safe_crit_table(r: dict[str, Any]) -> str:
-                tbl = r.get("tbl")
-                if tbl is None:
-                    logger.warning(f"[HEALTH] Critical table missing 'tbl' field. Keys: {list(r.keys())}")
-                    return "unknown"
-                return str(tbl)
-
-            crit_parts = "  ".join(f"[{G}]OK[/][dim]{get_safe_crit_table(r)[:13]}[/]" for r in crit)
-            rows.append(Text.from_markup(f"  {crit_parts}"))
     else:
         for r in stale[:4]:
             tbl_val = r.get("tbl")
@@ -1230,11 +1227,7 @@ def _format_data_health_summary(hlth_items: list[Any]) -> list[Text]:
                 age_s = f"{age_days:.1f}d"
             else:
                 age_s = "?"
-            rc_raw = r.get("role")
-            if rc_raw is None:
-                rc_raw = ""
-            rc = rc_raw
-            cc = "bold white" if rc == "CRIT" else "white"
+            cc = "bold white"
             lat = r.get("last_updated")
             if lat is None:
                 lat = r.get("latest")
@@ -1603,7 +1596,7 @@ def _format_health_data_stale_section(stale: list[Any], hlth_list: list[Any] | N
     for r in ordered[:4]:
         tbl_val = r.get("tbl")
         nm = (tbl_val if tbl_val else "--")[:16]
-        cc = f"bold {R}" if r.get("role") == "CRIT" else R
+        cc = f"bold {R}"
         stale_parts.append(f"[{R}]✗[/][{cc}]{nm}[/] [dim]{_age_fmt_c(r)}[/]")
     return f"{rtt_pfx}" + "  ".join(stale_parts)
 

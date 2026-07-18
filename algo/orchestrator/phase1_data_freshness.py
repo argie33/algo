@@ -63,17 +63,30 @@ def _check_failsafe_retry_result(
     Returns:
         PhaseResult if halt required, None if can proceed
     """
-    # Log failsafe results for visibility
+    # Validate failsafe result structure (fail-fast if corrupted)
+    required_keys = {"incomplete_loaders", "retried", "recovered", "still_failing", "halt_required"}
+    missing_keys = required_keys - set(failsafe_result.keys())
+    if missing_keys:
+        logger.critical(
+            f"[PHASE 1] FATAL: failsafe_result missing required keys: {missing_keys}. "
+            f"Received keys: {set(failsafe_result.keys())}. This indicates corruption in failsafe retry logic."
+        )
+        raise RuntimeError(
+            f"[PHASE 1] Failsafe retry result corrupted - missing keys: {missing_keys}. "
+            "Cannot proceed with freshness validation."
+        )
+
+    # Log failsafe results for visibility (explicit key access, no defaults)
     logger.info(
         f"[PHASE 1] Failsafe retry check: "
-        f"incomplete={len(failsafe_result.get('incomplete_loaders', []))} "
-        f"retried={len(failsafe_result.get('retried', []))} "
-        f"recovered={len(failsafe_result.get('recovered', []))} "
-        f"still_failing={len(failsafe_result.get('still_failing', []))} "
-        f"halt_required={failsafe_result.get('halt_required', False)}"
+        f"incomplete={len(failsafe_result['incomplete_loaders'])} "
+        f"retried={len(failsafe_result['retried'])} "
+        f"recovered={len(failsafe_result['recovered'])} "
+        f"still_failing={len(failsafe_result['still_failing'])} "
+        f"halt_required={failsafe_result['halt_required']}"
     )
 
-    still_failing = failsafe_result.get("still_failing", [])
+    still_failing = failsafe_result["still_failing"]
     price_tables = {
         "price_daily",
         "price_weekly",

@@ -13,8 +13,8 @@ Computes audited, current valuations from SEC financial data + price_daily:
 Data Quality:
   - All metrics computed from SEC audited data (vs. yfinance estimates)
   - Current (updated daily as prices update)
-  - Explicit data_unavailable markers on computation failures
-  - Fallback to yfinance for missing data (optional secondary source)
+  - Explicit data_unavailable markers on computation failures (fail-fast if SEC data unavailable)
+  - No fallback to yfinance (SEC data only)
 
 Run: python3 loaders/load_sec_valuations.py [--symbols AAPL,MSFT] [--parallelism 4]
 """

@@ -187,13 +187,49 @@ class SecEdgarClient:
         url = f"{EDGAR_BASE}/submissions/CIK{cik}.json"
         return self._get_json(url)
 
+    def _get_primary_document(self, submissions: dict[str, Any], accession_number: str) -> str:
+        """Extract primaryDocument path from submissions data for a specific accession.
+
+        The SEC submissions API includes a primaryDocument field that gives the exact
+        relative path to the main XML file for each filing (e.g., "xslF345X06/form4.xml").
+        This is more reliable than guessing filenames.
+
+        Args:
+            submissions: Response from get_submissions()
+            accession_number: Target accession number (e.g., "0001140361-26-025622")
+
+        Returns:
+            Primary document filename/path (e.g., "xslF345X06/form4.xml")
+
+        Raises:
+            ValueError: If accession not found or primaryDocument missing
+        """
+        filings = submissions.get("filings", {})
+        recent = filings.get("recent", {})
+
+        accessions = recent.get("accessionNumber", [])
+        primary_docs = recent.get("primaryDocument", [])
+
+        # Find index of this accession
+        try:
+            idx = accessions.index(accession_number)
+            if idx >= len(primary_docs):
+                raise ValueError(f"primaryDocument missing for accession {accession_number}")
+            return primary_docs[idx]
+        except ValueError as e:
+            raise ValueError(f"Accession {accession_number} not found in recent filings") from e
+
     def get_filing_xml(self, cik: str, accession_number: str, form_type: str) -> str:
         """Fetch raw XML document from SEC EDGAR filing.
+
+        Discovery strategy: SEC submissions API includes primaryDocument field that
+        gives the exact XML path for each filing. We fetch this metadata and use it
+        to construct the correct URL, rather than guessing filenames.
 
         Args:
             cik: Company CIK (zero-padded)
             accession_number: Filing accession number (e.g., "0001193125-24-001234")
-            form_type: Form type ("4", "SC 13G", etc.)
+            form_type: Form type ("4", "SC 13G", etc.) - validated but not used for discovery
 
         Returns:
             XML content as string
@@ -201,23 +237,23 @@ class SecEdgarClient:
         Raises:
             FileNotFoundError: If filing or XML document not found
             RuntimeError: If request fails after retries
+            ValueError: If primaryDocument not found in submissions
         """
-        # Construct filing path: strip hyphens, use SEC directory structure
+        try:
+            # Fetch submissions to get primaryDocument field
+            submissions = self.get_submissions(cik)
+            primary_doc = self._get_primary_document(submissions, accession_number)
+        except ValueError as e:
+            raise FileNotFoundError(f"Cannot discover XML for filing {accession_number}: {e}") from e
+
+        # Construct full URL using primaryDocument path
         path_accession = accession_number.replace("-", "")
-
-        # Determine XML filename based on form type
-        if form_type == "4":
-            xml_filename = "form4.xml"
-        elif form_type in ("SC 13G", "SC 13G/A"):
-            xml_filename = "sc13g.xml"
-        else:
-            raise ValueError(f"Unsupported form type for XML extraction: {form_type}")
-
-        # SEC EDGAR path structure: /Archives/edgar/{cik}/{accession_nodash}/
         cik_padded = str(cik).zfill(10)
-        url = f"https://www.sec.gov/Archives/edgar/{cik_padded}/{path_accession}/{xml_filename}"
+        url = f"https://www.sec.gov/Archives/edgar/{cik_padded}/{path_accession}/{primary_doc}"
 
-        # Fetch XML with retry logic (uses _get_json's retry mechanism)
+        logger.debug(f"Fetching XML from: {url}")
+
+        # Fetch XML with retry logic
         try:
             self._rate_limiter.wait()
             resp = self._session.get(url, timeout=self.timeout)
