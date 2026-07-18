@@ -87,30 +87,36 @@ def check_database() -> dict:
             all_fresh = True
             for table_name, _description in tables.items():
                 try:
+                    # Use SQL to calculate age for accurate timezone handling
+                    # (database may store naive datetimes in local timezone)
                     if table_name == "stock_scores":
-                        cur.execute(f"SELECT COUNT(*), MAX(updated_at) FROM {table_name}")
+                        cur.execute(
+                            f"SELECT COUNT(*), MAX(updated_at), "
+                            f"EXTRACT(EPOCH FROM (NOW() - MAX(updated_at))) / 3600 as age_hours "
+                            f"FROM {table_name}"
+                        )
                     elif table_name == "algo_orchestrator_runs":
-                        cur.execute(f"SELECT COUNT(*), MAX(started_at) FROM {table_name}")
+                        cur.execute(
+                            f"SELECT COUNT(*), MAX(started_at), "
+                            f"EXTRACT(EPOCH FROM (NOW() - MAX(started_at))) / 3600 as age_hours "
+                            f"FROM {table_name}"
+                        )
+                    elif table_name in ("market_exposure_daily", "technical_data_daily"):
+                        cur.execute(
+                            f"SELECT COUNT(*), MAX(updated_at), "
+                            f"EXTRACT(EPOCH FROM (NOW() - MAX(updated_at))) / 3600 as age_hours "
+                            f"FROM {table_name}"
+                        )
                     else:
-                        cur.execute(f"SELECT COUNT(*), MAX(date) FROM {table_name}")
+                        # For date columns, convert to timestamp at midnight for comparison
+                        cur.execute(
+                            f"SELECT COUNT(*), MAX(date), "
+                            f"EXTRACT(EPOCH FROM (NOW() - MAX(date)::timestamp)) / 3600 as age_hours "
+                            f"FROM {table_name}"
+                        )
 
-                    cnt, latest = cur.fetchone()
-                    age_hours = None
-                    if latest:
-                        from datetime import date as date_type
-
-                        if isinstance(latest, date_type) and not isinstance(latest, datetime):
-                            # It's a date (not a datetime)
-                            age_days = (datetime.now(timezone.utc).date() - latest).days
-                            age_hours = age_days * 24
-                        elif isinstance(latest, datetime):
-                            # It's a datetime
-                            if latest.tzinfo is None:
-                                latest = latest.replace(tzinfo=timezone.utc)
-                            age = datetime.now(timezone.utc) - latest
-                            age_hours = age.total_seconds() / 3600
-                        else:
-                            age_hours = None
+                    cnt, latest, age_hours = cur.fetchone()
+                    age_hours = float(age_hours) if age_hours is not None else None
 
                     fresh = age_hours is None or age_hours < 24
                     status_icon = "[OK]" if fresh else "[WARN]"
