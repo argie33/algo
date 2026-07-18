@@ -21,10 +21,11 @@ Pipeline:
 2. Anomaly detection: verify buy_sell_daily signal count is not suspiciously low
 3. Check halt flag (data freshness gate)
 4. Check market regime: halt if entries not allowed per market_exposure_daily
-5. Fetch candidates (primary): buy_sell_daily BUY signals within last 3 days
-   joined to stock_scores (composite ranking) + price_daily (current prices + SMA_50)
+5. Fetch candidates (primary): buy_sell_daily BUY signals INNER JOIN to stock_scores
+   (composite ranking required - no fallback to computed scores). Only signals with
+   stock_scores coverage + data_completeness >= 70 are eligible.
 6. Filter: close > sma_50 (uptrend confirmation)
-7. Filter: composite_score >= min threshold
+7. Filter: composite_score >= min threshold (30)
 8. Close quality gate: skip weak closes (bottom of day's range = distribution)
 9. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
 10. Return composite-score-ranked candidates to Phase 8
@@ -34,16 +35,22 @@ CRITICAL: buy_sell_daily is required for robust signal generation. The EOD pipel
 If buy_sell_daily unexpectedly has zero signals, Phase 7 halts (fail-closed) to surface
 upstream data quality issues rather than silently degrading.
 
-Why no fallback? Using stock_scores alone without buy_sell_daily confirmation means:
-- No pivot-breakout timing gate (weak entry confirmation)
-- No swing-high validation (could catch late entries during pullbacks)
-- Reduced signal quality and higher false-positive rate
-- Masks upstream loader failures (technical_data_daily, buy_sell_daily)
+Why no fallback to computed scores? Using COALESCE(composite_score, strength*50) would:
+- Create silent data quality degradation (when stock_scores missing for a symbol)
+- Hide universe gap issues (which symbols lack score coverage)
+- Allow low-quality signals when metrics are incomplete
+- Violate fail-fast principle (explicit data_unavailable required)
+
+INSTEAD: INNER JOIN requires stock_scores coverage. Signals are only generated for
+symbols with full quality/growth/value/positioning/stability metrics available.
 
 Ranking: composite_score from stock_scores (quality 25%, growth 20%, value 20%,
 positioning 15%, stability 12%, momentum 8%).
 
-Signal source: buy_sell_daily + stock_scores only (no degradation mode).
+Signal source: buy_sell_daily + stock_scores INNER JOIN (EXPLICIT - no degradation mode).
+Universe constraint: Only ~4,700 of ~10,600 trading symbols have sufficient metrics for
+stock_scores. Phase 7 can only generate signals for scored symbols. To expand: improve
+metric loaders to cover broader universe (see Session 247 universe gap analysis).
 """
 
 import logging
