@@ -223,7 +223,7 @@ class AlignmentChecker(BaseCheck):
                     f"{len(orphaned)} filled trades missing price history",
                     {
                         "orphaned_trades": len(orphaned),
-                        "sample": [{"trade_id": r[0], "symbol": r[1], "fill_date": str(r[2])} for r in orphaned[:5]],
+                        "sample": [{"trade_id": r['trade_id'], "symbol": r['symbol'], "fill_date": str(r['fill_date'])} for r in orphaned[:5]],
                     },
                 )
             else:

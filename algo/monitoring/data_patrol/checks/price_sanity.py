@@ -187,7 +187,7 @@ class PriceSanityChecker(BaseCheck):
                     WARN,
                     "price_daily",
                     f"{len(gaps)} sequence gaps in SPY (last 60 days)",
-                    {"gaps": [{"date": str(r[0]), "days": int(r[2])} for r in gaps]},
+                    {"gaps": [{"date": str(r['date']), "days": int(r['gap_days'])} for r in gaps]},
                 )
             else:
                 self.log(

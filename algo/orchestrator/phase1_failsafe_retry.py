@@ -23,7 +23,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date as _date
 from typing import Any
 
 import boto3
@@ -97,7 +97,7 @@ def _get_expected_data_date() -> tuple[_date, str]:
     Returns:
         Tuple of (expected_data_date, freshness_context_str)
     """
-    from datetime import date as _date, timedelta as td
+    from datetime import timedelta as td
     from zoneinfo import ZoneInfo
 
     from algo.infrastructure import MarketCalendar
@@ -168,37 +168,7 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
         stale_loaders = []
 
         # Market-aware freshness check: determine expected data date based on trading hours
-        from datetime import timedelta as td
-        from zoneinfo import ZoneInfo
-
-        from algo.infrastructure import MarketCalendar
-
-        now_et = datetime.now(ZoneInfo("America/New_York"))
-        run_date_et = now_et.date()
-
-        # Determine expected data date (same logic as phase1_data_freshness.py)
-        if now_et.hour < 16:  # INTRADAY: before market close
-            # Expect previous trading day's data
-            prev_date = run_date_et - td(days=1)
-            expected_data_date = prev_date
-            while expected_data_date > run_date_et - td(days=10):
-                if MarketCalendar.is_trading_day(expected_data_date):
-                    break
-                expected_data_date -= td(days=1)
-            freshness_context = f"INTRADAY - expecting previous trading day ({expected_data_date})"
-        else:  # After market close
-            # Expect same-day data if today is trading day
-            if MarketCalendar.is_trading_day(run_date_et):
-                expected_data_date = run_date_et
-            else:
-                # Weekend/holiday: use most recent trading day
-                expected_data_date = run_date_et - td(days=1)
-                while expected_data_date > run_date_et - td(days=10):
-                    if MarketCalendar.is_trading_day(expected_data_date):
-                        break
-                    expected_data_date -= td(days=1)
-            freshness_context = f"EOD - expecting same/recent trading day ({expected_data_date})"
-
+        expected_data_date, freshness_context = _get_expected_data_date()
         logger.info(f"[PHASE 1 FAILSAFE LOCAL] {freshness_context}")
 
         with DatabaseContext("read") as cur:

@@ -29,7 +29,7 @@ class MarketCapComputedLoader(OptimalLoader):
                 return [{"symbol": symbol, "market_cap": None, "data_unavailable": True, "reason": "no_shares", "computed_at": now_et}]
             shares = safe_float(shares_row[0], "shares_outstanding")
             if latest_price and shares and latest_price > 0 and shares > 0:
-                return [{"symbol": symbol, "market_cap": latest_price * shares, "latest_price": latest_price, "shares_outstanding": shares, "data_unavailable": False, "computed_at": now_et}]
+                return [{"symbol": symbol, "market_cap": latest_price * shares, "latest_price": latest_price, "shares_outstanding": int(shares) if shares else None, "data_unavailable": False, "computed_at": now_et}]
             return [{"symbol": symbol, "market_cap": None, "data_unavailable": True, "reason": "invalid", "computed_at": now_et}]
 
 def main() -> int:

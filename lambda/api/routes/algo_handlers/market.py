@@ -967,15 +967,15 @@ def _get_market(cur: cursor) -> Any:
             "new_highs_count": int(nh_val) if nh_val is not None else None,
             "new_lows_count": int(nl_val) if nl_val is not None else None,
             "put_call_ratio": float(pcr_val) if pcr_val is not None else None,
-            "put_call_ratio_data_unavailable": False,
-            "put_call_ratio_unavailable_reason": None,
+            "put_call_ratio_data_unavailable": pcr_val is None,
+            "put_call_ratio_unavailable_reason": market_health.get("put_call_ratio_unavailable_reason") if pcr_val is None else None,
             "breadth_momentum_10d": float(bm_val) if bm_val is not None else None,
             "yield_curve_slope": float(ycs_val) if ycs_val is not None else None,
-            "yield_curve_data_unavailable": False,
-            "yield_curve_unavailable_reason": None,
+            "yield_curve_data_unavailable": ycs_val is None,
+            "yield_curve_unavailable_reason": market_health.get("yield_curve_unavailable_reason") if ycs_val is None else None,
             "fed_rate_environment": market_health.get("fed_rate_environment"),
-            "fed_rate_data_unavailable": False,
-            "fed_rate_unavailable_reason": None,
+            "fed_rate_data_unavailable": market_health.get("fed_rate_data_unavailable", False),
+            "fed_rate_unavailable_reason": market_health.get("fed_rate_unavailable_reason") if market_health.get("fed_rate_data_unavailable") else None,
         }
 
         return json_response(200, data)

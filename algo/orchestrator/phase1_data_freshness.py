@@ -797,7 +797,6 @@ def run(  # noqa: C901
                         avg_completeness = float(completeness_row[0])
                         total_available = completeness_row[1]
                         complete_scores = completeness_row[2]
-                        available_count = completeness_row[3]
 
                         logger.info(
                             f"[PHASE 1] Stock scores completeness: {avg_completeness:.1f}% avg "
