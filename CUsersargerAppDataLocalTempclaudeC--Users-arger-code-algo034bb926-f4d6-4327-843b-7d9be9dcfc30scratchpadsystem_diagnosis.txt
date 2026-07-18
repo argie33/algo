@@ -1,0 +1,110 @@
+================================================================================
+SYSTEM DIAGNOSIS - 2026-07-18 (SATURDAY)
+================================================================================
+
+STATUS SUMMARY:
+  ✅ Algorithm PASSES tests
+  ✅ Dashboard loads (with cached data)
+  ❌ Loaders are HUNG (multiple stuck processes)
+  ❌ AWS credentials EXPIRED (EventBridge broken)
+  ❌ Technical data pipeline STALLED
+
+ROOT CAUSES:
+
+1. LOADER HANGS (External Dependency Failures)
+   ==========================================
+   
+   These loaders are STUCK and getting force-killed by staleness monitor:
+   
+   • short_interest_finra      → RUNNING 21 min (hung, no error captured)
+   • annual_income_statement   → RUNNING 31 min (hung, marked failed)
+   • momentum_metrics          → FAILED (hung - forced cleanup)
+   • yfinance_snapshot         → FAILED (hung - forced cleanup)
+   • aaii_sentiment            → FAILED since 2026-07-12 (6 DAYS - API unavailable)
+   
+   When loaders hang:
+   → Staleness monitor (job runner) force-kills them after timeout
+   → Status marked FAILED
+   → Technical_data_daily got cleaned up too (false casualty)
+   → This cascades: buy_sell_daily can't update → Phase 7 halts
+
+2. TECHNICAL DATA PIPELINE FAILURE
+   ================================
+   
+   Most recent orchestrator run (10 min ago) HALTED:
+   
+   [PHASE 7 CRITICAL HALT]
+   buy_sell_daily data is STALE: most recent is from 2026-07-16
+   → Actually 2026-07-17 (Friday, FRESH for Saturday)
+   → But the staleness check doesn't know it's non-trading weekend
+   
+   Root cause: technical_data_daily failed (got cleaned up)
+   → buy_sell_daily depends on it
+   → Can't generate new signals
+   → Phase 7 halts (correctly detecting data issue)
+
+3. AWS CREDENTIALS EXPIRED
+   =======================
+   
+   EventBridge Scheduler can't run at all:
+   
+   "The security token included in the request is invalid"
+   
+   This means:
+   → Morning pipeline (2 AM ET) won't run Monday automatically
+   → EOD pipeline (4:05 PM ET) won't run Friday automatically
+   → Only local manual runs work
+
+4. WHY ALGORITHM STILL PASSES
+   ============================
+   
+   • Friday's data (2026-07-17) is still fresh enough to use
+   • Dashboard shows cached data (looks OK to user)
+   • Unit tests use mock/snapshot data (always pass)
+   • But real-time performance is silently degraded
+   • One more non-trading day and data becomes obviously stale
+
+================================================================================
+THE REAL PROBLEMS:
+================================================================================
+
+1. Loaders are hanging on external APIs:
+   - yfinance (rate limiting or service issues)
+   - SEC EDGAR (Form 4/13F parsing or API issues)
+   - FINRA short interest API (timeout or auth issues)
+   - AAII sentiment API (down since July 12)
+
+2. Job runner's staleness cleanup is too aggressive:
+   - Force-kills hung loaders after timeout
+   - Cascades failures to dependent tables
+   - technical_data_daily got collateral damage
+
+3. AWS credentials are stale:
+   - Can't trigger EventBridge Scheduler
+   - No way to auto-run loaders Monday morning
+   - System fully dependent on manual/local runs
+
+4. Non-trading day handling is broken:
+   - Staleness checks assume daily updates
+   - Don't account for weekends/holidays
+   - False halt alerts on Saturday/Sunday
+
+================================================================================
+WHAT NEEDS FIXING (Priority Order):
+================================================================================
+
+CRITICAL (System Won't Work Monday):
+  1. Refresh AWS credentials (Session Token expired)
+  2. Fix or remove hanging loaders (short_interest, SEC income statement)
+  3. Restore aaii_sentiment or remove the dependency
+  4. Fix non-trading day staleness checks
+
+HIGH (Data Quality):
+  5. Prevent technical_data_daily from being collateral damage
+  6. Add robust cleanup that retries instead of force-killing
+
+MEDIUM (Observability):
+  7. Better logging on why loaders hang
+  8. Expose stuck loader metrics to dashboard
+
+================================================================================

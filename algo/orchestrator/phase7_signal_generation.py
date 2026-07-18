@@ -583,8 +583,8 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             latest_buysell_date = latest_row[0]
             latest_buysell_count = latest_row[1]
 
-            # DATA FRESHNESS CHECK: Most recent buy_sell_daily entry should be from today or yesterday (for morning runs)
-            # If it's older than that, upstream loaders failed (most likely technical_data_daily)
+            # DATA FRESHNESS CHECK: Most recent buy_sell_daily entry should be from the most recent trading day
+            # If it's older, upstream loaders failed (most likely technical_data_daily)
             if latest_buysell_date is None:
                 msg = (
                     "[PHASE 7 CRITICAL HALT] buy_sell_daily table is EMPTY (no records found). "
@@ -597,13 +597,24 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
 
+            # Check if latest_buysell_date is from the most recent trading day
+            # Walk backwards from run_date to find the most recent trading day
+            from algo.infrastructure import MarketCalendar
+            most_recent_trading_day = run_date
+            check_iterations = 0
+            while most_recent_trading_day > run_date - timedelta(days=10) and check_iterations < 10:
+                if MarketCalendar.is_trading_day(most_recent_trading_day):
+                    break
+                most_recent_trading_day -= timedelta(days=1)
+                check_iterations += 1
+
+            # On weekends/holidays, data from the previous trading day is FRESH
             days_stale = (run_date - latest_buysell_date).days
-            if days_stale > 1:
-                # Most recent data is >1 day old. For morning/afternoon runs, this is a red flag.
-                # EOD pipeline should have run yesterday evening, so latest data should be from yesterday at worst.
+            if latest_buysell_date < most_recent_trading_day:
+                # Most recent data is OLDER than the most recent trading day - this is a red flag
                 msg = (
-                    f"[PHASE 7 CRITICAL HALT] buy_sell_daily data is STALE: most recent is from {latest_buysell_date} ({days_stale} days old). "
-                    f"Expected today or yesterday. This indicates: "
+                    f"[PHASE 7 CRITICAL HALT] buy_sell_daily data is STALE: most recent is from {latest_buysell_date}. "
+                    f"Expected from most recent trading day ({most_recent_trading_day}). This indicates: "
                     f"(1) EOD pipeline ({latest_buysell_date}) did not complete, OR "
                     f"(2) Technical_data_daily loader failed (buy_sell_daily depends on it), OR "
                     f"(3) Buy_sell_daily loader itself failed. "
