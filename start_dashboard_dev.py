@@ -32,28 +32,33 @@ def is_port_open(port: int, timeout: float = 1.0) -> bool:
 
 def cleanup_orphaned_dev_servers() -> None:
     """Kill any stuck/orphaned dev_server processes to prevent port conflicts."""
-    if sys.platform == "win32":
-        # Windows: use taskkill to force-kill all Python processes running dev_server
-        try:
+    try:
+        if sys.platform == "win32":
+            # Windows: use taskkill to kill only dev_server processes
+            result = subprocess.run(
+                ["tasklist", "/FI", "WINDOWTITLE eq dev_server*", "/FO", "CSV"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            # Alternative: Use wmic to find python processes running dev_server.py
             subprocess.run(
-                ["taskkill", "/F", "/IM", "python.exe", "/T"],
+                'wmic process where "CommandLine like \'%dev_server%\'" delete /nointeractive 2>nul',
+                shell=True,
                 capture_output=True,
                 timeout=5,
             )
-            time.sleep(1)  # Give port time to be released
-        except Exception:
-            pass
-    else:
-        # Unix: use pkill to force-kill dev_server processes
-        try:
+        else:
+            # Unix: use pkill to force-kill dev_server processes only
             subprocess.run(
-                ["pkill", "-9", "-f", "dev_server"],
+                ["pkill", "-9", "-f", "dev_server.py"],
                 capture_output=True,
                 timeout=5,
             )
-            time.sleep(1)  # Give port time to be released
-        except Exception:
-            pass
+        time.sleep(1)  # Give port time to be released
+    except Exception:
+        # Silently fail - not critical if cleanup doesn't work
+        pass
 
 
 def start_dev_server() -> subprocess.Popen:
@@ -64,6 +69,10 @@ def start_dev_server() -> subprocess.Popen:
     if is_port_open(3001):
         print("[STARTUP] [OK] Dev server already running on localhost:3001", flush=True)
         return None
+
+    # Clean up any orphaned dev_server processes before starting fresh
+    print("[STARTUP] Cleaning up any orphaned processes...", flush=True)
+    cleanup_orphaned_dev_servers()
 
     print("[STARTUP] Dev server not responding. Starting it now...", flush=True)
     print("[STARTUP]   Running: python3 lambda/api/dev_server.py", flush=True)

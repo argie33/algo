@@ -423,6 +423,27 @@ class APIHandler(BaseHTTPRequestHandler):
 
 def run_dev_server(port: int = 3001) -> None:
     """Run the development server."""
+    # Safeguard: Check if port is already in use before starting
+    import socket as sock_module
+    test_sock = sock_module.socket(sock_module.AF_INET, sock_module.SOCK_STREAM)
+    test_sock.settimeout(0.5)
+    port_in_use = test_sock.connect_ex(("127.0.0.1", port)) == 0
+    test_sock.close()
+
+    if port_in_use:
+        logger.error(
+            f"[FATAL] Port {port} is already in use. Another dev_server instance is running. "
+            f"Kill it first or use a different port."
+        )
+        print(
+            f"[FATAL] Port {port} is already in use!\n"
+            f"  → Another dev_server instance is running\n"
+            f"  → Kill it with: taskkill /F /IM python.exe (Windows) or pkill -9 dev_server (Unix)",
+            flush=True,
+        )
+        import sys
+        sys.exit(1)
+
     server_address = ("", port)
     httpd = HTTPServer(server_address, APIHandler)
     logger.info(f"Starting API dev server on http://localhost:{port}")
