@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 from utils.db import DatabaseContext
 
-sql = open("migrations/1010_add_sql_interval_configuration.sql", encoding="utf-8").read()
+with open("migrations/1010_add_sql_interval_configuration.sql", encoding="utf-8") as f:
+    sql = f.read()
 # Remove comments
 sql_lines = [line for line in sql.split("\n") if not line.strip().startswith("--")]
 sql_clean = "\n".join(sql_lines)
