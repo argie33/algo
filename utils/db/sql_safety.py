@@ -112,6 +112,8 @@ SAFE_TABLES = {
     "short_interest_finra",  # Phase 1: FINRA short interest (replaces yfinance)
     "institutional_holdings_13f",  # Phase 2: SEC 13F institutional holdings
     "insider_holdings_sec",  # Phase 2: SEC Form 4/5 insider holdings
+    "company_info_sec",  # Phase 3: SEC company master data (replaces yfinance company info)
+    "earnings_calendar_sec",  # Phase 3: SEC earnings dates (replaces yfinance earnings_date)
     # Phase 1-4 Consolidation (Session 204+)
     "sec_valuations",  # Phase 1: SEC-derived PE/PB/PS/PEG/FCF (replaces yfinance quoteSummary)
     # Market snapshots
