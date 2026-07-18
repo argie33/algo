@@ -6,7 +6,6 @@ Checks if Alpaca credentials fix (Session 193) has been deployed to AWS Lambda.
 
 import json
 import subprocess
-import time
 from datetime import datetime
 
 
@@ -46,7 +45,7 @@ def check_github_actions_status():
 def check_lambda_code():
     """Check if Lambda code has the credentials fix by looking at local code."""
     try:
-        with open("lambda/algo_orchestrator/lambda_function.py", "r") as f:
+        with open("lambda/algo_orchestrator/lambda_function.py") as f:
             content = f.read()
 
         has_credentials_fix = "_load_alpaca_credentials_from_secrets" in content
@@ -64,8 +63,9 @@ def check_lambda_code():
 def check_database_status():
     """Check actual data freshness in database."""
     try:
-        import psycopg2
         import os
+
+        import psycopg2
 
         conn = psycopg2.connect(
             dbname='stocks',

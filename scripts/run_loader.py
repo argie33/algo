@@ -136,8 +136,9 @@ def run_price_loader(symbols=None, backfill_days=1):
 
 def run_technical_indicators_loader(backfill_days=1):
     """Run technical indicators loader - vectorized in-database calculation."""
-    from loaders.load_technical_indicators import VectorizedTechnicalLoader
     import psycopg2
+
+    from loaders.load_technical_indicators import VectorizedTechnicalLoader
 
     # Fetch all universe symbols from stock_symbols table
     try:
@@ -181,8 +182,9 @@ def run_value_quality_growth_loader():
     CRITICAL: Only load symbols with available yfinance data to avoid creating NULL-filled rows
     (yfinance only covers ~4,700 real stocks, not indices/delisted/etc in full price_daily universe)
     """
-    from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
     import psycopg2
+
+    from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
 
     # Fetch symbols with yfinance data available (only real tradeable stocks)
     try:
@@ -220,8 +222,9 @@ def run_value_quality_growth_loader():
 
 def run_stock_scores_loader(limit=None):
     """Run stock scores loader."""
-    from loaders.load_stock_scores import StockScoresLoader
     import psycopg2
+
+    from loaders.load_stock_scores import StockScoresLoader
 
     # Fetch universe symbols from stock_symbols table
     try:
@@ -244,8 +247,9 @@ def run_stock_scores_loader(limit=None):
 
 def run_positioning_metrics_loader():
     """Run positioning metrics loader (yfinance derived)."""
-    from loaders.load_yfinance_derived_metrics import YfinanceDerivedMetricsLoader
     import psycopg2
+
+    from loaders.load_yfinance_derived_metrics import YfinanceDerivedMetricsLoader
 
     # Fetch universe symbols from stock_symbols table
     try:
@@ -268,8 +272,9 @@ def run_positioning_metrics_loader():
 
 def run_stability_metrics_loader():
     """Run stability metrics loader (risk metrics)."""
-    from loaders.load_risk_metrics_daily import RiskMetricsLoader
     import psycopg2
+
+    from loaders.load_risk_metrics_daily import RiskMetricsLoader
 
     # Fetch universe symbols from stock_symbols table
     try:

@@ -23,6 +23,7 @@ Run: python3 loaders/load_sector_industry_daily.py
 
 import logging
 import sys
+from collections.abc import Iterable
 from datetime import date, timedelta
 from typing import Any
 
@@ -47,12 +48,15 @@ class SectorIndustryDailyLoader(OptimalLoader):
     is_symbol_based = False
 
     def run(
-        self, symbols: list[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
+        self, symbols: Iterable[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
     ) -> dict[str, Any]:
         """Override run() to use market-wide pseudo-symbol."""
-        if symbols is None or (isinstance(symbols, list) and len(symbols) == 0):
-            symbols = ["market"]
-        return super().run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)
+        symbol_list: list[str]
+        if symbols is None or (isinstance(symbols, (list, tuple)) and len(symbols) == 0):
+            symbol_list = ["market"]
+        else:
+            symbol_list = list(symbols) if not isinstance(symbols, list) else symbols
+        return super().run(symbols=symbol_list, parallelism=parallelism, backfill_days=backfill_days)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute sector/industry metrics for today.

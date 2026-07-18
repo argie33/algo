@@ -168,9 +168,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
                 sec_val_row = cur.fetchone()
 
-                # Get quality from SEC financials (latest record with data)
+                # Get quality from SEC financials (annual balance sheet + income statement latest year)
                 cur.execute(
-                    """SELECT * FROM quality_metrics WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1""",
+                    """
+                    SELECT abs.stockholders_equity, abs.total_liabilities,
+                           ais.net_income, ais.revenue, ais.operating_income
+                    FROM annual_balance_sheet abs
+                    LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
+                    WHERE abs.symbol = %s
+                    ORDER BY abs.fiscal_year DESC
+                    LIMIT 1
+                    """,
                     (symbol,),
                 )
                 quality_row_db = cur.fetchone()
@@ -178,9 +186,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # Get annual income statement history for growth computation (not from growth_metrics table)
                 cur.execute(
                     """
-                    SELECT total_revenue, operating_income, net_income, earnings_per_share
+                    SELECT revenue, operating_income, net_income, earnings_per_share
                     FROM annual_income_statement
-                    WHERE symbol = %s AND total_revenue IS NOT NULL
+                    WHERE symbol = %s AND revenue IS NOT NULL
                     ORDER BY fiscal_year DESC
                     LIMIT 10
                     """,
@@ -197,7 +205,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # Construct value metrics from sec_valuations + yfinance dividend
             value_dict = self._build_value_metrics(symbol, sec_val_row, yfinance_row)
-            quality_dict = self._build_quality_metrics(symbol, quality_row_db)
+            quality_dict = self._compute_quality_metrics(symbol, quality_row_db)
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
 
@@ -245,21 +253,54 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "updated_at": date.today().isoformat(),
         }
 
-    def _build_quality_metrics(self, symbol: str, quality_row: Any) -> dict[str, Any]:
-        """Build quality_metrics dict from SEC financials."""
+    def _compute_quality_metrics(self, symbol: str, quality_row: Any) -> dict[str, Any]:
+        """Compute quality_metrics from SEC financials (balance sheet + income statement)."""
         if not quality_row:
             return self._unavailable_marker("quality_metrics", symbol)
 
-        return {
-            "symbol": symbol,
-            "roe": quality_row[2] if len(quality_row) > 2 else None,
-            "roa": quality_row[3] if len(quality_row) > 3 else None,
-            "operating_margin": quality_row[4] if len(quality_row) > 4 else None,
-            "net_margin": quality_row[5] if len(quality_row) > 5 else None,
-            "debt_to_equity": quality_row[6] if len(quality_row) > 6 else None,
-            "data_unavailable": False,
-            "updated_at": date.today().isoformat(),
-        }
+        try:
+            stockholders_equity = safe_float(quality_row[0], f"{symbol}.stockholders_equity", allow_none=True)
+            total_liabilities = safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True)
+            net_income = safe_float(quality_row[2], f"{symbol}.net_income", allow_none=True)
+            revenue = safe_float(quality_row[3], f"{symbol}.revenue", allow_none=True)
+            operating_income = safe_float(quality_row[4], f"{symbol}.operating_income", allow_none=True)
+
+            metrics: dict[str, Any] = {
+                "symbol": symbol,
+                "roe": None,
+                "roa": None,
+                "operating_margin": None,
+                "net_margin": None,
+                "debt_to_equity": None,
+                "data_unavailable": False,
+                "updated_at": date.today().isoformat(),
+            }
+
+            # ROE = Net Income / Shareholders' Equity
+            if net_income is not None and stockholders_equity is not None and stockholders_equity != 0:
+                metrics["roe"] = float((net_income / stockholders_equity) * 100)
+
+            # Operating Margin = Operating Income / Revenue
+            if operating_income is not None and revenue is not None and revenue != 0:
+                metrics["operating_margin"] = float((operating_income / revenue) * 100)
+
+            # Net Margin = Net Income / Revenue
+            if net_income is not None and revenue is not None and revenue != 0:
+                metrics["net_margin"] = float((net_income / revenue) * 100)
+
+            # Debt to Equity = Total Liabilities / Shareholders' Equity
+            if total_liabilities is not None and stockholders_equity is not None and stockholders_equity != 0:
+                metrics["debt_to_equity"] = float(total_liabilities / stockholders_equity)
+
+            # Mark unavailable if all metrics are None
+            if all(metrics[k] is None for k in ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity"]):
+                return self._unavailable_marker("quality_metrics", symbol)
+
+            return metrics
+
+        except Exception as e:
+            logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics compute failed: {e}")
+            return self._unavailable_marker("quality_metrics", symbol)
 
     def _compute_growth_metrics(self, symbol: str, income_rows: list[Any]) -> dict[str, Any]:
         """Compute multi-year growth rates from annual income statement history.

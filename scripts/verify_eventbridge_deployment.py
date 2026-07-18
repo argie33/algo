@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Verify EventBridge Scheduler rules are deployed and firing."""
 
-import boto3
 import os
 import sys
 from datetime import datetime, timedelta
+
+import boto3
+
 
 def check_eventbridge_scheduler():
     """Check if EventBridge Scheduler rules exist and are enabled."""

@@ -4,9 +4,11 @@ Direct deployment of EventBridge Scheduler rules without terraform.
 Creates the 4 critical data pipeline schedules that orchestrator depends on.
 """
 
-import boto3
 import json
+
+import boto3
 from botocore.exceptions import ClientError
+
 
 def get_scheduler_role_arn():
     """Get the EventBridge Scheduler role ARN from terraform output."""
@@ -106,7 +108,7 @@ def deploy_scheduler_rules():
             error_msg = e.response["Error"]["Message"]
 
             if "ConflictException" in error_code or "already exists" in error_msg:
-                print(f"  [WARN] Already exists (skipping)")
+                print("  [WARN] Already exists (skipping)")
                 results["already_exists"].append(rule["name"])
             else:
                 print(f"  [FAIL] FAILED: {error_code}")

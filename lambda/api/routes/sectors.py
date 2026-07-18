@@ -99,7 +99,7 @@ def handle(  # noqa: C901
                 cur.execute("SET LOCAL statement_timeout = '10000ms'")
                 # All camelCase aliases double-quoted so psycopg2 preserves case
                 cur.execute(
-                    f"""
+                    """
                         WITH sector_daily_avg AS (
                             SELECT
                                 pd.date,
@@ -153,7 +153,7 @@ def handle(  # noqa: C901
                 days = safe_days(extract_param(params, "days"), max_val=365, default=90)
                 cur.execute("SET LOCAL statement_timeout = '5000ms'")
                 cur.execute(
-                    f"""
+                    """
                         SELECT date, sector, return_pct
                         FROM sector_performance
                         WHERE sector = %s AND date >= CURRENT_DATE - (%s || ' days')::interval

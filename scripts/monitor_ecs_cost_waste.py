@@ -3,9 +3,10 @@
 Monitor ECS cluster for cost waste in real-time.
 Shows: (1) current unhealthy tasks, (2) monthly cost impact, (3) projected savings
 """
-import boto3
-from datetime import datetime, timezone, timedelta
 import sys
+from datetime import datetime, timezone
+
+import boto3
 
 ecs = boto3.client('ecs', region_name='us-east-1')
 
@@ -95,7 +96,7 @@ def main():
 
     # Calculate cost impact
     print(f"\n{'='*70}")
-    print(f"COST IMPACT:\n")
+    print("COST IMPACT:\n")
 
     hourly_waste = unhealthy_cost_per_hour
     daily_waste = hourly_waste * 24
@@ -104,15 +105,15 @@ def main():
     print(f"  Unhealthy tasks: {len(unhealthy_tasks)}")
     print(f"  Healthy tasks: {len(healthy_tasks)}")
     print(f"  Wasting: {format_cost(hourly_waste)}/hour")
-    print(f"  Projected loss (if not stopped):")
+    print("  Projected loss (if not stopped):")
     print(f"    Daily:   {format_cost(daily_waste)}")
     print(f"    Monthly: {format_cost(monthly_waste)}")
 
     if len(unhealthy_tasks) > 0:
-        print(f"\n  [ALERT] AUTO-STOP LAMBDA WILL TERMINATE THESE IN ~20-60 MINUTES")
+        print("\n  [ALERT] AUTO-STOP LAMBDA WILL TERMINATE THESE IN ~20-60 MINUTES")
         print(f"  [ALERT] COST SAVINGS: {format_cost(monthly_waste)}/month when cleaned up")
     else:
-        print(f"\n  [OK] Cluster is running efficiently")
+        print("\n  [OK] Cluster is running efficiently")
 
     print(f"\n{'='*70}\n")
 

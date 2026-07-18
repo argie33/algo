@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Verify that the veto3 threshold fix is working correctly."""
 
-import psycopg2
 import sys
-from datetime import datetime
-from decimal import Decimal
+
+import psycopg2
+
 
 def check_veto3_fix() -> bool:
     """Verify veto3 fix is deployed and working."""

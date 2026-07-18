@@ -151,7 +151,7 @@ class SecValuationsLoader(OptimalLoader):
         shares_out: float,
         ttm_eps: float,
         ttm_revenue: float,
-        book_value: float,
+        book_value: float | None,
         ocf: float,
         capex: float,
         latest_eps: float,

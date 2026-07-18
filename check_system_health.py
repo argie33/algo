@@ -15,7 +15,6 @@ import io
 import os
 import socket
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 # Fix Windows console encoding for unicode output

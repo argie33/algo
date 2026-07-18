@@ -365,6 +365,7 @@ class TestPanelIntegration:
     def test_dashboard_metrics(self) -> None:
         """Measure dashboard rendering time (performance)."""
         import time
+
         from dashboard.dashboard import render_dashboard
 
         data = _mock_panel_data()

@@ -4,11 +4,11 @@ Session 199: Auto-terminate stuck ECS tasks that have been unhealthy for > 2 hou
 Triggered by CloudWatch alarms or EventBridge schedule (every 6 hours).
 Prevents cost waste from lingering failed tasks (~$45+/month per stuck task).
 """
-import os
-import sys
-import boto3
 import json
+import os
 from datetime import datetime, timezone
+
+import boto3
 
 ecs = boto3.client('ecs', region_name='us-east-1')
 sns = boto3.client('sns', region_name='us-east-1')
@@ -113,7 +113,7 @@ def format_alert_message(killed_tasks, cluster_name, project_name, environment):
         f"ECS Auto-Kill Report - {project_name}-{environment}",
         f"Timestamp: {datetime.now(timezone.utc).isoformat()}",
         f"Cluster: {cluster_name}",
-        f"",
+        "",
         f"Killed {len(killed_tasks)} stuck task(s):",
         ""
     ]
@@ -125,15 +125,12 @@ def format_alert_message(killed_tasks, cluster_name, project_name, environment):
         lines.append(f"  Health: {task['health']}")
         lines.append(f"  Age: {task['age_hours']:.1f} hours")
         lines.append(f"  Reason: {task['reason']}")
-        lines.append(f"  Cost avoided: $45/month")
+        lines.append("  Cost avoided: $45/month")
         lines.append("")
 
     lines.append(f"Total cost savings: ${total_monthly_savings}/month")
     lines.append("")
-    lines.append("CloudWatch Logs: /aws/lambda/{project_name}-auto-kill-stuck-tasks-{environment}".format(
-        project_name=project_name,
-        environment=environment
-    ))
+    lines.append(f"CloudWatch Logs: /aws/lambda/{project_name}-auto-kill-stuck-tasks-{environment}")
 
     return "\n".join(lines)
 
@@ -189,7 +186,7 @@ def lambda_handler(event, context):
                     'reason': task['reason'],
                     'killed_at': datetime.now(timezone.utc).isoformat()
                 })
-                print(f"  ✓ Successfully killed")
+                print("  ✓ Successfully killed")
             else:
                 print(f"  ✗ Failed: {result['error']}")
 
@@ -211,12 +208,12 @@ def lambda_handler(event, context):
         }
 
     except Exception as e:
-        error_msg = f"FATAL: Auto-kill failed: {str(e)}"
+        error_msg = f"FATAL: Auto-kill failed: {e!s}"
         print(error_msg)
 
         # Send error alert
         alert_msg = f"{error_msg}\n\nCheck Lambda logs: /aws/lambda/{project_name}-auto-kill-stuck-tasks-{environment}"
-        send_alert(alert_msg, sns_topic_arn, f"ERROR: ECS Auto-Kill Failed")
+        send_alert(alert_msg, sns_topic_arn, "ERROR: ECS Auto-Kill Failed")
 
         return {
             'statusCode': 500,

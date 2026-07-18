@@ -369,14 +369,25 @@ locals {
     # Reads annual_income_statement & annual_balance_sheet tables populated by load_financial_statements.py
     "quality_metrics" = "load_quality_growth_metrics.py"
     "growth_metrics"  = "load_quality_growth_metrics.py"
-    # Consolidated yfinance readers: 1 loader → 7 output tables (read snapshot once, write to 7 tables in parallel)
-    # Output tables: value_metrics, positioning_metrics, company_profile, analyst_sentiment_analysis,
-    #               analyst_upgrade_downgrade, earnings_calendar, earnings_history
+    # Consolidated yfinance readers: 1 loader → 5 output tables (read snapshot once, write to 5 tables in parallel)
+    # Output tables: company_profile, analyst_sentiment_analysis, analyst_upgrade_downgrade, earnings_calendar, earnings_history
+    # PHASE 1 OPTIMIZATION (Session 225): positioning_metrics moved to load_positioning_metrics.py (reads from multiple sources)
     "value_metrics"       = "load_yfinance_derived_metrics.py"
-    "positioning_metrics" = "load_yfinance_derived_metrics.py"
     "company_profile"     = "load_yfinance_derived_metrics.py"
     "earnings_history"    = "load_yfinance_derived_metrics.py"
     "earnings_calendar"   = "load_yfinance_derived_metrics.py"
+
+    # PHASE 1 OPTIMIZATION (Session 225): Positioning metrics now read from multiple sources
+    # Primary: short_interest_finra (FINRA bi-weekly data, authoritative source)
+    # Secondary: institutional/insider from yfinance_snapshot (temporary; Phase 2 will replace with SEC 13F/insider filings)
+    "positioning_metrics" = "load_positioning_metrics.py"
+
+    # PHASE 1 OPTIMIZATION (Session 225): Short interest from FINRA (replacing yfinance)
+    # Replaces ~20% of yfinance_snapshot dependency (short_interest field)
+    # Updates bi-weekly; sufficient for stock scoring (short interest doesn't change daily)
+    # Cost: Free (FINRA public data)
+    # Quality: Official regulatory source (FINRA is the regulator; yfinance is a reseller)
+    "short_interest_finra" = "load_short_interest_finra.py"
     # Consolidated: Both metrics from single loader (Phase 5 optimization - single pass, unified watermark)
     "stability_metrics" = "load_risk_metrics_daily.py"
     "momentum_metrics"  = "load_risk_metrics_daily.py"
@@ -538,6 +549,21 @@ locals {
 
     # Cost-optimized: Reduced from 1024 to 512 (sector performance ranking, <50MB actual)
     "sector_performance" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
+
+    # PHASE 1 OPTIMIZATION (Session 225): Short interest from FINRA (authoritative regulatory data)
+    # Replaces yfinance short_interest field (~20% of yfinance_snapshot dependency)
+    # Lightweight: Single CSV fetch + parsing (FINRA publishes bi-weekly)
+    # CPU/Memory: Minimal (HTTP fetch + CSV parsing, <50MB)
+    # Timeout: 300s sufficient (typical run <5 min for CSV download + 5k symbols parsing)
+    # Parallelism: 1 (single FINRA fetch per run, then all symbols parsed in-memory)
+    "short_interest_finra" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+
+    # PHASE 1 OPTIMIZATION (Session 225): Update positioning_metrics task (now reads from multiple sources)
+    # Previously: Read from yfinance_snapshot (slow; depends on 30-45 min loader)
+    # Now: Reads short_interest_finra (fast, bi-weekly) + yfinance_snapshot (temp; will replace in Phase 2)
+    # Reduced resources: CPU 1024→512, memory 2048→1024, timeout 3600→1800, parallelism 2→1
+    # (No longer slowed by yfinance_snapshot load time; just reads cached data)
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 
@@ -553,6 +579,8 @@ locals {
 
     # Phase 1-4 Optimization: New consolidated loaders (replacing old separate loaders)
     "sec_valuations",                  # Phase 1: Replaces ~5,300 yfinance quoteSummary calls/day
+    "short_interest_finra",            # Phase 1: Replaces yfinance short_interest (~20% of snapshot)
+    "positioning_metrics",             # Phase 1: Now reads from short_interest_finra + yfinance (dep on Phase 1)
     "market_status_daily",             # Phase 2: Consolidates market_health + exposure + sentiment
     "value_quality_growth_metrics",    # Phase 3: Consolidates value + quality + growth (depends on Phase 1)
     "sector_industry_daily",           # Phase 4: Consolidates sector + industry loaders
@@ -561,7 +589,6 @@ locals {
     "growth_metrics",
     "quality_metrics",
     "value_metrics",
-    "positioning_metrics",
     "stability_metrics",
     "momentum_metrics"
   ])

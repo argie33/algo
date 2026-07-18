@@ -150,7 +150,11 @@ class PipelineHealth:
                 health.status = HealthStatus.ERROR
                 health.error_message = f"Failed to get row count for {table_name}"
                 return health
-            health.row_count = int(result[0])
+            # DictCursor names the GREATEST() expression result as "greatest"
+            if isinstance(result, dict):
+                health.row_count = int(result.get("greatest", result.get("cnt", 0)))
+            else:
+                health.row_count = int(result[0])
 
             if health.row_count == 0:
                 health.status = HealthStatus.MISSING
@@ -162,7 +166,11 @@ class PipelineHealth:
             # on t4g.micro after bulk inserts). MAX() with stale stats can take 30s+.
             cur.execute(f"SELECT {safe_date_col}::DATE FROM {safe_table} ORDER BY {safe_date_col} DESC LIMIT 1")
             result = cur.fetchone()
-            latest_date = result[0] if result else None
+            # DictCursor returns dict; support both dict and tuple indexing
+            if isinstance(result, dict):
+                latest_date = result.get(safe_date_col) or result.get("date")
+            else:
+                latest_date = result[0] if result else None
 
             if not latest_date:
                 health.status = HealthStatus.MISSING

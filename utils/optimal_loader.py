@@ -116,7 +116,7 @@ class OptimalLoader:
             with open(health_file, "w") as f:
                 f.write(datetime.now(timezone.utc).isoformat())
             logger.debug(f"[HEALTHCHECK] Initialized: {health_file}")
-        except IOError:
+        except OSError:
             logger.warning(f"[HEALTHCHECK] Failed to initialize (may be local dev mode): {health_file}")
 
     def _update_health_check(self) -> None:
@@ -132,7 +132,7 @@ class OptimalLoader:
             with open(health_file, "w") as f:
                 f.write(datetime.now(timezone.utc).isoformat())
             self._last_health_check_update = now
-        except IOError:
+        except OSError:
             # Silently fail - may be local dev mode without /tmp/
             pass
 

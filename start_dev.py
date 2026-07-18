@@ -21,7 +21,6 @@ import subprocess
 import sys
 import time
 from datetime import datetime
-from pathlib import Path
 from zoneinfo import ZoneInfo
 
 # Set development mode
@@ -103,7 +102,7 @@ def main() -> None:
     print("LOCAL DEVELOPMENT ENVIRONMENT")
     print("="*70)
     print(f"Time: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-    print(f"Mode: LOCAL_MODE=true")
+    print("Mode: LOCAL_MODE=true")
     print()
 
     # Check prerequisites

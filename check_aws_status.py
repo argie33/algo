@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Check AWS orchestrator and data status"""
 
+from datetime import datetime
+
 import psycopg2
-from datetime import datetime, timedelta
 
 try:
     conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')

@@ -248,7 +248,6 @@ def _send_alert(action: str, reason: str, variance: float | None = None, thresho
         return
 
     try:
-        alert_type = "🚨 CRITICAL" if action == "HALT" else "✅ NORMAL"
         subject = f"[Portfolio {action}] Circuit Breaker Alert"
 
         if action == "HALT":

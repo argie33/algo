@@ -5,11 +5,13 @@ Simulates EventBridge Scheduler execution when automatic scheduling is unavailab
 Usage: python scripts/trigger_eod_pipeline.py
 """
 
-import boto3
 import json
 import sys
 from datetime import datetime
+
+import boto3
 from botocore.exceptions import ClientError
+
 
 def trigger_eod_pipeline():
     """Manually invoke the EOD data pipeline Step Function."""
@@ -28,7 +30,7 @@ def trigger_eod_pipeline():
             input=json.dumps({"execution_name": execution_name})
         )
 
-        print(f"[SUCCESS] EOD pipeline triggered")
+        print("[SUCCESS] EOD pipeline triggered")
         print(f"  Execution: {response['executionArn']}")
         print(f"  Start time: {response['startDate']}")
         return True

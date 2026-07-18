@@ -581,7 +581,7 @@ class ValueAtRisk:
 
                 # CRITICAL: Validate all position pricing BEFORE computing concentration
                 # Concentration metrics are only meaningful if computed on complete position data
-                for symbol, qty, cur_price, sector, industry in positions:
+                for symbol, _qty, cur_price, _sector, _industry in positions:
                     if cur_price is None or float(cur_price) <= 0:
                         raise ValueError(
                             f"[CONCENTRATION CRITICAL] Position {symbol} has invalid or missing current_price ({cur_price}). "

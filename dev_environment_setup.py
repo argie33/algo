@@ -17,6 +17,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+
 def check_postgres() -> bool:
     """Verify PostgreSQL is running and accessible."""
     try:

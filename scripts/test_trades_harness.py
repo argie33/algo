@@ -8,12 +8,10 @@ Usage:
   python scripts/test_trades_harness.py cleanup  # Delete all test trades
 """
 
-import json
 import logging
 import sys
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import Any
 from uuid import uuid4
 
 import psycopg2

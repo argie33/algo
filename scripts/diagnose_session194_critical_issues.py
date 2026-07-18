@@ -11,11 +11,10 @@ Run: python3 scripts/diagnose_session194_critical_issues.py
 """
 
 import subprocess
-import json
-import os
-import sys
-from datetime import datetime, timedelta
+from datetime import datetime
+
 import psycopg2
+
 
 def run_shell_cmd(cmd: list[str]) -> tuple[int, str]:
     """Run shell command and return exit code + output."""

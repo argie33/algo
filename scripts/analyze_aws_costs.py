@@ -4,10 +4,10 @@ Comprehensive AWS cost analysis for July 2026.
 Requires elevated permissions: ce:GetCostAndUsage, cloudwatch, ecs, rds, lambda, dynamodb, s3
 Run via GitHub Actions with proper IAM role.
 """
-import boto3
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List
-import json
+
+import boto3
+
 
 def get_ce_client():
     """Get Cost Explorer client."""
@@ -128,12 +128,12 @@ def analyze_rds_costs():
     daily = hourly_rate * 24
     monthly = hourly_rate * 730
 
-    print(f"  Instance Type: db.t4g.small")
+    print("  Instance Type: db.t4g.small")
     print(f"  On-Demand Rate: ${hourly_rate:.3f}/hour")
     print(f"  Daily Cost: ${daily:.2f}")
     print(f"  Monthly Cost (projected): ${monthly:.2f}")
-    print(f"  Storage (61 GB): ~$6/month")
-    print(f"  Backups (automated): ~$6/month")
+    print("  Storage (61 GB): ~$6/month")
+    print("  Backups (automated): ~$6/month")
     print(f"  TOTAL MONTHLY: ~${monthly + 12:.2f}")
 
 def analyze_dynamodb_costs():

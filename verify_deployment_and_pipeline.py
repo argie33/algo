@@ -8,10 +8,9 @@ Complete verification workflow:
 5. Verify factor score coverage improved
 """
 
-import boto3
-import time
 import subprocess
-from datetime import datetime
+
+import boto3
 
 print("=" * 80)
 print("COMPLETE DEPLOYMENT VERIFICATION WORKFLOW")
@@ -35,16 +34,16 @@ try:
     memory = task_def.get('memory', 'N/A')
     revision = task_def['revision']
 
-    print(f"Task Definition: algo-value_metrics-loader")
+    print("Task Definition: algo-value_metrics-loader")
     print(f"  Revision: {revision}")
     print(f"  CPU: {cpu}")
     print(f"  Memory: {memory}")
 
     # Check if resources match expected values
     if cpu == '1024' and memory == '2048':
-        print(f"  ✅ Resources MATCH expected values (CPU 1024, Memory 2048)")
+        print("  ✅ Resources MATCH expected values (CPU 1024, Memory 2048)")
     else:
-        print(f"  ❌ Resources DO NOT MATCH. Expected CPU 1024, Memory 2048")
+        print("  ❌ Resources DO NOT MATCH. Expected CPU 1024, Memory 2048")
         print(f"     Got CPU {cpu}, Memory {memory}")
 
 except Exception as e:

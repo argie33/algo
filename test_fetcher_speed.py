@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Measure individual fetcher performance."""
+import os
 import sys
 import time
-import os
 
 sys.path.insert(0, '.')
 
@@ -24,7 +24,7 @@ for name, fn in sorted(FETCHERS.items()):
         status = "ERROR" if is_error else "OK"
         times[name] = elapsed
         print(f"[SPEED] {name:20s}: {elapsed:7.3f}s [{status}]")
-    except Exception as e:
+    except Exception:
         elapsed = time.time() - t0
         times[name] = elapsed
         print(f"[SPEED] {name:20s}: {elapsed:7.3f}s [EXCEPTION]")

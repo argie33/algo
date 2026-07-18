@@ -89,7 +89,7 @@ class TestBuildResultsPanelWithMalformedData:
         run = {"success": True, "halted": False, "errored": False, "run_id": "test"}
 
         panel = _build_results_panel(
-            run=run, act=None, algo_metrics=[], exec_hist=[], risk=corrupted_risk, notifs=[], audit=[]
+            run=run, act=None, algo_metrics=[], exec_hist=[], risk=corrupted_risk, notifs=[]
         )
         assert panel is not None
 

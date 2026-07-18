@@ -24,22 +24,19 @@ Run: python3 loaders/load_market_status_daily.py [--backfill-days N]
 
 import logging
 import sys
+from collections.abc import Iterable
 from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
 from typing import Any
 
-from loaders.runner import run_loader
 from loaders.market_health_fetchers import (
     BreadthFetcher,
     PutCallRatioFetcher,
     VIXFetcher,
     YieldCurveFetcher,
 )
-from loaders.technical_indicators import compute_moving_averages
-from utils.data.age_validator import DataAgeValidator
+from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.loaders.retry_helper import RetryHelper
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
@@ -65,12 +62,15 @@ class MarketStatusDailyLoader(OptimalLoader):
         self._breadth_fetcher = BreadthFetcher()
 
     def run(
-        self, symbols: list[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
+        self, symbols: Iterable[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
     ) -> dict[str, Any]:
         """Override run() to provide market-wide pseudo-symbol."""
-        if symbols is None or (isinstance(symbols, list) and len(symbols) == 0):
-            symbols = ["market"]
-        return super().run(symbols=symbols, parallelism=parallelism, backfill_days=backfill_days)
+        symbol_list: list[str]
+        if symbols is None or (isinstance(symbols, (list, tuple)) and len(symbols) == 0):
+            symbol_list = ["market"]
+        else:
+            symbol_list = list(symbols) if not isinstance(symbols, list) else symbols
+        return super().run(symbols=symbol_list, parallelism=parallelism, backfill_days=backfill_days)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch and compute all market metrics for one date.

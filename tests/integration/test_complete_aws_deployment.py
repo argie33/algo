@@ -140,7 +140,6 @@ class TestDashboardAPIVerification:
 
     def test_dashboard_positions_endpoint_has_growth_score(self):
         """Verify /api/positions endpoint includes position growth metrics."""
-        from unittest.mock import MagicMock
 
         from routes.algo_handlers.dashboard import _get_algo_positions
 
@@ -176,7 +175,6 @@ class TestPaperTradingFlow:
 
     def test_paper_trading_phase_3_returns_ok(self):
         """Verify Phase 3 (Position Monitor) returns OK in paper trading mode."""
-        from unittest.mock import Mock
 
         from algo.orchestration.orchestrator import Orchestrator
 

@@ -11,11 +11,11 @@ Steps:
 5. Monitor data refresh completion
 """
 
-import subprocess
 import json
+import os
+import subprocess
 import sys
 import time
-import os
 from datetime import datetime
 
 

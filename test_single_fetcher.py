@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Measure single fetcher performance with details."""
+import logging
+import os
 import sys
 import time
-import os
-import logging
 
 # Enable debug logging
 logging.basicConfig(level=logging.DEBUG, format='[%(name)s] %(message)s')
@@ -31,4 +31,4 @@ print(f"[TEST] Result: {type(result).__name__} with {len(result)} keys")
 if '_error' in result:
     print(f"[TEST] ERROR: {result['_error']}")
 else:
-    print(f"[TEST] SUCCESS")
+    print("[TEST] SUCCESS")

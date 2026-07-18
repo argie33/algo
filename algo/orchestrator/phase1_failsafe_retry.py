@@ -22,7 +22,6 @@ Strategy:
 import json
 import logging
 import os
-import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -131,11 +130,11 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
         # Check actual data freshness (MAX(date) in each table), not loader status
         # This catches when loader ran recently but data is stale
         stale_loaders = []
-        now_utc = datetime.now(timezone.utc)
 
         # Market-aware freshness check: determine expected data date based on trading hours
         from datetime import timedelta as td
         from zoneinfo import ZoneInfo
+
         from algo.infrastructure import MarketCalendar
 
         now_et = datetime.now(ZoneInfo("America/New_York"))

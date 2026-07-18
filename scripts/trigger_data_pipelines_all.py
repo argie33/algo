@@ -12,8 +12,8 @@ Use as: python scripts/trigger_data_pipelines_all.py
 """
 
 import subprocess
-import time
 import sys
+import time
 
 
 def trigger_pipeline(script_name: str, description: str) -> bool:

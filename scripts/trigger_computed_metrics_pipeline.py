@@ -6,10 +6,11 @@ Simulates EventBridge Scheduler execution when automatic scheduling is unavailab
 Usage: python scripts/trigger_computed_metrics_pipeline.py
 """
 
-import boto3
 import json
 import sys
 from datetime import datetime
+
+import boto3
 from botocore.exceptions import ClientError
 
 
@@ -30,7 +31,7 @@ def trigger_computed_metrics_pipeline():
             input=json.dumps({"execution_name": execution_name})
         )
 
-        print(f"[SUCCESS] Computed metrics pipeline triggered")
+        print("[SUCCESS] Computed metrics pipeline triggered")
         print(f"  Execution: {response['executionArn']}")
         print(f"  Start time: {response['startDate']}")
         return True

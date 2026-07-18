@@ -1,6 +1,7 @@
-import boto3
-import time
 import sys
+import time
+
+import boto3
 
 client = boto3.client('stepfunctions', region_name='us-east-1')
 execution_arn = 'arn:aws:states:us-east-1:626216981288:execution:algo-computed-metrics-pipeline-dev:manual-metrics-20260716-220504'

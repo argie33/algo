@@ -66,10 +66,12 @@ exclude = [
     # Root-level utility/debug/verification scripts (not core application)
     "^check_.*\\.py",
     "^dashboard\\.py",
+    "^dev_.*\\.py",  # Development environment scripts
     "^monitor_.*\\.py",
     "^post_deployment_verification\\.py",
-    "^run_orchestrator.*\\.py",
-    "^start_dashboard_dev\\.py",
+    "^run_.*\\.py",  # Run/orchestrator scripts
+    "^start_.*\\.py",  # Startup scripts
+    "^test_.*\\.py",  # Test/exploration scripts
     "^verify_.*\\.py",
     # Lambda deployed functions with hyphenated names (invalid Python package names)
     "^lambda/circuit-breaker/",

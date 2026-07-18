@@ -2,16 +2,19 @@
 """Positioning Metrics Loader - CRITICAL for stock scoring (institutional/insider/short data).
 
 PURPOSE:
-- Fetch positioning metrics from yfinance (institutional ownership %, insider ownership %, short interest %)
+- Fetch positioning metrics (institutional ownership %, insider ownership %, short interest %)
 - These are REQUIRED by load_stock_scores.py (minimum 30% coverage needed)
 - Previously bundled with dashboard-only data in load_yfinance_derived_metrics.py
 
-DATA SOURCE:
-- Reads from: yfinance_snapshot table (populated by load_yfinance_snapshot.py)
+DATA SOURCES (Phase 1 Optimization - Session 225):
+- short_interest: FINRA Reg SHO Transparency Data (load_short_interest_finra.py) ✅ PRIMARY
+- institutional_ownership: yfinance_snapshot (temporary; will replace with SEC 13F in Phase 2)
+- insider_ownership: yfinance_snapshot (temporary; will replace with SEC insider filings in Phase 2)
 - Writes to: positioning_metrics table (READ BY stock_scores.py)
 
 DEPENDENCIES:
-- load_yfinance_snapshot.py must run FIRST (populates yfinance_snapshot table)
+- load_short_interest_finra.py must run FIRST (populates short_interest_finra table)
+- load_yfinance_snapshot.py must run for institutional/insider data (temporary)
 
 Run:
     python3 loaders/load_positioning_metrics.py [--symbols AAPL,MSFT] [--parallelism 4]
@@ -50,12 +53,47 @@ class PositioningMetricsLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch positioning metrics for a symbol from yfinance_snapshot.
+        """Fetch positioning metrics for a symbol from multiple sources (Phase 1 optimization).
+
+        PHASE 1 (Session 225): Short interest from FINRA (authoritative), institutional/insider from yfinance (temporary)
+        PHASE 2 (planned): Institutional from SEC 13F, insider from SEC insider filings
 
         Returns positioning data (institutional %, insider %, short interest %) or
-        data_unavailable marker if yfinance_snapshot row missing/unavailable.
+        data_unavailable marker if sources missing/unavailable.
         """
         now_et = datetime.now(EASTERN_TZ)
+
+        # PHASE 1: Fetch short interest from FINRA (primary)
+        short_interest_pct = None
+        short_interest_unavailable = False
+        short_interest_reason = None
+
+        with DatabaseContext("read") as cur:
+            # Get most recent FINRA short interest data for this symbol
+            cur.execute(
+                """
+                SELECT short_pct, data_unavailable, reason
+                FROM short_interest_finra
+                WHERE symbol = %s
+                ORDER BY settlement_date DESC LIMIT 1
+                """,
+                (symbol,),
+            )
+            short_row = cur.fetchone()
+
+        if short_row:
+            short_interest_pct = short_row[0]
+            short_interest_unavailable = short_row[1] if len(short_row) > 1 else False
+            short_interest_reason = short_row[2] if len(short_row) > 2 else None
+        else:
+            short_interest_unavailable = True
+            short_interest_reason = "short_interest_finra_missing"
+
+        # Fetch institutional/insider from yfinance_snapshot (temporary; will replace in Phase 2)
+        institutional_pct = None
+        insider_pct = None
+        yfinance_unavailable = False
+        yfinance_reason = None
 
         with DatabaseContext("read") as cur:
             cur.execute(
@@ -63,7 +101,6 @@ class PositioningMetricsLoader(OptimalLoader):
                 SELECT
                     held_percent_institutions,
                     held_percent_insiders,
-                    short_interest,
                     data_available,
                     unavailable_reason
                 FROM yfinance_snapshot
@@ -71,48 +108,32 @@ class PositioningMetricsLoader(OptimalLoader):
                 """,
                 (symbol,),
             )
-            row = cur.fetchone()
+            yfinance_row = cur.fetchone()
 
-        if not row:
-            logger.debug(f"[POSITIONING] {symbol}: yfinance_snapshot row not found")
-            return [
-                {
-                    "symbol": symbol,
-                    "institutional_ownership_pct": None,
-                    "insider_ownership_pct": None,
-                    "short_interest_pct": None,
-                    "data_unavailable": True,
-                    "reason": "yfinance_snapshot_missing",
-                    "updated_at": now_et,
-                }
-            ]
+        if yfinance_row:
+            institutional_pct = yfinance_row[0]
+            insider_pct = yfinance_row[1]
+            yfinance_unavailable = not yfinance_row[2] if len(yfinance_row) > 2 else False
+            yfinance_reason = yfinance_row[3] if len(yfinance_row) > 3 else None
+        else:
+            yfinance_unavailable = True
+            yfinance_reason = "yfinance_snapshot_missing"
 
-        # CRITICAL FIX: row is a psycopg2 tuple, not dict
-        # SELECT columns: institutions(0), insiders(1), short(2), data_available(3), unavailable_reason(4)
-        data_available = row[3] if len(row) > 3 else False
-        unavailable_reason = row[4] if len(row) > 4 else ""
-
-        if not data_available:
-            logger.debug(f"[POSITIONING] {symbol}: yfinance_snapshot marked unavailable ({unavailable_reason})")
-            return [
-                {
-                    "symbol": symbol,
-                    "institutional_ownership_pct": None,
-                    "insider_ownership_pct": None,
-                    "short_interest_pct": None,
-                    "data_unavailable": True,
-                    "reason": unavailable_reason or "yfinance_snapshot_unavailable",
-                    "updated_at": now_et,
-                }
-            ]
+        # Combine metrics: if any source has data, mark as available
+        all_unavailable = short_interest_unavailable and yfinance_unavailable
 
         return [
             {
                 "symbol": symbol,
-                "institutional_ownership_pct": row[0],  # held_percent_institutions
-                "insider_ownership_pct": row[1],  # held_percent_insiders
-                "short_interest_pct": row[2],  # short_interest
-                "data_unavailable": False,
+                "institutional_ownership_pct": institutional_pct,
+                "insider_ownership_pct": insider_pct,
+                "short_interest_pct": short_interest_pct,
+                "data_unavailable": all_unavailable,
+                "reason": (
+                    f"short_interest_reason:{short_interest_reason};yfinance_reason:{yfinance_reason}"
+                    if all_unavailable
+                    else None
+                ),
                 "updated_at": now_et,
             }
         ]

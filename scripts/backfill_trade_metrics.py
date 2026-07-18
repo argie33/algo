@@ -13,7 +13,6 @@ Usage:
 import argparse
 import logging
 import sys
-from typing import Any
 
 from utils.db import DatabaseContext
 from utils.trade_metrics import backfill_all_trade_metrics
