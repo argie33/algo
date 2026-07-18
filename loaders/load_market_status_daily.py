@@ -185,7 +185,7 @@ class MarketStatusDailyLoader(OptimalLoader):
     def _compute_market_exposure(self, eval_date: date, health_data: dict[str, Any]) -> dict[str, Any]:
         """Compute market regime and exposure % from health metrics."""
         try:
-            from algo.market_exposure import MarketExposure
+            from algo.risk.market_exposure import MarketExposure
 
             # Delegate to MarketExposure compute logic (reuse existing computation)
             result = MarketExposure.compute(eval_date, health_data)

@@ -55,9 +55,23 @@ def run_price_loader(symbols=None, backfill_days=1):
 def run_technical_indicators_loader(backfill_days=1):
     """Run technical indicators loader - vectorized in-database calculation."""
     from loaders.load_technical_indicators import VectorizedTechnicalLoader
+    import psycopg2
+
+    # Fetch all universe symbols
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols from universe")
+    except Exception as e:
+        logger.warning(f"Could not load universe, using default symbols: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
 
     loader = VectorizedTechnicalLoader()
-    result = loader.run()
+    result = loader.run(symbols=symbols)
     logger.info(f"Technical indicators loader result: {result}")
     return result
 

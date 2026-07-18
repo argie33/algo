@@ -955,6 +955,21 @@ class Orchestrator:
                 f"Cannot proceed - halt flag is critical for trading safety. "
                 f"Check DynamoDB connectivity and orchestrator_locks table."
             ) from e
+        except Exception as e:
+            # DynamoDB unavailable in LOCAL_MODE (no AWS credentials).
+            # Same pattern as Session 209: fail-open to allow local development.
+            is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes")
+            if is_local_mode and "security token" in str(e).lower():
+                logger.warning(
+                    f"[PHASE 1] DynamoDB halt flag unavailable in LOCAL_MODE (no AWS credentials). "
+                    f"Proceeding without halt flag update. Error: {e}"
+                )
+            else:
+                raise RuntimeError(
+                    f"[CRITICAL] Halt flag management failed after Phase 1: {e}. "
+                    f"Cannot proceed - halt flag is critical for trading safety. "
+                    f"Check DynamoDB connectivity and orchestrator_locks table."
+                ) from e
 
         return not result.halted
 

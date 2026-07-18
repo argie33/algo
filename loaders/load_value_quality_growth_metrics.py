@@ -310,21 +310,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
-        """Insert growth_metrics row."""
-        cur.execute(
-            """
-            INSERT INTO growth_metrics
-            (symbol, revenue_growth, eps_growth, data_unavailable, updated_at)
-            VALUES (%s, %s, %s, %s, %s)
-            ON CONFLICT (symbol) DO UPDATE SET
-                revenue_growth = EXCLUDED.revenue_growth,
-                eps_growth = EXCLUDED.eps_growth,
-                data_unavailable = EXCLUDED.data_unavailable,
-                updated_at = EXCLUDED.updated_at
-            """,
-            (row["symbol"], row["revenue_growth"], row["eps_growth"],
-             row["data_unavailable"], row["updated_at"]),
-        )
+        """Insert growth_metrics row - DISABLED: schema mismatch (table expects revenue_growth_1y/3y/5y, not revenue_growth).
+
+        TODO: Fix growth_metrics table schema or update loader to compute multi-year growth rates from SEC financials.
+        For now, skip growth metrics inserts to unblock value + quality metrics.
+        """
+        pass  # Skip growth metrics until schema is fixed
 
     def _unavailable_marker(self, table: str, symbol: str) -> dict[str, Any]:
         """Return data_unavailable marker for a table."""

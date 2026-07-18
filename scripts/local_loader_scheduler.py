@@ -32,6 +32,7 @@ EASTERN_TZ = ZoneInfo("America/New_York")
 # - Phase 2: market_health_daily + market_exposure_daily + market_sentiment → market_status_daily
 # - Phase 3: quality_growth_metrics + yfinance_derived_metrics → value_quality_growth_metrics
 # - Phase 4: sector_rankings + industry_ranking + sector_performance → sector_industry_daily
+# - Phase 5 (Session 211): load_sec_valuations replaces yfinance quoteSummary calls (PE/PB/PS/PEG/FCF)
 LOADERS = {
     "morning": {
         "description": "Morning pipeline (2:00 AM ET): prices + technicals + market status (consolidated)",
@@ -48,9 +49,10 @@ LOADERS = {
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): value/quality/growth (consolidated), risk, stock scores",
+        "description": "Metrics pipeline (7:00 PM ET): SEC valuations + value/quality/growth (consolidated), risk, stock scores",
         "loaders": [
             "load_financial_statements.py",
+            "load_sec_valuations.py",
             "load_value_quality_growth_metrics.py",
             "load_risk_metrics_daily.py",
             "load_stock_scores.py",
