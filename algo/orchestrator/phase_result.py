@@ -62,4 +62,7 @@ class PhaseResult:
 
     @property
     def ok(self) -> bool:
-        return self.status == "ok"
+        # "ok" and "degraded" are both successful states
+        # "degraded" means the phase worked but produced suboptimal results
+        # Only "error", "halted", "fail" are actual failures
+        return self.status in ("ok", "degraded")
