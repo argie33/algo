@@ -94,12 +94,14 @@ class PhaseRegistry:
         # Input: Alpaca positions API data
         # Output: result={'positions': list, 'position_count': int, 'pnl_data': dict}
         # Contract: Syncs broker positions with local database, detects fills and partial fills
+        # CRITICAL: Phase 4 (Reconciliation) depends on Phase 3, so Phase 3 must always run
         PhaseRegistryEntry(
             phase_num=3,
             phase_name="POSITION MONITOR",
             dependencies=[],
             execute_fn=None,
-            skip_if_halted=True,
+            skip_if_halted=False,  # Must run - Phase 4 depends on it
+            always_run=True,  # Position monitoring is essential risk management
         ),
         # Phase 4: RECONCILIATION
         # Input: Database positions from Phase 3, Alpaca position history

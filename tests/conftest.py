@@ -24,6 +24,9 @@ os.environ["ORCHESTRATOR_DRY_RUN"] = "true"
 
 
 def _create_mock_cursor():
+    from datetime import date
+    from collections import namedtuple
+
     cursor = MagicMock()
 
     # Create realistic algo_config data (key, value, dtype tuples)
@@ -40,12 +43,99 @@ def _create_mock_cursor():
         ("min_stock_price", "5", "float"),  # $5 min price (range 0.1-1000)
     ]
 
+    # Track the last query to return appropriate mock data
+    last_query = [None]
+
+    def mock_execute(query, params=None):
+        last_query[0] = query if isinstance(query, str) else str(query)
+
     def mock_fetchall():
+        query = last_query[0] or ""
+
+        # Data patrol alignment checks
+        if "sqs_count" in query and "buy_sell_count" in query:
+            # Two columns: sqs_count, buy_sell_count
+            return [(150, 140)]
+        if "COUNT(DISTINCT symbol) FROM signal_quality_scores" in query:
+            return [(date(2026, 7, 18),)]
+        if "COUNT(DISTINCT symbol) FROM buy_sell_daily" in query:
+            return [(date(2026, 7, 18),)]
+
+        # Fundamental data checks (union query returns tbl_name, latest, total, unique_syms)
+        if "UNION ALL" in query and "quarterly_income_statement" in query:
+            Row = namedtuple("Row", ["tbl_name", "latest", "total", "unique_syms"])
+            return [
+                Row("quarterly_income_statement", date(2026, 7, 10), 1500, 480),
+                Row("quarterly_balance_sheet", date(2026, 7, 10), 1500, 480),
+                Row("quarterly_cash_flow", date(2026, 7, 10), 1500, 480),
+                Row("annual_income_statement", date(2026, 7, 10), 480, 480),
+                Row("annual_balance_sheet", date(2026, 7, 10), 480, 480),
+                Row("annual_cash_flow", date(2026, 7, 10), 480, 480),
+                Row("key_metrics", date(2026, 7, 18), 1500, 480),
+            ]
+
+        # Trade alignment check
+        if "algo_trades" in query and "price_daily" in query:
+            return []  # No orphaned trades
+
+        # Sentiment aggregate columns check
+        if "information_schema.columns" in query and "sentiment_aggregate" in query:
+            return [("date",), ("aggregate_sentiment",), ("aaii_bullish",), ("naaim_bullish",), ("updated_at",)]
+
+        # Default: config data
         return list(mock_config_rows)
 
     def mock_fetchone():
+        from datetime import datetime, timezone
+
+        query = last_query[0] or ""
+
+        # Return 2-element tuples for alignment checks
+        if "sqs_count" in query and "buy_sell_count" in query:
+            return (150, 140)
+
+        # Earnings table checks - COUNT(*), MAX(col::date)
+        if "earnings_estimates" in query or "earnings_estimate_revisions" in query or "earnings_history" in query:
+            if "COUNT(*)" in query and "MAX(" in query:
+                return (500, date(2026, 7, 10))  # count, latest_date
+            # Coverage query
+            if "price_daily" in query and "LEFT JOIN" in query:
+                return (420, 480)  # est_syms, price_syms
+
+        # Sentiment aggregate freshness
+        if "MAX(date), MAX(updated_at)" in query and "sentiment_aggregate" in query:
+            return (date(2026, 7, 18), datetime(2026, 7, 18, 15, 30, 0, tzinfo=timezone.utc))
+
+        # Return single value or tuple for MAX date queries
+        if "MAX(date)" in query or "MAX(created_at::date)" in query:
+            if "signal_quality_scores" in query:
+                return (date(2026, 7, 18),)
+            elif "buy_sell_daily" in query:
+                return (date(2026, 7, 18),)
+            elif "price_daily" in query:
+                return (date(2026, 7, 18),)
+            else:
+                return (date(2026, 7, 10),)
+
+        # Technical data RSI/NaN checks
+        if "FILTER (WHERE rsi" in query or "FILTER (WHERE atr" in query:
+            return (0, 0, 500)  # bad_rsi, null_rsi, total
+
+        # Cross-alignment baseline
+        if "COUNT(DISTINCT symbol) FROM price_daily" in query:
+            return (500,)
+
+        # Trade table column check - COUNT(*), MAX(created_at)
+        if "MAX(created_at)" in query and ("algo_trades" in query or "algo_positions" in query):
+            if "algo_trades" in query:
+                return (10, datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc))
+            else:
+                return (5, datetime(2026, 7, 18, 12, 0, 0, tzinfo=timezone.utc))
+
+        # Default: config
         return ("max_positions", "50", "int")
 
+    cursor.execute.side_effect = mock_execute
     cursor.fetchall.side_effect = mock_fetchall
     cursor.fetchone.side_effect = mock_fetchone
     cursor.fetchmany.return_value = []

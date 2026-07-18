@@ -195,7 +195,10 @@ class SpecializedChecker(BaseCheck):
 
             results_by_table = {}
             for row in cur.fetchall():
-                row_dict = dict(row)
+                if hasattr(row, "_fields"):
+                    row_dict = row._asdict()
+                else:
+                    row_dict = dict(row) if isinstance(row, dict) else {"tbl_name": row[0], "latest": row[1], "total": row[2], "unique_syms": row[3]}
                 results_by_table[row_dict["tbl_name"]] = (
                     row_dict["latest"],
                     row_dict["total"],
