@@ -14,6 +14,10 @@ import logging
 import os
 import sys
 
+# Set LOCAL_MODE for direct database access and to skip AWS-dependent operations
+os.environ["LOCAL_MODE"] = "true"
+os.environ["ENVIRONMENT"] = "development"
+
 # FIX: Configure Redis for price cache (reduces yfinance API calls by 90%)
 if "REDIS_URL" not in os.environ:
     os.environ["REDIS_URL"] = "redis://localhost:6379/0"
@@ -58,23 +62,31 @@ def run_technical_indicators_loader(backfill_days=1):
     return result
 
 
-def run_market_health_loader():
-    """Run market health loader."""
-    from loaders.load_market_health_daily import MarketHealthDailyLoader
+def run_market_status_loader():
+    """Run consolidated market status loader (Phase 2).
 
-    loader = MarketHealthDailyLoader()
-    result = loader.run(symbols=None)
-    logger.info(f"Market health loader result: {result}")
+    Replaces: load_market_health_daily, load_market_exposure_daily, load_market_sentiment
+    Outputs: market_health_daily, market_exposure_daily, market_sentiment (atomic)
+    """
+    from loaders.load_market_status_daily import MarketStatusDailyLoader
+
+    loader = MarketStatusDailyLoader()
+    result = loader.run()
+    logger.info(f"Market status daily loader result: {result}")
     return result
 
 
-def run_yfinance_metrics_loader():
-    """Run yfinance derived metrics loader (quality/growth/value/positioning/stability)."""
-    from loaders.load_yfinance_derived_metrics import YfinanceDerivedMetricsLoader
+def run_value_quality_growth_loader():
+    """Run consolidated value/quality/growth metrics loader (Phase 3).
 
-    loader = YfinanceDerivedMetricsLoader()
-    result = loader.run(symbols=None, parallelism=3)
-    logger.info(f"Yfinance metrics loader result: {result}")
+    Replaces: load_yfinance_derived_metrics, separate quality/value/growth states
+    Outputs: value_metrics, quality_metrics, growth_metrics (atomic)
+    """
+    from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
+
+    loader = ValueQualityGrowthMetricsLoader()
+    result = loader.run()
+    logger.info(f"Value/quality/growth metrics loader result: {result}")
     return result
 
 
@@ -90,7 +102,11 @@ def run_stock_scores_loader(limit=None):
 
 def main():
     parser = argparse.ArgumentParser(description="Run individual loaders for testing")
-    parser.add_argument("loader", choices=["prices", "technical", "scores", "health", "metrics"], help="Loader to run")
+    parser.add_argument(
+        "loader",
+        choices=["prices", "technical", "scores", "market_status", "value_quality_growth"],
+        help="Loader to run (use consolidated loader names)"
+    )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
     parser.add_argument("--backfill", type=int, default=1, help="Days to backfill")
     parser.add_argument("--limit", type=int, help="Limit for scores loader")
@@ -109,11 +125,11 @@ def main():
         elif args.loader == "technical":
             run_technical_indicators_loader(backfill_days=args.backfill)
 
-        elif args.loader == "health":
-            run_market_health_loader()
+        elif args.loader == "market_status":
+            run_market_status_loader()
 
-        elif args.loader == "metrics":
-            run_yfinance_metrics_loader()
+        elif args.loader == "value_quality_growth":
+            run_value_quality_growth_loader()
 
         elif args.loader == "scores":
             run_stock_scores_loader(limit=args.limit)

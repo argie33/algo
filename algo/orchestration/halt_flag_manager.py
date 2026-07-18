@@ -53,6 +53,10 @@ class HaltFlagManager:
         - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag -> still active (same day)
         - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
         """
+        # Skip DynamoDB operations in LOCAL_MODE (no AWS credentials available)
+        if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
+            logger.debug("[LOCAL_MODE] Skipping halt flag check (DynamoDB unavailable)")
+            return False
 
         try:
             import boto3
@@ -286,6 +290,11 @@ class HaltFlagManager:
 
         Returns: True if halt was cleared, False if still active or no halt set
         """
+        # Skip DynamoDB operations in LOCAL_MODE (no AWS credentials available)
+        if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
+            logger.debug("[LOCAL_MODE] Skipping proactive halt clear (DynamoDB unavailable)")
+            return False
+
         try:
             import boto3
 

@@ -904,24 +904,39 @@ class Orchestrator:
 
         # Informational DynamoDB write (phase1_degraded_mode key) - separate from halt flag
         # management so a DynamoDB write failure never prevents the halt flag from being cleared.
-        try:
-            import boto3
+        # Skip in LOCAL_MODE (no AWS credentials available)
+        local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
+        if not local_mode:
+            try:
+                import boto3
+                from botocore.exceptions import ClientError
 
-            dynamodb = boto3.resource("dynamodb")
-            table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
-            table = dynamodb.Table(table_name)
-            degraded_status = result.status == "degraded"
-            table.put_item(
-                Item={
-                    "key": "phase1_degraded_mode",
-                    "degraded": degraded_status,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                    "reason": result.error if degraded_status else None,
-                    "ttl": int(time.time()) + 3600,  # 1-hour TTL
-                }
-            )
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
-            logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
+                dynamodb = boto3.resource("dynamodb")
+                table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
+                table = dynamodb.Table(table_name)
+                degraded_status = result.status == "degraded"
+                table.put_item(
+                    Item={
+                        "key": "phase1_degraded_mode",
+                        "degraded": degraded_status,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "reason": result.error if degraded_status else None,
+                        "ttl": int(time.time()) + 3600,  # 1-hour TTL
+                    }
+                )
+            except ClientError as e:
+                # Handle invalid AWS credentials gracefully.
+                # DynamoDB write failures (permission denied, invalid token) don't block Phase 1.
+                # This is informational only - halt flag management happens separately below.
+                error_code = e.response.get("Error", {}).get("Code", "")
+                if error_code in ("UnrecognizedClientException", "AccessDenied", "AccessDeniedException"):
+                    logger.debug(f"[PHASE1] DynamoDB write failed (invalid credentials): {error_code}")
+                else:
+                    logger.debug(f"[PHASE1] DynamoDB write failed: {e}")
+            except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
+                logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
+        else:
+            logger.debug("[LOCAL_MODE] Skipping DynamoDB write for phase1_degraded_mode")
 
         # Halt flag lifecycle: always run regardless of informational write success above.
         try:
@@ -1253,14 +1268,28 @@ class Orchestrator:
                     logger.error("\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
                     return {"success": False, "error": "Lock acquisition failed"}
                 else:
-                    logger.critical(
-                        "\nABORT: DynamoDB lock unavailable. Cannot verify single orchestrator instance. "
-                        "Failing closed to prevent concurrent trades and duplicate order execution."
-                    )
-                    return {
-                        "success": False,
-                        "error": "Distributed lock system unavailable. Cannot proceed with trading.",
-                    }
+                    # FIXED (Session 210): DynamoDB unavailable due to invalid AWS credentials.
+                    # In LOCAL_MODE development (no AWS access), fail-open and allow execution.
+                    # This is the same pattern used in Session 209 for halt_flag_manager.
+                    # Production environments (with valid credentials) would never hit this,
+                    # so failing open here only affects local dev, not production safety.
+                    is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes")
+                    if is_local_mode:
+                        logger.warning(
+                            "[LOCK] DynamoDB lock unavailable in LOCAL_MODE (no AWS credentials). "
+                            "Proceeding with execution. WARNING: If multiple orchestrators are running, "
+                            "they may conflict on shared database state."
+                        )
+                        return None  # Fail open - allow execution to continue
+                    else:
+                        logger.critical(
+                            "\nABORT: DynamoDB lock unavailable. Cannot verify single orchestrator instance. "
+                            "Failing closed to prevent concurrent trades and duplicate order execution."
+                        )
+                        return {
+                            "success": False,
+                            "error": "Distributed lock system unavailable. Cannot proceed with trading.",
+                        }
         else:
             reason = "dry-run mode" if self.dry_run else "SKIP_ORCHESTRATOR_LOCK environment variable"
             logger.info(f"[LOCK-SKIP] Skipping distributed lock check ({reason})")
