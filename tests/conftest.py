@@ -41,7 +41,7 @@ def _create_mock_cursor():
     ]
 
     def mock_fetchall():
-        return mock_config_rows
+        return list(mock_config_rows)
 
     def mock_fetchone():
         return ("max_positions", "50", "int")
@@ -51,6 +51,8 @@ def _create_mock_cursor():
     cursor.fetchmany.return_value = []
     cursor.description = None
     cursor.rowcount = len(mock_config_rows)
+    cursor.connection = MagicMock()
+    cursor.connection.rollback = MagicMock()
     return cursor
 
 
@@ -66,7 +68,8 @@ def _create_mock_connection():
 
 def pytest_configure(config):
     """Mock database connections and AWS."""
-    # Mock psycopg2.pool.SimpleConnectionPool to return mock connections
+    # Only apply mocking during pytest runs in this process
+    # This prevents affecting subprocess dev_server instances
     import psycopg2.pool
 
     class MockConnectionPool:
@@ -83,11 +86,14 @@ def pytest_configure(config):
 
     # Keep original class but override __init__ to return our mock pool
     original_pool = psycopg2.pool.SimpleConnectionPool
+    original_init = original_pool.__init__
 
     def mock_pool_init(self, *args, **kwargs):
         # Don't call original - just become our mock pool
         self._mock_pool = MockConnectionPool()
 
+    # Store original for restoration if needed
+    original_pool._pytest_original_init = original_init
     original_pool.__init__ = mock_pool_init
     original_pool.getconn = lambda self: self._mock_pool.getconn()
     original_pool.putconn = lambda self, conn, close=False: self._mock_pool.putconn(conn, close)

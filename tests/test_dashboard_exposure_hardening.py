@@ -149,49 +149,49 @@ class TestExposureCompactInvalidFactorData:
 class TestExposureCompactOptionalFactors:
     """Optional factors like sector_rotation should not fail silently."""
 
-    def test_sector_rotation_not_available(self, caplog):
-        """If sector_rotation is missing, should log debug."""
+    def test_optional_factor_not_available(self, caplog):
+        """If optional factor like naaim is missing, should log warning (not silent)."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
                 "trend_30wk": {"pts": 10.0},
-                # Missing sector_rotation
+                # Missing naaim and other factors
             },
         }
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.WARNING):
             result = panel_exposure_compact(exp_data)
 
-        # Should log at DEBUG (not silent)
+        # Should log warning for missing factors (not silent)
         assert any(
-            "sector_rotation" in record.message and "not available" in record.message
+            "factor" in record.message and "not in response" in record.message
             for record in caplog.records
-            if record.levelno == logging.DEBUG
+            if record.levelno == logging.WARNING
         )
         assert result is not None
 
-    def test_sector_rotation_invalid_type(self, caplog):
-        """If sector_rotation has wrong type, should log debug."""
+    def test_optional_factor_invalid_type(self, caplog):
+        """If optional factor has wrong type, should log warning."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
                 "trend_30wk": {"pts": 10.0},
-                "sector_rotation": "not_a_dict",  # WRONG TYPE
+                "naaim": "not_a_dict",  # WRONG TYPE (should be dict with "value")
             },
         }
 
-        with caplog.at_level(logging.DEBUG):
+        with caplog.at_level(logging.WARNING):
             result = panel_exposure_compact(exp_data)
 
         # Should log about invalid type
         assert any(
-            "sector_rotation" in record.message and "invalid type" in record.message
+            "naaim" in record.message and "invalid type" in record.message
             for record in caplog.records
-            if record.levelno == logging.DEBUG
+            if record.levelno == logging.WARNING
         )
         assert result is not None
 
@@ -338,16 +338,16 @@ class TestExposureExpandedMalformedFactorData:
 class TestExposureExpandedOptionalAdjustments:
     """Optional adjustments should be handled explicitly."""
 
-    def test_sector_rotation_missing_pts(self, caplog):
-        """If sector_rotation present but pts missing, should log error."""
+    def test_naaim_missing_pts(self, caplog):
+        """If naaim present but pts missing, should log error."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
                 "trend_30wk": {"pts": 10.0},
-                "sector_rotation": {
-                    "signal": "underweight",
+                "naaim": {
+                    "reason": "data_unavailable",
                     # Missing 'pts'
                 },
             },
@@ -356,25 +356,25 @@ class TestExposureExpandedOptionalAdjustments:
         with caplog.at_level(logging.ERROR):
             result = panel_exposure_expanded(exp_data)
 
-        # Should log error about missing pts
+        # Should log error about data unavailable (missing pts)
         assert any(
-            "sector_rotation" in record.message and "missing 'pts' field" in record.message
+            "data_unavailable" in record.message and "naaim" in record.message
             for record in caplog.records
             if record.levelno == logging.ERROR
         )
         # Should return a Panel (not crash)
         assert isinstance(result, Panel)
 
-    def test_economic_overlay_missing_pts(self, caplog):
-        """If economic_overlay present but pts missing, should log error."""
+    def test_aaii_sentiment_missing_pts(self, caplog):
+        """If aaii_sentiment present but pts missing, should log error."""
         exp_data = {
             "raw_score": 50.0,
             "exposure_pct": 50.0,
             "regime": "normal",
             "factors": {
                 "trend_30wk": {"pts": 10.0},
-                "economic_overlay": {
-                    "error": "recession_risk",
+                "aaii_sentiment": {
+                    "reason": "delayed_report",
                     # Missing 'pts'
                 },
             },
@@ -383,9 +383,9 @@ class TestExposureExpandedOptionalAdjustments:
         with caplog.at_level(logging.ERROR):
             result = panel_exposure_expanded(exp_data)
 
-        # Should log error about missing pts
+        # Should log error about data unavailable (missing pts)
         assert any(
-            "economic_overlay" in record.message and "missing 'pts' field" in record.message
+            "data_unavailable" in record.message and "aaii_sentiment" in record.message
             for record in caplog.records
             if record.levelno == logging.ERROR
         )

@@ -76,12 +76,13 @@ class TestCompleteAWSDeployment:
         assert "0.15" in source, "Revenue 3Y should have 15% weight"
         assert "0.05" in source, "EPS 5Y should have 5% weight"
 
-    def test_growth_metrics_marked_critical(self):
-        """Verify growth_metrics is marked CRITICAL (not auxiliary)."""
+    def test_growth_metrics_marked_enrichment(self):
+        """Verify growth_metrics is enrichment-only (not critical for core trading)."""
         from algo.orchestrator.phase1_failsafe_retry import CRITICAL_INCOMPLETE_LOADERS
 
-        # growth_metrics should be in CRITICAL loaders for Phase 1 failsafe retry
-        assert "growth_metrics" in CRITICAL_INCOMPLETE_LOADERS, "growth_metrics must be CRITICAL"
+        # growth_metrics is an enrichment (Session 221): needed for website display,
+        # not for core trading signals. Phase 1 halts only on price/market regime data.
+        assert "growth_metrics" not in CRITICAL_INCOMPLETE_LOADERS, "growth_metrics should be enrichment-only"
 
     def test_growth_score_coverage_requirement(self):
         """Verify stock_scores requires growth_metrics coverage validation."""
@@ -139,19 +140,22 @@ class TestDashboardAPIVerification:
 
     def test_dashboard_positions_endpoint_has_growth_score(self):
         """Verify /api/positions endpoint includes position growth metrics."""
+        from unittest.mock import MagicMock
+
         from routes.algo_handlers.dashboard import _get_algo_positions
 
-        cursor = Mock()
-        cursor.execute = Mock()
-        cursor.fetchall.return_value = [
-            {
-                "symbol": "AAPL",
-                "position_value": 10000,
-                "growth_score": 82.0,
-                "quality_score": 79.0,
-            }
-        ]
+        # Create a realistic mock cursor that properly implements required methods
+        cursor = MagicMock()
+        position_data = {
+            "symbol": "AAPL",
+            "position_value": 10000,
+            "growth_score": 82.0,
+            "quality_score": 79.0,
+        }
+        cursor.fetchall.return_value = [position_data]
         cursor.description = None
+        cursor.connection = MagicMock()
+        cursor.connection.rollback = MagicMock()
 
         with patch("routes.algo_handlers.dashboard.check_data_freshness", return_value={"is_stale": False}):
             response = _get_algo_positions(cursor)
