@@ -166,13 +166,87 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # FRESHNESS_RULES optional - use empty dict if not found
         _fr: dict[str, dict[str, int | bool]] = getattr(validation_module, "FRESHNESS_RULES", {})
 
-        # Tables intentionally removed from the EOD pipeline - orchestrator Phase 5
-        # computes these signals on-the-fly. Excluding them prevents permanent false-stale
-        # alerts on the health panel (they will never be refreshed again by a loader).
-        # EXCEPTION: buy_sell_daily is CRITICAL (Phase 7 dependency) so it's added separately below
+        # Tables intentionally removed from health tracking - these are optional enrichment only
+        # (not core to algo trading decisions). Excluding them prevents noise on the health panel.
+        # These are still populated by loaders but monitoring them isn't critical.
         pipeline_removed_tables = {
-            "technical_data_daily",
-            "signal_quality_scores",
+            # Enrichment-only tables (Phase 1 halt logic doesn't depend on these)
+            "price_monthly",
+            "price_weekly",
+            "etf_price_daily",
+            "etf_price_weekly",
+            "etf_price_monthly",
+            # System/user tables
+            "users",
+            "user_alerts",
+            "user_dashboard_settings",
+            "user_api_keys",
+            # Archive tables (historical only)
+            "algo_trades_archive",
+            # Utility tables
+            "schema_version",
+            "last_updated",
+            "api_idempotency_cache",
+            # Optional metrics (enrichment only)
+            "economic_calendar",
+            "earnings_calendar",
+            "insider_transactions",
+            "institutional_ownership",
+            "stock_splits",
+            "analyst_sentiment_analysis",
+            "analyst_upgrade_downgrade",
+            "aaii_sentiment",
+            "naaim",
+            "fear_greed_index",
+            "commodity_correlations",
+            "commodity_seasonality",
+            "covered_call_opportunities",
+            "credit_spreads",
+            "vcp_patterns",
+            "support_resistance_levels",
+            "seasonality_day_of_week",
+            "seasonality_monthly_stats",
+            "ttm_cash_flow",
+            "ttm_income_statement",
+            "yfinance_ip_ban",
+            "yfinance_snapshot",
+            # Contact/community tables
+            "contact_submissions",
+            "community_signups",
+            # ETF-specific (not algo-traded)
+            "etf_symbols",
+            "covered_call_opportunities",
+            # Alpha/ML archive (historical experiments)
+            "algo_model_registry",
+            "algo_champion_challenger",
+            "algo_component_attribution",
+            "algo_information_coefficient",
+            "algo_position_sizing_audit",
+            "algo_stop_loss_audit",
+            "algo_tca",
+            "algo_trade_adds",
+            "algo_trade_r_distribution",
+            "algo_exit_rules_distribution",
+            "algo_weight_history",
+            "alpaca_import_failures",
+            "data_remediation_log",
+            # Financeals (supplementary)
+            "annual_balance_sheet",
+            "annual_cash_flow",
+            "annual_income_statement",
+            "quarterly_balance_sheet",
+            "quarterly_cash_flow",
+            "quarterly_income_statement",
+            "sec_valuations",
+            # Misc
+            "loader_execution_locks",
+            "loader_sla_status",
+            "filter_rejection_log",
+            "signal_filter_tiers",
+            "signal_rejection_log",
+            "signal_trade_performance",
+            "qualified_trades",
+            "manual_positions",
         }
 
         cur.execute("""
@@ -189,24 +263,63 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         loader_names = {r["table_name"] for r in loader_rows}
 
         # Algo-generated tables written by the orchestrator, not tracked in data_loader_status
-        # buy_sell_daily is CRITICAL Phase 7 dependency so it's monitored for freshness here
+        # These are the core tables produced by each orchestrator phase
         algo_rows = []
         for tbl_name, query in [
+            # Phase 2: Circuit breaker status
+            (
+                "circuit_breaker_status",
+                "SELECT COUNT(*) AS row_count, MAX(check_date) AS last_updated FROM circuit_breaker_status",
+            ),
+            # Phase 4: Broker reconciliation
+            (
+                "algo_reconciliation_log",
+                "SELECT COUNT(*) AS row_count, MAX(reconciliation_date) AS last_updated FROM algo_reconciliation_log",
+            ),
+            # Phase 4: Untracked positions (broker-held, not managed by algo)
+            (
+                "algo_untracked_positions",
+                "SELECT COUNT(*) AS row_count, MAX(last_seen_at) AS last_updated FROM algo_untracked_positions",
+            ),
+            # Phase 6/7: Signal generation and execution
             (
                 "buy_sell_daily",
                 "SELECT COUNT(*) AS row_count, MAX(date) AS last_updated FROM buy_sell_daily",
             ),
+            # Phase 7: Signal evaluation
+            (
+                "algo_signals_evaluated",
+                "SELECT COUNT(*) AS row_count, MAX(date) AS last_updated FROM algo_signals_evaluated",
+            ),
+            # Phase 7: Final signals generated
+            (
+                "algo_signals",
+                "SELECT COUNT(*) AS row_count, MAX(signal_date) AS last_updated FROM algo_signals",
+            ),
+            # Phase 9: Portfolio snapshots
             (
                 "algo_portfolio_snapshots",
                 "SELECT COUNT(*) AS row_count, MAX(snapshot_date) AS last_updated FROM algo_portfolio_snapshots",
             ),
+            # Phase 9: Daily equity curve
+            (
+                "equity_curve_daily",
+                "SELECT COUNT(*) AS row_count, MAX(date) AS last_updated FROM equity_curve_daily",
+            ),
+            # Phase 9: Daily performance metrics
             (
                 "algo_performance_daily",
                 "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_performance_daily",
             ),
+            # Phase 9: Daily risk metrics
             (
                 "algo_risk_daily",
                 "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_risk_daily",
+            ),
+            # Phase 9: Daily metrics (trade counts, average scores)
+            (
+                "algo_metrics_daily",
+                "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_metrics_daily",
             ),
         ]:
             if tbl_name in loader_names:
@@ -228,23 +341,28 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
         rows = loader_rows + algo_rows
 
-        # Use freshness_config critical set; fail-fast if configuration is empty.
-        # Note: trend_template_data is warning-only in Phase 1 - stale does NOT prevent
-        # trading, so it remains non-critical even though freshness_config marks it otherwise.
-        # buy_sell_daily is CRITICAL Phase 7 dependency so it's added here
-        critical_tables = {t for t, r in _fr.items() if r.get("critical")}
-        critical_tables.add("buy_sell_daily")  # CRITICAL: Phase 7 signal generation halts without it
-        if not critical_tables:
-            # FAIL-FAST: Configuration empty indicates freshness_config loading failed
-            logger.error(
-                "[MARKET_EXPOSURE] Freshness config empty - no critical tables defined. Using hardcoded defaults."
-            )
-            critical_tables = {
-                "price_daily",
-                "market_health_daily",
-                "market_exposure_daily",
-                "buy_sell_daily",
-            }
+        # Critical tables: trading cannot proceed if these are stale/empty
+        # These are the core input/output tables for all 9 phases
+        critical_tables = {
+            # Phase 1 inputs (loaders must run successfully)
+            "price_daily",  # Entry/exit prices, risk calculation
+            "market_health_daily",  # Market regime, VIX
+            "market_exposure_daily",  # Exposure %, market regime - controls risk sizing (Phase 5)
+            "technical_data_daily",  # Signal quality indicators
+            "trend_template_data",  # Weinstein stage for position sizing
+            # Phase 2 output (trading halt check)
+            "circuit_breaker_status",  # Portfolio drawdown, daily loss, VIX, market stage
+            # Phase 3/4 input
+            "algo_positions",  # Current portfolio state
+            # Phase 6/7/8 dependencies
+            "buy_sell_daily",  # Phase 7 signals, Phase 6/8 execution input
+            # Phase 9 outputs
+            "algo_portfolio_snapshots",  # Daily portfolio metrics, P&L
+            "algo_metrics_daily",  # Daily trade counts, average signal scores - critical for monitoring
+        }
+
+        # Also add any critical tables from FRESHNESS_RULES config
+        critical_tables.update({t for t, r in _fr.items() if r.get("critical")})
 
         # Compute expected data date using trading-day-aware logic (match Phase 1)
         today = date.today()
@@ -339,9 +457,34 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             raise ValueError(f"Expected int for 'ok' count in health summary, got {type(ok_count).__name__}")
         ready_to_trade = len(critical_stale) == 0 and ok_count > 0
 
-        # ── Phase 2-9 Execution Health ──────────────────────────────────
+        # ── Phase 1-9 Execution Health ──────────────────────────────────
         # Query execution health from tables populated by each orchestrator phase
         execution_health: dict[str, dict[str, Any] | None] = {}
+
+        # Phase 1: Data Freshness Check (indicates if loaders passed validation)
+        # This is not directly tracked in a table, but we can check data_loader_status for recent runs
+        try:
+            cur.execute("""
+                SELECT COUNT(*) as run_count,
+                       MAX(last_updated) as latest_run,
+                       COUNT(*) FILTER (WHERE status='success') as successful_runs,
+                       COUNT(*) FILTER (WHERE status IN ('error', 'failed', 'stale')) as failed_runs
+                FROM data_loader_runs
+                WHERE last_updated >= CURRENT_DATE - INTERVAL '1 day'
+            """)
+            phase1_row = cur.fetchone()
+            if phase1_row:
+                phase1_dict = safe_dict_convert(phase1_row)
+                total_runs = int(phase1_dict["run_count"]) if phase1_dict.get("run_count") else 0
+                successful = int(phase1_dict["successful_runs"]) if phase1_dict.get("successful_runs") else 0
+                execution_health["phase_1_data_check"] = {
+                    "loader_runs": total_runs,
+                    "successful_runs": successful,
+                    "success_rate": (successful / total_runs * 100) if total_runs > 0 else 0,
+                    "latest_run": phase1_dict.get("latest_run").isoformat() if phase1_dict.get("latest_run") else None,
+                }
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
+            execution_health["phase_1_data_check"] = None
 
         # Phase 2: Circuit Breaker Status
         try:
@@ -426,6 +569,26 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
             logger.debug(f"[HEALTH] Phase 4 broker reconciliation query failed: {e}")
             execution_health["phase_4_broker_reconciliation"] = None
+
+        # Phase 5: Exposure Policy Check (EOD, sector/position size validation)
+        try:
+            cur.execute("""
+                SELECT COUNT(*) as position_count,
+                       MAX(CAST(COALESCE(NULLIF(sector_percentage, ''), '0') AS FLOAT)) as max_sector_exposure,
+                       MAX(CAST(COALESCE(NULLIF(position_value, 0), 0) AS FLOAT)) as max_position_value
+                FROM algo_positions
+                WHERE status = 'open'
+            """)
+            phase5_row = cur.fetchone()
+            if phase5_row:
+                phase5_dict = safe_dict_convert(phase5_row)
+                execution_health["phase_5_exposure_policy"] = {
+                    "open_positions": int(phase5_dict["position_count"]) if phase5_dict.get("position_count") else 0,
+                    "max_sector_exposure_pct": float(phase5_dict["max_sector_exposure"]) if phase5_dict.get("max_sector_exposure") is not None else None,
+                    "max_position_value": float(phase5_dict["max_position_value"]) if phase5_dict.get("max_position_value") is not None else None,
+                }
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError):
+            execution_health["phase_5_exposure_policy"] = None
 
         # Phase 6: Exit Execution Health (last 24h)
         try:

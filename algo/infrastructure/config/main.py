@@ -1274,7 +1274,10 @@ class AlgoConfig:
                 logger.info(f"[AlgoConfig] loaded {len(rows)} config rows from DB")
 
                 invalid_critical_values = []
-                for key, value, dtype in rows:
+                for row in rows:
+                    key = row["key"]
+                    value = row["value"]
+                    dtype = row["value_type"]
                     if value is not None:
                         try:
                             # Use value_type if set, otherwise normalize PostgreSQL type or infer from content
@@ -2022,7 +2025,7 @@ class AlgoConfig:
                 # Capture old value for audit trail
                 cur.execute("SELECT value FROM algo_config WHERE key = %s", (key,))
                 row = cur.fetchone()
-                old_value = row[0] if row else None
+                old_value = row["value"] if row else None
 
                 # Upsert config value (use final_value which may be fail-closed default)
                 cur.execute(
