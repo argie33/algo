@@ -380,24 +380,30 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             state.loading = False
             state.error = f"{type(e).__name__}: {str(e)[:100]}"
 
-    # CRITICAL FIX: Load data BEFORE showing dashboard to avoid infinite loading state
-    try:
-        logger.info("[STARTUP] Preloading data...")
-        state.result = load_all()
-        logger.info(f"[STARTUP] Preload SUCCESSFUL: {len(state.result)} fetchers loaded")
-        state.loading = False
-        state.elapsed = 0.0
-        state.last_load = time.monotonic()
-    except Exception as e:
-        logger.error(f"[STARTUP] Preload FAILED: {type(e).__name__}: {e}", exc_info=True)
-        state.result = {}
-        state.loading = False
-        state.elapsed = 0.0
-        state.last_load = time.monotonic()
-        state.error = f"{type(e).__name__}: {str(e)[:50]}"
+    # Start background data loading immediately (don't wait for preload to complete)
+    # This allows the dashboard to show a loading indicator immediately instead of appearing hung
+    state.loading = True
+    state.result = None  # None until data arrives
+    state.elapsed = 0.0
+    state.last_load = time.monotonic()
 
-    # Still start the background load_data thread for future refresh cycles (in watch mode)
-    load_data_thread = threading.Thread(target=load_data, daemon=False)
+    def preload_data() -> None:
+        """Load data in background during startup."""
+        try:
+            logger.info("[STARTUP] Preloading data...")
+            result = load_all()
+            logger.info(f"[STARTUP] Preload SUCCESSFUL: {len(result)} fetchers loaded")
+            state.result = result
+            state.loading = False
+            state.elapsed = time.monotonic() - state.last_load
+        except Exception as e:
+            logger.error(f"[STARTUP] Preload FAILED: {type(e).__name__}: {e}", exc_info=True)
+            state.result = {}
+            state.loading = False
+            state.error = f"{type(e).__name__}: {str(e)[:50]}"
+
+    # Start preload in background thread (non-daemon so we wait for completion before exit)
+    load_data_thread = threading.Thread(target=preload_data, daemon=False)
     load_data_thread.start()
 
     # Warm up the render pipeline to avoid 2+ second delay on first render
