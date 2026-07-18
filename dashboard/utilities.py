@@ -17,23 +17,16 @@ from dashboard.error_boundary import has_error
 from utils.validation.framework import safe_float
 
 # ── globals ───────────────────────────────────────────────────────────────────
-print("[DEBUG] utilities.py: Creating ZoneInfo...", flush=True)
 ET = ZoneInfo("America/New_York")
-print("[DEBUG] utilities.py: ZoneInfo created", flush=True)
-
-print("[DEBUG] utilities.py: Creating Console...", flush=True)
 CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
-print("[DEBUG] utilities.py: Console created", flush=True)
 
 # Issue 2.2 FIX: Consolidate duplicate fetchers for /api/algo/data-status endpoint
-print("[DEBUG] utilities.py: Creating locks...", flush=True)
 _data_status_lock = threading.Lock()
 _data_status_cache: dict[str, Any] = {}
 
 # Thread-safe cache for sector aggregation (Issue: Race condition during cache eviction)
 _sector_cache_lock = threading.Lock()
 _sector_agg_cache: OrderedDict[str, Any] = OrderedDict()
-print("[DEBUG] utilities.py: Locks created", flush=True)
 
 G = "bright_green"
 R = "bright_red"
@@ -128,9 +121,10 @@ for _name in ["dashboard", "dashboard.utilities", "dashboard.panels", "dashboard
 # Module-level logger
 logger = logging.getLogger(__name__)
 
-# Log startup mode and log file location
+# Log startup mode and log file location (deferred to avoid blocking module import)
 _mode_str = "LOCAL" if _is_local_mode else "AWS"
-logger.warning(f"[DASHBOARD_LOGGING] Mode: {_mode_str} | Logging to: {_log_file}")
+# NOTE: Calling logger.warning() at module level hangs the import, so we skip it here
+# The logging configuration is still active; we just don't log the startup message at import time
 
 
 # Sector aggregation cache (E5 optimization)
