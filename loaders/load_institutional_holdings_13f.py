@@ -88,76 +88,7 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
             logger.error(f"[{symbol}] Failed to fetch institutional holdings: {type(e).__name__}: {e}")
             return self._unavailable_record(symbol, now_et, f"fetch_error: {str(e)[:40]}")
 
-    def _parse_schedule13g_filings(
-        self,
-        symbol: str,
-        cik: str,
-        filings: list[tuple[str, date, str]],
-        now_et: datetime,
-    ) -> list[dict[str, Any]]:
-        """Parse SCHEDULE 13G filings to extract institutional holdings data.
-
-        Fetches and parses SCHEDULE 13G XML documents to extract:
-        - Institutional investor information (name, type)
-        - Ownership shares and percentage
-        - Voting and dispositive power
-
-        Args:
-            symbol: Stock ticker
-            cik: Company CIK
-            filings: List of (accession_number, filing_date, form_type) tuples
-            now_et: Current datetime
-
-        Returns:
-            List with institutional holdings record or data_unavailable marker
-        """
-        # Process most recent SCHEDULE 13G filing (they're quarterly/annual)
-        for accession_number, filing_date, form_type in filings:
-            try:
-                # Fetch SCHEDULE 13G XML from SEC EDGAR
-                xml_content = self.sec_client.get_filing_xml(cik, accession_number, form_type)
-
-                # Parse XML to extract institutional holdings
-                parsed_data = Schedule13GParser.parse(xml_content, symbol)
-
-                # Fail-fast: ownership_pct is required from XML parsing
-                if "ownership_pct" not in parsed_data:
-                    logger.warning(f"[{symbol}] SCHEDULE 13G XML missing ownership_pct field")
-                    continue
-
-                ownership_pct = parsed_data.get("ownership_pct")
-                if not isinstance(ownership_pct, (int, float)) or ownership_pct is None:
-                    logger.warning(f"[{symbol}] SCHEDULE 13G XML has invalid ownership_pct: {ownership_pct}")
-                    continue
-
-                return [
-                    {
-                        "symbol": symbol,
-                        "filing_date": filing_date,
-                        "institutional_ownership_pct": float(ownership_pct),
-                        "number_of_institutional_holders": 1,  # This filing represents one investor
-                        "data_unavailable": False,
-                        "reason": None,
-                        "sec_filing_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=SC%2013G&dateb=&owner=exclude",
-                        "most_recent_filing_date": filing_date,
-                    }
-                ]
-
-            except FileNotFoundError:
-                logger.warning(f"[{symbol}] SCHEDULE 13G XML not found for accession {accession_number}")
-                continue
-            except ValueError as e:
-                logger.warning(f"[{symbol}] Failed to parse SCHEDULE 13G XML for accession {accession_number}: {e}")
-                continue
-            except Exception as e:
-                logger.warning(f"[{symbol}] Error fetching SCHEDULE 13G for accession {accession_number}: {e}")
-                continue
-
-        # Fall back to companyfacts if all parsing attempts failed
-        logger.debug(f"[{symbol}] All SCHEDULE 13G XML parsing attempts failed, trying companyfacts")
-        return self._fetch_from_companyfacts(symbol, cik, now_et)
-
-    def _fetch_from_companyfacts(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
+def _fetch_from_companyfacts(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
         """Fallback: try to fetch institutional ownership from SEC companyfacts.
 
         Args:
