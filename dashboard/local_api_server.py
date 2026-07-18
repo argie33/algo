@@ -450,7 +450,6 @@ class APIHandler(BaseHTTPRequestHandler):
                 ORDER BY table_name
             """)
             loaders = cur.fetchall()
-            conn.close()
 
             # Table name to criticality mapping (matches real API)
             critical_tables = {"price_daily", "market_health_daily", "market_exposure_daily"}
@@ -504,6 +503,145 @@ class APIHandler(BaseHTTPRequestHandler):
                     }
                 )
 
+            # Phase 2-9 Execution Health (matches AWS Lambda endpoint)
+            execution_health = {}
+
+            # Phase 2: Circuit Breaker Status
+            try:
+                cur.execute("""
+                    SELECT portfolio_drawdown_pct, daily_loss_pct, weekly_loss_pct, open_risk_pct,
+                           vix_level, market_stage, check_date
+                    FROM circuit_breaker_status
+                    ORDER BY check_date DESC LIMIT 1
+                """)
+                cb_row = cur.fetchone()
+                if cb_row:
+                    any_triggered = False
+                    if cb_row.get("portfolio_drawdown_pct") is not None and float(cb_row["portfolio_drawdown_pct"]) >= 20.0:
+                        any_triggered = True
+                    if cb_row.get("daily_loss_pct") is not None and float(cb_row["daily_loss_pct"]) >= 2.0:
+                        any_triggered = True
+                    if cb_row.get("weekly_loss_pct") is not None and float(cb_row["weekly_loss_pct"]) >= 5.0:
+                        any_triggered = True
+                    if cb_row.get("open_risk_pct") is not None and float(cb_row["open_risk_pct"]) >= 4.0:
+                        any_triggered = True
+                    if cb_row.get("vix_level") is not None and float(cb_row["vix_level"]) >= 35.0:
+                        any_triggered = True
+
+                    check_date = cb_row.get("check_date")
+                    check_date_str = check_date.isoformat() if check_date and hasattr(check_date, "isoformat") else str(check_date)
+
+                    execution_health["phase_2_circuit_breakers"] = {
+                        "any_triggered": any_triggered,
+                        "drawdown_pct": float(cb_row["portfolio_drawdown_pct"]) if cb_row.get("portfolio_drawdown_pct") is not None else None,
+                        "daily_loss_pct": float(cb_row["daily_loss_pct"]) if cb_row.get("daily_loss_pct") is not None else None,
+                        "weekly_loss_pct": float(cb_row["weekly_loss_pct"]) if cb_row.get("weekly_loss_pct") is not None else None,
+                        "open_risk_pct": float(cb_row["open_risk_pct"]) if cb_row.get("open_risk_pct") is not None else None,
+                        "vix_level": float(cb_row["vix_level"]) if cb_row.get("vix_level") is not None else None,
+                        "last_check": check_date_str,
+                    }
+            except Exception:
+                execution_health["phase_2_circuit_breakers"] = None
+
+            # Phase 3: Position Monitor Health
+            try:
+                cur.execute("""
+                    SELECT COUNT(*) as open_count,
+                           MAX(days_since_entry) as oldest_days,
+                           MIN(unrealized_pnl_pct) as max_loss_pct
+                    FROM algo_positions
+                    WHERE status = 'open'
+                """)
+                pos_row = cur.fetchone()
+                if pos_row:
+                    execution_health["phase_3_position_monitor"] = {
+                        "open_positions": int(pos_row["open_count"]) if pos_row.get("open_count") else 0,
+                        "oldest_days": int(pos_row["oldest_days"]) if pos_row.get("oldest_days") is not None else None,
+                        "max_loss_pct": float(pos_row["max_loss_pct"]) if pos_row.get("max_loss_pct") is not None else None,
+                    }
+            except Exception:
+                execution_health["phase_3_position_monitor"] = None
+
+            # Phase 6: Exit Execution Health (last 24h)
+            try:
+                cur.execute("""
+                    SELECT COUNT(*) as exits_executed,
+                           COUNT(*) FILTER (WHERE exit_price IS NOT NULL) as successful_exits
+                    FROM algo_trades
+                    WHERE exit_date >= CURRENT_DATE - INTERVAL '1 day'
+                    AND exit_date IS NOT NULL
+                """)
+                exit_row = cur.fetchone()
+                if exit_row:
+                    total_exits = int(exit_row["exits_executed"]) if exit_row.get("exits_executed") else 0
+                    successful = int(exit_row["successful_exits"]) if exit_row.get("successful_exits") else 0
+                    execution_health["phase_6_exit_execution"] = {
+                        "exits_executed": total_exits,
+                        "successful_exits": successful,
+                        "success_rate": (successful / total_exits * 100) if total_exits > 0 else 0,
+                    }
+            except Exception:
+                execution_health["phase_6_exit_execution"] = None
+
+            # Phase 7: Signal Generation Health
+            try:
+                cur.execute("""
+                    SELECT COUNT(*) as signal_count,
+                           AVG(CAST(signal_strength AS FLOAT)) as avg_strength
+                    FROM buy_sell_daily
+                    WHERE date >= CURRENT_DATE - INTERVAL '1 day'
+                    AND signal_type IN ('BUY', 'SELL')
+                """)
+                sig_row = cur.fetchone()
+                if sig_row:
+                    execution_health["phase_7_signal_generation"] = {
+                        "signals_generated": int(sig_row["signal_count"]) if sig_row.get("signal_count") else 0,
+                        "avg_strength": float(sig_row["avg_strength"]) if sig_row.get("avg_strength") else None,
+                    }
+            except Exception:
+                execution_health["phase_7_signal_generation"] = None
+
+            # Phase 8: Entry Execution Health (last 24h)
+            try:
+                cur.execute("""
+                    SELECT COUNT(*) as entries_executed,
+                           COUNT(*) FILTER (WHERE entry_price IS NOT NULL) as successful_entries
+                    FROM algo_trades
+                    WHERE entry_date >= CURRENT_DATE - INTERVAL '1 day'
+                    AND entry_date IS NOT NULL
+                """)
+                entry_row = cur.fetchone()
+                if entry_row:
+                    total_entries = int(entry_row["entries_executed"]) if entry_row.get("entries_executed") else 0
+                    successful = int(entry_row["successful_entries"]) if entry_row.get("successful_entries") else 0
+                    execution_health["phase_8_entry_execution"] = {
+                        "entries_executed": total_entries,
+                        "successful_entries": successful,
+                        "success_rate": (successful / total_entries * 100) if total_entries > 0 else 0,
+                    }
+            except Exception:
+                execution_health["phase_8_entry_execution"] = None
+
+            # Phase 9: Portfolio Snapshot Health
+            try:
+                cur.execute("""
+                    SELECT COUNT(*) as snapshot_count,
+                           MAX(snapshot_date) as latest_date,
+                           MAX(total_portfolio_value) as latest_value
+                    FROM algo_portfolio_snapshots
+                """)
+                snap_row = cur.fetchone()
+                if snap_row:
+                    execution_health["phase_9_portfolio_snapshot"] = {
+                        "snapshot_count": int(snap_row["snapshot_count"]) if snap_row.get("snapshot_count") else 0,
+                        "latest_snapshot": snap_row.get("latest_date").isoformat() if snap_row.get("latest_date") else None,
+                        "portfolio_value": float(snap_row["latest_value"]) if snap_row.get("latest_value") else None,
+                    }
+            except Exception:
+                execution_health["phase_9_portfolio_snapshot"] = None
+
+            conn.close()
+
             # Match AWS Lambda API response structure using list_response wrapper
             # (includes "items" and "total" fields automatically)
             response = {
@@ -519,6 +657,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     "critical_stale": critical_stale,
                     "expected_date": str((now - timedelta(days=1)).date()),
                     "as_of": now.isoformat(),
+                    "execution_health": execution_health,
                 },
             }
             self._send_json(200, response)
