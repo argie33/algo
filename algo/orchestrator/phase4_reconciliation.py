@@ -127,7 +127,7 @@ def run(
             error_msg = f"Reconciliation error: {str(e)[:200]}"
 
         log_phase_result_fn(4, "reconciliation", "alert", error_msg)
-        return PhaseResult(4, "reconciliation", "error", {}, False, error_msg)
+        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": error_msg}, False, error_msg)
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         error = PhaseError(
@@ -139,7 +139,7 @@ def run(
         )
         log_phase_error(4, error, log_phase_result_fn)
         traceback.print_exc()
-        return PhaseResult(4, "reconciliation", "error", {}, False, str(e))
+        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": str(e)[:200]}, False, str(e))
 
     except Exception as e:
         # All reconciliation errors are critical - fail-fast to prevent stale data trading
@@ -148,4 +148,4 @@ def run(
 
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
         log_phase_result_fn(4, "reconciliation", "alert", error_msg)
-        return PhaseResult(4, "reconciliation", "error", {}, False, error_msg)
+        return PhaseResult(4, "reconciliation", "error", {"success": False, "reason": error_msg}, False, error_msg)
