@@ -656,14 +656,14 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 if status_code is None:
                     raise RuntimeError(
                         f"API {endpoint}: response JSON missing required 'statusCode' field. "
-                        "Cannot determine request success/failure. Response: {data}"
+                        f"Cannot determine request success/failure. Response keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}"
                     )
                 try:
                     status_code_int = int(status_code)
                 except (ValueError, TypeError) as e:
                     raise RuntimeError(
                         f"API {endpoint}: statusCode field is not an integer: {status_code}. "
-                        "Cannot parse response status. Response: {data}"
+                        f"Cannot parse response status. Response type: {type(data).__name__}"
                     ) from e
 
                 if status_code_int >= 400:

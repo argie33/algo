@@ -929,21 +929,18 @@ class Orchestrator:
                 # Handle invalid AWS credentials gracefully.
                 # DynamoDB write failures (permission denied, invalid token) don't block Phase 1.
                 # This is informational only - halt flag management happens separately below.
-                error_dict = e.response.get("Error")
-                if not error_dict or not isinstance(error_dict, dict):
-                    logger.warning(
-                        f"[PHASE1] AWS error response structure malformed: {e.response}. "
-                        "Cannot distinguish error type. Continuing with non-blocking failure."
-                    )
-                    logger.debug(f"[PHASE1] DynamoDB write failed (unknown error): {e}")
-                else:
+                try:
+                    error_dict = e.response.get("Error", {}) if hasattr(e, "response") and isinstance(e.response, dict) else {}
                     error_code = error_dict.get("Code", "UNKNOWN")
                     if error_code in ("UnrecognizedClientException", "AccessDenied", "AccessDeniedException"):
-                        logger.debug(f"[PHASE1] DynamoDB write failed (invalid credentials): {error_code}")
+                        logger.info(f"[PHASE1_DYNAMODB] Write skipped (invalid credentials): {error_code}. This is non-blocking.")
                     else:
-                        logger.debug(f"[PHASE1] DynamoDB write failed: {e}")
-            except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError) as e:
-                logger.debug(f"Failed to write Phase 1 degraded_mode status to DynamoDB: {e}")
+                        logger.warning(f"[PHASE1_DYNAMODB] Write failed ({error_code}): {str(e)}")
+                except Exception as validation_error:
+                    logger.warning(f"[PHASE1_DYNAMODB] Error parsing AWS response: {validation_error}. Original error: {e}")
+            except Exception as e:
+                # Catch any other boto3 errors (missing env vars, network issues, etc.)
+                logger.warning(f"[PHASE1_DYNAMODB] Unexpected error during DynamoDB write: {type(e).__name__}: {e}")
         else:
             logger.debug("[LOCAL_MODE] Skipping DynamoDB write for phase1_degraded_mode")
 
