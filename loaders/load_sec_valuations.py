@@ -54,51 +54,26 @@ class SecValuationsLoader(OptimalLoader):
         try:
             # Fetch latest financial data for symbol
             with DatabaseContext("read") as cur:
-                # Get TTM income data (already calculated in ttm_income_statement table)
-                # First get most recent date for this symbol
-                cur.execute(
-                    """
-                    SELECT DISTINCT ON (symbol) symbol, date
-                    FROM ttm_income_statement
-                    WHERE symbol = %s
-                    ORDER BY symbol, date DESC
-                    LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                date_row = cur.fetchone()
-                if not date_row:
-                    return [self._unavailable_marker(symbol, "no_ttm_data")]
-
-                ttm_date = date_row[1]
-
-                # Now get EPS and Revenue for that date
+                # Get income statement data from most recent annual filing
+                # Note: Using annual data; actual TTM would need quarterly aggregation
                 cur.execute(
                     """
                     SELECT
-                        COALESCE(MAX(CASE WHEN item_name = 'Diluted EPS' THEN value::numeric END), 0) as ttm_eps,
-                        COALESCE(MAX(CASE WHEN item_name = 'Total Revenue' THEN value::numeric END), 0) as ttm_revenue
-                    FROM ttm_income_statement
-                    WHERE symbol = %s AND date = %s
-                    """,
-                    (symbol, ttm_date),
-                )
-                ttm_row = cur.fetchone()
-                ttm_eps_basic = ttm_row[0] if ttm_row and ttm_row[0] else 0
-                ttm_revenue = ttm_row[1] if ttm_row and ttm_row[1] else 0
-
-                # Get latest annual income statement for latest EPS (non-TTM)
-                cur.execute(
-                    """
-                    SELECT COALESCE(eps, 0), COALESCE(earnings_per_share, 0)
+                        COALESCE(revenue, 0) as revenue,
+                        COALESCE(net_income, 0) as net_income,
+                        COALESCE(earnings_per_share, 0) as eps
                     FROM annual_income_statement
                     WHERE symbol = %s AND data_unavailable = FALSE
-                    ORDER BY fiscal_year DESC, fiscal_quarter DESC LIMIT 1
+                    ORDER BY fiscal_year DESC LIMIT 1
                     """,
                     (symbol,),
                 )
                 income_row = cur.fetchone()
-                latest_eps = income_row[0] if income_row and income_row[0] else 0
+                if not income_row:
+                    return [self._unavailable_marker(symbol, "no_income_statement")]
+
+                ttm_revenue, ttm_net_income, ttm_eps_basic = income_row
+                latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest
 
                 # For shares outstanding, derive from market cap if available, or use estimated default
                 # Most public companies have 1-5B shares, but we'll use price to back-calculate if needed
