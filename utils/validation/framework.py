@@ -263,10 +263,10 @@ def safe_float(
     field_name: str | None = None,
     allow_none: bool = True,
 ) -> float | None:
-    """Convert value to float safely, handling NaN, Infinity, None.
+    """Convert value to float safely, handling NaN, Infinity, None, and unavailability markers.
 
     Args:
-        value: Value to convert (can be str, int, float, None)
+        value: Value to convert (can be str, int, float, None, or data_unavailable marker dict)
         default: Default value if conversion fails (None to require explicit handling; use strict=True for finance)
         context: Context string for logging (e.g., "symbol=AAPL")
         strict: If True, raise StrictValidationError instead of returning default (REQUIRED for all finance paths)
@@ -289,6 +289,15 @@ def safe_float(
             logger.warning(f"None value in float conversion {error_ctx} - returning None (must be handled by caller)")
         elif not allow_none:
             logger.warning(f"Converting None to {default} {error_ctx} - explicitly requested default")
+        return default
+
+    # Check for unavailability marker dict (e.g., from data extractors returning optional data as unavailable)
+    if isinstance(value, dict) and value.get("data_unavailable") is True:
+        reason = value.get("reason", "unknown")
+        if allow_none:
+            logger.debug(f"Data unavailable {error_ctx}: {reason} - returning None (optional field)")
+        else:
+            logger.warning(f"Data unavailable {error_ctx}: {reason} - returning None (must be handled by caller)")
         return default
 
     if isinstance(value, bool):

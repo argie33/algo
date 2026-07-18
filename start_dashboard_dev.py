@@ -30,6 +30,32 @@ def is_port_open(port: int, timeout: float = 1.0) -> bool:
         return False
 
 
+def cleanup_orphaned_dev_servers() -> None:
+    """Kill any stuck/orphaned dev_server processes to prevent port conflicts."""
+    if sys.platform == "win32":
+        # Windows: use taskkill to force-kill all Python processes running dev_server
+        try:
+            subprocess.run(
+                ["taskkill", "/F", "/IM", "python.exe", "/T"],
+                capture_output=True,
+                timeout=5,
+            )
+            time.sleep(1)  # Give port time to be released
+        except Exception:
+            pass
+    else:
+        # Unix: use pkill to force-kill dev_server processes
+        try:
+            subprocess.run(
+                ["pkill", "-9", "-f", "dev_server"],
+                capture_output=True,
+                timeout=5,
+            )
+            time.sleep(1)  # Give port time to be released
+        except Exception:
+            pass
+
+
 def start_dev_server() -> subprocess.Popen:
     """Start dev_server in background and wait for it to be ready."""
     print("[STARTUP] Checking if dev_server (localhost:3001) is already running...", flush=True)
