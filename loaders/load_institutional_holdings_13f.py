@@ -181,19 +181,35 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
 
         # Aggregate institutional holdings
         # Note: This is an estimate based on major 5%+ shareholders (SCHEDULE 13G filers)
-        total_shares_held = sum(h.get("shares_owned", 0) for h in aggregated_holdings)
+        # CRITICAL: Require shares_owned and ownership_pct to be present (fail-fast on missing data)
+        valid_shares = []
+        valid_pcts = []
+        for h in aggregated_holdings:
+            if "shares_owned" not in h or h["shares_owned"] is None:
+                logger.warning(f"[{symbol}] Holding missing shares_owned: {h}")
+                continue
+            if "ownership_pct" not in h or h["ownership_pct"] is None:
+                logger.warning(f"[{symbol}] Holding missing ownership_pct: {h}")
+                continue
+            valid_shares.append(h["shares_owned"])
+            valid_pcts.append(h["ownership_pct"])
+
+        # Fail if no valid holdings found
+        if not valid_shares or not valid_pcts:
+            return self._unavailable_record(
+                symbol, now_et, "no_valid_institutional_holdings_with_complete_data"
+            )
+
+        total_shares_held = sum(valid_shares)
         number_of_holders = len(aggregated_holdings)
 
         # Get current share price and compute % ownership
         # Note: SCHEDULE 13G filers may have overlapping holdings; use the maximum reported %
         # as a conservative estimate of total institutional ownership (since some institutions
         # may hold portions tracked by multiple filers).
-        ownership_pct = 0.0
-        if aggregated_holdings:
-            # Use max of reported ownership % to avoid summing overlapping institutional holdings
-            reported_pcts = [h.get("ownership_pct", 0) for h in aggregated_holdings]
-            ownership_pct = max(reported_pcts) if reported_pcts else 0.0
-            ownership_pct = min(ownership_pct, 100.0)  # Cap at 100%
+        # Use max of reported ownership % to avoid summing overlapping institutional holdings
+        ownership_pct = max(valid_pcts)
+        ownership_pct = min(ownership_pct, 100.0)  # Cap at 100%
 
         if latest_filing_date is None:
             latest_filing_date = now_et.date()

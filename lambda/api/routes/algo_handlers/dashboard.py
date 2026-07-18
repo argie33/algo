@@ -661,8 +661,8 @@ def _get_algo_status(cur: cursor) -> Any:  # noqa: C901
             cur.execute("""
                 SELECT
                   COUNT(DISTINCT symbol) as pos_count,
-                  COALESCE(SUM(position_value), 0) as total_positions_value,
-                  COALESCE(SUM(CASE WHEN status='closed' THEN quantity * current_price ELSE 0 END), 0) as closed_value
+                  SUM(position_value) as total_positions_value,
+                  SUM(CASE WHEN status='closed' THEN quantity * current_price ELSE 0 END) as closed_value
                 FROM algo_positions
                 WHERE status IN ('open', 'closed')
             """)

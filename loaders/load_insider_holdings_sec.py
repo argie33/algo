@@ -258,21 +258,31 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
 
                 # Aggregate insider data (use insider name as key)
                 insider_key = parsed_data["insider_name"]
+                # CRITICAL: Require transaction fields to be present (fail-fast on missing data)
+                if "recent_buys" not in parsed_data or "recent_sells" not in parsed_data or "net_transactions" not in parsed_data:
+                    logger.warning(
+                        f"[{symbol}] Form 4 parsed but missing transaction fields for {insider_key}. "
+                        f"Missing: recent_buys={('recent_buys' not in parsed_data)}, "
+                        f"recent_sells={('recent_sells' not in parsed_data)}, "
+                        f"net_transactions={('net_transactions' not in parsed_data)}"
+                    )
+                    continue
+
                 if insider_key not in aggregated_insiders:
                     aggregated_insiders[insider_key] = {
                         "name": parsed_data["insider_name"],
                         "title": parsed_data.get("insider_title"),
                         "shares_owned": parsed_data["shares_owned"],
                         "ownership_pct": parsed_data["ownership_pct"],
-                        "buys": parsed_data.get("recent_buys", 0),
-                        "sells": parsed_data.get("recent_sells", 0),
-                        "net_txns": parsed_data.get("net_transactions", 0),
+                        "buys": parsed_data["recent_buys"],
+                        "sells": parsed_data["recent_sells"],
+                        "net_txns": parsed_data["net_transactions"],
                     }
                 else:
-                    # Aggregate counts across multiple filings
-                    aggregated_insiders[insider_key]["buys"] += parsed_data.get("recent_buys", 0)
-                    aggregated_insiders[insider_key]["sells"] += parsed_data.get("recent_sells", 0)
-                    aggregated_insiders[insider_key]["net_txns"] += parsed_data.get("net_transactions", 0)
+                    # Aggregate counts across multiple filings (no .get defaults)
+                    aggregated_insiders[insider_key]["buys"] += parsed_data["recent_buys"]
+                    aggregated_insiders[insider_key]["sells"] += parsed_data["recent_sells"]
+                    aggregated_insiders[insider_key]["net_txns"] += parsed_data["net_transactions"]
 
             except FileNotFoundError:
                 logger.debug(f"[{symbol}] Plain-text Form 4 not found for accession {accession_number}")
