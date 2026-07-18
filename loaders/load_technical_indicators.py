@@ -84,6 +84,7 @@ class VectorizedTechnicalLoader:
                 "latest_date": None,
                 "error": None,
                 "data_available": True,
+                "duration_sec": time.time() - start_time,
             }
 
         # 252-trading-day indicators (roc_252d) need ~252 * 7/5 ≈ 353 calendar days of
