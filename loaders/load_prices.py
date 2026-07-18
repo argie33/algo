@@ -1978,7 +1978,6 @@ class PriceLoader(OptimalLoader):
         pending_rows: list[dict[str, Any]] = []
         pending_symbol_rowcounts: dict[str, int] = {}
         pending_watermarks: dict[str, tuple[date, int]] = {}
-        marker_rows: list[dict[str, Any]] = []
 
         # Process each symbol's results
         for symbol in symbols:
@@ -2091,13 +2090,6 @@ class PriceLoader(OptimalLoader):
             self._stats["rows_inserted"] += inserted
             self._stats["symbols_processed"] += len(pending_symbol_rowcounts)
 
-        if marker_rows:
-            try:
-                self._bulk_insert_mgr.bulk_insert(marker_rows)
-            except Exception as e:
-                logger.warning(
-                    f"[{self.table_name}] Could not mark {len(marker_rows)} symbols as unavailable: {e} (continuing)"
-                )
 
 
 def _invalidate_phase1_cache() -> None:
