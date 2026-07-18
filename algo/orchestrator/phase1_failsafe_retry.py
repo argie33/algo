@@ -91,6 +91,42 @@ RETRY_WAIT_SECONDS = 5
 RETRY_MONITOR_TIMEOUT_SECONDS = 45
 
 
+def _get_expected_data_date() -> tuple[_date, str]:
+    """Calculate expected data date based on market hours (trading hours aware).
+
+    Returns:
+        Tuple of (expected_data_date, freshness_context_str)
+    """
+    from datetime import date as _date, timedelta as td
+    from zoneinfo import ZoneInfo
+
+    from algo.infrastructure import MarketCalendar
+
+    now_et = datetime.now(ZoneInfo("America/New_York"))
+    run_date_et = now_et.date()
+
+    if now_et.hour < 16:  # INTRADAY: before market close
+        prev_date = run_date_et - td(days=1)
+        expected_data_date = prev_date
+        while expected_data_date > run_date_et - td(days=10):
+            if MarketCalendar.is_trading_day(expected_data_date):
+                break
+            expected_data_date -= td(days=1)
+        context = f"INTRADAY - expecting previous trading day ({expected_data_date})"
+    else:  # After market close
+        if MarketCalendar.is_trading_day(run_date_et):
+            expected_data_date = run_date_et
+        else:
+            expected_data_date = run_date_et - td(days=1)
+            while expected_data_date > run_date_et - td(days=10):
+                if MarketCalendar.is_trading_day(expected_data_date):
+                    break
+                expected_data_date -= td(days=1)
+        context = f"EOD - expecting same/recent trading day ({expected_data_date})"
+
+    return expected_data_date, context
+
+
 def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
     """In LOCAL_MODE, check for stale DATA and refresh loaders locally.
 
