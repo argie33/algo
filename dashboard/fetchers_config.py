@@ -394,11 +394,17 @@ def fetch_health(c: None) -> dict[str, Any]:
         if ready_to_trade is None:
             logger.debug("Health API response missing ready_to_trade field (optional enrichment)")
 
+        # Extract Phase 2-9 execution health metrics
+        execution_health = inner.get("execution_health")
+        if execution_health is None:
+            logger.debug("Health API response missing execution_health field (Phase 2-9 metrics unavailable)")
+
         return {
             "items": sources,
             "ready_to_trade": ready_to_trade,
             "summary": summary,
             "critical_stale": critical_stale,
+            "execution_health": execution_health,
         }
     except Exception as e:
         error_msg = format_fetcher_error("health", e)
