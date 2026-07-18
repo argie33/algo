@@ -56,6 +56,8 @@ def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None
             "quality_metrics": "load_value_quality_growth_metrics",
             "growth_metrics": "load_value_quality_growth_metrics",
             "stock_scores": "load_stock_scores",
+            "positioning_metrics": "load_yfinance_derived_metrics",
+            "stability_metrics": "load_risk_metrics_daily",
         }
 
         # Get all active symbols from stock_symbols table
@@ -240,11 +242,59 @@ def run_stock_scores_loader(limit=None):
     return result
 
 
+def run_positioning_metrics_loader():
+    """Run positioning metrics loader (yfinance derived)."""
+    from loaders.load_yfinance_derived_metrics import YfinanceDerivedMetricsLoader
+    import psycopg2
+
+    # Fetch universe symbols from stock_symbols table
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols for positioning metrics")
+    except Exception as e:
+        logger.warning(f"Could not load symbols: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+
+    loader = YfinanceDerivedMetricsLoader()
+    result = loader.run(symbols=symbols, parallelism=4)
+    logger.info(f"Positioning metrics loader result: {result}")
+    return result
+
+
+def run_stability_metrics_loader():
+    """Run stability metrics loader (risk metrics)."""
+    from loaders.load_risk_metrics_daily import RiskMetricsLoader
+    import psycopg2
+
+    # Fetch universe symbols from stock_symbols table
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols for stability metrics")
+    except Exception as e:
+        logger.warning(f"Could not load symbols: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+
+    loader = RiskMetricsLoader()
+    result = loader.run(symbols=symbols, parallelism=4)
+    logger.info(f"Stability metrics loader result: {result}")
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description="Run individual loaders for testing")
     parser.add_argument(
         "loader",
-        choices=["prices", "technical", "scores", "market_status", "value_quality_growth"],
+        choices=["prices", "technical", "scores", "market_status", "value_quality_growth", "positioning_metrics", "stability_metrics"],
         help="Loader to run (use consolidated loader names)"
     )
     parser.add_argument("--symbols", help="CSV list of symbols (prices only)")
@@ -271,6 +321,8 @@ def main():
             "market_status": ["market_health_daily"],
             "value_quality_growth": ["value_metrics", "quality_metrics", "growth_metrics"],
             "scores": ["stock_scores"],
+            "positioning_metrics": ["positioning_metrics"],
+            "stability_metrics": ["stability_metrics"],
         }
         table_names = table_mapping.get(args.loader, [])
 
@@ -312,6 +364,12 @@ def main():
 
         elif args.loader == "scores":
             run_stock_scores_loader(limit=args.limit)
+
+        elif args.loader == "positioning_metrics":
+            run_positioning_metrics_loader()
+
+        elif args.loader == "stability_metrics":
+            run_stability_metrics_loader()
 
         else:
             logger.error(f"Loader {args.loader} not yet implemented")

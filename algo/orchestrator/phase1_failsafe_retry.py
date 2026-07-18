@@ -125,6 +125,10 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
         "stock_scores": "scores",
         "market_health_daily": "market_status",
         "value_metrics": "value_quality_growth",
+        "growth_metrics": "value_quality_growth",
+        "quality_metrics": "value_quality_growth",
+        "positioning_metrics": "positioning_metrics",
+        "stability_metrics": "stability_metrics",
     }
 
     try:

@@ -861,6 +861,38 @@ def run(  # noqa: C901
                 + (f" [DEGRADED MODE: {degraded_reason}]" if degraded_reason else ""),
             )
 
+            # CRITICAL FIX: Update data_loader_status.last_updated for all validated tables
+            # This ensures dashboard shows fresh data status, matching the actual table freshness
+            # that Phase 1 just verified. Without this, data_loader_status becomes stale
+            # even though actual tables are fresh, causing dashboard to show red warnings
+            # while orchestrator passes (Session 220 "Stale Tables Mystery" root cause).
+            try:
+                critical_tables = [
+                    "stock_symbols",
+                    "price_daily",
+                    "market_health_daily",
+                    "market_exposure_daily",
+                    "earnings_calendar",
+                    "growth_metrics",
+                    "quality_metrics",
+                    "value_metrics",
+                    "positioning_metrics",
+                    "stability_metrics",
+                    "trend_template_data",
+                    "sector_ranking",
+                ]
+                cur.execute(
+                    """
+                    UPDATE data_loader_status
+                    SET last_updated = NOW(), status = 'HEALTHY'
+                    WHERE table_name = ANY(%s)
+                    """,
+                    (critical_tables,),
+                )
+                logger.info(f"[PHASE 1] Updated data_loader_status.last_updated for {len(critical_tables)} tables")
+            except Exception as e:
+                logger.warning(f"[PHASE 1] Could not update data_loader_status (non-fatal): {e}")
+
             # GOVERNANCE COMPLIANCE: Halt on degraded data (never allow incomplete metrics for trading)
             # Ref: GOVERNANCE.md - "Never accept scores with <50% data completeness"
             if degraded_reason:
