@@ -95,22 +95,40 @@ def run_value_quality_growth_loader():
 
     Replaces: load_yfinance_derived_metrics, separate quality/value/growth states
     Outputs: value_metrics, quality_metrics, growth_metrics (atomic)
+
+    CRITICAL: Only load symbols with available yfinance data to avoid creating NULL-filled rows
+    (yfinance only covers ~4,700 real stocks, not indices/delisted/etc in full price_daily universe)
     """
     from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
     import psycopg2
 
-    # Fetch universe symbols from stock_symbols table
+    # Fetch symbols with yfinance data available (only real tradeable stocks)
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        # Only load symbols that exist in yfinance_snapshot (verified data available)
+        cursor.execute("""
+            SELECT DISTINCT symbol FROM yfinance_snapshot
+            WHERE pe_ratio IS NOT NULL OR pb_ratio IS NOT NULL
+            ORDER BY symbol
+        """)
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols from stock_symbols universe")
+        logger.info(f"Loaded {len(symbols)} symbols with yfinance data (skipping indices/non-tradeable)")
     except Exception as e:
-        logger.warning(f"Could not load universe: {e}")
-        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
+        logger.warning(f"Could not load yfinance symbols: {e}")
+        # Fallback: use stock_symbols table
+        try:
+            conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+            cursor = conn.cursor()
+            cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+            symbols = [row[0] for row in cursor.fetchall()]
+            cursor.close()
+            conn.close()
+            logger.info(f"Loaded {len(symbols)} symbols from stock_symbols (note: may include indices)")
+        except:
+            symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
 
     loader = ValueQualityGrowthMetricsLoader()
     result = loader.run(symbols=symbols)
