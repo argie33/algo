@@ -608,21 +608,22 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 most_recent_trading_day -= timedelta(days=1)
                 check_iterations += 1
 
-            # On weekends/holidays, data from recent trading days is FRESH
             days_stale = (run_date - latest_buysell_date).days
 
-            # Allow data from up to 2 trading days back if today is non-trading day
-            acceptable_staleness = False
-            if not MarketCalendar.is_trading_day(run_date):
-                # Today is non-trading; acceptable if data is from recent trading days
-                # (within ~3-4 calendar days, accounting for weekends)
-                acceptable_staleness = (latest_buysell_date >= run_date - timedelta(days=4))
+            # FIXED NON-TRADING DAY LOGIC:
+            # On weekends/holidays, data from the most recent trading day is FRESH (not stale)
+            # Allow data that is: (1) from the most recent trading day, OR (2) within recent window on non-trading days
+            is_trading_today = MarketCalendar.is_trading_day(run_date)
+            data_is_from_recent_trading_day = (latest_buysell_date >= most_recent_trading_day - timedelta(days=1))
+            data_is_within_window = (latest_buysell_date >= run_date - timedelta(days=4))  # 4-day window covers weekends
 
-            if latest_buysell_date < most_recent_trading_day and not acceptable_staleness:
-                # Most recent data is OLDER than the most recent trading day - this is a red flag
+            acceptable_staleness = data_is_from_recent_trading_day or (not is_trading_today and data_is_within_window)
+
+            if latest_buysell_date < most_recent_trading_day - timedelta(days=1) and not acceptable_staleness:
+                # Most recent data is OLDER than recent trading days - this is a red flag
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily data is STALE: most recent is from {latest_buysell_date}. "
-                    f"Expected from most recent trading day ({most_recent_trading_day}). This indicates: "
+                    f"Expected from recent trading day ({most_recent_trading_day}). This indicates: "
                     f"(1) EOD pipeline ({latest_buysell_date}) did not complete, OR "
                     f"(2) Technical_data_daily loader failed (buy_sell_daily depends on it), OR "
                     f"(3) Buy_sell_daily loader itself failed. "
