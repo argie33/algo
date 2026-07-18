@@ -2667,10 +2667,9 @@ def _build_results_panel(  # noqa: C901
     exec_hist: list[Any],
     risk: dict[str, Any] | None,
     notifs: list[Any],
-    audit: list[Any],
     hlth: dict[str, Any] | list[Any] | None = None,
 ) -> Panel:
-    """Build RIGHT panel: run results, history, risk, notifications, audit.
+    """Build RIGHT panel: execution status, run results, history, and alerts.
 
     Args:
         run: Run data (validated for errors)
@@ -2679,11 +2678,10 @@ def _build_results_panel(  # noqa: C901
         exec_hist: Full run execution history
         risk: Risk metrics (VaR, beta, concentration)
         notifs: Notification items
-        audit: Audit log entries
         hlth: Health data containing execution_health
 
     Returns:
-        Rich Panel with run results and history
+        Rich Panel with execution status and health
     """
     right_rows: list[Text | Rule | Panel] = [
         Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"),
@@ -2939,44 +2937,9 @@ def _build_results_panel(  # noqa: C901
             unread = "-" if not seen_val else "."
             right_rows.append(Text.from_markup(f"  [{sc}]{unread} {title}[/] [dim]{age}[/]"))
 
-    valid_audit_exp_raw = safe_get_list(audit)
-    if isinstance(valid_audit_exp_raw, list) and valid_audit_exp_raw:
-        right_rows.append(Rule(style="dim"))
-        right_rows.append(Text.from_markup("[dim]Audit log:[/]"))
-        for a in valid_audit_exp_raw[:20]:
-            if not isinstance(a, dict):
-                continue
-            action_type_val = a.get("action_type")
-            if action_type_val is None:
-                logger.debug("[RESULTS_AUDIT] Audit entry missing action_type - defaulting to empty string")
-                action_type_val = ""
-            at = (action_type_val if action_type_val else "").replace("_", " ")
-            symbol_val = a.get("symbol")
-            if symbol_val is None:
-                logger.debug("[RESULTS_AUDIT] Audit entry missing symbol - defaulting to empty string")
-                symbol_val = ""
-            sym = symbol_val if symbol_val else ""
-            st_a_raw = a.get("status")
-            if st_a_raw is None:
-                logger.debug("[RESULTS_AUDIT] Audit entry missing status field - defaulting to empty string")
-                st_a_raw = ""
-            st_a = st_a_raw
-            sc = G if st_a in ("success", "ok") else (Y if st_a in ("warn", "warning") else R)
-            created_at_val = a.get("created_at")
-            timestamp_val = a.get("timestamp")
-            ts_val = created_at_val if created_at_val is not None else timestamp_val
-            ts_s = fmt_age(ts_val)
-            right_rows.append(
-                Text.from_markup(
-                    f"  [{sc}]{at[:32]}[/]"
-                    + (f" [white]{sym}[/]" if sym else "")
-                    + (f"  [dim]{ts_s}[/]" if ts_s else "")
-                )
-            )
-
     return Panel(
         Group(*right_rows),
-        title="[bold yellow]RUN RESULTS & HISTORY[/]  [dim][h] return[/]",
+        title="[bold yellow]EXECUTION & SYSTEM STATUS[/]  [dim][h] return[/]",
         border_style="yellow",
         padding=(0, 1),
     )
@@ -2988,11 +2951,10 @@ def panel_algo_health_expanded(
     hlth: dict[str, Any] | list[Any] | None,
     notifs: list[Any],
     algo_metrics: list[Any] | None = None,
-    audit: list[Any] | None = None,
     exec_hist: list[Any] | None = None,
     risk: dict[str, Any] | None = None,
 ) -> Layout:
-    """Full-screen algo health - dual column: data freshness (left) | run results (right)."""
+    """Full-screen algo health - dual column: data freshness (left) | execution status (right)."""
     hlth_err_exp = _error_panel("health", hlth, "HEALTH EXPANDED")
     if hlth_err_exp is not None:
         error_layout = Layout()
@@ -3018,12 +2980,7 @@ def panel_algo_health_expanded(
         exec_hist_display = []
     else:
         exec_hist_display = exec_hist
-    if audit is None:
-        logger.warning("Health panel: audit is None, using empty list for display")
-        audit_display = []
-    else:
-        audit_display = audit
-    right_panel = _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, audit_display, hlth)
+    right_panel = _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, hlth)
 
     dual = Layout()
     dual.split_row(

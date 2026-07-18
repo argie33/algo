@@ -299,7 +299,7 @@ def render_expanded_view(  # noqa: C901
             if has_error(ctx.run) or has_error(ctx.health):
                 return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))
             return panel_algo_health_expanded(
-                ctx.run, ctx.activity, ctx.health, ctx.notifs, ctx.algo_metrics, ctx.audit, ctx.exec_hist, risk=ctx.risk
+                ctx.run, ctx.activity, ctx.health, ctx.notifs, ctx.algo_metrics, ctx.exec_hist, risk=ctx.risk
             )
         case "sectors":
             return _expanded_layout(
