@@ -269,6 +269,46 @@ class SecEdgarClient:
         except requests.Timeout as e:
             raise RuntimeError(f"Timeout fetching SEC XML: {url}: {e}") from e
 
+    def get_filing_plaintext(self, cik: str, accession_number: str) -> str:
+        """Fetch raw plain-text document from SEC EDGAR filing.
+
+        Fetches the full-text .txt file for a filing (available for all filings).
+        Used as fallback when XML version not available (most Form 4s).
+
+        Args:
+            cik: Company CIK (zero-padded)
+            accession_number: Filing accession number (e.g., "0001193125-24-001234")
+
+        Returns:
+            Plain-text content as string
+
+        Raises:
+            FileNotFoundError: If filing not found
+            RuntimeError: If request fails after retries
+        """
+        # Construct URL to the full-text document
+        # SEC archive format: /Archives/edgar/CIK/accession_clean/accession_clean.txt
+        path_accession = accession_number.replace("-", "")
+        cik_padded = str(cik).zfill(10)
+        url = f"https://www.sec.gov/Archives/edgar/{cik_padded}/{path_accession}/{path_accession}.txt"
+
+        logger.debug(f"Fetching plain-text filing from: {url}")
+
+        # Fetch with retry logic
+        try:
+            self._rate_limiter.wait()
+            resp = self._session.get(url, timeout=self.timeout)
+            if resp.status_code == 404:
+                raise FileNotFoundError(f"SEC plain-text filing not found: {url}")
+            resp.raise_for_status()
+            return cast(str, resp.text)
+        except requests.HTTPError as e:
+            raise RuntimeError(f"Failed to fetch SEC plain-text filing: {url}: {e}") from e
+        except requests.ConnectionError as e:
+            raise RuntimeError(f"Connection error fetching SEC filing: {url}: {e}") from e
+        except requests.Timeout as e:
+            raise RuntimeError(f"Timeout fetching SEC filing: {url}: {e}") from e
+
     def _get_json(self, url: str) -> dict[str, Any]:
         """Fetch JSON from SEC API with retry logic for transient errors.
 

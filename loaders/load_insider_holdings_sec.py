@@ -28,6 +28,7 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.external.sec_xml_parser import Form4Parser
+from utils.external.form4_plaintext_parser import Form4PlaintextParser
 from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
@@ -113,14 +114,11 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
             filing_dates = recent_filings["filingDate"]
             isXBRL = recent_filings.get("isXBRL", [])
 
-            form_4_filings = []
+            # Separate XBRL and plain-text Form 4 filings
+            xbrl_form4_filings = []
+            plaintext_form4_filings = []
             for i, form_type in enumerate(forms):
                 if form_type == "4" and i < len(accession_numbers):
-                    # Check if filing is in XBRL format (required for XML parsing)
-                    if i < len(isXBRL) and isXBRL[i] == 0:
-                        logger.debug(f"[{symbol}] Skipping Form 4 (accession {accession_numbers[i]}): not XBRL-formatted (plain text)")
-                        continue
-
                     accession = accession_numbers[i]
                     filing_date_str = filing_dates[i] if i < len(filing_dates) else None
                     if filing_date_str:
@@ -128,15 +126,21 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
                             filing_date_obj = datetime.fromisoformat(filing_date_str).date()
                             # Only fetch recent filings (last 90 days)
                             if (now_et.date() - filing_date_obj).days <= 90:
-                                form_4_filings.append((accession, filing_date_obj))
+                                # Categorize by format
+                                if i < len(isXBRL) and isXBRL[i] == 1:
+                                    xbrl_form4_filings.append((accession, filing_date_obj))
+                                else:
+                                    plaintext_form4_filings.append((accession, filing_date_obj))
                         except (ValueError, TypeError):
                             pass
 
-            if not form_4_filings:
-                return self._unavailable_record(symbol, now_et, "no_xbrl_form4_filings_available")
+            # Try XBRL Form 4s first, then fall back to plain-text
+            all_form4_filings = xbrl_form4_filings + plaintext_form4_filings
+            if not all_form4_filings:
+                return self._unavailable_record(symbol, now_et, "no_form4_filings_available")
 
             # Parse Form 4 filings to extract insider transaction data
-            return self._parse_form4_filings(symbol, cik, form_4_filings, now_et)
+            return self._parse_form4_filings(symbol, cik, all_form4_filings, xbrl_form4_filings, plaintext_form4_filings, now_et)
 
         except Exception as e:
             logger.error(f"[{symbol}] Failed to fetch insider holdings: {type(e).__name__}: {e}")
@@ -146,20 +150,26 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
         self,
         symbol: str,
         cik: str,
-        filings: list[tuple[str, date]],
+        all_filings: list[tuple[str, date]],
+        xbrl_filings: list[tuple[str, date]],
+        plaintext_filings: list[tuple[str, date]],
         now_et: datetime,
     ) -> list[dict[str, Any]]:
         """Parse Form 4 filings to extract insider transaction data.
 
-        Fetches and parses Form 4 XML documents to extract:
+        Fetches and parses Form 4 documents (both XBRL XML and plain-text) to extract:
         - Insider holdings (current share count and % ownership)
         - Recent buy/sell activity (90-day window)
         - Latest transaction date
 
+        Tries XBRL parsing first, then falls back to plain-text parsing.
+
         Args:
             symbol: Stock ticker
             cik: Company CIK
-            filings: List of (accession_number, filing_date) tuples
+            all_filings: All Form 4 filings (for ordering)
+            xbrl_filings: XBRL-formatted Form 4 filings
+            plaintext_filings: Plain-text formatted Form 4 filings
             now_et: Current datetime
 
         Returns:
@@ -169,7 +179,8 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
         aggregated_insiders: dict[str, dict[str, Any]] = {}
         latest_filing_date = None
 
-        for accession_number, filing_date in filings:
+        # Try XBRL filings first
+        for accession_number, filing_date in xbrl_filings:
             try:
                 # Phase 2 Implementation (Session 241): Form 4 XML file discovery
                 # Solution: SEC submissions API includes primaryDocument field (e.g., "xslF345X06/form4.xml")
@@ -218,6 +229,59 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
                 continue
             except Exception as e:
                 logger.warning(f"[{symbol}] Error fetching Form 4 for accession {accession_number}: {e}")
+                continue
+
+        # Try plain-text Form 4 filings as fallback
+        for accession_number, filing_date in plaintext_filings:
+            try:
+                # Fetch plain-text filing
+                plaintext_content = self.sec_client.get_filing_plaintext(cik, accession_number)
+
+                # Parse plain-text to extract insider data
+                parsed_result = Form4PlaintextParser.parse(plaintext_content, symbol)
+                if parsed_result is None:
+                    logger.debug(f"[{symbol}] Plain-text Form 4 parsing returned None for accession {accession_number}")
+                    continue
+
+                parsed_data = parsed_result
+
+                # Track latest filing date
+                if latest_filing_date is None or filing_date > latest_filing_date:
+                    latest_filing_date = filing_date
+
+                # Fail-fast: required fields must be present in parsed data
+                required_fields = ["insider_name", "shares_owned", "ownership_pct"]
+                missing_fields = [f for f in required_fields if f not in parsed_data or parsed_data[f] is None]
+                if missing_fields:
+                    logger.debug(f"[{symbol}] Plain-text Form 4 missing required fields: {missing_fields}")
+                    continue
+
+                # Aggregate insider data (use insider name as key)
+                insider_key = parsed_data["insider_name"]
+                if insider_key not in aggregated_insiders:
+                    aggregated_insiders[insider_key] = {
+                        "name": parsed_data["insider_name"],
+                        "title": parsed_data.get("insider_title"),
+                        "shares_owned": parsed_data["shares_owned"],
+                        "ownership_pct": parsed_data["ownership_pct"],
+                        "buys": parsed_data.get("recent_buys", 0),
+                        "sells": parsed_data.get("recent_sells", 0),
+                        "net_txns": parsed_data.get("net_transactions", 0),
+                    }
+                else:
+                    # Aggregate counts across multiple filings
+                    aggregated_insiders[insider_key]["buys"] += parsed_data.get("recent_buys", 0)
+                    aggregated_insiders[insider_key]["sells"] += parsed_data.get("recent_sells", 0)
+                    aggregated_insiders[insider_key]["net_txns"] += parsed_data.get("net_transactions", 0)
+
+            except FileNotFoundError:
+                logger.debug(f"[{symbol}] Plain-text Form 4 not found for accession {accession_number}")
+                continue
+            except ValueError as e:
+                logger.debug(f"[{symbol}] Failed to parse plain-text Form 4 for accession {accession_number}: {e}")
+                continue
+            except Exception as e:
+                logger.debug(f"[{symbol}] Error fetching plain-text Form 4 for accession {accession_number}: {e}")
                 continue
 
         # If we successfully parsed any Form 4 filings, compute aggregate statistics
