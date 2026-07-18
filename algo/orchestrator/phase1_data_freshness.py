@@ -307,6 +307,27 @@ def run(  # noqa: C901
             symbol_count = symbol_count_row[0]
             logger.info(f"[PHASE 1] Symbol list verified: {symbol_count} active symbols")
 
+            # CRITICAL FIX: Detect phantom rows in price_daily (NULL prices counted as fresh data)
+            # These bypass the freshness check by inflating MAX(date) and symbol count
+            cur.execute(
+                """SELECT COUNT(*) as phantom_count,
+                          COUNT(CASE WHEN close IS NULL THEN 1 END) as null_close_count,
+                          COUNT(CASE WHEN open IS NULL THEN 1 END) as null_open_count
+                   FROM price_daily
+                   WHERE date = (SELECT MAX(date) FROM price_daily)"""
+            )
+            phantom_row = cur.fetchone()
+            if phantom_row:
+                phantom_count = phantom_row[0]
+                null_close = phantom_row[1]
+                null_open = phantom_row[2]
+                if null_close > 0 or null_open > 0:
+                    logger.warning(
+                        f"[PHASE 1] PHANTOM ROWS DETECTED on MAX date: "
+                        f"{phantom_count} total rows, {null_close} NULL close, {null_open} NULL open. "
+                        f"These rows will be ignored - only rows with actual prices (open/close NOT NULL) count as fresh."
+                    )
+
             from algo.infrastructure import MarketCalendar
 
             # Market hours: 9:30 AM - 4:00 PM ET.
@@ -376,92 +397,69 @@ def run(  # noqa: C901
 
                 days_stale = (acceptable_min_date - max_date).days
                 logger.critical(f"[PHASE 1] Price data stale: {max_date} vs expected {acceptable_min_date} (or later)")
-                logger.warning("[PHASE 1] Attempting emergency price loader trigger...")
 
-                # CRITICAL FIX: Try to load fresh prices before halting
-                # This handles the case where the scheduled morning pipeline failed
-                try:
-                    from loaders.load_prices import PriceLoader
+                # CRITICAL FIX: Remove "emergency loader" workaround that doesn't work in production
+                # Session 124 discovered this never worked:
+                # - Hardcoded localhost connection cannot reach RDS from Lambda
+                # - Portfolio symbols fallback is too narrow (missing most universe)
+                # - dry_run flag bypasses the halt anyway
+                # The REAL fix is proper loader scheduling + Phase 1 failsafe retry (above).
+                # Halt here forces operators to investigate root cause and fix the pipeline.
 
-                    logger.info("[PHASE 1] Starting emergency price loader...")
-                    loader = PriceLoader()
-                    # Get portfolio symbols to load prices for
-                    cur.execute(
-                        "SELECT DISTINCT symbol FROM algo_positions WHERE status='open' ORDER BY symbol LIMIT 100"
-                    )
-                    positions = cur.fetchall()
-                    symbols = [dict(p)["symbol"] for p in positions] if positions else []
-                    if not symbols:
-                        # If no open positions, load top portfolio symbols
-                        cur.execute("SELECT DISTINCT symbol FROM algo_trades ORDER BY created_at DESC LIMIT 100")
-                        trades = cur.fetchall()
-                        symbols = [dict(t)["symbol"] for t in trades]
-                    result = loader.run(symbols=symbols, parallelism=1, backfill_days=0)
-
-                    if result.get("rows_inserted", 0) > 0:
-                        logger.warning(f"[PHASE 1] Emergency loader succeeded: {result['rows_inserted']} rows inserted")
-                        # Re-check price freshness after emergency load
-                        cur.execute("SELECT MAX(date) FROM price_daily")
-                        fresh_result = cur.fetchone()
-                        if fresh_result and fresh_result[0]:
-                            new_max_date = fresh_result[0]
-                            # Ensure date comparison works (convert datetime to date if needed)
-                            if isinstance(new_max_date, dt):
-                                new_max_date = new_max_date.date()
-                            if new_max_date >= last_trading_day:
-                                logger.warning("[PHASE 1] Price data now fresh after emergency load - proceeding")
-                                # Data is now fresh, continue to next check
-                            else:
-                                raise RuntimeError(f"Emergency loader inserted data but still stale: {new_max_date}")
-                        else:
-                            raise RuntimeError("Emergency loader reported success but no data found")
-                    else:
-                        raise RuntimeError(f"Emergency loader returned no data: {result}")
-                except Exception as e:
-                    logger.error(f"[PHASE 1] Emergency price loader failed: {type(e).__name__}: {e}")
-                    # Fall back to halt if emergency load fails
-                    error = PhaseError(
-                        category=ErrorCategory.DATA_STALE,
-                        message=f"Price data is {days_stale} day(s) stale (latest: {max_date}, expected: {last_trading_day}). Emergency price loader also failed.",
-                        root_cause="Scheduled morning pipeline failed AND emergency price loader failed. Check price_daily loader, yfinance access, and network connectivity.",
-                        recoverable=False,
-                        log_level="critical",
-                    )
-                    log_phase_error(1, error, log_phase_result_fn)
-
-                    return PhaseResult(
-                        1,
-                        "price_staleness",
-                        "halted",
-                        {},
-                        True,
-                        f"Price data too old: {max_date} vs {acceptable_min_date} (emergency load failed)",
-                    )
-
-            # Verify price coverage - accept symbols with recent data (configurable days)
-            # This handles asynchronous data loading where different symbols update on different dates
-            recent_cutoff = max_date - td(days=phase1_recent_cutoff_days)
-            cur.execute(
-                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date <= %s",
-                (recent_cutoff, max_date),
-            )
-            row = cur.fetchone()
-            if row is None or row[0] is None:
-                raise RuntimeError("Symbol count query failed for recent period")
-            symbols_loaded = row[0]
-            prior_cutoff = recent_cutoff - td(days=phase1_prior_cutoff_days)
-            cur.execute(
-                "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date >= %s AND date < %s",
-                (prior_cutoff, recent_cutoff),
-            )
-            row = cur.fetchone()
-            if row is None or row[0] is None:
-                raise RuntimeError(
-                    "[PHASE1] Prior symbol count query failed or returned NULL. "
-                    "Cannot assess price data coverage without historical reference. "
-                    "Check that price_daily has data from 2+ days ago."
+                error = PhaseError(
+                    category=ErrorCategory.DATA_STALE,
+                    message=f"Price data is {days_stale} day(s) stale (latest: {max_date}, expected: {last_trading_day})",
+                    root_cause="Scheduled morning pipeline failed to load prices. Check price_daily loader logs, yfinance access, network connectivity, and EventBridge Scheduler status.",
+                    recoverable=False,
+                    log_level="critical",
                 )
-            prior_count = row[0]
+                log_phase_error(1, error, log_phase_result_fn)
+
+                return PhaseResult(
+                    1,
+                    "price_staleness",
+                    "halted",
+                    {},
+                    True,
+                    f"Price data too old: {max_date} vs {acceptable_min_date}. Check price_daily loader and EventBridge Scheduler.",
+                )
+
+            # CRITICAL FIX: Require TODAY-ONLY data with actual non-NULL prices
+            # Reject multi-day window (allows trading on stale data)
+            # Reject phantom rows (NULL prices counted as fresh data)
+            today_midnight_et = dt.combine(last_trading_day, dt.min.time(), tzinfo=ZoneInfo("America/New_York"))
+            tomorrow_midnight_et = today_midnight_et + td(days=1)
+
+            cur.execute(
+                """SELECT COUNT(DISTINCT symbol)
+                   FROM price_daily
+                   WHERE date = %s AND close IS NOT NULL AND open IS NOT NULL""",
+                (last_trading_day,)
+            )
+            row = cur.fetchone()
+            if row is None or row[0] is None:
+                raise RuntimeError("Symbol count query failed for today's prices")
+            symbols_loaded = row[0]
+
+            # For coverage baseline: use previous trading day to establish what a complete day looks like
+            prev_trading_day = last_trading_day - td(days=1)
+            while prev_trading_day > last_trading_day - td(days=10):
+                if MarketCalendar.is_trading_day(prev_trading_day):
+                    break
+                prev_trading_day -= td(days=1)
+
+            cur.execute(
+                """SELECT COUNT(DISTINCT symbol)
+                   FROM price_daily
+                   WHERE date = %s AND close IS NOT NULL AND open IS NOT NULL""",
+                (prev_trading_day,)
+            )
+            row = cur.fetchone()
+            if row is None or row[0] is None:
+                prior_count = 0
+            else:
+                prior_count = row[0]
+
             coverage_pct = (symbols_loaded / max(prior_count, 1)) * 100
 
             if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:
@@ -487,7 +485,7 @@ def run(  # noqa: C901
                     )
                     diag_rows = cur.fetchall()
                     logger.critical(
-                        f"[PHASE 1 DIAGNOSTIC] max_date={max_date} recent_cutoff={recent_cutoff} "
+                        f"[PHASE 1 DIAGNOSTIC] max_date={max_date} recent_cutoff={phase1_recent_cutoff_days} "
                         f"per-date distribution (last 7 days with data): {list(diag_rows)}"
                     )
                 except Exception as diag_err:
@@ -697,41 +695,28 @@ def run(  # noqa: C901
                 )
 
             if halt_stale:
-                if dry_run:
-                    logger.warning(
-                        f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables) - BYPASSED (dry_run only): {'; '.join(halt_stale)}"
-                    )
-                else:
-                    # SESSION 124 FIX: removed a fake "EMERGENCY_BOOTSTRAP" that used to sit here.
-                    # It only ever loaded PRICE data via PriceLoader, but halt_stale here covers
-                    # market_health_daily/market_exposure_daily/earnings_calendar/growth_metrics/
-                    # quality_metrics/value_metrics/positioning_metrics/stability_metrics -- none of
-                    # which loading prices can fix. Worse, its "full universe" attempt hardcoded
-                    # psycopg2.connect("...host=localhost"), which can never reach RDS from a Lambda
-                    # in production, so it always fell through to a 3-symbol hardcoded fallback
-                    # (AAPL/SPY/QQQ) and unconditionally logged "PASS (after EMERGENCY_BOOTSTRAP)"
-                    # regardless of whether the actual stale tables got fixed. A halt here is the
-                    # correct, safe behavior -- this file already treats halt_stale as HALT-worthy
-                    # everywhere else; loading three ETF prices should never have been able to
-                    # override that.
-                    logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
-                    log_phase_result_fn(
-                        1,
-                        "signal_tables_stale",
-                        "halt",
-                        f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
-                    )
-                    from algo.reporting.notifications import notify_signal_staleness
+                # CRITICAL FIX: NEVER bypass halt on critical data gaps, even in dry_run mode
+                # dry_run mode is for testing - it should still validate and report halts,
+                # just not actually trigger downstream consequences. But Phase 1 freshness checks
+                # are safety gates - they must always execute fully and report halt status.
+                logger.critical(f"[PHASE 1] CRITICAL DATA GAPS (pipeline tables): {'; '.join(halt_stale)}")
+                log_phase_result_fn(
+                    1,
+                    "signal_tables_stale",
+                    "halt",
+                    f"Stale/missing pipeline data: {'; '.join(halt_stale[:3])}",
+                )
+                from algo.reporting.notifications import notify_signal_staleness
 
-                    notify_signal_staleness(halt_stale)
-                    return PhaseResult(
-                        1,
-                        "signal_tables_stale",
-                        "halted",
-                        {},
-                        True,
-                        f"Critical pipeline tables stale/missing: {halt_stale[0]}",
-                    )
+                notify_signal_staleness(halt_stale)
+                return PhaseResult(
+                    1,
+                    "signal_tables_stale",
+                    "halted",
+                    {},
+                    True,
+                    f"Critical pipeline tables stale/missing: {halt_stale[0]}",
+                )
 
             elapsed = time.time() - phase_start
             phase1_end_et = dt.now(ZoneInfo("America/New_York"))
