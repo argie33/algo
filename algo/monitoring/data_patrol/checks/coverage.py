@@ -39,7 +39,8 @@ class CoverageChecker(BaseCheck):
                 FROM price_daily pd
                 CROSS JOIN latest_date ld
             """)
-            today_count, total_count = cur.fetchone()
+            row = cur.fetchone()
+            today_count, total_count = row[0], row[1]
             if today_count is None:
                 raise ValueError("price_daily today_count returned NULL - loader may be stalled or corrupted")
             if total_count is None:

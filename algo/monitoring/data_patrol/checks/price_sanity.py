@@ -54,7 +54,7 @@ class PriceSanityChecker(BaseCheck):
             if len(extreme) > 10:
                 samples = []
                 for r in extreme[:5]:
-                    if r[4] is not None:
+                    if len(r) > 4 and r[4] is not None:
                         try:
                             samples.append({"symbol": r[0], "pct_change": float(r[4])})
                         except (ValueError, TypeError) as e:
@@ -73,7 +73,7 @@ class PriceSanityChecker(BaseCheck):
             elif extreme:
                 samples = []
                 for r in extreme[:5]:
-                    if r[4] is not None:
+                    if len(r) > 4 and r[4] is not None:
                         try:
                             samples.append({"symbol": r[0], "pct_change": float(r[4])})
                         except (ValueError, TypeError) as e:

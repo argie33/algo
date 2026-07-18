@@ -90,6 +90,8 @@ class SpecializedChecker(BaseCheck):
                         {"count": 0},
                     )
                 else:
+                    if isinstance(latest, str):
+                        latest = _date.fromisoformat(latest)
                     age = (today - latest).days
                     if age > max_days:
                         self.log(
@@ -197,8 +199,10 @@ class SpecializedChecker(BaseCheck):
             for row in cur.fetchall():
                 if hasattr(row, "_fields"):
                     row_dict = row._asdict()
+                elif isinstance(row, dict):
+                    row_dict = row
                 else:
-                    row_dict = dict(row) if isinstance(row, dict) else {"tbl_name": row[0], "latest": row[1], "total": row[2], "unique_syms": row[3]}
+                    row_dict = {"tbl_name": row[0], "latest": row[1], "total": row[2], "unique_syms": row[3]}
                 results_by_table[row_dict["tbl_name"]] = (
                     row_dict["latest"],
                     row_dict["total"],
@@ -219,6 +223,8 @@ class SpecializedChecker(BaseCheck):
                                 {},
                             )
                         else:
+                            if isinstance(latest, str):
+                                latest = _date.fromisoformat(latest)
                             age = (today - latest).days
                             result_sev = sev if age > max_days else INFO
                             self.log(
@@ -379,6 +385,10 @@ class SpecializedChecker(BaseCheck):
                     {},
                 )
             else:
+                if isinstance(max_date, str):
+                    max_date = _date.fromisoformat(max_date)
+                if isinstance(max_updated, str):
+                    max_updated = datetime.fromisoformat(max_updated)
                 age = (_date.today() - max_date).days
                 updated_age = (datetime.now(timezone.utc) - max_updated).total_seconds() / 3600
                 sev = WARN if age > 7 else INFO
