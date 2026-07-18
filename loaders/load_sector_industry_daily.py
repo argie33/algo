@@ -103,17 +103,19 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         FROM daily_changes
                         GROUP BY sector
                     )
-                    INSERT INTO sector_performance (sector, date, return_pct, relative_strength, created_at, updated_at)
+                    INSERT INTO sector_performance (sector, date, return_pct, relative_strength, data_source, created_at, updated_at)
                     SELECT
                         sector,
                         %s as date,
                         COALESCE(return_pct, 0) as return_pct,
                         1.0 as relative_strength,
+                        'price_daily_aggregated' as data_source,
                         NOW() as created_at,
                         NOW() as updated_at
                     FROM sector_weighted_avg
                     ON CONFLICT (sector, date) DO UPDATE SET
                         return_pct = EXCLUDED.return_pct,
+                        data_source = EXCLUDED.data_source,
                         updated_at = NOW()
                     """,
                     (prev_date, target_date, target_date),
@@ -139,13 +141,14 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         GROUP BY cp.sector
                     )
                     INSERT INTO sector_ranking
-                      (sector_name, date, current_rank, momentum_score,
+                      (sector_name, date, current_rank, momentum_score, data_source,
                        rank_1w_ago, rank_4w_ago, rank_12w_ago)
                     SELECT
                         ss.sector_name,
                         NOW()::date,
                         ss.current_rank,
                         COALESCE(ss.current_rank - COALESCE(r1.rank, ss.current_rank), 0),
+                        'price_daily_aggregated' as data_source,
                         COALESCE(r1.rank, ss.current_rank),
                         COALESCE(r4.rank, ss.current_rank),
                         COALESCE(r12.rank, ss.current_rank)
@@ -174,6 +177,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         rank_1w_ago = EXCLUDED.rank_1w_ago,
                         rank_4w_ago = EXCLUDED.rank_4w_ago,
                         rank_12w_ago = EXCLUDED.rank_12w_ago,
+                        data_source = EXCLUDED.data_source,
                         updated_at = NOW()
                     """,
                 )
@@ -197,13 +201,14 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         GROUP BY cp.industry
                     )
                     INSERT INTO industry_ranking
-                      (industry_name, date_recorded, current_rank, momentum_score,
+                      (industry_name, date_recorded, current_rank, momentum_score, data_source,
                        rank_1w_ago, rank_4w_ago, rank_12w_ago)
                     SELECT
                         i_stats.industry_name,
                         NOW()::date,
                         i_stats.current_rank,
                         COALESCE(i_stats.current_rank - COALESCE(r1.rank, i_stats.current_rank), 0),
+                        'price_daily_aggregated' as data_source,
                         COALESCE(r1.rank, i_stats.current_rank),
                         COALESCE(r4.rank, i_stats.current_rank),
                         COALESCE(r12.rank, i_stats.current_rank)
@@ -232,6 +237,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         rank_1w_ago = EXCLUDED.rank_1w_ago,
                         rank_4w_ago = EXCLUDED.rank_4w_ago,
                         rank_12w_ago = EXCLUDED.rank_12w_ago,
+                        data_source = EXCLUDED.data_source,
                         updated_at = NOW()
                     """,
                 )

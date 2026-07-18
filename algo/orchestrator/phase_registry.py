@@ -126,14 +126,18 @@ class PhaseRegistry:
             skip_if_halted=True,
         ),
         # Phase 6: EXIT EXECUTION
-        # Input: Positions from Phase 3, exposure actions from Phase 5
+        # Input: Positions from Phase 3, exposure actions from Phase 5 (optional)
         # Output: result={'exit_orders': list, 'exit_count': int} with executed orders
         # Contract: CRITICAL - Always runs regardless of halt (risk reduction must execute)
         # This allows position closure during market emergencies even when entries are blocked
+        # NOTE: Removed Phase 5 from dependencies because executor wrapper gracefully handles
+        # missing exposure_actions when Phase 5 is skipped (e.g., due to halt flag). Phase 6
+        # can execute with just positions from Phase 3. Hard dependency on Phase 5 would block
+        # Phase 6 from running when the circuit breaker halts the pipeline.
         PhaseRegistryEntry(
             phase_num=6,
             phase_name="EXIT EXECUTION",
-            dependencies=[3, 5],  # Depends on position monitor (Phase 3) AND exposure policy (Phase 5)
+            dependencies=[3],  # Depends only on position monitor (Phase 3); Phase 5 is optional
             execute_fn=None,
             skip_if_halted=False,  # CRITICAL: Exits ALWAYS run even when circuit breaker halts entries (risk management)
             always_run=True,  # Exits must execute to close positions during market emergencies

@@ -198,6 +198,7 @@ class SecValuationsLoader(OptimalLoader):
             "computed_at": date.today().isoformat(),
             "data_unavailable": False,
             "reason": None,
+            "data_source": "sec_audited",
 
             # Price-based metrics
             "current_price": current_price,
@@ -275,6 +276,7 @@ class SecValuationsLoader(OptimalLoader):
             "computed_at": date.today().isoformat(),
             "data_unavailable": True,
             "reason": reason,
+            "data_source": "none",
 
             # All metrics NULL
             "current_price": None,

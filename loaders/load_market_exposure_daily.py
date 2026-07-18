@@ -51,6 +51,10 @@ configure_socket_timeout(30)
 def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason: str) -> None:
     """Insert a data_unavailable marker row into market_exposure_daily.
 
+    CRITICAL: When today's computation FAILS, all fields MUST be marked as unavailable.
+    Do NOT preserve yesterday's exposure_tier/is_entry_allowed when marking data_unavailable=TRUE.
+    Stale market regime could cause incorrect position sizing.
+
     Args:
         cur: Database cursor
         eval_date: Date for which data is unavailable
@@ -59,10 +63,10 @@ def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason:
     # Truncate reason to 500 chars to fit column constraint
     reason_truncated = reason[:500] if reason else "Unknown error"
 
-    # CRITICAL: Include all columns in ON CONFLICT DO UPDATE to prevent nulling out
-    # previously computed fields (exposure_tier, is_entry_allowed) if this is called
-    # after a partial failure or concurrent computation. Use COALESCE to preserve
-    # existing non-NULL values when overwriting with unavailable marker.
+    # GOVERNANCE: Fail-fast on missing data. When computation fails, mark ALL exposure fields
+    # as unavailable - do not preserve stale values from previous day. This enforces the rule:
+    # "If you failed, say you failed." Dashboard must see explicit data_unavailable=TRUE,
+    # not yesterday's regime hidden under today's data_unavailable marker.
     cur.execute(
         """
         INSERT INTO market_exposure_daily
@@ -79,10 +83,10 @@ def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason:
           factors = EXCLUDED.factors,
           data_unavailable = EXCLUDED.data_unavailable,
           reason = EXCLUDED.reason,
-          exposure_tier = COALESCE(market_exposure_daily.exposure_tier, EXCLUDED.exposure_tier),
-          is_entry_allowed = COALESCE(market_exposure_daily.is_entry_allowed, EXCLUDED.is_entry_allowed),
-          long_exposure_pct = COALESCE(market_exposure_daily.long_exposure_pct, EXCLUDED.long_exposure_pct),
-          short_exposure_pct = COALESCE(market_exposure_daily.short_exposure_pct, EXCLUDED.short_exposure_pct)
+          exposure_tier = EXCLUDED.exposure_tier,
+          is_entry_allowed = EXCLUDED.is_entry_allowed,
+          long_exposure_pct = EXCLUDED.long_exposure_pct,
+          short_exposure_pct = EXCLUDED.short_exposure_pct
         """,
         (
             eval_date,
@@ -92,12 +96,12 @@ def _insert_unavailable_marker(cur: PsycopgCursor[Any], eval_date: date, reason:
             None,  # halt_reasons - use NULL not [] to distinguish from "data available, no halts"
             None,  # distribution_days
             None,  # factors
-            True,  # data_unavailable
+            True,  # data_unavailable - EXPLICIT marker, not silent fallback
             reason_truncated,  # reason
-            None,  # exposure_tier - let COALESCE preserve existing value
-            None,  # is_entry_allowed - let COALESCE preserve existing value
-            None,  # long_exposure_pct - let COALESCE preserve existing value
-            None,  # short_exposure_pct - let COALESCE preserve existing value
+            None,  # exposure_tier - MUST be NULL when data_unavailable=TRUE
+            None,  # is_entry_allowed - MUST be NULL when data_unavailable=TRUE
+            None,  # long_exposure_pct - MUST be NULL when data_unavailable=TRUE
+            None,  # short_exposure_pct - MUST be NULL when data_unavailable=TRUE
         ),
     )
 

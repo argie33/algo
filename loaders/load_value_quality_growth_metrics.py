@@ -255,6 +255,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "fcf_yield": fcf_yield,
             "market_cap": market_cap,
             "data_unavailable": False,
+            "data_source": "sec_audited",
             "updated_at": date.today().isoformat(),
         }
 
@@ -279,6 +280,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "debt_to_equity": None,
                 "quality_score": None,
                 "data_unavailable": False,
+                "data_source": "sec_audited",
                 "updated_at": date.today().isoformat(),
             }
 
@@ -365,6 +367,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "eps_growth_5y": None,
             "updated_at": date.today().isoformat(),
             "data_unavailable": False,
+            "data_source": "sec_audited",
         }
 
         revenues = []
