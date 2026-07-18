@@ -485,7 +485,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # growth_metrics, quality_metrics, value_metrics, positioning_metrics, stability_metrics,
         # trend_template_data, sector_ranking
         try:
-            critical_tables = [
+            phase1_tables = [
                 'price_daily', 'market_health_daily', 'market_exposure_daily',
                 'earnings_calendar', 'growth_metrics', 'quality_metrics',
                 'value_metrics', 'positioning_metrics', 'stability_metrics',
@@ -499,7 +499,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                        MAX(last_updated) as last_checked
                 FROM data_loader_status
                 WHERE table_name = ANY(%s)
-            """, (critical_tables,))
+            """, (phase1_tables,))
             phase1_row = cur.fetchone()
             if phase1_row:
                 phase1_dict = safe_dict_convert(phase1_row)

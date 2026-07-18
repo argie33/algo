@@ -92,16 +92,37 @@ class EarningsCalendarSECLoader(SecLoaderBase):
             if not submissions:
                 return self._unavailable_record(symbol, now_et, "submissions_empty")
 
-            # Extract recent filings
-            recent_filings = submissions.get("filings", {}).get("recent", {})
-            forms = recent_filings.get("form", [])
-            filing_dates = recent_filings.get("filingDate", [])
+            # EXPLICIT: Validate SEC API response structure (fail-fast if schema changes)
+            if "filings" not in submissions:
+                logger.warning(f"[{symbol}] SEC API submissions missing 'filings' key (structure may have changed)")
+                return self._unavailable_record(symbol, now_et, "filings_key_missing")
+
+            filings_obj = submissions["filings"]
+            if not isinstance(filings_obj, dict) or "recent" not in filings_obj:
+                logger.debug(f"[{symbol}] SEC API filings missing 'recent' key")
+                return self._unavailable_record(symbol, now_et, "recent_filings_key_missing")
+
+            recent_filings = filings_obj["recent"]
+
+            if "form" not in recent_filings or "filingDate" not in recent_filings:
+                logger.debug(f"[{symbol}] SEC recent filings missing 'form' or 'filingDate' keys")
+                return self._unavailable_record(symbol, now_et, "recent_filings_missing_keys")
+
+            forms = recent_filings["form"]
+            filing_dates = recent_filings["filingDate"]
+
+            # Validate arrays are same length (data integrity check)
+            if len(forms) != len(filing_dates):
+                logger.error(
+                    f"[{symbol}] SEC API data corruption: forms array ({len(forms)} items) != "
+                    f"filing_dates array ({len(filing_dates)} items). Cannot process."
+                )
+                return self._unavailable_record(symbol, now_et, "array_length_mismatch")
 
             earnings_dates = []
 
             # Extract 10-K and 10-Q filing dates
             for i, form_type in enumerate(forms):
-                if form_type in ("10-K", "10-Q") and i < len(filing_dates):
                     try:
                         filing_date_str = filing_dates[i]
                         filing_date = datetime.fromisoformat(filing_date_str).date()

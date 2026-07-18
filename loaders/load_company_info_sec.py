@@ -106,17 +106,31 @@ class CompanyInfoSECLoader(SecLoaderBase):
             shares_outstanding = None
             try:
                 facts = self.sec_client.get_company_facts(cik)
-                dei_facts = facts.get("facts", {}).get("dei", {})
-                shares_data = dei_facts.get("EntityCommonStockSharesOutstanding", {})
-                if shares_data and "units" in shares_data:
-                    units = shares_data.get("units", {})
-                    pure_values = units.get("shares", [])
-                    if pure_values:
-                        # Get most recent
-                        latest = sorted(pure_values, key=lambda x: x.get("end", ""), reverse=True)[0]
-                        shares_outstanding = latest.get("val")
+                # EXPLICIT: Validate SEC API response structure (fail-fast if schema changes)
+                if not isinstance(facts, dict) or "facts" not in facts:
+                    logger.warning(
+                        f"[{symbol}] SEC API response missing 'facts' key. "
+                        "Response structure may have changed. Shares outstanding unavailable."
+                    )
+                else:
+                    facts_obj = facts["facts"]
+                    if not isinstance(facts_obj, dict) or "dei" not in facts_obj:
+                        logger.debug(f"[{symbol}] SEC API facts missing 'dei' namespace. Shares outstanding unavailable.")
+                    else:
+                        dei_facts = facts_obj["dei"]
+                        shares_data = dei_facts.get("EntityCommonStockSharesOutstanding", {})
+                        if shares_data and isinstance(shares_data, dict) and "units" in shares_data:
+                            units = shares_data.get("units", {})
+                            pure_values = units.get("shares", [])
+                            if pure_values and isinstance(pure_values, list):
+                                # Get most recent (most recent has latest end date)
+                                latest = sorted(pure_values, key=lambda x: x.get("end", ""), reverse=True)[0]
+                                shares_outstanding = latest.get("val")
             except Exception as e:
-                logger.debug(f"[{symbol}] Could not fetch shares outstanding: {e}")
+                logger.warning(
+                    f"[{symbol}] Error fetching shares outstanding from SEC API: {type(e).__name__}: {e}. "
+                    "Will use NULL for shares_outstanding."
+                )
 
             return [
                 {

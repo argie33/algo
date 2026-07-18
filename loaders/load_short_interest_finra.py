@@ -77,12 +77,10 @@ class ShortInterestFinraLoader(OptimalLoader):
             ticker = yf.Ticker(symbol)
             info = ticker.info
 
-            short_pct = info.get("shortPercentOfFloat")
-            shares_short = info.get("sharesShort")
-
-            if short_pct is None and shares_short is None:
-                # No short interest data available for this symbol
-                logger.debug(f"[SHORT_INTEREST] {symbol}: No short interest data from yfinance")
+            # EXPLICIT: Validate expected fields exist in yfinance response
+            # Fail-fast if API structure changes (don't silently proceed with partial data)
+            if "shortPercentOfFloat" not in info:
+                logger.debug(f"[SHORT_INTEREST] {symbol}: yfinance missing 'shortPercentOfFloat' field")
                 return [
                     {
                         "symbol": symbol,
@@ -91,13 +89,31 @@ class ShortInterestFinraLoader(OptimalLoader):
                         "short_pct": None,
                         "finra_report_date": None,
                         "data_unavailable": True,
-                        "reason": "yfinance_no_short_data",
+                        "reason": "yfinance_missing_shortPercentOfFloat",
+                        "updated_at": now_et,
+                    }
+                ]
+
+            short_pct = info["shortPercentOfFloat"]
+            shares_short = info.get("sharesShort")  # sharesShort optional
+
+            if short_pct is None:
+                logger.debug(f"[SHORT_INTEREST] {symbol}: shortPercentOfFloat is NULL in yfinance")
+                return [
+                    {
+                        "symbol": symbol,
+                        "settlement_date": now_et.date(),
+                        "short_shares": None,
+                        "short_pct": None,
+                        "finra_report_date": None,
+                        "data_unavailable": True,
+                        "reason": "yfinance_shortPercentOfFloat_null",
                         "updated_at": now_et,
                     }
                 ]
 
             # Convert to percentage if needed (yfinance returns as decimal like 0.01 for 1%)
-            if short_pct is not None and 0 < short_pct < 1:
+            if 0 < short_pct < 1:
                 short_pct = short_pct * 100
 
             logger.debug(f"[SHORT_INTEREST] {symbol}: {short_pct}% ({shares_short} shares)")
