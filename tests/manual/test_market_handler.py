@@ -5,6 +5,11 @@ import logging
 import os
 import sys
 
+# Skip during pytest collection - this is a manual debugging script
+if "pytest" in sys.modules:
+    import pytest
+    pytest.skip(allow_module_level=True)
+
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
 

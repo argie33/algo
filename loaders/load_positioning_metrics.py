@@ -63,31 +63,45 @@ class PositioningMetricsLoader(OptimalLoader):
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        # PHASE 1: Fetch short interest from FINRA (primary)
+        # PHASE 1: Fetch short interest from FINRA (primary), fallback to yfinance
         short_interest_pct = None
         short_interest_unavailable = False
         short_interest_reason = None
 
         with DatabaseContext("read") as cur:
-            # Get most recent FINRA short interest data for this symbol
+            # Try FINRA first
             cur.execute(
                 """
                 SELECT short_pct, data_unavailable, reason
                 FROM short_interest_finra
-                WHERE symbol = %s
+                WHERE symbol = %s AND data_unavailable = FALSE
                 ORDER BY settlement_date DESC LIMIT 1
                 """,
                 (symbol,),
             )
             short_row = cur.fetchone()
 
-        if short_row:
+        if short_row and short_row[0] is not None:
+            # Successfully got from FINRA
             short_interest_pct = short_row[0]
-            short_interest_unavailable = short_row[1] if len(short_row) > 1 else False
-            short_interest_reason = short_row[2] if len(short_row) > 2 else None
+            short_interest_unavailable = False
+            short_interest_reason = None
         else:
-            short_interest_unavailable = True
-            short_interest_reason = "short_interest_finra_missing"
+            # FINRA unavailable or null; try yfinance as fallback
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT short_interest FROM yfinance_snapshot WHERE symbol = %s",
+                    (symbol,),
+                )
+                yf_row = cur.fetchone()
+
+            if yf_row and yf_row[0] is not None:
+                short_interest_pct = yf_row[0]
+                short_interest_unavailable = False
+                short_interest_reason = None
+            else:
+                short_interest_unavailable = True
+                short_interest_reason = "finra_and_yfinance_unavailable"
 
         # Fetch institutional/insider from yfinance_snapshot (temporary; will replace in Phase 2)
         institutional_pct = None

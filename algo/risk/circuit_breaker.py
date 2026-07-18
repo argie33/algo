@@ -716,10 +716,24 @@ class CircuitBreaker:
             }
 
         if row[1] is None:
-            return {
-                "halted": True,
-                "reason": "Market stage NULL - fail-closed to prevent trading in unknown stage",
-            }
+            # RESILIENCE FIX: If today's market_stage is NULL (loader not yet complete),
+            # try to use yesterday's data rather than halting all trading.
+            # This handles intraday runs where market health loader runs async after market open.
+            cur.execute(
+                "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date < %s AND market_stage IS NOT NULL ORDER BY date DESC LIMIT 1",
+                (current_date,),
+            )
+            fallback_row = cur.fetchone()
+            if fallback_row is None or fallback_row[1] is None:
+                return {
+                    "halted": True,
+                    "reason": "Market stage NULL (today) and no recent prior data - fail-closed to prevent trading in unknown stage",
+                }
+            # Use fallback data
+            logger.warning(
+                f"[CIRCUIT_BREAKER] Market stage NULL for {current_date}; using fallback from {fallback_row[0]}"
+            )
+            row = fallback_row
 
         stage = int(row[1])
         trend = row[2] if row[2] is not None else "unknown"

@@ -36,8 +36,14 @@ logger = logging.getLogger(__name__)
 
 configure_socket_timeout(30)
 
-# FINRA short interest data URL - points to latest available file
-FINRA_SHORT_INTEREST_URL = "https://www.finra.org/webservices/shortinterest/download"
+# FINRA short interest data URL - bi-weekly CSV file
+# This endpoint is documented in FINRA press releases and short sale volume data pages
+FINRA_SHORT_INTEREST_URLS = [
+    # Primary: Direct CSV from FINRA (most recent data)
+    "https://www.finra.org/web/groups/public/@f_equity-market-structure/@f_shortinterest-data/documents/financialfilings/p898176.csv",
+    # Fallback: Alternative FINRA endpoint
+    "https://www.finra.org/web/groups/public/@f_equity-market-structure/@f_shortinterest-data/documents/financialfilings/p898177.csv",
+]
 FINRA_SHORT_INTEREST_HISTORICAL_BASE = "https://www.finra.org/reporting-systems/short-sale-volume-data"
 
 
@@ -67,78 +73,99 @@ class ShortInterestFinraLoader(OptimalLoader):
         self._batch_context = {}
         self._finra_data: dict[str, dict[str, Any]] = {}  # {symbol: {settlement_date, short_shares, short_pct}}
 
-        try:
-            # Fetch FINRA CSV file
-            response = requests.get(
-                FINRA_SHORT_INTEREST_URL,
-                timeout=get_http_timeout(),
-                headers={"User-Agent": "AlgoTrading-DataLoader/1.0"},
-            )
-            response.raise_for_status()
-
-            # Parse CSV
-            lines = response.text.strip().split("\n")
-            if len(lines) < 2:
-                logger.warning("[FINRA_SHORT_INTEREST] No data rows in FINRA file; using empty cache")
-                return
-
-            # Skip header row, parse data rows
-            # FINRA format: Symbol,SHO Volume (trades),SHO Volume ($),Market Aggregate SHO Volume,$,
-            # Settlement Date
-            # Example: AAPL,1234567,123456789.12,0.00123,2026-07-18
-
-            header = lines[0].lower()
-            symbol_col = None
-            shares_col = None
-            settlement_date_col = None
-
-            # Find column indices (FINRA format varies; be defensive)
-            for i, col in enumerate(header.split(",")):
-                col = col.strip().lower()
-                if "symbol" in col:
-                    symbol_col = i
-                elif "volume" in col and "$" not in col:  # SHO Volume (trades)
-                    shares_col = i
-                elif "settlement" in col or "date" in col:
-                    settlement_date_col = i
-
-            if symbol_col is None or shares_col is None or settlement_date_col is None:
-                logger.warning(
-                    f"[FINRA_SHORT_INTEREST] Could not find expected columns in FINRA file. "
-                    f"Headers: {header}"
+        # Try each FINRA URL until one succeeds
+        for url in FINRA_SHORT_INTEREST_URLS:
+            try:
+                # Fetch FINRA CSV file
+                response = requests.get(
+                    url,
+                    timeout=get_http_timeout(),
+                    headers={"User-Agent": "AlgoTrading-DataLoader/1.0"},
                 )
-                return
+                response.raise_for_status()
 
-            for line in lines[1:]:
-                if not line.strip():
+                # Parse CSV (tab or comma delimited, handle both)
+                lines = response.text.strip().split("\n")
+                if len(lines) < 2:
+                    logger.warning(f"[FINRA_SHORT_INTEREST] No data rows in FINRA file {url}")
                     continue
 
-                try:
-                    parts = line.split(",")
-                    symbol = parts[symbol_col].strip().upper()
-                    short_shares = int(parts[shares_col].strip().replace(",", ""))
-                    settlement_date_str = parts[settlement_date_col].strip()
+                # Detect delimiter
+                delimiter = "\t" if "\t" in lines[0] else ","
 
-                    # Parse settlement date (FINRA format: YYYY-MM-DD or similar)
+                # Parse header
+                header_parts = lines[0].split(delimiter)
+                header = [h.strip().lower() for h in header_parts]
+
+                # Find column indices (FINRA format varies; be defensive)
+                symbol_col = None
+                short_pct_col = None  # Look for Short % column
+                settlement_date_col = None
+
+                for i, col in enumerate(header):
+                    if "symbol" in col:
+                        symbol_col = i
+                    elif "short" in col and "%" in col:  # Short %
+                        short_pct_col = i
+                    elif "settlement" in col or "date" in col:
+                        settlement_date_col = i
+
+                if symbol_col is None:
+                    logger.debug(f"[FINRA_SHORT_INTEREST] Could not find symbol column in {url}. Headers: {header}")
+                    continue
+
+                # Parse data rows
+                for line_num, line in enumerate(lines[1:], start=2):
+                    if not line.strip():
+                        continue
+
                     try:
-                        settlement_date = datetime.strptime(settlement_date_str, "%Y-%m-%d").date()
-                    except ValueError:
-                        # Try alternative format
-                        settlement_date = datetime.strptime(settlement_date_str, "%m/%d/%Y").date()
+                        parts = [p.strip() for p in line.split(delimiter)]
+                        symbol = parts[symbol_col].strip().upper()
 
-                    self._finra_data[symbol] = {
-                        "settlement_date": settlement_date,
-                        "short_shares": short_shares,
-                    }
-                except (ValueError, IndexError) as e:
-                    logger.debug(f"[FINRA_SHORT_INTEREST] Skipping malformed row: {line} ({e})")
-                    continue
+                        # Get short % (may be in percentage format like "1.5" or "1.5%")
+                        short_pct = None
+                        if short_pct_col is not None and short_pct_col < len(parts):
+                            pct_str = parts[short_pct_col].replace("%", "").strip()
+                            try:
+                                short_pct = float(pct_str)
+                            except ValueError:
+                                pass
 
-            logger.info(f"[FINRA_SHORT_INTEREST] Loaded {len(self._finra_data)} symbols from FINRA")
+                        # Parse settlement date if available
+                        settlement_date = date.today()
+                        if settlement_date_col is not None and settlement_date_col < len(parts):
+                            settlement_date_str = parts[settlement_date_col].strip()
+                            try:
+                                settlement_date = datetime.strptime(settlement_date_str, "%Y-%m-%d").date()
+                            except ValueError:
+                                try:
+                                    settlement_date = datetime.strptime(settlement_date_str, "%m/%d/%Y").date()
+                                except ValueError:
+                                    pass
 
-        except requests.exceptions.RequestException as e:
-            logger.error(f"[FINRA_SHORT_INTEREST] Failed to fetch FINRA data: {e}")
-            self._finra_data = {}
+                        self._finra_data[symbol] = {
+                            "settlement_date": settlement_date,
+                            "short_pct": short_pct,
+                            "short_shares": None,
+                        }
+                    except (ValueError, IndexError) as e:
+                        logger.debug(f"[FINRA_SHORT_INTEREST] Skipping malformed row {line_num}: {line} ({e})")
+                        continue
+
+                logger.info(f"[FINRA_SHORT_INTEREST] Loaded {len(self._finra_data)} symbols from FINRA")
+                return  # Success, stop trying other URLs
+
+            except requests.exceptions.RequestException as e:
+                logger.debug(f"[FINRA_SHORT_INTEREST] Failed to fetch from {url}: {e}")
+                continue
+            except Exception as e:
+                logger.debug(f"[FINRA_SHORT_INTEREST] Error parsing {url}: {e}")
+                continue
+
+        # If we get here, all URLs failed
+        logger.warning("[FINRA_SHORT_INTEREST] All FINRA URLs failed; will mark data as unavailable")
+        self._finra_data = {}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch short interest for one symbol from cached FINRA data.
@@ -171,7 +198,7 @@ class ShortInterestFinraLoader(OptimalLoader):
                 "symbol": symbol,
                 "settlement_date": finra_row["settlement_date"],
                 "short_shares": finra_row["short_shares"],
-                "short_pct": None,  # Will be computed later if needed (short_shares / float_shares)
+                "short_pct": finra_row["short_pct"],  # Short interest % from FINRA
                 "finra_report_date": now_et.date(),
                 "data_unavailable": False,
                 "reason": None,

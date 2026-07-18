@@ -1275,9 +1275,10 @@ class AlgoConfig:
 
                 invalid_critical_values = []
                 for row in rows:
-                    key = row["key"]
-                    value = row["value"]
-                    dtype = row.get("value_type") if isinstance(row, dict) else (row[2] if len(row) > 2 else None)
+                    row_dict = dict(row) if not isinstance(row, dict) else row
+                    key = row_dict["key"]
+                    value = row_dict["value"]
+                    dtype = row_dict.get("value_type")
                     if value is not None:
                         try:
                             # Use value_type if set, otherwise normalize PostgreSQL type or infer from content

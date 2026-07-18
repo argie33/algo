@@ -221,7 +221,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
     def _build_value_metrics(self, symbol: str, sec_val_row: Any, yfinance_row: Any) -> dict[str, Any]:
         """Build value_metrics dict from sec_valuations + yfinance dividend."""
-        if not sec_val_row or not sec_val_row[1]:  # Not available flag at index 2
+        if not sec_val_row or sec_val_row[2]:  # data_unavailable flag at index 2
             return self._unavailable_marker("value_metrics", symbol)
 
         # Extract SEC-derived valuations
