@@ -8,6 +8,7 @@ from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
 
+
 class MarketCapComputedLoader(OptimalLoader):
     table_name = "market_cap_computed"
     primary_key = ("symbol",)
