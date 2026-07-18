@@ -846,19 +846,23 @@ def run(  # noqa: C901
         )
 
     # Primary: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
-    # FALLBACK: If buy_sell_daily is empty (morning/afternoon orchestrator runs), use stock_scores ranking.
+    # NO FALLBACK: If buy_sell_daily is unexpectedly empty, anomaly detection caught it in
+    # _check_critical_dependencies() and halted. If we reach here, buy_sell_daily must have data.
     signal_source = "buysell_breakout"
     try:
         raw_candidates = _get_candidates_from_buysell(
             run_date, min_composite_score, min_close_quality=min_close_quality
         )
         if not raw_candidates:
-            logger.info(
-                f"[PHASE 7] No buy_sell_daily BUY signals found within {_BUYSELL_LOOKBACK_DAYS} days. "
-                "Falling back to stock_scores ranking (degraded path for morning/afternoon orchestrator runs)."
+            msg = (
+                f"[PHASE 7] buy_sell_daily has signals but NONE passed filters "
+                f"(checked {_BUYSELL_LOOKBACK_DAYS}-day window, min_composite_score={min_composite_score}). "
+                f"Possible causes: (1) all signals below min_score threshold, (2) market regime prevents entries, "
+                f"(3) no price_daily data for signal symbols. Check market_exposure_daily for regime/halt_entries."
             )
-            raw_candidates = _get_candidates_from_stock_scores_fallback(run_date, min_composite_score)
-            signal_source = "stock_scores_fallback"
+            logger.warning(msg)
+            log_phase_result_fn(7, "signal_generation", "no_signals", msg)
+            return PhaseResult(7, "signal_generation", "ok", {"qualified_trades": [], "liquidity_passed": 0}, False, msg)
     except ValueError as e:
         # CONSISTENCY FIX #2: Validation errors now raise exceptions (not silent degradation)
         # Categorize as DATA_INVALID so operators know why signals are missing
