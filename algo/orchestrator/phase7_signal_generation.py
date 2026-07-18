@@ -667,18 +667,30 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                     f"(most recent available; run_date={run_date})"
                 )
 
-            # CRITICAL #3: buy_sell_daily availability and signal count anomaly check
-            # Halts if most recent trading day has suspiciously ZERO signals (indicates upstream failure)
-            lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
+            # CRITICAL #3: buy_sell_daily DATA FRESHNESS check (not just existence check)
+            # Halts if the most recent trading day has NO signals (indicates upstream failure like technical_data_daily crash)
+            # First, find the most recent trading day
+            from algo.infrastructure import MarketCalendar
+
+            most_recent_trading_day = run_date
+            iterations = 0
+            while most_recent_trading_day > run_date - timedelta(days=10) and iterations < 10:
+                if MarketCalendar.is_trading_day(most_recent_trading_day):
+                    break
+                most_recent_trading_day -= timedelta(days=1)
+                iterations += 1
+
+            # Check how many BUY signals are on the most recent trading day
             cur.execute(
                 """
-                SELECT COUNT(*) FROM buy_sell_daily
-                WHERE signal = 'BUY' AND date >= %s AND date <= %s
+                SELECT MAX(date) as max_date, COUNT(*) as signal_count
+                FROM buy_sell_daily
+                WHERE signal = 'BUY' AND date <= %s
                 """,
-                (lookback_date, run_date),
+                (run_date,),
             )
-            buysell_row = cur.fetchone()
-            if buysell_row is None:
+            latest_row = cur.fetchone()
+            if latest_row is None:
                 msg = (
                     "[PHASE 7 CRITICAL] Failed to query buy_sell_daily table. "
                     "Database query returned no result (possible schema issue). "
@@ -688,47 +700,79 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
 
-            buysell_count = buysell_row[0]
-            if buysell_count == 0:
-                # ANOMALY DETECTION: Zero signals in lookback window is suspicious.
-                # Most trading days generate 300+ BUY signals. Zero indicates upstream failure.
-                # Check what the most recent trading day's count was (direct indicator of loader health).
-                from algo.infrastructure import MarketCalendar
+            latest_buysell_date = latest_row[0]
+            latest_buysell_count = latest_row[1]
 
-                prev_trading_day = run_date - timedelta(days=1)
-                iterations = 0
-                while prev_trading_day > run_date - timedelta(days=10) and iterations < 10:
-                    if MarketCalendar.is_trading_day(prev_trading_day):
-                        break
-                    prev_trading_day -= timedelta(days=1)
-                    iterations += 1
-
-                cur.execute(
-                    "SELECT COUNT(*) FROM buy_sell_daily WHERE signal = 'BUY' AND date = %s",
-                    (prev_trading_day,),
+            # DATA FRESHNESS CHECK: Most recent buy_sell_daily entry should be from today or yesterday (for morning runs)
+            # If it's older than that, upstream loaders failed (most likely technical_data_daily)
+            if latest_buysell_date is None:
+                msg = (
+                    "[PHASE 7 CRITICAL HALT] buy_sell_daily table is EMPTY (no records found). "
+                    "This indicates buy_sell_daily loader has never run or all data was deleted. "
+                    "Check: (1) buy_sell_daily loader execution status, "
+                    "(2) data_loader_status table for buy_sell_daily, "
+                    "(3) CloudWatch logs for pipeline errors."
                 )
-                prev_day_count_row = cur.fetchone()
-                prev_day_count = prev_day_count_row[0] if prev_day_count_row else 0
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
 
-                if prev_day_count == 0:
-                    msg = (
-                        f"[PHASE 7 CRITICAL HALT] buy_sell_daily has ZERO BUY signals on most recent trading day ({prev_trading_day}). "
-                        f"This indicates upstream loader failure. Historical normal count: 300-1000+ signals/day. "
-                        f"Likely cause: technical_data_daily or buy_sell_daily loader failed. "
-                        f"Check data_loader_status table and CloudWatch logs for: "
-                        f"(1) technical_data_daily completion status, "
-                        f"(2) buy_sell_daily loader errors, "
-                        f"(3) Signal generation pipeline execution. "
-                        f"DO NOT use fallback to stock_scores - fix the underlying data issue first."
-                    )
-                    logger.critical(msg)
-                    log_phase_result_fn(7, "signal_generation", "halt", msg)
-                    return False, msg
-                else:
-                    logger.info(
-                        f"[PHASE 7] buy_sell_daily: lookback window empty ({buysell_count} signals in last {_BUYSELL_LOOKBACK_DAYS} days), "
-                        f"but previous trading day ({prev_trading_day}) has {prev_day_count} signals - likely a timing issue, will retry on next run"
-                    )
+            days_stale = (run_date - latest_buysell_date).days
+            if days_stale > 1:
+                # Most recent data is >1 day old. For morning/afternoon runs, this is a red flag.
+                # EOD pipeline should have run yesterday evening, so latest data should be from yesterday at worst.
+                msg = (
+                    f"[PHASE 7 CRITICAL HALT] buy_sell_daily data is STALE: most recent is from {latest_buysell_date} ({days_stale} days old). "
+                    f"Expected today or yesterday. This indicates: "
+                    f"(1) EOD pipeline ({latest_buysell_date}) did not complete, OR "
+                    f"(2) Technical_data_daily loader failed (buy_sell_daily depends on it), OR "
+                    f"(3) Buy_sell_daily loader itself failed. "
+                    f"Check data_loader_status for: (1) technical_data_daily - completion/error status, "
+                    f"(2) buy_sell_daily - last_updated timestamp, (3) price_daily freshness. "
+                    f"DO NOT proceed with stock_scores fallback - fix upstream data issues first."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
+
+            # Check if most recent day has suspiciously ZERO signals
+            cur.execute(
+                "SELECT COUNT(*) FROM buy_sell_daily WHERE signal = 'BUY' AND date = %s",
+                (latest_buysell_date,),
+            )
+            today_count_row = cur.fetchone()
+            today_count = today_count_row[0] if today_count_row else 0
+
+            if today_count == 0 and latest_buysell_date >= run_date - timedelta(days=1):
+                # Most recent trading day has 0 signals - this is anomalous
+                msg = (
+                    f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has ZERO BUY signals. "
+                    f"Historical normal: 300-1000+ signals per trading day. "
+                    f"This indicates: (1) technical_data_daily loader failed (required for buy_sell generation), "
+                    f"(2) Signal generation thresholds were too strict, or "
+                    f"(3) No symbols passed selection criteria. "
+                    f"Most likely: upstream technical_data_daily failure. "
+                    f"Check: (1) technical_data_daily status in data_loader_status, "
+                    f"(2) CloudWatch logs for buy_sell_daily loader errors, "
+                    f"(3) Check if price_daily and other dependencies are fresh. "
+                    f"DO NOT use stock_scores fallback - fix underlying data issue first."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
+
+            # Data freshness and signal count look OK
+            if days_stale == 1:
+                logger.info(
+                    f"[PHASE 7] buy_sell_daily is 1 day old (dated {latest_buysell_date}, "
+                    f"{today_count} signals on that day). "
+                    f"This is expected for morning runs (EOD pipeline ran yesterday evening)."
+                )
+            else:
+                logger.info(
+                    f"[PHASE 7] buy_sell_daily freshness OK: latest from {latest_buysell_date} "
+                    f"({latest_buysell_count} signals in table)"
+                )
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         msg = f"[PHASE 7 CRITICAL] Could not validate critical dependencies: {e}"

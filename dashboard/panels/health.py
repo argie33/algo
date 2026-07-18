@@ -1549,7 +1549,11 @@ def _extract_phase_metrics_from_pdata(pdata: dict[str, Any] | None) -> tuple[int
 
     # Metrics may not be present if orchestrator hasn't populated them yet
     sg = pdata.get("signals_generated", 0)
-    ee = pdata.get("entries_executed") or pdata.get("trades_executed", 0)
+    # CRITICAL: Check explicitly for None to avoid confusing 0 (no entries) with missing data
+    # Do not use `or` which treats 0 as falsy and falls back to alternative field
+    ee = pdata.get("entries_executed")
+    if ee is None:
+        ee = pdata.get("trades_executed", 0)
     xe = pdata.get("exits_executed", 0)
 
     # Try to convert to int, but if it fails or is None, use 0

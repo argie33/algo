@@ -397,8 +397,13 @@ def panel_performance_spark(
     else:
         losing_open = adj_l - closed_losses
     # API returns avg_win_pct and avg_loss_pct (not avg_win and avg_loss)
-    avg_win_v = perf.get("avg_win_pct") or perf.get("avg_win")
-    avg_loss_v = perf.get("avg_loss_pct") or perf.get("avg_loss")
+    # CRITICAL: Check explicitly for None to distinguish 0.0 (valid) from missing data
+    avg_win_v = perf.get("avg_win_pct")
+    if avg_win_v is None:
+        avg_win_v = perf.get("avg_win")
+    avg_loss_v = perf.get("avg_loss_pct")
+    if avg_loss_v is None:
+        avg_loss_v = perf.get("avg_loss")
     avg_win_s = f"{avg_win_v:.1f}%" if avg_win_v is not None else "--"
     avg_loss_s = f"{avg_loss_v:.1f}%" if avg_loss_v is not None else "--"
     wrc = (

@@ -636,17 +636,9 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                     continue
                 _record_api_failure()
                 max_att = API_MAX_RETRIES + 1
-                # FIX: Try stale cache for 503/504 before failing completely (dashboard resilience)
-                stale_fallback = _try_stale_cache_fallback(endpoint)
-                if stale_fallback:
-                    logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after {resp.status_code} error")
-                    # Mark stale cache as transient so callers know this is temporary
-                    if resp.status_code == 503:
-                        stale_fallback["_is_transient_503"] = True
-                    elif resp.status_code == 504:
-                        stale_fallback["_is_transient_504"] = True
-                    return stale_fallback
-                # Mark 503/504 Service Unavailable and Gateway Timeout as transient (temporary issues, not permanent failures)
+                # FAIL-FAST: Do NOT use stale cache fallback for finance data
+                # Stale market data, positions, or risk metrics are worse than "data unavailable"
+                # Callers must see explicit errors so they know data is not current
                 error_result: dict[str, Any] = {"_error": f"API error {resp.status_code} after {max_att} attempts"}
                 if resp.status_code == 503:
                     error_result["_is_transient_503"] = True
