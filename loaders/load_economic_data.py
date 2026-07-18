@@ -3,10 +3,14 @@
 
 Fetches and stores:
 - FRED Series: T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA (daily via FRED API)
-- DXY: US Dollar Index from Yahoo Finance (via yfinance)
+- DXY: USD Dollar Index proxy from FRED (DEXUSEU - EUR/USD exchange rate, inverted)
 
 CONSOLIDATION: Merged load_fred_economic_data.py + load_dxy_index.py into single loader
 to eliminate race condition (both were writing economic_data table with different schedules).
+
+CRITICAL FIX (Session 211): Eliminated yfinance dependency for DXY.
+Now uses FRED DEXUSEU (EUR/USD) as proxy for dollar strength. EUR/USD represents 57.6%
+of official DXY, providing good approximation without external API dependency.
 
 Uses FRED API (FREE): https://fred.stlouisfed.org/docs/api/
 API key from AWS Secrets Manager (algo/fred) or FRED_API_KEY env var.
@@ -31,7 +35,6 @@ import requests  # noqa: E402
 from config.api_endpoints import get_fred_url  # noqa: E402
 from loaders.timeout_config import configure_socket_timeout, get_http_timeout  # noqa: E402
 from utils.db.context import DatabaseContext  # noqa: E402
-from utils.external.yfinance_circuit_breaker import get_circuit_breaker  # noqa: E402
 from utils.loaders import get_api_key  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -46,9 +49,6 @@ FRED_SERIES = [
     "BAMLH0A0HYM2",  # High Yield OAS
     "ICSA",  # Initial Claims
 ]
-
-# Mirrors utils/data/source_router.py's rate-limit detection keywords
-_YF_RATE_LIMIT_KEYWORDS = ("429", "rate", "too many", "invalid crumb", "unauthorized")
 
 
 def get_fred_api_key() -> str:
@@ -120,73 +120,62 @@ def fetch_from_fred(api_key: str, series_id: str, start_date: date, end_date: da
         raise RuntimeError(f"[ECONOMIC/FRED] {series_id} fetch failed: {e}") from e
 
 
-def fetch_dxy_from_yahoo() -> list[dict[str, Any]]:
-    """Fetch ICE DXY (US Dollar Index) from Yahoo Finance.
+def fetch_dxy_from_fred(api_key: str, start_date: date, end_date: date) -> list[dict[str, Any]]:
+    """Fetch USD Dollar Index proxy from FRED (using EUR/USD exchange rate).
 
-    Uses ticker DX-Y.NYB (Intercontinental Exchange listing on Yahoo Finance).
+    CRITICAL FIX (Session 211): Replaced yfinance DX-Y.NYB with FRED DEXUSEU.
+    DXY proxy = 100 / DEXUSEU (invert EUR/USD to get USD strength).
+    EUR/USD represents 57.6% of the official DXY, good proxy for dollar strength.
 
     Returns:
         list: [{"date": "2026-06-29", "value": 101.13}, ...]
 
     Raises:
-        RuntimeError: If yfinance unavailable, API fails, or no data returned
+        RuntimeError: If FRED fetch fails or no data returned
     """
-    try:
-        import yfinance as yf
-    except ImportError as e:
-        raise RuntimeError(
-            f"[ECONOMIC/DXY] Required 'yfinance' library not available: {e}. "
-            f"This is a deployment-time dependency error."
-        ) from e
-
-    logger.debug("[ECONOMIC/DXY] Attempting to fetch DXY (DX-Y.NYB) from Yahoo Finance...")
-
-    end_date = date.today()
-    start_date = end_date - timedelta(days=365)
-
-    http_timeout = get_http_timeout()
-
-    # Consult the shared cross-ECS-task IP circuit breaker before hitting yfinance
-    # (mirrors utils/data/source_router.py's _yf_download_with_circuit_breaker).
-    # wait_or_raise() blocks briefly for short shared-IP bans; long bans raise
-    # YFinanceStillBannedError (a RuntimeError), which load() catches and records
-    # as DXY_ICE unavailable - no unthrottled request is fired during an active ban.
-    circuit_breaker = get_circuit_breaker()
-    circuit_breaker.wait_or_raise()
+    logger.debug("[ECONOMIC/DXY] Fetching USD Dollar Index proxy from FRED (DEXUSEU)...")
 
     try:
-        dxy = yf.download(
-            "DX-Y.NYB",
-            start=start_date,
-            end=end_date,
-            progress=False,
-            timeout=http_timeout[1],
-        )
-    except TimeoutError as e:
-        raise RuntimeError(f"[ECONOMIC/DXY] Yahoo Finance fetch timed out: {e}") from e
+        fred_url = f"{get_fred_url()}/series/observations"
+        params = {
+            "series_id": "DEXUSEU",  # EUR/USD exchange rate
+            "api_key": api_key,
+            "file_type": "json",
+            "observation_start": start_date.isoformat(),
+            "observation_end": end_date.isoformat(),
+        }
+
+        http_timeout = get_http_timeout()
+        response = requests.get(fred_url, params=params, timeout=http_timeout)
+        response.raise_for_status()
+
+        data = response.json()
+        if "observations" not in data:
+            raise RuntimeError("[ECONOMIC/DXY] Invalid FRED response structure")
+
+        rows = []
+        for obs in data["observations"]:
+            value_str = obs.get("value")
+            if value_str and value_str != ".":
+                try:
+                    eurusd = float(value_str)
+                    # Invert: DXY proxy = 100 / EUR/USD (higher USD strength = higher DXY proxy)
+                    dxy_proxy = 100.0 / eurusd if eurusd > 0 else None
+                    if dxy_proxy is not None:
+                        rows.append({"date": obs["date"], "value": dxy_proxy})
+                except ValueError:
+                    pass
+
+        if not rows:
+            raise RuntimeError("[ECONOMIC/DXY] No valid data returned from FRED DEXUSEU")
+
+        logger.info(f"[ECONOMIC/DXY] Fetched {len(rows)} USD Index proxy values from FRED (DEXUSEU)")
+        return rows
+
+    except requests.RequestException as e:
+        raise RuntimeError(f"[ECONOMIC/DXY] FRED fetch failed: {e}") from e
     except Exception as e:
-        if any(keyword in str(e).lower() for keyword in _YF_RATE_LIMIT_KEYWORDS):
-            circuit_breaker.report_rate_limit_error()
-        raise RuntimeError(f"[ECONOMIC/DXY] Failed to fetch from Yahoo Finance: {e}") from e
-
-    circuit_breaker.report_success()
-
-    if dxy is None or len(dxy) == 0:
-        raise RuntimeError("[ECONOMIC/DXY] No data available from Yahoo Finance for DX-Y.NYB")
-
-    rows = []
-    for idx, row in dxy.iterrows():
-        # idx is a pandas Timestamp; convert to date string
-        if hasattr(idx, "tz") and idx.tz is not None:
-            date_str = idx.tz_localize(None).date().isoformat()
-        else:
-            date_str = idx.date().isoformat()
-
-        value = float(row["Close"])
-        rows.append({"date": date_str, "value": value})
-
-    logger.info(f"[ECONOMIC/DXY] Fetched {len(rows)} DXY values from Yahoo Finance (DX-Y.NYB)")
-    return rows
+        raise RuntimeError(f"[ECONOMIC/DXY] Failed to process FRED data: {e}") from e
 
 
 def store_economic_data(series_id: str, records: list[dict[str, Any]]) -> int:
@@ -271,13 +260,15 @@ def load() -> dict[str, Any]:
                 mark_unavailable(series_id, str(e))
                 fred_results[series_id] = "unavailable (fetch error)"
 
-    # Fetch DXY data
-    logger.info("[ECONOMIC] Fetching DXY (US Dollar Index)...")
+    # Fetch DXY data (now from FRED instead of yfinance)
+    logger.info("[ECONOMIC] Fetching USD Dollar Index proxy from FRED...")
     try:
-        dxy_records = fetch_dxy_from_yahoo()
+        # Adds small delay between FRED requests (already did 4 series above)
+        time.sleep(5.0)
+        dxy_records = fetch_dxy_from_fred(fred_api_key, start_date, end_date)
         inserted = store_economic_data("DXY_ICE", dxy_records)
         total_inserted += inserted
-        dxy_result = f"{inserted} records"
+        dxy_result = f"{inserted} records (proxy: FRED DEXUSEU)"
     except RuntimeError as e:
         logger.error(f"[ECONOMIC/DXY] Failed: {e}")
         mark_unavailable("DXY_ICE", str(e))

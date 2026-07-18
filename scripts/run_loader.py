@@ -7,12 +7,18 @@ Usage:
   python3 scripts/run_loader.py stock_scores --limit 100
 
 This bypasses the full orchestrator and Step Functions to test individual loaders quickly.
+
+FORCE REFRESH (--force-refresh):
+  Bypasses watermarks AND updates loader_watermarks for all processed symbols to TODAY.
+  This ensures data stays fresh in LOCAL_MODE (fixes Session 211 data staleness issue).
+  Used by Phase 1 failsafe retry in LOCAL_MODE to refresh stale data.
 """
 
 import argparse
 import logging
 import os
 import sys
+from datetime import date
 
 # Set LOCAL_MODE for direct database access and to skip AWS-dependent operations
 os.environ["LOCAL_MODE"] = "true"
@@ -24,6 +30,80 @@ if "REDIS_URL" not in os.environ:
 
 logging.basicConfig(level=logging.INFO, format="[%(name)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None:
+    """Update loader_watermarks for all active symbols to today's date.
+
+    CRITICAL FIX for LOCAL_MODE data freshness (Session 211):
+    When --force-refresh completes, update watermarks so next run doesn't skip data.
+    Without this, loaders see old watermarks and skip refresh (data ages 1-2 days per run).
+
+    Args:
+        loader_name: Loader identifier (e.g., 'load_prices', 'load_technical_indicators')
+        table_names: Output table names (used to map to loader_name)
+    """
+    import psycopg2
+    today_str = date.today().isoformat()
+
+    try:
+        # Map table names to loader names used in loader_watermarks
+        table_to_loader = {
+            "price_daily": "load_prices",
+            "technical_data_daily": "load_technical_indicators",
+            "market_health_daily": "load_market_status_daily",
+            "value_metrics": "load_value_quality_growth_metrics",
+            "quality_metrics": "load_value_quality_growth_metrics",
+            "growth_metrics": "load_value_quality_growth_metrics",
+            "stock_scores": "load_stock_scores",
+        }
+
+        # Get all active symbols from stock_symbols table
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+
+        if not symbols:
+            logger.warning("[WATERMARK] No active symbols found - skipping watermark update")
+            cursor.close()
+            conn.close()
+            return
+
+        logger.info(f"[WATERMARK] Updating watermarks for {len(symbols)} symbols to {today_str}")
+
+        # Update watermarks for each table's loader
+        for table_name in table_names:
+            map_loader_name = table_to_loader.get(table_name)
+            if not map_loader_name:
+                logger.warning(f"[WATERMARK] Unknown table {table_name}, skipping watermark update")
+                continue
+
+            # Update all symbols' watermarks to today (use upsert pattern)
+            for symbol in symbols:
+                cursor.execute(
+                    """
+                    INSERT INTO loader_watermarks (loader, symbol, granularity, watermark, rows_loaded, last_run_at, last_success_at)
+                    VALUES (%s, %s, 'symbol', %s, 0, NOW(), NOW())
+                    ON CONFLICT (loader, symbol, granularity)
+                    DO UPDATE SET
+                        watermark = %s,
+                        last_run_at = NOW(),
+                        last_success_at = NOW(),
+                        error_count = 0,
+                        last_error = NULL
+                    """,
+                    (map_loader_name, symbol, today_str, today_str)
+                )
+
+            conn.commit()
+            logger.info(f"[WATERMARK] ✓ Updated {map_loader_name} watermarks ({len(symbols)} symbols)")
+
+        cursor.close()
+        conn.close()
+
+    except Exception as e:
+        logger.error(f"[WATERMARK] Failed to update watermarks: {e}", exc_info=True)
 
 
 def run_price_loader(symbols=None, backfill_days=1):
@@ -254,6 +334,13 @@ def main():
                 logger.info(f"[FORCE_REFRESH] Marked {table_names} as COMPLETED")
             except Exception as e:
                 logger.warning(f"[FORCE_REFRESH] Could not update status to COMPLETED: {e}")
+
+            # CRITICAL FIX (Session 211): Update watermarks after --force-refresh
+            # Ensures next orchestrator run sees fresh data (prevents 1-2 day staleness in LOCAL_MODE)
+            try:
+                update_watermarks_to_today(args.loader, table_names)
+            except Exception as e:
+                logger.error(f"[WATERMARK] Failed to update watermarks after force-refresh: {e}", exc_info=True)
 
         logger.info("Loader completed successfully")
         return 0
