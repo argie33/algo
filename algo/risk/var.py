@@ -513,31 +513,12 @@ class ValueAtRisk:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute("""
-                    WITH open_trades AS (
-                        SELECT DISTINCT ON (at.symbol)
-                            at.symbol, at.entry_quantity as quantity, at.entry_price,
-                            lp.current_price,
-                            (at.entry_quantity * lp.current_price) as position_value
-                        FROM algo_trades at
-                        LEFT JOIN (
-                            SELECT DISTINCT ON (symbol) symbol, close as current_price
-                            FROM price_daily
-                            WHERE symbol IN (
-                                SELECT DISTINCT symbol FROM algo_trades
-                                WHERE status IN ('open', 'filled', 'active', 'partially_filled')
-                                  AND exit_date IS NULL
-                            )
-                            ORDER BY symbol, date DESC
-                        ) lp ON at.symbol = lp.symbol
-                        WHERE at.status IN ('open', 'filled', 'active', 'partially_filled')
-                          AND at.exit_date IS NULL
-                        ORDER BY at.symbol, at.trade_date DESC
-                    )
-                    SELECT ot.symbol, ot.quantity, ot.current_price, ot.entry_price,
+                    SELECT ap.symbol, ap.quantity, ap.current_price,
                            cp.sector, cp.industry
-                    FROM open_trades ot
-                    LEFT JOIN company_profile cp ON ot.symbol = cp.ticker
-                    ORDER BY ABS(ot.position_value) DESC
+                    FROM algo_positions ap
+                    LEFT JOIN company_profile cp ON ap.symbol = cp.ticker
+                    WHERE ap.status = 'open'
+                    ORDER BY ap.position_value DESC
                     """)
                 positions = cur.fetchall()
 
@@ -600,7 +581,7 @@ class ValueAtRisk:
 
                 # CRITICAL: Validate all position pricing BEFORE computing concentration
                 # Concentration metrics are only meaningful if computed on complete position data
-                for symbol, _qty, cur_price, _entry_price, _sector, _industry in positions:
+                for symbol, qty, cur_price, sector, industry in positions:
                     if cur_price is None or float(cur_price) <= 0:
                         raise ValueError(
                             f"[CONCENTRATION CRITICAL] Position {symbol} has invalid or missing current_price ({cur_price}). "
@@ -610,7 +591,7 @@ class ValueAtRisk:
                             f"Check that positions table is up-to-date with current market prices."
                         )
 
-                for symbol, qty, cur_price, _entry_price, sector, industry in positions:
+                for symbol, qty, cur_price, sector, industry in positions:
                     # CRITICAL: Do NOT use entry_price as fallback for current_price
                     position_value = float(Decimal(str(qty)) * Decimal(str(cur_price)))
                     portfolio_value_float = float(portfolio_value)

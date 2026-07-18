@@ -76,8 +76,8 @@ def main() -> None:
             from algo.infrastructure.config import get_config
             from algo.orchestration.orchestrator import Orchestrator
 
-            # Generate run_id
-            run_id = f"LOCAL-{run_type.upper()}-{now.strftime('%Y%m%d-%H%M%S')}"
+            # Generate run_id with microseconds to ensure uniqueness across rapid runs
+            run_id = f"LOCAL-{run_type.upper()}-{now.strftime('%Y%m%d-%H%M%S')}-{now.microsecond:06d}"
 
             print(f"  Run ID: {run_id}")
             print("  Mode: paper (local development)")
