@@ -77,6 +77,7 @@ class MarketStatusDailyLoader(OptimalLoader):
             )
             return {
                 "symbols_processed": 0,
+                "symbols_failed": 0,
                 "rows_inserted": 0,
                 "duration_sec": 0,
                 "latest_date": None,
@@ -89,6 +90,25 @@ class MarketStatusDailyLoader(OptimalLoader):
         else:
             symbol_list = list(symbols) if not isinstance(symbols, list) else symbols
         return super().run(symbols=symbol_list, parallelism=parallelism, backfill_days=backfill_days)
+
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]] | dict[str, Any]:
+        """Fetch global market data. Skips on non-trading days.
+
+        Returns:
+            list[dict]: Market data rows if trading day.
+            dict: Marker dict if non-trading day or data unavailable.
+        """
+        from algo.infrastructure import MarketCalendar
+        now_et = datetime.now(EASTERN_TZ)
+        run_date = now_et.date()
+        if not MarketCalendar.is_trading_day(run_date):
+            logger.info(
+                f"[{self.table_name}] Skipping fetch_global: today ({run_date}) is not a trading day. "
+                f"Market data will use last available trading day's data."
+            )
+            return {"data_unavailable": True, "reason": "non_trading_day"}
+
+        return self.fetch_incremental("market", since)
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch and compute all market metrics for one date.
@@ -304,7 +324,10 @@ class MarketStatusDailyLoader(OptimalLoader):
     def load_global(self) -> int:
         """Market-wide loader uses load_global pattern."""
         result = self.run(["market"], parallelism=1)
-        return 1 if result.get("symbols_failed", 0) > 0 else 0
+        if result.get("status") == "SKIPPED_NON_TRADING_DAY":
+            return 1
+        rows = result.get("rows_inserted", 0)
+        return int(rows) if rows is not None else 0
 
 
 if __name__ == "__main__":
