@@ -2648,6 +2648,7 @@ def _build_results_panel(  # noqa: C901
     risk: dict[str, Any] | None,
     notifs: list[Any],
     audit: list[Any],
+    hlth: dict[str, Any] | list[Any] | None = None,
 ) -> Panel:
     """Build RIGHT panel: run results, history, risk, notifications, audit.
 
@@ -2659,11 +2660,12 @@ def _build_results_panel(  # noqa: C901
         risk: Risk metrics (VaR, beta, concentration)
         notifs: Notification items
         audit: Audit log entries
+        hlth: Health data containing execution_health
 
     Returns:
         Rich Panel with run results and history
     """
-    right_rows: list[Text | Rule] = [
+    right_rows: list[Text | Rule | Panel] = [
         Text.from_markup("[dim]press [/][bold yellow]h[/][dim] to return to dashboard[/]"),
         Rule(style="dim"),
     ]
@@ -2842,6 +2844,14 @@ def _build_results_panel(  # noqa: C901
         right_rows.append(Text.from_markup("[dim]5d:[/] " + "  ".join(day_parts_e)))
 
     right_rows.append(Rule(style="dim"))
+
+    # Phase execution health panel (if available)
+    if hlth and isinstance(hlth, dict):
+        execution_health = hlth.get("execution_health")
+        phase_exec_panel = _build_phase_execution_panel(execution_health)
+        if phase_exec_panel:
+            right_rows.append(phase_exec_panel)
+            right_rows.append(Rule(style="dim"))
 
     valid_hist_e = exec_hist if (exec_hist and not (isinstance(exec_hist, dict) and has_error(exec_hist))) else []
     if valid_hist_e:
@@ -3033,7 +3043,7 @@ def panel_algo_health_expanded(
         audit_display = []
     else:
         audit_display = audit
-    right_panel = _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, audit_display)
+    right_panel = _build_results_panel(run, act, algo_metrics_display, exec_hist_display, risk, notifs, audit_display, hlth)
 
     dual = Layout()
     dual.split_row(
