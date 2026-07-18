@@ -28,7 +28,7 @@ from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
-from utils.loaders.exception_handler import handle_exception, handle_invalid_data
+from utils.loaders.exception_handler import handle_exception
 
 logger = logging.getLogger(__name__)
 configure_socket_timeout(30)

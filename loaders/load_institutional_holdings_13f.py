@@ -60,8 +60,12 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch institutional holdings from SEC companyfacts API.
 
-        Uses SEC's standardized companyfacts endpoint (XBRL) for institutional
-        ownership data. This avoids complex Schedule 13G XML parsing.
+        LIMITATION: Attempted to use SEC's companyfacts XBRL endpoint for
+        institutional ownership data. However, most companies do NOT have
+        EntityIntelligenceData/SRT_InstitutionalOwnersPercent metrics in
+        companyfacts. Real institutional holdings data comes from Form 13F
+        filings, which require complex XML/HTML parsing (not available via
+        companyfacts API). This loader returns data_unavailable for most stocks.
 
         Args:
             symbol: Stock ticker symbol

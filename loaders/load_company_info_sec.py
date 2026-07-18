@@ -30,8 +30,6 @@ from utils.external.sec_edgar import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.loaders.exception_handler import (
     handle_exception,
-    handle_no_data_found,
-    handle_resource_not_found,
     handle_schema_mismatch,
 )
 

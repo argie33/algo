@@ -264,12 +264,11 @@ def classify_exception(error: Exception) -> str:
     return "unexpected"
 
 
-def handle_exception(symbol: str, error: Exception, context: str = "") -> dict[str, Any] | None:
+def handle_exception(symbol: str, error: Exception, context: str = "") -> dict[str, Any]:
     """Route exception to appropriate handler based on classification.
 
     Returns:
-        data_unavailable marker if exception is known/retryable
-        None if exception should be propagated (unexpected)
+        data_unavailable marker for all known/classified exceptions
 
     Raises:
         The original exception if it's unexpected and should fail-fast
