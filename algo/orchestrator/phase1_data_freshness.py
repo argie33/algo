@@ -2,7 +2,12 @@
 """
 PHASE 1: DATA FRESHNESS CHECK
 
-Verify pipeline-loaded tables are fresh before trading:
+Verify pipeline-loaded tables are fresh before trading. "Fresh" = LAST TRADING DAY data:
+- If today is a trading day (Mon-Fri): require today's data
+- If today is weekend/holiday: require most recent trading day's data
+- NO multi-day lookback windows (Session 223 fix: stale data bypass)
+
+Tables verified (all must have LAST-TRADING-DAY data with non-NULL prices):
 1. price_daily: Must have last trading day data (75%+ symbol coverage) - HALT if stale
 2. market_health_daily: Market breadth metrics - HALT if stale
 3. market_exposure_daily: Market regime / exposure limits - HALT if stale
@@ -341,12 +346,15 @@ def run(  # noqa: C901
                 run_date_obj = run_date
 
             if pipeline_context == "MORNING" or pipeline_context == "INTRADAY":
-                # During market hours: expect the *previous* trading day's data (today's not closed yet)
+                # During market hours (before close): expect the *previous* trading day's data
+                # (today's not closed yet, so markets haven't published today's data)
+                # This is the RIGHT thing: require most recent market close's data
                 prev_date = run_date_obj - td(days=1)
                 if MarketCalendar.is_trading_day(prev_date):
                     last_trading_day = prev_date
                 else:
                     # Find the most recent trading day before today
+                    # (e.g., if today is Monday, find Friday; if Monday is holiday, find Thursday)
                     last_trading_day = prev_date
                     while last_trading_day > run_date_obj - td(days=10):
                         if MarketCalendar.is_trading_day(last_trading_day):
@@ -354,12 +362,13 @@ def run(  # noqa: C901
                         last_trading_day -= td(days=1)
             else:
                 # After market close (EOD context): expect same-day data if it's a trading day
-                # TOLERANCE: Allow 1 trading day grace period for data providers (yfinance delay)
-                # to have day's data available. Data should be from last trading day or same day.
+                # If today is not a trading day (weekend/holiday): expect yesterday's data if it's trading day
+                # This is the RIGHT thing: require most recent market close's data
                 if MarketCalendar.is_trading_day(run_date_obj):
                     last_trading_day = run_date_obj
                 else:
                     # Weekend/holiday: find most recent trading day
+                    # (e.g., if today is Saturday, find Friday; if Friday was market close, use that)
                     last_trading_day = run_date_obj - td(days=1)
                     while last_trading_day > run_date_obj - td(days=10):
                         if MarketCalendar.is_trading_day(last_trading_day):
@@ -424,9 +433,11 @@ def run(  # noqa: C901
                     f"Price data too old: {max_date} vs {acceptable_min_date}. Check price_daily loader and EventBridge Scheduler.",
                 )
 
-            # CRITICAL FIX: Require TODAY-ONLY data with actual non-NULL prices
+            # CRITICAL FIX: Require LAST-TRADING-DAY data with actual non-NULL prices
+            # "Last trading day" = TODAY if today is a trading day (Mon-Fri), otherwise most recent trading day
             # Reject multi-day window (allows trading on stale data)
             # Reject phantom rows (NULL prices counted as fresh data)
+            # This is the RIGHT thing: require data for the most recent market close, always
 
             cur.execute(
                 """SELECT COUNT(DISTINCT symbol)
@@ -436,10 +447,10 @@ def run(  # noqa: C901
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
-                raise RuntimeError("Symbol count query failed for today's prices")
+                raise RuntimeError(f"Symbol count query failed for last trading day ({last_trading_day})")
             symbols_loaded = row[0]
 
-            # For coverage baseline: use previous trading day to establish what a complete day looks like
+            # For coverage baseline: use day before last trading day (expected to have complete data)
             prev_trading_day = last_trading_day - td(days=1)
             while prev_trading_day > last_trading_day - td(days=10):
                 if MarketCalendar.is_trading_day(prev_trading_day):
