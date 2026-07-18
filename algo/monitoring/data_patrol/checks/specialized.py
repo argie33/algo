@@ -79,7 +79,10 @@ class SpecializedChecker(BaseCheck):
                     FROM {tbl_safe}
                 """)
                 result = cur.fetchone()
-                count, latest = result["count"], result["latest"]
+                if result is None:
+                    raise ValueError(f"Query returned no results for {tbl}")
+                count = result.get("count") if hasattr(result, "get") else result[0]
+                latest = result.get("latest") if hasattr(result, "get") else result[1]
 
                 if not latest:
                     self.log(
@@ -135,7 +138,8 @@ class SpecializedChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("Earnings coverage query returned no results - database state corrupted")
-            est_syms, price_syms = row["est_syms"], row["price_syms"]
+            est_syms = row.get("est_syms") if hasattr(row, "get") else row[0]
+            price_syms = row.get("price_syms") if hasattr(row, "get") else row[1]
             if est_syms is None:
                 raise ValueError("COUNT(DISTINCT e.symbol) returned NULL - earnings estimates query may have failed")
             if price_syms is None:
@@ -300,7 +304,8 @@ class SpecializedChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("NaN check query returned no results - database state corrupted")
-            bad_atr, bad_rsi_nan = row["bad_atr"], row["bad_rsi_nan"]
+            bad_atr = row.get("bad_atr") if hasattr(row, "get") else row[0]
+            bad_rsi_nan = row.get("bad_rsi_nan") if hasattr(row, "get") else row[1]
             if bad_atr is None or bad_rsi_nan is None:
                 raise ValueError("COUNT(*) FILTER for NaN check returned NULL - cannot evaluate data quality")
             bad_atr = int(bad_atr)
@@ -388,7 +393,8 @@ class SpecializedChecker(BaseCheck):
             cur.execute("SELECT MAX(date) AS max_date, MAX(updated_at) AS max_updated FROM sentiment_aggregate")
             row = cur.fetchone()
             if row:
-                max_date, max_updated = row["max_date"], row["max_updated"]
+                max_date = row.get("max_date") if hasattr(row, "get") else row[0]
+                max_updated = row.get("max_updated") if hasattr(row, "get") else row[1]
             else:
                 max_date = max_updated = None
 

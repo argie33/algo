@@ -241,6 +241,17 @@ class OrchestratorPhaseExecutor:
                     f"[PHASE {phase_num}] BLOCKING: Cannot execute phase with {len(phase.dependencies)} "
                     f"unsatisfied dependencies. Dependency chain: {phase.dependencies}"
                 )
+            # CRITICAL FIX: Store error result so downstream phases see "dependency_failed" not "never executed"
+            # Without storing this, missing phase_results[N] looks like phase N never ran, causing cascading failures
+            result = PhaseResult(
+                phase_num=phase_num,
+                phase_name=phase.phase_name,
+                status="error",
+                data=self._get_default_skip_data(phase_num),
+                error=dep_error,
+                dependencies=phase.dependencies,
+            )
+            self.phase_results[phase_num] = result
             return False, dep_error
 
         # Execute phase

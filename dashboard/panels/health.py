@@ -281,7 +281,7 @@ def _build_phase_execution_panel(
     # Build phase rows showing ALL 9 phases
     phase_rows: list[Text] = []
 
-    for phase_num, phase_name, phase_key, phase_data in phases_def:
+    for phase_num, phase_name, _phase_key, phase_data in phases_def:
         phase_status = phase_status_map.get(phase_num, {})
         status_str = phase_status.get("status", "not_run")
 
@@ -317,10 +317,8 @@ def _build_phase_execution_panel(
                 # Phase ran but data corrupted - render error
                 phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
             else:
-                tables_validated = phase_data.get("tables_validated", 0) if isinstance(phase_data, dict) else 0
                 tables_fresh = phase_data.get("tables_fresh", 0) if isinstance(phase_data, dict) else 0
                 tables_stale = phase_data.get("tables_stale", 0) if isinstance(phase_data, dict) else 0
-                validation_status = phase_data.get("validation_status", "unknown") if isinstance(phase_data, dict) else "unknown"
 
                 if tables_stale > 0:
                     stale_color = R if tables_stale >= 3 else Y
