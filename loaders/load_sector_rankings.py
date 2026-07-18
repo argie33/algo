@@ -40,23 +40,25 @@ class SectorRankingLoader(OptimalLoader):
                 )
 
                 # Compute sector rankings from stock scores.
-                # rank_1w/4w/12w_ago use the nearest row at-or-before the lookback date
-                # (loader gaps/weekends leave no exact-date row) and bootstrap to
-                # current_rank when history is missing - sector_rotation.py hard-requires
-                # all three to be non-NULL for market regime computation.
+                # GOVERNANCE FIX: Removed COALESCE(ss.composite_score, 50) - artificially inflated
+                # average scores with missing data. Now only includes stocks with real scores.
+                # rank_1w/4w/12w_ago: removed bootstrap fallback (COALESCE to current_rank) -
+                # missing history should be NULL not fabricated momentum. If downstream requires
+                # non-NULL, it must validate explicitly and fail-fast if unavailable.
                 cur.execute(
                     """
                     WITH sector_stats AS (
                         SELECT
                             cp.sector AS sector_name,
                             COUNT(DISTINCT ss.symbol) AS stock_count,
-                            AVG(COALESCE(ss.composite_score, 50)) AS avg_score,
-                            RANK() OVER (ORDER BY AVG(COALESCE(ss.composite_score, 50)) DESC) AS current_rank
+                            AVG(ss.composite_score) AS avg_score,
+                            RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         WHERE cp.sector IS NOT NULL
                           AND cp.sector != ''
                           AND cp.sector != 'Unknown'
+                          AND ss.composite_score IS NOT NULL
                         GROUP BY cp.sector
                     )
                     INSERT INTO sector_ranking
@@ -66,10 +68,10 @@ class SectorRankingLoader(OptimalLoader):
                         ss.sector_name,
                         NOW()::date,
                         ss.current_rank,
-                        COALESCE(ss.current_rank - COALESCE(r1.rank, ss.current_rank), 0),
-                        COALESCE(r1.rank, ss.current_rank),
-                        COALESCE(r4.rank, ss.current_rank),
-                        COALESCE(r12.rank, ss.current_rank)
+                        ss.current_rank - COALESCE(r1.rank, ss.current_rank),
+                        r1.rank,
+                        r4.rank,
+                        r12.rank
                     FROM sector_stats ss
                     LEFT JOIN LATERAL (
                         SELECT sr.current_rank AS rank FROM sector_ranking sr
@@ -101,19 +103,21 @@ class SectorRankingLoader(OptimalLoader):
                 sector_count = int(cur.rowcount) if cur.rowcount is not None else 0
 
                 # Compute industry rankings (same pattern as sector rankings)
+                # GOVERNANCE FIX: Removed COALESCE defaults to stop fabricating missing data
                 cur.execute(
                     """
                     WITH industry_stats AS (
                         SELECT
                             cp.industry AS industry_name,
                             COUNT(DISTINCT ss.symbol) AS stock_count,
-                            AVG(COALESCE(ss.composite_score, 50)) AS avg_score,
-                            RANK() OVER (ORDER BY AVG(COALESCE(ss.composite_score, 50)) DESC) AS current_rank
+                            AVG(ss.composite_score) AS avg_score,
+                            RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         WHERE cp.industry IS NOT NULL
                           AND cp.industry != ''
                           AND cp.industry != 'Unknown'
+                          AND ss.composite_score IS NOT NULL
                         GROUP BY cp.industry
                     )
                     INSERT INTO industry_ranking
@@ -122,9 +126,9 @@ class SectorRankingLoader(OptimalLoader):
                         ist.industry_name,
                         NOW()::date,
                         ist.current_rank,
-                        COALESCE(ist.current_rank - COALESCE(r1.rank, ist.current_rank), 0),
-                        COALESCE(r1.rank, ist.current_rank),
-                        COALESCE(r4.rank, ist.current_rank)
+                        ist.current_rank - COALESCE(r1.rank, ist.current_rank),
+                        r1.rank,
+                        r4.rank
                     FROM industry_stats ist
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir

@@ -107,7 +107,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     SELECT
                         sector,
                         %s as date,
-                        COALESCE(return_pct, 0) as return_pct,
+                        return_pct,
                         1.0 as relative_strength,
                         'price_daily_aggregated' as data_source,
                         NOW() as created_at,
@@ -125,19 +125,22 @@ class SectorIndustryDailyLoader(OptimalLoader):
 
                 # ===== SECTOR RANKINGS =====
                 # Rank sectors by average composite score + compute momentum
+                # GOVERNANCE FIX: Removed COALESCE(ss.composite_score, 50) - no fabricated scores
+                # Only include sectors with stocks that have real scores
                 cur.execute(
                     """
                     WITH sector_stats AS (
                         SELECT
                             cp.sector AS sector_name,
                             COUNT(DISTINCT ss.symbol) AS stock_count,
-                            AVG(COALESCE(ss.composite_score, 50)) AS avg_score,
-                            RANK() OVER (ORDER BY AVG(COALESCE(ss.composite_score, 50)) DESC) AS current_rank
+                            AVG(ss.composite_score) AS avg_score,
+                            RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         WHERE cp.sector IS NOT NULL
                           AND cp.sector != ''
                           AND cp.sector != 'Unknown'
+                          AND ss.composite_score IS NOT NULL
                         GROUP BY cp.sector
                     )
                     INSERT INTO sector_ranking
@@ -147,11 +150,11 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         ss.sector_name,
                         NOW()::date,
                         ss.current_rank,
-                        COALESCE(ss.current_rank - COALESCE(r1.rank, ss.current_rank), 0),
+                        ss.current_rank - COALESCE(r1.rank, ss.current_rank),
                         'price_daily_aggregated' as data_source,
-                        COALESCE(r1.rank, ss.current_rank),
-                        COALESCE(r4.rank, ss.current_rank),
-                        COALESCE(r12.rank, ss.current_rank)
+                        r1.rank,
+                        r4.rank,
+                        r12.rank
                     FROM sector_stats ss
                     LEFT JOIN LATERAL (
                         SELECT sr.current_rank AS rank FROM sector_ranking sr
