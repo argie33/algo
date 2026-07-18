@@ -1460,7 +1460,7 @@ def _format_run_history_summary(valid_hist: list[Any] | None) -> list[Text]:
     """Format run history badges and summary stats."""
     rows: list[Text] = []
     if not valid_hist:
-        logger.warning(
+        logger.debug(
             "[HISTORY_FORMAT] Run history unavailable for summary display. "
             "Execution history list is empty or null. Cannot show success rate or past run outcomes."
         )

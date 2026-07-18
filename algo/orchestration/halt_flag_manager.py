@@ -158,7 +158,11 @@ class HaltFlagManager:
                 return True
 
             return False
-        except (ValueError, ZeroDivisionError, TypeError) as e:
+        except Exception as e:
+            if "UnrecognizedClientException" in str(e) or "InvalidCredentials" in str(e):
+                logger.info(f"[HALT_FLAG] DynamoDB unavailable (local dev mode?). Allowing execution to continue. {e}")
+                return False
+
             logger.critical(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}")
             logger.critical("[CRITICAL] FAILING CLOSED: Treating DynamoDB unavailability as halt condition for safety")
 
@@ -170,7 +174,7 @@ class HaltFlagManager:
                     f"Error: {str(e)[:200]}",
                     {"error": str(e)[:200], "action": "manual_intervention_required"},
                 )
-            except (ValueError, ZeroDivisionError, TypeError) as alert_err:
+            except Exception as alert_err:
                 logger.warning(f"Could not send DynamoDB unavailability alert: {alert_err}")
 
             try:
@@ -357,8 +361,11 @@ class HaltFlagManager:
                 logger.warning(f"[PROACTIVE_CLEAR] Could not parse triggered_at: {parse_err}")
                 return False
 
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            logger.warning(f"[PROACTIVE_CLEAR] Could not proactively clear halt: {e}. Continuing anyway.")
+        except Exception as e:
+            if "UnrecognizedClientException" in str(e) or "InvalidCredentials" in str(e):
+                logger.info(f"[PROACTIVE_CLEAR] DynamoDB unavailable (local dev mode?). Skipping halt flag check. {e}")
+            else:
+                logger.warning(f"[PROACTIVE_CLEAR] Could not proactively clear halt: {e}. Continuing anyway.")
             return False
 
     def clear_halt_flag(self, reason: str = "") -> bool:

@@ -306,7 +306,7 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
         coverage = pos.get("coverage")
 
     if coverage is None:
-        logger.warning("[POSITIONS_PANEL] Coverage metadata missing from API - filtering visibility unavailable")
+        logger.debug("[POSITIONS_PANEL] Coverage metadata missing from API - filtering visibility unavailable (expected in local mode)")
 
     # Display filtering status with clear explanation of what was filtered
     # Fail-fast: Check that coverage data is valid before using. Do not silently default to 0.

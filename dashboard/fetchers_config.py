@@ -335,7 +335,7 @@ def fetch_health(c: None) -> dict[str, Any]:
             # Explicit validation: age_hours required for freshness display
             age_hours = s.get("age_hours")
             if age_hours is None:
-                logger.warning(f"Data freshness missing age_hours for {name} - freshness cannot be displayed")
+                logger.debug(f"Data freshness missing age_hours for {name} - freshness cannot be displayed (expected for derived/local sources)")
                 age_days = None
             else:
                 try:

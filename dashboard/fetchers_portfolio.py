@@ -463,11 +463,10 @@ def fetch_perf(c: None) -> dict[str, Any]:
                 raise ValueError(f"[PORTFOLIO_FETCHER] Failed to convert performance metric {v!r} to float: {e}") from e
 
         # unrealized_pnl is optional enrichment (comes from portfolio endpoint if available)
-        # Performance endpoint may not include it; return explicit marker if unavailable
+        # Performance endpoint may not include it; leave as None and let downstream handle gracefully
         unrealized_pnl = perf.get("unrealized_pnl")
         if unrealized_pnl is None:
             logger.debug("Performance data missing 'unrealized_pnl' field (optional enrichment)")
-            unrealized_pnl = {"data_unavailable": True, "reason": "not_in_performance_response"}
 
         # open_positions_count = total open positions; open_losses_count = subset with losses
         # Accept both API field names to support different versions

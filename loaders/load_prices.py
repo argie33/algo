@@ -2104,16 +2104,23 @@ def _invalidate_phase1_cache() -> None:
     so Phase 1 knows not to use it. If that also fails, raises RuntimeError to
     halt the loader and prevent silent stale-data use.
 
+    In LOCAL_MODE, skips DynamoDB operations since credentials unavailable.
+
     ISSUE #2 FIX: Three-tier approach:
     1. Try to delete cache (best case)
     2. If delete fails, mark as poisoned so Phase 1 skips it
     3. If both fail and not a permission error, halt loader immediately
-    4. If permission error, log warning and allow loader to continue
+    4. If permission error or LOCAL_MODE, log warning and allow loader to continue
     """
     from datetime import datetime
 
     import boto3
     from botocore.exceptions import ClientError
+
+    local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
+    if local_mode:
+        logger.info("[CACHE INVALIDATION] LOCAL_MODE enabled - skipping DynamoDB cache invalidation")
+        return
 
     # FIX: Use ET date, not system date (AWS runs in UTC but trading is ET-based)
     try:
