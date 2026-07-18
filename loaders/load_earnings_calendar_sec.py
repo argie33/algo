@@ -120,7 +120,7 @@ class EarningsCalendarSECLoader(SecLoaderBase):
                 )
                 return self._unavailable_record(symbol, now_et, "array_length_mismatch")
 
-            earnings_dates = []
+            earnings_dates_dict = {}  # Key: filing_date, Value: (filing_type, record)
 
             # Extract 10-K and 10-Q filing dates
             for i, form_type in enumerate(forms):
@@ -138,15 +138,19 @@ class EarningsCalendarSECLoader(SecLoaderBase):
 
                     # Only include recent filings (last 24 months)
                     if (now_et.date() - filing_date).days <= 730:
-                        earnings_dates.append(
-                            {
-                                "symbol": symbol,
-                                "filing_date": filing_date,
-                                "filing_type": form_type,  # 10-K or 10-Q
-                                "data_unavailable": False,
-                                "reason": None,
-                            }
-                        )
+                        record = {
+                            "symbol": symbol,
+                            "filing_date": filing_date,
+                            "filing_type": form_type,  # 10-K or 10-Q
+                            "data_unavailable": False,
+                            "reason": None,
+                        }
+                        # Deduplicate by date: prefer 10-K over 10-Q (annual over quarterly)
+                        if filing_date not in earnings_dates_dict:
+                            earnings_dates_dict[filing_date] = (form_type, record)
+                        elif form_type == "10-K" and earnings_dates_dict[filing_date][0] != "10-K":
+                            # Replace with 10-K (higher priority)
+                            earnings_dates_dict[filing_date] = (form_type, record)
                 except IndexError as e:
                     # Array index mismatch (shouldn't happen due to earlier validation)
                     logger.error(
@@ -155,10 +159,11 @@ class EarningsCalendarSECLoader(SecLoaderBase):
                     )
                     break
 
-            if not earnings_dates:
+            if not earnings_dates_dict:
                 return self._unavailable_record(symbol, now_et, "no_recent_earnings_filings")
 
-            # Return most recent filings first
+            # Convert dict values back to list and sort by date (most recent first)
+            earnings_dates = [record for _, (_, record) in earnings_dates_dict.items()]
             earnings_dates.sort(key=lambda x: x["filing_date"], reverse=True)
 
             return earnings_dates

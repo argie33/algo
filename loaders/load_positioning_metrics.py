@@ -156,6 +156,13 @@ class PositioningMetricsLoader(OptimalLoader):
                     if all_unavailable
                     else None
                 ),
+                "data_source": (
+                    # Set data_source to the primary available source, or "none" if all unavailable
+                    short_interest_source if short_interest_source != "unavailable"
+                    else institutional_source if institutional_source != "unavailable"
+                    else insider_source if insider_source != "unavailable"
+                    else "none"
+                ),
                 "source_tracking": {
                     "short_interest": short_interest_source,
                     "institutional": institutional_source,

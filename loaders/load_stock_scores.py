@@ -288,7 +288,20 @@ class StockScoresLoader(OptimalLoader):
         data_unavailable marker for operator visibility. Callers can distinguish:
         - None/empty returns: data genuinely unavailable (not an error)
         - Exception propagation: actual system failures (database, auth, etc.)
+
+        CRITICAL FIX (Session 246): Ensure metric caches are initialized before computing scores.
+        The _prepare_batch_context() method must be called before fetch_incremental() is invoked.
+        Callers MUST initialize caches OR fail-fast with clear error message.
         """
+        # CRITICAL: Check that batch context was prepared (caches initialized)
+        if not hasattr(self, '_quality_cache'):
+            raise RuntimeError(
+                f"[STOCK_SCORES] CRITICAL: Batch context not initialized for {symbol}. "
+                "The _prepare_batch_context() method must be called before fetch_incremental(). "
+                "This is a framework contract violation - either the loader's run() method "
+                "didn't call _prepare_batch_context(), or fetch_incremental() was called directly."
+            )
+
         try:
             score_result = self._compute_stock_score(symbol)
             if not score_result:

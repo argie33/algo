@@ -397,8 +397,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO value_metrics
-            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, market_cap, data_unavailable, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, market_cap, data_unavailable, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -408,11 +408,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 fcf_yield = EXCLUDED.fcf_yield,
                 market_cap = EXCLUDED.market_cap,
                 data_unavailable = EXCLUDED.data_unavailable,
+                data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
             (row["symbol"], row["pe_ratio"], row["pb_ratio"], row["ps_ratio"],
              row["peg_ratio"], row["dividend_yield"], row["fcf_yield"], row["market_cap"],
-             row["data_unavailable"], row["updated_at"]),
+             row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
     def _insert_quality_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -420,8 +421,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO quality_metrics
-            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, quality_score, data_unavailable, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, quality_score, data_unavailable, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -430,10 +431,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 debt_to_equity = EXCLUDED.debt_to_equity,
                 quality_score = EXCLUDED.quality_score,
                 data_unavailable = EXCLUDED.data_unavailable,
+                data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
             (row["symbol"], row["roe"], row["roa"], row["operating_margin"],
-             row["net_margin"], row["debt_to_equity"], row.get("quality_score"), row["data_unavailable"], row["updated_at"]),
+             row["net_margin"], row["debt_to_equity"], row.get("quality_score"), row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -441,8 +443,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO growth_metrics
-            (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable, reason, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable, reason, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -452,6 +454,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_5y = EXCLUDED.eps_growth_5y,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
+                data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
             (
@@ -464,6 +467,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_5y"),
                 row.get("data_unavailable", False),
                 row.get("reason"),
+                row.get("data_source", "sec_audited"),
                 row["updated_at"],
             ),
         )
@@ -481,6 +485,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "fcf_yield": None,
                 "market_cap": None,
                 "data_unavailable": True,
+                "data_source": "none",
                 "updated_at": date.today().isoformat(),
             }
         elif table == "quality_metrics":
@@ -493,6 +498,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "debt_to_equity": None,
                 "quality_score": None,
                 "data_unavailable": True,
+                "data_source": "none",
                 "updated_at": date.today().isoformat(),
             }
         else:  # growth_metrics
@@ -505,6 +511,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "eps_growth_3y": None,
                 "eps_growth_5y": None,
                 "data_unavailable": True,
+                "data_source": "none",
                 "reason": "Insufficient historical data",
                 "updated_at": date.today().isoformat(),
             }

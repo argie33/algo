@@ -784,11 +784,6 @@ def run(  # noqa: C901
             run_date, min_composite_score, min_close_quality=min_close_quality
         )
 
-        # CRITICAL FIX: Filter out non-stock securities (inverse ETFs, REITs, closed-end funds, foreign stocks)
-        # These should not be included in trading signals (DX, GAIN, EPRT, etc.)
-        if raw_candidates:
-            raw_candidates = _filter_non_stock_securities(raw_candidates)
-
         if not raw_candidates:
             msg = (
                 f"[PHASE 7] buy_sell_daily has signals but NONE passed filters "
