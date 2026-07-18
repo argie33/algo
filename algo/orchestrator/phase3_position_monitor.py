@@ -336,8 +336,8 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         log_phase_error(3, error, log_phase_result_fn)
         traceback.print_exc()
 
-        # In paper trading mode, log the error but don't halt - allow phases 4-8 to continue
-        # This allows testing of trading logic even if position monitoring fails
+        # CRITICAL: Position monitor crash requires explicit config check, then halt regardless of mode
+        # Can't safely trade if we can't monitor open positions
         # CRITICAL FIX: Require explicit config - fail-fast if missing
         if "is_paper_trading" not in config:
             raise ValueError(

@@ -1861,6 +1861,7 @@ class PriceLoader(OptimalLoader):
             )
             return {
                 "symbols_processed": 0,
+                "symbols_failed": 0,
                 "rows_inserted": 0,
                 "duration_sec": 0,
                 "latest_date": None,

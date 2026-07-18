@@ -80,11 +80,10 @@ class VectorizedTechnicalLoader:
                 f"Technical indicators will use last available trading day's data."
             )
             return {
-                "symbols_processed": 0,
                 "rows_inserted": 0,
-                "duration_sec": time.time() - start_time,
                 "latest_date": None,
-                "status": "SKIPPED_NON_TRADING_DAY",
+                "error": None,
+                "data_available": True,
             }
 
         # 252-trading-day indicators (roc_252d) need ~252 * 7/5 ≈ 353 calendar days of
