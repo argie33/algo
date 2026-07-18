@@ -32,17 +32,17 @@ def run_price_loader(symbols=None, backfill_days=1):
 
     loader = PriceLoader()
     if not symbols:
-        # Default: load all universe symbols (will be fetched from database)
+        # Default: load all universe symbols from stock_symbols table
         import psycopg2
 
         try:
             conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
             cursor = conn.cursor()
-            cursor.execute("SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol")
+            cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
             symbols = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
-            logger.info(f"Loaded {len(symbols)} symbols from universe")
+            logger.info(f"Loaded {len(symbols)} symbols from stock_symbols universe")
         except Exception as e:
             logger.warning(f"Could not load universe, using default symbols: {e}")
             symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
@@ -57,15 +57,15 @@ def run_technical_indicators_loader(backfill_days=1):
     from loaders.load_technical_indicators import VectorizedTechnicalLoader
     import psycopg2
 
-    # Fetch all universe symbols
+    # Fetch all universe symbols from stock_symbols table
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols from universe")
+        logger.info(f"Loaded {len(symbols)} symbols from stock_symbols universe")
     except Exception as e:
         logger.warning(f"Could not load universe, using default symbols: {e}")
         symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
@@ -99,15 +99,15 @@ def run_value_quality_growth_loader():
     from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
     import psycopg2
 
-    # Fetch universe symbols
+    # Fetch universe symbols from stock_symbols table
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols from universe")
+        logger.info(f"Loaded {len(symbols)} symbols from stock_symbols universe")
     except Exception as e:
         logger.warning(f"Could not load universe: {e}")
         symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
@@ -123,15 +123,15 @@ def run_stock_scores_loader(limit=None):
     from loaders.load_stock_scores import StockScoresLoader
     import psycopg2
 
-    # Fetch universe symbols
+    # Fetch universe symbols from stock_symbols table
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
-        logger.info(f"Loaded {len(symbols)} symbols from universe")
+        logger.info(f"Loaded {len(symbols)} symbols from stock_symbols universe")
     except Exception as e:
         logger.warning(f"Could not load universe: {e}")
         symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
