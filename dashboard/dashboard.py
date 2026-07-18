@@ -809,6 +809,16 @@ def main() -> None:
         # Check both: explicit --local flag OR auto-detected LOCAL_MODE from environment
         use_local = args.local or os.environ.get("LOCAL_MODE") == "true"
 
+        # Force local mode: when --local is explicitly passed, clear AWS credentials
+        # to prevent them from overriding the local mode choice
+        if args.local:
+            os.environ["DASHBOARD_API_URL"] = "http://localhost:3001"
+            os.environ["LOCAL_MODE"] = "true"
+            os.environ.pop("COGNITO_USERNAME", None)
+            os.environ.pop("COGNITO_PASSWORD", None)
+            os.environ.pop("COGNITO_USER_POOL_ID", None)
+            os.environ.pop("COGNITO_CLIENT_ID", None)
+
         # Log startup mode
         if use_local:
             logger.info("[DASHBOARD_STARTUP] LOCAL MODE enabled - using dev_server on localhost:3001")
