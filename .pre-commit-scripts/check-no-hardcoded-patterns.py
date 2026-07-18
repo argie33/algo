@@ -5,7 +5,6 @@ Violations:
 1. status = 'open' / 'closed' / etc (must import from constants)
 2. score >= 60 / score >= 70 (must use config.get() or constants)
 3. completeness >= 0.70 (must use constants)
-4. ETF filtering duplicated (must use symbol_filters.build_clause())
 
 Run: python .pre-commit-scripts/check-no-hardcoded-patterns.py <files>
 """
