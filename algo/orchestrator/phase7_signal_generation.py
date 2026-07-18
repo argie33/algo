@@ -979,7 +979,7 @@ def run(  # noqa: C901
         )
         logger.warning(msg)
         log_phase_result_fn(7, "signal_generation", "no_signals", msg)
-        return PhaseResult(7, "signal_generation", "ok", {"qualified_trades": [], "liquidity_passed": 0}, False, msg)
+        return PhaseResult(7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg)
 
     # All trend and close quality validation happens at SQL level in _get_candidates_from_buysell().
     # Candidates here are already filtered for: close > sma_50, close_position > min_close_quality.
