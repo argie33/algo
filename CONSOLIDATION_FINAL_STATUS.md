@@ -6,7 +6,28 @@
 
 ---
 
-## ✅ PHASES 2 & 4: COMPLETE & DEPLOYED
+## ✅ PHASES 2, 3, & 4: COMPLETE & DEPLOYED
+
+### Phase 3: Value/Quality/Growth Consolidation ✅
+**Commit:** 0eb93ea27 (Session 208)
+
+**What Changed:**
+- ❌ REMOVED: reference_data_pipeline YfinanceDerivedMetrics task (dead code - only 1 of 7 tables used)
+- ❌ REMOVED: separate ValueMetrics + QualityMetrics states from computed_metrics_pipeline
+- ✅ ADDED: ValueQualityGrowthMetrics state (consolidated atomic operation)
+- Outputs all 3 tables atomically: value_metrics, quality_metrics, growth_metrics
+
+**Data Flow:**
+- FinancialDataLoaders (completed) → YFinanceSnapshot (completed)
+- ValueQualityGrowthMetrics (NEW) reads from both, outputs 3 tables atomically
+- Then flows to PositioningMetrics (no change)
+
+**Impact:**
+- ECS Tasks: -1 per run (consolidates 2 tasks into 1)
+- Cost: -$0.01-0.02/run
+- Speed: 5-10 min faster
+- Quality: Uses SEC-audited valuations (Phase 1) instead of yfinance estimates
+- Atomicity: All value/quality/growth succeed or fail together
 
 ### Phase 2: Market Status Consolidation ✅
 **Commit:** 60bccc14b
