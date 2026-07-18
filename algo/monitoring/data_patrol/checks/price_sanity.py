@@ -182,12 +182,20 @@ class PriceSanityChecker(BaseCheck):
             gaps = cur.fetchall()
 
             if gaps:
+                gap_list = []
+                for r in gaps:
+                    try:
+                        gap_date = r.get("date") if hasattr(r, "get") else r[0]
+                        gap_days = r.get("gap_days") if hasattr(r, "get") else r[2]
+                        gap_list.append({"date": str(gap_date), "days": int(gap_days)})
+                    except (KeyError, IndexError, TypeError) as e:
+                        logger.warning(f"Could not extract gap data from row {r}: {e}")
                 self.log(
                     "sequence",
                     WARN,
                     "price_daily",
                     f"{len(gaps)} sequence gaps in SPY (last 60 days)",
-                    {"gaps": [{"date": str(r['date']), "days": int(r['gap_days'])} for r in gaps]},
+                    {"gaps": gap_list},
                 )
             else:
                 self.log(

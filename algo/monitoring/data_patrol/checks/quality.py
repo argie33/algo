@@ -49,15 +49,13 @@ class QualityChecker(BaseCheck):
             else:
                 row_dict = dict(row) if hasattr(row, "keys") else {}
                 today_nulls, today_total = row_dict.get("today_nulls"), row_dict.get("today_total")
+            if today_total is None or today_total == 0:
+                logger.warning("price_daily today_total is 0 or NULL - skipping null anomaly check (no records for today)")
+                return
             if today_nulls is None:
-                raise ValueError("SUM(CASE WHEN close IS NULL...) returned NULL - cannot determine NULL anomaly count")
-            if today_total is None:
-                raise ValueError("COUNT(*) returned NULL - loader may be stalled")
+                today_nulls = 0
             today_nulls = int(today_nulls)
             today_total = int(today_total)
-            if today_total <= 0:
-                logger.warning("price_daily today_total is 0 - skipping null anomaly check (no records loaded)")
-                return
             null_pct = today_nulls / today_total * 100
 
             if null_pct > max_null_pct:

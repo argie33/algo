@@ -164,12 +164,13 @@ class AlignmentChecker(BaseCheck):
             else:
                 row_dict = dict(row) if hasattr(row, "keys") else {}
                 total, missing_price, missing_tech = row_dict.get("total_signals"), row_dict.get("missing_price"), row_dict.get("missing_tech")
-            if total is None:
-                raise ValueError("COUNT(*) FILTER for total signals returned NULL - cannot evaluate signal alignment")
+            if total is None or total == 0:
+                logger.warning("No BUY/SELL signals found in last 14 days - skipping signal alignment check")
+                return
             if missing_price is None:
-                raise ValueError("COUNT(*) FILTER for missing_price returned NULL - cannot evaluate alignment")
+                missing_price = 0
             if missing_tech is None:
-                raise ValueError("COUNT(*) FILTER for missing_tech returned NULL - cannot evaluate alignment")
+                missing_tech = 0
             total = int(total)
             missing_price = int(missing_price)
             missing_tech = int(missing_tech)

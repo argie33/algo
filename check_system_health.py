@@ -114,7 +114,7 @@ def check_database() -> dict:
                             f"FROM {table_name}"
                         )
 
-                    cnt, latest, age_hours = cur.fetchone()
+                    cnt, _, age_hours = cur.fetchone()
                     age_hours = float(age_hours) if age_hours is not None else None
 
                     fresh = age_hours is None or age_hours < 24
