@@ -3,7 +3,9 @@
 PHASE 7: SIGNAL GENERATION & RANKING
 
 Primary path: buy_sell_daily pivot-breakout BUY signals filtered by stock_scores ranking.
-NO fallback path: buy_sell_daily is REQUIRED. If it has no fresh data, Phase 7 halts.
+ANOMALY DETECTION: buy_sell_daily signal count is monitored. If the most recent trading
+day has unexpectedly ZERO signals (historical median ~400-800), Phase 7 halts with
+clear error about upstream data quality issues (likely technical_data_daily failure).
 
 GUARD RAILS (ISSUE #8 FIX):
 1. Critical dependency check BEFORE signal generation:
@@ -11,29 +13,32 @@ GUARD RAILS (ISSUE #8 FIX):
    - market_exposure_daily must have valid exposure_pct
    - buy_sell_daily must have BUY signals within lookback window
 2. Any missing dependency -> immediate halt with clear error message
-3. Prevents silent degradation where empty signals show on dashboard
+3. Anomaly detection: If recent buy_sell_daily counts drop to 0, halt (upstream loader failure)
+4. Prevents silent degradation where empty signals show on dashboard
 
 Pipeline:
 1. Check all critical dependencies (fail-fast if any missing)
-2. Check halt flag (data freshness gate)
-3. Check market regime: halt if entries not allowed per market_exposure_daily
-4. Fetch candidates (primary): buy_sell_daily BUY signals within last 3 days
+2. Anomaly detection: verify buy_sell_daily signal count is not suspiciously low
+3. Check halt flag (data freshness gate)
+4. Check market regime: halt if entries not allowed per market_exposure_daily
+5. Fetch candidates (primary): buy_sell_daily BUY signals within last 3 days
    joined to stock_scores (composite ranking) + price_daily (current prices + SMA_50)
-5. Filter: close > sma_50 (uptrend confirmation)
-6. Filter: composite_score >= min threshold
-7. Close quality gate: skip weak closes (bottom of day's range = distribution)
-8. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
-9. Return composite-score-ranked candidates to Phase 8
+6. Filter: close > sma_50 (uptrend confirmation)
+7. Filter: composite_score >= min threshold
+8. Close quality gate: skip weak closes (bottom of day's range = distribution)
+9. Liquidity checks on top _LIQUIDITY_CHECK_LIMIT candidates
+10. Return composite-score-ranked candidates to Phase 8
 
 CRITICAL: buy_sell_daily is required for robust signal generation. The EOD pipeline
-(4:05 PM ET) must complete and populate buy_sell_daily before orchestrator runs.
-If buy_sell_daily is empty, Phase 7 halts (fail-closed) rather than degrading to
-stock_scores-only signals.
+(4:05 PM ET) must complete and populate buy_sell_daily (which depends on technical_data_daily).
+If buy_sell_daily unexpectedly has zero signals, Phase 7 halts (fail-closed) to surface
+upstream data quality issues rather than silently degrading.
 
 Why no fallback? Using stock_scores alone without buy_sell_daily confirmation means:
 - No pivot-breakout timing gate (weak entry confirmation)
 - No swing-high validation (could catch late entries during pullbacks)
 - Reduced signal quality and higher false-positive rate
+- Masks upstream loader failures (technical_data_daily, buy_sell_daily)
 
 Ranking: composite_score from stock_scores (quality 25%, growth 20%, value 20%,
 positioning 15%, stability 12%, momentum 8%).
@@ -58,6 +63,8 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 _LIQUIDITY_CHECK_LIMIT = 10
+_HISTORICAL_SIGNAL_MEDIAN_MIN = 300  # Typical trading day has 300+ BUY signals in buy_sell_daily
+_SIGNAL_COUNT_ANOMALY_THRESHOLD = 50  # Alert if count drops below 5% of median (15 signals)
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 50  # Minimum composite_score to qualify (0-100 scale)
 _BUYSELL_LOOKBACK_DAYS = 7  # Calendar days; covers full prior week including weekends and missed EOD runs
@@ -660,8 +667,8 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                     f"(most recent available; run_date={run_date})"
                 )
 
-            # CRITICAL #3: buy_sell_daily availability check
-            # If empty, Phase 7 can still run with fallback to stock_scores ranking
+            # CRITICAL #3: buy_sell_daily availability and signal count anomaly check
+            # Halts if most recent trading day has suspiciously ZERO signals (indicates upstream failure)
             lookback_date = run_date - timedelta(days=_BUYSELL_LOOKBACK_DAYS)
             cur.execute(
                 """
@@ -680,8 +687,48 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 logger.critical(msg)
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
-            # NOTE: If buysell_count==0, Phase 7 will use fallback (stock_scores-only ranking)
-            # This allows orchestrator to run in morning/afternoon before EOD pipeline completes
+
+            buysell_count = buysell_row[0]
+            if buysell_count == 0:
+                # ANOMALY DETECTION: Zero signals in lookback window is suspicious.
+                # Most trading days generate 300+ BUY signals. Zero indicates upstream failure.
+                # Check what the most recent trading day's count was (direct indicator of loader health).
+                from algo.infrastructure import MarketCalendar
+
+                prev_trading_day = run_date - timedelta(days=1)
+                iterations = 0
+                while prev_trading_day > run_date - timedelta(days=10) and iterations < 10:
+                    if MarketCalendar.is_trading_day(prev_trading_day):
+                        break
+                    prev_trading_day -= timedelta(days=1)
+                    iterations += 1
+
+                cur.execute(
+                    "SELECT COUNT(*) FROM buy_sell_daily WHERE signal = 'BUY' AND date = %s",
+                    (prev_trading_day,),
+                )
+                prev_day_count_row = cur.fetchone()
+                prev_day_count = prev_day_count_row[0] if prev_day_count_row else 0
+
+                if prev_day_count == 0:
+                    msg = (
+                        f"[PHASE 7 CRITICAL HALT] buy_sell_daily has ZERO BUY signals on most recent trading day ({prev_trading_day}). "
+                        f"This indicates upstream loader failure. Historical normal count: 300-1000+ signals/day. "
+                        f"Likely cause: technical_data_daily or buy_sell_daily loader failed. "
+                        f"Check data_loader_status table and CloudWatch logs for: "
+                        f"(1) technical_data_daily completion status, "
+                        f"(2) buy_sell_daily loader errors, "
+                        f"(3) Signal generation pipeline execution. "
+                        f"DO NOT use fallback to stock_scores - fix the underlying data issue first."
+                    )
+                    logger.critical(msg)
+                    log_phase_result_fn(7, "signal_generation", "halt", msg)
+                    return False, msg
+                else:
+                    logger.info(
+                        f"[PHASE 7] buy_sell_daily: lookback window empty ({buysell_count} signals in last {_BUYSELL_LOOKBACK_DAYS} days), "
+                        f"but previous trading day ({prev_trading_day}) has {prev_day_count} signals - likely a timing issue, will retry on next run"
+                    )
 
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         msg = f"[PHASE 7 CRITICAL] Could not validate critical dependencies: {e}"

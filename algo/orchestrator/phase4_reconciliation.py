@@ -90,31 +90,33 @@ def run(
                 "success",
                 f"{positions_count} positions verified",
             )
-        elif "unavailable" in error_msg.lower() or "401" in error_msg or "unauthorized" in error_msg.lower():
-            # Broker authentication/availability error during market hours = critical failure
-            # Only gracefully skip on weekends/market-closed, otherwise fail-fast
-            logger.error(f"[PHASE 4] CRITICAL: Broker authentication/availability error: {error_msg[:120]}")
-            log_phase_result_fn(
-                4,
-                "reconciliation",
-                "alert",
-                f"Broker unavailable ({error_msg[:100]}). Positions cannot be reconciled. Check Alpaca API status.",
-            )
+            return PhaseResult(4, "reconciliation", "ok", result, False, None)
         else:
-            # CRITICAL: Always use explicit error message, don't default to generic
-            if not error_msg:
-                logger.error("[RECONCILIATION] Error message missing - data quality issue")
-                reason = "reconciliation failed (error message missing)"
+            # Reconciliation failed - return error status with appropriate logging
+            if "unavailable" in error_msg.lower() or "401" in error_msg or "unauthorized" in error_msg.lower():
+                # Broker authentication/availability error during market hours = critical failure
+                # Only gracefully skip on weekends/market-closed, otherwise fail-fast
+                logger.error(f"[PHASE 4] CRITICAL: Broker authentication/availability error: {error_msg[:120]}")
+                log_phase_result_fn(
+                    4,
+                    "reconciliation",
+                    "alert",
+                    f"Broker unavailable ({error_msg[:100]}). Positions cannot be reconciled. Check Alpaca API status.",
+                )
             else:
-                reason = error_msg
-            log_phase_result_fn(
-                4,
-                "reconciliation",
-                "alert",
-                reason,
-            )
-
-        return PhaseResult(4, "reconciliation", "ok", result, False, None)
+                # CRITICAL: Always use explicit error message, don't default to generic
+                if not error_msg:
+                    logger.error("[RECONCILIATION] Error message missing - data quality issue")
+                    reason = "reconciliation failed (error message missing)"
+                else:
+                    reason = error_msg
+                log_phase_result_fn(
+                    4,
+                    "reconciliation",
+                    "alert",
+                    reason,
+                )
+            return PhaseResult(4, "reconciliation", "error", result, False, error_msg)
 
     except ValueError as e:
         # Broker or API error - fail-fast to prevent trading on stale position data
