@@ -116,6 +116,14 @@ for _name in ["dashboard", "dashboard.utilities", "dashboard.panels", "dashboard
     logging.getLogger(_name).setLevel(logging.WARNING)
     logging.getLogger(_name).propagate = True  # Ensure they propagate to root
 
+# Silence informational warnings that are just noise
+_silent_loggers = {
+    "utils.validation.framework": logging.ERROR,  # Only log actual errors, not "None value" infos
+    "dashboard.api_data_layer": logging.ERROR,    # Only log connection failures after all retries, not each attempt
+}
+for _name, _level in _silent_loggers.items():
+    logging.getLogger(_name).setLevel(_level)
+
 # Module-level logger
 logger = logging.getLogger(__name__)
 
