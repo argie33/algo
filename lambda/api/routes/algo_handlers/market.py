@@ -176,6 +176,16 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             "etf_price_daily",
             "etf_price_weekly",
             "etf_price_monthly",
+            # Signal variants (only daily equity signals matter; weekly/monthly/ETF are enrichment)
+            "buy_sell_daily_etf",
+            "buy_sell_weekly",
+            "buy_sell_weekly_etf",
+            "buy_sell_monthly",
+            "buy_sell_monthly_etf",
+            "signal_quality_scores",  # Enrichment; quality tracked via avg_strength in buy_sell_daily
+            # Economic data (not used in trading logic)
+            "economic_data",
+            "economic_metrics_daily",
             # System/user tables
             "users",
             "user_alerts",
@@ -215,7 +225,6 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             "community_signups",
             # ETF-specific (not algo-traded)
             "etf_symbols",
-            "covered_call_opportunities",
             # Alpha/ML archive (historical experiments)
             "algo_model_registry",
             "algo_champion_challenger",
@@ -320,6 +329,16 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             (
                 "algo_metrics_daily",
                 "SELECT COUNT(*) AS row_count, MAX(report_date) AS last_updated FROM algo_metrics_daily",
+            ),
+            # Phase 3-8: Current open positions (used by position monitor, exit execution, entry execution)
+            (
+                "algo_positions",
+                "SELECT COUNT(*) AS row_count, MAX(entry_date) AS last_updated FROM algo_positions",
+            ),
+            # Phase 6-8: All executed trades (used by exit execution, entry execution, reconciliation)
+            (
+                "algo_trades",
+                "SELECT COUNT(*) AS row_count, MAX(entry_date) AS last_updated FROM algo_trades",
             ),
         ]:
             if tbl_name in loader_names:
