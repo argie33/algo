@@ -445,7 +445,7 @@ class DataPatrolConfig:
                 "condition": f"date >= (SELECT MAX(date) - {interval_1d} FROM price_daily)",
                 "min_rows": mkt_exp,
                 "severity": severity_error,
-                "description": "Market regime indicators must match latest trading day in price_daily (within 1 day lag)",
+                "description": "Market regime must match latest trading day (within 1 day)",
             },
         }
 

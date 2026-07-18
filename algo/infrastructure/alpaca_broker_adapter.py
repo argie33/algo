@@ -186,9 +186,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             if resp.status_code in (401, 403):
                 raise ValueError(
                     f"CRITICAL: Alpaca /v2/account returned HTTP {resp.status_code} (Unauthorized). "
-                    f"This indicates authentication failure: either credentials are invalid, or the account is restricted. "
-                    f"Cannot proceed without valid broker authentication. "
-                    f"Paper mode does not bypass authentication - check API credentials in AWS Secrets Manager."
+                    f"Authentication failure: credentials invalid or account restricted. "
+                    f"Check API credentials in AWS Secrets Manager."
                 )
             raise ValueError(f"Alpaca /v2/account returned HTTP {resp.status_code}: {resp.text[:100]}")
         except (
@@ -276,8 +275,8 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             # CRITICAL: Must explicitly check alpaca_paper_trading config (NO FALLBACK TO LIVE TRADING)
             if not isinstance(self.config, dict):
                 raise ValueError(
-                    "[CONFIG_ERROR] alpaca_paper_trading configuration missing or invalid. "
-                    "CRITICAL: Alpaca broker adapter requires explicit paper_trading flag to prevent accidental live trading."
+                    "[CONFIG_ERROR] alpaca_paper_trading configuration missing. "
+                    "Must explicitly set paper_trading flag."
                 )
 
             if "alpaca_paper_trading" not in self.config:
@@ -289,8 +288,9 @@ class AlpacaBrokerAdapter(BrokerAdapter):
 
             is_paper_trading = self.config["alpaca_paper_trading"]
             if not isinstance(is_paper_trading, bool):
+                type_name = type(is_paper_trading).__name__
                 raise ValueError(
-                    f"[CONFIG_ERROR] alpaca_paper_trading must be bool, got {type(is_paper_trading).__name__}={is_paper_trading}"
+                    f"[CONFIG_ERROR] alpaca_paper_trading must be bool, got {type_name}"
                 )
 
             if is_paper_trading:

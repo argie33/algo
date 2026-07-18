@@ -198,7 +198,7 @@ class AlgoConfig:
         "require_stage_2_market": (
             "false",
             "bool",
-            "Require market Stage 2 at Tier 2 (disabled: CB6 blocks Stage 4; per-stock weinstein_stage=2 check and exposure policy manage regime risk)",
+            "Require market Stage 2 at Tier 2 (CB6 blocks Stage 4; weinstein check managed)",
             "Market Conditions",
         ),
         "vix_max_threshold": ("35.0", "float", "VIX level to halt trading", "Market Conditions"),
@@ -423,7 +423,8 @@ class AlgoConfig:
         "min_close_quality_pct": (
             "40.0",
             "float",
-            "Close position threshold %: stock must close at/above this % of day range (0-100). E.g., 40 means close in upper 60% of range. Filters weak closes (near lows) indicating distribution, not accumulation.",
+            "Close threshold: stock close at/above this % of day range. 40=upper 60%. "
+            "Filters weak closes indicating distribution.",
             "Entry Quality Gates",
         ),
         "min_breakout_volume_ratio": (
@@ -769,7 +770,8 @@ class AlgoConfig:
         "failsafe_grace_period_minutes": (
             "240",
             "int",
-            "Grace period before triggering second failsafe (min). Morning window 2-9:30AM=450min; expected load ~285min; allows 2:00+240m=6:00 expiry, second loader 6:00+285m~11:30am (acceptable). Must be <390 (450-60 Phase 2-7 buffer). Too long: no retry time. Too short: false positives if load is slow.",
+            "Grace period before second failsafe (min). Morning 2-9:30AM: "
+            "expected load ~285min, allows 2:00+240m=6:00 expiry. Must be <390.",
             "Failsafe Configuration",
         ),
         # Loader Rate Limiting Configuration

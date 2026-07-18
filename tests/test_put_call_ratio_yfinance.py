@@ -4,10 +4,12 @@
 import logging
 from datetime import date, timedelta
 
+import pytest
+
 logger = logging.getLogger(__name__)
 
 
-def test_put_call_ratio_yfinance() -> bool:
+def test_put_call_ratio_yfinance() -> None:
     """Test fetching put/call ratio from yfinance SPY options chain."""
     from loaders.market_health_fetchers import PutCallRatioFetcher
 
@@ -28,62 +30,38 @@ def test_put_call_ratio_yfinance() -> bool:
     if isinstance(result, (float, int)):
         print(f"[PASS] Got float result: {result:.4f}")
         assert 0.2 <= result <= 3.0, f"P/C ratio out of realistic range: {result}"
-        return True
     elif isinstance(result, dict) and result.get("data_unavailable"):
         print(f"[WARN] Data unavailable: {result.get('reason')}")
-        return False
+        pytest.skip("Put/call ratio data unavailable")
     else:
-        print(f"[FAIL] Unexpected result type: {type(result)}")
-        return False
+        pytest.fail(f"Unexpected result type: {type(result)}")
 
 
-def test_put_call_in_market_health() -> bool:
+@pytest.mark.skip(reason="Integration test requires real market data and database connection")
+def test_put_call_in_market_health() -> None:
     """Test put/call ratio integration in market status loader (consolidated).
 
     Note: MarketStatusDailyLoader (Phase 2) replaces MarketHealthDailyLoader.
     It consolidates market_health_daily + market_exposure_daily + market_sentiment.
+
+    This test requires:
+    - Database connection to market_health_daily table
+    - Real market data (not mock data)
+    - SPY options chain data from yfinance
+
+    Marked as skip - use only for manual integration testing.
     """
     from loaders.load_market_status_daily import MarketStatusDailyLoader
 
     loader = MarketStatusDailyLoader()
-
-    # Test fetch_incremental for past 5 days
     start_date = date.today() - timedelta(days=5)
-    try:
-        rows = loader.fetch_incremental(since=start_date)
+    rows = loader.fetch_incremental(symbol="SPY", since=start_date)
 
-        print(f"\n{'=' * 60}")
-        print("Market Health Integration Test")
-        print(f"{'=' * 60}")
-        print(f"Fetched {len(rows)} rows")
+    assert rows, "No rows returned from loader"
 
-        if rows:
-            latest = rows[-1]
-            pcr = latest.get("put_call_ratio")
-            pcr_avail = latest.get("put_call_ratio_available")
-            pcr_unavail = latest.get("put_call_ratio_data_unavailable")
-
-            print(f"Latest row date: {latest.get('date')}")
-            print(f"Put/call ratio: {pcr}")
-            print(f"Available: {pcr_avail}")
-            print(f"Data unavailable: {pcr_unavail}")
-
-            if pcr is not None:
-                print(f"[PASS] Put/call ratio: {pcr:.4f}")
-                return True
-            else:
-                print("[WARN] Put/call ratio is None (may be graceful degradation)")
-                return True
-        else:
-            print("[FAIL] No rows returned")
-            return False
-
-    except Exception as e:
-        print(f"[FAIL] Error: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
+    latest = rows[-1]
+    pcr = latest.get("put_call_ratio")
+    print(f"Latest PCR: {pcr}")
 
 
 if __name__ == "__main__":

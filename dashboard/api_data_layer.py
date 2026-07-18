@@ -72,6 +72,7 @@ logger = logging.getLogger(__name__)
 # Uses lazy detection: checks localhost availability on first API call, not at import time
 _dashboard_api_url = os.environ.get("DASHBOARD_API_URL")
 _api_base_url_cache = None
+_api_base_url_source_cache = None  # Track which source was selected
 _localhost_checked = False
 
 
@@ -89,55 +90,99 @@ def _check_localhost_available() -> bool:
         return False
 
 
-def _get_api_base_url() -> str:
-    """Get API URL with smart detection (lazy evaluation).
+def _get_api_base_url_with_source() -> tuple[str, str]:
+    """Get API URL and source identifier with smart detection (lazy evaluation).
 
     Priority:
-    1. Explicit LOCAL_MODE flag
-    2. Configured AWS URL (requires Cognito auth) - NEVER overridden by auto-detection
-    3. Auto-detect localhost (dev_server available) - ONLY if no AWS config
-    4. Fallback to localhost
+    1. Explicit LOCAL_MODE flag → "LOCAL_MODE_EXPLICIT"
+    2. Configured AWS URL (requires Cognito auth) → "AWS_CONFIG"
+    3. Auto-detect localhost (dev_server available) → "AUTO_DETECT_LOCALHOST"
+    4. Fallback to localhost → "FALLBACK_LOCALHOST"
 
     CRITICAL: AWS configuration is NEVER overridden by localhost auto-detection.
     This ensures AWS setup is respected and not accidentally bypassed.
-    """
-    global _api_base_url_cache, _localhost_checked
 
-    if _api_base_url_cache:
-        return _api_base_url_cache
+    Returns:
+        tuple of (url, source_identifier) where source_identifier is one of:
+        - "LOCAL_MODE_EXPLICIT": Explicit LOCAL_MODE env var set
+        - "AWS_CONFIG": DASHBOARD_API_URL configured
+        - "AUTO_DETECT_LOCALHOST": Auto-detected localhost:3001
+        - "FALLBACK_LOCALHOST": Fell back to localhost (no config, dev_server not found)
+        - "RUNTIME_SET": Set via set_api_url() at runtime
+    """
+    global _api_base_url_cache, _api_base_url_source_cache, _localhost_checked
+
+    if _api_base_url_cache and _api_base_url_source_cache:
+        return _api_base_url_cache, _api_base_url_source_cache
 
     # Priority 1: Explicit LOCAL_MODE flag
     if os.environ.get("LOCAL_MODE"):
         _api_base_url_cache = "http://localhost:3001"
-        logger.debug("[API] LOCAL_MODE enabled - using local dev_server")
-        return _api_base_url_cache
+        _api_base_url_source_cache = "LOCAL_MODE_EXPLICIT"
+        logger.info("[API] LOCAL_MODE enabled - using local dev_server (source: LOCAL_MODE_EXPLICIT)")
+        return _api_base_url_cache, _api_base_url_source_cache
 
     # Priority 2: Use configured AWS URL - NEVER override this with auto-detection
     if _dashboard_api_url:
         _api_base_url_cache = _dashboard_api_url
-        logger.info(f"[API] Using configured DASHBOARD_API_URL: {_dashboard_api_url} (requires Cognito auth)")
+        _api_base_url_source_cache = "AWS_CONFIG"
+        logger.info(f"[API] Using configured DASHBOARD_API_URL (source: AWS_CONFIG)")
+        logger.debug(f"[API] AWS endpoint: {_dashboard_api_url} (requires Cognito auth)")
         _localhost_checked = True
-        return _api_base_url_cache
+        return _api_base_url_cache, _api_base_url_source_cache
 
     # Priority 3: Auto-detect localhost ONLY if no AWS config is set
     if not _localhost_checked and _check_localhost_available():
         _api_base_url_cache = "http://localhost:3001"
+        _api_base_url_source_cache = "AUTO_DETECT_LOCALHOST"
         _localhost_checked = True
         logger.info(
-            "[API] Dev server detected on localhost:3001 - auto-switching to local mode (no --local flag needed)"
+            "[API] Dev server detected on localhost:3001 - auto-switching to local mode (source: AUTO_DETECT_LOCALHOST, no --local flag needed)"
         )
-        return _api_base_url_cache
+        return _api_base_url_cache, _api_base_url_source_cache
 
     _localhost_checked = True
 
     # Priority 4: Fallback to localhost
     _api_base_url_cache = "http://localhost:3001"
-    logger.info("[API] No DASHBOARD_API_URL set and dev server not detected. Falling back to localhost:3001")
-    return _api_base_url_cache
+    _api_base_url_source_cache = "FALLBACK_LOCALHOST"
+    logger.warning(
+        "[API] FALLBACK: No DASHBOARD_API_URL set and dev server not detected. "
+        "Falling back to localhost:3001 (source: FALLBACK_LOCALHOST). "
+        "If you intended to use AWS, set DASHBOARD_API_URL environment variable."
+    )
+    return _api_base_url_cache, _api_base_url_source_cache
 
 
-# Set initial value (will be overridden on first API call if localhost is available)
-API_BASE_URL = _get_api_base_url()
+def _get_api_base_url() -> str:
+    """Get API URL (backward compatible wrapper around _get_api_base_url_with_source).
+
+    Returns just the URL string for compatibility with existing code that expects a string.
+    For explicit source tracking, use _get_api_base_url_with_source() instead.
+    """
+    url, _ = _get_api_base_url_with_source()
+    return url
+
+
+def get_api_url_source() -> str:
+    """Get the source identifier of the currently configured API URL.
+
+    Returns:
+        One of: "LOCAL_MODE_EXPLICIT", "AWS_CONFIG", "AUTO_DETECT_LOCALHOST",
+                "FALLBACK_LOCALHOST", "RUNTIME_SET", or None if not yet determined.
+    """
+    if _api_base_url_source_cache:
+        return _api_base_url_source_cache
+    # Force evaluation by calling the function
+    _get_api_base_url_with_source()
+    return _api_base_url_source_cache or "UNKNOWN"
+
+
+# Set initial value with source tracking
+_initial_url, _initial_source = _get_api_base_url_with_source()
+API_BASE_URL = _initial_url
+logger.info(f"[API_STARTUP] Initialized API_BASE_URL from {_initial_source}: {_initial_url}")
+
 API_TIMEOUT = 20
 API_MAX_RETRIES = 3
 API_MAX_BACKOFF = 30
@@ -181,9 +226,25 @@ _validate_api_url_at_startup()
 
 
 def set_api_url(url: str) -> None:
-    """Set API base URL at runtime (used by -local mode)."""
-    global API_BASE_URL
+    """Set API base URL at runtime (used by -local mode and other dynamic scenarios).
+
+    Logs explicit warning if switching from AWS_CONFIG to localhost without explicit flag,
+    to ensure users understand the API source change.
+    """
+    global API_BASE_URL, _api_base_url_cache, _api_base_url_source_cache
+
+    old_url = API_BASE_URL
+    old_source = _api_base_url_source_cache or "UNKNOWN"
+
     API_BASE_URL = url
+    _api_base_url_cache = url
+    _api_base_url_source_cache = "RUNTIME_SET"
+
+    logger.warning(
+        f"[API_RUNTIME_CHANGE] API URL changed at runtime. "
+        f"Old: {old_url} (source: {old_source}), "
+        f"New: {url} (source: RUNTIME_SET)"
+    )
 
 
 def get_api_url() -> str:
@@ -550,7 +611,8 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
         to help callers determine if error is temporary.
     """
     # Lazy evaluation: check for localhost on first API call (in case dev_server just started)
-    api_url = _get_api_base_url()
+    api_url, api_source = _get_api_base_url_with_source()
+    logger.debug(f"[API_CALL] {endpoint} using source: {api_source}")
 
     if not api_url:
         logger.error("No API URL available - cannot make API calls")

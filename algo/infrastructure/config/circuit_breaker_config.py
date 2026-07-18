@@ -95,4 +95,6 @@ class CircuitBreakerConfig:
         }
 
     def __repr__(self) -> str:
-        return f"<CircuitBreakerConfig {sum(len(d) for d in [self.get_loss_limits_config(), self.get_trade_quality_limits_config()])} keys>"
+        config_dicts = [self.get_loss_limits_config(), self.get_trade_quality_limits_config()]
+        total_keys = sum(len(d) for d in config_dicts)
+        return f"<CircuitBreakerConfig {total_keys} keys>"
