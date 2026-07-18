@@ -35,8 +35,14 @@ class AlignmentChecker(BaseCheck):
             row = cur.fetchone()
             if not row:
                 sqs_date = None
+            elif hasattr(row, "get"):
+                sqs_date = row.get("max_date")
             else:
-                sqs_date = dict(row).get("max_date") if hasattr(row, "keys") else None
+                try:
+                    row_dict = dict(row)
+                    sqs_date = row_dict.get("max_date")
+                except (TypeError, ValueError):
+                    sqs_date = None
             if not sqs_date:
                 self.log(
                     "alignment",
@@ -51,8 +57,14 @@ class AlignmentChecker(BaseCheck):
             row = cur.fetchone()
             if not row:
                 buy_sell_date = None
+            elif hasattr(row, "get"):
+                buy_sell_date = row.get("max_date")
             else:
-                buy_sell_date = dict(row).get("max_date") if hasattr(row, "keys") else None
+                try:
+                    row_dict = dict(row)
+                    buy_sell_date = row_dict.get("max_date")
+                except (TypeError, ValueError):
+                    buy_sell_date = None
 
             if not buy_sell_date or buy_sell_date < sqs_date:
                 self.log(
