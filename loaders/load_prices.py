@@ -1849,6 +1849,25 @@ class PriceLoader(OptimalLoader):
 
         self._validate_schema_preflight()
 
+        # CRITICAL FIX: Skip loading on non-trading days
+        # Markets are closed on weekends/holidays, so no new price data is available
+        # Loaders should not fail just because it's Saturday - that's expected behavior
+        from algo.infrastructure import MarketCalendar
+        now_et = datetime.now(EASTERN_TZ)
+        run_date = now_et.date()
+        if not MarketCalendar.is_trading_day(run_date):
+            logger.info(
+                f"[{self.table_name}] Skipping load: today ({run_date}) is not a trading day. "
+                f"Price data will use last available trading day's data."
+            )
+            return {
+                "symbols_processed": 0,
+                "rows_inserted": 0,
+                "duration_sec": 0,
+                "latest_date": None,
+                "status": "SKIPPED_NON_TRADING_DAY",
+            }
+
         start = time.time()
         self._stats["start_time"] = datetime.now(timezone.utc)
         symbols = list(symbols)

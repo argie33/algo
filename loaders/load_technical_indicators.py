@@ -70,6 +70,23 @@ class VectorizedTechnicalLoader:
         now_et = now_utc.astimezone(EASTERN_TZ)
         end_date = now_et.date()
 
+        # CRITICAL FIX: Skip loading on non-trading days
+        # Markets are closed on weekends/holidays, so no new price data is available
+        # Loaders should not fail just because it's Saturday - that's expected behavior
+        from algo.infrastructure import MarketCalendar
+        if not MarketCalendar.is_trading_day(end_date):
+            logger.info(
+                f"[TECHNICAL_DATA] Skipping load: today ({end_date}) is not a trading day. "
+                f"Technical indicators will use last available trading day's data."
+            )
+            return {
+                "symbols_processed": 0,
+                "rows_inserted": 0,
+                "duration_sec": time.time() - start_time,
+                "latest_date": None,
+                "status": "SKIPPED_NON_TRADING_DAY",
+            }
+
         # 252-trading-day indicators (roc_252d) need ~252 * 7/5 ≈ 353 calendar days of
         # history plus market holidays; 300 was short by ~50+ days and left roc_252d
         # (and therefore minervini_trend_score, which sums it) permanently NULL.

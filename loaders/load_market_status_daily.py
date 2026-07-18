@@ -65,6 +65,24 @@ class MarketStatusDailyLoader(OptimalLoader):
         self, symbols: Iterable[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
     ) -> dict[str, Any]:
         """Override run() to provide market-wide pseudo-symbol."""
+        # CRITICAL FIX: Skip loading on non-trading days
+        # Markets are closed on weekends/holidays, so no new market data is available
+        from algo.infrastructure import MarketCalendar
+        now_et = datetime.now(EASTERN_TZ)
+        run_date = now_et.date()
+        if not MarketCalendar.is_trading_day(run_date):
+            logger.info(
+                f"[{self.table_name}] Skipping load: today ({run_date}) is not a trading day. "
+                f"Market data will use last available trading day's data."
+            )
+            return {
+                "symbols_processed": 0,
+                "rows_inserted": 0,
+                "duration_sec": 0,
+                "latest_date": None,
+                "status": "SKIPPED_NON_TRADING_DAY",
+            }
+
         symbol_list: list[str]
         if symbols is None or (isinstance(symbols, (list, tuple)) and len(symbols) == 0):
             symbol_list = ["market"]
