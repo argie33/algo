@@ -84,7 +84,7 @@ def _create_mock_cursor():
                 return [{"column_name": "symbol"}, {"column_name": "entry_date"}, {"column_name": "entry_price"}]
 
         # Default: config data - return as dicts
-        return [{"key": k, "value": v, "dtype": d} for k, v, d in mock_config_rows]
+        return [{"key": k, "value": v, "value_type": d} for k, v, d in mock_config_rows]
 
     def mock_fetchone():
         from datetime import datetime, timezone
@@ -141,7 +141,7 @@ def _create_mock_cursor():
             return {"date": date(2026, 7, 18)}
 
         # Default: config
-        return {"key": "max_positions", "value": "50", "dtype": "int"}
+        return {"key": "max_positions", "value": "50", "value_type": "int"}
 
     cursor.execute.side_effect = mock_execute
     cursor.fetchall.side_effect = mock_fetchall
