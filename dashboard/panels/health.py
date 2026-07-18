@@ -2602,11 +2602,21 @@ def _build_results_panel(  # noqa: C901
         for r in valid_hist_e:
             s = _get_status_safe(r)
             dt = r.get("started_at")
-            if dt is None or not hasattr(dt, "strftime"):
-                logger.warning("[HEALTH] Execution history missing started_at timestamp")
+            if dt is None:
                 dt_s = "-"
-            else:
+            elif hasattr(dt, "strftime"):
                 dt_s = dt.strftime("%b %d  %I:%M %p")
+            elif isinstance(dt, str):
+                try:
+                    from datetime import datetime as dt_cls
+                    dt_obj = dt_cls.fromisoformat(dt.replace('Z', '+00:00'))
+                    dt_s = dt_obj.strftime("%b %d  %I:%M %p")
+                except (ValueError, AttributeError):
+                    logger.debug(f"[HEALTH] Could not parse started_at timestamp: {dt}")
+                    dt_s = "-"
+            else:
+                logger.debug(f"[HEALTH] Unexpected started_at type: {type(dt).__name__}")
+                dt_s = "-"
             ic = G if s in PHASE_SUCCESS_STATES else (Y if s == "halted" else R)
             ii = "v" if s in PHASE_SUCCESS_STATES else ("~" if s == "halted" else "x")
             hr = r.get("halt_reason")
