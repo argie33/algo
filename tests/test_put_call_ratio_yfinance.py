@@ -38,10 +38,14 @@ def test_put_call_ratio_yfinance() -> bool:
 
 
 def test_put_call_in_market_health() -> bool:
-    """Test put/call ratio integration in market health loader."""
-    from loaders.load_market_health_daily import MarketHealthDailyLoader
+    """Test put/call ratio integration in market status loader (consolidated).
 
-    loader = MarketHealthDailyLoader()
+    Note: MarketStatusDailyLoader (Phase 2) replaces MarketHealthDailyLoader.
+    It consolidates market_health_daily + market_exposure_daily + market_sentiment.
+    """
+    from loaders.load_market_status_daily import MarketStatusDailyLoader
+
+    loader = MarketStatusDailyLoader()
 
     # Test fetch_incremental for past 5 days
     start_date = date.today() - timedelta(days=5)

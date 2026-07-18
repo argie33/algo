@@ -83,9 +83,23 @@ def run_value_quality_growth_loader():
     Outputs: value_metrics, quality_metrics, growth_metrics (atomic)
     """
     from loaders.load_value_quality_growth_metrics import ValueQualityGrowthMetricsLoader
+    import psycopg2
+
+    # Fetch universe symbols
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols from universe")
+    except Exception as e:
+        logger.warning(f"Could not load universe: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
 
     loader = ValueQualityGrowthMetricsLoader()
-    result = loader.run()
+    result = loader.run(symbols=symbols)
     logger.info(f"Value/quality/growth metrics loader result: {result}")
     return result
 
