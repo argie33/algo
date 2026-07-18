@@ -121,6 +121,10 @@ for _name in ["dashboard", "dashboard.utilities", "dashboard.panels", "dashboard
 # Module-level logger
 logger = logging.getLogger(__name__)
 
+# Log startup mode and log file location
+_mode_str = "LOCAL" if _is_local_mode else "AWS"
+logger.warning(f"[DASHBOARD_LOGGING] Mode: {_mode_str} | Logging to: {_log_file}")
+
 
 # Sector aggregation cache (E5 optimization)
 _sector_agg_cache = OrderedDict()
