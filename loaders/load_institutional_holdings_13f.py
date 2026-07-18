@@ -228,7 +228,7 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
         ownership_pct = float(ownership_pct)
         if not (0 <= ownership_pct <= 100):
             logger.warning(f"[{symbol}] Institutional ownership % out of range: {ownership_pct}%")
-            ownership_pct = None
+            return self._unavailable_record(symbol, now_et, f"ownership_pct_out_of_range:{ownership_pct}")
 
         return [
             {
