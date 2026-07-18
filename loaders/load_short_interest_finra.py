@@ -61,7 +61,7 @@ class ShortInterestFinraLoader(OptimalLoader):
         self._batch_context = {}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch short interest for one symbol from yfinance.
+        """Fetch short interest for one symbol from yfinance with rate limit retry.
 
         yfinance publishes FINRA Reg SHO short interest data via Yahoo Finance API.
 
@@ -73,69 +73,88 @@ class ShortInterestFinraLoader(OptimalLoader):
             List with single short interest dict or data_unavailable marker
         """
         now_et = datetime.now(EASTERN_TZ)
+        max_retries = 3
 
-        try:
-            # Fetch ticker info from yfinance (includes short interest data)
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
+        for attempt in range(max_retries):
+            try:
+                # Fetch ticker info from yfinance (includes short interest data)
+                ticker = yf.Ticker(symbol)
+                info = ticker.info
 
-            # EXPLICIT: Validate expected fields exist in yfinance response
-            # Fail-fast if API structure changes (don't silently proceed with partial data)
-            if "shortPercentOfFloat" not in info:
-                logger.debug(f"[SHORT_INTEREST] {symbol}: yfinance missing 'shortPercentOfFloat' field")
+                # EXPLICIT: Validate expected fields exist in yfinance response
+                if "shortPercentOfFloat" not in info:
+                    logger.debug(f"[SHORT_INTEREST] {symbol}: yfinance missing 'shortPercentOfFloat' field")
+                    return [
+                        {
+                            "symbol": symbol,
+                            "settlement_date": now_et.date(),
+                            "short_shares": None,
+                            "short_pct": None,
+                            "finra_report_date": None,
+                            "data_unavailable": True,
+                            "reason": "yfinance_missing_shortPercentOfFloat",
+                            "updated_at": now_et,
+                        }
+                    ]
+
+                short_pct = info["shortPercentOfFloat"]
+                shares_short = info.get("sharesShort") if "sharesShort" in info else None
+
+                if short_pct is None:
+                    logger.debug(f"[SHORT_INTEREST] {symbol}: shortPercentOfFloat is NULL in yfinance")
+                    return [
+                        {
+                            "symbol": symbol,
+                            "settlement_date": now_et.date(),
+                            "short_shares": None,
+                            "short_pct": None,
+                            "finra_report_date": None,
+                            "data_unavailable": True,
+                            "reason": "yfinance_shortPercentOfFloat_null",
+                            "updated_at": now_et,
+                        }
+                    ]
+
+                # Convert to percentage if needed (yfinance returns as decimal like 0.01 for 1%)
+                if 0 < short_pct < 1:
+                    short_pct = short_pct * 100
+
+                logger.debug(f"[SHORT_INTEREST] {symbol}: {short_pct}% ({shares_short} shares)")
+
                 return [
                     {
                         "symbol": symbol,
                         "settlement_date": now_et.date(),
-                        "short_shares": None,
-                        "short_pct": None,
-                        "finra_report_date": None,
-                        "data_unavailable": True,
-                        "reason": "yfinance_missing_shortPercentOfFloat",
+                        "short_shares": shares_short,
+                        "short_pct": short_pct,
+                        "finra_report_date": now_et.date(),
+                        "data_unavailable": False,
+                        "reason": None,
                         "updated_at": now_et,
                     }
                 ]
 
-            short_pct = info["shortPercentOfFloat"]
-            # sharesShort is optional enrichment field (not required for calculation)
-            shares_short = info.get("sharesShort") if "sharesShort" in info else None
+            except Exception as e:
+                error_str = str(e).lower()
+                # Rate limit errors - retry with exponential backoff
+                if any(x in error_str for x in ["rate", "429", "too many"]):
+                    if attempt < max_retries - 1:
+                        base_wait = min(10, 2**attempt)
+                        jitter = random.uniform(0.9, 1.1)
+                        wait_time = base_wait * jitter
+                        logger.debug(
+                            f"[SHORT_INTEREST] {symbol}: Rate limited (attempt {attempt + 1}/{max_retries}), "
+                            f"retrying in {wait_time:.1f}s..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+                    logger.error(
+                        f"[SHORT_INTEREST] {symbol}: Rate limited after {max_retries} attempts, marking unavailable"
+                    )
+                else:
+                    logger.error(f"[SHORT_INTEREST] {symbol}: Failed to fetch from yfinance: {e}")
 
-            if short_pct is None:
-                logger.debug(f"[SHORT_INTEREST] {symbol}: shortPercentOfFloat is NULL in yfinance")
-                return [
-                    {
-                        "symbol": symbol,
-                        "settlement_date": now_et.date(),
-                        "short_shares": None,
-                        "short_pct": None,
-                        "finra_report_date": None,
-                        "data_unavailable": True,
-                        "reason": "yfinance_shortPercentOfFloat_null",
-                        "updated_at": now_et,
-                    }
-                ]
-
-            # Convert to percentage if needed (yfinance returns as decimal like 0.01 for 1%)
-            if 0 < short_pct < 1:
-                short_pct = short_pct * 100
-
-            logger.debug(f"[SHORT_INTEREST] {symbol}: {short_pct}% ({shares_short} shares)")
-
-            return [
-                {
-                    "symbol": symbol,
-                    "settlement_date": now_et.date(),
-                    "short_shares": shares_short,
-                    "short_pct": short_pct,
-                    "finra_report_date": now_et.date(),
-                    "data_unavailable": False,
-                    "reason": None,
-                    "updated_at": now_et,
-                }
-            ]
-
-        except Exception as e:
-            logger.error(f"[SHORT_INTEREST] {symbol}: Failed to fetch from yfinance: {e}")
+            # After retries exhausted or non-rate-limit error, return unavailable
             return [
                 {
                     "symbol": symbol,

@@ -117,8 +117,15 @@ def run(
         # In dry-run mode, skip TradeExecutor initialization (no Alpaca credentials needed)
         if dry_run:
             logger.info("[DRY-RUN] Phase 6: Skipping trade execution (dry-run mode)")
-            log_phase_result_fn(6, "exit_execution", "success", "DRY-RUN: execution skipped")
-            return PhaseResult(6, "exit_execution", "ok", {}, False, None)
+            log_phase_result_fn(6, "exit_execution", "degraded", "DRY-RUN: execution skipped (no real trades)")
+            return PhaseResult(
+                6,
+                "exit_execution",
+                "degraded",
+                {},
+                False,
+                "DRY-RUN: exit execution skipped (no real trades placed)",
+            )
 
         # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
         if is_paper_mode:
