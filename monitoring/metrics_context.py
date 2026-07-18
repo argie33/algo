@@ -57,7 +57,8 @@ def _emit_cloudwatch_metric(operation_name: str, duration_seconds: float) -> Non
 
         # NoCredentialsError and ClientError are common in non-AWS environments
         if error_type in ("NoCredentialsError", "ClientError"):
-            if "credential" in error_msg or "not authorized" in error_msg or "nocredentialswarning" in error_msg:
+            if any(x in error_msg for x in ["credential", "not authorized", "nocredentialswarning",
+                                              "security token", "invalidclienttoken", "unrecognizedclient"]):
                 logger.warning("[METRICS] AWS credentials unavailable; CloudWatch metrics skipped")
                 return
 
