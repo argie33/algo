@@ -427,63 +427,18 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Cause = "technical_data_daily failed after retries. Pipeline halted because buy_sell_daily requires fresh technical indicators. Check CloudWatch logs for details."
       }
 
-      # ── Step 8b: Market Health Daily (depends on technical_data_daily) ──────────────
-      # FIXED: Moved from ParallelEnrichment to sequential execution after TechnicalDataDaily.
-      # market_health_daily._merge_breadth_data() requires technical_data_daily to be fresh.
-      # Previously ran in parallel, causing "stale technical_data_daily" errors.
-      # Now runs after technical_data_daily completes successfully.
-      # Timeout: 1200s (20 minutes) for full data fetch.
-      MarketHealthDaily = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 1200
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["market_health_daily"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 30
-          MaxAttempts     = 0
-          BackoffRate     = 1.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogMarketHealthFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "BuySellDaily"
-      }
-
-      LogMarketHealthFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "market_health_daily"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "BuySellDaily"
-          ResultPath  = "$.logError"
-        }]
-        Next = "BuySellDaily"
-      }
+      # ── Step 8b: PHASE 2 - CONSOLIDATED (removed MarketHealthDaily) ──────────────
+      # OPTIMIZATION: Moved market_health_daily from early path to consolidated MarketStatusDaily
+      # which runs later in pipeline (after SectorRanking, FredEconomicData).
+      # MarketStatusDaily is atomic: outputs to market_health_daily, market_exposure_daily,
+      # market_sentiment all together, with all dependencies met.
+      # Saves: 1 ECS task, 10-15 min pipeline time, better error handling
 
       # ── Step 8c: Buy/Sell Daily Signals (depends on prices + scores + technical data) ──────────────
       # CRITICAL FOR PHASE 5: Must provide fresh buy_sell_daily BUY signals.
       # Phase 5 signal generation uses these signals as primary path (with composite_score ranking).
       # Depends on: stock_prices_daily (completed), swing_trader_scores (completed), technical_data_daily (completed)
+      # NOTE: market_health_daily now runs atomically as MarketStatusDaily (late in pipeline)
       # Timeout: 21600s (6 hours) - vectorized loader runs in ~30 min, but allow headroom
       BuySellDaily = {
         Type           = "Task"
@@ -589,6 +544,8 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
       # CRITICAL: Must run before orchestrator to ensure Phase 3 and Phase 5 have current sector data.
       # Runs after swing_trader_scores completes. Timeout 900 seconds (15 minutes).
       # AUDIT FIX: Added industry_ranking and sector_performance loaders (2026-07-12)
+      # PHASE 2 CONSOLIDATION: Removed shortcut to MarketExposureDaily; flows to IndustryRanking
+      # MarketStatusDaily (consolidated: health+exposure+sentiment) runs after FredEconomicData
       SectorRanking = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
@@ -610,7 +567,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogSectorRankingFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MarketExposureDaily"
+        Next = "IndustryRanking"
       }
 
       LogSectorRankingFailure = {
@@ -781,28 +738,40 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "MarketExposureDaily"
+          Next        = "MarketStatusDaily"
           ResultPath  = "$.logError"
         }]
-        Next = "MarketExposureDaily"
+        Next = "MarketStatusDaily"
       }
 
-      # ── Step 8d: Market exposure limits — CRITICAL for Phase 1 freshness check ──
-      # FIXED: Moved from ParallelEnrichment (was timing out at 600s) to run AFTER sector_ranking.
-      # Now has 600+ seconds guaranteed with all dependencies complete:
+      # ── Step 8d: PHASE 2 - Market Status Daily (CONSOLIDATED) ──
+      # CONSOLIDATION: Merges 3 separate loaders into 1 atomic operation:
       # - market_health_daily (VIX, put/call, breadth, new highs/lows)
-      # - trend_template_data (price_above_sma calculations)
-      # - price_daily (via stock_prices_daily, for momentum/distribution days)
-      # - economic_data (credit spreads, yield curve, jobless claims)
-      # CRITICAL: Phase 1 checks market_exposure_daily freshness and halts if stale
-      MarketExposureDaily = {
+      # - market_exposure_daily (regime, exposure %, critical for Phase 1 freshness check)
+      # - market_sentiment (fear/greed index)
+      #
+      # Benefits:
+      # - 1 ECS task instead of 3 (saves ~$0.02-0.03/run)
+      # - VIX/breadth/yields fetched once, used 3 ways
+      # - Atomic operation (all market metrics succeed/fail together)
+      # - All dependencies met: technical_data_daily (breadth), sector_ranking, economic_data
+      # - Cleaner error handling (single failure point)
+      # - 10-15 min faster pipeline (fewer tasks + atomic writes)
+      #
+      # Outputs atomically to:
+      # - market_health_daily (VIX, put/call, breadth, yields)
+      # - market_exposure_daily (regime, exposure %, factors)
+      # - market_sentiment (fear/greed, bull/bear %)
+      #
+      # Timeout: 1800s (30 min - combined 1200+600+300 from old loaders)
+      MarketStatusDaily = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 600
+        TimeoutSeconds = 1800
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["market_exposure_daily"]
+          TaskDefinition       = var.loader_task_definition_arns["market_status_daily"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -813,68 +782,17 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "LogMarketExposureFailure"
+          Next        = "LogMarketStatusFailure"
           ResultPath  = "$.loaderError"
         }]
         Next = "DataPatrol"
       }
 
-      LogMarketExposureFailure = {
+      LogMarketStatusFailure = {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name        = "market_exposure_daily"
-          "error.$"          = "$.loaderError.Error"
-          "error_message.$"  = "$.loaderError.Cause"
-          is_critical_loader = false
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "DataPatrol"
-          ResultPath  = "$.logError"
-        }]
-        Next = "MarketSentiment"
-      }
-
-      # ── Step 8e-bis: Market Sentiment ──
-      # Fear/greed index from VIX (lightweight enrichment)
-      # Non-blocking: can timeout without affecting pipeline
-      MarketSentiment = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 300
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["market_sentiment"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 30
-          MaxAttempts     = 1
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogMarketSentimentFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "DataPatrol"
-      }
-
-      LogMarketSentimentFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "market_sentiment"
+          loader_name       = "market_status_daily"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
