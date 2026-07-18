@@ -185,13 +185,15 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
         number_of_holders = len(aggregated_holdings)
 
         # Get current share price and compute % ownership
-        # Note: We'd need price data to compute exact %, so use the reported % from largest holder
-        # as a proxy (largest filers typically have better coverage)
+        # Note: SCHEDULE 13G filers may have overlapping holdings; use the maximum reported %
+        # as a conservative estimate of total institutional ownership (since some institutions
+        # may hold portions tracked by multiple filers).
         ownership_pct = 0.0
         if aggregated_holdings:
-            # Use weighted average of reported ownership %
-            total_pct = sum(h.get("ownership_pct", 0) for h in aggregated_holdings)
-            ownership_pct = min(total_pct, 100.0)  # Cap at 100%
+            # Use max of reported ownership % to avoid summing overlapping institutional holdings
+            reported_pcts = [h.get("ownership_pct", 0) for h in aggregated_holdings]
+            ownership_pct = max(reported_pcts) if reported_pcts else 0.0
+            ownership_pct = min(ownership_pct, 100.0)  # Cap at 100%
 
         if latest_filing_date is None:
             latest_filing_date = now_et.date()

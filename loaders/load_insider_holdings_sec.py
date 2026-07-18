@@ -294,7 +294,7 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
 
             # Validate that ownership_pct is valid before returning
             ownership_pct = latest_insider["ownership_pct"]
-            if not isinstance(ownership_pct, (int, float)) or ownership_pct is None:
+            if ownership_pct is None or not isinstance(ownership_pct, (int, float)):
                 return self._unavailable_record(symbol, now_et, f"invalid_insider_ownership_pct:{ownership_pct}")
 
             return [

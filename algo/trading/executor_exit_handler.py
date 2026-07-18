@@ -119,17 +119,54 @@ class ExitHandler:
                 return cast(dict[str, Any], result)
         except AuditLogError as e:
             logger.critical(f"Audit log failure during exit (data integrity risk): {e}")
-            return {"success": False, "message": f"Audit log failure: {e}"}
+            return {
+                "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
+                "message": f"Audit log failure: {e}",
+            }
         except DatabaseError as e:
             logger.error(f"Database error during trade exit: {e}")
-            return {"success": False, "message": f"Database error: {e}"}
+            return {
+                "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
+                "message": f"Database error: {e}",
+            }
         except TradingError as e:
             logger.error(f"Trading error during exit: {type(e).__name__}: {e}")
-            return {"success": False, "message": str(e)}
+            return {
+                "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
+                "message": str(e),
+            }
         except Exception as e:
             logger.exception(f"Unexpected error during trade exit: {type(e).__name__}: {e}")
             return {
                 "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
                 "message": f"Unexpected error: {type(e).__name__}",
             }
 
@@ -140,6 +177,13 @@ class ExitHandler:
         if new_stop_price is None:
             return {
                 "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
                 "message": "stop-raise-only (fraction=0) requires new_stop_price",
             }
 
@@ -157,12 +201,26 @@ class ExitHandler:
             if not existing_stop or existing_stop[0] is None:
                 return {
                     "success": False,
+                    "trade_id": trade_id,
+                    "shares_exited": 0,
+                    "profit_loss_dollars": None,
+                    "profit_loss_pct": None,
+                    "r_multiple": None,
+                    "full_exit": False,
+                    "is_estimated_price": False,
                     "message": "Cannot raise stop: position has no existing stop price (position state incomplete). "
                     "Initialize stop price explicitly before raising.",
                 }
             if new_stop_price <= existing_stop[0]:
                 return {
                     "success": False,
+                    "trade_id": trade_id,
+                    "shares_exited": 0,
+                    "profit_loss_dollars": None,
+                    "profit_loss_pct": None,
+                    "r_multiple": None,
+                    "full_exit": False,
+                    "is_estimated_price": False,
                     "message": f"Stop raise rejected: new stop ${new_stop_price:.2f} not above existing ${existing_stop[0]:.2f}",
                 }
 
@@ -185,6 +243,13 @@ class ExitHandler:
             updated = cursor.rowcount > 0
             return {
                 "success": True,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
                 "message": (
                     f"Stop raised to ${new_stop_price:.2f}"
                     if updated
@@ -199,21 +264,55 @@ class ExitHandler:
                 return cast(dict[str, Any], self.context._with_cursor(_raise_stop))
         except DatabaseError as e:
             logger.error(f"Database error raising stop: {e}")
-            return {"success": False, "message": f"Database error: {e}"}
+            return {
+                "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
+                "message": f"Database error: {e}",
+            }
         except Exception as e:
             logger.error(f"Unexpected error raising stop: {type(e).__name__}: {e}")
-            return {"success": False, "message": f"Stop raise failed: {e}"}
+            return {
+                "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
+                "message": f"Stop raise failed: {e}",
+            }
 
     def _validate_exit_params(self, exit_fraction: float, exit_price: float | None) -> dict[str, Any] | None:
         if not (0 < exit_fraction <= 1.0):
             return {
                 "success": False,
+                "trade_id": None,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
                 "message": f"Invalid exit_fraction {exit_fraction}",
             }
 
-        if not exit_price or exit_price <= 0:
+        if exit_price is None or exit_price <= 0:
             return {
                 "success": False,
+                "trade_id": None,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
                 "message": f"Invalid exit price: {exit_price} (must be > 0)",
             }
 
@@ -234,6 +333,13 @@ class ExitHandler:
         if trade_status_row and trade_status_row[0] == "closed":
             return {
                 "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
                 "message": f"Trade {trade_id} is already closed (idempotency guard)",
                 "duplicate": True,
             }
@@ -388,12 +494,29 @@ class ExitHandler:
         if position_status == "closed":
             return {
                 "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
                 "message": "Position already closed (idempotency guard)",
                 "duplicate": True,
             }
 
         if current_qty <= 0 and not position_id:
-            return {"success": False, "message": f"No open position for {trade_id}"}
+            return {
+                "success": False,
+                "trade_id": trade_id,
+                "shares_exited": 0,
+                "profit_loss_dollars": None,
+                "profit_loss_pct": None,
+                "r_multiple": None,
+                "full_exit": False,
+                "is_estimated_price": False,
+                "message": f"No open position for {trade_id}",
+            }
 
         # Calculate shares to exit
         shares_to_exit, full_exit = self._calculate_exit_shares(current_qty, exit_fraction)
@@ -459,6 +582,13 @@ class ExitHandler:
                     logger.warning(f"Failed to send exit failure alert (non-blocking): {e}")
                 return {
                     "success": False,
+                    "trade_id": trade_id,
+                    "shares_exited": 0,
+                    "profit_loss_dollars": None,
+                    "profit_loss_pct": None,
+                    "r_multiple": None,
+                    "full_exit": False,
+                    "is_estimated_price": False,
                     "message": f"Exit order failed: {error_message}",
                 }
 
