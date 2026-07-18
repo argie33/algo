@@ -760,7 +760,6 @@ def panel_orch(  # noqa: C901
                 Rule(style="dim"),
             ]
             body_rows.extend(exec_health_rows)
-            from rich.console import Group
             body = Group(*body_rows)
         else:
             body = Text.from_markup(
