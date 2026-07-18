@@ -168,18 +168,25 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
                 sec_val_row = cur.fetchone()
 
-                # Get quality/growth from SEC financials
+                # Get quality from SEC financials (latest record with data)
                 cur.execute(
                     """SELECT * FROM quality_metrics WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1""",
                     (symbol,),
                 )
                 quality_row_db = cur.fetchone()
 
+                # Get annual income statement history for growth computation (not from growth_metrics table)
                 cur.execute(
-                    """SELECT * FROM growth_metrics WHERE symbol = %s AND data_unavailable = FALSE LIMIT 1""",
+                    """
+                    SELECT total_revenue, operating_income, net_income, earnings_per_share
+                    FROM annual_income_statement
+                    WHERE symbol = %s AND total_revenue IS NOT NULL
+                    ORDER BY fiscal_year DESC
+                    LIMIT 10
+                    """,
                     (symbol,),
                 )
-                growth_row_db = cur.fetchone()
+                income_rows = cur.fetchall()
 
                 # Get yfinance snapshot for enrichment (dividend, analyst, etc.)
                 cur.execute(
@@ -191,7 +198,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Construct value metrics from sec_valuations + yfinance dividend
             value_dict = self._build_value_metrics(symbol, sec_val_row, yfinance_row)
             quality_dict = self._build_quality_metrics(symbol, quality_row_db)
-            growth_dict = self._build_growth_metrics(symbol, growth_row_db)
+            # Compute growth metrics from annual income statement history (not read from DB)
+            growth_dict = self._compute_growth_metrics(symbol, income_rows)
 
             return [(value_dict, quality_dict, growth_dict)]
 
@@ -253,18 +261,92 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "updated_at": date.today().isoformat(),
         }
 
-    def _build_growth_metrics(self, symbol: str, growth_row: Any) -> dict[str, Any]:
-        """Build growth_metrics dict from SEC financials."""
-        if not growth_row:
+    def _compute_growth_metrics(self, symbol: str, income_rows: list[Any]) -> dict[str, Any]:
+        """Compute multi-year growth rates from annual income statement history.
+
+        Calculates CAGR for 1y, 3y, 5y periods using compound annual growth rate formula.
+        income_rows: List of (total_revenue, operating_income, net_income, earnings_per_share)
+        sorted DESC by fiscal_year (most recent first).
+        """
+        if not income_rows or len(income_rows) < 2:
             return self._unavailable_marker("growth_metrics", symbol)
 
-        return {
+        metrics: dict[str, Any] = {
             "symbol": symbol,
-            "revenue_growth": growth_row[2] if len(growth_row) > 2 else None,
-            "eps_growth": growth_row[3] if len(growth_row) > 3 else None,
-            "data_unavailable": False,
+            "revenue_growth_1y": None,
+            "revenue_growth_3y": None,
+            "revenue_growth_5y": None,
+            "eps_growth_1y": None,
+            "eps_growth_3y": None,
+            "eps_growth_5y": None,
             "updated_at": date.today().isoformat(),
+            "data_unavailable": False,
         }
+
+        # Extract revenue and EPS from rows
+        revenues = []
+        eps_values = []
+        for row in income_rows:
+            try:
+                rev = float(row[0]) if row[0] is not None else None
+                eps = float(row[3]) if row[3] is not None else None
+                if rev is not None and rev > 0:
+                    revenues.append(rev)
+                if eps is not None and eps != 0:
+                    eps_values.append(eps)
+            except (ValueError, TypeError):
+                continue
+
+        def _cagr(latest: float, previous: float, years: int) -> float | None:
+            """Compute CAGR (Compound Annual Growth Rate)."""
+            try:
+                latest_f = float(latest) if not isinstance(latest, float) else latest
+                previous_f = float(previous) if not isinstance(previous, float) else previous
+            except (ValueError, TypeError):
+                return None
+
+            if previous_f == 0 or previous_f is None:
+                return None
+            if (latest_f > 0 and previous_f < 0) or (latest_f < 0 and previous_f > 0):
+                return None  # Sign change, CAGR doesn't apply
+            ratio = latest_f / previous_f
+            return float(((ratio ** (1.0 / years)) - 1) * 100)
+
+        # 1-year growth
+        if len(revenues) >= 2:
+            rev_growth = _cagr(revenues[0], revenues[1], 1)
+            if rev_growth is not None:
+                metrics["revenue_growth_1y"] = float(round(rev_growth, 2))
+        if len(eps_values) >= 2:
+            eps_growth = _cagr(eps_values[0], eps_values[1], 1)
+            if eps_growth is not None:
+                metrics["eps_growth_1y"] = float(round(eps_growth, 2))
+
+        # 3-year growth
+        if len(revenues) >= 4:
+            rev_growth = _cagr(revenues[0], revenues[3], 3)
+            if rev_growth is not None:
+                metrics["revenue_growth_3y"] = float(round(rev_growth, 2))
+        if len(eps_values) >= 4:
+            eps_growth = _cagr(eps_values[0], eps_values[3], 3)
+            if eps_growth is not None:
+                metrics["eps_growth_3y"] = float(round(eps_growth, 2))
+
+        # 5-year growth
+        if len(revenues) >= 6:
+            rev_growth = _cagr(revenues[0], revenues[5], 5)
+            if rev_growth is not None:
+                metrics["revenue_growth_5y"] = float(round(rev_growth, 2))
+        if len(eps_values) >= 6:
+            eps_growth = _cagr(eps_values[0], eps_values[5], 5)
+            if eps_growth is not None:
+                metrics["eps_growth_5y"] = float(round(eps_growth, 2))
+
+        # Mark as unavailable if no growth rates computed
+        if all(metrics[k] is None for k in ["revenue_growth_1y", "revenue_growth_3y", "revenue_growth_5y", "eps_growth_1y", "eps_growth_3y", "eps_growth_5y"]):
+            return self._unavailable_marker("growth_metrics", symbol)
+
+        return metrics
 
     def _insert_value_metrics(self, cur: Any, row: dict[str, Any]) -> None:
         """Insert value_metrics row."""
@@ -310,12 +392,36 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
-        """Insert growth_metrics row - DISABLED: schema mismatch (table expects revenue_growth_1y/3y/5y, not revenue_growth).
-
-        TODO: Fix growth_metrics table schema or update loader to compute multi-year growth rates from SEC financials.
-        For now, skip growth metrics inserts to unblock value + quality metrics.
-        """
-        pass  # Skip growth metrics until schema is fixed
+        """Insert growth_metrics row with multi-year CAGR values."""
+        cur.execute(
+            """
+            INSERT INTO growth_metrics
+            (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable, reason, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (symbol) DO UPDATE SET
+                revenue_growth_1y = EXCLUDED.revenue_growth_1y,
+                revenue_growth_3y = EXCLUDED.revenue_growth_3y,
+                revenue_growth_5y = EXCLUDED.revenue_growth_5y,
+                eps_growth_1y = EXCLUDED.eps_growth_1y,
+                eps_growth_3y = EXCLUDED.eps_growth_3y,
+                eps_growth_5y = EXCLUDED.eps_growth_5y,
+                data_unavailable = EXCLUDED.data_unavailable,
+                reason = EXCLUDED.reason,
+                updated_at = EXCLUDED.updated_at
+            """,
+            (
+                row["symbol"],
+                row.get("revenue_growth_1y"),
+                row.get("revenue_growth_3y"),
+                row.get("revenue_growth_5y"),
+                row.get("eps_growth_1y"),
+                row.get("eps_growth_3y"),
+                row.get("eps_growth_5y"),
+                row.get("data_unavailable", False),
+                row.get("reason"),
+                row["updated_at"],
+            ),
+        )
 
     def _unavailable_marker(self, table: str, symbol: str) -> dict[str, Any]:
         """Return data_unavailable marker for a table."""
@@ -346,9 +452,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         else:  # growth_metrics
             return {
                 "symbol": symbol,
-                "revenue_growth": None,
-                "eps_growth": None,
+                "revenue_growth_1y": None,
+                "revenue_growth_3y": None,
+                "revenue_growth_5y": None,
+                "eps_growth_1y": None,
+                "eps_growth_3y": None,
+                "eps_growth_5y": None,
                 "data_unavailable": True,
+                "reason": "Insufficient historical data",
                 "updated_at": date.today().isoformat(),
             }
 
