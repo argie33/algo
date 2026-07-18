@@ -88,7 +88,13 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 return self._unavailable_record(symbol, now_et, "submissions_empty")
 
             # Extract company info from submissions (fail-fast: entity_name is required)
-            entity_name = submissions.get("name") or submissions.get("entityName")
+            # SEC API uses "name" field; fallback to "entityName" only if "name" is None
+            # Do not use cascading .get() which masks which field was actually used
+            entity_name = submissions.get("name")
+            if entity_name is None:
+                entity_name = submissions.get("entityName")
+                if entity_name:
+                    logger.debug(f"[{symbol}] Using entityName fallback field (name was not present)")
             if not entity_name:
                 return self._unavailable_record(symbol, now_et, "entity_name_not_found")
 

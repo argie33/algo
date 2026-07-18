@@ -100,7 +100,10 @@ def fetch_run(c: None) -> dict[str, Any]:
 
         # CRITICAL: timestamp field is REQUIRED (can be called 'started_at' or 'run_at')
         # Accept both field names to support different API versions
-        started_at = inner.get("started_at") or inner.get("run_at")
+        # FAIL-FAST: Check explicitly for None to distinguish missing from 0/False
+        started_at = inner.get("started_at")
+        if started_at is None:
+            started_at = inner.get("run_at")
         if not started_at:
             error_msg = (
                 "Last-run API response missing required timestamp field (started_at or run_at). Available keys: "
