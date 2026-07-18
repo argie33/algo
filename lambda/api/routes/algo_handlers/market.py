@@ -840,6 +840,19 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 # Fail-fast if VIX is invalid (contract requires non-None vix_level)
                 vix_val = market_health.get("vix_level")
                 if vix_val is None:
+                    # Fallback: fetch most recent non-null VIX (for local dev where today's data is incomplete)
+                    cur.execute("""
+                            SELECT vix_level FROM market_health_daily
+                            WHERE vix_level IS NOT NULL
+                            ORDER BY date DESC LIMIT 1
+                        """)
+                    vix_row = cur.fetchone()
+                    if vix_row:
+                        vix_val = safe_dict_convert(vix_row).get("vix_level")
+                        if vix_val is not None:
+                            market_health["vix_level"] = vix_val
+
+                if vix_val is None:
                     return error_response(
                         503,
                         "data_unavailable",
