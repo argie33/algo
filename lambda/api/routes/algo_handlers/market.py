@@ -656,12 +656,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         try:
             cur.execute("""
                 SELECT COUNT(*) as signal_count,
-                       COUNT(*) FILTER (WHERE signal_type = 'BUY') as buy_count,
-                       COUNT(*) FILTER (WHERE signal_type = 'SELL') as sell_count,
-                       AVG(CAST(signal_strength AS FLOAT)) as avg_strength,
-                       MAX(signal_generated_at) as latest_signal
+                       COUNT(*) FILTER (WHERE raw_signal = 'BUY') as buy_count,
+                       COUNT(*) FILTER (WHERE raw_signal = 'SELL') as sell_count,
+                       AVG(CAST(signal_quality_score AS FLOAT)) as avg_strength,
+                       MAX(created_at) as latest_signal
                 FROM algo_signals
-                WHERE signal_generated_at >= CURRENT_DATE - INTERVAL '1 day'
+                WHERE created_at >= CURRENT_DATE - INTERVAL '1 day'
             """)
             sig_row = cur.fetchone()
             if sig_row:

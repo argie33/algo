@@ -303,7 +303,7 @@ def _get_candidates_from_buysell(
                 WITH ranked AS (
                     SELECT
                         bsd.symbol,
-                        COALESCE(ss.composite_score, bsd.strength * 50) AS composite_score,
+                        ss.composite_score,
                         ss.quality_score,
                         ss.growth_score,
                         ss.momentum_score,
@@ -330,7 +330,7 @@ def _get_candidates_from_buysell(
                           AND symbol NOT IN (SELECT symbol FROM etf_symbols)
                         ORDER BY symbol, date DESC
                     ) bsd
-                    LEFT JOIN stock_scores ss ON ss.symbol = bsd.symbol
+                    INNER JOIN stock_scores ss ON ss.symbol = bsd.symbol AND ss.composite_score IS NOT NULL
                     JOIN LATERAL (
                         SELECT close, high, low
                         FROM price_daily
@@ -361,8 +361,8 @@ def _get_candidates_from_buysell(
                         WHERE tr IS NOT NULL AND rn <= 14
                     ) atr_calc ON TRUE
                     LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
-                    WHERE COALESCE(ss.composite_score, bsd.strength * 50) >= %s
-                      AND (ss.data_completeness >= 70 OR ss.composite_score IS NULL)
+                    WHERE ss.composite_score >= %s
+                      AND ss.data_completeness >= 70
                       AND p.close > sma.avg_close
                       AND p.high > p.low
                       AND ((p.close - p.low) / (p.high - p.low)) > %s
@@ -389,11 +389,11 @@ def _get_candidates_from_buysell(
         for r in rows:
             symbol = r[0]
 
-            # Composite score guaranteed by JOIN (stock_scores inner join)
+            # Composite score guaranteed by INNER JOIN with stock_scores (non-null check in SQL WHERE)
             if r[1] is None:
                 raise ValueError(
                     f"[PHASE 7] {symbol}: composite_score is NULL - "
-                    "stock_scores join guarantees non-null composite_score"
+                    "INNER JOIN to stock_scores and WHERE ss.composite_score IS NOT NULL guarantees non-null"
                 )
             composite = float(r[1])
 

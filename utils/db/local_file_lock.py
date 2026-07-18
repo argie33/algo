@@ -184,7 +184,19 @@ def get_lock_manager(
     lock is handled separately by DynamoDBLockManager itself (is_available)
     and causes callers to fail closed rather than silently degrading.
     """
+    import os
+
     from utils.db.dynamo_lock import DynamoDBLockManager
+
+    # Use file-based locks in LOCAL_MODE for simpler local development
+    local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true")
+    if local_mode:
+        logger.info("[LOCK_FACTORY] LOCAL_MODE detected - using file-based locks")
+        return FileLockManager(
+            table_name=table_name,
+            lock_duration_seconds=lock_duration_seconds,
+            enable_auto_cleanup=enable_auto_cleanup,
+        )
 
     try:
         logger.info("[LOCK_FACTORY] Using DynamoDB locks")
