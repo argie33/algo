@@ -89,6 +89,12 @@ def _get_market_halts(mkt_data: dict[str, Any], panel_name: str) -> list[Any]:
     halts = safe_get_list(halts_raw)
     if halts is None:
         raise RuntimeError(f"{panel_name}: halts data validation FAILED. Got: {halts_raw}")
+    # safe_get_list returns either list or unavailability marker dict
+    if isinstance(halts, dict) and halts.get("data_unavailable"):
+        raise RuntimeError(
+            f"{panel_name}: halts data unavailable (reason: {halts.get('reason', 'unknown')}). "
+            f"Raw value: {halts_raw}"
+        )
     if not isinstance(halts, list):
         logger.error(
             f"[{panel_name}] Halt validation produced non-list result after safe_get_list check. "

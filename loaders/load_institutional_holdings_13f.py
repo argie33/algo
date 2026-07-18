@@ -88,7 +88,7 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
             logger.error(f"[{symbol}] Failed to fetch institutional holdings: {type(e).__name__}: {e}")
             return self._unavailable_record(symbol, now_et, f"fetch_error: {str(e)[:40]}")
 
-def _fetch_from_companyfacts(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
+    def _fetch_from_companyfacts(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
         """Fallback: try to fetch institutional ownership from SEC companyfacts.
 
         Args:
