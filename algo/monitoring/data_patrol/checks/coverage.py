@@ -40,7 +40,11 @@ class CoverageChecker(BaseCheck):
                 CROSS JOIN latest_date ld
             """)
             row = cur.fetchone()
-            today_count, total_count = row["today_count"], row["total_count"]
+            if isinstance(row, dict):
+                today_count, total_count = row.get("today_count"), row.get("total_count")
+            else:
+                row_dict = dict(row) if hasattr(row, "keys") else {}
+                today_count, total_count = row_dict.get("today_count"), row_dict.get("total_count")
             if today_count is None:
                 raise ValueError("price_daily today_count returned NULL - loader may be stalled or corrupted")
             if total_count is None:

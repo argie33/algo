@@ -650,12 +650,30 @@ class CircuitBreaker:
     def _check_market_stage(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """H7 FIX: Market stage validation with data freshness check.
 
-        Ensures we don't use stale market stage data from days ago.
+        On trading days: require today's market_stage (market just closed).
+        On non-trading days (weekends/holidays): use most recent trading day's market_stage
+        (market regime doesn't change when market is closed).
         CRITICAL: MarketCalendar must succeed to ensure holiday accuracy.
         """
+        from algo.infrastructure import MarketCalendar
+
+        # Determine expected data date based on trading days
+        is_trading_day = MarketCalendar.is_trading_day(current_date)
+        if is_trading_day:
+            # Trading day: require today's market_stage (market closed at 4 PM today)
+            expected_data_date = current_date
+        else:
+            # Weekend/holiday: use most recent trading day's market_stage
+            # (market regime valid from most recent close, unchanged until next open)
+            expected_data_date = current_date - timedelta(days=1)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(expected_data_date):
+                    break
+                expected_data_date -= timedelta(days=1)
+
         cur.execute(
             "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
-            (current_date,),
+            (expected_data_date,),
         )
         row = cur.fetchone()
         if row is None:
@@ -667,73 +685,14 @@ class CircuitBreaker:
         data_date = row[0]
         if isinstance(data_date, datetime):
             data_date = data_date.date()
-        days_stale = (current_date - data_date).days
-
-        # Use trading-day-aware staleness check (same pattern as _check_data_freshness and Phase 1).
-        # Hardcoded calendar-day thresholds cause false halts after 3-day holiday weekends when
-        # the market_health_daily record is from Friday but current_date is Tuesday (4 days gap).
-        # Root causes for stale data now fixed: RDS Proxy removed (cfb3f01f), failsafe verification in place (a2a8a654).
-        # Revert to 1 trading day of staleness tolerance for tighter data freshness.
-        expected_date = current_date - timedelta(days=1)
-        min_acceptable_date = current_date - timedelta(days=2)  # 1 trading day back
-        try:
-            from algo.infrastructure import MarketCalendar
-
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(expected_date):
-                    break
-                expected_date -= timedelta(days=1)
-            for _ in range(10):
-                if MarketCalendar.is_trading_day(min_acceptable_date):
-                    break
-                min_acceptable_date -= timedelta(days=1)
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as cal_e:
-            logger.critical(
-                f"MarketCalendar check failed: {cal_e}. "
-                "Cannot fall back to weekday logic - holidays would be misclassified. "
-                "Failing closed to prevent trading with incorrect market regime classification."
-            )
-            return {
-                "halted": True,
-                "reason": f"Market calendar unavailable ({type(cal_e).__name__}). Cannot determine trading days accurately. Fail-closed halt.",
-                "value": None,
-            }
-
-        if data_date < min_acceptable_date:
-            # Fail-closed: Market stage is required to determine trading conditions.
-            # Even though stage is advisory (stage 4 = halt, 1-3 = allow), we cannot
-            # proceed when market classification data is stale. Stale market data may not
-            # reflect current regime changes (e.g., market recovered to Stage 2 but we don't know).
-            # Risk: Entering positions based on outdated market regime classification.
-            logger.critical(
-                f"Market stage data stale ({days_stale}d old, expected {expected_date}). "
-                "Cannot determine current market regime. Trading halted until market health data refreshes."
-            )
-            return {
-                "halted": True,
-                "reason": f"Market stage data stale ({days_stale}d old) - cannot determine regime. Fail-closed halt.",
-                "value": None,
-            }
 
         if row[1] is None:
-            # RESILIENCE FIX: If today's market_stage is NULL (loader not yet complete),
-            # try to use yesterday's data rather than halting all trading.
-            # This handles intraday runs where market health loader runs async after market open.
-            cur.execute(
-                "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date < %s AND market_stage IS NOT NULL ORDER BY date DESC LIMIT 1",
-                (current_date,),
-            )
-            fallback_row = cur.fetchone()
-            if fallback_row is None or fallback_row[1] is None:
-                return {
-                    "halted": True,
-                    "reason": "Market stage NULL (today) and no recent prior data - fail-closed to prevent trading in unknown stage",
-                }
-            # Use fallback data
-            logger.warning(
-                f"[CIRCUIT_BREAKER] Market stage NULL for {current_date}; using fallback from {fallback_row[0]}"
-            )
-            row = fallback_row
+            # Market stage data exists for expected date but value is NULL
+            # This means the loader ran but couldn't compute the stage
+            return {
+                "halted": True,
+                "reason": f"Market stage NULL for {expected_data_date} - cannot determine regime. Fail-closed halt.",
+            }
 
         stage = int(row[1])
         trend = row[2] if row[2] is not None else "unknown"

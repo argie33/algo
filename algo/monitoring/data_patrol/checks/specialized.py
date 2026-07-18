@@ -263,7 +263,11 @@ class SpecializedChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("RSI bounds check query returned no results - database state corrupted")
-            bad_rsi, null_rsi, total = row["bad_rsi"], row["null_rsi"], row["total"]
+            if isinstance(row, dict):
+                bad_rsi, null_rsi, total = row.get("bad_rsi"), row.get("null_rsi"), row.get("total")
+            else:
+                row_dict = dict(row) if hasattr(row, "keys") else {}
+                bad_rsi, null_rsi, total = row_dict.get("bad_rsi"), row_dict.get("null_rsi"), row_dict.get("total")
             if bad_rsi is None or null_rsi is None or total is None:
                 raise ValueError("COUNT(*) FILTER for RSI check returned NULL - cannot evaluate technical data quality")
             bad_rsi = int(bad_rsi)
@@ -342,7 +346,15 @@ class SpecializedChecker(BaseCheck):
                 WHERE table_name = 'sentiment_aggregate'
                 ORDER BY column_name
             """)
-            columns = [row["column_name"] for row in cur.fetchall()]
+            columns = []
+            for row in cur.fetchall():
+                if isinstance(row, dict):
+                    col = row.get("column_name")
+                else:
+                    row_dict = dict(row) if hasattr(row, "keys") else {}
+                    col = row_dict.get("column_name")
+                if col:
+                    columns.append(col)
 
             required_cols = {
                 "date",
@@ -457,7 +469,15 @@ class SpecializedChecker(BaseCheck):
                 """,
                     (tbl,),
                 )
-                columns = [row["column_name"] for row in cur.fetchall()]
+                columns = []
+                for row in cur.fetchall():
+                    if isinstance(row, dict):
+                        col = row.get("column_name")
+                    else:
+                        row_dict = dict(row) if hasattr(row, "keys") else {}
+                        col = row_dict.get("column_name")
+                    if col:
+                        columns.append(col)
                 present_cols = set(columns)
 
                 if required_cols.issubset(present_cols):
@@ -472,7 +492,11 @@ class SpecializedChecker(BaseCheck):
                     # Check data freshness
                     cur.execute(f"SELECT COUNT(*) as count, MAX(created_at) as max_updated FROM {tbl_safe}")
                     row = cur.fetchone()
-                    count, max_updated = row["count"], row["max_updated"]
+                    if isinstance(row, dict):
+                        count, max_updated = row.get("count"), row.get("max_updated")
+                    else:
+                        row_dict = dict(row) if hasattr(row, "keys") else {}
+                        count, max_updated = row_dict.get("count"), row_dict.get("max_updated")
 
                     if count > 0 and max_updated:
                         now = datetime.now(timezone.utc) if max_updated.tzinfo else datetime.now()

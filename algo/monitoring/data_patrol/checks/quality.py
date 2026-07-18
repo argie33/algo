@@ -44,7 +44,11 @@ class QualityChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("NULL anomaly check query returned no results - database state corrupted")
-            today_nulls, today_total = row["today_nulls"], row["today_total"]
+            if isinstance(row, dict):
+                today_nulls, today_total = row.get("today_nulls"), row.get("today_total")
+            else:
+                row_dict = dict(row) if hasattr(row, "keys") else {}
+                today_nulls, today_total = row_dict.get("today_nulls"), row_dict.get("today_total")
             if today_nulls is None:
                 raise ValueError("SUM(CASE WHEN close IS NULL...) returned NULL - cannot determine NULL anomaly count")
             if today_total is None:

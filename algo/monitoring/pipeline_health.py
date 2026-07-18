@@ -152,7 +152,9 @@ class PipelineHealth:
                 return health
             # DictCursor names the GREATEST() expression result as "greatest"
             if isinstance(result, dict):
-                health.row_count = int(result.get("greatest", result.get("cnt", 0)))
+                greatest_val = result.get("greatest")
+                cnt: int = int(greatest_val) if greatest_val is not None else int(result.get("cnt") or 0)
+                health.row_count = cnt
             else:
                 health.row_count = int(result[0])
 

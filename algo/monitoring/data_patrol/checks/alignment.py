@@ -33,7 +33,10 @@ class AlignmentChecker(BaseCheck):
         try:
             cur.execute("SELECT MAX(date) as max_date FROM signal_quality_scores")
             row = cur.fetchone()
-            sqs_date = row["max_date"] if row and row["max_date"] is not None else None
+            if not row:
+                sqs_date = None
+            else:
+                sqs_date = dict(row).get("max_date") if hasattr(row, "keys") else None
             if not sqs_date:
                 self.log(
                     "alignment",
@@ -46,7 +49,10 @@ class AlignmentChecker(BaseCheck):
 
             cur.execute("SELECT MAX(date) as max_date FROM buy_sell_daily WHERE date <= %s", (sqs_date,))
             row = cur.fetchone()
-            buy_sell_date = row["max_date"] if row and row["max_date"] is not None else None
+            if not row:
+                buy_sell_date = None
+            else:
+                buy_sell_date = dict(row).get("max_date") if hasattr(row, "keys") else None
 
             if not buy_sell_date or buy_sell_date < sqs_date:
                 self.log(
@@ -68,10 +74,14 @@ class AlignmentChecker(BaseCheck):
                 (sqs_date, sqs_date),
             )
             row = cur.fetchone()
-            if row:
-                sqs_count, buy_sell_count = row["sqs_count"], row["buy_sell_count"]
-            else:
+            if not row:
                 self.log("alignment", INFO, "signal_quality_scores", "Could not fetch symbol counts", None)
+                return
+            sqs_count = dict(row).get("sqs_count") if hasattr(row, "keys") else None
+            buy_sell_count = dict(row).get("buy_sell_count") if hasattr(row, "keys") else None
+
+            if sqs_count is None or buy_sell_count is None:
+                self.log("alignment", WARN, "signal_quality_scores", "Symbol count is NULL", {"sqs_count": sqs_count, "buy_sell_count": buy_sell_count})
                 return
 
             if buy_sell_count == 0:
@@ -137,7 +147,11 @@ class AlignmentChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("Signal alignment query returned no results - database state corrupted")
-            total, missing_price, missing_tech = row["total_signals"], row["missing_price"], row["missing_tech"]
+            if isinstance(row, dict):
+                total, missing_price, missing_tech = row.get("total_signals"), row.get("missing_price"), row.get("missing_tech")
+            else:
+                row_dict = dict(row) if hasattr(row, "keys") else {}
+                total, missing_price, missing_tech = row_dict.get("total_signals"), row_dict.get("missing_price"), row_dict.get("missing_tech")
             if total is None:
                 raise ValueError("COUNT(*) FILTER for total signals returned NULL - cannot evaluate signal alignment")
             if missing_price is None:
@@ -226,7 +240,11 @@ class AlignmentChecker(BaseCheck):
                     (SELECT MAX(date) FROM signal_quality_scores) AS sqs_latest
             """)
             row = cur.fetchone()
-            price_d, trend_d, sqs_d = row["price_latest"], row["trend_latest"], row["sqs_latest"]
+            if not row:
+                raise ValueError("Score freshness query returned no results")
+            price_d = dict(row).get("price_latest") if hasattr(row, "keys") else None
+            trend_d = dict(row).get("trend_latest") if hasattr(row, "keys") else None
+            sqs_d = dict(row).get("sqs_latest") if hasattr(row, "keys") else None
 
             for name, comp_date in [
                 ("trend_template_data", trend_d),
@@ -267,11 +285,16 @@ class AlignmentChecker(BaseCheck):
                 WHERE date = (SELECT MAX(date) FROM price_daily)
             """)
             row = cur.fetchone()
-            if row is None or row["symbol_count"] is None:
+            if row is None:
                 raise ValueError(
                     "Cross-alignment baseline query returned NULL - cannot determine symbol count for coverage validation"
                 )
-            baseline = int(row["symbol_count"])
+            symbol_count = dict(row).get("symbol_count") if hasattr(row, "keys") else None
+            if symbol_count is None:
+                raise ValueError(
+                    "Cross-alignment baseline query returned NULL - cannot determine symbol count for coverage validation"
+                )
+            baseline = int(symbol_count)
             if baseline == 0:
                 raise ValueError("price_daily has 0 symbols on latest date - loader failure or data corruption")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -328,9 +351,9 @@ class AlignmentChecker(BaseCheck):
 
             counts_by_table = {}
             for row in cur.fetchall():
-                row_dict = dict(row)
-                tbl_name = row_dict["tbl_name"]
-                cnt = row_dict["cnt"]
+                row_dict = dict(row) if hasattr(row, "keys") else {}
+                tbl_name = row_dict.get("tbl_name")
+                cnt = row_dict.get("cnt")
                 if tbl_name is None or cnt is None:
                     raise ValueError(f"Invalid row data from union query: {row_dict}")
                 counts_by_table[tbl_name] = int(cnt)

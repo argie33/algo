@@ -21,7 +21,7 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-import requests  # type: ignore[import-untyped]
+import requests
 
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
