@@ -224,8 +224,159 @@ PHASE_DATA_KEYS = (
 )
 
 
+def _build_phase_execution_panel(execution_health: dict[str, Any] | None) -> Panel | None:
+    """Build prominent PHASE EXECUTION HEALTH panel showing all 9 phases with status.
+
+    Returns a Rich Panel with phase health summary, or None if no data available.
+    """
+    if not execution_health or not isinstance(execution_health, dict):
+        return None
+
+    # Define all 9 phases in execution order
+    phases = [
+        (1, "Data Freshness Check", "data_check", execution_health.get("phase_1_data_check")),
+        (2, "Circuit Breakers", "circuit_breakers", execution_health.get("phase_2_circuit_breakers")),
+        (3, "Position Monitor", "position_monitor", execution_health.get("phase_3_position_monitor")),
+        (4, "Broker Reconciliation", "reconciliation", execution_health.get("phase_4_broker_reconciliation")),
+        (5, "Exposure Policy", "exposure_policy", execution_health.get("phase_5_exposure_policy")),
+        (6, "Exit Execution", "exit_execution", execution_health.get("phase_6_exit_execution")),
+        (7, "Signal Generation", "signal_generation", execution_health.get("phase_7_signal_generation")),
+        (8, "Entry Execution", "entry_execution", execution_health.get("phase_8_entry_execution")),
+        (9, "Portfolio Snapshot", "portfolio_snapshot", execution_health.get("phase_9_portfolio_snapshot")),
+    ]
+
+    # Build phase rows with color coding and status
+    phase_rows: list[Text] = []
+    has_any_data = False
+
+    for phase_num, phase_name, phase_key, phase_data in phases:
+        if phase_data is None:
+            # No data for this phase yet (expected in initialization)
+            continue
+
+        has_any_data = True
+
+        # Phase 2: Circuit Breakers
+        if phase_num == 2:
+            any_triggered = phase_data.get("any_triggered", False)
+            status_icon = "[bold red]⚠[/]" if any_triggered else "[bold green]✓[/]"
+            status_text = "TRIGGERED" if any_triggered else "OK"
+
+            dd = phase_data.get("drawdown_pct")
+            dl = phase_data.get("daily_loss_pct")
+            vix = phase_data.get("vix_level")
+            metrics_str = ""
+            if dd is not None:
+                dd_color = R if dd >= 20 else Y if dd >= 10 else G
+                metrics_str += f" [dim]DD[/] [{dd_color}]{dd:.1f}%[/]"
+            if dl is not None:
+                dl_color = R if dl >= 2 else Y if dl >= 1 else G
+                metrics_str += f" [dim]DL[/] [{dl_color}]{dl:.1f}%[/]"
+            if vix is not None:
+                vix_color = R if vix >= 35 else Y if vix >= 25 else G
+                metrics_str += f" [dim]VIX[/] [{vix_color}]{vix:.1f}[/]"
+
+            phase_rows.append(Text.from_markup(
+                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}{metrics_str}"
+            ))
+
+        # Phase 3: Position Monitor
+        elif phase_num == 3:
+            open_count = phase_data.get("open_positions", 0)
+            oldest = phase_data.get("oldest_days")
+            max_loss = phase_data.get("max_loss_pct")
+
+            pos_color = G if open_count == 0 else Y if open_count <= 5 else R
+            status_icon = f"[{pos_color}]●[/]"
+            status_text = f"{open_count} open"
+            if oldest is not None:
+                status_text += f" ({oldest}d old)"
+            if max_loss is not None:
+                loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
+                status_text += f" [dim]max loss[/] [{loss_color}]{max_loss:.1f}%[/]"
+
+            phase_rows.append(Text.from_markup(
+                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
+            ))
+
+        # Phase 6: Exit Execution
+        elif phase_num == 6:
+            exits = phase_data.get("exits_executed", 0)
+            success_rate = phase_data.get("success_rate", 0)
+
+            exit_color = G if exits > 0 and success_rate >= 80 else (Y if exits > 0 else DIM)
+            status_icon = f"[{exit_color}]↓[/]"
+            status_text = f"{exits} exit{'s' if exits != 1 else ''}"
+            if exits > 0:
+                sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
+                status_text += f" [dim]success[/] [{sr_color}]{success_rate:.0f}%[/]"
+
+            phase_rows.append(Text.from_markup(
+                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
+            ))
+
+        # Phase 7: Signal Generation
+        elif phase_num == 7:
+            signals = phase_data.get("signals_generated", 0)
+            avg_strength = phase_data.get("avg_strength")
+
+            sig_color = G if signals > 0 else DIM
+            status_icon = f"[{sig_color}]◆[/]"
+            status_text = f"{signals} signal{'s' if signals != 1 else ''}"
+            if avg_strength is not None:
+                strength_color = G if avg_strength >= 70 else Y if avg_strength >= 50 else R
+                status_text += f" [dim]avg[/] [{strength_color}]{avg_strength:.1f}[/]"
+
+            phase_rows.append(Text.from_markup(
+                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
+            ))
+
+        # Phase 8: Entry Execution
+        elif phase_num == 8:
+            entries = phase_data.get("entries_executed", 0)
+            success_rate = phase_data.get("success_rate", 0)
+
+            entry_color = G if entries > 0 and success_rate >= 80 else (Y if entries > 0 else DIM)
+            status_icon = f"[{entry_color}]↑[/]"
+            status_text = f"{entries} entr{'ies' if entries != 1 else 'y'}"
+            if entries > 0:
+                sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
+                status_text += f" [dim]success[/] [{sr_color}]{success_rate:.0f}%[/]"
+
+            phase_rows.append(Text.from_markup(
+                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
+            ))
+
+        # Phase 9: Portfolio Snapshot
+        elif phase_num == 9:
+            portfolio_value = phase_data.get("portfolio_value")
+            latest = phase_data.get("latest_snapshot")
+
+            status_icon = "[bold green]⟡[/]"
+            status_text = ""
+            if portfolio_value is not None:
+                status_text += f"${portfolio_value:,.0f}"
+            if latest:
+                status_text += f" [dim]({latest[:10]})[/]"
+
+            phase_rows.append(Text.from_markup(
+                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
+            ))
+
+    if not has_any_data:
+        return None
+
+    # Build panel with phase rows
+    return Panel(
+        Group(*phase_rows),
+        title="[bold cyan]PHASE EXECUTION HEALTH[/]  [dim][9 phases][/]",
+        border_style="cyan",
+        padding=(0, 1),
+    )
+
+
 def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> list[Text]:
-    """Format Phase 2-9 execution health metrics for display."""
+    """Format Phase 2-9 execution health metrics for display (compact inline version)."""
     rows: list[Text] = []
     if not execution_health or not isinstance(execution_health, dict):
         return rows
@@ -2405,13 +2556,12 @@ def panel_algo_health(  # noqa: C901
             health_text = _format_health_data_stale_section(stale, hlth_list)
             rows.append(Text.from_markup(health_text))
 
-        # ── E: Phase 2-9 Execution Health ────────────────────────────────────
+        # ── E: Phase 2-9 Execution Health (Prominent Panel) ────────────────────────────────────
         execution_health = hlth.get("execution_health") if isinstance(hlth, dict) else None
         if execution_health:
-            exec_health_rows = _format_phase_execution_health(execution_health)
-            if exec_health_rows:
-                rows.append(Rule(style="dim"))
-                rows.extend(exec_health_rows)
+            phase_panel = _build_phase_execution_panel(execution_health)
+            if phase_panel:
+                rows.append(phase_panel)
 
     # ── F: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     # CRITICAL: Do NOT silently fallback to empty dict when risk data is error or missing.
