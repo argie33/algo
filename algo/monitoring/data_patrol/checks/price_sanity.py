@@ -129,6 +129,19 @@ class PriceSanityChecker(BaseCheck):
             extreme_drops = cur.fetchall()
 
             if extreme_drops:
+                samples = []
+                for r in extreme_drops[:10]:
+                    try:
+                        symbol = r.get("symbol") if isinstance(r, dict) else r[0]
+                        date = r.get("date") if isinstance(r, dict) else r[1]
+                        pct_change = r.get("pct_change") if isinstance(r, dict) else r[4]
+                        samples.append({
+                            "symbol": symbol,
+                            "date": str(date),
+                            "pct_drop": round(pct_change, 1) if pct_change is not None else None,
+                        })
+                    except (TypeError, KeyError, IndexError) as e:
+                        logger.warning(f"Could not extract sample from {r}: {e}")
                 self.log(
                     "corporate_action",
                     WARN,
@@ -136,14 +149,7 @@ class PriceSanityChecker(BaseCheck):
                     f"{len(extreme_drops)} symbols with >{drop_ratio * -100:.0f}% single-day drop (likely corporate action)",
                     {
                         "count": len(extreme_drops),
-                        "samples": [
-                            {
-                                "symbol": r[0],
-                                "date": str(r[1]),
-                                "pct_drop": round(r[4], 1),
-                            }
-                            for r in extreme_drops[:10]
-                        ],
+                        "samples": samples,
                     },
                 )
             else:
