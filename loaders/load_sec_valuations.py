@@ -75,8 +75,24 @@ class SecValuationsLoader(OptimalLoader):
                 ttm_revenue, ttm_net_income, ttm_eps_basic = income_row
                 latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest
 
-                # For shares outstanding, derive from market cap if available, or use estimated default
-                # Most public companies have 1-5B shares, but we'll use price to back-calculate if needed
+                # Fetch shares outstanding from SEC company info (required for valuations)
+                cur.execute(
+                    """
+                    SELECT shares_outstanding FROM company_info_sec
+                    WHERE symbol = %s AND data_unavailable = FALSE AND shares_outstanding IS NOT NULL
+                    ORDER BY filing_date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                shares_row = cur.fetchone()
+                if not shares_row or not shares_row[0]:
+                    return [self._unavailable_marker(symbol, "shares_outstanding_unavailable")]
+
+                shares_out = safe_float(shares_row[0], f"{symbol}.shares_outstanding", allow_none=False)
+                if shares_out <= 0:
+                    return [self._unavailable_marker(symbol, "invalid_shares_outstanding")]
+
+                # Get current price for valuation computations
                 cur.execute(
                     """
                     SELECT close FROM price_daily
@@ -92,11 +108,6 @@ class SecValuationsLoader(OptimalLoader):
                 current_price = safe_float(price_row[0], f"{symbol}.close", allow_none=False)
                 if current_price <= 0:
                     return [self._unavailable_marker(symbol, "invalid_price")]
-
-                # Estimate shares outstanding as market_cap / price (rough estimate)
-                # In real deployment, this should come from SEC filings
-                # For now, use a conservative estimate of 1B shares for most companies
-                shares_out = 1_000_000_000
 
                 # Get latest balance sheet (book value)
                 cur.execute(

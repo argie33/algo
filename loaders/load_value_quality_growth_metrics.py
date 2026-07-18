@@ -232,6 +232,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         fcf_yield = sec_val_row[11]  # fcf_yield
         market_cap = sec_val_row[6]  # market_cap
 
+        # Validate: at least one core metric must be non-None
+        core_metrics = [pe, pb, ps, fcf_yield]
+        if all(m is None for m in core_metrics):
+            return self._unavailable_marker("value_metrics", symbol)
+
         # Get dividend from yfinance if available
         dividend_yield = None
         if yfinance_row:

@@ -160,7 +160,12 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
 
         for accession_number, filing_date in filings:
             try:
-                # Fetch Form 4 XML from SEC EDGAR
+                # Phase 2 Implementation Note: Form 4 XML file discovery
+                # SEC EDGAR doesn't have standardized XML filenames - get_filing_xml assumes
+                # "form4.xml" but filings have varying XML structures. The actual XML files
+                # need to be discovered by parsing the filing's index document.
+                # This requires additional SEC EDGAR research for proper implementation.
+                # For now, this will fail and we'll fall back to data_unavailable.
                 xml_content = self.sec_client.get_filing_xml(cik, accession_number, "4")
 
                 # Parse XML to extract insider data

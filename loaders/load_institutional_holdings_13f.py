@@ -22,6 +22,7 @@ from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
+from utils.external.sec_xml_parser import Schedule13GParser
 from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
@@ -119,11 +120,21 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
                 # Parse XML to extract institutional holdings
                 parsed_data = Schedule13GParser.parse(xml_content, symbol)
 
+                # Fail-fast: ownership_pct is required from XML parsing
+                if "ownership_pct" not in parsed_data:
+                    logger.warning(f"[{symbol}] SCHEDULE 13G XML missing ownership_pct field")
+                    continue
+
+                ownership_pct = parsed_data.get("ownership_pct")
+                if not isinstance(ownership_pct, (int, float)) or ownership_pct is None:
+                    logger.warning(f"[{symbol}] SCHEDULE 13G XML has invalid ownership_pct: {ownership_pct}")
+                    continue
+
                 return [
                     {
                         "symbol": symbol,
                         "filing_date": filing_date,
-                        "institutional_ownership_pct": float(parsed_data.get("ownership_pct", 0.0)),
+                        "institutional_ownership_pct": float(ownership_pct),
                         "number_of_institutional_holders": 1,  # This filing represents one investor
                         "data_unavailable": False,
                         "reason": None,
