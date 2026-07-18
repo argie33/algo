@@ -51,6 +51,33 @@ class ShortInterestFinraLoader(OptimalLoader):
     watermark_field = "settlement_date"
     exclude_etfs_from_symbols = True
 
+    def run(self, symbols: list[str], parallelism: int = 8, backfill_days: int | None = None) -> dict:
+        """Skip loading on non-trading days to avoid rate limit issues.
+
+        Short interest data is only updated on trading days, so skip fetching
+        on weekends/holidays to avoid unnecessary yfinance rate limiting.
+        """
+        now_et = datetime.now(EASTERN_TZ)
+        run_date = now_et.date()
+
+        from algo.infrastructure import MarketCalendar
+
+        if not MarketCalendar.is_trading_day(run_date):
+            logger.info(
+                f"[{self.table_name}] Skipping load: today ({run_date}) is not a trading day. "
+                f"Short interest data will use last available trading day's data."
+            )
+            return {
+                "symbols_processed": 0,
+                "symbols_failed": 0,
+                "rows_inserted": 0,
+                "duration_sec": 0,
+                "latest_date": None,
+                "status": "SKIPPED_NON_TRADING_DAY",
+            }
+
+        return super().run(symbols, parallelism, backfill_days)
+
     def _prepare_batch_context(self) -> None:
         """Initialize batch context for short interest loading.
 

@@ -303,7 +303,7 @@ def _get_candidates_from_buysell(
                 WITH ranked AS (
                     SELECT
                         bsd.symbol,
-                        COALESCE(ss.composite_score, bsd.strength * 20) AS composite_score,
+                        COALESCE(ss.composite_score, bsd.strength * 50) AS composite_score,
                         ss.quality_score,
                         ss.growth_score,
                         ss.momentum_score,
@@ -361,7 +361,7 @@ def _get_candidates_from_buysell(
                         WHERE tr IS NOT NULL AND rn <= 14
                     ) atr_calc ON TRUE
                     LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
-                    WHERE COALESCE(ss.composite_score, bsd.strength * 20) >= %s
+                    WHERE COALESCE(ss.composite_score, bsd.strength * 50) >= %s
                       AND (ss.data_completeness >= 70 OR ss.composite_score IS NULL)
                       AND p.close > sma.avg_close
                       AND p.high > p.low
