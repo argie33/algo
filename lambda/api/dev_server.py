@@ -444,8 +444,8 @@ def run_dev_server(port: int = 3001) -> None:
         )
         print(
             f"[FATAL] Port {port} is already in use!\n"
-            f"  → Another dev_server instance is running\n"
-            f"  → Kill it with: taskkill /F /IM python.exe (Windows) or pkill -9 dev_server (Unix)",
+            f"  > Another dev_server instance is running\n"
+            f"  > Kill it with: taskkill /F /IM python.exe (Windows) or pkill -9 dev_server (Unix)",
             flush=True,
         )
         import sys
