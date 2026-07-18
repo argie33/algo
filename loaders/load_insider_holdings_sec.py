@@ -18,18 +18,16 @@ Run:
     python3 loaders/load_insider_holdings_sec.py [--symbols AAPL,MSFT]
 """
 
-import json
 import logging
-import re
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
-from xml.etree import ElementTree as ET
 
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
+from utils.external.sec_xml_parser import Form4Parser
 from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
@@ -112,7 +110,7 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
             form_4_filings = []
             for i, form_type in enumerate(forms):
                 if form_type == "4" and i < len(accession_numbers):
-                    accession = accession_numbers[i].replace("-", "")
+                    accession = accession_numbers[i]
                     filing_date_str = filing_dates[i] if i < len(filing_dates) else None
                     if filing_date_str:
                         try:
@@ -126,13 +124,8 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
             if not form_4_filings:
                 return self._unavailable_record(symbol, now_et, "no_recent_form4_filings")
 
-            logger.error(
-                f"[{symbol}] Form 4/5 XML parsing not implemented (CRITICAL). "
-                "Phase 2 insider holdings loader requires SEC EDGAR XML parsing to extract transaction data. "
-                "See steering/FAIL_FAST_VIOLATIONS_CATALOG_2026_06_29.md#insider-holdings-stub. "
-                "Until implemented, use yfinance fallback via positioning_metrics loader."
-            )
-            return self._unavailable_record(symbol, now_et, "form4_parsing_not_implemented")
+            # Parse Form 4 filings to extract insider transaction data
+            return self._parse_form4_filings(symbol, cik, form_4_filings, now_et)
 
         except Exception as e:
             logger.error(f"[{symbol}] Failed to fetch insider holdings: {type(e).__name__}: {e}")
