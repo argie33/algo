@@ -120,6 +120,11 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
         "halt_required": False,
     }
 
+    # Skip loader retry logic in LOCAL_MODE (no AWS Lambda/ECS available)
+    if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
+        logger.info("[PHASE 1 FAILSAFE] LOCAL_MODE enabled - skipping loader retry checks. Data updates must be triggered manually.")
+        return results
+
     try:
         with DatabaseContext("read") as cur:
             # Find loaders with <95% completion in the last 1 hour
