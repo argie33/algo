@@ -70,6 +70,11 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
         Fetches recent Form 4 filings, extracts insider transaction data,
         aggregates holdings and activity metrics.
 
+        LIMITATION: Form 4 filings are generally NOT available in XBRL/XML format.
+        SEC distributes Form 4s in plain text format, which requires specialized
+        HTML/text parsing. This loader currently only supports XBRL-formatted
+        Form 4s (rare). For most companies, data_unavailable is returned.
+
         Args:
             symbol: Stock ticker symbol
             since: Minimum filing date to fetch (for incremental updates)
@@ -106,10 +111,16 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
             forms = recent_filings["form"]
             accession_numbers = recent_filings["accessionNumber"]
             filing_dates = recent_filings["filingDate"]
+            isXBRL = recent_filings.get("isXBRL", [])
 
             form_4_filings = []
             for i, form_type in enumerate(forms):
                 if form_type == "4" and i < len(accession_numbers):
+                    # Check if filing is in XBRL format (required for XML parsing)
+                    if i < len(isXBRL) and isXBRL[i] == 0:
+                        logger.debug(f"[{symbol}] Skipping Form 4 (accession {accession_numbers[i]}): not XBRL-formatted (plain text)")
+                        continue
+
                     accession = accession_numbers[i]
                     filing_date_str = filing_dates[i] if i < len(filing_dates) else None
                     if filing_date_str:
@@ -122,7 +133,7 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
                             pass
 
             if not form_4_filings:
-                return self._unavailable_record(symbol, now_et, "no_recent_form4_filings")
+                return self._unavailable_record(symbol, now_et, "no_xbrl_form4_filings_available")
 
             # Parse Form 4 filings to extract insider transaction data
             return self._parse_form4_filings(symbol, cik, form_4_filings, now_et)

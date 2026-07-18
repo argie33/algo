@@ -290,13 +290,13 @@ def handle_exception(symbol: str, error: Exception, context: str = "") -> dict[s
         # Fail-fast: log and re-raise unexpected errors
         logger.critical(
             f"[{symbol}] Unexpected error ({type(error).__name__}): {str(error)[:200]} {context}",
-            exc_info=True,
+            exc_info=False,
         )
-        raise
+        raise error
     else:
         # Defensive: should never reach here, but fail-fast if we do
         logger.critical(
             f"[{symbol}] Unknown exception classification: {classification} {type(error).__name__}",
-            exc_info=True,
+            exc_info=False,
         )
-        raise
+        raise error
