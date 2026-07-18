@@ -1845,7 +1845,6 @@ class PriceLoader(OptimalLoader):
             self._backfill_days = backfill_days
 
         import time
-        from datetime import timezone
 
         self._validate_schema_preflight()
 

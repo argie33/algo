@@ -1374,7 +1374,7 @@ def require_auth(event: dict[str, Any], path: str) -> tuple[bool, bool, str | No
         # In production Lambda, Cognito MUST be configured (this code is unreachable if properly configured)
 
         try:
-            from dev_auth import validate_dev_token, get_dev_claims
+            from dev_auth import get_dev_claims, validate_dev_token
 
             token = get_bearer_token(event)
             if token:

@@ -1227,7 +1227,6 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         # Markets only have valid data on trading days
         market_health = {}
         try:
-            from algo.infrastructure import MarketCalendar
 
             cur.execute("""
                     SELECT date, market_trend, market_stage, vix_level, spy_change_pct,
