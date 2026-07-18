@@ -90,27 +90,33 @@ else
 fi
 echo ""
 
-# Step 3: Regenerate market_health_daily
-echo -e "${YELLOW}[STEP 3]${NC} Regenerating market_health_daily for 2026-07-10..."
-echo "  This generates market health indicators (breadth, VIX, yield curve)"
-echo "  Expected time: 30 seconds"
+# Step 3: Regenerate market_status_daily (consolidated: health + exposure + sentiment)
+echo -e "${YELLOW}[STEP 3]${NC} Regenerating market_status_daily for 2026-07-10..."
+echo "  This generates consolidated market metrics (health, exposure, sentiment)"
+echo "  Outputs to: market_health_daily, market_exposure_daily, market_sentiment"
+echo "  Expected time: 1 minute"
 echo ""
 
-if python3 loaders/load_market_health_daily.py; then
-    echo -e "${GREEN}[SUCCESS]${NC} market_health_daily regenerated"
+if python3 loaders/load_market_status_daily.py; then
+    echo -e "${GREEN}[SUCCESS]${NC} market_status_daily regenerated (all 3 tables)"
     # Verify data was added
     HEALTH_COUNT=$(python3 -c "
 import psycopg2, os
 conn = psycopg2.connect(host='$DB_HOST', port=$DB_PORT, user='$DB_USER', password='$DB_PASSWORD', database='$DB_NAME')
 cur = conn.cursor()
 cur.execute(\"SELECT COUNT(*) FROM market_health_daily WHERE date='2026-07-10'\")
-print(cur.fetchone()[0])
+health = cur.fetchone()[0]
+cur.execute(\"SELECT COUNT(*) FROM market_exposure_daily WHERE date='2026-07-10'\")
+exposure = cur.fetchone()[0]
+cur.execute(\"SELECT COUNT(*) FROM market_sentiment WHERE date='2026-07-10'\")
+sentiment = cur.fetchone()[0]
 cur.close()
 conn.close()
-" 2>/dev/null || echo "0")
-    echo "  Rows for 2026-07-10: $HEALTH_COUNT (expected: 1)"
+print(f'health={health} exposure={exposure} sentiment={sentiment}')
+" 2>/dev/null || echo "failed")
+    echo "  Data loaded: $HEALTH_COUNT (expected: 1 row in each of 3 tables)"
 else
-    echo -e "${RED}[FAILED]${NC} market_health_daily loader failed"
+    echo -e "${RED}[FAILED]${NC} market_status_daily loader failed"
     exit 1
 fi
 echo ""

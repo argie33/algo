@@ -89,6 +89,7 @@ verify_data() {
 
     local query1="SELECT COUNT(*) FROM price_daily WHERE date = CURRENT_DATE;"
     local query2="SELECT COUNT(*) FROM buy_sell_daily WHERE date::date = CURRENT_DATE;"
+    # Note: market_health_daily is now populated by consolidated market_status_daily loader (Phase 2)
     local query3="SELECT COUNT(*) FROM market_health_daily WHERE date = CURRENT_DATE;"
 
     local price_count=$(psql -h localhost -U stocks -d stocks -t -c "$query1" 2>/dev/null | xargs)
@@ -97,7 +98,7 @@ verify_data() {
 
     echo "  price_daily:          $price_count rows [$([ $price_count -gt 0 ] && echo 'FRESH' || echo 'STALE')]"
     echo "  buy_sell_daily:       $signals_count rows [$([ $signals_count -gt 0 ] && echo 'FRESH' || echo 'STALE')]"
-    echo "  market_health_daily:  $health_count rows [$([ $health_count -gt 0 ] && echo 'FRESH' || echo 'STALE')]"
+    echo "  market_health_daily:  $health_count rows [$([ $health_count -gt 0 ] && echo 'FRESH' || echo 'STALE')] (from market_status_daily)"
     echo ""
 
     if [ $price_count -gt 0 ] && [ $signals_count -gt 0 ] && [ $health_count -gt 0 ]; then
