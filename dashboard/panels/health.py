@@ -317,9 +317,9 @@ def _build_phase_execution_panel(
                 # Phase ran but data corrupted - render error
                 phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
             else:
-                tables_validated = phase_data.get("tables_validated") if isinstance(phase_data, dict) else 0
-                tables_fresh = phase_data.get("tables_fresh") if isinstance(phase_data, dict) else 0
-                tables_stale = phase_data.get("tables_stale") if isinstance(phase_data, dict) else 0
+                tables_validated = phase_data.get("tables_validated", 0) if isinstance(phase_data, dict) else 0
+                tables_fresh = phase_data.get("tables_fresh", 0) if isinstance(phase_data, dict) else 0
+                tables_stale = phase_data.get("tables_stale", 0) if isinstance(phase_data, dict) else 0
                 validation_status = phase_data.get("validation_status", "unknown") if isinstance(phase_data, dict) else "unknown"
 
                 if tables_stale > 0:
