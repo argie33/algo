@@ -224,7 +224,7 @@ class SecEdgarClient:
             if resp.status_code == 404:
                 raise FileNotFoundError(f"SEC XML filing not found: {url}")
             resp.raise_for_status()
-            return resp.text
+            return cast(str, resp.text)
         except requests.HTTPError as e:
             raise RuntimeError(f"Failed to fetch SEC XML: {url}: {e}") from e
         except requests.ConnectionError as e:

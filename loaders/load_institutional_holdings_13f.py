@@ -15,13 +15,14 @@ Run:
 
 import logging
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
+from utils.external.sec_xml_parser import Schedule13GParser
 from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
@@ -104,37 +105,93 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
             forms = recent_filings["form"]
             filing_dates = recent_filings["filingDate"]
 
-            # Find most recent SCHEDULE 13G filing
-            most_recent_13g_date = None
+            # Collect all recent SCHEDULE 13G filings (within last 2 years)
+            recent_13g_filings = []
             for i, form_type in enumerate(forms):
-                if form_type == "SCHEDULE 13G" and i < len(filing_dates):
+                if form_type in ("SCHEDULE 13G", "SC 13G", "SC 13G/A") and i < len(filing_dates):
                     try:
                         filing_date_str = filing_dates[i]
+                        accession = recent_filings["accessionNumber"][i] if i < len(recent_filings["accessionNumber"]) else None
+                        if not accession:
+                            continue
+
                         filing_date = datetime.fromisoformat(filing_date_str).date()
                         # Only use recent filings (within last 2 years)
                         if (now_et.date() - filing_date).days <= 730:
-                            most_recent_13g_date = filing_date
-                            break
-                    except (ValueError, TypeError):
+                            recent_13g_filings.append((accession, filing_date, form_type))
+                    except (ValueError, TypeError, KeyError):
                         pass
 
-            if not most_recent_13g_date:
+            if not recent_13g_filings:
                 # Fall back to companyfacts for standardized metrics
                 logger.debug(f"[{symbol}] No recent SCHEDULE 13G filings found, trying companyfacts")
                 return self._fetch_from_companyfacts(symbol, cik, now_et)
 
-            logger.error(
-                f"[{symbol}] SCHEDULE 13G XML parsing not implemented (CRITICAL). "
-                "Phase 2 institutional holdings loader requires SEC EDGAR XML parsing. "
-                "Cannot return None ownership_pct with data_unavailable=False (data contract violation). "
-                "See steering/FAIL_FAST_VIOLATIONS_CATALOG_2026_06_29.md#institutional-holdings-stub. "
-                "Until implemented, use yfinance fallback via positioning_metrics loader."
-            )
-            return self._unavailable_record(symbol, now_et, "schedule_13g_parsing_not_implemented")
+            # Parse SCHEDULE 13G filings to extract institutional holdings data
+            return self._parse_schedule13g_filings(symbol, cik, recent_13g_filings, now_et)
 
         except Exception as e:
             logger.error(f"[{symbol}] Failed to fetch institutional holdings: {type(e).__name__}: {e}")
             return self._unavailable_record(symbol, now_et, f"fetch_error: {str(e)[:40]}")
+
+    def _parse_schedule13g_filings(
+        self,
+        symbol: str,
+        cik: str,
+        filings: list[tuple[str, date, str]],
+        now_et: datetime,
+    ) -> list[dict[str, Any]]:
+        """Parse SCHEDULE 13G filings to extract institutional holdings data.
+
+        Fetches and parses SCHEDULE 13G XML documents to extract:
+        - Institutional investor information (name, type)
+        - Ownership shares and percentage
+        - Voting and dispositive power
+
+        Args:
+            symbol: Stock ticker
+            cik: Company CIK
+            filings: List of (accession_number, filing_date, form_type) tuples
+            now_et: Current datetime
+
+        Returns:
+            List with institutional holdings record or data_unavailable marker
+        """
+        # Process most recent SCHEDULE 13G filing (they're quarterly/annual)
+        for accession_number, filing_date, form_type in filings:
+            try:
+                # Fetch SCHEDULE 13G XML from SEC EDGAR
+                xml_content = self.sec_client.get_filing_xml(cik, accession_number, form_type)
+
+                # Parse XML to extract institutional holdings
+                parsed_data = Schedule13GParser.parse(xml_content, symbol)
+
+                return [
+                    {
+                        "symbol": symbol,
+                        "filing_date": filing_date,
+                        "institutional_ownership_pct": float(parsed_data.get("ownership_pct", 0.0)),
+                        "number_of_institutional_holders": 1,  # This filing represents one investor
+                        "data_unavailable": False,
+                        "reason": None,
+                        "sec_filing_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=SC%2013G&dateb=&owner=exclude",
+                        "most_recent_filing_date": filing_date,
+                    }
+                ]
+
+            except FileNotFoundError:
+                logger.warning(f"[{symbol}] SCHEDULE 13G XML not found for accession {accession_number}")
+                continue
+            except ValueError as e:
+                logger.warning(f"[{symbol}] Failed to parse SCHEDULE 13G XML for accession {accession_number}: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"[{symbol}] Error fetching SCHEDULE 13G for accession {accession_number}: {e}")
+                continue
+
+        # Fall back to companyfacts if all parsing attempts failed
+        logger.debug(f"[{symbol}] All SCHEDULE 13G XML parsing attempts failed, trying companyfacts")
+        return self._fetch_from_companyfacts(symbol, cik, now_et)
 
     def _fetch_from_companyfacts(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
         """Fallback: try to fetch institutional ownership from SEC companyfacts.

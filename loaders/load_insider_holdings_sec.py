@@ -136,38 +136,95 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
         symbol: str,
         cik: str,
         filings: list[tuple[str, date]],
-    ) -> dict[str, Any]:
+        now_et: datetime,
+    ) -> list[dict[str, Any]]:
         """Parse Form 4 filings to extract insider transaction data.
 
-        CRITICAL: Requires SEC EDGAR XML parsing of Form 4/5 filings.
-
-        Implementation status: NOT IMPLEMENTED in Session 237.
-        Form 4/5 files are XML-structured; parsing requires:
-        1. Fetch filing XML from SEC EDGAR using accession_number
-        2. Parse <nonDerivativeTransaction> elements
-        3. Extract insider name, transaction type (buy/sell), shares, dates
-        4. Aggregate by insider across 90-day window
-
-        This is a ~2-week task requiring:
-        - SEC EDGAR filing XML fetcher (authenticated HTTP)
-        - XBRL/XML parser for Form 4 structure
-        - Transaction aggregation logic
-        - Cross-reference with share totals for ownership % calculation
-
-        As of Session 237, this loader returns data_unavailable instead of placeholder data.
+        Fetches and parses Form 4 XML documents to extract:
+        - Insider holdings (current share count and % ownership)
+        - Recent buy/sell activity (90-day window)
+        - Latest transaction date
 
         Args:
             symbol: Stock ticker
             cik: Company CIK
             filings: List of (accession_number, filing_date) tuples
+            now_et: Current datetime
 
         Returns:
-            Raises NotImplementedError - XML parsing not yet implemented
+            List with insider holdings record or data_unavailable marker
         """
-        raise NotImplementedError(
-            f"Form 4/5 XML parsing not implemented for {symbol}. "
-            "Phase 2 insider holdings loader blocked. Use yfinance fallback via positioning_metrics loader."
-        )
+        # Aggregate data across all recent Form 4 filings
+        aggregated_insiders: dict[str, dict[str, Any]] = {}
+        latest_filing_date = None
+
+        for accession_number, filing_date in filings:
+            try:
+                # Fetch Form 4 XML from SEC EDGAR
+                xml_content = self.sec_client.get_filing_xml(cik, accession_number, "4")
+
+                # Parse XML to extract insider data
+                parsed_data = Form4Parser.parse(xml_content, symbol)
+
+                # Track latest filing date
+                if latest_filing_date is None or filing_date > latest_filing_date:
+                    latest_filing_date = filing_date
+
+                # Aggregate insider data (use insider name as key)
+                insider_key = parsed_data.get("insider_name", "Unknown")
+                if insider_key not in aggregated_insiders:
+                    aggregated_insiders[insider_key] = {
+                        "name": parsed_data.get("insider_name"),
+                        "title": parsed_data.get("insider_title"),
+                        "shares_owned": parsed_data.get("shares_owned", 0),
+                        "ownership_pct": parsed_data.get("ownership_pct", 0.0),
+                        "buys": parsed_data.get("recent_buys", 0),
+                        "sells": parsed_data.get("recent_sells", 0),
+                        "net_txns": parsed_data.get("net_transactions", 0),
+                    }
+                else:
+                    # Aggregate counts across multiple filings
+                    aggregated_insiders[insider_key]["buys"] += parsed_data.get("recent_buys", 0)
+                    aggregated_insiders[insider_key]["sells"] += parsed_data.get("recent_sells", 0)
+                    aggregated_insiders[insider_key]["net_txns"] += parsed_data.get("net_transactions", 0)
+
+            except FileNotFoundError:
+                logger.warning(f"[{symbol}] Form 4 XML not found for accession {accession_number}")
+                continue
+            except ValueError as e:
+                logger.warning(f"[{symbol}] Failed to parse Form 4 XML for accession {accession_number}: {e}")
+                continue
+            except Exception as e:
+                logger.warning(f"[{symbol}] Error fetching Form 4 for accession {accession_number}: {e}")
+                continue
+
+        # If we successfully parsed any Form 4 filings, compute aggregate statistics
+        if aggregated_insiders:
+            # Aggregate across all insiders
+            total_insider_transactions = sum(i["buys"] + i["sells"] for i in aggregated_insiders.values())
+            net_aggregate_transactions = sum(i["net_txns"] for i in aggregated_insiders.values())
+
+            # Use the most recent Form 4's ownership % and share count as representative
+            latest_insider = next(iter(aggregated_insiders.values()))
+
+            return [
+                {
+                    "symbol": symbol,
+                    "filing_date": latest_filing_date or now_et.date(),
+                    "insider_ownership_pct": float(latest_insider.get("ownership_pct", 0.0)),
+                    "number_of_insiders": len(aggregated_insiders),
+                    "recent_buys": sum(i["buys"] for i in aggregated_insiders.values()),
+                    "recent_sells": sum(i["sells"] for i in aggregated_insiders.values()),
+                    "net_insider_transactions": net_aggregate_transactions,
+                    "data_unavailable": False,
+                    "reason": None,
+                    "latest_insider_filing_date": latest_filing_date,
+                    "sec_filing_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=4&dateb=&owner=exclude",
+                }
+            ]
+
+        # No valid Form 4 filings found
+        return self._unavailable_record(symbol, now_et, "form4_parsing_failed_all_filings")
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record."""
