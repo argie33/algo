@@ -197,10 +197,10 @@ class SpecializedChecker(BaseCheck):
 
             results_by_table = {}
             for row in cur.fetchall():
-                if hasattr(row, "_fields"):
-                    row_dict = row._asdict()
-                elif isinstance(row, dict):
+                if isinstance(row, dict):
                     row_dict = row
+                elif hasattr(row, "_fields"):
+                    row_dict = row._asdict()
                 else:
                     row_dict = {"tbl_name": row[0], "latest": row[1], "total": row[2], "unique_syms": row[3]}
                 results_by_table[row_dict["tbl_name"]] = (
@@ -373,8 +373,12 @@ class SpecializedChecker(BaseCheck):
                 return
 
             # Check data freshness
-            cur.execute("SELECT MAX(date), MAX(updated_at) FROM sentiment_aggregate")
-            max_date, max_updated = cur.fetchone()
+            cur.execute("SELECT MAX(date) AS max_date, MAX(updated_at) AS max_updated FROM sentiment_aggregate")
+            row = cur.fetchone()
+            if row:
+                max_date, max_updated = row["max_date"], row["max_updated"]
+            else:
+                max_date = max_updated = None
 
             if not max_date:
                 self.log(

@@ -62,14 +62,14 @@ class AlignmentChecker(BaseCheck):
             cur.execute(
                 """
                 SELECT
-                    (SELECT COUNT(DISTINCT symbol) FROM signal_quality_scores WHERE date = %s),
-                    (SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = %s)
+                    (SELECT COUNT(DISTINCT symbol) FROM signal_quality_scores WHERE date = %s) AS sqs_count,
+                    (SELECT COUNT(DISTINCT symbol) FROM buy_sell_daily WHERE date = %s) AS buy_sell_count
             """,
                 (sqs_date, sqs_date),
             )
             row = cur.fetchone()
             if row:
-                sqs_count, buy_sell_count = row[0], row[1]
+                sqs_count, buy_sell_count = row["sqs_count"], row["buy_sell_count"]
             else:
                 self.log("alignment", INFO, "signal_quality_scores", "Could not fetch symbol counts", None)
                 return

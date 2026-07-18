@@ -54,12 +54,14 @@ class PriceSanityChecker(BaseCheck):
             if len(extreme) > 10:
                 samples = []
                 for r in extreme[:5]:
-                    if len(r) > 4 and r[4] is not None:
+                    pct_change = r.get("pct_change") if isinstance(r, dict) else (r[4] if len(r) > 4 else None)
+                    if pct_change is not None:
                         try:
-                            samples.append({"symbol": r[0], "pct_change": float(r[4])})
+                            symbol = r.get("symbol") if isinstance(r, dict) else r[0]
+                            samples.append({"symbol": symbol, "pct_change": float(pct_change)})
                         except (ValueError, TypeError) as e:
-                            logger.warning(f"Invalid pct_change {r[4]} for {r[0]}: {e}")
-                            samples.append({"symbol": r[0], "pct_change": None})
+                            logger.warning(f"Invalid pct_change {pct_change} for {r}: {e}")
+                            samples.append({"symbol": r.get("symbol") if isinstance(r, dict) else r[0], "pct_change": None})
                 self.log(
                     "price_sanity",
                     WARN,
@@ -73,12 +75,14 @@ class PriceSanityChecker(BaseCheck):
             elif extreme:
                 samples = []
                 for r in extreme[:5]:
-                    if len(r) > 4 and r[4] is not None:
+                    pct_change = r.get("pct_change") if isinstance(r, dict) else (r[4] if len(r) > 4 else None)
+                    if pct_change is not None:
                         try:
-                            samples.append({"symbol": r[0], "pct_change": float(r[4])})
+                            symbol = r.get("symbol") if isinstance(r, dict) else r[0]
+                            samples.append({"symbol": symbol, "pct_change": float(pct_change)})
                         except (ValueError, TypeError) as e:
-                            logger.warning(f"Invalid pct_change {r[4]} for {r[0]}: {e}")
-                            samples.append({"symbol": r[0], "pct_change": None})
+                            logger.warning(f"Invalid pct_change {pct_change} for {r}: {e}")
+                            samples.append({"symbol": r.get("symbol") if isinstance(r, dict) else r[0], "pct_change": None})
                 self.log(
                     "price_sanity",
                     INFO,
