@@ -170,23 +170,30 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
                 if latest_filing_date is None or filing_date > latest_filing_date:
                     latest_filing_date = filing_date
 
+                # Fail-fast: required fields must be present in parsed data
+                required_fields = ["insider_name", "shares_owned", "ownership_pct", "recent_buys", "recent_sells", "net_transactions"]
+                missing_fields = [f for f in required_fields if f not in parsed_data or parsed_data[f] is None]
+                if missing_fields:
+                    logger.warning(f"[{symbol}] Form 4 XML missing required fields: {missing_fields}")
+                    continue
+
                 # Aggregate insider data (use insider name as key)
-                insider_key = parsed_data.get("insider_name", "Unknown")
+                insider_key = parsed_data["insider_name"]
                 if insider_key not in aggregated_insiders:
                     aggregated_insiders[insider_key] = {
-                        "name": parsed_data.get("insider_name"),
+                        "name": parsed_data["insider_name"],
                         "title": parsed_data.get("insider_title"),
-                        "shares_owned": parsed_data.get("shares_owned", 0),
-                        "ownership_pct": parsed_data.get("ownership_pct", 0.0),
-                        "buys": parsed_data.get("recent_buys", 0),
-                        "sells": parsed_data.get("recent_sells", 0),
-                        "net_txns": parsed_data.get("net_transactions", 0),
+                        "shares_owned": parsed_data["shares_owned"],
+                        "ownership_pct": parsed_data["ownership_pct"],
+                        "buys": parsed_data["recent_buys"],
+                        "sells": parsed_data["recent_sells"],
+                        "net_txns": parsed_data["net_transactions"],
                     }
                 else:
                     # Aggregate counts across multiple filings
-                    aggregated_insiders[insider_key]["buys"] += parsed_data.get("recent_buys", 0)
-                    aggregated_insiders[insider_key]["sells"] += parsed_data.get("recent_sells", 0)
-                    aggregated_insiders[insider_key]["net_txns"] += parsed_data.get("net_transactions", 0)
+                    aggregated_insiders[insider_key]["buys"] += parsed_data["recent_buys"]
+                    aggregated_insiders[insider_key]["sells"] += parsed_data["recent_sells"]
+                    aggregated_insiders[insider_key]["net_txns"] += parsed_data["net_transactions"]
 
             except FileNotFoundError:
                 logger.warning(f"[{symbol}] Form 4 XML not found for accession {accession_number}")
@@ -207,11 +214,16 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
             # Use the most recent Form 4's ownership % and share count as representative
             latest_insider = next(iter(aggregated_insiders.values()))
 
+            # Validate that ownership_pct is valid before returning
+            ownership_pct = latest_insider["ownership_pct"]
+            if not isinstance(ownership_pct, (int, float)) or ownership_pct is None:
+                return self._unavailable_record(symbol, now_et, f"invalid_insider_ownership_pct:{ownership_pct}")
+
             return [
                 {
                     "symbol": symbol,
                     "filing_date": latest_filing_date or now_et.date(),
-                    "insider_ownership_pct": float(latest_insider.get("ownership_pct", 0.0)),
+                    "insider_ownership_pct": float(ownership_pct),
                     "number_of_insiders": len(aggregated_insiders),
                     "recent_buys": sum(i["buys"] for i in aggregated_insiders.values()),
                     "recent_sells": sum(i["sells"] for i in aggregated_insiders.values()),

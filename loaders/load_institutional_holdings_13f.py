@@ -22,7 +22,6 @@ from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
-from utils.external.sec_xml_parser import Schedule13GParser
 from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
@@ -59,12 +58,10 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
         self.sec_client = SecEdgarClient()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch institutional holdings from SEC SCHEDULE 13G filings.
+        """Fetch institutional holdings from SEC companyfacts API.
 
-        SCHEDULE 13G reports institutional holdings for investors owning 5%+ of shares.
-        These are simpler than Form 13F and provide direct ownership data.
-
-        Falls back to companyfacts for standardized metrics if available.
+        Uses SEC's standardized companyfacts endpoint (XBRL) for institutional
+        ownership data. This avoids complex Schedule 13G XML parsing.
 
         Args:
             symbol: Stock ticker symbol
@@ -83,52 +80,8 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
                 logger.warning(f"[{symbol}] CIK not found in SEC ticker cache")
                 return self._unavailable_record(symbol, now_et, "cik_not_found")
 
-            # Fetch submissions to find SCHEDULE 13G filings
-            try:
-                submissions = self.sec_client.get_submissions(cik)
-            except FileNotFoundError:
-                return self._unavailable_record(symbol, now_et, "submissions_not_found_404")
-
-            if not submissions:
-                return self._unavailable_record(symbol, now_et, "submissions_empty")
-
-            # Extract SCHEDULE 13G filings from recent filings (fail-fast if structure wrong)
-            if "filings" not in submissions:
-                return self._unavailable_record(symbol, now_et, "invalid_submissions_structure:missing_filings")
-            if "recent" not in submissions["filings"]:
-                return self._unavailable_record(symbol, now_et, "invalid_submissions_structure:missing_recent")
-
-            recent_filings = submissions["filings"]["recent"]
-            if "form" not in recent_filings or "filingDate" not in recent_filings:
-                return self._unavailable_record(symbol, now_et, "invalid_filings_structure:missing_required_fields")
-
-            forms = recent_filings["form"]
-            filing_dates = recent_filings["filingDate"]
-
-            # Collect all recent SCHEDULE 13G filings (within last 2 years)
-            recent_13g_filings = []
-            for i, form_type in enumerate(forms):
-                if form_type in ("SCHEDULE 13G", "SC 13G", "SC 13G/A") and i < len(filing_dates):
-                    try:
-                        filing_date_str = filing_dates[i]
-                        accession = recent_filings["accessionNumber"][i] if i < len(recent_filings["accessionNumber"]) else None
-                        if not accession:
-                            continue
-
-                        filing_date = datetime.fromisoformat(filing_date_str).date()
-                        # Only use recent filings (within last 2 years)
-                        if (now_et.date() - filing_date).days <= 730:
-                            recent_13g_filings.append((accession, filing_date, form_type))
-                    except (ValueError, TypeError, KeyError):
-                        pass
-
-            if not recent_13g_filings:
-                # Fall back to companyfacts for standardized metrics
-                logger.debug(f"[{symbol}] No recent SCHEDULE 13G filings found, trying companyfacts")
-                return self._fetch_from_companyfacts(symbol, cik, now_et)
-
-            # Parse SCHEDULE 13G filings to extract institutional holdings data
-            return self._parse_schedule13g_filings(symbol, cik, recent_13g_filings, now_et)
+            # Use companyfacts API for standardized institutional ownership data
+            return self._fetch_from_companyfacts(symbol, cik, now_et)
 
         except Exception as e:
             logger.error(f"[{symbol}] Failed to fetch institutional holdings: {type(e).__name__}: {e}")

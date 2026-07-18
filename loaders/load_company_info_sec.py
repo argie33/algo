@@ -87,8 +87,11 @@ class CompanyInfoSECLoader(SecLoaderBase):
             if not submissions:
                 return self._unavailable_record(symbol, now_et, "submissions_empty")
 
-            # Extract company info from submissions
+            # Extract company info from submissions (fail-fast: entity_name is required)
             entity_name = submissions.get("name") or submissions.get("entityName")
+            if not entity_name:
+                return self._unavailable_record(symbol, now_et, "entity_name_not_found")
+
             sic_code = submissions.get("sic")
             sic_description = submissions.get("sicDescription")
             entity_type = submissions.get("entityType")
@@ -118,8 +121,8 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     "sic_description": sic_description,
                     "entity_type": entity_type,
                     "shares_outstanding": shares_outstanding,
-                    "data_unavailable": False if entity_name else True,
-                    "reason": None if entity_name else "entity_name_not_found",
+                    "data_unavailable": False,
+                    "reason": None,
                 }
             ]
 
