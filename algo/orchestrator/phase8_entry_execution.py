@@ -848,30 +848,22 @@ def run(
                     )
             tech_data = merged_technical_data[str(symbol)]
 
-            # Extract technical indicators (use with defaults if missing in paper mode)
+            # Extract technical indicators - CRITICAL: Must have all values for position sizing
             atr = tech_data.get("atr_14")
             sma_50 = tech_data.get("sma_50")
             close = tech_data.get("close")
 
-            # In paper mode, use sensible defaults if data missing
-            # In live mode, fail-fast on missing critical data
-            if execution_mode not in ("paper", "auto"):
-                if atr is None or sma_50 is None or close is None:
-                    raise RuntimeError(
-                        f"[PHASE 8] {symbol}: incomplete technical data (live mode). "
-                        f"ATR={atr}, SMA_50={sma_50}, close={close}."
-                    )
-            else:
-                # Paper mode: use approximations if needed
-                if close is None:
-                    logger.warning(f"[PHASE 8] {symbol}: close price missing, using entry_price")
-                    close = entry_price_hint
-                if atr is None:
-                    logger.warning(f"[PHASE 8] {symbol}: ATR missing, using 2% approximation")
-                    atr = close * 0.02 if close else entry_price_hint * 0.02
-                if sma_50 is None:
-                    logger.warning(f"[PHASE 8] {symbol}: SMA_50 missing, using entry_price")
-                    sma_50 = close if close else entry_price_hint
+            # FAIL-FAST: Technical data is required for stop-loss calculation and position sizing
+            # Do NOT use synthetic/approximated values - they mask data quality issues and can cause
+            # wrong position sizing (especially ATR which directly affects stop loss placement).
+            # Reason: This ensures backtests/paper mode reveal data gaps before live trading.
+            if close is None or atr is None or sma_50 is None:
+                logger.warning(
+                    f"[PHASE 8 DATA GAP] {symbol}: Incomplete technical data (ATR={atr}, SMA_50={sma_50}, close={close}). "
+                    f"Cannot execute entry without complete data. Skipping trade to avoid synthetic position sizing."
+                )
+                skipped_count += 1
+                continue
 
             entry_price = cast(float, close)
             atr = cast(float, atr)

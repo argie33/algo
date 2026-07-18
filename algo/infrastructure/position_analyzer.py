@@ -20,7 +20,7 @@ class PositionAnalyzer:
         """Analyze open positions and compute P&L breakdown.
 
         Args:
-            positions: list of (symbol, qty, entry_price, current_price, position_value)
+            positions: list of (symbol, qty, entry_price, entry_price_source, current_price, position_value)
 
         Returns: {
             'total_position_value': Decimal,
@@ -41,7 +41,7 @@ class PositionAnalyzer:
         breakeven_count = 0
         position_details = []
 
-        for symbol, qty, entry, current, pos_value in positions:
+        for symbol, qty, entry, entry_source, current, pos_value in positions:
             # Validate critical fields - fail fast on missing data
             if entry is None:
                 raise ValueError(f"[POSITION ANALYSIS] {symbol}: ENTRY PRICE MISSING - cannot compute P&L")
@@ -80,6 +80,7 @@ class PositionAnalyzer:
                     "symbol": symbol,
                     "quantity": float(qty_dec),
                     "entry_price": float(entry_dec),
+                    "entry_price_source": entry_source,
                     "current_price": float(current_dec),
                     "position_value": float(pos_value_dec),
                     "unrealized_pnl": float(pnl_dec),

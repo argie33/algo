@@ -35,6 +35,55 @@ class SignalsDailyLoader(OptimalLoader):
     primary_key = ("symbol", "date")
     watermark_field = "date"
 
+    def run(self, symbols: list[str], parallelism: int | None = None, backfill_days: int | None = None) -> dict[str, Any]:  # type: ignore[override]
+        """Override run() to filter symbols to only those with stock_scores.
+
+        CRITICAL FIX (Session 248): buy_sell_daily was generating signals for all active symbols (~10k),
+        but stock_scores only covers ~4.7k symbols (quality/growth require SEC filings).
+        This caused 99.5% of signals to be filtered out in Phase 7.
+        Solution: Only generate signals for symbols with stock_scores available.
+        """
+        try:
+            # Only filter if symbols came from get_active_symbols() (not from explicit --symbols arg)
+            # If user specified symbols explicitly, respect their choice
+            if symbols and len(symbols) > 4000:  # Heuristic: if >4000 symbols, likely from get_active_symbols()
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT symbol FROM stock_scores WHERE data_unavailable = false"
+                    )
+                    scored_symbols = {row[0] for row in cur.fetchall()}
+
+                original_count = len(symbols)
+                symbols = [s for s in symbols if s in scored_symbols]
+                logger.info(
+                    f"[UNIVERSE FILTER] Filtered buy_sell_daily symbols to stock_scores universe: "
+                    f"{original_count} → {len(symbols)} symbols ({len(symbols) / original_count * 100:.1f}% retained)"
+                )
+
+                # CRITICAL: Delete ALL old buy_sell_daily signals that are NOT for scored symbols
+                # This clears out the entire mismatched universe from before this fix
+                try:
+                    with DatabaseContext("write") as cur:
+                        cur.execute(
+                            """DELETE FROM buy_sell_daily
+                               WHERE symbol NOT IN (SELECT symbol FROM stock_scores WHERE data_unavailable = false)"""
+                        )
+                        deleted_count = cur.rowcount
+                        logger.info(
+                            f"[CLEANUP] Deleted {deleted_count} signals for symbols without stock_scores"
+                        )
+                except Exception as e:
+                    logger.error(f"[CLEANUP] Failed to delete signals for unscored symbols: {e}")
+                    # Continue anyway - this is a data cleanup, not critical for functionality
+        except Exception as e:
+            logger.warning(
+                f"[UNIVERSE FILTER] Failed to filter symbols by stock_scores: {e}. "
+                f"Proceeding with all {len(symbols)} symbols."
+            )
+
+        # Call parent run() with filtered symbols
+        return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
+
     def _prepare_batch_context(self) -> None:
         """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
 
@@ -665,6 +714,31 @@ def main() -> int:  # noqa: C901
             if not symbols:
                 logger.warning("[LOADER] No symbols found in stock_symbols table. Exit code 1 (ERROR).")
                 return 1
+
+            # CRITICAL FIX: Filter to only symbols with stock_scores (Session 248)
+            # buy_sell_daily was generating signals for all active symbols (~10k),
+            # but stock_scores only covers ~4.7k symbols (quality/growth require SEC filings).
+            # This caused 99.5% of signals to be filtered out in Phase 7.
+            # Solution: Only generate signals for symbols with stock_scores available.
+            # Note: This reduces signal volume but ensures all signals can be ranked by Phase 7.
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT symbol FROM stock_scores WHERE data_unavailable = false"
+                    )
+                    scored_symbols = {row[0] for row in cur.fetchall()}
+
+                original_count = len(symbols)
+                symbols = [s for s in symbols if s in scored_symbols]
+                logger.info(
+                    f"[UNIVERSE FILTER] Filtered buy_sell_daily symbols to only those with stock_scores: "
+                    f"{original_count} → {len(symbols)} symbols (removed {original_count - len(symbols)} without scores)"
+                )
+            except Exception as e:
+                logger.error(
+                    f"[UNIVERSE FILTER] Failed to filter symbols by stock_scores: {e}. "
+                    f"Proceeding with all {len(symbols)} symbols (may cause Phase 7 filtering issues)."
+                )
     except Exception as e:
         logger.error(f"[LOADER] Failed to fetch active symbols: {e}. Exit code 1 (ERROR).")
         return 1

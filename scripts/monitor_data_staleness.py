@@ -13,7 +13,7 @@ Usage:
 import os
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 
 # Windows encoding fix
 if sys.platform.startswith("win"):
@@ -29,18 +29,23 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.db.context import DatabaseContext
 from utils.logging import logger
+from algo.infrastructure.market_calendar import MarketCalendar
 
 # Freshness thresholds (max age before each status)
+# For price/technical tables: thresholds differ on trading vs non-trading days
+# On non-trading days (weekends/holidays), data from last trading day is fresh
 THRESHOLDS = {
     "price_daily": {
         "fresh": 30,  # 30 min during trading hours
         "stale": 240,  # 4 hours - need immediate attention
         "critical": 1440,  # 24 hours - major issue
+        "fresh_non_trading": 2880,  # 48 hours on weekends/holidays (data from last trading day OK)
     },
     "technical_data_daily": {
         "fresh": 60,  # 1 hour
         "stale": 240,  # 4 hours
         "critical": 1440,  # 24 hours
+        "fresh_non_trading": 2880,  # 48 hours on weekends/holidays
     },
     "stock_scores": {
         "fresh": 240,  # 4 hours
@@ -115,8 +120,11 @@ def get_table_age_minutes(table_name: str) -> float | None:
         return None
 
 
-def get_status_emoji(age_minutes: float, thresholds: dict) -> str:
-    if age_minutes < thresholds["fresh"]:
+def get_status_emoji(age_minutes: float, thresholds: dict, is_trading_day: bool = True) -> str:
+    # For market data tables on non-trading days, use relaxed thresholds
+    fresh_threshold = thresholds.get("fresh_non_trading", thresholds["fresh"]) if not is_trading_day else thresholds["fresh"]
+
+    if age_minutes < fresh_threshold:
         return "✅"
     elif age_minutes < thresholds["stale"]:
         return "⚠️ "
@@ -138,6 +146,7 @@ def format_age(minutes: float) -> str:
 
 def check_all_tables() -> dict:
     results = {}
+    is_trading_day = MarketCalendar.is_trading_day(date.today())
 
     for table, thresholds in THRESHOLDS.items():
         age = get_table_age_minutes(table)
@@ -146,10 +155,16 @@ def check_all_tables() -> dict:
             status = "❓ NO DATA"
             level = "unknown"
         else:
-            emoji = get_status_emoji(age, thresholds)
+            emoji = get_status_emoji(age, thresholds, is_trading_day)
             formatted = format_age(age)
 
-            if age < thresholds["fresh"]:
+            # Use relaxed thresholds on non-trading days for market data tables
+            if table in ("price_daily", "technical_data_daily") and not is_trading_day:
+                fresh_threshold = thresholds.get("fresh_non_trading", thresholds["fresh"])
+            else:
+                fresh_threshold = thresholds["fresh"]
+
+            if age < fresh_threshold:
                 status = f"{emoji} FRESH ({formatted})"
                 level = "ok"
             elif age < thresholds["stale"]:
@@ -173,9 +188,13 @@ def check_all_tables() -> dict:
 
 def print_report(results: dict) -> None:
     """Print formatted report."""
+    is_trading_day = MarketCalendar.is_trading_day(date.today())
+    day_type = "Trading Day" if is_trading_day else "Non-Trading Day (Weekend/Holiday)"
+
     print("\n" + "=" * 70)
     print("DATA STALENESS REPORT")
     print(f"Timestamp: {datetime.now(timezone.utc).isoformat()}")
+    print(f"Market Status: {day_type}")
     print("=" * 70 + "\n")
 
     # Count by level
