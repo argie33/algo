@@ -388,6 +388,11 @@ class HaltFlagManager:
 
         Returns: True if successfully cleared, False on error
         """
+        # Skip DynamoDB operations in LOCAL_MODE (no AWS credentials available)
+        if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
+            logger.debug(f"[LOCAL_MODE] Skipping halt flag clear: {reason}")
+            return True
+
         try:
             import boto3
 

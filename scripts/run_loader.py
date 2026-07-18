@@ -107,9 +107,23 @@ def run_value_quality_growth_loader():
 def run_stock_scores_loader(limit=None):
     """Run stock scores loader."""
     from loaders.load_stock_scores import StockScoresLoader
+    import psycopg2
+
+    # Fetch universe symbols
+    try:
+        conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
+        cursor = conn.cursor()
+        cursor.execute("SELECT DISTINCT symbol FROM market_constituents ORDER BY symbol")
+        symbols = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        logger.info(f"Loaded {len(symbols)} symbols from universe")
+    except Exception as e:
+        logger.warning(f"Could not load universe: {e}")
+        symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
 
     loader = StockScoresLoader()
-    result = loader.run(symbols=None, limit=limit)
+    result = loader.run(symbols=symbols)
     logger.info(f"Stock scores loader result: {result}")
     return result
 

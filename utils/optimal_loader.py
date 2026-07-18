@@ -322,32 +322,40 @@ class OptimalLoader:
 
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         lock_manager = None
-        try:
-            from utils.db.local_file_lock import get_lock_manager
 
-            lock_table = os.getenv(
-                "LOADER_LOCKS_TABLE",
-                f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
-            )
-            # Lock TTL must outlive the longest legitimate run. It used to be 1800s while
-            # real loader runtimes are 60-90+ min (price loader) - the lock silently
-            # expired mid-run and a concurrent trigger (SFN retry, manual run) could
-            # acquire it and double-write. Tie it to the loader SLA: the run() SLA
-            # enforcement self-kills at this same limit, and the finally-release below
-            # frees the lock immediately on any normal exit; the TTL only backstops
-            # hard-killed tasks (OOM, StopTask).
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
-            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
-            if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
-                logger.warning(f"[{self.table_name}] Skipping: another instance already running")
-                return self._stats.to_dict()
-        except Exception as _lock_err:
-            logger.critical(f"[{self.table_name}] DynamoDB lock failed: {_lock_err}")
-            from algo.exceptions import LockAcquisitionError
+        # FIXED (Session 210): Skip lock check in LOCAL_MODE (no AWS credentials available)
+        # Allows loaders to run locally without DynamoDB access
+        is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
+        if is_local_mode:
+            logger.info(f"[{self.table_name}] LOCAL_MODE enabled - skipping distributed lock check")
+            lock_manager = None
+        else:
+            try:
+                from utils.db.local_file_lock import get_lock_manager
 
-            raise LockAcquisitionError(
-                lock_key=self.table_name, reason=str(_lock_err), context={"table_name": self.table_name}
-            ) from _lock_err
+                lock_table = os.getenv(
+                    "LOADER_LOCKS_TABLE",
+                    f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
+                )
+                # Lock TTL must outlive the longest legitimate run. It used to be 1800s while
+                # real loader runtimes are 60-90+ min (price loader) - the lock silently
+                # expired mid-run and a concurrent trigger (SFN retry, manual run) could
+                # acquire it and double-write. Tie it to the loader SLA: the run() SLA
+                # enforcement self-kills at this same limit, and the finally-release below
+                # frees the lock immediately on any normal exit; the TTL only backstops
+                # hard-killed tasks (OOM, StopTask).
+                lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+                lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+                if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
+                    logger.warning(f"[{self.table_name}] Skipping: another instance already running")
+                    return self._stats.to_dict()
+            except Exception as _lock_err:
+                logger.critical(f"[{self.table_name}] DynamoDB lock failed: {_lock_err}")
+                from algo.exceptions import LockAcquisitionError
+
+                raise LockAcquisitionError(
+                    lock_key=self.table_name, reason=str(_lock_err), context={"table_name": self.table_name}
+                ) from _lock_err
 
         sla_monitor = None
         try:

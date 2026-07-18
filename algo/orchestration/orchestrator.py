@@ -906,6 +906,7 @@ class Orchestrator:
         # management so a DynamoDB write failure never prevents the halt flag from being cleared.
         # Skip in LOCAL_MODE (no AWS credentials available)
         local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
+        logger.info(f"[PHASE1_DYNAMODB] LOCAL_MODE={local_mode}, env={os.getenv('LOCAL_MODE')}")
         if not local_mode:
             try:
                 import boto3
