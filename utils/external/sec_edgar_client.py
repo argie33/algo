@@ -187,6 +187,51 @@ class SecEdgarClient:
         url = f"{EDGAR_BASE}/submissions/CIK{cik}.json"
         return self._get_json(url)
 
+    def get_filing_xml(self, cik: str, accession_number: str, form_type: str) -> str:
+        """Fetch raw XML document from SEC EDGAR filing.
+
+        Args:
+            cik: Company CIK (zero-padded)
+            accession_number: Filing accession number (e.g., "0001193125-24-001234")
+            form_type: Form type ("4", "SC 13G", etc.)
+
+        Returns:
+            XML content as string
+
+        Raises:
+            FileNotFoundError: If filing or XML document not found
+            RuntimeError: If request fails after retries
+        """
+        # Construct filing path: strip hyphens, use SEC directory structure
+        path_accession = accession_number.replace("-", "")
+
+        # Determine XML filename based on form type
+        if form_type == "4":
+            xml_filename = "form4.xml"
+        elif form_type in ("SC 13G", "SC 13G/A"):
+            xml_filename = "sc13g.xml"
+        else:
+            raise ValueError(f"Unsupported form type for XML extraction: {form_type}")
+
+        # SEC EDGAR path structure: /Archives/edgar/{cik}/{accession_nodash}/
+        cik_padded = str(cik).zfill(10)
+        url = f"https://www.sec.gov/Archives/edgar/{cik_padded}/{path_accession}/{xml_filename}"
+
+        # Fetch XML with retry logic (uses _get_json's retry mechanism)
+        try:
+            self._rate_limiter.wait()
+            resp = self._session.get(url, timeout=self.timeout)
+            if resp.status_code == 404:
+                raise FileNotFoundError(f"SEC XML filing not found: {url}")
+            resp.raise_for_status()
+            return resp.text
+        except requests.HTTPError as e:
+            raise RuntimeError(f"Failed to fetch SEC XML: {url}: {e}") from e
+        except requests.ConnectionError as e:
+            raise RuntimeError(f"Connection error fetching SEC XML: {url}: {e}") from e
+        except requests.Timeout as e:
+            raise RuntimeError(f"Timeout fetching SEC XML: {url}: {e}") from e
+
     def _get_json(self, url: str) -> dict[str, Any]:
         """Fetch JSON from SEC API with retry logic for transient errors.
 
