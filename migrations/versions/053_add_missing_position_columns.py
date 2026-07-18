@@ -107,10 +107,6 @@ def up():
 
         cur.execute("""
             CREATE MATERIALIZED VIEW algo_positions_with_risk AS
-            -- CRITICAL RISK: This view uses COALESCE(lp.current_price, ap.current_price) at line 143.
-            -- If price_daily missing for a symbol, falls back to stale alpaca_positions.current_price.
-            -- P&L and risk calculations should NEVER silently use stale alpaca prices.
-            -- If price_daily missing, raise error instead of using fallback.
             WITH latest_prices AS (
               SELECT DISTINCT ON (symbol)
                 symbol,
@@ -144,7 +140,7 @@ def up():
               ap.symbol,
               ap.quantity,
               ap.avg_entry_price,
-              COALESCE(lp.current_price, ap.current_price) as current_price,
+              lp.current_price,
               ap.position_value,
               ap.unrealized_pnl,
               ap.unrealized_pnl_pct,
@@ -178,31 +174,31 @@ def up():
               END as open_risk_dollars,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR COALESCE(lp.current_price, ap.current_price) = 0 OR ap.stop_loss_price IS NULL OR ap.stop_loss_price <= 0
+                WHEN lp.current_price IS NULL OR lp.current_price = 0 OR ap.stop_loss_price IS NULL OR ap.stop_loss_price <= 0
                 THEN NULL
-                ELSE (COALESCE(lp.current_price, ap.current_price) - ap.stop_loss_price) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (lp.current_price - ap.stop_loss_price) / NULLIF(lp.current_price, 0) * 100
               END::DECIMAL(8, 4) as distance_to_stop_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_1_price IS NULL
+                WHEN lp.current_price IS NULL OR lp.current_price = 0 OR ap.target_1_price IS NULL
                 THEN NULL
-                ELSE (ap.target_1_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (ap.target_1_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
               END::DECIMAL(8, 4) as distance_to_t1_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_2_price IS NULL
+                WHEN lp.current_price IS NULL OR lp.current_price = 0 OR ap.target_2_price IS NULL
                 THEN NULL
-                ELSE (ap.target_2_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (ap.target_2_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
               END::DECIMAL(8, 4) as distance_to_t2_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR COALESCE(lp.current_price, ap.current_price) = 0 OR ap.target_3_price IS NULL
+                WHEN lp.current_price IS NULL OR lp.current_price = 0 OR ap.target_3_price IS NULL
                 THEN NULL
-                ELSE (ap.target_3_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (ap.target_3_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
               END::DECIMAL(8, 4) as distance_to_t3_pct
 
             FROM algo_positions ap
-            LEFT JOIN latest_prices lp ON ap.symbol = lp.symbol
+            INNER JOIN latest_prices lp ON ap.symbol = lp.symbol
             LEFT JOIN latest_technical lt_tech ON ap.symbol = lt_tech.symbol
             LEFT JOIN latest_trades lt ON ap.symbol = lt.symbol
             WHERE ap.quantity > 0 AND ap.status NOT IN ('archived', 'deleted')

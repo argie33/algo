@@ -362,13 +362,13 @@ def run(
             exit_count += engine_exits
 
         log_phase_result_fn(
-            4,
+            6,
             "exit_execution",
             "success",
             f"{exit_count} exits, {stop_raises} stop-raises, {errors} errors",
         )
         return PhaseResult(
-            4,
+            6,
             "exit_execution",
             "ok",
             {"exits": exit_count, "stop_raises": stop_raises, "errors": errors},
