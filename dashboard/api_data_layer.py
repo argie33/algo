@@ -739,13 +739,8 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                 continue
             logger.error(f"API {endpoint}: timeout after {API_MAX_RETRIES + 1} attempts")
             _record_api_failure()
-            # FIX: Try stale cache before failing completely (dashboard resilience)
-            stale_fallback = _try_stale_cache_fallback(endpoint)
-            if stale_fallback:
-                logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after timeout")
-                # Mark as transient timeout so callers know this is temporary
-                stale_fallback["_is_transient_503"] = True
-                return stale_fallback
+            # FAIL-FAST: Do NOT use stale cache fallback for timeouts
+            # In finance, stale data is worse than missing data for decision-making
             error_msg = "API timeout - Lambda endpoint not responding"
             # Provide helpful guidance if using AWS endpoint
             if "execute-api" in api_url or "lambda" in api_url.lower():
@@ -764,13 +759,8 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
             max_att = API_MAX_RETRIES + 1
             logger.error(f"API {endpoint}: connection unavailable after {max_att} attempts")
             _record_api_failure()
-            # FIX: Try stale cache before failing completely (dashboard resilience)
-            stale_fallback = _try_stale_cache_fallback(endpoint)
-            if stale_fallback:
-                logger.info(f"[RESILIENCE] Using stale cache for {endpoint} after connection failure")
-                # Mark as transient connection error so callers know this is temporary
-                stale_fallback["_is_transient_503"] = True
-                return stale_fallback
+            # FAIL-FAST: Do NOT use stale cache fallback for connection errors
+            # Finance data must be fresh; callers must know when data is unavailable
             return {
                 "_error": f"API unavailable after {max_att} attempts",
                 "_is_transient_503": True,
