@@ -238,7 +238,7 @@ def run(  # noqa: C901
         min_coverage_pct,
         min_symbol_count,
         phase1_recent_cutoff_days,
-        phase1_prior_cutoff_days,
+        _phase1_prior_cutoff_days,
         phase1_halt_table_max_tolerance_days,
     ) = _validate_config(config)
 
@@ -427,8 +427,6 @@ def run(  # noqa: C901
             # CRITICAL FIX: Require TODAY-ONLY data with actual non-NULL prices
             # Reject multi-day window (allows trading on stale data)
             # Reject phantom rows (NULL prices counted as fresh data)
-            today_midnight_et = dt.combine(last_trading_day, dt.min.time(), tzinfo=ZoneInfo("America/New_York"))
-            tomorrow_midnight_et = today_midnight_et + td(days=1)
 
             cur.execute(
                 """SELECT COUNT(DISTINCT symbol)
