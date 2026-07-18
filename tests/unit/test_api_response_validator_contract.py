@@ -42,35 +42,10 @@ def clear_module_cache():
             del sys.modules[module_name]
 
 
-# Helper function to get fresh imports
-def get_response_validator():
-    """Get a fresh ResponseValidator with cleared module cache.
-
-    This should be called inside test functions to ensure fresh state.
-    """
-    # Clear cache
-    for mod in ["shared_contracts.response_validator", "shared_contracts.dashboard_api_contract"]:
-        if mod in sys.modules:
-            del sys.modules[mod]
-
-    # Import fresh
-    from shared_contracts.response_validator import ResponseValidator as ResponseValidatorFresh
-
-    return ResponseValidatorFresh
-
-
-# For backward compatibility with existing test code that references these at module level,
-# import them after the fixture (they'll be used by tests)
-# The fixture will clear these before each test runs
-try:
-    from shared_contracts.response_validator import (
-        ResponseValidationError,
-        ResponseValidator,
-    )
-except ImportError:
-    # If import fails due to missing path, tests will fail appropriately
-    ResponseValidationError = None
-    ResponseValidator = None
+from shared_contracts.response_validator import (
+    ResponseValidationError,
+    ResponseValidator,
+)
 
 
 class TestExtraFieldsValidation:
