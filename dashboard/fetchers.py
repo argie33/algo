@@ -151,9 +151,22 @@ def _execute_fetcher_batch(
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         items = {k: v for k, v in FETCHERS.items() if k in fetcher_set}
         logger.info(f"[FETCHERS] Starting {batch_name} batch: {list(items.keys())}")
-        futures: dict[Future[tuple[str, Any]], str] = {
-            pool.submit(one_func, k, v, fetcher_timeout_dict.get(k, 8.0)): k for k, v in items.items()
-        }
+        futures: dict[Future[tuple[str, Any]], str] = {}
+        try:
+            for k, v in items.items():
+                try:
+                    future = pool.submit(one_func, k, v, fetcher_timeout_dict.get(k, 8.0))
+                    futures[future] = k
+                except RuntimeError as e:
+                    if "cannot schedule new futures after" in str(e):
+                        logger.info(f"[FETCHERS] Shutdown detected during {batch_name} batch at fetcher {k}")
+                        return out
+                    raise
+        except RuntimeError as e:
+            if "cannot schedule new futures after" in str(e):
+                logger.info(f"[FETCHERS] Shutdown detected during {batch_name} batch submission")
+                return out
+            raise
         pending_futures: set[Future[tuple[str, Any]]] = set(futures.keys())
 
         try:
