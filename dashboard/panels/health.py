@@ -762,7 +762,7 @@ def panel_orch(  # noqa: C901
                 "Orchestrator execution history is missing or null. "
                 "Cannot show most recent orchestration run status."
             )
-        body = Text.from_markup(
+        body_content: Text | Group = Text.from_markup(
             f"{error_msg}\n"
             f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
             f"[dim]{config_line}[/]\n"
@@ -931,7 +931,6 @@ def panel_orch(  # noqa: C901
                 exec_health_rows = _format_phase_execution_health(execution_health)
 
         # Build body as Group if we have execution health rows
-        body: Text | Group
         if exec_health_rows:
             body_rows: list[Text | Rule] = [
                 Text.from_markup(
@@ -944,16 +943,16 @@ def panel_orch(  # noqa: C901
                 Rule(style="dim"),
             ]
             body_rows.extend(exec_health_rows)
-            body = Group(*body_rows)
+            body_content = Group(*body_rows)
         else:
-            body = Text.from_markup(
+            body_content = Text.from_markup(
                 f"{sts}  [dim]{age}[/]\n"
                 f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
                 f"[dim]{config_line}[/]\n"
                 f"[dim]Next run:[/] [white]{next_run}[/]\n"
                 f"{phases_str}" + extra + var_line
             )
-    return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
+    return Panel(body_content, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
 def _get_status_safe(run: dict[str, Any]) -> str:

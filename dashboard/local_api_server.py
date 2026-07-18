@@ -8,6 +8,7 @@ import sys
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
 
 import psycopg2.extras
@@ -504,7 +505,7 @@ class APIHandler(BaseHTTPRequestHandler):
                 )
 
             # Phase 2-9 Execution Health (matches AWS Lambda endpoint)
-            execution_health = {}
+            execution_health: dict[str, dict[str, Any] | None] = {}
 
             # Phase 2: Circuit Breaker Status
             try:

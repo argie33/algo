@@ -341,7 +341,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
 
         # ── Phase 2-9 Execution Health ──────────────────────────────────
         # Query execution health from tables populated by each orchestrator phase
-        execution_health = {}
+        execution_health: dict[str, dict[str, Any] | None] = {}
 
         # Phase 2: Circuit Breaker Status
         try:

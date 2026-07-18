@@ -139,7 +139,7 @@ class OrchestratorPhaseExecutor:
 
     def _get_default_skip_data(self, phase_num: int | str) -> dict[str, Any]:
         """Get valid but empty data for a skipped phase."""
-        defaults = {
+        defaults: dict[int | str, dict[str, Any]] = {
             1: {"status": "skipped"},
             2: {"status": "skipped"},
             3: {"recommendations": []},
