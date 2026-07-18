@@ -17,16 +17,23 @@ from dashboard.error_boundary import has_error
 from utils.validation.framework import safe_float
 
 # ── globals ───────────────────────────────────────────────────────────────────
+print("[DEBUG] utilities.py: Creating ZoneInfo...", flush=True)
 ET = ZoneInfo("America/New_York")
+print("[DEBUG] utilities.py: ZoneInfo created", flush=True)
+
+print("[DEBUG] utilities.py: Creating Console...", flush=True)
 CONSOLE = Console(force_terminal=True, legacy_windows=False, highlight=False)
+print("[DEBUG] utilities.py: Console created", flush=True)
 
 # Issue 2.2 FIX: Consolidate duplicate fetchers for /api/algo/data-status endpoint
+print("[DEBUG] utilities.py: Creating locks...", flush=True)
 _data_status_lock = threading.Lock()
 _data_status_cache: dict[str, Any] = {}
 
 # Thread-safe cache for sector aggregation (Issue: Race condition during cache eviction)
 _sector_cache_lock = threading.Lock()
 _sector_agg_cache: OrderedDict[str, Any] = OrderedDict()
+print("[DEBUG] utilities.py: Locks created", flush=True)
 
 G = "bright_green"
 R = "bright_red"
