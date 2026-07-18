@@ -174,6 +174,7 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
                 "reason": None,
                 "sec_filing_url": None,
                 "most_recent_filing_date": filing_date,
+                "data_source": "sec_13f",
             }
         ]
 
