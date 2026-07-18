@@ -188,7 +188,8 @@ class MarketStatusDailyLoader(OptimalLoader):
             from algo.risk.market_exposure import MarketExposure
 
             # Delegate to MarketExposure compute logic (reuse existing computation)
-            result = MarketExposure.compute(eval_date, health_data)
+            exposure = MarketExposure()
+            result = exposure.compute(eval_date, force_recompute=False)
 
             if not result or result.get("data_unavailable"):
                 return {

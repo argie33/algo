@@ -147,9 +147,12 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                         max_date = row[0]
                         # Convert date/datetime to datetime UTC for comparison
                         from datetime import date as date_type
+                        from utils.infrastructure.timezone import EASTERN_TZ
                         if isinstance(max_date, date_type) and not isinstance(max_date, datetime):
-                            # PostgreSQL date column returns date object
-                            max_date_utc = datetime.combine(max_date, datetime.min.time(), tzinfo=timezone.utc)
+                            # PostgreSQL date column returns date object (in ET timezone, not UTC)
+                            # Create datetime at ET midnight, then convert to UTC for comparison
+                            max_date_et = datetime.combine(max_date, datetime.min.time(), tzinfo=EASTERN_TZ)
+                            max_date_utc = max_date_et.astimezone(timezone.utc)
                         elif isinstance(max_date, datetime):
                             # datetime object - ensure UTC
                             if max_date.tzinfo is None:
