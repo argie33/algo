@@ -931,6 +931,7 @@ def panel_orch(  # noqa: C901
                 exec_health_rows = _format_phase_execution_health(execution_health)
 
         # Build body as Group if we have execution health rows
+        body: Text | Group
         if exec_health_rows:
             body_rows: list[Text | Rule] = [
                 Text.from_markup(
@@ -2404,7 +2405,7 @@ def panel_algo_health(  # noqa: C901
     if notif_err is not None:
         return notif_err
 
-    rows: list[Text | Rule] = []
+    rows: list[Text | Rule | Panel] = []
 
     # ── A: Run outcome ────────────────────────────────────────────────────────
     run_valid = run and isinstance(run, dict) and not has_error(run)
