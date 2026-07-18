@@ -224,6 +224,84 @@ PHASE_DATA_KEYS = (
 )
 
 
+def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> list[Text]:
+    """Format Phase 2-9 execution health metrics for display."""
+    rows: list[Text] = []
+    if not execution_health or not isinstance(execution_health, dict):
+        return rows
+
+    # Phase 2: Circuit Breakers
+    cb = execution_health.get("phase_2_circuit_breakers")
+    if cb:
+        any_triggered = cb.get("any_triggered", False)
+        cb_color = R if any_triggered else G
+        cb_icon = "⚠" if any_triggered else "✓"
+        dd = cb.get("drawdown_pct")
+        dl = cb.get("daily_loss_pct")
+        vix = cb.get("vix_level")
+        metrics = []
+        if dd is not None:
+            metrics.append(f"DD {dd:.1f}%")
+        if dl is not None:
+            metrics.append(f"DL {dl:.1f}%")
+        if vix is not None:
+            metrics.append(f"VIX {vix:.1f}")
+        metric_str = " ".join(metrics) if metrics else "none"
+        rows.append(Text.from_markup(f"  [{cb_color}]{cb_icon} P2:[/] {metric_str}"))
+
+    # Phase 3: Positions
+    pos = execution_health.get("phase_3_position_monitor")
+    if pos:
+        open_count = pos.get("open_positions", 0)
+        oldest = pos.get("oldest_days")
+        max_loss = pos.get("max_loss_pct")
+        pos_color = G if open_count == 0 else Y if open_count <= 5 else R
+        pos_metrics = [f"{open_count} open"]
+        if oldest is not None:
+            pos_metrics.append(f"{oldest}d old")
+        if max_loss is not None:
+            pos_metrics.append(f"max {max_loss:.1f}%")
+        rows.append(Text.from_markup(f"  [{pos_color}]● P3:[/] " + " ".join(pos_metrics)))
+
+    # Phase 6: Exit Execution
+    exit_ex = execution_health.get("phase_6_exit_execution")
+    if exit_ex:
+        exits = exit_ex.get("exits_executed", 0)
+        success_rate = exit_ex.get("success_rate", 0)
+        exit_color = G if exits > 0 and success_rate >= 80 else (Y if exits > 0 else DIM)
+        rows.append(Text.from_markup(f"  [{exit_color}]↓ P6:[/] {exits} exits, {success_rate:.0f}% success"))
+
+    # Phase 7: Signal Generation
+    sig = execution_health.get("phase_7_signal_generation")
+    if sig:
+        signals = sig.get("signals_generated", 0)
+        avg_str = sig.get("avg_strength")
+        sig_color = G if signals > 0 else DIM
+        if avg_str is not None:
+            rows.append(Text.from_markup(f"  [{sig_color}]◆ P7:[/] {signals} signals, {avg_str:.1f} avg strength"))
+        else:
+            rows.append(Text.from_markup(f"  [{sig_color}]◆ P7:[/] {signals} signals"))
+
+    # Phase 8: Entry Execution
+    entry_ex = execution_health.get("phase_8_entry_execution")
+    if entry_ex:
+        entries = entry_ex.get("entries_executed", 0)
+        success_rate = entry_ex.get("success_rate", 0)
+        entry_color = G if entries > 0 and success_rate >= 80 else (Y if entries > 0 else DIM)
+        rows.append(Text.from_markup(f"  [{entry_color}]↑ P8:[/] {entries} entries, {success_rate:.0f}% success"))
+
+    # Phase 9: Portfolio Snapshot
+    snap = execution_health.get("phase_9_portfolio_snapshot")
+    if snap:
+        value = snap.get("portfolio_value")
+        value_str = f"${value:,.0f}" if value is not None else "unknown"
+        latest = snap.get("latest_snapshot")
+        latest_str = f" ({latest[:10]})" if latest else ""
+        rows.append(Text.from_markup(f"  [white]⟡ P9:[/] {value_str}{latest_str}"))
+
+    return rows
+
+
 def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -> Panel:
     """Build LEFT panel: data freshness table with status summary.
 
@@ -470,7 +548,10 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
 
 
 def panel_orch(  # noqa: C901
-    run: dict[str, Any] | None, cfg: dict[str, Any], risk: dict[str, Any] | None = None
+    run: dict[str, Any] | None,
+    cfg: dict[str, Any],
+    risk: dict[str, Any] | None = None,
+    hlth: dict[str, Any] | list[Any] | None = None,
 ) -> Panel:
     error_pnl = _error_panel("config", cfg, "ORCHESTRATION")
     if error_pnl is not None:
@@ -658,13 +739,37 @@ def panel_orch(  # noqa: C901
             extra = ""
 
         phases_str = "  ".join(str(b) for b in pbadges) if pbadges else "[dim]──[/]"
-        body = Text.from_markup(
-            f"{sts}  [dim]{age}[/]\n"
-            f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
-            f"[dim]{config_line}[/]\n"
-            f"[dim]Next run:[/] [white]{next_run}[/]\n"
-            f"{phases_str}" + extra + var_line
-        )
+
+        # Extract execution health from hlth dict if available
+        exec_health_rows: list[Text] = []
+        if hlth and isinstance(hlth, dict):
+            execution_health = hlth.get("execution_health")
+            if execution_health:
+                exec_health_rows = _format_phase_execution_health(execution_health)
+
+        # Build body as Group if we have execution health rows
+        if exec_health_rows:
+            body_rows: list[Text | Rule] = [
+                Text.from_markup(
+                    f"{sts}  [dim]{age}[/]\n"
+                    f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
+                    f"[dim]{config_line}[/]\n"
+                    f"[dim]Next run:[/] [white]{next_run}[/]\n"
+                    f"{phases_str}" + extra + var_line
+                ),
+                Rule(style="dim"),
+            ]
+            body_rows.extend(exec_health_rows)
+            from rich.console import Group
+            body = Group(*body_rows)
+        else:
+            body = Text.from_markup(
+                f"{sts}  [dim]{age}[/]\n"
+                f"[{mc2}]{mode}[/]  [{ec}]{en}[/]\n"
+                f"[dim]{config_line}[/]\n"
+                f"[dim]Next run:[/] [white]{next_run}[/]\n"
+                f"{phases_str}" + extra + var_line
+            )
     return Panel(body, title="[bold cyan]ORCHESTRATOR[/]", border_style="cyan", padding=(0, 1))
 
 
@@ -2301,7 +2406,15 @@ def panel_algo_health(  # noqa: C901
             health_text = _format_health_data_stale_section(stale, hlth_list)
             rows.append(Text.from_markup(health_text))
 
-    # ── E: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
+        # ── E: Phase 2-9 Execution Health ────────────────────────────────────
+        execution_health = hlth.get("execution_health") if isinstance(hlth, dict) else None
+        if execution_health:
+            exec_health_rows = _format_phase_execution_health(execution_health)
+            if exec_health_rows:
+                rows.append(Rule(style="dim"))
+                rows.extend(exec_health_rows)
+
+    # ── F: Risk snapshot (VaR / CVaR / Beta / Concentration) ────────────────────
     # CRITICAL: Do NOT silently fallback to empty dict when risk data is error or missing.
     # Risk metrics are critical financial data. Missing/error data must be visible in error panel,
     # not hidden by silent {} default.
@@ -2344,7 +2457,7 @@ def panel_algo_health(  # noqa: C901
             if risk_parts:
                 rows.append(Text.from_markup("  ".join(risk_parts)))
 
-    # ── F: Notifications (compact) ────────────────────────────────────────────
+    # ── G: Notifications (compact) ────────────────────────────────────────────
     valid_notifs_raw = safe_get_list(notifs)
     if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
         rows.append(Rule(style="dim"))
