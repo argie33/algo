@@ -44,23 +44,33 @@ MORNING_LOADERS = [
 ]
 
 # EOD pipeline (financials + fundamentals = 60 min)
+# CONSOLIDATED STRUCTURE (Session 217+):
+# - load_market_status_daily.py replaces: load_market_health_daily + load_market_exposure_daily + load_market_sentiment
+# - load_value_quality_growth_metrics.py replaces: load_quality_growth_metrics + parts of load_yfinance_derived_metrics
+# - load_positioning_metrics.py is the new critical-path positioning data (split from yfinance_derived_metrics)
+# Old loaders (load_quality_growth_metrics.py, load_market_health_daily.py) deleted - see git log for details
 EOD_LOADERS = [
-    "load_market_health_daily.py",
-    "load_financial_statements.py",
-    "load_quality_growth_metrics.py",
-    "load_yfinance_derived_metrics.py",
-    "load_yfinance_snapshot.py",  # Slow: 30-45 min
+    "load_market_status_daily.py",         # Consolidated: market health + exposure + sentiment (replaces 3 loaders)
+    "load_financial_statements.py",        # SEC financials (prices, balance sheets, cash flow)
+    "load_value_quality_growth_metrics.py", # SEC-based value + quality + growth metrics
+    "load_positioning_metrics.py",         # Institutional/insider/short data (CRITICAL for stock_scores)
+    "load_yfinance_snapshot.py",           # Optional: analyst sentiment + earnings dates (dashboard enrichment)
 ]
 
 # Computed pipeline (scores + signals = 60 min)
+# DEPENDENCY ORDER CRITICAL:
+# 1. load_positioning_metrics.py MUST run before load_stock_scores (stock_scores reads positioning_metrics)
+# 2. load_stock_scores.py must complete before load_buy_sell_daily (buy_sell uses scores)
+# 3. All other loaders follow (order not critical)
 COMPUTED_LOADERS = [
-    "load_buy_sell_daily.py",
-    "load_stock_scores.py",
-    "load_sector_performance.py",
-    "load_trend_analysis.py",
-    "load_risk_metrics_daily.py",
-    "load_market_exposure_daily.py",
-    "load_algo_metrics_daily.py",
+    "load_positioning_metrics.py",      # Phase 2: Positioning metrics for stock scoring (CRITICAL for stock_scores)
+    "load_stock_scores.py",             # Phase 3: Composite scores (reads all 5 metric tables)
+    "load_buy_sell_daily.py",           # Phase 4: Buy/sell signals (uses scores + technical indicators)
+    "load_sector_performance.py",       # Phase 5: Sector returns (enrichment)
+    "load_trend_analysis.py",           # Phase 5: Trend template scoring
+    "load_risk_metrics_daily.py",       # Phase 6: Stability metrics (enrichment)
+    "load_market_exposure_daily.py",    # Phase 6: Market regime detection
+    "load_algo_metrics_daily.py",       # Phase 6: Portfolio metrics (dashboard only)
 ]
 
 # Full pipeline (all loaders)

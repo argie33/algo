@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Consolidated Yfinance Derived Metrics Loader - reads from yfinance_snapshot once, outputs to 6 tables.
+"""Yfinance Dashboard Enrichment Loader - reads from yfinance_snapshot, outputs to dashboard-only tables.
 
-CONSOLIDATION: Merges 6 separate loaders into one:
-  - load_value_metrics.py → value_metrics table
-  - load_positioning_metrics.py → positioning_metrics table
-  - load_company_profile.py → company_profile table
-  - load_analyst_analysis.py → analyst_sentiment_analysis + analyst_upgrade_downgrade tables
-  - load_earnings_calendar.py → earnings_calendar table
-  - load_earnings_history.py → earnings_history table
+PURPOSE:
+- Provides optional enrichment data for dashboard display ONLY
+- NOT used by trading logic (stock_scores, buy_sell_daily, etc.)
+- Gracefully degrades if unavailable (marked with data_unavailable markers)
 
-All 6 loaders read from the same upstream table (yfinance_snapshot).
-This consolidation:
-  - Eliminates 5 redundant ECS tasks per run
-  - Reduces 4:20 PM pipeline bottleneck
-  - Parallelizes output writes to 6 tables
-  - Single point of failure vs 6
+CRITICAL TRADING DATA (formerly bundled here) are now separate:
+  - value_metrics → load_value_quality_growth_metrics.py (SEC-based valuations)
+  - positioning_metrics → load_positioning_metrics.py (institutional/insider/short data)
+
+This loader ONLY writes dashboard enrichment:
+  - company_profile (sector, industry, exchange, website, company name)
+  - earnings_calendar (next earnings date for risk management)
+  - analyst_sentiment_analysis (analyst counts, recommendation key)
+
+All read from yfinance_snapshot table (populated by load_yfinance_snapshot.py).
 
 Run:
     python3 load_yfinance_derived_metrics.py [--symbols AAPL,MSFT] [--parallelism 4]
@@ -38,18 +39,22 @@ configure_socket_timeout(30)
 
 
 class YfinanceDerivedMetricsLoader(OptimalLoader):
-    """Read all yfinance-derived metrics from yfinance_snapshot table and persist to 5 tables.
+    """Read yfinance-derived metrics from yfinance_snapshot table, write to dashboard-only tables.
 
-    Consolidates 6 separate loaders into one, writing to 5 output tables in parallel:
-      - value_metrics (PE, PB, PS, PEG ratios, dividend yield, FCF yield, market cap)
-      - positioning_metrics (short interest, insider/institution holdings)
+    DASHBOARD ENRICHMENT ONLY:
       - company_profile (sector, industry, exchange, website, company name)
-      - earnings_calendar (next earnings date for risk management)
+      - earnings_calendar (next earnings date for risk management/dashboard display)
       - analyst_sentiment_analysis (analyst counts, recommendation key)
+
+    CRITICAL TRADING DATA (NO LONGER HERE):
+      - value_metrics → handled by load_value_quality_growth_metrics.py (SEC-based, higher quality)
+      - positioning_metrics → handled by load_positioning_metrics.py (dedicated critical loader)
+
+    If this loader fails, dashboard shows "N/A" for company profile/earnings/analyst data.
+    Trading logic is unaffected (stock_scores, signals, etc.).
 
     Note: Analyst upgrades/downgrades require specialized data source (Bloomberg/Seeking Alpha).
     Earnings history requires SEC data (EPS actuals, estimates, surprise %). Skipped for now.
-    See IMPLEMENTATION_PLAN.md for roadmap.
     """
 
     table_name = "company_profile"  # Meta table for watermarking & locking
@@ -58,8 +63,6 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     OUTPUT_TABLES = [
-        "value_metrics",
-        "positioning_metrics",
         "company_profile",
         "earnings_calendar",
         "analyst_sentiment_analysis",
@@ -162,7 +165,12 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
         return 1
 
     def _persist_to_all_tables(self, record: dict[str, Any]) -> None:
-        """Persist consolidated record to all 7 output tables."""
+        """Persist dashboard enrichment data to output tables (company_profile, earnings_calendar, analyst_sentiment_analysis).
+
+        REMOVED (now handled elsewhere):
+          - value_metrics → load_value_quality_growth_metrics.py (SEC-based, higher quality)
+          - positioning_metrics → load_positioning_metrics.py (dedicated critical loader)
+        """
         from datetime import timezone
 
         symbol = record.get("symbol")
@@ -173,60 +181,8 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
             updated_at = datetime.now(timezone.utc)
 
         with DatabaseContext("write") as cur:
-            # 1. value_metrics
-            if not record.get("data_unavailable"):
-                cur.execute(
-                    """
-                    INSERT INTO value_metrics
-                    (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield,
-                     market_cap, held_percent_insiders, held_percent_institutions, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                      pe_ratio = EXCLUDED.pe_ratio, pb_ratio = EXCLUDED.pb_ratio,
-                      ps_ratio = EXCLUDED.ps_ratio, peg_ratio = EXCLUDED.peg_ratio,
-                      dividend_yield = EXCLUDED.dividend_yield, fcf_yield = EXCLUDED.fcf_yield,
-                      market_cap = EXCLUDED.market_cap, held_percent_insiders = EXCLUDED.held_percent_insiders,
-                      held_percent_institutions = EXCLUDED.held_percent_institutions, updated_at = EXCLUDED.updated_at
-                    """,
-                    (
-                        symbol,
-                        record.get("pe_ratio"),
-                        record.get("pb_ratio"),
-                        record.get("ps_ratio"),
-                        record.get("peg_ratio"),
-                        record.get("dividend_yield"),
-                        record.get("fcf_yield"),
-                        record.get("market_cap"),
-                        record.get("held_percent_insiders"),
-                        record.get("held_percent_institutions"),
-                        updated_at,
-                    ),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO value_metrics (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, record.get("reason", "unknown"), updated_at),
-                )
-
-            # 2. positioning_metrics
-            if not record.get("data_unavailable"):
-                cur.execute(
-                    """
-                    INSERT INTO positioning_metrics (symbol, short_interest, short_interest_trend, updated_at)
-                    VALUES (%s, %s, %s, %s)
-                    ON CONFLICT (symbol) DO UPDATE SET
-                      short_interest = EXCLUDED.short_interest, short_interest_trend = EXCLUDED.short_interest_trend,
-                      updated_at = EXCLUDED.updated_at
-                    """,
-                    (symbol, record.get("short_interest"), record.get("short_interest_trend"), updated_at),
-                )
-            else:
-                cur.execute(
-                    "INSERT INTO positioning_metrics (symbol, data_unavailable, reason, updated_at) VALUES (%s, TRUE, %s, %s) ON CONFLICT (symbol) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, record.get("reason", "unknown"), updated_at),
-                )
-
-            # 3. company_profile
+            # 1. company_profile
+            # 1a. company_profile (dashboard display: sector, industry, exchange, website)
             if not record.get("data_unavailable"):
                 cur.execute(
                     """
@@ -254,7 +210,7 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
                     (symbol, symbol, "Unknown", record.get("reason", "unknown"), updated_at),
                 )
 
-            # 4. earnings_calendar (next earnings date for risk management)
+            # 1b. earnings_calendar (dashboard display: next earnings date)
             if not record.get("data_unavailable"):
                 earnings_date_unix = record.get("earnings_date")
                 if earnings_date_unix:
@@ -334,8 +290,6 @@ def main() -> int:
                 symbols = {row[0] for row in cur.fetchall()}
 
             tables = [
-                "value_metrics",
-                "positioning_metrics",
                 "company_profile",
                 "earnings_calendar",
                 "analyst_sentiment_analysis",

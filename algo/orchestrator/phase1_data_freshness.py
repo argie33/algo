@@ -521,24 +521,31 @@ def run(  # noqa: C901
                     f"Insufficient price data: {fail_reason}",
                 )
 
-            # Halt-critical tables: Phase 5 cannot generate signals without these
-            # FIXED 2026-07-07: Added metrics tables (growth, quality, value, positioning, stability)
-            # These are CRITICAL for stock_scores generation in Phase 7. Missing/stale metrics = HALT.
+            # Halt-critical tables: Core trading data - trading CANNOT proceed without these
+            # - price_daily: Must have stock prices for all 10K+ symbols
+            # - market_health_daily: Market breadth/regime (VIX, advance/decline, market breadth)
+            # - market_exposure_daily: Market exposure policy limits (when to trade, position sizing)
+            # - earnings_calendar: Earnings dates for trading blackout windows
+            # NOTE: Metric enrichments (growth, quality, value, positioning, stability) are NOT
+            # halt-critical. They're used for website display and portfolio analysis, not core signals.
+            # Core signals come from price_daily + technical_data_daily. See Session 221.
             halt_tables = {
                 "market_health_daily": "Market health (breadth/regime)",
                 "market_exposure_daily": "Market exposure limits",
                 "earnings_calendar": "Earnings dates (blackout window gating)",
-                "growth_metrics": "Growth metrics (revenue/EPS growth)",
-                "quality_metrics": "Quality metrics (ROE/margins/ratios)",
-                "value_metrics": "Value metrics (P/E, P/B, P/S)",
-                "positioning_metrics": "Positioning metrics (ownership/short interest)",
-                "stability_metrics": "Stability metrics (volatility/beta)",
             }
-            # Warning-only tables: stale -> logged, trading continues
-            # FIXED 2026-07-06: Removed swing_trader_scores (deprecated table, removed in Session 14)
+            # Warning-only tables: enrichments + auxiliary data. Stale -> logged, trading continues.
+            # Moved metric tables here (Session 221): they're website enrichments, not core to signals.
+            # - growth_metrics, quality_metrics, value_metrics: Portfolio analysis only
+            # - positioning_metrics, stability_metrics: Website enrichments only
             warn_tables = {
                 "trend_template_data": "Trend template (Minervini/Weinstein)",
                 "sector_ranking": "Sector rankings",
+                "growth_metrics": "Growth metrics (enrichment only)",
+                "quality_metrics": "Quality metrics (enrichment only)",
+                "value_metrics": "Value metrics (enrichment only)",
+                "positioning_metrics": "Positioning metrics (enrichment only)",
+                "stability_metrics": "Stability metrics (enrichment only)",
             }
 
             halt_stale = []  # pipeline-loaded tables - stale = HALT

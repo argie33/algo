@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
-"""Market Health Daily Loader - Market stage, distribution days, advance/decline.
+"""⚠️ DEPRECATED - DO NOT USE - REPLACED BY load_market_status_daily.py (Session 217)
+
+THIS FILE SHOULD BE DELETED.
+
+REPLACEMENT:
+- Use load_market_status_daily.py instead (consolidates market health + market exposure + market sentiment)
+- load_market_status_daily.py writes to market_health_daily + market_exposure_daily + market_sentiment tables
+- It also handles market exposure (%exposure, regime, factors) and sentiment (fear/greed index)
+
+HISTORICAL NOTES:
+Market Health Daily Loader - Market stage, distribution days, advance/decline.
 
 Computes market-wide health metrics from SPY price data and market indicators.
 Populates all required market_health_daily columns.
 
-Run: python3 load_market_health_daily.py [--parallelism 1]
+DO NOT RUN: This loader is no longer deployed in production or development.
+It has been consolidated into load_market_status_daily.py (Session 217).
+See git log for details on the consolidation.
 """
 
 import argparse

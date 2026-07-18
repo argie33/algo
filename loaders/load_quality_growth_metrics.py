@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
-"""Quality + Growth Metrics Computed from SEC Financials.
+"""⚠️ DEPRECATED - DO NOT USE - REPLACED BY load_value_quality_growth_metrics.py (Session 217)
 
+THIS FILE SHOULD BE DELETED.
+
+REPLACEMENT:
+- Use load_value_quality_growth_metrics.py instead (consolidates value + quality + growth metrics)
+- load_value_quality_growth_metrics.py writes to the SAME tables (quality_metrics, growth_metrics)
+- It also handles value_metrics (PE/PB/PS/PEG/FCF from SEC data)
+
+HISTORICAL NOTES:
+Quality + Growth Metrics Computed from SEC Financials.
 Consolidates two separate SEC-based metric loaders into one:
 - quality_metrics (ROE, margins, debt ratios)
 - growth_metrics (revenue/EPS growth)
@@ -11,14 +20,15 @@ CRITICAL DEPENDENCY: Requires load_financial_statements.py to populate:
 
 Data Flow in Orchestrator:
   1. load_financial_statements.py → SEC EDGAR API → annual_income_statement, annual_balance_sheet tables
-  2. load_quality_growth_metrics.py → Reads tables from step 1 → Computes quality/growth metrics
+  2. load_value_quality_growth_metrics.py → Reads tables from step 1 → Computes value/quality/growth metrics
   3. Orchestrator must ensure step 1 runs BEFORE step 2
 
-This two-step approach (fetch raw → compute metrics) avoids duplicate SEC API calls:
+This consolidation avoids duplicate SEC API calls:
   - Financial statements cached in DB (reused for fundamentals, quality, growth)
   - Quality/growth computed via in-DB joins (cheaper than re-fetching)
 
-Run: python3 loaders/load_quality_growth_metrics.py [--symbols AAPL,MSFT]
+DO NOT RUN: This loader is no longer deployed in production or development.
+See git log for details: commit introducing load_value_quality_growth_metrics.py consolidation.
 """
 
 import logging

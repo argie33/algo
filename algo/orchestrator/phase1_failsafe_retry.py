@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 # Loaders that are critical for downstream phases (halt if incomplete after retry)
 # These use data_loader_status.table_name values, not logical loader names
 # (PriceLoader produces multiple table_name entries: price_daily, price_weekly, etc.)
+# CRITICAL: Only core trading data - signals don't need enrichment metrics. See Session 221.
 CRITICAL_INCOMPLETE_LOADERS = {
     # Price tables (any incomplete price table means stock_prices_daily is critical)
     "price_daily",
@@ -53,14 +54,8 @@ CRITICAL_INCOMPLETE_LOADERS = {
     # Other critical loaders
     "stock_scores",
     "technical_data_daily",
-    # Metric loaders: essential for stock scoring (FIXED 2026-07-05)
-    # CRITICAL: These are no longer auxiliary. stock_scores requires minimum 3/6 metrics
-    # per GOVERNANCE.md. Missing metrics cause scores to degrade or fail entirely.
-    "growth_metrics",  # Required for growth_score calculation
-    "quality_metrics",  # Required for quality_score calculation
-    "value_metrics",  # Required for value_score calculation
-    "positioning_metrics",  # Required for positioning_score calculation
-    "stability_metrics",  # Required for stability_score calculation
+    # REMOVED (Session 221): growth_metrics, quality_metrics, value_metrics, positioning_metrics,
+    # stability_metrics. These are enrichments for website display, not needed for core trading signals.
 }
 
 # Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)
@@ -119,16 +114,12 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
     }
 
     # Critical loaders to refresh in local mode (table_name: loader_script_key)
+    # Only core trading data - enrichment metrics no longer critical (Session 221)
     loaders_to_refresh = {
         "price_daily": "prices",
         "technical_data_daily": "technical",
         "stock_scores": "scores",
         "market_health_daily": "market_status",
-        "value_metrics": "value_quality_growth",
-        "growth_metrics": "value_quality_growth",
-        "quality_metrics": "value_quality_growth",
-        "positioning_metrics": "positioning_metrics",
-        "stability_metrics": "stability_metrics",
     }
 
     try:
