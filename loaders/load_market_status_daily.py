@@ -170,7 +170,7 @@ class MarketStatusDailyLoader(OptimalLoader):
             start_date = eval_date - timedelta(days=60)
             breadth_data = self._breadth_fetcher.fetch(start_date, eval_date)
             if not breadth_data or breadth_data.get("data_unavailable"):
-                return [{"data_unavailable": True, "reason": "breadth_unavailable"}]
+                return {"data_unavailable": True, "reason": "breadth_unavailable"}
 
             advance_decline = breadth_data.get("advance_decline_ratio")
             new_highs = breadth_data.get("new_52wk_highs")
@@ -179,7 +179,7 @@ class MarketStatusDailyLoader(OptimalLoader):
             # Fetch yield curve (10Y-2Y spread)
             yield_data = self._yield_curve_fetcher.fetch(eval_date - timedelta(days=1), eval_date)
             if not yield_data or yield_data.get("data_unavailable"):
-                return [{"data_unavailable": True, "reason": "yield_curve_unavailable"}]
+                return {"data_unavailable": True, "reason": "yield_curve_unavailable"}
 
             yield_spread = yield_data.get("yield_10y_2y_spread")
 
