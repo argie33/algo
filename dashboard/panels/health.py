@@ -224,51 +224,97 @@ PHASE_DATA_KEYS = (
 )
 
 
-def _build_phase_execution_panel(execution_health: dict[str, Any] | None) -> Panel | None:
-    """Build prominent PHASE EXECUTION HEALTH panel showing all 9 phases with status.
+def _build_phase_execution_panel(
+    execution_health: dict[str, Any] | None,
+    run: dict[str, Any] | None = None,
+) -> Panel | None:
+    """Build PHASE EXECUTION HEALTH panel showing ALL 9 phases with detailed status.
 
-    Returns a Rich Panel with phase health summary, or None if no data available.
+    Shows all phases regardless of execution state:
+    - ✓ COMPLETED: phase executed successfully
+    - ~ HALTED/SKIPPED: phase halted or skipped
+    - ✗ ERROR: phase failed
+    - ⊘ NOT RUN: phase hasn't executed yet
+
+    Returns a Rich Panel with all phases, or None if no data available.
     """
-    if not execution_health or not isinstance(execution_health, dict):
-        return None
+    # Build phase status map from run data
+    phase_status_map: dict[int, dict[str, Any]] = {}
+    if run and isinstance(run, dict):
+        phase_results_raw = run.get("phase_results")
+        if phase_results_raw:
+            phase_results_list = safe_get_list(phase_results_raw)
+            if isinstance(phase_results_list, list):
+                for p in phase_results_list:
+                    if isinstance(p, dict):
+                        phase_val = p.get("phase")
+                        status_val = p.get("status")
+                        if phase_val is not None and status_val is not None:
+                            try:
+                                phase_num = int(str(phase_val).replace("phase_", ""))
+                                phase_status_map[phase_num] = {
+                                    "status": str(status_val).lower(),
+                                    "name": p.get("name", ""),
+                                }
+                            except (ValueError, TypeError):
+                                pass
 
-    # Define all 9 phases in execution order
-    phases = [
-        (1, "Data Freshness Check", "data_check", execution_health.get("phase_1_data_check")),
-        (2, "Circuit Breakers", "circuit_breakers", execution_health.get("phase_2_circuit_breakers")),
-        (3, "Position Monitor", "position_monitor", execution_health.get("phase_3_position_monitor")),
-        (4, "Broker Reconciliation", "reconciliation", execution_health.get("phase_4_broker_reconciliation")),
-        (5, "Exposure Policy", "exposure_policy", execution_health.get("phase_5_exposure_policy")),
-        (6, "Exit Execution", "exit_execution", execution_health.get("phase_6_exit_execution")),
-        (7, "Signal Generation", "signal_generation", execution_health.get("phase_7_signal_generation")),
-        (8, "Entry Execution", "entry_execution", execution_health.get("phase_8_entry_execution")),
-        (9, "Portfolio Snapshot", "portfolio_snapshot", execution_health.get("phase_9_portfolio_snapshot")),
+    # Define all 9 phases with metadata
+    phases_def = [
+        (1, "Data Freshness Check", "data_check", execution_health.get("phase_1_data_check") if execution_health else None),
+        (2, "Circuit Breakers", "circuit_breakers", execution_health.get("phase_2_circuit_breakers") if execution_health else None),
+        (3, "Position Monitor", "position_monitor", execution_health.get("phase_3_position_monitor") if execution_health else None),
+        (4, "Broker Reconciliation", "reconciliation", execution_health.get("phase_4_broker_reconciliation") if execution_health else None),
+        (5, "Exposure Policy", "exposure_policy", execution_health.get("phase_5_exposure_policy") if execution_health else None),
+        (6, "Exit Execution", "exit_execution", execution_health.get("phase_6_exit_execution") if execution_health else None),
+        (7, "Signal Generation", "signal_generation", execution_health.get("phase_7_signal_generation") if execution_health else None),
+        (8, "Entry Execution", "entry_execution", execution_health.get("phase_8_entry_execution") if execution_health else None),
+        (9, "Portfolio Snapshot", "portfolio_snapshot", execution_health.get("phase_9_portfolio_snapshot") if execution_health else None),
     ]
 
-    # Track which phases have data
-    active_phases = [p for p in phases if p[3] is not None]
+    # Track phase statistics
+    executed = sum(1 for p in phase_status_map.values() if p["status"] in ("success", "completed", "ok"))
+    halted = sum(1 for p in phase_status_map.values() if p["status"] in ("halt", "halted", "warn", "degraded", "skipped"))
+    errored = sum(1 for p in phase_status_map.values() if p["status"] in ("error", "failed"))
+    not_run = 9 - len(phase_status_map)
 
-    # Build phase rows with color coding and status
+    # Build phase rows showing ALL 9 phases
     phase_rows: list[Text] = []
-    has_any_data = False
 
-    for phase_num, phase_name, phase_key, phase_data in phases:
+    for phase_num, phase_name, phase_key, phase_data in phases_def:
+        phase_status = phase_status_map.get(phase_num, {})
+        status_str = phase_status.get("status", "not_run")
+
+        # Determine status icon and color
+        if status_str in ("success", "completed", "ok"):
+            status_icon = "[bold green]✓[/]"
+            status_text = "COMPLETED"
+            base_color = G
+        elif status_str in ("halt", "halted", "warn", "degraded", "skipped"):
+            status_icon = "[bold yellow]~[/]"
+            status_text = "HALTED"
+            base_color = Y
+        elif status_str in ("error", "failed"):
+            status_icon = "[bold red]✗[/]"
+            status_text = "ERROR"
+            base_color = R
+        else:  # not_run or no data
+            status_icon = "[dim]⊘[/]"
+            status_text = "NOT RUN"
+            base_color = DIM
+
+        # Build phase line with status and metrics (if available)
+        metrics_str = ""
+
+        # Render phase-specific metrics only if data exists
         if phase_data is None:
-            # No data for this phase yet (expected in initialization)
-            continue
-
-        has_any_data = True
-
-        # Phase 2: Circuit Breakers
-        if phase_num == 2:
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]"
+        elif phase_num == 2:  # Circuit Breakers
             any_triggered = phase_data.get("any_triggered", False)
-            status_icon = "[bold red]⚠[/]" if any_triggered else "[bold green]✓[/]"
-            status_text = "TRIGGERED" if any_triggered else "OK"
-
             dd = phase_data.get("drawdown_pct")
             dl = phase_data.get("daily_loss_pct")
             vix = phase_data.get("vix_level")
-            metrics_str = ""
+
             if dd is not None:
                 dd_color = R if dd >= 20 else Y if dd >= 10 else G
                 metrics_str += f" [dim]DD[/] [{dd_color}]{dd:.1f}%[/]"
@@ -279,118 +325,92 @@ def _build_phase_execution_panel(execution_health: dict[str, Any] | None) -> Pan
                 vix_color = R if vix >= 35 else Y if vix >= 25 else G
                 metrics_str += f" [dim]VIX[/] [{vix_color}]{vix:.1f}[/]"
 
-            phase_rows.append(Text.from_markup(
-                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}{metrics_str}"
-            ))
-
-        # Phase 3: Position Monitor
-        elif phase_num == 3:
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+        elif phase_num == 3:  # Position Monitor
             open_count = phase_data.get("open_positions", 0)
             oldest = phase_data.get("oldest_days")
             max_loss = phase_data.get("max_loss_pct")
 
             pos_color = G if open_count == 0 else Y if open_count <= 5 else R
-            status_icon = f"[{pos_color}]●[/]"
-            status_text = f"{open_count} open"
+            metrics_str = f" [dim]open:[/] [{pos_color}]{open_count}[/]"
             if oldest is not None:
-                status_text += f" ({oldest}d old)"
+                metrics_str += f" [dim]age:[/] {oldest}d"
             if max_loss is not None:
                 loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
-                status_text += f" [dim]max loss[/] [{loss_color}]{max_loss:.1f}%[/]"
+                metrics_str += f" [dim]loss:[/] [{loss_color}]{max_loss:.1f}%[/]"
 
-            phase_rows.append(Text.from_markup(
-                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
-            ))
-
-        # Phase 4: Broker Reconciliation
-        elif phase_num == 4:
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+        elif phase_num == 4:  # Broker Reconciliation
             sync_count = phase_data.get("sync_count", 0)
             match_pct = phase_data.get("avg_match_pct")
 
-            sync_color = G if sync_count > 0 and (match_pct is None or match_pct >= 95) else Y if sync_count > 0 else DIM
-            status_icon = f"[{sync_color}]↔[/]"
-            status_text = f"{sync_count} sync{'s' if sync_count != 1 else ''}"
             if match_pct is not None:
                 match_color = G if match_pct >= 95 else Y if match_pct >= 80 else R
-                status_text += f" [dim]match[/] [{match_color}]{match_pct:.0f}%[/]"
+                metrics_str = f" [dim]sync:[/] {sync_count} [dim]match:[/] [{match_color}]{match_pct:.0f}%[/]"
+            else:
+                metrics_str = f" [dim]sync:[/] {sync_count}"
 
-            phase_rows.append(Text.from_markup(
-                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
-            ))
-
-        # Phase 6: Exit Execution
-        elif phase_num == 6:
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+        elif phase_num == 5:  # Exposure Policy
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]"
+        elif phase_num == 6:  # Exit Execution
             exits = phase_data.get("exits_executed", 0)
             success_rate = phase_data.get("success_rate", 0)
 
-            exit_color = G if exits > 0 and success_rate >= 80 else (Y if exits > 0 else DIM)
-            status_icon = f"[{exit_color}]↓[/]"
-            status_text = f"{exits} exit{'s' if exits != 1 else ''}"
             if exits > 0:
                 sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
-                status_text += f" [dim]success[/] [{sr_color}]{success_rate:.0f}%[/]"
+                metrics_str = f" [dim]exits:[/] {exits} [dim]success:[/] [{sr_color}]{success_rate:.0f}%[/]"
+            else:
+                metrics_str = f" [dim]exits:[/] {exits}"
 
-            phase_rows.append(Text.from_markup(
-                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
-            ))
-
-        # Phase 7: Signal Generation
-        elif phase_num == 7:
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+        elif phase_num == 7:  # Signal Generation
             signals = phase_data.get("signals_generated", 0)
             avg_strength = phase_data.get("avg_strength")
 
-            sig_color = G if signals > 0 else DIM
-            status_icon = f"[{sig_color}]◆[/]"
-            status_text = f"{signals} signal{'s' if signals != 1 else ''}"
             if avg_strength is not None:
                 strength_color = G if avg_strength >= 70 else Y if avg_strength >= 50 else R
-                status_text += f" [dim]avg[/] [{strength_color}]{avg_strength:.1f}[/]"
+                metrics_str = f" [dim]signals:[/] {signals} [dim]avg:[/] [{strength_color}]{avg_strength:.1f}[/]"
+            else:
+                metrics_str = f" [dim]signals:[/] {signals}"
 
-            phase_rows.append(Text.from_markup(
-                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
-            ))
-
-        # Phase 8: Entry Execution
-        elif phase_num == 8:
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+        elif phase_num == 8:  # Entry Execution
             entries = phase_data.get("entries_executed", 0)
             success_rate = phase_data.get("success_rate", 0)
 
-            entry_color = G if entries > 0 and success_rate >= 80 else (Y if entries > 0 else DIM)
-            status_icon = f"[{entry_color}]↑[/]"
-            status_text = f"{entries} entr{'ies' if entries != 1 else 'y'}"
             if entries > 0:
                 sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
-                status_text += f" [dim]success[/] [{sr_color}]{success_rate:.0f}%[/]"
+                metrics_str = f" [dim]entries:[/] {entries} [dim]success:[/] [{sr_color}]{success_rate:.0f}%[/]"
+            else:
+                metrics_str = f" [dim]entries:[/] {entries}"
 
-            phase_rows.append(Text.from_markup(
-                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
-            ))
-
-        # Phase 9: Portfolio Snapshot
-        elif phase_num == 9:
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+        elif phase_num == 9:  # Portfolio Snapshot
             portfolio_value = phase_data.get("portfolio_value")
             latest = phase_data.get("latest_snapshot")
 
-            status_icon = "[bold green]⟡[/]"
-            status_text = ""
             if portfolio_value is not None:
-                status_text += f"${portfolio_value:,.0f}"
-            if latest:
-                status_text += f" [dim]({latest[:10]})[/]"
+                metrics_str = f" [dim]portfolio:[/] ${portfolio_value:,.0f}"
+                if latest:
+                    metrics_str += f" [dim]({latest[:10]})[/]"
+            else:
+                metrics_str = ""
 
-            phase_rows.append(Text.from_markup(
-                f"  P{phase_num}: {status_icon} {phase_name:.<30} {status_text}"
-            ))
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+        else:
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]"
 
-    # Show panel even if empty (better than nothing)
-    if not phase_rows:
-        phase_rows.append(Text.from_markup("  [dim]No execution health data available (orchestrator may not have run yet)[/]"))
+        phase_rows.append(Text.from_markup(phase_line))
 
-    # Build panel with phase rows (show count of phases with data)
-    phase_count = len(active_phases) if 'active_phases' in locals() else len(phase_rows)
+    # Build summary header
+    total_phases = 9
+    summary = f"[dim]{executed}✓  {halted}~  {errored}✗  {not_run}⊘[/]"
+
+    # Build panel with all phases
     return Panel(
         Group(*phase_rows),
-        title=f"[bold cyan]PHASE EXECUTION HEALTH[/]  [dim][{phase_count} phases][/]",
+        title=f"[bold cyan]PHASES[/]  {summary}",
         border_style="cyan",
         padding=(0, 1),
     )
@@ -2848,7 +2868,7 @@ def _build_results_panel(  # noqa: C901
     # Phase execution health panel (if available)
     if hlth and isinstance(hlth, dict):
         execution_health = hlth.get("execution_health")
-        phase_exec_panel = _build_phase_execution_panel(execution_health)
+        phase_exec_panel = _build_phase_execution_panel(execution_health, run)
         if phase_exec_panel:
             right_rows.append(phase_exec_panel)
             right_rows.append(Rule(style="dim"))
@@ -2860,7 +2880,7 @@ def _build_results_panel(  # noqa: C901
         right_rows.append(
             Text.from_markup(f"[dim]Run history ({len(valid_hist_e)}):[/]  [{wc}]{n_ok}/{len(valid_hist_e)} success[/]")
         )
-        for r in valid_hist_e:
+        for r in valid_hist_e[:3]:
             s = _get_status_safe(r)
             dt = r.get("started_at")
             if dt is None:
@@ -2890,52 +2910,12 @@ def _build_results_panel(  # noqa: C901
             hr_s = f"  [{Y}]-> {body}[/]{ph_s}" if body else ""
             right_rows.append(Text.from_markup(f"  [{ic}]{ii}[/] [dim]{dt_s}[/]  [{ic}]{s}[/]{hr_s}"))
 
-    # CRITICAL: Do NOT silently fallback to empty dict when risk data is missing/error.
-    # This masks data quality issues and displays false "all clear" when risk metrics unavailable.
-    risk_dict_b = safe_get_dict(risk) if not has_error(risk) else None
-    var95_b = safe_float(risk_dict_b.get("var95"), default=None) if risk_dict_b else None
-    if var95_b is not None and var95_b > 0 and risk_dict_b:
-        right_rows.append(Rule(style="dim"))
-        var95_val_e = safe_float(var95_b, default=None)
-        beta_val_e = safe_float(risk_dict_b.get("beta"), default=None)
-        conc5_val_e = safe_float(risk_dict_b.get("conc5"), default=None)
-        cvar95_val_e = safe_float(risk_dict_b.get("cvar95"), default=None)
-        svar_val_e = safe_float(risk_dict_b.get("svar"), default=None)
-        beta_c = (
-            R
-            if beta_val_e is not None and beta_val_e >= 1.2
-            else (Y if beta_val_e is not None and beta_val_e >= 0.8 else G)
-        )
-        conc_c = (
-            R
-            if conc5_val_e is not None and conc5_val_e >= 35
-            else (Y if conc5_val_e is not None and conc5_val_e >= 25 else "white")
-        )
-        var_c = (
-            R
-            if var95_val_e is not None and var95_val_e >= 4
-            else (Y if var95_val_e is not None and var95_val_e >= 2 else "white")
-        )
-        risk_parts_e = []
-        if var95_val_e is not None:
-            risk_parts_e.append(f"[dim]VaR95:[/][{var_c}]{var95_val_e:.2f}%[/]")
-        if cvar95_val_e is not None:
-            risk_parts_e.append(f"[dim]CVaR:[/][{var_c}]{cvar95_val_e:.2f}%[/]")
-        if beta_val_e is not None:
-            # CRITICAL: When beta = 0, show "--" instead of "0.00"
-            beta_display_e_parts = "--" if beta_val_e <= 0 else f"{beta_val_e:.2f}"
-            risk_parts_e.append(f"[dim]Beta:[/][{beta_c}]{beta_display_e_parts}[/]")
-        if conc5_val_e is not None:
-            risk_parts_e.append(f"[dim]Top5:[/][{conc_c}]{conc5_val_e:.0f}%[/]")
-        if svar_val_e is not None and svar_val_e > 0:
-            risk_parts_e.append(f"[dim]StressVaR:[/][{R}]{svar_val_e:.2f}%[/]")
-        right_rows.append(Text.from_markup("  ".join(risk_parts_e)))
 
     valid_notifs_raw = safe_get_list(notifs)
     if isinstance(valid_notifs_raw, list) and valid_notifs_raw:
         right_rows.append(Rule(style="dim"))
         right_rows.append(Text.from_markup("[dim]Notifications:[/]"))
-        for n in valid_notifs_raw:
+        for n in valid_notifs_raw[:3]:
             if not isinstance(n, dict):
                 continue
             severity_val = n.get("severity")
