@@ -1080,16 +1080,16 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         Type = "Parallel"
         Branches = [
           {
-            StartAt = "MorningMarketHealthDaily"
+            StartAt = "MorningMarketStatusDaily"
             States = {
-              MorningMarketHealthDaily = {
+              MorningMarketStatusDaily = {
                 Type           = "Task"
                 Resource       = "arn:aws:states:::ecs:runTask.sync"
                 TimeoutSeconds = 1200
                 Parameters = {
                   Cluster              = var.ecs_cluster_arn
                   LaunchType           = "FARGATE"
-                  TaskDefinition       = var.loader_task_definition_arns["market_health_daily"]
+                  TaskDefinition       = var.loader_task_definition_arns["market_status_daily"]
                   NetworkConfiguration = local.network_config
                 }
                 Retry = [{
@@ -1098,9 +1098,9 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
                   MaxAttempts     = 2
                   BackoffRate     = 2.0
                 }]
-                Next = "SuccessMorningMarketHealth"
+                Next = "SuccessMorningMarketStatus"
               }
-              SuccessMorningMarketHealth = {
+              SuccessMorningMarketStatus = {
                 Type = "Succeed"
               }
             }
@@ -1165,35 +1165,14 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
       }
 
       # ── Morning market exposure (fresh regime for 9:30 AM orchestrator) ────────
-      # CRITICAL FIX: Eliminates EOD-only single point of failure
-      # If EOD pipeline fails, morning pipeline ensures market_exposure_daily is fresh for:
-      # - 9:30 AM orchestrator run (9+ hours until EOD)
-      # - 1 PM and 3 PM orchestrator runs (4-7 hours until EOD)
-      # - Dashboard market regime display (avoids stale data for entire week)
-      # Depends on: market_health_daily (computed in MorningHealthAndTrend parallel step)
-      # Timeout: 600s (typically 30s-1min, well under budget)
-      # Fail-open: If this fails, orchestrator falls back to yesterday's regime (graceful degradation)
+      # FIXED: market_exposure_daily is now produced by consolidated market_status_daily loader
+      # (runs in MorningHealthAndTrend parallel step)
+      # market_status_daily is atomic: outputs to market_health_daily, market_exposure_daily,
+      # and market_sentiment in a single operation (all succeed or fail together)
+      # This eliminates the separate market_exposure_daily task that was previously run here
       MorningMarketExposure = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 600
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["market_exposure_daily"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 30
-          MaxAttempts     = 0
-          BackoffRate     = 1.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "MorningTechnicalData"
-          ResultPath  = "$.exposureError"
-        }]
+        Type = "Pass"
+        Comment = "REMOVED: market_exposure_daily now runs atomically as part of market_status_daily (Phase 2 consolidation)"
         Next = "MorningTechnicalData"
       }
 
@@ -1222,23 +1201,25 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "MorningSectorRanking"
+          Next        = "MorningSectorIndustryDaily"
           ResultPath  = "$.techDataError"
         }]
-        Next = "MorningSectorRanking"
+        Next = "MorningSectorIndustryDaily"
       }
 
-      # ── Morning sector ranking (depends on technical_data_daily) ──────────
-      # CRITICAL: Must run before orchestrator to ensure Phase 3 and Phase 5 have current sector data.
-      # Timeout 900 seconds (15 minutes) — same as EOD pipeline sector ranking.
-      MorningSectorRanking = {
+      # ── Morning sector/industry consolidation (depends on technical_data_daily) ──────────
+      # FIXED: sector_ranking, industry_ranking, sector_performance are now consolidated
+      # into atomic sector_industry_daily loader (Phase 4 consolidation)
+      # Timeout 900 seconds (15 minutes) — same as EOD pipeline.
+      # This loader outputs to sector_ranking, industry_ranking, and sector_performance atomically
+      MorningSectorIndustryDaily = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
         TimeoutSeconds = 900
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["sector_ranking"]
+          TaskDefinition       = var.loader_task_definition_arns["sector_industry_daily"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -1249,15 +1230,15 @@ resource "aws_sfn_state_machine" "morning_prep_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "LogMorningSectorRankingFailure"
+          Next        = "LogMorningSectorIndustryFailure"
           ResultPath  = "$.sectorError"
         }]
         Next = "MorningSuccess"
       }
 
-      LogMorningSectorRankingFailure = {
+      LogMorningSectorIndustryFailure = {
         Type = "Pass"
-        # Fail-open: if sector ranking fails, still complete morning prep
+        # Fail-open: if sector/industry consolidation fails, still complete morning prep
         # Phase 1 and Phase 5 will use previously cached sector data
         Next = "MorningSuccess"
       }
