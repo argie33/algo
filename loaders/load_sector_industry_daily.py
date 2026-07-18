@@ -252,7 +252,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
 
     def load_global(self) -> int:
         """Market-wide loader uses load_global pattern."""
-        result = self.run(["market"], parallelism=1)
+        self.run(["market"], parallelism=1)
         return 0
 
 

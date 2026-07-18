@@ -321,6 +321,30 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics compute failed: {e}")
             return self._unavailable_marker("quality_metrics", symbol)
 
+    @staticmethod
+    def _cagr(latest: float, previous: float, years: int) -> float | None:
+        """Compute CAGR (Compound Annual Growth Rate)."""
+        try:
+            latest_f = float(latest) if not isinstance(latest, float) else latest
+            previous_f = float(previous) if not isinstance(previous, float) else previous
+        except (ValueError, TypeError):
+            return None
+
+        if previous_f == 0 or previous_f is None:
+            return None
+        if (latest_f > 0 and previous_f < 0) or (latest_f < 0 and previous_f > 0):
+            return None
+        ratio = latest_f / previous_f
+        return float(((ratio ** (1.0 / years)) - 1) * 100)
+
+    def _compute_period_growth(self, symbol: str, values: list[float], offset: int, years: int, metric_key: str, metrics: dict[str, Any]) -> None:
+        """Compute growth for a single period (1y, 3y, or 5y)."""
+        required_count = offset + 1
+        if len(values) >= required_count:
+            growth = self._cagr(values[0], values[offset], years)
+            if growth is not None:
+                metrics[metric_key] = float(round(growth, 2))
+
     def _compute_growth_metrics(self, symbol: str, income_rows: list[Any]) -> dict[str, Any]:
         """Compute multi-year growth rates from annual income statement history.
 
@@ -343,7 +367,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "data_unavailable": False,
         }
 
-        # Extract revenue and EPS from rows
         revenues = []
         eps_values = []
         for row in income_rows:
@@ -357,52 +380,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             except (ValueError, TypeError):
                 continue
 
-        def _cagr(latest: float, previous: float, years: int) -> float | None:
-            """Compute CAGR (Compound Annual Growth Rate)."""
-            try:
-                latest_f = float(latest) if not isinstance(latest, float) else latest
-                previous_f = float(previous) if not isinstance(previous, float) else previous
-            except (ValueError, TypeError):
-                return None
+        self._compute_period_growth(symbol, revenues, 1, 1, "revenue_growth_1y", metrics)
+        self._compute_period_growth(symbol, eps_values, 1, 1, "eps_growth_1y", metrics)
+        self._compute_period_growth(symbol, revenues, 3, 3, "revenue_growth_3y", metrics)
+        self._compute_period_growth(symbol, eps_values, 3, 3, "eps_growth_3y", metrics)
+        self._compute_period_growth(symbol, revenues, 5, 5, "revenue_growth_5y", metrics)
+        self._compute_period_growth(symbol, eps_values, 5, 5, "eps_growth_5y", metrics)
 
-            if previous_f == 0 or previous_f is None:
-                return None
-            if (latest_f > 0 and previous_f < 0) or (latest_f < 0 and previous_f > 0):
-                return None  # Sign change, CAGR doesn't apply
-            ratio = latest_f / previous_f
-            return float(((ratio ** (1.0 / years)) - 1) * 100)
-
-        # 1-year growth
-        if len(revenues) >= 2:
-            rev_growth = _cagr(revenues[0], revenues[1], 1)
-            if rev_growth is not None:
-                metrics["revenue_growth_1y"] = float(round(rev_growth, 2))
-        if len(eps_values) >= 2:
-            eps_growth = _cagr(eps_values[0], eps_values[1], 1)
-            if eps_growth is not None:
-                metrics["eps_growth_1y"] = float(round(eps_growth, 2))
-
-        # 3-year growth
-        if len(revenues) >= 4:
-            rev_growth = _cagr(revenues[0], revenues[3], 3)
-            if rev_growth is not None:
-                metrics["revenue_growth_3y"] = float(round(rev_growth, 2))
-        if len(eps_values) >= 4:
-            eps_growth = _cagr(eps_values[0], eps_values[3], 3)
-            if eps_growth is not None:
-                metrics["eps_growth_3y"] = float(round(eps_growth, 2))
-
-        # 5-year growth
-        if len(revenues) >= 6:
-            rev_growth = _cagr(revenues[0], revenues[5], 5)
-            if rev_growth is not None:
-                metrics["revenue_growth_5y"] = float(round(rev_growth, 2))
-        if len(eps_values) >= 6:
-            eps_growth = _cagr(eps_values[0], eps_values[5], 5)
-            if eps_growth is not None:
-                metrics["eps_growth_5y"] = float(round(eps_growth, 2))
-
-        # Mark as unavailable if no growth rates computed
         if all(metrics[k] is None for k in ["revenue_growth_1y", "revenue_growth_3y", "revenue_growth_5y", "eps_growth_1y", "eps_growth_3y", "eps_growth_5y"]):
             return self._unavailable_marker("growth_metrics", symbol)
 

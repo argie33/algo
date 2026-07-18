@@ -201,8 +201,8 @@ class SpecializedChecker(BaseCheck):
 
             results_by_table = {}
             for row in cur.fetchall():
-                if isinstance(row, dict):
-                    row_dict = row
+                if isinstance(row, dict) or hasattr(row, "keys"):
+                    row_dict = dict(row)
                 elif hasattr(row, "_fields"):
                     row_dict = row._asdict()
                 else:

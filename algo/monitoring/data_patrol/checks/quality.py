@@ -99,7 +99,7 @@ class QualityChecker(BaseCheck):
                   AND (volume = 0 OR open = 0 OR close = 0)
                 ORDER BY symbol
             """)
-            today_zero_symbols = {row[0] for row in cur.fetchall()}
+            today_zero_symbols = {row['symbol'] for row in cur.fetchall()}
             today_zero_count = len(today_zero_symbols)
 
             # Symbols with zero OHLC yesterday
@@ -110,7 +110,7 @@ class QualityChecker(BaseCheck):
                   AND (volume = 0 OR open = 0 OR close = 0)
                 ORDER BY symbol
             """)
-            yesterday_zero_symbols = {row[0] for row in cur.fetchall()}
+            yesterday_zero_symbols = {row['symbol'] for row in cur.fetchall()}
 
             new_zeros = today_zero_symbols - yesterday_zero_symbols
             recurring_zeros = today_zero_symbols & yesterday_zero_symbols
@@ -163,7 +163,7 @@ class QualityChecker(BaseCheck):
                   AND volume > 0
                 ORDER BY symbol
             """)
-            ident_symbols = [row[0] for row in cur.fetchall()]
+            ident_symbols = [row['symbol'] for row in cur.fetchall()]
             ident_count = len(ident_symbols)
 
             # Mark suspicious OHLC in database

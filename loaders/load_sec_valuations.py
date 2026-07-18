@@ -2,12 +2,12 @@
 """SEC-Derived Valuations Loader - Replace yfinance PE/PB/PS/PEG/FCF/MarketCap.
 
 Computes audited, current valuations from SEC financial data + price_daily:
-  - PE Ratio: TTM EPS (from income statement) ÷ Stock Price
-  - PB Ratio: Book Value Per Share (from balance sheet) ÷ Stock Price
-  - PS Ratio: Revenue Per Share (from income statement) ÷ Stock Price
-  - PEG Ratio: PE Ratio ÷ Earnings Growth Rate %
-  - FCF Yield: Free Cash Flow (from cash flow statement) ÷ Market Cap
-  - Market Cap: Stock Price × Shares Outstanding (from income statement)
+  - PE Ratio: TTM EPS (from income statement) / Stock Price
+  - PB Ratio: Book Value Per Share (from balance sheet) / Stock Price
+  - PS Ratio: Revenue Per Share (from income statement) / Stock Price
+  - PEG Ratio: PE Ratio / Earnings Growth Rate %
+  - FCF Yield: Free Cash Flow (from cash flow statement) / Market Cap
+  - Market Cap: Stock Price x Shares Outstanding (from income statement)
   - Shares Outstanding: WeightedAverageNumberOfSharesOutstandingBasic (from SEC)
 
 Data Quality:
@@ -72,7 +72,7 @@ class SecValuationsLoader(OptimalLoader):
                 if not income_row:
                     return [self._unavailable_marker(symbol, "no_income_statement")]
 
-                ttm_revenue, ttm_net_income, ttm_eps_basic = income_row
+                ttm_revenue, _ttm_net_income, ttm_eps_basic = income_row
                 latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest
 
                 # Fetch shares outstanding from SEC company info (required for valuations)
@@ -192,7 +192,7 @@ class SecValuationsLoader(OptimalLoader):
             result["reason"] = "invalid_price"
             return result
 
-        # Market Cap = Price × Shares Outstanding
+        # Market Cap = Price x Shares Outstanding
         if shares_out and shares_out > 0:
             result["market_cap"] = current_price * shares_out
         else:
