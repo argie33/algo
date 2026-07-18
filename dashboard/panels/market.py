@@ -487,12 +487,12 @@ def panel_header_market(  # noqa: C901
                 f"VIX:[{vc}]{vix}[/]  [dim]Dist. Days:[/][white]{dist}[/]  [dim]Stage:[/][white]{stage}[/]{trend_s}{spy_s}"
             )
         )
-        upvol = safe_float(mkt.get("upvol"), field_name="upvol", strict=True) if mkt.get("upvol") is not None else None
-        nh = safe_int(mkt.get("nh"), field_name="nh", strict=True) if mkt.get("nh") is not None else None
-        nl = safe_int(mkt.get("nl"), field_name="nl", strict=True) if mkt.get("nl") is not None else None
-        adr = safe_float(mkt.get("adr"), field_name="adr", strict=True) if mkt.get("adr") is not None else None
+        upvol = safe_float(mkt.get("upvol"), field_name="upvol") if mkt.get("upvol") is not None else None
+        nh = safe_int(mkt.get("nh"), field_name="nh") if mkt.get("nh") is not None else None
+        nl = safe_int(mkt.get("nl"), field_name="nl") if mkt.get("nl") is not None else None
+        adr = safe_float(mkt.get("adr"), field_name="adr") if mkt.get("adr") is not None else None
         if upvol is None:
-            logger.warning("[MARKET_HEADER] Up volume data missing - breadth analysis incomplete")
+            logger.debug("[MARKET_HEADER] Up volume data missing - breadth analysis incomplete")
         if upvol is not None:
             uvc = G if upvol >= 60 else (Y if upvol >= 50 else R)
             nhnl = (nh - nl) if (nh is not None and nl is not None) else None
@@ -510,9 +510,9 @@ def panel_header_market(  # noqa: C901
                     f"{nhnl_s}"
                 )
             )
-        pcr = safe_float(mkt.get("pcr"), field_name="pcr", strict=True) if mkt.get("pcr") is not None else None
-        bmom = safe_float(mkt.get("bmom"), field_name="bmom", strict=True) if mkt.get("bmom") is not None else None
-        ycs = safe_float(mkt.get("ycs"), field_name="ycs", strict=True) if mkt.get("ycs") is not None else None
+        pcr = safe_float(mkt.get("pcr"), field_name="pcr") if mkt.get("pcr") is not None else None
+        bmom = safe_float(mkt.get("bmom"), field_name="bmom") if mkt.get("bmom") is not None else None
+        ycs = safe_float(mkt.get("ycs"), field_name="ycs") if mkt.get("ycs") is not None else None
         fed = mkt.get("fed")
         _fed_ok = fed and str(fed).lower() not in ("unknown", "n/a", "none", "")
         parts4 = []
@@ -520,7 +520,7 @@ def panel_header_market(  # noqa: C901
             pcr_c = G if pcr <= 0.8 else (Y if pcr <= 1.0 else R)
             parts4.append(f"[dim]Put/Call:[/][{pcr_c}]{pcr:.3f}[/]")
         else:
-            logger.error("[MARKET_HEADER] Put/Call ratio missing - critical sentiment data unavailable")
+            logger.debug("[MARKET_HEADER] Put/Call ratio not available - optional enrichment missing")
             parts4.append("[dim]Put/Call:[/][yellow]⚠ N/A[/]")
         if bmom is not None:
             bmc = G if bmom >= 0.5 else (Y if bmom >= 0 else R)

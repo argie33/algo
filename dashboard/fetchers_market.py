@@ -177,31 +177,26 @@ def fetch_market(c: None) -> dict[str, Any]:
         halt_reasons = halt_reasons_raw
 
         # CRITICAL: Extract breadth data values and check for availability
-        # Breadth metrics (upvol, nh, nl, adr, bmom) are used in market exposure scoring
+        # Breadth metrics (upvol, nh, nl, adr, bmom) are optional and may be None
         upvol_val = safe_float(
             market_health.get("up_volume_percent"),
             field_name="market.up_volume_percent",
-            strict=True,
         )
         adr_val = safe_float(
             market_health.get("advance_decline_ratio"),
             field_name="market.advance_decline_ratio",
-            strict=True,
         )
         nh_val = safe_int(
             market_health.get("new_highs_count"),
             field_name="market.new_highs_count",
-            strict=True,
         )
         nl_val = safe_int(
             market_health.get("new_lows_count"),
             field_name="market.new_lows_count",
-            strict=True,
         )
         bmom_val = safe_float(
             market_health.get("breadth_momentum_10d"),
             field_name="market.breadth_momentum_10d",
-            strict=True,
         )
 
         # Spy change is optional enrichment data
