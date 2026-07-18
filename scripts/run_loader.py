@@ -211,7 +211,8 @@ def run_value_quality_growth_loader():
             cursor.close()
             conn.close()
             logger.info(f"Loaded {len(symbols)} symbols from stock_symbols (note: may include indices)")
-        except:
+        except Exception as e:
+            logger.error(f"Failed to load symbols from stock_symbols table: {e}. Falling back to hardcoded list.")
             symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
 
     loader = ValueQualityGrowthMetricsLoader()

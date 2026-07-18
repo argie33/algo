@@ -229,6 +229,10 @@ def run_backtest(  # noqa: C901
             pos = positions[symbol]
             current_price = current_prices[symbol]
             hold_days = (sim_date - pos["entry_date"]).days
+
+            if pos["entry_price"] <= 0:
+                raise ValueError(f"Invalid entry price for {symbol}: {pos['entry_price']} <= 0. Cannot calculate P&L.")
+
             pnl_pct = (current_price - pos["entry_price"]) / pos["entry_price"] * 100
 
             exit_reason = None
