@@ -656,7 +656,7 @@ def run(
                     f"[PHASE 8] LOCAL_MODE: Alpaca credentials not available, skipping {len(qualified_trades)} trades: {e}"
                 )
                 log_phase_result_fn(8, "entry_execution", "ok", "Local mode: trading skipped (no credentials)")
-                return PhaseResult(8, "entry_execution", "success", {"entered": 0}, False, None)
+                return PhaseResult(8, "entry_execution", "ok", {"entered": 0}, False, None)
             else:
                 error_msg = (
                     f"[PHASE 8 CRITICAL] Alpaca credentials not available: {e}\n"
