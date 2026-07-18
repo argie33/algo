@@ -189,18 +189,20 @@ class SectorIndustryDailyLoader(OptimalLoader):
 
                 # ===== INDUSTRY RANKINGS =====
                 # Same ranking logic but for industries
+                # GOVERNANCE FIX: Removed COALESCE(ss.composite_score, 50) - no fabricated scores
                 cur.execute(
                     """
                     WITH industry_stats AS (
                         SELECT
                             cp.industry AS industry_name,
                             COUNT(DISTINCT ss.symbol) AS stock_count,
-                            AVG(COALESCE(ss.composite_score, 50)) AS avg_score,
-                            RANK() OVER (ORDER BY AVG(COALESCE(ss.composite_score, 50)) DESC) AS current_rank
+                            AVG(ss.composite_score) AS avg_score,
+                            RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM company_profile cp
                         LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
                         WHERE cp.industry IS NOT NULL
                           AND cp.industry != ''
+                          AND ss.composite_score IS NOT NULL
                         GROUP BY cp.industry
                     )
                     INSERT INTO industry_ranking
@@ -210,11 +212,11 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         i_stats.industry_name,
                         NOW()::date,
                         i_stats.current_rank,
-                        COALESCE(i_stats.current_rank - COALESCE(r1.rank, i_stats.current_rank), 0),
+                        i_stats.current_rank - COALESCE(r1.rank, i_stats.current_rank),
                         'price_daily_aggregated' as data_source,
-                        COALESCE(r1.rank, i_stats.current_rank),
-                        COALESCE(r4.rank, i_stats.current_rank),
-                        COALESCE(r12.rank, i_stats.current_rank)
+                        r1.rank,
+                        r4.rank,
+                        r12.rank
                     FROM industry_stats i_stats
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir
