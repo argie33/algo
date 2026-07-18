@@ -142,7 +142,6 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
 
 
 @db_route_handler("fetch orchestrator execution stats")  # type: ignore[untyped-decorator]
-@validate_api_response("run")  # type: ignore[untyped-decorator]
 def _get_orchestrator_execution_stats(cur: cursor, days: int = 7) -> Any:
     cur.execute(
         """

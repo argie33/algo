@@ -106,6 +106,7 @@ SAFE_TABLES = {
     "positioning_metrics",
     "momentum_metrics",
     "key_metrics",
+    "short_interest_finra",
     # Phase 1-4 Consolidation (Session 204+)
     "sec_valuations",  # Phase 1: SEC-derived PE/PB/PS/PEG/FCF (replaces yfinance quoteSummary)
     # Market snapshots

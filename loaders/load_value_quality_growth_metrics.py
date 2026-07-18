@@ -272,6 +272,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "operating_margin": None,
                 "net_margin": None,
                 "debt_to_equity": None,
+                "quality_score": None,
                 "data_unavailable": False,
                 "updated_at": date.today().isoformat(),
             }
@@ -291,6 +292,19 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Debt to Equity = Total Liabilities / Shareholders' Equity
             if total_liabilities is not None and stockholders_equity is not None and stockholders_equity != 0:
                 metrics["debt_to_equity"] = float(total_liabilities / stockholders_equity)
+
+            # Compute composite quality_score from available metrics
+            # Score is average of available metrics (0-100 scale)
+            quality_components = [
+                metrics["roe"],
+                metrics["operating_margin"],
+                metrics["net_margin"],
+            ]
+            available_components = [m for m in quality_components if m is not None]
+            if available_components:
+                # Normalize to 0-100 scale: ROE/margins can exceed 100, cap at 100
+                normalized = [min(100, max(0, m)) for m in available_components]
+                metrics["quality_score"] = float(sum(normalized) / len(normalized))
 
             # Mark unavailable if all metrics are None
             if all(metrics[k] is None for k in ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity"]):
@@ -417,19 +431,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO quality_metrics
-            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, data_unavailable, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, quality_score, data_unavailable, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
                 operating_margin = EXCLUDED.operating_margin,
                 net_margin = EXCLUDED.net_margin,
                 debt_to_equity = EXCLUDED.debt_to_equity,
+                quality_score = EXCLUDED.quality_score,
                 data_unavailable = EXCLUDED.data_unavailable,
                 updated_at = EXCLUDED.updated_at
             """,
             (row["symbol"], row["roe"], row["roa"], row["operating_margin"],
-             row["net_margin"], row["debt_to_equity"], row["data_unavailable"], row["updated_at"]),
+             row["net_margin"], row["debt_to_equity"], row.get("quality_score"), row["data_unavailable"], row["updated_at"]),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -487,6 +502,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "operating_margin": None,
                 "net_margin": None,
                 "debt_to_equity": None,
+                "quality_score": None,
                 "data_unavailable": True,
                 "updated_at": date.today().isoformat(),
             }

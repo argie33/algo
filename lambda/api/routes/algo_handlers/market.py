@@ -272,10 +272,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "SELECT COUNT(*) AS row_count, MAX(check_date) AS last_updated FROM circuit_breaker_status",
             ),
             # Phase 4: Broker reconciliation
-            (
-                "algo_reconciliation_log",
-                "SELECT COUNT(*) AS row_count, MAX(reconciliation_date) AS last_updated FROM algo_reconciliation_log",
-            ),
+            # NOTE: algo_reconciliation_log table not yet created (Session 229 planned, not yet deployed)
+            # Commented out until table is migrated to local dev database
+            # (
+            #     "algo_reconciliation_log",
+            #     "SELECT COUNT(*) AS row_count, MAX(reconciliation_date) AS last_updated FROM algo_reconciliation_log",
+            # ),
             # Phase 4: Untracked positions (broker-held, not managed by algo)
             (
                 "algo_untracked_positions",
@@ -547,28 +549,30 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             execution_health["phase_3_position_monitor"] = None
 
         # Phase 4: Broker Reconciliation Health
-        try:
-            cur.execute("""
-                SELECT COUNT(*) as sync_count,
-                       MAX(reconciliation_date) as latest_sync,
-                       AVG(CAST(match_percentage AS FLOAT)) as avg_match_pct
-                FROM algo_reconciliation_log
-                WHERE reconciliation_date >= CURRENT_DATE - INTERVAL '1 day'
-            """)
-            recon_row = cur.fetchone()
-            if recon_row:
-                recon_dict = safe_dict_convert(recon_row)
-                sync_count = int(recon_dict["sync_count"]) if recon_dict.get("sync_count") else 0
-                execution_health["phase_4_broker_reconciliation"] = {
-                    "sync_count": sync_count,
-                    "latest_sync": recon_dict.get("latest_sync").isoformat() if recon_dict.get("latest_sync") else None,
-                    "avg_match_pct": float(recon_dict["avg_match_pct"]) if recon_dict.get("avg_match_pct") is not None else None,
-                }
-            else:
-                execution_health["phase_4_broker_reconciliation"] = None
-        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
-            logger.debug(f"[HEALTH] Phase 4 broker reconciliation query failed: {e}")
-            execution_health["phase_4_broker_reconciliation"] = None
+        # NOTE: algo_reconciliation_log table not yet created (Session 229 planned, not yet deployed)
+        # Commented out until table is migrated to local dev database
+        # try:
+        #     cur.execute("""
+        #         SELECT COUNT(*) as sync_count,
+        #                MAX(reconciliation_date) as latest_sync,
+        #                AVG(CAST(match_percentage AS FLOAT)) as avg_match_pct
+        #         FROM algo_reconciliation_log
+        #         WHERE reconciliation_date >= CURRENT_DATE - INTERVAL '1 day'
+        #     """)
+        #     recon_row = cur.fetchone()
+        #     if recon_row:
+        #         recon_dict = safe_dict_convert(recon_row)
+        #         sync_count = int(recon_dict["sync_count"]) if recon_dict.get("sync_count") else 0
+        #         execution_health["phase_4_broker_reconciliation"] = {
+        #             "sync_count": sync_count,
+        #             "latest_sync": recon_dict.get("latest_sync").isoformat() if recon_dict.get("latest_sync") else None,
+        #             "avg_match_pct": float(recon_dict["avg_match_pct"]) if recon_dict.get("avg_match_pct") is not None else None,
+        #         }
+        #     else:
+        #         execution_health["phase_4_broker_reconciliation"] = None
+        # except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
+        #     logger.debug(f"[HEALTH] Phase 4 broker reconciliation query failed: {e}")
+        execution_health["phase_4_broker_reconciliation"] = None
 
         # Phase 5: Exposure Policy Check (EOD, sector/position size validation)
         try:

@@ -331,6 +331,9 @@ def _dispatch(  # noqa: C901
         return _get_algo_positions(cur, user_id=user_id)
     elif path == "/api/algo/dashboard-signals":
         return _get_dashboard_signals(cur)
+    elif path == "/api/algo/signals":
+        # Alias for dashboard-signals (declared in PUBLIC_PREFIXES)
+        return _get_dashboard_signals(cur)
     elif path == "/api/algo/scores":
         limit = safe_limit(extract_param(params, "limit"), max_val=100, default=50)
         return _get_dashboard_scores(cur, limit)
