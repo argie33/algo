@@ -128,7 +128,7 @@ def fetch_run(c: None) -> dict[str, Any]:
         for phase_list, phase_type in phase_lists:
             missing = [i for i, p in enumerate(phase_list) if p.get("action_type") is None]
             if missing:
-                logger.warning(f"[RUN_FETCH] {phase_type} phases missing action_type: {missing}")
+                logger.debug(f"[RUN_FETCH] {phase_type} phases missing action_type: {missing}")
 
         return {
             "_source": "exec_log",
@@ -457,7 +457,6 @@ def fetch_circuit(c: None) -> dict[str, Any]:
             cur_val = r["current"]
             if cur_val is None:
                 logger.debug(f"Circuit breaker {label}: current is None (optional data unavailable)")
-                record_data_quality_issue("cb", "validation", "null_current_optional", label)
 
             # Threshold field (REQUIRED: threshold)
             if "threshold" not in r:
@@ -468,7 +467,6 @@ def fetch_circuit(c: None) -> dict[str, Any]:
             thr_val = r["threshold"]
             if thr_val is None:
                 logger.debug(f"Circuit breaker {label}: threshold is None (optional data unavailable)")
-                record_data_quality_issue("cb", "validation", "null_threshold_optional", label)
 
             # Triggered field (REQUIRED: triggered)
             if "triggered" not in r:

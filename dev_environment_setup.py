@@ -74,20 +74,20 @@ def check_status() -> bool:
     checks = []
 
     # PostgreSQL
-    print("📊 Database...", end=" ", flush=True)
+    print("[DB] Database...", end=" ", flush=True)
     pg_ok = check_postgres()
     print("[OK]" if pg_ok else "[FAIL]")
     checks.append(("PostgreSQL", pg_ok))
 
     # Dev Server
-    print("🌐 Dev Server (localhost:3001)...", end=" ", flush=True)
+    print("[API] Dev Server (localhost:3001)...", end=" ", flush=True)
     dev_ok = check_dev_server()
     print("[OK]" if dev_ok else "[NOT RUNNING]")
     checks.append(("Dev Server", dev_ok))
 
     # Data freshness
     if pg_ok:
-        print("📈 Data Freshness...", end=" ", flush=True)
+        print("[DATA] Data Freshness...", end=" ", flush=True)
         try:
             result = subprocess.run(
                 ["python", "check_system_health.py"],
@@ -106,7 +106,7 @@ def check_status() -> bool:
             checks.append(("Data Freshness", False))
 
     # Dashboard module
-    print("🎨 Dashboard Module...", end=" ", flush=True)
+    print("[UI] Dashboard Module...", end=" ", flush=True)
     try:
         result = subprocess.run(
             ["python", "-c", "from dashboard import Dashboard; print('OK')"],
@@ -131,13 +131,13 @@ def check_status() -> bool:
     print("="*70)
 
     if passed == len(checks):
-        print("\n✅ All systems ready! You can now:")
+        print("\n[OK] All systems ready! You can now:")
         print("   • Run orchestrator: python scripts/run_local_orchestrator.py")
         print("   • Refresh data: cd loaders && python load_prices.py")
         print("   • Start dashboard: python dashboard.py --local")
         return True
     else:
-        print("\n⚠️ Some systems not ready:")
+        print("\n[WARN] Some systems not ready:")
         for name, ok in checks:
             if not ok:
                 if name == "PostgreSQL":

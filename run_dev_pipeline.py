@@ -67,7 +67,7 @@ COMPUTED_LOADERS = [
 FULL_LOADERS = MORNING_LOADERS + EOD_LOADERS + COMPUTED_LOADERS
 
 
-def run_command(cmd: list[str], description: str, timeout: int = 600) -> bool:
+def run_command(cmd: list[str], description: str, timeout: int = 600, in_loaders_dir: bool = False) -> bool:
     """Run a shell command and return success status."""
     print(f"  [{description}]...", end=" ", flush=True)
     try:
@@ -76,7 +76,7 @@ def run_command(cmd: list[str], description: str, timeout: int = 600) -> bool:
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=LOADERS_DIR if cmd[0].endswith(".py") else None,
+            cwd=LOADERS_DIR if in_loaders_dir else None,
         )
         if result.returncode == 0:
             print("[OK]")
@@ -111,7 +111,7 @@ def run_loaders(loader_list: list[str], skip_slow: bool = False) -> dict:
             failed += 1
             continue
 
-        if run_command(["python", loader], loader):
+        if run_command(["python", loader], loader, in_loaders_dir=True):
             success += 1
         else:
             failed += 1
@@ -138,7 +138,7 @@ def run_pipeline(pipeline_name: str, loaders: list[str], skip_slow: bool = False
     print(f"  Result: {loader_stats['success']}/{loader_stats['total']} loaders succeeded")
 
     if loader_stats["failed"] > 0:
-        print(f"  ⚠️  {loader_stats['failed']} loaders failed - proceeding anyway")
+        print(f"  [WARN] {loader_stats['failed']} loaders failed - proceeding anyway")
 
     # Run orchestrator
     print("\nStep 2: Running orchestrator (9 phases)...")

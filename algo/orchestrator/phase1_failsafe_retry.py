@@ -145,11 +145,20 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                     row = cur.fetchone()
                     if row and row[0]:
                         max_date = row[0]
-                        # Convert to UTC for comparison
-                        if hasattr(max_date, 'tzinfo') and max_date.tzinfo is None:
-                            max_date_utc = max_date.replace(tzinfo=timezone.utc)
+                        # Convert date/datetime to datetime UTC for comparison
+                        from datetime import date as date_type
+                        if isinstance(max_date, date_type) and not isinstance(max_date, datetime):
+                            # PostgreSQL date column returns date object
+                            max_date_utc = datetime.combine(max_date, datetime.min.time(), tzinfo=timezone.utc)
+                        elif isinstance(max_date, datetime):
+                            # datetime object - ensure UTC
+                            if max_date.tzinfo is None:
+                                max_date_utc = max_date.replace(tzinfo=timezone.utc)
+                            else:
+                                max_date_utc = max_date.astimezone(timezone.utc)
                         else:
-                            max_date_utc = max_date.replace(tzinfo=timezone.utc) if hasattr(max_date, 'tzinfo') else max_date
+                            logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Unexpected date type for {table_name}: {type(max_date)}")
+                            continue
 
                         age_hours = (now_utc - max_date_utc).total_seconds() / 3600
 
