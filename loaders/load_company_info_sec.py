@@ -118,11 +118,14 @@ class CompanyInfoSECLoader(SecLoaderBase):
                         logger.debug(f"[{symbol}] SEC API facts missing 'dei' namespace. Shares outstanding unavailable.")
                     else:
                         dei_facts = facts_obj["dei"]
-                        shares_data = dei_facts.get("EntityCommonStockSharesOutstanding", {})
-                        if shares_data and isinstance(shares_data, dict) and "units" in shares_data:
-                            units = shares_data.get("units", {})
-                            pure_values = units.get("shares", [])
-                            if pure_values and isinstance(pure_values, list):
+                        # EXPLICIT: Check EntityCommonStockSharesOutstanding existence
+                        if "EntityCommonStockSharesOutstanding" in dei_facts:
+                            shares_data = dei_facts["EntityCommonStockSharesOutstanding"]
+                            if shares_data and isinstance(shares_data, dict) and "units" in shares_data:
+                                units = shares_data["units"]
+                                if "shares" in units and isinstance(units["shares"], list):
+                                    pure_values = units["shares"]
+                                    if pure_values:
                                 # Get most recent (most recent has latest end date)
                                 latest = sorted(pure_values, key=lambda x: x.get("end", ""), reverse=True)[0]
                                 shares_outstanding = latest.get("val")

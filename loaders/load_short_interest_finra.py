@@ -95,7 +95,8 @@ class ShortInterestFinraLoader(OptimalLoader):
                 ]
 
             short_pct = info["shortPercentOfFloat"]
-            shares_short = info.get("sharesShort")  # sharesShort optional
+            # sharesShort is optional enrichment field (not required for calculation)
+            shares_short = info.get("sharesShort") if "sharesShort" in info else None
 
             if short_pct is None:
                 logger.debug(f"[SHORT_INTEREST] {symbol}: shortPercentOfFloat is NULL in yfinance")

@@ -132,7 +132,7 @@ def _execute_fetcher_batch(
     batch_name: str,
 ) -> dict[str, Any]:
     """Execute a batch of fetchers with thread pool and timeout handling."""
-    out = {}
+    out: dict[str, Any] = {}
     critical_fetchers = {
         "run",
         "cfg",
