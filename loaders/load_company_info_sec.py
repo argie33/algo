@@ -192,6 +192,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
                 "shares_outstanding": None,
                 "data_unavailable": True,
                 "reason": reason,
+                "data_source": "none",
             }
         ]
 

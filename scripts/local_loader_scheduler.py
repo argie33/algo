@@ -48,8 +48,12 @@ LOADERS = {
         "target_minute": 0,
     },
     "reference": {
-        "description": "Reference data (9:15 AM ET): yfinance snapshot (institutional/insider ownership, analyst data)",
-        "loaders": ["load_yfinance_snapshot.py"],
+        "description": "Reference data (9:15 AM ET): yfinance snapshot + SEC company info + earnings calendar",
+        "loaders": [
+            "load_yfinance_snapshot.py",
+            "load_company_info_sec.py",  # Phase 3: Replaces ~15% yfinance (company info)
+            "load_earnings_calendar_sec.py",  # Phase 3: Replaces ~10% yfinance (earnings dates)
+        ],
         "interval_hours": 24,
         "target_hour": 9,
         "target_minute": 15,

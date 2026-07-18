@@ -144,6 +144,7 @@ class EarningsCalendarSECLoader(SecLoaderBase):
                             "filing_type": form_type,  # 10-K or 10-Q
                             "data_unavailable": False,
                             "reason": None,
+                            "data_source": "sec_edgar_filings",
                         }
                         # Deduplicate by date: prefer 10-K over 10-Q (annual over quarterly)
                         if filing_date not in earnings_dates_dict:
@@ -192,6 +193,7 @@ class EarningsCalendarSECLoader(SecLoaderBase):
                 "filing_type": None,
                 "data_unavailable": True,
                 "reason": reason,
+                "data_source": "none",
             }
         ]
 
