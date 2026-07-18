@@ -137,6 +137,29 @@ class OrchestratorPhaseExecutor:
 
         return errors
 
+    def _get_default_skip_data(self, phase_num: int | str) -> dict[str, Any]:
+        """Get valid but empty data for a skipped phase."""
+        defaults = {
+            1: {"status": "skipped"},
+            2: {"status": "skipped"},
+            3: {"recommendations": []},
+            4: {"success": False, "reason": "phase skipped"},
+            5: {
+                "constraints": {
+                    "tier_name": "CORRECTION",
+                    "risk_multiplier": 0.0,
+                    "max_new_positions_today": 0,
+                    "halt_new_entries": True,
+                },
+                "actions": [],
+            },
+            6: {"exits_executed": 0},
+            7: {"qualified_trades": []},
+            8: {"entered": 0},
+            9: {"positions": 0},
+        }
+        return defaults.get(phase_num, {})
+
     def _check_dependencies(self, phase_num: int | str) -> str | None:
         """Check if a phase's dependencies are satisfied.
 
@@ -177,8 +200,8 @@ class OrchestratorPhaseExecutor:
         Never silently skip a phase with dependencies - if dependencies fail, the phase must fail too.
 
         Flow:
-        1. Check dependencies (execution, success, data validity)
-        2. Check halt flag
+        1. Check halt flag first (if phase skips on halt, no need to validate dependencies)
+        2. Check dependencies (execution, success, data validity)
         3. Execute phase and capture result
         4. Report any errors clearly
 
@@ -193,8 +216,23 @@ class OrchestratorPhaseExecutor:
         if not phase:
             return False, f"Phase {phase_num} not registered"
 
-        # ISSUE #7 FIX: Check dependencies BEFORE checking halt flag
-        # Dependencies must be satisfied regardless of halt state
+        # Check halt flag FIRST (unless phase always runs)
+        # If phase will be skipped, no need to validate its dependencies
+        if not phase.always_run and phase.skip_if_halted:
+            if self.halt_check_fn():
+                logger.info(f"Phase {phase_num} ({phase.phase_name}) skipped due to halt flag")
+                result = PhaseResult(
+                    phase_num=phase_num,
+                    phase_name=phase.phase_name,
+                    status="skipped",
+                    data=self._get_default_skip_data(phase_num),
+                    halted=True,
+                    dependencies=phase.dependencies,
+                )
+                self.phase_results[phase_num] = result
+                return True, None
+
+        # Check dependencies (after halt check, so skipped phases don't validate them)
         dep_error = self._check_dependencies(phase_num)
         if dep_error:
             logger.critical(f"[DEP-CHECK FAILED] {dep_error}")
@@ -204,20 +242,6 @@ class OrchestratorPhaseExecutor:
                     f"unsatisfied dependencies. Dependency chain: {phase.dependencies}"
                 )
             return False, dep_error
-
-        # Check halt flag (unless phase always runs)
-        if not phase.always_run and phase.skip_if_halted:
-            if self.halt_check_fn():
-                logger.info(f"Phase {phase_num} ({phase.phase_name}) skipped due to halt flag")
-                result = PhaseResult(
-                    phase_num=phase_num,
-                    phase_name=phase.phase_name,
-                    status="skipped",
-                    halted=True,
-                    dependencies=phase.dependencies,
-                )
-                self.phase_results[phase_num] = result
-                return True, None
 
         # Execute phase
         try:
