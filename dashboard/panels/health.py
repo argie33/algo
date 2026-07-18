@@ -309,6 +309,19 @@ def _build_phase_execution_panel(
         # Render phase-specific metrics only if data exists
         if phase_data is None:
             phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]"
+        elif phase_num == 1:  # Data Freshness Check
+            tables_validated = phase_data.get("tables_validated", 0)
+            tables_fresh = phase_data.get("tables_fresh", 0)
+            tables_stale = phase_data.get("tables_stale", 0)
+            validation_status = phase_data.get("validation_status", "unknown")
+
+            if tables_stale > 0:
+                stale_color = R if tables_stale >= 3 else Y
+                metrics_str = f" [dim]stale:[/] [{stale_color}]{tables_stale}[/]"
+            else:
+                metrics_str = f" [dim]all:[/] [{G}]{tables_fresh}[/] fresh"
+
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 2:  # Circuit Breakers
             any_triggered = phase_data.get("any_triggered", False)
             dd = phase_data.get("drawdown_pct")
@@ -352,7 +365,22 @@ def _build_phase_execution_panel(
 
             phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 5:  # Exposure Policy
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]"
+            market_regime = phase_data.get("market_regime")
+            entry_allowed = phase_data.get("entry_allowed")
+            halt_active = phase_data.get("halt_active", False)
+            max_entries = phase_data.get("max_new_entries")
+
+            if halt_active:
+                metrics_str = f" [bold {R}]HALT[/]"
+            elif entry_allowed is False:
+                metrics_str = f" [dim]entries:[/] [{R}]blocked[/]"
+            elif entry_allowed is True:
+                entry_info = f" [{G}]{max_entries}[/]" if max_entries else ""
+                metrics_str = f" [dim]entries:[/]{entry_info}"
+            else:
+                metrics_str = f" [dim]regime:[/] {market_regime}" if market_regime else ""
+
+            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 6:  # Exit Execution
             exits = phase_data.get("exits_executed", 0)
             success_rate = phase_data.get("success_rate", 0)
@@ -366,13 +394,20 @@ def _build_phase_execution_panel(
             phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 7:  # Signal Generation
             signals = phase_data.get("signals_generated", 0)
+            buy_signals = phase_data.get("buy_signals", 0)
+            sell_signals = phase_data.get("sell_signals", 0)
             avg_strength = phase_data.get("avg_strength")
 
-            if avg_strength is not None:
-                strength_color = G if avg_strength >= 70 else Y if avg_strength >= 50 else R
-                metrics_str = f" [dim]signals:[/] {signals} [dim]avg:[/] [{strength_color}]{avg_strength:.1f}[/]"
+            sig_color = G if signals > 0 else DIM
+            if signals > 0:
+                metrics_str = f" [dim]signals:[/] [{sig_color}]{signals}[/]"
+                if buy_signals > 0 or sell_signals > 0:
+                    metrics_str += f" [dim]({buy_signals}↑ {sell_signals}↓)[/]"
+                if avg_strength is not None:
+                    strength_color = G if avg_strength >= 70 else Y if avg_strength >= 50 else R
+                    metrics_str += f" [dim]avg:[/] [{strength_color}]{avg_strength:.1f}[/]"
             else:
-                metrics_str = f" [dim]signals:[/] {signals}"
+                metrics_str = f" [dim]signals:[/] [{DIM}]0[/]"
 
             phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 8:  # Entry Execution

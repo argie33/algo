@@ -272,12 +272,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "SELECT COUNT(*) AS row_count, MAX(check_date) AS last_updated FROM circuit_breaker_status",
             ),
             # Phase 4: Broker reconciliation
-            # NOTE: algo_reconciliation_log table not yet created (Session 229 planned, not yet deployed)
-            # Commented out until table is migrated to local dev database
-            # (
-            #     "algo_reconciliation_log",
-            #     "SELECT COUNT(*) AS row_count, MAX(reconciliation_date) AS last_updated FROM algo_reconciliation_log",
-            # ),
+            (
+                "algo_reconciliation_log",
+                "SELECT COUNT(*) AS row_count, MAX(reconciliation_date) AS last_updated FROM algo_reconciliation_log",
+            ),
             # Phase 4: Untracked positions (broker-held, not managed by algo)
             (
                 "algo_untracked_positions",
@@ -291,7 +289,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             # Phase 7: Signal evaluation
             (
                 "algo_signals_evaluated",
-                "SELECT COUNT(*) AS row_count, MAX(date) AS last_updated FROM algo_signals_evaluated",
+                "SELECT COUNT(*) AS row_count, MAX(signal_date) AS last_updated FROM algo_signals_evaluated",
             ),
             # Phase 7: Final signals generated
             (
@@ -463,27 +461,38 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # Query execution health from tables populated by each orchestrator phase
         execution_health: dict[str, dict[str, Any] | None] = {}
 
-        # Phase 1: Data Freshness Check (indicates if loaders passed validation)
-        # This is not directly tracked in a table, but we can check data_loader_status for recent runs
+        # Phase 1: Data Freshness Check (validates 11+ critical tables for trading)
+        # Phase 1 checks: price_daily, market_health_daily, market_exposure_daily, earnings_calendar,
+        # growth_metrics, quality_metrics, value_metrics, positioning_metrics, stability_metrics,
+        # trend_template_data, sector_ranking
         try:
+            critical_tables = [
+                'price_daily', 'market_health_daily', 'market_exposure_daily',
+                'earnings_calendar', 'growth_metrics', 'quality_metrics',
+                'value_metrics', 'positioning_metrics', 'stability_metrics',
+                'trend_template_data', 'sector_ranking'
+            ]
+
             cur.execute("""
-                SELECT COUNT(*) as run_count,
-                       MAX(last_updated) as latest_run,
-                       COUNT(*) FILTER (WHERE status='success') as successful_runs,
-                       COUNT(*) FILTER (WHERE status IN ('error', 'failed', 'stale')) as failed_runs
-                FROM data_loader_runs
-                WHERE last_updated >= CURRENT_DATE - INTERVAL '1 day'
-            """)
+                SELECT COUNT(*) as total_tables,
+                       COUNT(*) FILTER (WHERE EXTRACT(EPOCH FROM (NOW() - last_updated)) / 3600 <= 24) as fresh_count,
+                       COUNT(*) FILTER (WHERE EXTRACT(EPOCH FROM (NOW() - last_updated)) / 3600 > 24) as stale_count,
+                       MAX(last_updated) as last_checked
+                FROM data_loader_status
+                WHERE table_name = ANY(%s)
+            """, (critical_tables,))
             phase1_row = cur.fetchone()
             if phase1_row:
                 phase1_dict = safe_dict_convert(phase1_row)
-                total_runs = int(phase1_dict["run_count"]) if phase1_dict.get("run_count") else 0
-                successful = int(phase1_dict["successful_runs"]) if phase1_dict.get("successful_runs") else 0
+                total_tables = int(phase1_dict.get("total_tables", 0)) or 0
+                fresh_count = int(phase1_dict.get("fresh_count", 0)) or 0
+                stale_count = int(phase1_dict.get("stale_count", 0)) or 0
                 execution_health["phase_1_data_check"] = {
-                    "loader_runs": total_runs,
-                    "successful_runs": successful,
-                    "success_rate": (successful / total_runs * 100) if total_runs > 0 else 0,
-                    "latest_run": phase1_dict.get("latest_run").isoformat() if phase1_dict.get("latest_run") else None,
+                    "tables_validated": total_tables,
+                    "tables_fresh": fresh_count,
+                    "tables_stale": stale_count,
+                    "validation_status": "pass" if stale_count == 0 else ("warn" if stale_count <= 2 else "fail"),
+                    "last_checked": phase1_dict.get("last_checked").isoformat() if phase1_dict.get("last_checked") else None,
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_1_data_check"] = None
@@ -549,48 +558,58 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             execution_health["phase_3_position_monitor"] = None
 
         # Phase 4: Broker Reconciliation Health
-        # NOTE: algo_reconciliation_log table not yet created (Session 229 planned, not yet deployed)
-        # Commented out until table is migrated to local dev database
-        # try:
-        #     cur.execute("""
-        #         SELECT COUNT(*) as sync_count,
-        #                MAX(reconciliation_date) as latest_sync,
-        #                AVG(CAST(match_percentage AS FLOAT)) as avg_match_pct
-        #         FROM algo_reconciliation_log
-        #         WHERE reconciliation_date >= CURRENT_DATE - INTERVAL '1 day'
-        #     """)
-        #     recon_row = cur.fetchone()
-        #     if recon_row:
-        #         recon_dict = safe_dict_convert(recon_row)
-        #         sync_count = int(recon_dict["sync_count"]) if recon_dict.get("sync_count") else 0
-        #         execution_health["phase_4_broker_reconciliation"] = {
-        #             "sync_count": sync_count,
-        #             "latest_sync": recon_dict.get("latest_sync").isoformat() if recon_dict.get("latest_sync") else None,
-        #             "avg_match_pct": float(recon_dict["avg_match_pct"]) if recon_dict.get("avg_match_pct") is not None else None,
-        #         }
-        #     else:
-        #         execution_health["phase_4_broker_reconciliation"] = None
-        # except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
-        #     logger.debug(f"[HEALTH] Phase 4 broker reconciliation query failed: {e}")
-        execution_health["phase_4_broker_reconciliation"] = None
-
-        # Phase 5: Exposure Policy Check (EOD, sector/position size validation)
         try:
             cur.execute("""
-                SELECT COUNT(*) as position_count,
-                       MAX(CAST(COALESCE(NULLIF(sector_percentage, ''), '0') AS FLOAT)) as max_sector_exposure,
-                       MAX(CAST(COALESCE(NULLIF(position_value, 0), 0) AS FLOAT)) as max_position_value
-                FROM algo_positions
-                WHERE status = 'open'
+                SELECT COUNT(*) as sync_count,
+                       MAX(reconciliation_date) as latest_sync,
+                       AVG(CAST(match_percentage AS FLOAT)) as avg_match_pct
+                FROM algo_reconciliation_log
+                WHERE reconciliation_date >= CURRENT_DATE - INTERVAL '1 day'
+            """)
+            recon_row = cur.fetchone()
+            if recon_row:
+                recon_dict = safe_dict_convert(recon_row)
+                sync_count = int(recon_dict["sync_count"]) if recon_dict.get("sync_count") else 0
+                execution_health["phase_4_broker_reconciliation"] = {
+                    "sync_count": sync_count,
+                    "latest_sync": recon_dict.get("latest_sync").isoformat() if recon_dict.get("latest_sync") else None,
+                    "avg_match_pct": float(recon_dict["avg_match_pct"]) if recon_dict.get("avg_match_pct") is not None else None,
+                }
+            else:
+                execution_health["phase_4_broker_reconciliation"] = None
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
+            logger.debug(f"[HEALTH] Phase 4 broker reconciliation query failed: {e}")
+            execution_health["phase_4_broker_reconciliation"] = None
+
+        # Phase 5: Exposure Policy (market regime, entry constraints, halt flags)
+        # Phase 5 evaluates market regime and sets entry constraints for risk management
+        try:
+            cur.execute("""
+                SELECT market_stage, market_trend, entry_decision, max_entries_allowed,
+                       capital_deployment_pct, halt_flag, check_date
+                FROM market_exposure_daily
+                ORDER BY check_date DESC LIMIT 1
             """)
             phase5_row = cur.fetchone()
             if phase5_row:
                 phase5_dict = safe_dict_convert(phase5_row)
+                market_stage = phase5_dict.get("market_stage")
+                halt_flag = phase5_dict.get("halt_flag")
+                entry_decision = phase5_dict.get("entry_decision")
+                max_entries = phase5_dict.get("max_entries_allowed")
+                cap_deploy = phase5_dict.get("capital_deployment_pct")
+
                 execution_health["phase_5_exposure_policy"] = {
-                    "open_positions": int(phase5_dict["position_count"]) if phase5_dict.get("position_count") else 0,
-                    "max_sector_exposure_pct": float(phase5_dict["max_sector_exposure"]) if phase5_dict.get("max_sector_exposure") is not None else None,
-                    "max_position_value": float(phase5_dict["max_position_value"]) if phase5_dict.get("max_position_value") is not None else None,
+                    "market_regime": market_stage,
+                    "market_trend": phase5_dict.get("market_trend"),
+                    "entry_allowed": entry_decision == "allow" if entry_decision else None,
+                    "max_new_entries": int(max_entries) if max_entries is not None else None,
+                    "capital_deployment_pct": float(cap_deploy) if cap_deploy is not None else None,
+                    "halt_active": bool(halt_flag) if halt_flag is not None else False,
+                    "checked_at": phase5_dict.get("check_date").isoformat() if phase5_dict.get("check_date") else None,
                 }
+            else:
+                execution_health["phase_5_exposure_policy"] = None
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError):
             execution_health["phase_5_exposure_policy"] = None
 
@@ -616,22 +635,34 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_6_exit_execution"] = None
 
-        # Phase 7: Signal Generation Health
+        # Phase 7: Signal Generation (outputs algo_signals generated by Phase 7)
+        # Phase 7 generates trading signals from technical analysis and fundamental screening
         try:
             cur.execute("""
                 SELECT COUNT(*) as signal_count,
-                       AVG(CAST(signal_strength AS FLOAT)) as avg_strength
-                FROM buy_sell_daily
-                WHERE date >= CURRENT_DATE - INTERVAL '1 day'
-                AND signal_type IN ('BUY', 'SELL')
+                       COUNT(*) FILTER (WHERE signal_type = 'BUY') as buy_count,
+                       COUNT(*) FILTER (WHERE signal_type = 'SELL') as sell_count,
+                       AVG(CAST(signal_strength AS FLOAT)) as avg_strength,
+                       MAX(signal_generated_at) as latest_signal
+                FROM algo_signals
+                WHERE signal_generated_at >= CURRENT_DATE - INTERVAL '1 day'
             """)
             sig_row = cur.fetchone()
             if sig_row:
                 sig_dict = safe_dict_convert(sig_row)
+                total_signals = int(sig_dict.get("signal_count", 0)) or 0
+                buy_signals = int(sig_dict.get("buy_count", 0)) or 0
+                sell_signals = int(sig_dict.get("sell_count", 0)) or 0
+
                 execution_health["phase_7_signal_generation"] = {
-                    "signals_generated": int(sig_dict["signal_count"]) if sig_dict.get("signal_count") else 0,
-                    "avg_strength": float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") else None,
+                    "signals_generated": total_signals,
+                    "buy_signals": buy_signals,
+                    "sell_signals": sell_signals,
+                    "avg_strength": float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") is not None else None,
+                    "latest_signal": sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None,
                 }
+            else:
+                execution_health["phase_7_signal_generation"] = None
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_7_signal_generation"] = None
 
