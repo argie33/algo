@@ -59,7 +59,7 @@ LOADERS = {
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): positioning metrics + SEC valuations + value/quality/growth, risk, stock scores",
+        "description": "Metrics pipeline (7:00 PM ET): positioning metrics + SEC valuations + value/quality/growth, risk, stock scores + EOD signals",
         "loaders": [
             "load_financial_statements.py",
             "load_sec_valuations.py",
@@ -69,6 +69,7 @@ LOADERS = {
             "load_value_quality_growth_metrics.py",
             "load_risk_metrics_daily.py",
             "load_stock_scores.py",
+            "load_buy_sell_daily.py",  # EOD signals: depends on stock_scores (must be after load_stock_scores.py)
             "load_sector_industry_daily.py",
             "load_market_cap_computed.py",  # Quick win: market cap from shares_outstanding + price_daily
         ],

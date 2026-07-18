@@ -18,6 +18,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure import MarketCalendar
 from algo.signals.buy_signal_generator import BuySignalGenerator
 from utils.db.context import DatabaseContext
 from utils.infrastructure.timezone import EASTERN_TZ
@@ -36,12 +37,17 @@ class SignalsDailyLoader(OptimalLoader):
     watermark_field = "date"
 
     def run(self, symbols: list[str], parallelism: int | None = None, backfill_days: int | None = None) -> dict[str, Any]:  # type: ignore[override]
-        """Override run() to filter symbols to only those with stock_scores.
+        """Override run() to filter symbols to only those with stock_scores AND price_daily.
 
         CRITICAL FIX (Session 248): buy_sell_daily was generating signals for all active symbols (~10k),
         but stock_scores only covers ~4.7k symbols (quality/growth require SEC filings).
         This caused 99.5% of signals to be filtered out in Phase 7.
         Solution: Only generate signals for symbols with stock_scores available.
+
+        CRITICAL FIX (Session 250): Additional filter for symbols with price_daily data on target date.
+        Some stock_scores symbols don't have price_daily data (e.g., delisted, halted).
+        This caused foreign key constraint violations when inserting signals.
+        Solution: Intersect stock_scores universe with symbols that have actual price data.
         """
         try:
             # Only filter if symbols came from get_active_symbols() (not from explicit --symbols arg)
@@ -58,6 +64,33 @@ class SignalsDailyLoader(OptimalLoader):
                 logger.info(
                     f"[UNIVERSE FILTER] Filtered buy_sell_daily symbols to stock_scores universe: "
                     f"{original_count} → {len(symbols)} symbols ({len(symbols) / original_count * 100:.1f}% retained)"
+                )
+
+                # ADDITIONAL FILTER: Also verify symbols have price_daily data (Session 250 fix)
+                # Find target date (same logic as _prepare_batch_context)
+                now_et = datetime.now(EASTERN_TZ)
+                target_date = now_et.date()
+                max_iterations = 10
+                iterations = 0
+                while target_date > date(2020, 1, 1) and not MarketCalendar.is_trading_day(target_date) and iterations < max_iterations:
+                    target_date = target_date - timedelta(days=1)
+                    iterations += 1
+
+                # Find most recent date with price_daily data
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        """SELECT DISTINCT symbol FROM price_daily
+                           WHERE date = (SELECT MAX(date) FROM price_daily WHERE date <= %s)""",
+                        (target_date,)
+                    )
+                    price_symbols = {row[0] for row in cur.fetchall()}
+
+                symbols_before_price_filter = len(symbols)
+                symbols = [s for s in symbols if s in price_symbols]
+                logger.info(
+                    f"[PRICE_FILTER] Filtered to symbols with price_daily data: "
+                    f"{symbols_before_price_filter} → {len(symbols)} symbols "
+                    f"({len(symbols) / symbols_before_price_filter * 100:.1f}% retained)"
                 )
 
                 # CRITICAL: Delete ALL old buy_sell_daily signals that are NOT for scored symbols
