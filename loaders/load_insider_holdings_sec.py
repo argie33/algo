@@ -246,6 +246,7 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
                     "reason": None,
                     "latest_insider_filing_date": latest_filing_date,
                     "sec_filing_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=4&dateb=&owner=exclude",
+                    "data_source": "sec_form4",
                 }
             ]
 
@@ -267,6 +268,7 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
                 "reason": reason,
                 "latest_insider_filing_date": None,
                 "sec_filing_url": None,
+                "data_source": "none",
             }
         ]
 

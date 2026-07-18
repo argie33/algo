@@ -190,6 +190,7 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
                 "reason": reason,
                 "sec_filing_url": None,
                 "most_recent_filing_date": None,
+                "data_source": "none",
             }
         ]
 

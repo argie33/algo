@@ -396,17 +396,26 @@ def _build_phase_execution_panel(
                 halt_active = phase_data.get("halt_active", False) if isinstance(phase_data, dict) else False
                 max_entries = phase_data.get("max_new_entries") if isinstance(phase_data, dict) else None
 
+                # Override status display if halt is active (fail-closed design)
                 if halt_active:
-                    metrics_str = f" [bold {R}]HALT[/]"
-                elif entry_allowed is False:
-                    metrics_str = f" [dim]entries:[/] [{R}]blocked[/]"
-                elif entry_allowed is True:
-                    entry_info = f" [{G}]{max_entries}[/]" if max_entries else ""
-                    metrics_str = f" [dim]entries:[/]{entry_info}"
+                    display_icon = "[bold yellow]~[/]"
+                    display_text = "HALTED"
+                    display_color = Y
+                    halt_reason = phase_data.get("halt_reason") if isinstance(phase_data, dict) else None
+                    metrics_str = f" [dim]{halt_reason}[/]" if halt_reason else ""
                 else:
-                    metrics_str = f" [dim]regime:[/] {market_regime}" if market_regime else ""
+                    display_icon = status_icon
+                    display_text = status_text
+                    display_color = base_color
+                    if entry_allowed is False:
+                        metrics_str = f" [dim]entries:[/] [{R}]blocked[/]"
+                    elif entry_allowed is True:
+                        entry_info = f" [{G}]{max_entries}[/]" if max_entries else ""
+                        metrics_str = f" [dim]entries:[/]{entry_info}"
+                    else:
+                        metrics_str = f" [dim]regime:[/] {market_regime}" if market_regime else ""
 
-                phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
+                phase_line = f"  P{phase_num}: {display_icon} {phase_name:.<30} [{display_color}]{display_text}[/]{metrics_str}"
         elif phase_num == 6:  # Exit Execution
             exits = phase_data.get("exits_executed", 0)
             success_rate = phase_data.get("success_rate", 0)
