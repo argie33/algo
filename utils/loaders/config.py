@@ -75,6 +75,11 @@ class LoaderConfigManager:
         "income_statements": (1, 2),
         "balance_sheets": (1, 2),
         "cash_flow_statements": (1, 2),
+        # PHASE 5 OPTIMIZATION (Session 237): Company info + earnings calendar from SEC EDGAR
+        # Also rate-limited by SEC API (10 req/sec global limit)
+        # Parallelism: 1-2 to keep under SEC's rate limit
+        "company_info_sec": (1, 2),
+        "earnings_calendar_sec": (1, 2),
     }
 
     def __init__(self) -> None:

@@ -290,6 +290,11 @@ class RiskMetricsLoader(OptimalLoader):
 
     def _persist_stability_metrics(self, row: dict[str, Any]) -> None:
         """Write stability metrics row to stability_metrics table."""
+        if "data_unavailable" not in row:
+            logger.critical(f"CRITICAL: data_unavailable key missing from risk metrics row for {row.get('symbol')}. "
+                          "Failing fast - refusing to write corrupted data.")
+            raise KeyError("data_unavailable key required in stability metrics row")
+
         try:
             with DatabaseContext("write") as cur:
                 cur.execute(
@@ -315,7 +320,7 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("volatility_252d"),
                         row.get("beta"),
                         row.get("created_at"),
-                        row.get("data_unavailable", False),
+                        row["data_unavailable"],
                         row.get("reason"),
                     ),
                 )

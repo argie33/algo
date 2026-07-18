@@ -281,7 +281,10 @@ def main() -> int:  # noqa: C901
         logger.info(f"  Regime: {result['regime']}")
         logger.info(f"  Exposure: {result['exposure_pct']}%")
         logger.info(f"  Raw score: {result['raw_score']}")
-        logger.info(f"  Data available: {not result.get('data_unavailable', False)}")
+        if "data_unavailable" not in result:
+            logger.critical("CRITICAL: data_unavailable key missing from market exposure result. Failing fast.")
+            raise KeyError("data_unavailable key required in market exposure computation result")
+        logger.info(f"  Data available: {not result['data_unavailable']}")
 
         if result["halt_reasons"]:  # Already validated as list above
             logger.info(f"  Halt reasons: {'; '.join(result['halt_reasons'])}")

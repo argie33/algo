@@ -95,11 +95,19 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
             except FileNotFoundError:
                 return self._unavailable_record(symbol, now_et, "submissions_not_found_404")
 
-            # Extract Form 4 filings from recent filings
-            recent_filings = submissions.get("filings", {}).get("recent", {})
-            forms = recent_filings.get("form", [])
-            accession_numbers = recent_filings.get("accessionNumber", [])
-            filing_dates = recent_filings.get("filingDate", [])
+            # Extract Form 4 filings from recent filings (fail-fast if structure wrong)
+            if "filings" not in submissions:
+                return self._unavailable_record(symbol, now_et, "invalid_submissions_structure:missing_filings")
+            if "recent" not in submissions["filings"]:
+                return self._unavailable_record(symbol, now_et, "invalid_submissions_structure:missing_recent")
+
+            recent_filings = submissions["filings"]["recent"]
+            if "form" not in recent_filings or "accessionNumber" not in recent_filings or "filingDate" not in recent_filings:
+                return self._unavailable_record(symbol, now_et, "invalid_filings_structure:missing_required_fields")
+
+            forms = recent_filings["form"]
+            accession_numbers = recent_filings["accessionNumber"]
+            filing_dates = recent_filings["filingDate"]
 
             form_4_filings = []
             for i, form_type in enumerate(forms):
@@ -118,37 +126,13 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
             if not form_4_filings:
                 return self._unavailable_record(symbol, now_et, "no_recent_form4_filings")
 
-            # Parse recent Form 4s to extract insider transactions
-            insiders = self._parse_form4_filings(symbol, cik, form_4_filings)
-
-            if not insiders:
-                return self._unavailable_record(symbol, now_et, "unable_to_parse_form4_data")
-
-            # Aggregate insider data
-            insider_ownership_pct = self._compute_insider_ownership(insiders)
-            number_of_insiders = len(insiders)
-            recent_buys = sum(1 for i in insiders.values() if i.get("recent_buy_count", 0) > 0)
-            recent_sells = sum(1 for i in insiders.values() if i.get("recent_sell_count", 0) > 0)
-            net_transactions = sum(
-                i.get("recent_buy_count", 0) - i.get("recent_sell_count", 0)
-                for i in insiders.values()
+            logger.error(
+                f"[{symbol}] Form 4/5 XML parsing not implemented (CRITICAL). "
+                "Phase 2 insider holdings loader requires SEC EDGAR XML parsing to extract transaction data. "
+                "See steering/FAIL_FAST_VIOLATIONS_CATALOG_2026_06_29.md#insider-holdings-stub. "
+                "Until implemented, use yfinance fallback via positioning_metrics loader."
             )
-
-            return [
-                {
-                    "symbol": symbol,
-                    "filing_date": now_et.date(),
-                    "insider_ownership_pct": insider_ownership_pct,
-                    "number_of_insiders": number_of_insiders,
-                    "recent_buys": recent_buys,
-                    "recent_sells": recent_sells,
-                    "net_insider_transactions": net_transactions,
-                    "data_unavailable": False,
-                    "reason": None,
-                    "latest_insider_filing_date": max(f[1] for f in form_4_filings) if form_4_filings else None,
-                    "sec_filing_url": None,
-                }
-            ]
+            return self._unavailable_record(symbol, now_et, "form4_parsing_not_implemented")
 
         except Exception as e:
             logger.error(f"[{symbol}] Failed to fetch insider holdings: {type(e).__name__}: {e}")
@@ -162,48 +146,35 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
     ) -> dict[str, Any]:
         """Parse Form 4 filings to extract insider transaction data.
 
+        CRITICAL: Requires SEC EDGAR XML parsing of Form 4/5 filings.
+
+        Implementation status: NOT IMPLEMENTED in Session 237.
+        Form 4/5 files are XML-structured; parsing requires:
+        1. Fetch filing XML from SEC EDGAR using accession_number
+        2. Parse <nonDerivativeTransaction> elements
+        3. Extract insider name, transaction type (buy/sell), shares, dates
+        4. Aggregate by insider across 90-day window
+
+        This is a ~2-week task requiring:
+        - SEC EDGAR filing XML fetcher (authenticated HTTP)
+        - XBRL/XML parser for Form 4 structure
+        - Transaction aggregation logic
+        - Cross-reference with share totals for ownership % calculation
+
+        As of Session 237, this loader returns data_unavailable instead of placeholder data.
+
         Args:
             symbol: Stock ticker
             cik: Company CIK
             filings: List of (accession_number, filing_date) tuples
 
         Returns:
-            Dict of {insider_name: {recent_buy_count, recent_sell_count, ...}}
+            Raises NotImplementedError - XML parsing not yet implemented
         """
-        insiders = {}
-
-        # For now, return empty dict (simple implementation)
-        # Full implementation would:
-        # 1. Fetch XML from SEC EDGAR for each accession number
-        # 2. Parse <nonDerivativeTransaction> elements
-        # 3. Extract insider name, transaction type, shares, dates
-        # 4. Aggregate by insider
-
-        # Placeholder: 1 insider per Form 4 filing (will improve)
-        for accession, filing_date in filings[:10]:  # Limit to 10 most recent
-            insider_key = f"insider_{accession[:4]}"
-            insiders[insider_key] = {
-                "name": insider_key,
-                "recent_buy_count": 0,  # TODO: parse from XML
-                "recent_sell_count": 0,  # TODO: parse from XML
-                "total_shares": 0,  # TODO: parse from XML
-            }
-
-        return insiders
-
-    def _compute_insider_ownership(self, insiders: dict[str, Any]) -> float | None:
-        """Compute aggregate insider ownership %.
-
-        Args:
-            insiders: Dict of insider data
-
-        Returns:
-            Aggregate ownership percentage or None if unavailable
-        """
-        # Placeholder: 0% for now
-        # Full implementation would sum insider shares / total shares outstanding
-        # Requires cross-reference with company shares outstanding (SEC or pricing data)
-        return None
+        raise NotImplementedError(
+            f"Form 4/5 XML parsing not implemented for {symbol}. "
+            "Phase 2 insider holdings loader blocked. Use yfinance fallback via positioning_metrics loader."
+        )
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record."""

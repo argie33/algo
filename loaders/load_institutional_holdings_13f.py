@@ -91,10 +91,18 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
             if not submissions:
                 return self._unavailable_record(symbol, now_et, "submissions_empty")
 
-            # Extract SCHEDULE 13G filings from recent filings
-            recent_filings = submissions.get("filings", {}).get("recent", {})
-            forms = recent_filings.get("form", [])
-            filing_dates = recent_filings.get("filingDate", [])
+            # Extract SCHEDULE 13G filings from recent filings (fail-fast if structure wrong)
+            if "filings" not in submissions:
+                return self._unavailable_record(symbol, now_et, "invalid_submissions_structure:missing_filings")
+            if "recent" not in submissions["filings"]:
+                return self._unavailable_record(symbol, now_et, "invalid_submissions_structure:missing_recent")
+
+            recent_filings = submissions["filings"]["recent"]
+            if "form" not in recent_filings or "filingDate" not in recent_filings:
+                return self._unavailable_record(symbol, now_et, "invalid_filings_structure:missing_required_fields")
+
+            forms = recent_filings["form"]
+            filing_dates = recent_filings["filingDate"]
 
             # Find most recent SCHEDULE 13G filing
             most_recent_13g_date = None
@@ -115,23 +123,14 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
                 logger.debug(f"[{symbol}] No recent SCHEDULE 13G filings found, trying companyfacts")
                 return self._fetch_from_companyfacts(symbol, cik, now_et)
 
-            # For SCHEDULE 13G: count distinct institutional holders (simplified approach)
-            # In full implementation: would parse actual filing to extract ownership %
-            # For now: mark as available with holder count from recent filings
-            num_13g_filings = sum(1 for form in forms if form == "SCHEDULE 13G")
-
-            return [
-                {
-                    "symbol": symbol,
-                    "filing_date": most_recent_13g_date,
-                    "institutional_ownership_pct": None,  # Would require parsing actual filing
-                    "number_of_institutional_holders": max(1, num_13g_filings),  # Approx from filing count
-                    "data_unavailable": False,
-                    "reason": None,
-                    "sec_filing_url": None,
-                    "most_recent_filing_date": most_recent_13g_date,
-                }
-            ]
+            logger.error(
+                f"[{symbol}] SCHEDULE 13G XML parsing not implemented (CRITICAL). "
+                "Phase 2 institutional holdings loader requires SEC EDGAR XML parsing. "
+                "Cannot return None ownership_pct with data_unavailable=False (data contract violation). "
+                "See steering/FAIL_FAST_VIOLATIONS_CATALOG_2026_06_29.md#institutional-holdings-stub. "
+                "Until implemented, use yfinance fallback via positioning_metrics loader."
+            )
+            return self._unavailable_record(symbol, now_et, "schedule_13g_parsing_not_implemented")
 
         except Exception as e:
             logger.error(f"[{symbol}] Failed to fetch institutional holdings: {type(e).__name__}: {e}")
@@ -156,20 +155,31 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
         if not companyfacts:
             return self._unavailable_record(symbol, now_et, "company_facts_empty")
 
-        # Extract institutional ownership % from facts
-        facts = companyfacts.get("facts", {})
+        # Extract institutional ownership % from facts (fail-fast on structure issues)
+        if "facts" not in companyfacts:
+            return self._unavailable_record(symbol, now_et, "invalid_companyfacts_structure:missing_facts")
+
+        facts = companyfacts["facts"]
 
         # Try EntityIntelligenceData first (standardized SRT metrics)
-        entity_intel = facts.get("EntityIntelligenceData", {})
-        inst_owners_data = entity_intel.get("SRT_InstitutionalOwnersPercent", {})
+        if "EntityIntelligenceData" not in facts:
+            return self._unavailable_record(symbol, now_et, "no_institutional_holdings_data:missing_entity_intelligence")
+
+        entity_intel = facts["EntityIntelligenceData"]
+        if "SRT_InstitutionalOwnersPercent" not in entity_intel:
+            return self._unavailable_record(symbol, now_et, "no_institutional_holdings_data:missing_srt_metric")
+
+        inst_owners_data = entity_intel["SRT_InstitutionalOwnersPercent"]
 
         if not inst_owners_data or "units" not in inst_owners_data:
-            # Metric not available
-            return self._unavailable_record(symbol, now_et, "no_institutional_holdings_data")
+            return self._unavailable_record(symbol, now_et, "no_institutional_holdings_data:missing_units")
 
         # Extract most recent value (units -> pure -> sorted by end date)
-        units = inst_owners_data.get("units", {})
-        pure_values = units.get("pure", [])
+        units = inst_owners_data["units"]
+        if "pure" not in units:
+            return self._unavailable_record(symbol, now_et, "no_institutional_holdings_data:missing_pure_values")
+
+        pure_values = units["pure"]
 
         if not pure_values:
             return self._unavailable_record(symbol, now_et, "no_institutional_data_points")

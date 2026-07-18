@@ -60,13 +60,15 @@ class PositioningMetricsLoader(OptimalLoader):
 
         Returns positioning data (institutional %, insider %, short interest %) or
         data_unavailable marker if sources missing/unavailable.
+
+        CRITICAL: Tracks source for each field so callers can distinguish SEC data from yfinance fallback.
         """
         now_et = datetime.now(EASTERN_TZ)
 
         # PHASE 1: Fetch short interest from FINRA (primary), fallback to yfinance
         short_interest_pct = None
         short_interest_unavailable = False
-        short_interest_reason = None
+        short_interest_source = None
 
         with DatabaseContext("read") as cur:
             # Try FINRA first
@@ -85,7 +87,7 @@ class PositioningMetricsLoader(OptimalLoader):
             # Successfully got from FINRA
             short_interest_pct = short_row[0]
             short_interest_unavailable = False
-            short_interest_reason = None
+            short_interest_source = "finra"
         else:
             # FINRA unavailable or null; try yfinance as fallback
             with DatabaseContext("read") as cur:
@@ -98,18 +100,16 @@ class PositioningMetricsLoader(OptimalLoader):
             if yf_row and yf_row[0] is not None:
                 short_interest_pct = yf_row[0]
                 short_interest_unavailable = False
-                short_interest_reason = None
+                short_interest_source = "yfinance_fallback"  # Track source degradation
             else:
                 short_interest_unavailable = True
-                short_interest_reason = "finra_and_yfinance_unavailable"
+                short_interest_source = "unavailable"
 
         # PHASE 2 (Session 234): Fetch institutional/insider from SEC sources (13F/Form 4), fallback to yfinance
         institutional_pct = None
         insider_pct = None
-        sec_unavailable = False
-        yfinance_unavailable = False
-        sec_reason = None
-        yfinance_reason = None
+        institutional_source = None
+        insider_source = None
 
         # Try SEC 13F for institutional holdings (Phase 2)
         with DatabaseContext("read") as cur:
@@ -126,9 +126,9 @@ class PositioningMetricsLoader(OptimalLoader):
 
         if sec_inst_row and sec_inst_row[0] is not None:
             institutional_pct = sec_inst_row[0]
+            institutional_source = "sec_13f"
         else:
-            sec_unavailable = True
-            sec_reason = "sec_13f_unavailable"
+            institutional_source = None
 
         # Try SEC Form 4/5 for insider holdings (Phase 2)
         with DatabaseContext("read") as cur:
@@ -145,8 +145,9 @@ class PositioningMetricsLoader(OptimalLoader):
 
         if sec_insider_row and sec_insider_row[0] is not None:
             insider_pct = sec_insider_row[0]
+            insider_source = "sec_form4"
         else:
-            sec_unavailable = True
+            insider_source = None
 
         # Fallback to yfinance if SEC data unavailable
         if institutional_pct is None or insider_pct is None:
@@ -168,16 +169,16 @@ class PositioningMetricsLoader(OptimalLoader):
             if yfinance_row:
                 if institutional_pct is None:
                     institutional_pct = yfinance_row[0]
+                    institutional_source = "yfinance_fallback" if institutional_pct is not None else "unavailable"
                 if insider_pct is None:
                     insider_pct = yfinance_row[1]
-                yfinance_unavailable = not yfinance_row[2] if len(yfinance_row) > 2 else False
-                yfinance_reason = yfinance_row[3] if len(yfinance_row) > 3 else None
+                    insider_source = "yfinance_fallback" if insider_pct is not None else "unavailable"
             else:
-                yfinance_unavailable = True
-                yfinance_reason = "yfinance_snapshot_missing"
+                institutional_source = institutional_source or "unavailable"
+                insider_source = insider_source or "unavailable"
 
         # Combine metrics: if any source has data, mark as available
-        all_unavailable = short_interest_unavailable and yfinance_unavailable
+        all_unavailable = short_interest_unavailable and institutional_pct is None and insider_pct is None
 
         return [
             {
@@ -187,10 +188,15 @@ class PositioningMetricsLoader(OptimalLoader):
                 "short_interest_pct": short_interest_pct,
                 "data_unavailable": all_unavailable,
                 "reason": (
-                    f"short_interest_reason:{short_interest_reason};yfinance_reason:{yfinance_reason}"
+                    f"short_interest:{short_interest_source};institutional:{institutional_source};insider:{insider_source}"
                     if all_unavailable
                     else None
                 ),
+                "source_tracking": {
+                    "short_interest": short_interest_source,
+                    "institutional": institutional_source,
+                    "insider": insider_source,
+                },
                 "updated_at": now_et,
             }
         ]

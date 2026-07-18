@@ -358,6 +358,19 @@ locals {
     "sector_industry_daily" = "load_sector_industry_daily.py"
 
     # ============================================================
+    # PHASE 5: SEC Company Info & Earnings Calendar (Session 237+)
+    # ============================================================
+    # Phase 5a: Company Info from SEC EDGAR (replaces ~15% of yfinance_snapshot)
+    # Official company master data: entity name, SIC code, sector classification
+    # Annual updates (company info changes rarely)
+    "company_info_sec" = "load_company_info_sec.py"
+
+    # Phase 5b: Earnings Calendar from SEC EDGAR (replaces ~10% of yfinance_snapshot)
+    # Official 10-K/10-Q filing dates (when earnings are announced to SEC)
+    # Continuous updates (quarterly and annual filings)
+    "earnings_calendar_sec" = "load_earnings_calendar_sec.py"
+
+    # ============================================================
     # LEGACY: Old loaders (marked for retirement after validation)
     # These will be removed once Phase 1-4 validation is complete (2 weeks)
     # ============================================================
@@ -550,6 +563,17 @@ locals {
     # Cost-optimized: Reduced from 1024 to 512 (sector performance ranking, <50MB actual)
     "sector_performance" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
 
+    # PHASE 5: SEC Company Info & Earnings Calendar (Session 237+)
+    # Phase 5a: Company Info from SEC EDGAR (lightweight: SEC API calls + metadata parsing, <100MB)
+    # Timeout: 600s (typical run <5 min for 5k symbols, 2x headroom)
+    # Parallelism: 1-2 (SEC API rate-limited to ~10 req/sec globally, keep under limit)
+    "company_info_sec" = { cpu = 256, memory = 512, timeout = 600, parallelism = 2 }
+
+    # Phase 5b: Earnings Calendar from SEC EDGAR (lightweight: submission parsing, <100MB)
+    # Timeout: 900s (typical run ~5-15 min for 5k symbols + 10-K/10-Q extraction, 2x headroom)
+    # Parallelism: 1-2 (SEC API rate-limited, keep under global limit)
+    "earnings_calendar_sec" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+
     # PHASE 1 OPTIMIZATION (Session 225): Short interest from FINRA (authoritative regulatory data)
     # Replaces yfinance short_interest field (~20% of yfinance_snapshot dependency)
     # Lightweight: Single CSV fetch + parsing (FINRA publishes bi-weekly)
@@ -584,6 +608,10 @@ locals {
     "market_status_daily",             # Phase 2: Consolidates market_health + exposure + sentiment
     "value_quality_growth_metrics",    # Phase 3: Consolidates value + quality + growth (depends on Phase 1)
     "sector_industry_daily",           # Phase 4: Consolidates sector + industry loaders
+
+    # Phase 5: SEC Company Info & Earnings Calendar (Session 237+)
+    "company_info_sec",                # Phase 5a: Replaces yfinance company info (~15% of snapshot)
+    "earnings_calendar_sec",           # Phase 5b: Replaces yfinance earnings dates (~10% of snapshot)
 
     # Legacy old loaders (marked for retirement after 2-week validation)
     "growth_metrics",
