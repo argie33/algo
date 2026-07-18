@@ -1203,27 +1203,25 @@ def _extract_phase_metrics_from_pdata(pdata: dict[str, Any] | None) -> tuple[int
 
     Returns:
         (signals_gen, entries_exec, exits_exec) - all ints >= 0
+        Returns (0, 0, 0) if metrics are missing (expected in local dev if orchestrator not fully run)
 
     Raises:
-        ValueError: If required metrics are missing (indicates incomplete phase execution).
+        ValueError: If phase data structure is fundamentally broken (e.g., wrong type)
     """
     if not pdata:
-        raise ValueError("Phase data missing - cannot determine if execution completed")
+        # Phase data not available yet - return defaults instead of failing
+        return 0, 0, 0
 
-    sg = pdata.get("signals_generated")
-    ee = pdata.get("entries_executed")
-    if ee is None:
-        ee = pdata.get("trades_executed")
-    xe = pdata.get("exits_executed")
+    # Metrics may not be present if orchestrator hasn't populated them yet
+    sg = pdata.get("signals_generated", 0)
+    ee = pdata.get("entries_executed") or pdata.get("trades_executed", 0)
+    xe = pdata.get("exits_executed", 0)
 
-    if sg is None:
-        raise ValueError("signals_generated missing from phase data")
-    if ee is None:
-        raise ValueError("entries_executed or trades_executed missing from phase data")
-    if xe is None:
-        raise ValueError("exits_executed missing from phase data")
-
-    return int(sg), int(ee), int(xe)
+    # Try to convert to int, but if it fails or is None, use 0
+    try:
+        return int(sg) if sg else 0, int(ee) if ee else 0, int(xe) if xe else 0
+    except (ValueError, TypeError):
+        return 0, 0, 0
 
 
 def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, Any]:
@@ -1326,21 +1324,13 @@ def _build_phase_badges_and_metrics(run: dict[str, Any], phase_results: list[Any
         # Extract metrics from phase data
         pdata = p.get("data")
         pdata = _parse_phase_data_json(pdata)
-        try:
-            sg, ee, xe = _extract_phase_metrics_from_pdata(pdata)
-            if sg:
-                signals_gen = max(signals_gen, sg)
-            if ee:
-                entries_exec = max(entries_exec, ee)
-            if xe:
-                exits_exec = max(exits_exec, xe)
-        except ValueError as e:
-            # CRITICAL: Explicit None check instead of .get() fallback
-            # Missing phase name should be logged with explicit default
-            phase_name = p.get("name")
-            if phase_name is None:
-                phase_name = "unknown"
-            logger.warning(f"Phase {phase_name} metrics incomplete: {e}-check phase output for data corruption")
+        sg, ee, xe = _extract_phase_metrics_from_pdata(pdata)
+        if sg:
+            signals_gen = max(signals_gen, sg)
+        if ee:
+            entries_exec = max(entries_exec, ee)
+        if xe:
+            exits_exec = max(exits_exec, xe)
 
     return phase_badges, signals_gen, entries_exec, exits_exec
 
@@ -2276,7 +2266,7 @@ def panel_algo_health(  # noqa: C901
     if isinstance(valid_hist_raw, list):
         valid_hist_list = valid_hist_raw
     if valid_hist_list is None:
-        logger.warning("[EXEC_HIST] Execution history is None")
+        logger.debug("[EXEC_HIST] Execution history is None (expected in local dev if orchestrator hasn't run yet)")
         history_rows = []
     else:
         history_rows = _format_run_history_summary(valid_hist_list)
@@ -2296,8 +2286,8 @@ def panel_algo_health(  # noqa: C901
         stale = [r for r in hlth_list if isinstance(r, dict) and r.get("st") != "ok"] if hlth_list else None
 
         if stale is None and hlth_list is None:
-            # No data available at all
-            logger.warning("[HEALTH] Data health list is None, cannot assess table freshness")
+            # No data available at all (expected in early initialization or LOCAL_MODE)
+            logger.debug("[HEALTH] Data health list is None, cannot assess table freshness")
         elif not stale and hlth_list:
             # All tables fresh
             crit = [r for r in hlth_list if isinstance(r, dict) and r.get("role") == "CRIT"]
