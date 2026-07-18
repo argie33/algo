@@ -872,6 +872,19 @@ def run(  # noqa: C901
         log_phase_result_fn(7, "signal_generation", "halt", msg)
         return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, msg)
 
+    # VALIDATION: Detect if Phase 5 failed and we're using fallback defaults (fail-safe mode)
+    if (
+        exposure_constraints
+        and exposure_constraints.get("tier_name") == "CORRECTION"
+        and exposure_constraints.get("risk_multiplier") == 0.0
+        and exposure_constraints.get("max_new_positions_today") == 0
+    ):
+        logger.warning(
+            "[PHASE 7] Using fallback CORRECTION constraints (tier_name=CORRECTION, risk_multiplier=0.0). "
+            "Phase 5 (Exposure Policy) may have failed - verify via orchestrator logs. "
+            "Trading is restricted to exits and rebalancing only."
+        )
+
     if exposure_constraints and exposure_constraints.get("halt_new_entries") is True:
         reason = exposure_constraints.get("halt_reason")
         if not reason:
@@ -906,7 +919,8 @@ def run(  # noqa: C901
             )
             logger.warning(msg)
             log_phase_result_fn(7, "signal_generation", "no_signals", msg)
-            return PhaseResult(7, "signal_generation", "ok", {"qualified_trades": [], "liquidity_passed": 0}, False, msg)
+            # Report truth: no trades generated (degraded state, not success)
+            return PhaseResult(7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg)
     except ValueError as e:
         # CONSISTENCY FIX #2: Validation errors now raise exceptions (not silent degradation)
         # Categorize as DATA_INVALID so operators know why signals are missing

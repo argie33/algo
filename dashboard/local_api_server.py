@@ -23,6 +23,7 @@ os.environ["ENVIRONMENT"] = "dev"
 
 from utils.data_queries import get_open_positions  # noqa: E402
 from utils.db import get_db_connection  # noqa: E402
+from utils.infrastructure import EASTERN_TZ  # noqa: E402
 
 
 class APIHandler(BaseHTTPRequestHandler):
@@ -469,14 +470,15 @@ class APIHandler(BaseHTTPRequestHandler):
 
                 # Mark as failed if status is error or stale
                 if status in ("error", "stale") or (
-                    last_updated and (now - last_updated.replace(tzinfo=timezone.utc)).total_seconds() > 86400
+                    last_updated and (now - last_updated.replace(tzinfo=EASTERN_TZ).astimezone(timezone.utc)).total_seconds() > 86400
                 ):
                     ready_to_trade = False
 
                 # Calculate age in hours (None if last_updated is missing)
                 age_hours = None
                 if last_updated:
-                    age_hours = (now - last_updated.replace(tzinfo=timezone.utc)).total_seconds() / 3600
+                    last_updated_utc = last_updated.replace(tzinfo=EASTERN_TZ).astimezone(timezone.utc)
+                    age_hours = (now - last_updated_utc).total_seconds() / 3600
 
                 # Determine role (criticality level)
                 if table_name in critical_tables:

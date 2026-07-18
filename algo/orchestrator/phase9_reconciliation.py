@@ -836,9 +836,9 @@ def run(  # noqa: C901
                     except Exception as view_err:
                         logger.warning(f"[PHASE 9] Could not refresh view: {view_err}")
 
-                    # Return partial success
-                    log_phase_result_fn(9, "reconciliation", "success", f"Broker unavailable - {execution_mode} mode")
-                    return PhaseResult(9, "reconciliation", "ok", {}, False, None)
+                    # Broker unavailable - can't reconcile positions, so report error
+                    log_phase_result_fn(9, "reconciliation", "error", f"Broker unavailable - reconciliation not performed in {execution_mode} mode")
+                    return PhaseResult(9, "reconciliation", "error", {}, False, f"Broker API unavailable in {execution_mode} mode")
                 else:
                     # Live trading requires credentials
                     raise RuntimeError(f"[PHASE 9 CRITICAL] Live trading requires Alpaca credentials: {e}") from e

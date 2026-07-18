@@ -126,9 +126,9 @@ class CompanyInfoSECLoader(SecLoaderBase):
                                 if "shares" in units and isinstance(units["shares"], list):
                                     pure_values = units["shares"]
                                     if pure_values:
-                                # Get most recent (most recent has latest end date)
-                                latest = sorted(pure_values, key=lambda x: x.get("end", ""), reverse=True)[0]
-                                shares_outstanding = latest.get("val")
+                                        # Get most recent (most recent has latest end date)
+                                        latest = sorted(pure_values, key=lambda x: x.get("end", ""), reverse=True)[0]
+                                        shares_outstanding = latest.get("val")
             except Exception as e:
                 logger.warning(
                     f"[{symbol}] Error fetching shares outstanding from SEC API: {type(e).__name__}: {e}. "

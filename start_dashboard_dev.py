@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Unified dashboard startup script for local development.
 
-Starts dev_server in background (if needed) then runs dashboard.
-This eliminates the "data not available" issue caused by missing dev_server.
+Starts loaders → dev_server in background (if needed) → dashboard.
+This eliminates stale data by automatically loading fresh prices/indicators.
 
 Usage:
     python start_dashboard_dev.py              # Start with auto-refresh disabled
@@ -59,6 +59,61 @@ def cleanup_orphaned_dev_servers() -> None:
     except Exception:
         # Silently fail - not critical if cleanup doesn't work
         pass
+
+
+def run_morning_loaders() -> bool:
+    """Run morning data loaders to ensure fresh prices/indicators.
+
+    Returns True if successful, False if loaders failed/timed out.
+    Non-critical: dashboard will still start even if loaders fail, just with stale data.
+    """
+    print("[STARTUP] Loading fresh data (prices, technical indicators, market status)...", flush=True)
+
+    repo_root = Path(__file__).parent
+    loaders_to_run = [
+        "load_prices.py",
+        "load_technical_indicators.py",
+        "load_market_status_daily.py",
+        "load_short_interest_finra.py",
+        "load_price_extremes.py",
+    ]
+
+    success_count = 0
+    for loader_name in loaders_to_run:
+        loader_path = repo_root / "loaders" / loader_name
+        if not loader_path.exists():
+            print(f"[STARTUP] [SKIP] Loader not found: {loader_name}", flush=True)
+            continue
+
+        try:
+            env = os.environ.copy()
+            env["LOCAL_MODE"] = "1"
+            result = subprocess.run(
+                [sys.executable, str(loader_path)],
+                cwd=str(repo_root),
+                env=env,
+                timeout=120,  # 2 min per loader
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode == 0:
+                print(f"[STARTUP] [OK] {loader_name}", flush=True)
+                success_count += 1
+            else:
+                print(f"[STARTUP] [WARN] {loader_name} returned code {result.returncode}", flush=True)
+                if "error" in result.stderr.lower():
+                    print(f"[STARTUP]       Error: {result.stderr[:100]}", flush=True)
+        except subprocess.TimeoutExpired:
+            print(f"[STARTUP] [WARN] {loader_name} timed out (2m)", flush=True)
+        except Exception as e:
+            print(f"[STARTUP] [WARN] {loader_name} error: {e}", flush=True)
+
+    if success_count > 0:
+        print(f"[STARTUP] [OK] Loaded fresh data ({success_count}/{len(loaders_to_run)} loaders)", flush=True)
+        return True
+    else:
+        print(f"[STARTUP] [WARN] No loaders succeeded (dashboard will show stale data)", flush=True)
+        return False
 
 
 def start_dev_server() -> subprocess.Popen:
@@ -165,6 +220,9 @@ def main() -> int:
             return 1
 
     try:
+        # Load fresh data first (non-critical, continues even if loaders fail)
+        run_morning_loaders()
+
         # Start dev_server (if needed)
         dev_server_process = start_dev_server()
 

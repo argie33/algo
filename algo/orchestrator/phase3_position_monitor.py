@@ -49,13 +49,13 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
     if skip_phase3:
         logger.info("[PHASE 3] Position monitor SKIPPED (explicitly disabled)")
-        # Return success status (not skipped) so downstream phases execute
+        # Honestly report that phase was skipped - don't pretend it succeeded
         return PhaseResult(
             3,
             "position_monitor",
-            "ok",  # Return "ok" status so phases 4-8 can execute
+            "skipped",  # Phase was intentionally disabled, not successful
             {"recommendations": [], "count": 0},
-            False,  # halted=False ensures downstream phases proceed
+            False,  # Don't halt - skipping intentionally doesn't block downstream
             None,
         )
 
@@ -179,16 +179,16 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 None,
             )
         except Exception as e:
-            logger.warning(f"[PHASE 3] Paper mode price update failed: {type(e).__name__}: {e}")
-            # Don't halt on failure - positions without updated prices are still valid for trading
-            # In paper mode, price updates are best-effort; missing prices don't break reconciliation
+            logger.error(f"[PHASE 3] Paper mode price update FAILED: {type(e).__name__}: {e}")
+            # Report the truth: price update failed. Don't mask with "ok" status.
+            # If positions need prices and we can't get them, this is an error.
             return PhaseResult(
                 3,
                 "position_monitor",
-                "ok",
+                "error",
                 {"recommendations": [], "count": 0},
-                False,
-                None,
+                True,  # Halt on price update failure - can't trade without current prices
+                str(e),
             )
 
     try:
@@ -346,15 +346,17 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 "Check algo_config table has this key."
             ) from e
         if config["is_paper_trading"]:
-            logger.warning(
-                f"[PHASE 3 PAPER MODE] Position monitor failed but continuing paper trading: {type(e).__name__}: {e}"
+            logger.error(
+                f"[PHASE 3 PAPER MODE] Position monitor crashed - cannot proceed: {type(e).__name__}: {e}"
             )
+            # Even in paper mode, if position monitor crashes, we must halt.
+            # Can't safely trade without being able to monitor positions.
             return PhaseResult(
                 3,
                 "position_monitor",
-                "degraded",
+                "error",
                 {"recommendations": [], "count": 0},
-                False,  # halted=False allows downstream phases to execute in paper mode
+                True,  # Halt - position monitor crash is critical failure in any mode
                 str(e),
             )
 
