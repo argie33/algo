@@ -557,7 +557,7 @@ def check_data_freshness(
             if config.data_freshness_max_hours is None:
                 raise ValueError("data_freshness_max_hours is None in config")
             warning_days = max(1, int(config.data_freshness_max_hours / 24))
-            logger.debug(f"[DATA_FRESHNESS] Using config default: {config.data_freshness_max_hours}h → {warning_days}d")
+            logger.debug(f"[DATA_FRESHNESS] Using config default: {config.data_freshness_max_hours}h -> {warning_days}d")
         except (AttributeError, TypeError, ValueError) as e:
             logger.error(f"[DATA_FRESHNESS] Failed to load warning_days from config: {e}")
             raise ValueError(f"Cannot determine warning_days threshold: {e}") from e

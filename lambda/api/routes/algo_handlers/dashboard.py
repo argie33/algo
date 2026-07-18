@@ -425,7 +425,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 removed_count += 1
     after_count = len(items[0]) if items else 0
     logger.info(
-        f"[POSITIONS] Field cleanup: {before_count} → {after_count} fields/pos, {removed_count} total fields removed"
+        f"[POSITIONS] Field cleanup: {before_count} -> {after_count} fields/pos, {removed_count} total fields removed"
     )
 
     # Compute sector_allocation array after processing all positions (E5 fix)
