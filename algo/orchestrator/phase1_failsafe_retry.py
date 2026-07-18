@@ -99,6 +99,11 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
     Checks actual data freshness (MAX(date) in tables), not loader status timestamps.
     This catches cases where the loader ran recently but produced stale data.
 
+    Uses MARKET-AWARE freshness checks (same logic as phase1_data_freshness.py):
+    - During intraday (before 4 PM ET): previous trading day's data is CORRECT
+    - After market close (4 PM+ ET): same-day data is CORRECT
+    Does NOT use naive 24-hour checks which fail at market holidays/weekends.
+
     Args:
         dry_run: If True, don't actually run loaders, just report what would run
 
@@ -128,6 +133,39 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
         stale_loaders = []
         now_utc = datetime.now(timezone.utc)
 
+        # Market-aware freshness check: determine expected data date based on trading hours
+        from datetime import timedelta as td
+        from zoneinfo import ZoneInfo
+        from algo.infrastructure import MarketCalendar
+
+        now_et = datetime.now(ZoneInfo("America/New_York"))
+        run_date_et = now_et.date()
+
+        # Determine expected data date (same logic as phase1_data_freshness.py)
+        if now_et.hour < 16:  # INTRADAY: before market close
+            # Expect previous trading day's data
+            prev_date = run_date_et - td(days=1)
+            expected_data_date = prev_date
+            while expected_data_date > run_date_et - td(days=10):
+                if MarketCalendar.is_trading_day(expected_data_date):
+                    break
+                expected_data_date -= td(days=1)
+            freshness_context = f"INTRADAY - expecting previous trading day ({expected_data_date})"
+        else:  # After market close
+            # Expect same-day data if today is trading day
+            if MarketCalendar.is_trading_day(run_date_et):
+                expected_data_date = run_date_et
+            else:
+                # Weekend/holiday: use most recent trading day
+                expected_data_date = run_date_et - td(days=1)
+                while expected_data_date > run_date_et - td(days=10):
+                    if MarketCalendar.is_trading_day(expected_data_date):
+                        break
+                    expected_data_date -= td(days=1)
+            freshness_context = f"EOD - expecting same/recent trading day ({expected_data_date})"
+
+        logger.info(f"[PHASE 1 FAILSAFE LOCAL] {freshness_context}")
+
         with DatabaseContext("read") as cur:
             for table_name, loader_key in loaders_to_refresh.items():
                 try:
@@ -140,31 +178,31 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                     row = cur.fetchone()
                     if row and row[0]:
                         max_date = row[0]
-                        # Convert date/datetime to datetime UTC for comparison
+                        # Convert date/datetime to date for comparison
                         from datetime import date as date_type
-                        from utils.infrastructure.timezone import EASTERN_TZ
                         if isinstance(max_date, date_type) and not isinstance(max_date, datetime):
-                            # PostgreSQL date column returns date object (in ET timezone, not UTC)
-                            # Create datetime at ET midnight, then convert to UTC for comparison
-                            max_date_et = datetime.combine(max_date, datetime.min.time(), tzinfo=EASTERN_TZ)
-                            max_date_utc = max_date_et.astimezone(timezone.utc)
+                            table_max_date = max_date
                         elif isinstance(max_date, datetime):
-                            # datetime object - ensure UTC
-                            if max_date.tzinfo is None:
-                                max_date_utc = max_date.replace(tzinfo=timezone.utc)
-                            else:
-                                max_date_utc = max_date.astimezone(timezone.utc)
+                            table_max_date = max_date.date()
                         else:
                             logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Unexpected date type for {table_name}: {type(max_date)}")
                             continue
 
-                        age_hours = (now_utc - max_date_utc).total_seconds() / 3600
+                        # Market-aware staleness check: allow up to 10 days behind (covers weekends/holidays)
+                        # Don't use naive hours checks which fail at multi-day gaps
+                        days_behind = (expected_data_date - table_max_date).days
+                        is_stale = days_behind > 0  # Stale if behind expected date
 
-                        # Stale if older than 24 hours (1 trading day + some buffer)
-                        if age_hours > 24:
-                            stale_loaders.append((table_name, loader_key, age_hours))
+                        if is_stale:
+                            stale_loaders.append((table_name, loader_key, days_behind))
                             results["incomplete_loaders"].append(table_name)
-                            logger.warning(f"[PHASE 1 FAILSAFE LOCAL] {table_name} data stale: {age_hours:.1f}h old")
+                            logger.warning(
+                                f"[PHASE 1 FAILSAFE LOCAL] {table_name} data stale: "
+                                f"{table_max_date} vs expected {expected_data_date} "
+                                f"({days_behind} day(s) behind)"
+                            )
+                        else:
+                            logger.info(f"[PHASE 1 FAILSAFE LOCAL] {table_name} fresh: {table_max_date}")
                     else:
                         # No data at all
                         stale_loaders.append((table_name, loader_key, 999))
@@ -175,7 +213,7 @@ def _check_and_refresh_local(dry_run: bool = False) -> dict[str, Any]:
                     logger.warning(f"[PHASE 1 FAILSAFE LOCAL] Could not check {table_name}: {e}")
 
         if not stale_loaders:
-            logger.info("[PHASE 1 FAILSAFE LOCAL] All data current - no refresh needed")
+            logger.info("[PHASE 1 FAILSAFE LOCAL] All data current (market-aware check) - no refresh needed")
             return results
 
         logger.info(f"[PHASE 1 FAILSAFE LOCAL] Found {len(stale_loaders)} stale loaders to refresh")
