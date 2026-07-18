@@ -1277,7 +1277,7 @@ class AlgoConfig:
                 for row in rows:
                     key = row["key"]
                     value = row["value"]
-                    dtype = row["value_type"]
+                    dtype = row.get("value_type") if isinstance(row, dict) else (row[2] if len(row) > 2 else None)
                     if value is not None:
                         try:
                             # Use value_type if set, otherwise normalize PostgreSQL type or infer from content
