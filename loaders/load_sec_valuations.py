@@ -55,13 +55,14 @@ class SecValuationsLoader(OptimalLoader):
             # Fetch latest financial data for symbol
             with DatabaseContext("read") as cur:
                 # Get income statement data from most recent annual filing
-                # Note: Using annual data; actual TTM would need quarterly aggregation
+                # CRITICAL: Use NULL checks instead of COALESCE(col, 0) to detect missing financial data
+                # Defaulting to 0 for revenue/EPS would cause wrong valuations (zero division, phantom metrics)
                 cur.execute(
                     """
                     SELECT
-                        COALESCE(revenue, 0) as revenue,
-                        COALESCE(net_income, 0) as net_income,
-                        COALESCE(earnings_per_share, 0) as eps
+                        revenue,
+                        net_income,
+                        earnings_per_share
                     FROM annual_income_statement
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC LIMIT 1
@@ -73,6 +74,12 @@ class SecValuationsLoader(OptimalLoader):
                     return [self._unavailable_marker(symbol, "no_income_statement")]
 
                 ttm_revenue, _ttm_net_income, ttm_eps_basic = income_row
+
+                # Validate critical fields are not NULL (fail-fast if SEC data incomplete)
+                if ttm_revenue is None:
+                    return [self._unavailable_marker(symbol, "income_statement_revenue_null")]
+                if ttm_eps_basic is None:
+                    return [self._unavailable_marker(symbol, "income_statement_eps_null")]
                 latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest
 
                 # Fetch shares outstanding from SEC company info (required for valuations)
@@ -109,11 +116,10 @@ class SecValuationsLoader(OptimalLoader):
                 if current_price <= 0:
                     return [self._unavailable_marker(symbol, "invalid_price")]
 
-                # Get latest balance sheet (book value)
+                # Get latest balance sheet (book value - optional, may not exist for all companies)
                 cur.execute(
                     """
-                    SELECT
-                        COALESCE(stockholders_equity, 0) as book_value
+                    SELECT stockholders_equity
                     FROM annual_balance_sheet
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC LIMIT 1
@@ -122,13 +128,14 @@ class SecValuationsLoader(OptimalLoader):
                 )
                 balance_row = cur.fetchone()
                 book_value = balance_row[0] if balance_row else None
+                # Note: book_value can be None for companies without balance sheets - PB ratio will be NULL
 
-                # Get latest cash flow (for FCF)
+                # Get latest cash flow (for FCF - optional, may not exist for all companies)
                 cur.execute(
                     """
                     SELECT
-                        COALESCE(operating_cash_flow, 0) as ocf,
-                        COALESCE(capex, 0) as capex
+                        operating_cash_flow,
+                        capex
                     FROM annual_cash_flow
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC LIMIT 1
@@ -136,7 +143,8 @@ class SecValuationsLoader(OptimalLoader):
                     (symbol,),
                 )
                 cash_row = cur.fetchone()
-                ocf, capex = (cash_row[0], cash_row[1]) if cash_row else (0, 0)
+                ocf, capex = (cash_row[0], cash_row[1]) if cash_row else (None, None)
+                # Note: None values here mean FCF yield will be NULL (not available)
 
             # Compute valuations (convert all values to float)
             return [self._compute_valuations(
