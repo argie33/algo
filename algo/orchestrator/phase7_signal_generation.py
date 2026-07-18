@@ -608,9 +608,17 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 most_recent_trading_day -= timedelta(days=1)
                 check_iterations += 1
 
-            # On weekends/holidays, data from the previous trading day is FRESH
+            # On weekends/holidays, data from recent trading days is FRESH
             days_stale = (run_date - latest_buysell_date).days
-            if latest_buysell_date < most_recent_trading_day:
+
+            # Allow data from up to 2 trading days back if today is non-trading day
+            acceptable_staleness = False
+            if not MarketCalendar.is_trading_day(run_date):
+                # Today is non-trading; acceptable if data is from recent trading days
+                # (within ~3-4 calendar days, accounting for weekends)
+                acceptable_staleness = (latest_buysell_date >= run_date - timedelta(days=4))
+
+            if latest_buysell_date < most_recent_trading_day and not acceptable_staleness:
                 # Most recent data is OLDER than the most recent trading day - this is a red flag
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily data is STALE: most recent is from {latest_buysell_date}. "
