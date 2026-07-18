@@ -62,20 +62,22 @@ def cleanup_orphaned_dev_servers() -> None:
 
 
 def run_morning_loaders() -> bool:
-    """Run morning data loaders to ensure fresh prices/indicators.
+    """Run computed loaders that work locally without AWS credentials.
+
+    Only runs loaders that can execute locally (computed from existing data).
+    Loaders that fetch from external APIs (yfinance, FINRA, SEC) require AWS credentials.
 
     Returns True if successful, False if loaders failed/timed out.
     Non-critical: dashboard will still start even if loaders fail, just with stale data.
     """
-    print("[STARTUP] Loading fresh data (prices, technical indicators, market status)...", flush=True)
+    print("[STARTUP] Refreshing computed data (requires existing prices)...", flush=True)
 
     repo_root = Path(__file__).parent
+    # Only run loaders that work locally without AWS credentials
+    # Computed loaders: read from existing tables, don't need external APIs
     loaders_to_run = [
-        "load_prices.py",
-        "load_technical_indicators.py",
-        "load_market_status_daily.py",
-        "load_short_interest_finra.py",
-        "load_price_extremes.py",
+        "load_price_extremes.py",  # Computed: 52-week highs/lows from price_daily
+        "load_market_cap_computed.py",  # Computed: market_cap from shares_outstanding × latest_price
     ]
 
     success_count = 0
@@ -92,7 +94,7 @@ def run_morning_loaders() -> bool:
                 [sys.executable, str(loader_path)],
                 cwd=str(repo_root),
                 env=env,
-                timeout=120,  # 2 min per loader
+                timeout=60,  # 1 min per loader
                 capture_output=True,
                 text=True,
             )
@@ -101,18 +103,19 @@ def run_morning_loaders() -> bool:
                 success_count += 1
             else:
                 print(f"[STARTUP] [WARN] {loader_name} returned code {result.returncode}", flush=True)
-                if "error" in result.stderr.lower():
-                    print(f"[STARTUP]       Error: {result.stderr[:100]}", flush=True)
         except subprocess.TimeoutExpired:
-            print(f"[STARTUP] [WARN] {loader_name} timed out (2m)", flush=True)
+            print(f"[STARTUP] [WARN] {loader_name} timed out", flush=True)
         except Exception as e:
             print(f"[STARTUP] [WARN] {loader_name} error: {e}", flush=True)
 
     if success_count > 0:
-        print(f"[STARTUP] [OK] Loaded fresh data ({success_count}/{len(loaders_to_run)} loaders)", flush=True)
+        print(f"[STARTUP] [OK] Refreshed computed data ({success_count}/{len(loaders_to_run)})", flush=True)
+        print(f"[STARTUP] [NOTE] Prices/indicators are stale. To load fresh data, set AWS credentials or run:", flush=True)
+        print(f"[STARTUP]       python scripts/local_loader_scheduler.py --now morning", flush=True)
         return True
     else:
-        print(f"[STARTUP] [WARN] No loaders succeeded (dashboard will show stale data)", flush=True)
+        print(f"[STARTUP] [WARN] No computed loaders succeeded", flush=True)
+        print(f"[STARTUP] [NOTE] Dashboard will show existing (stale) data", flush=True)
         return False
 
 
