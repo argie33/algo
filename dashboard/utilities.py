@@ -97,6 +97,22 @@ os.makedirs(_log_dir, exist_ok=True)
 _is_local_mode = os.environ.get("LOCAL_MODE") == "true"
 _log_file = os.path.join(_log_dir, "dashboard-local.log" if _is_local_mode else "dashboard.log")
 
+class _WindowsSafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
+    """RotatingFileHandler that gracefully handles Windows file locking issues.
+
+    On Windows, file rotation can fail if another process holds the file open.
+    This handler catches PermissionError and skips rotation rather than crashing.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            super().emit(record)
+        except PermissionError:
+            # On Windows, rotation can fail due to file locking. Skip this emit
+            # rather than propagating the error which would break the app.
+            pass
+
+
 # Clear any existing handlers (from previous imports or basicConfig)
 _root_logger = logging.getLogger()
 for _h in _root_logger.handlers[:]:
@@ -105,8 +121,8 @@ for _h in _root_logger.handlers[:]:
 # Set root to ERROR to suppress noise
 _root_logger.setLevel(logging.ERROR)
 
-# File handler: WARNING and above only
-_handler = logging.handlers.RotatingFileHandler(_log_file, encoding="utf-8", maxBytes=10*1024*1024, backupCount=3)
+# File handler: WARNING and above only (Windows-safe version)
+_handler = _WindowsSafeRotatingFileHandler(_log_file, encoding="utf-8", maxBytes=10*1024*1024, backupCount=3)
 _handler.setLevel(logging.WARNING)
 _formatter = logging.Formatter("[%(asctime)s] %(levelname)-8s %(name)s: %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 _handler.setFormatter(_formatter)

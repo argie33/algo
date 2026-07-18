@@ -836,25 +836,39 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
             mh_row = cur.fetchone()
             if mh_row:
                 market_health = safe_json_serialize(safe_dict_convert(mh_row))
-                # FIX: VIX level must be > 0 (invalid values like 0.0 indicate data quality issue)
-                # Set to NULL if invalid, so downstream fails-fast rather than showing false data
+                # CRITICAL: VIX level must be > 0 (invalid values indicate data quality issue)
+                # Fail-fast if VIX is invalid (contract requires non-None vix_level)
                 vix_val = market_health.get("vix_level")
-                if vix_val is not None:
-                    try:
-                        vix_float = float(vix_val)
-                        if vix_float <= 0:
-                            logger.warning(
-                                f"[MARKETS API] Invalid VIX value {vix_float} in market_health_daily - "
-                                f"VIX must be > 0. Setting to NULL to trigger fail-fast in dashboard."
-                            )
-                            market_health["vix_level"] = None
-                    except (ValueError, TypeError) as e:
+                if vix_val is None:
+                    return error_response(
+                        503,
+                        "data_unavailable",
+                        "VIX level data not available in market_health_daily",
+                    )
+                try:
+                    vix_float = float(vix_val)
+                    if vix_float <= 0:
                         logger.error(
-                            f"[MARKETS API] CRITICAL: VIX conversion error - {e}. "
-                            f"Cannot validate market health data quality. VIX value invalid in database: {vix_val}. "
-                            f"Market health validation requires valid VIX (must be > 0)."
+                            f"[MARKETS API] CRITICAL: Invalid VIX value {vix_float} in market_health_daily - "
+                            f"VIX must be > 0. Cannot compute market risk indicators without valid VIX. "
+                            f"Check: market_health_daily table, load_market_health_daily logs, yfinance API."
                         )
-                        market_health["vix_level"] = None
+                        return error_response(
+                            503,
+                            "data_unavailable",
+                            f"Invalid VIX data: {vix_float} (must be > 0)",
+                        )
+                except (ValueError, TypeError) as e:
+                    logger.error(
+                        f"[MARKETS API] CRITICAL: VIX conversion error - {e}. "
+                        f"Cannot parse VIX value from database: {vix_val} ({type(vix_val).__name__}). "
+                        f"Market health validation requires numeric VIX > 0."
+                    )
+                    return error_response(
+                        503,
+                        "data_unavailable",
+                        f"VIX data type error: expected numeric, got {type(vix_val).__name__}",
+                    )
             else:
                 return error_response(
                     503,
