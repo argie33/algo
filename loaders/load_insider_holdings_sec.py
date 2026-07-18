@@ -20,7 +20,7 @@ Run:
 
 import logging
 import sys
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from typing import Any
 
 from loaders.helpers.sec_base import SecLoaderBase
@@ -213,7 +213,6 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
         # If we successfully parsed any Form 4 filings, compute aggregate statistics
         if aggregated_insiders:
             # Aggregate across all insiders
-            total_insider_transactions = sum(i["buys"] + i["sells"] for i in aggregated_insiders.values())
             net_aggregate_transactions = sum(i["net_txns"] for i in aggregated_insiders.values())
 
             # Use the most recent Form 4's ownership % and share count as representative

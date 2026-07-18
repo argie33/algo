@@ -22,7 +22,6 @@ from loaders.helpers.sec_base import SecLoaderBase
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
 from utils.external.sec_edgar import SecEdgarClient
-from utils.external.sec_xml_parser import Schedule13GParser
 from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)

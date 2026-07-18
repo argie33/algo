@@ -399,7 +399,6 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     unnecessary_fields = {
         "closed_at",  # Only for closed positions
         "cognito_sub",  # Not needed in API response
-        "days_since_entry",  # Rarely populated
         "distribution_day_count",  # Not populated
         "exit_reason",  # Only for closed positions
         "initial_risk_per_share",  # Not populated
