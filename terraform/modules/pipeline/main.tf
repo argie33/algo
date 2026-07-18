@@ -540,20 +540,34 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Next = "SectorRanking"
       }
 
-      # ── Step 8c: Sector ranking (depends on stock_scores) ──────────────
-      # CRITICAL: Must run before orchestrator to ensure Phase 3 and Phase 5 have current sector data.
-      # Runs after swing_trader_scores completes. Timeout 900 seconds (15 minutes).
-      # AUDIT FIX: Added industry_ranking and sector_performance loaders (2026-07-12)
-      # PHASE 2 CONSOLIDATION: Removed shortcut to MarketExposureDaily; flows to IndustryRanking
-      # MarketStatusDaily (consolidated: health+exposure+sentiment) runs after FredEconomicData
-      SectorRanking = {
+      # ── Step 8c: PHASE 4 - Sector Industry Daily (CONSOLIDATED) ──
+      # CONSOLIDATION: Merges 3 separate sector loaders into 1 atomic operation:
+      # - sector_ranking (sector rankings by metric)
+      # - industry_ranking (industry rankings)
+      # - sector_performance (daily sector returns)
+      #
+      # Benefits:
+      # - 1 ECS task instead of 3 (saves ~$0.01-0.02/run)
+      # - All sector/industry data computed together
+      # - Atomic operation (all 3 outputs succeed/fail together)
+      # - Unified OptimalLoader framework (consistent error handling)
+      # - Simpler maintenance (one loader, one failure path)
+      #
+      # Outputs atomically to:
+      # - sector_ranking (sector rankings)
+      # - industry_ranking (industry rankings)
+      # - sector_performance (daily sector returns)
+      #
+      # Depends on: stock_scores (completed), swing_trader_scores
+      # Timeout: 900s (15 min - sufficient for all 3 operations)
+      SectorIndustryDaily = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
         TimeoutSeconds = 900
         Parameters = {
           Cluster              = var.ecs_cluster_arn
           LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["sector_ranking"]
+          TaskDefinition       = var.loader_task_definition_arns["sector_industry_daily"]
           NetworkConfiguration = local.network_config
         }
         Retry = [{
@@ -564,117 +578,17 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "LogSectorRankingFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "IndustryRanking"
-      }
-
-      LogSectorRankingFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "sector_ranking"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "MarketExposureDaily"
-          ResultPath  = "$.logError"
-        }]
-        Next = "IndustryRanking"
-      }
-
-      # ── Step 8c-bis: Industry Ranking ──
-      # Consolidation: sector_ranking and industry_ranking use same loader
-      # Runs after sector_ranking (depends on stock_scores)
-      IndustryRanking = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 900
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["industry_ranking"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 30
-          MaxAttempts     = 0
-          BackoffRate     = 1.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogIndustryRankingFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "SectorPerformance"
-      }
-
-      LogIndustryRankingFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "industry_ranking"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "SectorPerformance"
-          ResultPath  = "$.logError"
-        }]
-        Next = "SectorPerformance"
-      }
-
-      # ── Step 8c-ter: Sector Performance ──
-      # Calculates daily sector returns from weighted stock prices
-      # Non-blocking: if timeout, continues to next stage
-      SectorPerformance = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 900
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["sector_performance"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 60
-          MaxAttempts     = 1
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogSectorPerformanceFailure"
+          Next        = "LogSectorIndustryFailure"
           ResultPath  = "$.loaderError"
         }]
         Next = "FredEconomicData"
       }
 
-      LogSectorPerformanceFailure = {
+      LogSectorIndustryFailure = {
         Type     = "Task"
         Resource = var.loader_failure_handler_arn
         Parameters = {
-          loader_name       = "sector_performance"
+          loader_name       = "sector_industry_daily"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
