@@ -884,12 +884,12 @@ def run(  # noqa: C901
                 cur.execute(
                     """
                     UPDATE data_loader_status
-                    SET last_updated = NOW(), status = 'HEALTHY'
+                    SET last_updated = NOW()
                     WHERE table_name = ANY(%s)
                     """,
                     (critical_tables,),
                 )
-                logger.info(f"[PHASE 1] Updated data_loader_status.last_updated for {len(critical_tables)} tables")
+                logger.info(f"[PHASE 1] Updated data_loader_status.last_updated for {len(critical_tables)} tables to NOW()")
             except Exception as e:
                 logger.warning(f"[PHASE 1] Could not update data_loader_status (non-fatal): {e}")
 
