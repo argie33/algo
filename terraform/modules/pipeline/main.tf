@@ -1370,7 +1370,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogFinancialsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "QualityMetrics"
+        Next = "SecValuations"
       }
 
       LogFinancialsFailure = {
@@ -1378,6 +1378,65 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name       = "financials_parallel"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "SecValuations"
+          ResultPath  = "$.logError"
+        }]
+        Next = "SecValuations"
+      }
+
+      # ── PHASE 5: SEC-Derived Valuations (replaces yfinance quoteSummary API calls) ──
+      # Computes audited PE/PB/PS/PEG/FCF from SEC financial data + prices
+      # Eliminates rate-limiting cascade (-15-20 min), $19-24/month API cost
+      SecValuations = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["sec_valuations"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-sec_valuations"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogSecValuationsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "QualityMetrics"
+      }
+
+      LogSecValuationsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "sec_valuations"
           "error.$"         = "$.loaderError.Error"
           "error_message.$" = "$.loaderError.Cause"
         }
