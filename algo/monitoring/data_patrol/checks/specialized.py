@@ -75,11 +75,11 @@ class SpecializedChecker(BaseCheck):
                 col = col_options[0]
                 tbl_safe = assert_safe_table(tbl)
                 cur.execute(f"""
-                    SELECT COUNT(*), MAX({col}::date) as latest
+                    SELECT COUNT(*) as count, MAX({col}::date) as latest
                     FROM {tbl_safe}
                 """)
                 result = cur.fetchone()
-                count, latest = result[0], result[1]
+                count, latest = result["count"], result["latest"]
 
                 if not latest:
                     self.log(
@@ -135,7 +135,7 @@ class SpecializedChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("Earnings coverage query returned no results - database state corrupted")
-            est_syms, price_syms = row
+            est_syms, price_syms = row["est_syms"], row["price_syms"]
             if est_syms is None:
                 raise ValueError("COUNT(DISTINCT e.symbol) returned NULL - earnings estimates query may have failed")
             if price_syms is None:
@@ -263,7 +263,7 @@ class SpecializedChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("RSI bounds check query returned no results - database state corrupted")
-            bad_rsi, null_rsi, total = row
+            bad_rsi, null_rsi, total = row["bad_rsi"], row["null_rsi"], row["total"]
             if bad_rsi is None or null_rsi is None or total is None:
                 raise ValueError("COUNT(*) FILTER for RSI check returned NULL - cannot evaluate technical data quality")
             bad_rsi = int(bad_rsi)
@@ -296,7 +296,7 @@ class SpecializedChecker(BaseCheck):
             row = cur.fetchone()
             if row is None:
                 raise ValueError("NaN check query returned no results - database state corrupted")
-            bad_atr, bad_rsi_nan = row
+            bad_atr, bad_rsi_nan = row["bad_atr"], row["bad_rsi_nan"]
             if bad_atr is None or bad_rsi_nan is None:
                 raise ValueError("COUNT(*) FILTER for NaN check returned NULL - cannot evaluate data quality")
             bad_atr = int(bad_atr)
@@ -342,7 +342,7 @@ class SpecializedChecker(BaseCheck):
                 WHERE table_name = 'sentiment_aggregate'
                 ORDER BY column_name
             """)
-            columns = [row[0] for row in cur.fetchall()]
+            columns = [row["column_name"] for row in cur.fetchall()]
 
             required_cols = {
                 "date",
@@ -457,7 +457,7 @@ class SpecializedChecker(BaseCheck):
                 """,
                     (tbl,),
                 )
-                columns = [row[0] for row in cur.fetchall()]
+                columns = [row["column_name"] for row in cur.fetchall()]
                 present_cols = set(columns)
 
                 if required_cols.issubset(present_cols):
@@ -470,8 +470,9 @@ class SpecializedChecker(BaseCheck):
                     )
 
                     # Check data freshness
-                    cur.execute(f"SELECT COUNT(*), MAX(created_at) FROM {tbl_safe}")
-                    count, max_updated = cur.fetchone()
+                    cur.execute(f"SELECT COUNT(*) as count, MAX(created_at) as max_updated FROM {tbl_safe}")
+                    row = cur.fetchone()
+                    count, max_updated = row["count"], row["max_updated"]
 
                     if count > 0 and max_updated:
                         now = datetime.now(timezone.utc) if max_updated.tzinfo else datetime.now()
