@@ -1536,7 +1536,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
                 FROM algo_signals s
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
                 WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
-                ORDER BY COALESCE(s.signal_quality_score, 0) DESC NULLS LAST
+                ORDER BY s.signal_quality_score DESC NULLS LAST
                 LIMIT 30
             """)
             buy_sigs_rows = cur.fetchall()
@@ -1594,7 +1594,7 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             # Signal count trend: last 7 days - cast date to text at source
             cur.execute("""
                 SELECT s.signal_date::text as date,
-                       COUNT(*) FILTER (WHERE s.signal_quality_score >= 60 OR s.signal_quality_score IS NULL) AS buy_n,
+                       COUNT(*) FILTER (WHERE s.signal_quality_score >= 60) AS buy_n,
                        COUNT(*) AS total_n
                 FROM algo_signals s
                 WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
@@ -1680,7 +1680,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
             SELECT
                 fs.symbol, fs.composite_score, fs.growth_score, fs.momentum_score,
                 fs.quality_score, fs.value_score, fs.stability_score, fs.positioning_score,
-                COALESCE(fs.rs_percentile, 50.0) AS rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
+                fs.rs_percentile, fs.data_completeness, fs.updated_at, fs.company_name, fs.sector,
                 pl.close AS current_price,
                 ROUND(CASE
                     WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
@@ -1761,7 +1761,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                             growth_val, rs_val, unavailable = enrichment
                             if growth_val is not None:
                                 top_scores[idx]["growth_score"] = float(growth_val)
-                                top_scores[idx]["rs_percentile"] = float(rs_val) if rs_val else 50.0
+                                top_scores[idx]["rs_percentile"] = float(rs_val) if rs_val else None
                                 logger.debug(f"[SCORES] Found growth_score for {symbol}: {growth_val}")
                             else:
                                 # Data truly unavailable - keep as None so dashboard renders "--"
