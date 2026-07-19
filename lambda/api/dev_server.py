@@ -153,16 +153,20 @@ os.environ.pop("COGNITO_CLIENT_ID", None)
 print("[DEV_SERVER] DEV MODE: Cognito auth disabled, using dev token auth (dev-user, dev-admin, etc.)", flush=True)
 
 # Add lambda/api and parent directories to path so we can import all modules
-# NOTE: For dev_server, we prioritize root_dir so that utils.timezone_utils resolves correctly
-# (In production Lambda, api_router.py handles the ordering differently)
+# CRITICAL: Import setup_imports FIRST so it can establish the correct path ordering
+# setup_imports.py adds api_dir first (so lambda/api/utils takes priority for response_service)
+# then root_dir (so utils.infrastructure.timezone resolves correctly)
 api_dir = os.path.dirname(os.path.abspath(__file__))
 lambda_dir = os.path.dirname(api_dir)
 root_dir = os.path.dirname(lambda_dir)
-# Add root_dir first so imports like "from utils.infrastructure.timezone" find /root/utils
-sys.path.insert(0, root_dir)
-sys.path.insert(1, lambda_dir)
-sys.path.insert(2, api_dir)
 
+# Add api_dir first so setup_imports can be imported
+sys.path.insert(0, api_dir)
+
+# Now import setup_imports which will fix the path ordering
+import setup_imports  # noqa: E402, F401
+
+# setup_imports already set up the correct paths, so we can now import lambda_function
 import lambda_function  # noqa: E402
 
 importlib.reload(lambda_function)  # Force fresh reload in case module was cached

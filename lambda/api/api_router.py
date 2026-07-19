@@ -14,26 +14,27 @@ from psycopg2.extensions import cursor
 
 logger = logging.getLogger(__name__)
 
-# Import consolidated response handling service
+# Import consolidated response handling service from lambda/api/utils
+# NOTE: Use relative import to ensure we get lambda/api/utils not root utils
+import sys
+from pathlib import Path
+
+_api_utils_path = Path(__file__).parent / "utils"
+if str(_api_utils_path) not in sys.path:
+    sys.path.insert(0, str(_api_utils_path))
+
 try:
-    from utils.response_service import (
+    from response_service import (
         build_error_response,
         format_handler_error,
         wrap_response,
     )
-except ImportError:
-    # CRITICAL: response_service is required for API error handling - fail-fast if missing
-    try:
-        from api_utils.response_service import (
-            build_error_response,
-            format_handler_error,
-            wrap_response,
-        )
-    except ImportError as e:
-        raise RuntimeError(
-            f"CRITICAL: Failed to import response_service - API error handling unavailable. "
-            f"This module is required for proper error responses. ImportError: {e}"
-        ) from e
+except ImportError as e:
+    raise RuntimeError(
+        f"CRITICAL: Failed to import response_service from {_api_utils_path} - "
+        f"API error handling unavailable. This module is required for proper error responses. "
+        f"ImportError: {e}"
+    ) from e
 
 
 # Fail-fast critical routes: API cannot function without these
