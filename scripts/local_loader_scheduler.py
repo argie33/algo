@@ -149,8 +149,14 @@ def time_until_next_run(target_hour, target_minute):
 
 
 def is_trading_day(date_obj):
-    # Simple check: Mon-Fri only (not considering holidays for now)
-    return date_obj.weekday() < 5  # 0-4 = Mon-Fri
+    """Check if date is a trading day (accounting for market holidays).
+
+    Uses MarketCalendar.is_trading_day() to properly handle market holidays
+    (Presidents Day, Thanksgiving, etc.) which would be incorrectly classified
+    as trading days by simple weekday() checks.
+    """
+    from algo.infrastructure import MarketCalendar
+    return MarketCalendar.is_trading_day(date_obj)
 
 
 def scheduler_daemon():

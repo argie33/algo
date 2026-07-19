@@ -58,6 +58,8 @@ def is_open() -> bool:
 
         return MarketCalendar.is_market_open()
     except (ImportError, AttributeError):
+        # Fallback if MarketCalendar unavailable: check weekday and market hours
+        # Note: This fallback does NOT account for market holidays - use MarketCalendar for accuracy
         n = datetime.now(ET)
         if n.weekday() >= 5:
             return False
@@ -149,8 +151,10 @@ def _next_run_from_schedule(schedule: list[dict[str, Any]]) -> str:
     CRITICAL: Validates that all schedule entries have required hour/minute fields.
     Missing fields indicate corrupted configuration - raise error instead of defaulting.
     """
+    from algo.infrastructure import MarketCalendar
+
     now = datetime.now(ET)
-    wd = now.weekday()
+    is_trading_day = MarketCalendar.is_trading_day(now.date())
     t = now.hour * 60 + now.minute
 
     def fmt(dt: datetime) -> str:
@@ -163,12 +167,13 @@ def _next_run_from_schedule(schedule: list[dict[str, Any]]) -> str:
         return f"{dt.strftime('%a %I:%M %p')}"
 
     def next_wkd(dt: datetime, off: int = 1) -> datetime:
+        """Find next trading day (skipping weekends and market holidays)."""
         d = dt + timedelta(days=off)
-        while d.weekday() >= 5:
+        while not MarketCalendar.is_trading_day(d.date()):
             d += timedelta(days=1)
         return d
 
-    if wd >= 5:
+    if not is_trading_day:
         next_day = next_wkd(now)
         if schedule:
             sched = sorted(schedule, key=lambda s: _validate_schedule_entry(s)[0] * 60 + _validate_schedule_entry(s)[1])
@@ -200,10 +205,11 @@ def _next_run_hardcoded() -> str:
 
     Uses default schedule from MarketSymbolsConfig (configurable via algo_config table).
     """
+    from algo.infrastructure import MarketCalendar
     from utils.market_symbols_config import MarketSymbolsConfig
 
     now = datetime.now(ET)
-    wd = now.weekday()
+    is_trading_day = MarketCalendar.is_trading_day(now.date())
     t = now.hour * 60 + now.minute
 
     def fmt(dt: datetime) -> str:
@@ -216,8 +222,9 @@ def _next_run_hardcoded() -> str:
         return f"{dt.strftime('%a %I:%M %p')}"
 
     def next_wkd(dt: datetime, off: int = 1) -> datetime:
+        """Find next trading day (skipping weekends and market holidays)."""
         d = dt + timedelta(days=off)
-        while d.weekday() >= 5:
+        while not MarketCalendar.is_trading_day(d.date()):
             d += timedelta(days=1)
         return d
 
@@ -238,7 +245,7 @@ def _next_run_hardcoded() -> str:
         )
 
     # Find next scheduled run
-    if wd < 5:
+    if is_trading_day:
         # Weekday: find next run today
         today_runs = []
         for run in schedule:
