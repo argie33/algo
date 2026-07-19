@@ -353,6 +353,17 @@ class ValueAtRisk:
                 portfolio_value = Decimal(str(float(portfolio_row[0])))
                 snapshot_date = portfolio_row[1] if len(portfolio_row) > 1 else None
 
+                # CRITICAL: Sanity check on portfolio value - suspiciously small values indicate data issues
+                _MIN_PORTFOLIO_VALUE = Decimal("1000")
+                if portfolio_value < _MIN_PORTFOLIO_VALUE:
+                    raise RuntimeError(
+                        f"[VAR CALCULATION CRITICAL] Portfolio value ${portfolio_value} is suspiciously small "
+                        f"(below ${_MIN_PORTFOLIO_VALUE} threshold). "
+                        f"This likely indicates a data loading error or initialization problem. "
+                        f"Portfolio must have been properly reconciled with real trading capital. "
+                        f"Check: (1) algo_portfolio_snapshots has been populated, (2) positions have valid quantities/prices."
+                    )
+
                 # CRITICAL: Validate snapshot freshness - stale portfolio value causes incorrect beta sizing
                 if snapshot_date:
                     from datetime import date
@@ -603,6 +614,13 @@ class ValueAtRisk:
                             f"Portfolio value is invalid or zero ({portfolio_value_float}). "
                             f"Cannot compute meaningful concentration metrics. "
                             f"Portfolio must be reconciled with valid total value."
+                        )
+                    # Sanity check: portfolio value should be at least $1,000 (indicates proper initialization)
+                    if portfolio_value_float < 1000:
+                        raise RuntimeError(
+                            f"Portfolio value ${portfolio_value_float} is suspiciously small (below $1,000 threshold). "
+                            f"Cannot compute meaningful concentration metrics on tiny portfolio. "
+                            f"This likely indicates data loading error. Check portfolio reconciliation."
                         )
                     position_pct = position_value / portfolio_value_float * 100
 
