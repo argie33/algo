@@ -244,6 +244,7 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
                 AVG(ss.stability_score)  AS stability_score
             FROM company_profile cp
             LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
+                AND (ss.data_unavailable = FALSE OR ss.data_unavailable IS NULL)
             WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
             AND cp.ticker NOT IN (SELECT symbol FROM etf_symbols)
             GROUP BY cp.industry

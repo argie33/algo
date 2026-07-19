@@ -466,7 +466,11 @@ class APIHandler(BaseHTTPRequestHandler):
                 table_name = loader.get("table_name", "unknown")
                 status = loader.get("status", "empty")
                 last_updated = loader.get("last_updated")
-                row_count = loader.get("row_count", 0)
+                # CRITICAL FIX: Check for None (data missing) vs 0 (zero rows loaded)
+                row_count = loader.get("row_count")
+                if row_count is None:
+                    # Data missing - don't default to 0, this is a quality issue
+                    ready_to_trade = False
 
                 # Mark as failed if status is error or stale
                 if status in ("error", "stale") or (

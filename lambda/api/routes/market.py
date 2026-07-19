@@ -26,6 +26,7 @@ from routes.utils import (
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
+from utils.market_symbols_config import MarketSymbolsConfig
 from utils.validation import safe_float
 
 logger = logging.getLogger(__name__)

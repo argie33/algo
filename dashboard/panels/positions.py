@@ -319,9 +319,13 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             total_count is not None and total_count > 0 and filtered_count is not None and filtered_count > 0
         )
     if has_filtering_info and coverage_valid and isinstance(coverage, dict):
-        # Validate required coverage fields exist
-        if "total_count" not in coverage or "valid_count" not in coverage or "filtered_count" not in coverage:
-            logger.error(f"[POSITIONS] Coverage data missing required fields. Got: {coverage}")
+        # Validate required coverage fields exist and are not None
+        total = coverage.get("total_count")
+        valid = coverage.get("valid_count")
+        filt = coverage.get("filtered_count")
+
+        if total is None or valid is None or filt is None:
+            logger.error(f"[POSITIONS] Coverage data missing or None: total={total}, valid={valid}, filt={filt}. Got: {coverage}")
             # Create error marker object for error panel rendering
             return Panel(
                 Text("Coverage data integrity error - missing required fields", style="red"),
@@ -329,9 +333,9 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
                 border_style="red",
                 padding=(0, 1),
             )
-        total = cast(int, coverage.get("total_count", 0))
-        valid = cast(int, coverage.get("valid_count", 0))
-        filt = cast(int, coverage.get("filtered_count", 0))
+        total = cast(int, total)
+        valid = cast(int, valid)
+        filt = cast(int, filt)
         border = "yellow"
         # Show: "POSITIONS (2/15 valid, 13 filtered)"
         title_str = f"[bold yellow]POSITIONS ({valid}/{total} valid, {filt} filtered)[/]"
