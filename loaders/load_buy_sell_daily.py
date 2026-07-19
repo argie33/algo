@@ -156,10 +156,19 @@ class SignalsDailyLoader(OptimalLoader):
                         "Cannot generate signals without prices. Check price loader status."
                     )
         except Exception as e:
-            logger.warning(
-                f"[RUN] Failed to apply filters: {e}. "
-                f"Proceeding with {len(symbols)} symbols (may cause foreign key errors)."
+            # CRITICAL FIX (Session 281): Price filtering is NON-NEGOTIABLE
+            # If we proceed without valid prices, we create signals that violate foreign key constraints
+            # Resulting signals cannot be inserted, causing data inconsistency and missing signals
+            # Fail-closed: if price filtering fails, halt and wait for next data cycle
+            logger.critical(
+                f"[RUN] Price filter failed (critical for data integrity): {e}. "
+                f"Cannot proceed without validating signals have corresponding price_daily data. "
+                f"This prevents foreign key constraint violations. Data will be marked as unavailable."
             )
+            raise RuntimeError(
+                f"Price validation failed and is mandatory: {e}. "
+                f"Cannot generate buy_sell signals without price_daily reference data."
+            ) from e
 
         # Call parent run() with filtered symbols
         return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)

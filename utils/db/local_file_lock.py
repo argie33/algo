@@ -72,7 +72,11 @@ class FileLockManager:
             logger.warning(f"[FILE_LOCK] Cleanup failed: {e}")
 
     def acquire(self, lock_key: str = "orchestrator-run-lock", timeout_seconds: int = 5) -> bool:
-        """Acquire file-based lock.
+        """Acquire file-based lock using atomic file creation.
+
+        CRITICAL FIX (Session 281): Use os.open() with O_CREAT | O_EXCL for atomic lock creation.
+        Previous implementation used open(file, "w") which is NOT atomic on Windows.
+        Race condition: two processes could both think they acquired the lock.
 
         Args:
             lock_key: The lock identifier
@@ -80,6 +84,9 @@ class FileLockManager:
 
         Returns: True if lock acquired, False if another instance holds it
         """
+        import errno
+        import os
+
         lock_file = self.lock_dir / f"{lock_key}.lock"
         start_time = time.time()
         attempt = 0
@@ -113,22 +120,35 @@ class FileLockManager:
                 time.sleep(0.1)
                 continue
 
-            # Try to acquire lock
+            # Try to acquire lock with ATOMIC file creation (O_EXCL)
             try:
                 now = datetime.utcnow()
                 expiry = now + timedelta(seconds=self.lock_duration_seconds)
                 lock_content = f"local-dev|{expiry.isoformat()}"
 
-                # Write lock file atomically
-                with open(lock_file, "w", encoding="utf-8") as f:
-                    f.write(lock_content)
-
-                self.current_lock_file = lock_file
-                logger.info(f"[FILE_LOCK] Lock acquired: {lock_file.name}")
-                return True
+                # ATOMIC: Only succeeds if file doesn't exist (O_CREAT | O_EXCL)
+                # Race-safe: If another process creates file between check and open, we get EEXIST
+                try:
+                    fd = os.open(str(lock_file), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
+                    with os.fdopen(fd, "w", encoding="utf-8") as f:
+                        f.write(lock_content)
+                    self.current_lock_file = lock_file
+                    logger.info(f"[FILE_LOCK] Lock acquired (atomic): {lock_file.name}")
+                    return True
+                except FileExistsError:
+                    # Another process won the race - file already exists
+                    logger.debug(f"[FILE_LOCK] Another process won lock race for {lock_key}")
+                    time.sleep(0.1)
+                except OSError as e:
+                    if e.errno == errno.EEXIST:  # File already exists (alternate error code)
+                        logger.debug(f"[FILE_LOCK] Lock file exists (errno.EEXIST) for {lock_key}")
+                        time.sleep(0.1)
+                    else:
+                        logger.error(f"[FILE_LOCK] OS error acquiring lock: {e}")
+                        time.sleep(0.1)
 
             except Exception as e:
-                logger.error(f"[FILE_LOCK] Failed to acquire lock: {e}")
+                logger.error(f"[FILE_LOCK] Unexpected error in acquire: {e}")
                 time.sleep(0.1)
 
         logger.warning(f"[FILE_LOCK] Failed to acquire lock after {timeout_seconds}s: {lock_key}")

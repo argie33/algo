@@ -365,28 +365,43 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             load_thread.join(timeout=20.0)
 
             # CRITICAL FIX: Always set state.result, even on error
-            # This ensures the dashboard never gets stuck on the loading screen
+            # FAIL-FAST: Never render trading UI with missing data (GOVERNANCE: no silent fallbacks)
             if error[0]:
-                # Error occurred - set result to empty dict so dashboard renders with error panel
-                state.result = {}
-                state.error = f"{type(error[0]).__name__}: {str(error[0])[:100]}"
+                # Error occurred - mark data as unavailable with reason
+                error_msg = f"{type(error[0]).__name__}: {str(error[0])[:100]}"
+                state.result = {
+                    "_data_unavailable": True,
+                    "_dashboard_critical": True,
+                    "reason": f"Data load failed: {error_msg}",
+                }
+                state.error = error_msg
             elif result[0] is not None:
                 # Success - data loaded
                 state.result = result[0]
             else:
-                # Timeout - set empty result to show dashboard instead of loading screen
-                state.result = {}
-                state.error = "Data load timeout (exceeded 20 seconds)"
+                # Timeout - mark data as unavailable instead of rendering with empty dict
+                state.result = {
+                    "_data_unavailable": True,
+                    "_dashboard_critical": True,
+                    "reason": "Data load timeout (exceeded 20 seconds) - API or database may be unresponsive",
+                }
+                state.error = "Data load timeout (20s)"
 
             state.elapsed = time.monotonic() - t0
             state.last_load = time.monotonic()
             state.loading = False
         except Exception as e:
             # Catch-all for any unexpected exceptions
+            # FAIL-FAST: Mark data as unavailable, do NOT render with empty dict (GOVERNANCE)
             logger.error(f"Data load error: {type(e).__name__}: {e}", exc_info=True)
-            state.result = {}  # Ensure result is set
+            error_msg = f"{type(e).__name__}: {str(e)[:100]}"
+            state.result = {
+                "_data_unavailable": True,
+                "_dashboard_critical": True,
+                "reason": f"Critical error during data load: {error_msg}",
+            }
             state.loading = False
-            state.error = f"{type(e).__name__}: {str(e)[:100]}"
+            state.error = error_msg
 
     # Start background data loading immediately (don't wait for preload to complete)
     # This allows the dashboard to show a loading indicator immediately instead of appearing hung
@@ -405,10 +420,16 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
             state.loading = False
             state.elapsed = time.monotonic() - state.last_load
         except Exception as e:
+            # FAIL-FAST: Mark data as unavailable, do NOT render with empty dict (GOVERNANCE)
             logger.error(f"[STARTUP] Preload FAILED: {type(e).__name__}: {e}", exc_info=True)
-            state.result = {}
+            error_msg = f"{type(e).__name__}: {str(e)[:50]}"
+            state.result = {
+                "_data_unavailable": True,
+                "_dashboard_critical": True,
+                "reason": f"Startup data load failed: {error_msg}",
+            }
             state.loading = False
-            state.error = f"{type(e).__name__}: {str(e)[:50]}"
+            state.error = error_msg
 
     # Start preload in background thread (non-daemon so we wait for completion before exit)
     load_data_thread = threading.Thread(target=preload_data, daemon=False)
@@ -467,14 +488,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                         render_state.frame = current_frame
                         render_state.view_mode = controller.get_view_mode()
                     try:
-                        # CRITICAL FIX: Direct render as fallback to avoid recovery layer issues
-                        try:
-                            layout, _ = recovery.render_with_recovery(current_result, render_state)
-                        except Exception as recovery_err:
-                            # Fallback: render directly without recovery
-                            logger.warning(f"Recovery failed, using direct render: {recovery_err}")
-                            layout = render_state(current_result)
-
+                        # GOVERNANCE: Fail-fast if recovery layer detects data corruption
+                        # Recovery layer failures indicate data integrity issues, not transient errors
+                        layout, _ = recovery.render_with_recovery(current_result, render_state)
                         live.update(layout)
                         if not first_render_with_data:
                             logger.info(f"[DASHBOARD] Transitioned to data display after {current_elapsed:.1f}s")
@@ -547,8 +563,22 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             if result[0] is not None:
                 state.result = result[0]
             else:
-                logger.warning("load_all() returned None (timeout)")
-                state.result = {}  # Empty dict if timeout
+                # Timeout: load_all() didn't complete in 20 seconds
+                # GOVERNANCE: Do NOT silently replace state with empty dict
+                # In watch mode, preserve previous state but mark as stale
+                logger.warning("load_all() returned None (timeout) - preserving previous state and marking stale")
+                if state.result is None:
+                    # No previous state available - use explicit unavailable marker
+                    state.result = {
+                        "_data_unavailable": True,
+                        "_dashboard_critical": True,
+                        "reason": "Data load timeout (20s) - no previous data available",
+                    }
+                else:
+                    # Has previous state - mark as stale but preserve for display
+                    if isinstance(state.result, dict):
+                        state.result["_stale_refresh"] = True
+                        state.result["_stale_reason"] = "Last refresh timed out (20s) - showing cached state"
 
             state.elapsed = time.monotonic() - t0
             state.last_load = time.monotonic()
@@ -557,6 +587,10 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             logger.error(f"Reload thread error: {type(e).__name__}: {e}", exc_info=True)
             state.loading = False
             state.error = f"{type(e).__name__}: {e}"
+            # On error, preserve previous state but mark as potentially stale
+            if state.result is not None and isinstance(state.result, dict):
+                state.result["_stale_refresh"] = True
+                state.result["_stale_reason"] = f"Last refresh failed: {type(e).__name__}"
 
     try:
         reload_thread = threading.Thread(target=reload, daemon=False)

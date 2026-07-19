@@ -19,17 +19,30 @@ from urllib.parse import parse_qs, urlparse
 
 os.environ["ENVIRONMENT"] = "development"
 
-# For dev_server: Default to LOCAL_MODE=true unless explicitly disabled (LOCAL_MODE=false)
-# This ensures local development "just works" without extra configuration
-if "LOCAL_MODE" not in os.environ:
-    os.environ["LOCAL_MODE"] = "true"
-    print("[DEV_SERVER] AUTO: Setting LOCAL_MODE=true for local development", flush=True)
+# CRITICAL FIX (Session 281): Only auto-enable dev mode when dev_server.py is DIRECTLY EXECUTED.
+# If this module is imported by production Lambda, do NOT auto-enable dev tokens (security bypass).
+# Use __name__ == "__main__" to ensure this only runs when dev_server.py is the entry point.
+if __name__ == "__main__":
+    # For dev_server: Default to LOCAL_MODE=true unless explicitly disabled (LOCAL_MODE=false)
+    # This ensures local development "just works" without extra configuration
+    if "LOCAL_MODE" not in os.environ:
+        os.environ["LOCAL_MODE"] = "true"
+        print("[DEV_SERVER] AUTO: Setting LOCAL_MODE=true for local development", flush=True)
 
-# For dev_server: Enable dev token authentication (dev-admin, dev-user, etc.)
-# Required for local development when Cognito is configured in environment
-if "ALLOW_DEV_TOKENS_TEST" not in os.environ:
-    os.environ["ALLOW_DEV_TOKENS_TEST"] = "true"
-    print("[DEV_SERVER] AUTO: Setting ALLOW_DEV_TOKENS_TEST=true for dev token auth", flush=True)
+    # For dev_server: Enable dev token authentication (dev-admin, dev-user, etc.)
+    # Required for local development when Cognito is configured in environment
+    if "ALLOW_DEV_TOKENS_TEST" not in os.environ:
+        os.environ["ALLOW_DEV_TOKENS_TEST"] = "true"
+        print("[DEV_SERVER] AUTO: Setting ALLOW_DEV_TOKENS_TEST=true for dev token auth", flush=True)
+else:
+    # If this module is imported (not run directly), fail-safe to prevent security bypass
+    if os.getenv("ALLOW_DEV_TOKENS_TEST", "").lower() == "true":
+        raise RuntimeError(
+            "CRITICAL SECURITY: dev_server.py module imported in non-dev context. "
+            "Dev tokens (dev-admin, dev-user) bypass Cognito authentication and cannot be used "
+            "in production Lambda. This is a critical security vulnerability. "
+            "ALLOW_DEV_TOKENS_TEST must only be enabled when dev_server.py is directly executed."
+        )
 
 
 # Load database credentials from AWS Secrets Manager (real AWS data) or environment variables

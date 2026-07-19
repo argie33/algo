@@ -215,12 +215,13 @@ def _execute_fetcher_batch(
                         out[k] = {"_error": timeout_msg}
             if critical_missing:
                 missing_str = "; ".join(f"{k}: {msg}" for k, msg in critical_missing)
-                logger.error(
+                # GOVERNANCE: Fail-fast on critical data timeouts (no silent degradation)
+                # Critical fetchers must succeed or fail explicitly, never timeout silently
+                raise RuntimeError(
                     f"[DASHBOARD CRITICAL] Critical fetcher(s) timed out: {missing_str}. "
-                    f"Dashboard will render with degraded data."
+                    f"Cannot render dashboard without {len(critical_missing)} critical data source(s). "
+                    f"API or database may be unresponsive."
                 )
-                for k, timeout_msg in critical_missing:
-                    out[k] = {"_error": timeout_msg}
 
     return out
 

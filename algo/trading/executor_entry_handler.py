@@ -809,12 +809,21 @@ class EntryHandler:
             if position_value <= 0:
                 return "invalid"
 
-            # CRITICAL VALIDATION: entry_price and entry_date must NEVER be NULL
+            # CRITICAL VALIDATION: entry_price, entry_date, AND stop_loss must NEVER be NULL
+            # Session 281 audit found NULL stop_loss causes exit failures
             if executed_price is None or entry_date is None:
                 raise ValueError(
                     f"[POSITION_CREATION CRITICAL] {symbol}: Cannot create position with NULL entry_price or entry_date. "
                     f"executed_price={executed_price}, entry_date={entry_date}. "
                     f"Portfolio reconciliation depends on having entry prices for all positions."
+                )
+            # CRITICAL: Stop price must be set before position creation
+            # Null stop price blocks all stop-based exit strategies (stop-raise, stop-loss)
+            if stop_loss_price is None or stop_loss_price <= 0:
+                raise ValueError(
+                    f"[POSITION_CREATION CRITICAL] {symbol}: Cannot create position with NULL or invalid stop_loss. "
+                    f"Stop loss must be > 0 and < entry price. Got: {stop_loss_price}. "
+                    f"Check Phase 8 entry validation - stop price calculation must complete before position insert."
                 )
 
             # Use the position_id that was created when inserting the trade
