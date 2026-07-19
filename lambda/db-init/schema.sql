@@ -130,32 +130,11 @@ CREATE INDEX IF NOT EXISTS idx_stock_scores_composite ON stock_scores(composite_
 CREATE INDEX IF NOT EXISTS idx_stock_scores_updated_at ON stock_scores(updated_at DESC);
 
 -- ============================================================================
--- SIGNAL TABLES (Trading signals and decisions)
--- ============================================================================
-
-CREATE TABLE IF NOT EXISTS signals_daily (
-    symbol VARCHAR(20) NOT NULL,
-    date DATE NOT NULL,
-    signal_type VARCHAR(50),
-    signal_strength NUMERIC(5, 2),
-    signal_score NUMERIC(5, 2),
-    quality_score NUMERIC(5, 2),
-    growth_score NUMERIC(5, 2),
-    momentum_score NUMERIC(5, 2),
-    reasons JSONB,
-    components JSONB,
-    data_unavailable BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (symbol, date)
-);
-CREATE INDEX IF NOT EXISTS idx_signals_daily_symbol ON signals_daily(symbol);
-CREATE INDEX IF NOT EXISTS idx_signals_daily_date ON signals_daily(date DESC);
-CREATE INDEX IF NOT EXISTS idx_signals_daily_signal_score ON signals_daily(signal_score DESC);
-
--- ============================================================================
 -- PRICE DATA (Historical price information)
 -- ============================================================================
+-- Note: Real signals are generated dynamically in buy_sell_daily* tables
+-- by signal generators (phase7_signal_generation.py), not stored in a fixed table.
+-- The deprecated signals_daily table has been removed (replaced by buy_sell_daily_*)
 
 CREATE TABLE IF NOT EXISTS price_daily (
     symbol VARCHAR(20) NOT NULL,
@@ -344,17 +323,10 @@ CREATE TABLE IF NOT EXISTS market_sentiment (
 CREATE INDEX IF NOT EXISTS idx_market_sentiment_date ON market_sentiment(date DESC);
 
 -- ============================================================================
--- MARKET CONSTITUENTS (S&P 500, ETF memberships)
+-- MARKET CONSTITUENTS (S&P 500, ETF memberships - see stock_symbols below)
 -- ============================================================================
-
-CREATE TABLE IF NOT EXISTS sp500_constituents (
-    symbol VARCHAR(20) NOT NULL PRIMARY KEY,
-    company_name VARCHAR(500),
-    sector VARCHAR(100),
-    industry VARCHAR(100),
-    weight_pct NUMERIC(8, 4),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+-- Note: sp500_constituents has been replaced by stock_symbols + company_profile
+-- (see lines 504-533 for the active stock symbol definitions)
 
 CREATE TABLE IF NOT EXISTS etf_symbols (
     symbol VARCHAR(20) NOT NULL PRIMARY KEY,
@@ -462,14 +434,6 @@ CREATE TABLE IF NOT EXISTS aaii_sentiment (
 );
 CREATE INDEX IF NOT EXISTS idx_aaii_sentiment_date ON aaii_sentiment(date DESC);
 
-CREATE TABLE IF NOT EXISTS put_call_ratio_daily (
-    date DATE NOT NULL PRIMARY KEY,
-    equity_put_call NUMERIC(6, 4),
-    index_put_call NUMERIC(6, 4),
-    total_put_call NUMERIC(6, 4),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
 -- ============================================================================
 -- SCHEMA VERSIONING
 -- ============================================================================
@@ -489,19 +453,7 @@ CREATE INDEX IF NOT EXISTS idx_schema_version_applied_at ON schema_version(appli
 -- ============================================================================
 -- LOAD TRACKING (For monitoring)
 -- ============================================================================
-
-CREATE TABLE IF NOT EXISTS loader_status (
-    loader_name VARCHAR(100) NOT NULL PRIMARY KEY,
-    last_run_time TIMESTAMP WITH TIME ZONE,
-    last_success_time TIMESTAMP WITH TIME ZONE,
-    status VARCHAR(50),
-    error_message TEXT,
-    rows_processed INTEGER,
-    rows_failed INTEGER,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- CRITICAL: Code references data_loader_status (fix for naming mismatch)
+-- CRITICAL: Code references data_loader_status (the active status table)
 CREATE TABLE IF NOT EXISTS data_loader_status (
     id SERIAL PRIMARY KEY,
     table_name VARCHAR(100) NOT NULL,
