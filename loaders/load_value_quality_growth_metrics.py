@@ -220,17 +220,60 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             )]
 
     def _build_value_metrics(self, symbol: str, sec_val_row: Any, yfinance_row: Any) -> dict[str, Any]:
-        """Build value_metrics dict from sec_valuations + yfinance dividend."""
-        if not sec_val_row or sec_val_row[2]:  # data_unavailable flag at index 2
-            return self._unavailable_marker("value_metrics", symbol)
+        """Build value_metrics dict from sec_valuations with yfinance fallback.
 
-        # Extract SEC-derived valuations
-        pe = sec_val_row[7]  # pe_ratio index
-        pb = sec_val_row[8]  # pb_ratio
-        ps = sec_val_row[9]  # ps_ratio
-        peg = sec_val_row[10]  # peg_ratio
-        fcf_yield = sec_val_row[11]  # fcf_yield
-        market_cap = sec_val_row[6]  # market_cap
+        CRITICAL FIX (Session 255): Restored yfinance fallback to prevent 0% coverage.
+        SEC valuations only have 1% data (company_info_sec at 1.5%), but yfinance provides
+        ~80% coverage. Now tries SEC first, falls back to yfinance if missing, and only marks
+        unavailable if both sources fail.
+        """
+        # Try SEC valuations first
+        pe = pb = ps = peg = fcf_yield = market_cap = None
+        source_pe = source_pb = source_ps = "unavailable"
+
+        if sec_val_row and not sec_val_row[2]:  # data_unavailable flag at index 2
+            # Extract SEC-derived valuations
+            pe = sec_val_row[7]  # pe_ratio index
+            pb = sec_val_row[8]  # pb_ratio
+            ps = sec_val_row[9]  # ps_ratio
+            peg = sec_val_row[10]  # peg_ratio
+            fcf_yield = sec_val_row[11]  # fcf_yield
+            market_cap = sec_val_row[6]  # market_cap
+
+            if pe is not None:
+                source_pe = "sec_valuations"
+            if pb is not None:
+                source_pb = "sec_valuations"
+            if ps is not None:
+                source_ps = "sec_valuations"
+
+        # Fallback to yfinance if SEC metrics missing
+        if yfinance_row and pe is None:
+            try:
+                yf_pe = safe_float(yfinance_row[9], f"{symbol}.trailingPE", allow_none=True)  # trailingPE column
+                if yf_pe is not None:
+                    pe = yf_pe
+                    source_pe = "yfinance"
+            except Exception:
+                pass
+
+        if yfinance_row and pb is None:
+            try:
+                yf_pb = safe_float(yfinance_row[10], f"{symbol}.priceToBook", allow_none=True)  # priceToBook column
+                if yf_pb is not None:
+                    pb = yf_pb
+                    source_pb = "yfinance"
+            except Exception:
+                pass
+
+        if yfinance_row and ps is None:
+            try:
+                yf_ps = safe_float(yfinance_row[11], f"{symbol}.priceToSales", allow_none=True)  # priceToSales column
+                if yf_ps is not None:
+                    ps = yf_ps
+                    source_ps = "yfinance"
+            except Exception:
+                pass
 
         # Validate: at least one core metric must be non-None
         core_metrics = [pe, pb, ps, fcf_yield]
@@ -255,7 +298,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "fcf_yield": fcf_yield,
             "market_cap": market_cap,
             "data_unavailable": False,
-            "data_source": "sec_audited",
+            "data_source": f"pe:{source_pe},pb:{source_pb},ps:{source_ps}",  # transparent sourcing
             "updated_at": date.today().isoformat(),
         }
 
