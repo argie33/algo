@@ -296,9 +296,11 @@ except RuntimeError as e:
 ---
 
 ### 11. Loader Fallback Logic Introduces Race Condition
-**Location:** `utils/optimal_loader.py:428-448`  
+**Location:** `utils/optimal_loader.py:415-429`, `loaders/load_financial_statements.py:444-454`, `loaders/load_sector_industry_daily.py:66-76`
 **Severity:** HIGH  
-**Pattern:**
+**Status:** ✅ FIXED (Session 282)
+
+**Pattern (BEFORE Session 282):**
 ```python
 if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
     if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
@@ -307,13 +309,18 @@ if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
         lock_manager = FileLockManager(...)  # INTRODUCES RACE CONDITION!
 ```
 
-**Risk:** 
-- When DynamoDB permission denied, code falls back to FileLockManager
-- But FileLockManager has Windows race condition (non-atomic file creation)
-- Fallback makes situation WORSE for Windows users, not better
-- AWS credential issue is not fixed by switching to file-based locking
+**Root Cause:** 
+- FileLockManager uses non-atomic file creation (Python open() without O_EXCL)
+- Windows race condition: TOCTOU on file creation allows concurrent acquisition
+- Fallback makes situation WORSE, not better (replaces safe → unsafe locking)
+- AWS credential issue (root cause) not fixed by locking mechanism change
 
-**Fix:** Remove fallback to FileLockManager - fail-fast with clear error if DynamoDB unavailable
+**Solution (Session 282):** Remove ALL FileLockManager fallbacks
+- Changed all 3 locations to fail-fast with LockAcquisitionError
+- Let Step Functions/EventBridge handle retries (designed for transient failures)
+- No silent degradation, clear error messages to operators
+
+**Fix Committed:** Session 282, Commit a95858c0a (+ prior 8793739c7)
 
 ---
 
