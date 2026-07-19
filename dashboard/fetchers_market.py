@@ -462,7 +462,12 @@ def fetch_risk_metrics(c: None) -> dict[str, Any]:
         if date_unavailable:
             logger.debug("Optional risk data missing: report_date not provided by API")
 
-        has_positions = d.get("has_positions", False)
+        # CRITICAL: Explicit check - don't silently default to False if field missing.
+        # If API doesn't provide has_positions, that's a contract violation, not "no positions".
+        has_positions = d.get("has_positions")
+        if has_positions is None:
+            logger.warning("[RISK FETCH] API response missing 'has_positions' field - assuming False for display")
+            has_positions = False
 
         result = {
             "var95": safe_float(d.get("var_pct_95"), field_name="var95", strict=True),

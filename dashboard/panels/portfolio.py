@@ -299,7 +299,11 @@ def panel_portfolio(
         beta_v = risk.get("beta")
         conc5_v = risk.get("conc5")
         svar_v = risk.get("svar")
-        has_positions = risk.get("has_positions", False)
+        # CRITICAL: Explicit None check - don't silently default if field missing
+        has_positions = risk.get("has_positions")
+        if has_positions is None:
+            logger.debug("[PORTFOLIO] Risk: has_positions missing, defaulting to False for display")
+            has_positions = False
 
         # All critical fields available - render
         if var_v is not None and var_v > 0 and cvar_v is not None and beta_v is not None and conc5_v is not None:
@@ -928,9 +932,12 @@ def panel_portfolio_perf_expanded(
                 svar = safe_float(risk_dict.get("svar"), default=None, allow_none=True)
                 risk_date = risk_dict.get("date")
                 # INTENTIONAL DESIGN: When has_positions flag is missing from risk response,
-                # assume False (no positions). This prevents risk calculation errors when field
-                # is unavailable. Missing flag is treated as "no positions to protect."
-                has_positions = risk_dict.get("has_positions", False)
+                # CRITICAL: Explicit check - if field unavailable, log it and assume False
+                # "No positions to protect" is safer than assuming True (would block needed risk actions)
+                has_positions = risk_dict.get("has_positions")
+                if has_positions is None:
+                    logger.debug("[PORTFOLIO] Risk detail: has_positions missing, defaulting to False for display")
+                    has_positions = False
 
                 var_c = R if var95_f >= 4 else (Y if var95_f >= 2 else "white")
 

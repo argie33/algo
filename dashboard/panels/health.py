@@ -332,7 +332,11 @@ def _build_phase_execution_panel(
 
                 phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 2:  # Circuit Breakers
-            any_triggered = phase_data.get("any_triggered", False)
+            # CRITICAL: Explicit None check - don't silently default if field missing
+            any_triggered = phase_data.get("any_triggered")
+            if any_triggered is None:
+                logger.debug("[HEALTH] Phase 2: any_triggered field missing, defaulting to False for display")
+                any_triggered = False
             dd = phase_data.get("drawdown_pct")
             dl = phase_data.get("daily_loss_pct")
             vix = phase_data.get("vix_level")
@@ -404,7 +408,13 @@ def _build_phase_execution_panel(
             else:
                 market_regime = phase_data.get("market_regime") if isinstance(phase_data, dict) else None
                 entry_allowed = phase_data.get("entry_allowed") if isinstance(phase_data, dict) else None
-                halt_active = phase_data.get("halt_active", False) if isinstance(phase_data, dict) else False
+                # CRITICAL: Explicit None check - halt_active is critical safety signal
+                halt_active = phase_data.get("halt_active") if isinstance(phase_data, dict) else None
+                if halt_active is None and isinstance(phase_data, dict):
+                    logger.debug("[HEALTH] Phase 5: halt_active field missing, defaulting to False for display")
+                    halt_active = False
+                elif halt_active is None:
+                    halt_active = False
                 max_entries = phase_data.get("max_new_entries") if isinstance(phase_data, dict) else None
 
                 # Override status display if halt is active (fail-closed design)
@@ -519,7 +529,11 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
     # Phase 2: Circuit Breakers
     cb = execution_health.get("phase_2_circuit_breakers")
     if cb:
-        any_triggered = cb.get("any_triggered", False)
+        # CRITICAL: Explicit None check - circuit breaker trigger state is critical
+        any_triggered = cb.get("any_triggered")
+        if any_triggered is None:
+            logger.debug("[HEALTH COMPACT] Phase 2: any_triggered missing, defaulting to False for display")
+            any_triggered = False
         cb_color = R if any_triggered else G
         cb_icon = "⚠" if any_triggered else "✓"
         dd = cb.get("drawdown_pct")
@@ -827,7 +841,10 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         conc5_val = conc5_val_f
         # CRITICAL: Show beta value if positions exist (even if beta <= 0, meaning negative/neutral correlation with market)
         # Show "--" only when there are NO open positions
-        has_positions = risk_dict.get("has_positions", False)
+        has_positions = risk_dict.get("has_positions")
+        if has_positions is None:
+            logger.debug("[HEALTH] Risk: has_positions missing, defaulting to False for display")
+            has_positions = False
         beta_display = f"{beta_val:.2f}" if has_positions else "--"
         beta_c = "dim" if (not has_positions or beta_val <= 0) else (R if beta_val >= 1.2 else (Y if beta_val >= 0.8 else G))
         var_c = _var_color(var95_val)
