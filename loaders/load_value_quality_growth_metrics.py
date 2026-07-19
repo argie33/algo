@@ -96,31 +96,48 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Fetch all metrics for symbol
                     metrics = self.fetch_incremental(symbol, since_date)
                     if not metrics:
+                        logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: fetch_incremental returned empty list (CRITICAL BUG)")
+                        symbols_failed += 1
+                        continue
+
+                    # Extract metrics tuple
+                    value_row, quality_row, growth_row = metrics[0]
+
+                    # Check if value metrics are available (CRITICAL - value metrics required for scoring)
+                    if value_row and value_row.get("data_unavailable"):
+                        logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Value metrics unavailable: {value_row.get('reason')}")
+                        # Still insert unavailable marker for audit trail, but don't count as success
+                        with DatabaseContext("write") as cur:
+                            self._insert_value_metrics(cur, value_row)
+                            value_inserts += 1
+                        # Skip quality/growth if primary value metrics failed
                         symbols_failed += 1
                         continue
 
                     # Write to all 3 tables in single transaction
                     with DatabaseContext("write") as cur:
-                        value_row, quality_row, growth_row = metrics[0]
-
-                        # Insert value metrics
+                        # Insert value metrics (ALWAYS present, either data or unavailable marker)
                         self._insert_value_metrics(cur, value_row)
                         value_inserts += 1
 
-                        # Insert quality metrics
-                        if quality_row:
+                        # Insert quality metrics (OPTIONAL - missing if balance sheet data unavailable)
+                        if quality_row and not quality_row.get("data_unavailable"):
                             self._insert_quality_metrics(cur, quality_row)
                             quality_inserts += 1
+                        elif quality_row and quality_row.get("data_unavailable"):
+                            logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics unavailable: {quality_row.get('reason')}")
 
-                        # Insert growth metrics
-                        if growth_row:
+                        # Insert growth metrics (OPTIONAL - missing if income statement history unavailable)
+                        if growth_row and not growth_row.get("data_unavailable"):
                             self._insert_growth_metrics(cur, growth_row)
                             growth_inserts += 1
+                        elif growth_row and growth_row.get("data_unavailable"):
+                            logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}")
 
                     symbols_succeeded += 1
 
                 except Exception as e:
-                    logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: {e}")
+                    logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: {type(e).__name__}: {e}")
                     symbols_failed += 1
 
             # Mark all 3 tables as COMPLETED

@@ -156,10 +156,10 @@ def get_dashboard_database_config() -> dict[str, Any]:
     """Get current database configuration from environment variables.
 
     Returns:
-        Dictionary with host, port, user, password, database, or empty dict if not initialized
+        Dictionary with host, port, user, password, database
 
     Raises:
-        RuntimeError: If configuration is partially set (some vars missing)
+        RuntimeError: If configuration is not initialized OR partially set
     """
     host = os.getenv("DB_HOST")
     port = os.getenv("DB_PORT")
@@ -186,9 +186,13 @@ def get_dashboard_database_config() -> dict[str, Any]:
             f"Call bootstrap_dashboard_database() to initialize."
         )
 
-    # Return empty dict if not initialized at all
+    # FAIL FAST: If not initialized at all, raise exception instead of returning empty dict
     if not any(vars_set):
-        return {}
+        raise RuntimeError(
+            "Database configuration not initialized. "
+            "Call bootstrap_dashboard_database() before using database. "
+            "Required environment variables: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME"
+        )
 
     return {
         "host": host,

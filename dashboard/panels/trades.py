@@ -141,9 +141,14 @@ def _validate_trades_structure(trades: Any) -> tuple[list[Any], float | None]:
     Fails explicitly (raises or returns error dict) instead of silently
     falling back to empty list.
     """
-    # Check for explicit error marker
+    # Check for explicit error marker - PROPAGATE error instead of silent empty return
     if error_boundary.has_error(trades):
-        return [], None
+        if isinstance(trades, dict) and "_error" in trades:
+            # Propagate error dict wrapped in list so caller sees it's an error, not "no trades"
+            raise RuntimeError(f"[TRADES] Data retrieval failed: {trades.get('_error', 'unknown error')}")
+        else:
+            # trades is None or missing
+            raise RuntimeError("[TRADES] Data unavailable: trades object is None or missing")
 
     trades_timestamp = None
     trades_list: list[Any] = []

@@ -134,13 +134,15 @@ class CompanyInfoSECLoader(SecLoaderBase):
                                         latest = sorted(pure_values, key=lambda x: x.get("end", ""), reverse=True)[0]
                                         shares_outstanding = latest.get("val")
             except TimeoutError as e:
-                # Transient timeout - log but don't fail entire record
+                # Transient timeout - mark record unavailable with explicit reason
                 marker = handle_exception(symbol, e, "fetching company facts")
-                logger.debug(f"[{symbol}] Using NULL for shares_outstanding due to timeout")
+                logger.warning(f"[{symbol}] Timeout fetching shares_outstanding from SEC API: {marker.get('reason')}")
+                return [marker]
             except KeyError as e:
-                # API schema changed - log but don't fail entire record
+                # API schema changed - mark record unavailable with explicit reason
                 marker = handle_schema_mismatch(symbol, e, "SEC API facts schema unexpected")
-                logger.debug(f"[{symbol}] Using NULL for shares_outstanding due to schema mismatch")
+                logger.warning(f"[{symbol}] Schema mismatch fetching shares_outstanding: {marker.get('reason')}")
+                return [marker]
             except Exception as e:
                 # Unexpected errors should fail-fast
                 logger.critical(

@@ -43,7 +43,7 @@ class ShortInterestFinraLoader(OptimalLoader):
     - yfinance publishes FINRA Reg SHO short interest data
     - Updated regularly via Yahoo Finance API
     - Free, no API key required
-    - Fallback mechanism when yfinance unavailable
+    - FAIL-FAST: Returns explicit data_unavailable marker if yfinance fails (no silent fallback)
     """
 
     table_name = "short_interest_finra"
