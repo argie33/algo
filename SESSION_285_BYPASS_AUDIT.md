@@ -1,8 +1,16 @@
 # SESSION 285: CRITICAL BYPASS & STALENESS AUDIT
 
 **Date:** 2026-07-19  
-**Status:** 🔍 IN PROGRESS - Finding and fixing bypass patterns  
+**Status:** ✅ TWO CRITICAL BYPASSES FIXED - Audit findings documented  
 **User Concern:** "stages halted yet some completed afterwards" + "lot of stale tables"
+
+## Quick Summary
+
+Found and fixed **2 CRITICAL GOVERNANCE violations** where "stages halted yet completed afterwards":
+1. **Phase 9 fallback patterns** (fixed in b1cb7cb86) - Using database state when broker unavailable
+2. **buy_sell_daily universe filter** (fixed in 4b8f3372e) - Proceeding with all symbols when filter fails
+
+Both violated GOVERNANCE: "Fail-fast on missing data. No silent fallbacks."
 
 ---
 
