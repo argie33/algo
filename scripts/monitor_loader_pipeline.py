@@ -41,7 +41,7 @@ def check_data_freshness() -> dict:
             "price_daily": f"SELECT COUNT(*) FROM price_daily WHERE date = '{today}'",
             "technical_data_daily": f"SELECT COUNT(*) FROM technical_data_daily WHERE date = '{today}'",
             "buy_sell_daily": f"SELECT COUNT(*) FROM buy_sell_daily WHERE date = '{today}'",
-            "stock_scores": f"SELECT COUNT(*) FROM stock_scores WHERE date::date = '{today}'",
+            "stock_scores": f"SELECT COUNT(*) FROM stock_scores WHERE updated_at::date = '{today}'",
         }
 
         results = {}

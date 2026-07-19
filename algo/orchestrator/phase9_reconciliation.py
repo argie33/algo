@@ -733,116 +733,18 @@ def run(  # noqa: C901
         try:
             recon = DailyReconciliation(config)
         except ValueError as e:
-            # In paper trading mode, gracefully handle missing Alpaca credentials
+            # GOVERNANCE: Fail-fast on missing Alpaca credentials - no fallback to database state
+            # Attempting to reconcile with cached/estimated portfolio values (instead of broker source-of-truth)
+            # masks data sync issues and leads to incorrect position sizing on next entry.
+            # Better to halt and require explicit credential remediation than to silently degrade.
             if "credentials not found" in str(e).lower() or "credentials" in str(e).lower():
-                execution_mode = config.get("execution_mode", "paper")
-                if execution_mode in ("paper", "auto"):
-                    logger.warning(
-                        f"[PHASE 9] Alpaca credentials missing - reconciliation skipped in {execution_mode} mode. "
-                        "Portfolio snapshot will be created from database state without broker sync."
-                    )
-                    # Create basic snapshot without broker reconciliation
-                    try:
-                        from decimal import Decimal
-
-                        with DatabaseContext("write") as cur:
-                            # Count actual open positions from database (algo-managed + untracked)
-                            # CRITICAL FIX: Include algo_untracked_positions in position count so portfolio snapshot is accurate
-                            # Previously only counted algo_positions, causing dashboard alerts to show wrong broker position count
-                            cur.execute("""
-                                SELECT (
-                                    (SELECT COUNT(*) FROM algo_positions WHERE status = 'open') +
-                                    (SELECT COUNT(*) FROM algo_untracked_positions)
-                                ) as total_open_count
-                            """)
-                            position_row = cur.fetchone()
-                            open_position_count = position_row[0] if position_row else 0
-
-                            # Calculate portfolio value from positions
-                            cur.execute("""
-                                SELECT COALESCE(SUM(position_value), 0) as total_invested
-                                FROM algo_positions
-                                WHERE status = 'open'
-                            """)
-                            invested_row = cur.fetchone()
-                            total_invested = Decimal(str(invested_row[0])) if invested_row else Decimal(0)
-
-                            # FIX: Use configurable initial capital instead of hardcoded value
-                            # Prevents silent trading on incorrect portfolio state in paper mode
-                            initial_capital = config.get("initial_capital_paper_trading")
-                            if not initial_capital:
-                                raise RuntimeError(
-                                    "[PHASE 9] CRITICAL: initial_capital_paper_trading not configured. "
-                                    "Cannot reconcile paper trading portfolio without configured starting capital. "
-                                    "Set in algo_config table or fail explicitly rather than using hardcoded fallback."
-                                )
-                            total_value = Decimal(str(initial_capital))
-                            total_cash = total_value - total_invested
-
-                            # Calculate daily return vs previous day
-                            cur.execute(
-                                """
-                                SELECT total_portfolio_value
-                                FROM algo_portfolio_snapshots
-                                WHERE snapshot_date < %s
-                                ORDER BY snapshot_date DESC LIMIT 1
-                            """,
-                                (run_date,),
-                            )
-                            prev_row = cur.fetchone()
-                            prev_value = (
-                                Decimal(prev_row[0]) if prev_row and prev_row[0] else Decimal(str(initial_capital))
-                            )
-                            daily_return_pct = (
-                                ((total_value - prev_value) / prev_value * 100) if prev_value > 0 else Decimal(0)
-                            )
-
-                            # Create snapshot with actual position count and portfolio value
-                            cur.execute(
-                                """
-                                INSERT INTO algo_portfolio_snapshots (
-                                    snapshot_date, total_portfolio_value, total_cash,
-                                    position_count, daily_return_pct, created_at
-                                ) VALUES (%s, %s, %s, %s, %s, NOW())
-                                ON CONFLICT (snapshot_date) DO UPDATE
-                                SET total_portfolio_value = EXCLUDED.total_portfolio_value,
-                                    total_cash = EXCLUDED.total_cash,
-                                    position_count = EXCLUDED.position_count,
-                                    daily_return_pct = EXCLUDED.daily_return_pct,
-                                    created_at = NOW(),
-                                    updated_at = NOW()
-                            """,
-                                (
-                                    run_date,
-                                    total_value,
-                                    total_cash,
-                                    open_position_count,
-                                    daily_return_pct,
-                                ),
-                            )
-                        log_phase_result_fn(9, "portfolio_snapshot", "success", "snapshot created from DB state")
-                    except Exception as snapshot_err:
-                        logger.error(f"[PHASE 9] CRITICAL: Could not create portfolio snapshot: {snapshot_err}")
-                        raise RuntimeError(
-                            f"[PHASE 9] Portfolio snapshot creation failed - orchestrator cannot proceed: {snapshot_err}"
-                        ) from snapshot_err
-
-                    # Snapshot already created above; proceed to refresh view and return
-
-                    # Refresh materialized view
-                    try:
-                        with DatabaseContext("write") as cur:
-                            cur.execute("REFRESH MATERIALIZED VIEW algo_positions_with_risk")
-                        logger.info("[PHASE 9] Refreshed algo_positions_with_risk materialized view")
-                    except Exception as view_err:
-                        logger.warning(f"[PHASE 9] Could not refresh view: {view_err}")
-
-                    # Broker unavailable - can't reconcile positions, so report error
-                    log_phase_result_fn(9, "reconciliation", "error", f"Broker unavailable - reconciliation not performed in {execution_mode} mode")
-                    return PhaseResult(9, "reconciliation", "error", {"status": "error", "reason": f"Broker API unavailable in {execution_mode} mode", "positions": 0}, False, f"Broker API unavailable in {execution_mode} mode")
-                else:
-                    # Live trading requires credentials
-                    raise RuntimeError(f"[PHASE 9 CRITICAL] Live trading requires Alpaca credentials: {e}") from e
+                raise RuntimeError(
+                    f"[PHASE 9 CRITICAL] Alpaca credentials not available. "
+                    f"Reconciliation requires live broker data. "
+                    f"Cannot proceed with trading using stale or estimated portfolio state. "
+                    f"Fix: Ensure Alpaca API keys are configured in AWS Secrets Manager (algo/alpaca secret) or environment. "
+                    f"Error: {e}"
+                ) from e
             else:
                 raise
         reconciliation_succeeded, result = _run_reconciliation_step(config, run_date, log_phase_result_fn, dry_run)
@@ -1009,81 +911,22 @@ def run(  # noqa: C901
             }
             phase_status = "ok"
         else:
-            # Reconciliation failed (broker unavailable, 401, etc) - degrade gracefully
-            # Explicitly extract error message with audit trail for debugging
+            # Reconciliation failed - fail-fast (no graceful degradation)
+            # GOVERNANCE: Reconciliation is non-negotiable. Using estimated/cached portfolio state
+            # instead of broker source-of-truth masks data sync issues and leads to position sizing errors.
+            # Better to halt explicitly and require broker access than to silently degrade.
             error_msg = result.get("reason")
             if error_msg is None:
                 error_msg = result.get("error")
             if error_msg is None:
                 error_msg = "(reconciliation failed with no error details)"
-            if "401" in str(error_msg) or "unauthorized" in str(error_msg).lower():
-                # Paper mode: treat 401 as non-critical (expected without real credentials)
-                if config.get("execution_mode") in ("paper", "auto"):
-                    logger.warning(
-                        "[PHASE 9] Paper mode: Broker authentication failed (401) - expected without real credentials. "
-                        "Using database portfolio state instead of broker sync."
-                    )
-                    # FIX: Use configurable initial capital instead of hardcoded value
-                    initial_capital = config.get("initial_capital_paper_trading")
-                    if not initial_capital:
-                        raise RuntimeError(
-                            "[PHASE 9] CRITICAL: initial_capital_paper_trading not configured. "
-                            "Cannot reconcile paper mode without configured starting capital."
-                        )
-                    # CRITICAL FIX: Never default positions and unrealized_pnl to 0
-                    # These MUST be fetched from database on reconciliation failure.
-                    # Defaulting to 0 masks data loss and could lead to corrupted position tracking.
-                    try:
-                        with DatabaseContext("read") as cur:
-                            cur.execute("""
-                                SELECT COUNT(*) as pos_count
-                                FROM algo_trades
-                                WHERE status = 'open'
-                            """)
-                            pos_row = cur.fetchone()
-                            pos_count = pos_row[0] if pos_row else None
-                            if pos_count is None:
-                                raise RuntimeError(
-                                    "[PHASE 9] CRITICAL: Cannot fetch position count from database. "
-                                    "Cannot proceed with paper mode reconciliation."
-                                )
 
-                            cur.execute("""
-                                SELECT SUM(unrealized_pnl_total) as total_pnl
-                                FROM (
-                                    SELECT unrealized_pnl_total
-                                    FROM algo_portfolio_snapshots
-                                    ORDER BY created_at DESC
-                                    LIMIT 1
-                                ) t
-                            """)
-                            pnl_row = cur.fetchone()
-                            total_pnl = float(pnl_row[0]) if (pnl_row and pnl_row[0] is not None) else 0.0
-                    except Exception as db_err:
-                        raise RuntimeError(
-                            f"[PHASE 9] CRITICAL: Failed to fetch reconciliation data from database on auth failure: {db_err}. "
-                            "Cannot proceed safely without verified position data."
-                        ) from db_err
-
-                    reconciliation_succeeded = True
-                    phase_status = "ok"
-                    result = {
-                        "success": True,
-                        "portfolio_value": float(initial_capital),
-                        "positions": pos_count,
-                        "unrealized_pnl": total_pnl,
-                        "note": "Paper mode - broker auth failed, fetched from database",
-                    }
-                else:
-                    logger.critical(
-                        "[PHASE 9] CRITICAL: Broker authentication failed (401). "
-                        "Reconciliation cannot proceed - cannot verify position alignment. "
-                        "This is NOT EXPECTED in production. Check Alpaca credentials."
-                    )
-                phase_status = "error"  # Fail explicitly - don't mask auth errors as "ok"
-            else:
-                logger.error(f"[PHASE 9] CRITICAL: Reconciliation failed: {error_msg}")
-                phase_status = "error"  # Fail explicitly on reconciliation failure
+            logger.critical(
+                f"[PHASE 9] CRITICAL: Reconciliation failed: {error_msg}. "
+                f"Cannot proceed with trading without broker verification of portfolio state. "
+                f"Ensure Alpaca API is accessible and credentials are valid."
+            )
+            phase_status = "error"
 
             data = {
                 "reconciliation": result,
