@@ -104,8 +104,9 @@ class RegimeManager:
                 as_of_date = _date.today()
 
             with DatabaseContext("read") as cur:
+                # GOVERNANCE: Must check data_unavailable flag before using regime data
                 cur.execute(
-                    """SELECT regime, date FROM market_exposure_daily
+                    """SELECT regime, date, data_unavailable, reason FROM market_exposure_daily
                        WHERE date <= %s AND regime IS NOT NULL
                        ORDER BY date DESC LIMIT 1""",
                     (as_of_date,),
@@ -119,8 +120,15 @@ class RegimeManager:
                     f"Phase 4 (market exposure calculation) must complete successfully before trading."
                 )
 
-            regime = str(row[0])
-            data_date = row[1]
+            # GOVERNANCE ENFORCEMENT: Fail-fast if data marked unavailable
+            regime_str, data_date, data_unavailable, reason = row[0], row[1], row[2], row[3]
+            if data_unavailable is True:
+                raise RuntimeError(
+                    f"Market regime data marked unavailable for {data_date}: {reason or 'no reason provided'}. "
+                    f"Cannot determine trading regime without valid market exposure analysis."
+                )
+
+            regime = str(regime_str)
             age_days = (as_of_date - data_date).days
             if age_days > 1:
                 raise RuntimeError(
@@ -224,9 +232,10 @@ class RegimeManager:
             start_date = _date.today() - timedelta(days=days)
 
             with DatabaseContext("read") as cur:
+                # GOVERNANCE: Select data_unavailable to filter out invalid rows
                 cur.execute(
                     """
-                    SELECT DISTINCT ON (date) date, regime FROM market_exposure_daily
+                    SELECT DISTINCT ON (date) date, regime, data_unavailable FROM market_exposure_daily
                     WHERE date >= %s AND regime IS NOT NULL
                     ORDER BY date DESC, created_at DESC
                     """,
@@ -238,7 +247,10 @@ class RegimeManager:
             prev_regime = None
             days_in_regime = 0
 
-            for date_val, regime in reversed(rows):
+            for date_val, regime, data_unavailable in reversed(rows):
+                # GOVERNANCE: Skip rows marked unavailable
+                if data_unavailable is True:
+                    continue
                 transition = prev_regime is not None and prev_regime != regime
                 if transition:
                     days_in_regime = 1
@@ -275,8 +287,9 @@ class RegimeManager:
                 as_of_date = _date.today()
 
             with DatabaseContext("read") as cur:
+                # GOVERNANCE: Check data_unavailable flag before using score
                 cur.execute(
-                    """SELECT raw_score FROM market_exposure_daily
+                    """SELECT raw_score, data_unavailable, reason FROM market_exposure_daily
                        WHERE date <= %s AND raw_score IS NOT NULL
                        ORDER BY date DESC LIMIT 1""",
                     (as_of_date,),
@@ -284,7 +297,13 @@ class RegimeManager:
                 row = cur.fetchone()
 
             if row is not None and row[0] is not None:
-                score = float(row[0])
+                score, data_unavailable, reason = row[0], row[1], row[2]
+                # GOVERNANCE: Fail if data marked unavailable
+                if data_unavailable is True:
+                    raise RuntimeError(
+                        f"Market exposure confidence score marked unavailable: {reason or 'no reason provided'}. "
+                        f"Cannot assess regime strength without valid exposure analysis."
+                    )
                 return min(1.0, max(0.0, score / 100.0))
             raise RuntimeError(
                 f"Market exposure score unavailable as of {as_of_date}. "
