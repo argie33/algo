@@ -54,18 +54,18 @@ CRITICAL_INCOMPLETE_LOADERS = {
     # Other critical loaders
     "stock_scores",
     "technical_data_daily",
-    # REMOVED (Session 221): growth_metrics, quality_metrics, value_metrics, positioning_metrics,
-    # stability_metrics. These are enrichments for website display, not needed for core trading signals.
+    # Metric loaders (Session 257 / 2026-07-05): Essential for stock scoring.
+    # Phase 1 requires these fresh; stock_scores requires minimum 3/6 metrics per GOVERNANCE.md.
+    "growth_metrics",
+    "quality_metrics",
+    "value_metrics",
+    "positioning_metrics",
+    "stability_metrics",
 }
 
 # Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)
 # NOTE: These loaders are nice-to-have enrichments; failing to load them should NOT
 # trigger retry since they don't block trading. Phase 1 only retries CRITICAL loaders.
-# UPDATED 2026-07-05: All metric loaders (growth, positioning, quality, stability, value)
-# moved to CRITICAL_INCOMPLETE_LOADERS. These are essential for stock scoring per
-# GOVERNANCE.md: stock_scores requires minimum 3/6 metrics (50% completeness).
-# Incomplete metrics cause scores to degrade or fail entirely. Metric loaders must be
-# retried and must complete with sufficient coverage (>70%) before stock_scores publishes.
 AUXILIARY_INCOMPLETE_LOADERS = {
     "analyst_sentiment_analysis",
     "sector_ranking",
