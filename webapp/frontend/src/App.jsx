@@ -44,6 +44,7 @@ const OurTeam = React.lazy(() => import("./pages/marketing/OurTeam"));
 const MissionValues = React.lazy(
   () => import("./pages/marketing/MissionValues")
 );
+const Services = React.lazy(() => import("./pages/marketing/Services"));
 const ResearchInsights = React.lazy(
   () => import("./pages/marketing/ResearchInsights")
 );
@@ -123,6 +124,14 @@ function App() {
               element={
                 <ErrorBoundary>
                   <MissionValues />
+                </ErrorBoundary>
+              }
+            />
+            <Route
+              path="/services"
+              element={
+                <ErrorBoundary>
+                  <Services />
                 </ErrorBoundary>
               }
             />
