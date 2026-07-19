@@ -55,17 +55,11 @@ class StockScoresLoader(OptimalLoader):
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override run to validate upstream metrics are ready before computing scores.
 
-        CRITICAL FIX 2026-07-18: Temporarily skip validation until all upstream loaders are fixed.
-        Momentum loader is now fixed (reads from momentum_metrics), but other loaders still have issues.
-        TODO: Re-enable validation once all metric loaders have sufficient coverage.
+        CRITICAL: Pre-flight validation ensures all upstream metric loaders have sufficient
+        coverage before attempting stock score computation. This prevents silent degradation
+        from incomplete metric data (e.g., 50% availability = biased scoring that impacts trading).
         """
-        logger.warning(
-            "[STOCK_SCORES] TEMPORARY: Upstream metrics validation DISABLED. "
-            "Momentum loader fixed, but other metric loaders incomplete. "
-            "Stock scores will compute with available metrics. TODO: Fix upstream loaders."
-        )
-        # TODO: Re-enable once upstream loaders (value, positioning, quality, growth) fixed
-        # self.validate_upstream_metrics_ready()
+        self.validate_upstream_metrics_ready()
         return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
 
     def validate_upstream_metrics_ready(self) -> None:
