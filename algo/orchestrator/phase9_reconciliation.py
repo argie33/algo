@@ -429,13 +429,20 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
         # Never silently degrade on data quality failures.
         raise
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"Performance metrics database error: {e}")
-        perf_status = "warn"
-        perf_summary = f"db error: {str(e)[:50]}"
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Performance metrics database error: {e}. "
+            f"Cannot proceed when performance data unavailable. "
+            f"Check database connectivity and portfolio state."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     except Exception as e:
-        logger.warning(f"Unexpected error in performance metrics: {e}")
-        perf_status = "warn"
-        perf_summary = f"error: {str(e)[:50]}"
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Performance metrics computation failed unexpectedly: {e}. "
+            f"Cannot proceed when performance data unavailable."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     finally:
         log_phase_result_fn(9, "performance", perf_status, perf_summary)
 
@@ -498,8 +505,21 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
             risk_summary = risk_report.get("message", "insufficient data")
         else:
             risk_summary = "failed to generate report"
+    except (ValueError, RuntimeError, KeyError, TypeError) as e:
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Risk metrics computation failed: {e}. "
+            f"Cannot proceed when risk assessment unavailable. "
+            f"Check portfolio state and risk calculation logic."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     except Exception as e:
-        risk_summary = f"error: {str(e)[:60]}"
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Risk metrics computation failed unexpectedly: {e}. "
+            f"Cannot proceed when risk assessment unavailable."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     finally:
         log_phase_result_fn(9, "risk_metrics", risk_status, risk_summary)
 
@@ -559,9 +579,13 @@ def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., An
             metrics_status = "warn"
             metrics_summary = "No trades recorded"
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        logger.warning(f"Failed to update algo_metrics_daily: {e}")
-        metrics_summary = f"error: {str(e)[:60]}"
-        metrics_status = "warn"
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Failed to persist metrics to algo_metrics_daily: {e}. "
+            f"Cannot proceed when metrics persistence unavailable. "
+            f"Check database connectivity and disk space."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     finally:
         log_phase_result_fn(9, "metrics_update", metrics_status, metrics_summary)
 

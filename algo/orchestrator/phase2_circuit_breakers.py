@@ -111,18 +111,22 @@ def run(
                     f"Market circuit breaker L{halt_level}: {halt_reason}",
                 )
         except (OSError, RuntimeError, ValueError) as e:
+            error_msg = (
+                f"[PHASE 2 CRITICAL] Market circuit breaker check failed: {e}. "
+                f"Cannot proceed with trading without market health assessment. "
+                f"Market circuit breaker API failure must halt trading per GOVERNANCE (fail-fast on missing data). "
+                f"Check MarketEventHandler API connectivity and data availability."
+            )
+            logger.critical(error_msg)
             error = PhaseError(
                 category=ErrorCategory.DEPENDENCY_FAILED,
-                message="Market circuit breaker check failed",
+                message=error_msg,
                 root_cause=str(e)[:150],
-                recoverable=True,
-                log_level="warning",
+                recoverable=False,
+                log_level="critical",
             )
             log_phase_error(2, error, log_phase_result_fn)
-            logger.warning(
-                f"Market circuit breaker check skipped due to dependency failure: {e}. "
-                f"Proceeding with account circuit breakers only."
-            )
+            raise RuntimeError(error_msg) from e
 
         if result["halted"]:
             # GOVERNANCE: Fail-fast on data contract violations. If halted=True, halt_reasons MUST be present.
