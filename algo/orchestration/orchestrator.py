@@ -59,7 +59,47 @@ logger = logging.getLogger(__name__)
 
 
 class Orchestrator:
-    """Daily workflow runner with explicit phases."""
+    """Daily workflow runner with explicit phases.
+
+    ## Phase Execution Model
+
+    The orchestrator runs 9 phases in sequence with explicit dependency management:
+
+    **Phases 1-5: Data & Risk Gates (Skip on Halt)**
+    - Phase 1: Data Freshness - Verify prices, technicals, market data are fresh
+    - Phase 2: Circuit Breakers - Check portfolio drawdown, VIX, market stage, loss streaks
+    - Phase 3: Position Monitor - Check for single-stock halts, stale orders (ALWAYS_RUN)
+    - Phase 4: Reconciliation - Sync algo_positions with broker Alpaca
+    - Phase 5: Exposure Policy - Set entry constraints based on market regime
+
+    **Phases 6-9: Trading & Risk Closure (Always Run, even if earlier phases halt)**
+    - Phase 6: Exit Execution - Close losing positions (ALWAYS_RUN - risk management)
+    - Phase 7: Signal Generation - Rank stocks, generate buy/sell signals
+    - Phase 8: Entry Execution - Execute entry trades from Phase 7 signals
+    - Phase 9: Reconciliation - Create final portfolio snapshot, P&L logs (ALWAYS_RUN)
+
+    ## Halt Behavior
+
+    If any Phase 1-5 fails or halts (e.g., stale data, circuit breaker triggered):
+    - Phases 1-5 that haven't run yet: SKIP (fail-closed for safety)
+    - Phases 6, 9: CONTINUE (must run to close positions and record final state)
+    - Phase 3: ALWAYS runs (position monitoring is critical even during halt)
+    - Phases 7-8: Depend on Phase 5 data - will fail if exit constraints unavailable
+
+    ## Why Phase 3/6/9 Always Run
+
+    Position monitoring, exit execution, and reconciliation are NON-NEGOTIABLE:
+    - Phase 3: Must detect if a held stock is halted (NYSE/NASDAQ halt)
+    - Phase 6: Must close positions during market emergencies (CB L1/L2/L3 triggered)
+    - Phase 9: Must record true portfolio state (P&L, positions) for audit trail
+
+    Without these always-running phases, the algo could:
+    - Hold a halted stock indefinitely (position forever stuck)
+    - Fail to exit during market circuit breaker events (catastrophic loss)
+    - Have no reconciliation record of what happened (audit failure)
+
+    This is by design - risk management gates override data staleness.
+    """
 
     def __init__(
         self,
