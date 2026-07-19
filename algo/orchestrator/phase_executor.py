@@ -142,25 +142,35 @@ class OrchestratorPhaseExecutor:
 
         CRITICAL: Fails fast if phase_num is not recognized. Unknown phases
         indicate configuration errors that must not be silently masked.
+
+        IMPORTANT: When a phase is skipped, downstream phases must be aware
+        that the data is from a skip, not a full execution. This prevents
+        silent cascading failures where empty defaults mask missing data.
         """
         defaults: dict[int | str, dict[str, Any]] = {
-            1: {"status": "skipped"},
-            2: {"status": "skipped"},
-            3: {"recommendations": []},
-            4: {"success": False, "reason": "phase skipped"},
+            1: {"status": "skipped", "reason": "phase skipped - no data available"},
+            2: {"status": "skipped", "reason": "phase skipped - no data available"},
+            3: {"recommendations": [], "reason": "phase skipped"},
+            4: {"success": False, "reason": "phase skipped - no reconciliation performed"},
             5: {
                 "constraints": {
                     "tier_name": "CORRECTION",
                     "risk_multiplier": 0.0,
                     "max_new_positions_today": 0,
                     "halt_new_entries": True,
+                    "halt_reason": "Previous phase halted - cannot determine exposure constraints",
                 },
                 "actions": [],
+                "reason": "phase skipped - using safe defaults (no new entries)",
             },
-            6: {"exits_executed": 0},
-            7: {"qualified_trades": []},
-            8: {"entered": 0},
-            9: {"positions": 0},
+            6: {"exits_executed": 0, "reason": "phase skipped"},
+            7: {
+                "qualified_trades": [],
+                "reason": "phase skipped - no signals generated (upstream phase halted)",
+                "skipped": True,
+            },
+            8: {"entered": 0, "reason": "phase skipped"},
+            9: {"positions": 0, "reason": "phase skipped"},
         }
         if phase_num not in defaults:
             raise ValueError(
