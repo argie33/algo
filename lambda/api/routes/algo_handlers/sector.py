@@ -112,7 +112,34 @@ def _get_sector_breadth(cur: cursor) -> Any:
             """)
         breadth = cur.fetchall()
         cur.execute("RELEASE SAVEPOINT sector_breadth_check")
-        return list_response([safe_json_serialize(safe_dict_convert(b)) for b in breadth])
+
+        # CRITICAL: Validate all required fields are present in every row (Issue #8 fix)
+        # Missing fields indicate upstream data quality issues that should be surfaced
+        required_fields = {"sector", "pct_above_50d", "pct_above_200d", "_is_fallback", "symbol_coverage_50d_pct", "symbol_coverage_200d_pct"}
+        breadth_data = []
+        for row in breadth:
+            row_dict = safe_dict_convert(row)
+            row_json = safe_json_serialize(row_dict)
+
+            # Check for missing required fields
+            missing_fields = required_fields - {k for k in row_dict.keys() if k in required_fields}
+            if missing_fields:
+                logger.error(
+                    f"[SECTOR_BREADTH] Row missing required fields: {missing_fields}. "
+                    f"Available fields: {list(row_dict.keys())}. "
+                    f"Cannot return incomplete breadth data - caller needs all fields for display/calculations."
+                )
+                # FAIL-FAST: Don't silently skip incomplete rows; report the issue
+                return error_response(
+                    503,
+                    "data_incomplete",
+                    f"Sector breadth data incomplete - missing fields: {', '.join(missing_fields)}. "
+                    f"Check technical_data_daily and price_daily loaders."
+                )
+
+            breadth_data.append(row_json)
+
+        return list_response(breadth_data)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,
