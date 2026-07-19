@@ -236,22 +236,29 @@ content_length = int(self.headers.get("Content-Length", 0))  # BUG: Defaults to 
 
 ## FIX STRATEGY
 
-**Phase 1 - CRITICAL (This session):**
-1. Fix trades panel → propagate errors, not swallow
-2. Fix bootstrap → fail-fast on incomplete config
-3. Fix short_interest_finra → explicit data_unavailable marker
-4. Fix company_info_sec → explicit timeout marker
-5. Fix value_quality_growth → explicit skip reasons
+**Phase 1 - CRITICAL (Session 265 COMPLETE) ✅**
+1. ✅ Fix trades panel → propagate errors, not swallow (HEAD)
+2. ✅ Fix bootstrap → fail-fast on incomplete config (HEAD)
+3. ✅ Fix short_interest_finra → FINRA API (eliminated yfinance) (7826e6dcb)
+4. ✅ Fix company_info_sec → explicit timeout marker (HEAD)
+5. ✅ Fix value_quality_growth → explicit skip reasons (a2fd8fae4+)
 
-**Phase 2 - HIGH (Next session if time):**
-6. Fix position enrichment → enrichment_incomplete flag
-7. Fix orchestrator config → explicit None checks
-8. Fix yfinance snapshot → logging + marker on fallback
-9. Fix institutional holdings → tag cascade logging
-10. Fix economic data → explicit validation
+**Phase 2 - HIGH (Session 266+):**
+6. 🔄 Fix position enrichment → enrichment_incomplete flag in response
+7. 🔄 Fix orchestrator config → explicit None checks (not implicit .get())
+8. 🔄 Fix yfinance snapshot → logging which fetch path used + marker on fallback
+9. 🔄 Fix institutional holdings → log each tag attempt + which succeeded
+10. 🔄 Fix economic data → explicit validation (not .get() sentinel pattern)
 
-**Phase 3 - MEDIUM (Polish pass):**
+**Phase 3 - MEDIUM (Session 267+ Polish pass):**
 11-15. Audit remaining .get() patterns, lazy init patterns, field validation
+
+**GOVERNANCE COMPLIANCE:**
+All fixes enforce pattern in `CLAUDE.md`:
+- ✅ CRITICAL data: Exception on failure (not silent return)
+- ✅ OPTIONAL data: Explicit data_unavailable marker (not empty list)
+- ✅ Financial calculations: Fail-fast (not return 0/None ambiguity)
+- ✅ Pre-commit hook: `check-silent-fallbacks.py` enforces on all commits
 
 ---
 
