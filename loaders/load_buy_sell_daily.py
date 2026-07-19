@@ -838,23 +838,35 @@ def main() -> int:  # noqa: C901
             # This caused 99.5% of signals to be filtered out in Phase 7.
             # Solution: Only generate signals for symbols with stock_scores available.
             # Note: This reduces signal volume but ensures all signals can be ranked by Phase 7.
-            try:
-                with DatabaseContext("read") as cur:
-                    cur.execute(
-                        "SELECT symbol FROM stock_scores WHERE data_unavailable = false"
-                    )
-                    scored_symbols = {row[0] for row in cur.fetchall()}
-
-                original_count = len(symbols)
-                symbols = [s for s in symbols if s in scored_symbols]
-                logger.info(
-                    f"[UNIVERSE FILTER] Filtered buy_sell_daily symbols to only those with stock_scores: "
-                    f"{original_count} → {len(symbols)} symbols (removed {original_count - len(symbols)} without scores)"
+            #
+            # GOVERNANCE: Universe filter is NON-NEGOTIABLE. Fail-fast if it fails.
+            # Proceeding with all symbols when filter fails violates GOVERNANCE principle:
+            # "Fail-fast on missing data. No silent fallbacks."
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT symbol FROM stock_scores WHERE data_unavailable = false"
                 )
-            except Exception as e:
-                logger.error(
-                    f"[UNIVERSE FILTER] Failed to filter symbols by stock_scores: {e}. "
-                    f"Proceeding with all {len(symbols)} symbols (may cause Phase 7 filtering issues)."
+                scored_symbols = {row[0] for row in cur.fetchall()}
+
+            if not scored_symbols:
+                raise RuntimeError(
+                    "[UNIVERSE FILTER] CRITICAL: stock_scores table is empty or all marked unavailable. "
+                    "Cannot generate signals without score-qualified symbols. "
+                    "Check: (1) stock_scores loader completed, (2) data_unavailable flags correct."
+                )
+
+            original_count = len(symbols)
+            symbols = [s for s in symbols if s in scored_symbols]
+            logger.info(
+                f"[UNIVERSE FILTER] Filtered buy_sell_daily symbols to only those with stock_scores: "
+                f"{original_count} → {len(symbols)} symbols (removed {original_count - len(symbols)} without scores)"
+            )
+
+            if not symbols:
+                raise RuntimeError(
+                    "[UNIVERSE FILTER] CRITICAL: No symbols remain after filtering to stock_scores universe. "
+                    "This means active_symbols have no corresponding stock_scores. "
+                    "Check: (1) stock_scores loader covers all active symbols, (2) data_unavailable flags."
                 )
     except Exception as e:
         logger.error(f"[LOADER] Failed to fetch active symbols: {e}. Exit code 1 (ERROR).")
