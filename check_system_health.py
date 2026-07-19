@@ -117,11 +117,28 @@ def check_database() -> dict:
                     cnt, _, age_hours = cur.fetchone()
                     age_hours = float(age_hours) if age_hours is not None else None
 
-                    fresh = age_hours is None or age_hours < 24
+                    # Use market-calendar-aware thresholds (consistent with monitor_data_staleness.py)
+                    # On non-trading days (weekends/holidays), data from last trading day is fresh
+                    from algo.infrastructure.market_calendar import MarketCalendar
+                    from datetime import datetime, timezone
+
+                    cal = MarketCalendar()
+                    now = datetime.now(timezone.utc)
+                    is_trading_day = cal.is_trading_day(now)
+
+                    if table_name in ("price_daily", "technical_data_daily"):
+                        # On trading days: 24h, on non-trading: 48h (Friday data OK on Saturday)
+                        threshold = 24 if is_trading_day else 48
+                    else:
+                        # Always use 24h for other tables
+                        threshold = 24
+
+                    fresh = age_hours is None or age_hours < threshold
                     status_icon = "[OK]" if fresh else "[WARN]"
                     age_str = f"{age_hours:.1f}h" if age_hours is not None else "N/A"
+                    day_type = "(trading)" if is_trading_day else "(non-trading)"
 
-                    result["details"].append(f"{status_icon} {table_name}: {cnt} rows, latest: {age_str} ago")
+                    result["details"].append(f"{status_icon} {table_name}: {cnt} rows, latest: {age_str} ago {day_type}")
 
                     if not fresh:
                         all_fresh = False

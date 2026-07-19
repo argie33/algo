@@ -284,20 +284,15 @@ class VectorizedSignalGenerator:
                 sma200 = self._rolling_mean(closes, 200)
                 sma200_val = sma200[-1] if len(sma200) > 0 else np.nan
 
-                # Weinstein stages based on price position and MA slope
-                stage = 0
-                if not np.isnan(sma200_val) and not np.isnan(c) and c > sma200_val:
-                    if ma150_slope is not None and ma150_slope > 0:
-                        stage = 2  # Uptrend
-                    else:
-                        stage = 3  # Distribution
+                # Weinstein stages - require ma150_slope and price/MA data, no synthetic fallbacks
+                if ma150_slope is None or np.isnan(sma200_val) or np.isnan(c):
+                    results[symbol] = {"stage": None, "confidence": 0.0, "failed": True}
+                elif c > sma200_val:
+                    stage = 2 if ma150_slope > 0 else 3  # Uptrend or Distribution
+                    results[symbol] = {"stage": stage, "confidence": 0.75}
                 else:
-                    if ma150_slope is not None and ma150_slope < 0:
-                        stage = 4  # Downtrend
-                    else:
-                        stage = 1  # Base building
-
-                results[symbol] = {"stage": stage, "confidence": 0.75}
+                    stage = 4 if ma150_slope < 0 else 1  # Downtrend or Base building
+                    results[symbol] = {"stage": stage, "confidence": 0.75}
             except (ValueError, ZeroDivisionError, TypeError) as e:
                 logger.warning(f"[VECTORIZED] {symbol}: Weinstein computation failed: {e}")
                 results[symbol] = {"stage": 0, "confidence": 0.0, "failed": True}

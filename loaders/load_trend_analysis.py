@@ -146,13 +146,15 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
         minervini_components[["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"]].sum(axis=1, skipna=False).astype(float)
     )
 
-    # Weinstein stage (1-4)
+    # Weinstein stage (1-4): NaN when SMAs missing, no synthetic defaults
     above200 = close > sma200
     sma50_above_sma200 = sma50 > sma200
-    merged["weinstein_stage"] = 4  # default: downtrend
-    merged.loc[above200 & sma50_above_sma200, "weinstein_stage"] = 2  # uptrend
-    merged.loc[above200 & ~sma50_above_sma200, "weinstein_stage"] = 3  # topping
-    merged.loc[~above200 & sma50_above_sma200, "weinstein_stage"] = 1  # basing
+    merged["weinstein_stage"] = pd.NA  # None assigned only where computation succeeds
+    valid_data = pd.notna(close) & pd.notna(sma200) & pd.notna(sma50)
+    merged.loc[valid_data & above200 & sma50_above_sma200, "weinstein_stage"] = 2  # uptrend
+    merged.loc[valid_data & above200 & ~sma50_above_sma200, "weinstein_stage"] = 3  # topping
+    merged.loc[valid_data & ~above200 & sma50_above_sma200, "weinstein_stage"] = 1  # basing
+    merged.loc[valid_data & ~above200 & ~sma50_above_sma200, "weinstein_stage"] = 4  # downtrend
 
     # Trend direction
     merged["trend_direction"] = "sideways"

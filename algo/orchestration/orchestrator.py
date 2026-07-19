@@ -1523,6 +1523,8 @@ class Orchestrator:
 
         any_error = any(p["status"] in ("error", "fail") for p in self.phase_results.values())
         any_halt = any(p["status"] == "halted" for p in self.phase_results.values())
+        any_degraded = any(p["status"] == "degraded" for p in self.phase_results.values())
+        any_skipped = any(p["status"] == "skipped" for p in self.phase_results.values())
 
         # Determine reason for halt/skip if applicable
         skip_reason = None
@@ -1536,14 +1538,24 @@ class Orchestrator:
                 (p["summary"] for p in self.phase_results.values() if p["status"] == "halted"),
                 "circuit_breaker_halted",
             )
+        elif any_degraded:
+            skip_reason = next(
+                (p["summary"] for p in self.phase_results.values() if p["status"] == "degraded"),
+                "phase_degraded",
+            )
+        elif any_skipped:
+            skip_reason = next(
+                (p["summary"] for p in self.phase_results.values() if p["status"] == "skipped"),
+                "phase_skipped",
+            )
 
         result = {
             "run_id": self.run_id,
             "run_date": self.run_date.isoformat(),
             "phases": [{"phase": n, **info} for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0]))],
-            "success": not any_error and not any_halt,
-            "halted": any_halt,
-            "skipped": any_halt,  # Required by Lambda handler
+            "success": not (any_error or any_halt or any_degraded or any_skipped),
+            "halted": any_halt or any_degraded or any_skipped,
+            "skipped": any_halt or any_degraded or any_skipped,  # Required by Lambda handler
             "reason": skip_reason or "none",  # Required by Lambda handler
         }
 
@@ -1559,6 +1571,18 @@ class Orchestrator:
                 overall_status = "halted"
                 halt_reason = next(
                     (p["summary"] for p in self.phase_results.values() if p["status"] == "halted"),
+                    None,
+                )
+            elif any_degraded:
+                overall_status = "degraded"
+                halt_reason = next(
+                    (p["summary"] for p in self.phase_results.values() if p["status"] == "degraded"),
+                    None,
+                )
+            elif any_skipped:
+                overall_status = "degraded"
+                halt_reason = next(
+                    (p["summary"] for p in self.phase_results.values() if p["status"] == "skipped"),
                     None,
                 )
             else:
