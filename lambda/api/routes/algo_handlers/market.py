@@ -375,7 +375,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             if row.get("row_count") is None:
                 tbl_name = row.get("table_name")
                 try:
-                    cur.execute(f"SELECT COUNT(*) AS cnt FROM {psycopg2.sql.Identifier(tbl_name).as_string(cur)}")
+                    cur.execute(psycopg2.sql.SQL("SELECT COUNT(*) AS cnt FROM {}").format(
+                        psycopg2.sql.Identifier(tbl_name)
+                    ))
                     count_row = cur.fetchone()
                     if count_row:
                         actual_count = safe_dict_convert(count_row).get("cnt")
