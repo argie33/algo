@@ -590,8 +590,11 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
     if entry_ex:
         entries = entry_ex.get("entries_executed")
         success_rate = entry_ex.get("success_rate")
-        entry_color = G if entries > 0 and success_rate >= 80 else (Y if entries > 0 else DIM)
-        rows.append(Text.from_markup(f"  [{entry_color}]↑ P8:[/] {entries} entries, {success_rate:.0f}% success"))
+        if entries is None or success_rate is None:
+            rows.append(Text.from_markup(f"  [dim]↑ P8:[/] [dim]DATA UNAVAILABLE[/]"))
+        else:
+            entry_color = G if entries > 0 and success_rate >= 80 else (Y if entries > 0 else DIM)
+            rows.append(Text.from_markup(f"  [{entry_color}]↑ P8:[/] {entries} entries, {success_rate:.0f}% success"))
 
     # Phase 9: Portfolio Snapshot
     snap = execution_health.get("phase_9_portfolio_snapshot")
