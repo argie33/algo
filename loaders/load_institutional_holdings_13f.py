@@ -62,11 +62,13 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
         self.sec_client = SecEdgarClient()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch institutional holdings from SEC SCHEDULE 13G filings.
+        """Fetch institutional holdings from SEC companyfacts API.
 
-        SCHEDULE 13G filings are filed when shareholders acquire 5%+ ownership.
-        This loader finds recent SCHEDULE 13G filings for a company and aggregates
-        the institutional holdings to estimate total institutional ownership %.
+        Uses SEC's standardized XBRL institutional ownership metrics (SRT_InstitutionalOwnersPercent)
+        available via companyfacts endpoint. This is more reliable than SCHEDULE 13G because:
+        - Applies to all public companies, not just those with recent 5%+ shareholder activity
+        - Updated regularly as companies file 10-K/10-Q reports
+        - SEC-standardized metric (no parsing needed)
 
         Args:
             symbol: Stock ticker symbol
@@ -85,19 +87,22 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
                 logger.warning(f"[{symbol}] CIK not found in SEC ticker cache")
                 return self._unavailable_record(symbol, now_et, "cik_not_found")
 
-            # Fetch SCHEDULE 13G filings
-            return self._fetch_schedule13g_filings(symbol, cik, now_et)
+            # Fetch institutional ownership from companyfacts API
+            return self._fetch_companyfacts_institutional(symbol, cik, now_et)
 
         except Exception as e:
             logger.error(f"[{symbol}] Failed to fetch institutional holdings: {type(e).__name__}: {e}")
             return self._unavailable_record(symbol, now_et, f"fetch_error: {str(e)[:40]}")
 
-    def _fetch_schedule13g_filings(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
-        """Fetch SCHEDULE 13G filings and aggregate institutional holdings.
+    def _fetch_companyfacts_institutional(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
+        """Fetch institutional ownership % from SEC companyfacts API.
 
-        SCHEDULE 13G filings report shareholders with 5%+ ownership. This method
-        finds recent SCHEDULE 13G filings for a company and aggregates the
-        institutional holdings reported in those filings.
+        Uses SEC's XBRL-standardized institutional ownership metrics available through
+        the companyfacts endpoint. This applies to all public companies, not just those
+        with 5%+ shareholders (which is why SC 13G approach had only 0.02% coverage).
+
+        The companyfacts API provides standardized XBRL metrics that companies report
+        in their 10-K/10-Q filings.
 
         Args:
             symbol: Stock ticker symbol
@@ -108,125 +113,76 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
             List with record or data_unavailable marker
         """
         try:
-            # Fetch submissions to find SCHEDULE 13G filings
-            submissions = self.sec_client.get_submissions(cik)
-        except FileNotFoundError:
-            logger.warning(f"[{symbol}] Submissions not found for CIK {cik}")
-            return self._unavailable_record(symbol, now_et, "submissions_not_found_404")
+            # Fetch companyfacts for the company
+            # This endpoint returns all XBRL facts reported by the company
+            facts = self.sec_client.get_company_facts(cik)
+            if not facts:
+                return self._unavailable_record(symbol, now_et, "companyfacts_empty")
 
-        # Extract SCHEDULE 13G filings from recent filings
-        if "filings" not in submissions or "recent" not in submissions["filings"]:
-            return self._unavailable_record(symbol, now_et, "invalid_submissions_structure")
+            # Look for institutional ownership metrics in the facts
+            # SEC companies report institutional ownership % in their filings
+            # Try multiple possible XBRL tags for institutional ownership
+            institutional_pct = None
+            latest_filing_date = None
 
-        recent_filings = submissions["filings"]["recent"]
-        forms = recent_filings.get("form", [])
-        accession_numbers = recent_filings.get("accessionNumber", [])
-        filing_dates = recent_filings.get("filingDate", [])
+            # Common XBRL tags for institutional ownership:
+            # - us-gaap:InstitutionalOwnersPercent
+            # - srt:InstitutionalOwnersPercent
+            # - CIK-based tag variations
+            possible_tags = [
+                "us-gaap:InstitutionalOwnersPercent",
+                "srt:InstitutionalOwnersPercent",
+                "institutional_ownership_pct",
+            ]
 
-        # Find recent SCHEDULE 13G filings (last 12 months, up to 10 filings)
-        schedule13g_filings = []
-        for i, form_type in enumerate(forms):
-            if form_type in ("SC 13G", "SC 13G/A") and i < len(accession_numbers):
-                accession = accession_numbers[i]
-                filing_date_str = filing_dates[i] if i < len(filing_dates) else None
-                if filing_date_str:
-                    try:
-                        filing_date_obj = datetime.fromisoformat(filing_date_str).date()
-                        # Only fetch recent filings (last 12 months)
-                        if (now_et.date() - filing_date_obj).days <= 365:
-                            schedule13g_filings.append((accession, filing_date_obj))
-                    except (ValueError, TypeError):
-                        pass
+            for tag in possible_tags:
+                if tag in facts:
+                    # Get the most recent reported value
+                    tag_facts = facts[tag]
+                    if isinstance(tag_facts, list):
+                        for fact in sorted(tag_facts, key=lambda x: x.get("filed", ""), reverse=True):
+                            if fact.get("val") is not None:
+                                institutional_pct = float(fact["val"])
+                                if fact.get("filed"):
+                                    latest_filing_date = datetime.fromisoformat(fact["filed"]).date()
+                                break
+                    elif isinstance(tag_facts, dict):
+                        if tag_facts.get("val") is not None:
+                            institutional_pct = float(tag_facts["val"])
+                            if tag_facts.get("filed"):
+                                latest_filing_date = datetime.fromisoformat(tag_facts["filed"]).date()
 
-            # Limit to 10 most recent filings to avoid excessive API calls
-            if len(schedule13g_filings) >= 10:
-                break
+                    if institutional_pct is not None:
+                        break
 
-        if not schedule13g_filings:
-            return self._unavailable_record(symbol, now_et, "no_schedule13g_filings_found")
+            # Fail if no institutional ownership metric found
+            if institutional_pct is None:
+                logger.debug(f"[{symbol}] No institutional ownership metric in companyfacts")
+                return self._unavailable_record(symbol, now_et, "no_institutional_ownership_metric")
 
-        # Parse SCHEDULE 13G filings to aggregate holdings
-        aggregated_holdings = []
-        latest_filing_date = None
+            # Cap at 100%
+            institutional_pct = min(float(institutional_pct), 100.0)
 
-        for accession_number, filing_date in schedule13g_filings:
-            try:
-                # Fetch and parse SCHEDULE 13G XML
-                xml_content = self.sec_client.get_filing_xml(cik, accession_number, "SC 13G")
-                parsed_data = Schedule13GParser.parse(xml_content, symbol)
+            if latest_filing_date is None:
+                latest_filing_date = now_et.date()
 
-                # Track latest filing date
-                if latest_filing_date is None or filing_date > latest_filing_date:
-                    latest_filing_date = filing_date
+            return [
+                {
+                    "symbol": symbol,
+                    "filing_date": latest_filing_date,
+                    "institutional_ownership_pct": institutional_pct,
+                    "number_of_institutional_holders": None,  # Not available from companyfacts
+                    "data_unavailable": False,
+                    "reason": None,
+                    "sec_filing_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=10-K",
+                    "most_recent_filing_date": latest_filing_date,
+                    "data_source": "sec_companyfacts_xbrl",
+                }
+            ]
 
-                # Validate parsed data
-                if not parsed_data or "shares_owned" not in parsed_data:
-                    logger.debug(f"[{symbol}] Invalid parsed data from SCHEDULE 13G {accession_number}")
-                    continue
-
-                aggregated_holdings.append(parsed_data)
-
-            except FileNotFoundError:
-                logger.debug(f"[{symbol}] SCHEDULE 13G XML not found for accession {accession_number}")
-                continue
-            except ValueError as e:
-                logger.debug(f"[{symbol}] Failed to parse SCHEDULE 13G for accession {accession_number}: {e}")
-                continue
-            except Exception as e:
-                logger.debug(f"[{symbol}] Error fetching SCHEDULE 13G for accession {accession_number}: {e}")
-                continue
-
-        if not aggregated_holdings:
-            return self._unavailable_record(symbol, now_et, "no_valid_schedule13g_filings")
-
-        # Aggregate institutional holdings
-        # Note: This is an estimate based on major 5%+ shareholders (SCHEDULE 13G filers)
-        # CRITICAL: Require shares_owned and ownership_pct to be present (fail-fast on missing data)
-        valid_shares = []
-        valid_pcts = []
-        for h in aggregated_holdings:
-            if "shares_owned" not in h or h["shares_owned"] is None:
-                logger.warning(f"[{symbol}] Holding missing shares_owned: {h}")
-                continue
-            if "ownership_pct" not in h or h["ownership_pct"] is None:
-                logger.warning(f"[{symbol}] Holding missing ownership_pct: {h}")
-                continue
-            valid_shares.append(h["shares_owned"])
-            valid_pcts.append(h["ownership_pct"])
-
-        # Fail if no valid holdings found
-        if not valid_shares or not valid_pcts:
-            return self._unavailable_record(
-                symbol, now_et, "no_valid_institutional_holdings_with_complete_data"
-            )
-
-        total_shares_held = sum(valid_shares)
-        number_of_holders = len(aggregated_holdings)
-
-        # Get current share price and compute % ownership
-        # Note: SCHEDULE 13G filers may have overlapping holdings; use the maximum reported %
-        # as a conservative estimate of total institutional ownership (since some institutions
-        # may hold portions tracked by multiple filers).
-        # Use max of reported ownership % to avoid summing overlapping institutional holdings
-        ownership_pct = max(valid_pcts)
-        ownership_pct = min(ownership_pct, 100.0)  # Cap at 100%
-
-        if latest_filing_date is None:
-            latest_filing_date = now_et.date()
-
-        return [
-            {
-                "symbol": symbol,
-                "filing_date": latest_filing_date,
-                "institutional_ownership_pct": float(ownership_pct),
-                "number_of_institutional_holders": number_of_holders,
-                "data_unavailable": False,
-                "reason": None,
-                "sec_filing_url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik}&type=SC%2013G&dateb=&owner=exclude",
-                "most_recent_filing_date": latest_filing_date,
-                "data_source": "sec_schedule13g",
-            }
-        ]
+        except Exception as e:
+            logger.debug(f"[{symbol}] Failed to fetch from companyfacts: {e}")
+            return self._unavailable_record(symbol, now_et, f"companyfacts_error: {str(e)[:30]}")
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record."""

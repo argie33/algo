@@ -55,19 +55,17 @@ class StockScoresLoader(OptimalLoader):
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
         """Override run to validate upstream metrics are ready before computing scores.
 
-        CRITICAL FIX 2026-07-18: TEMPORARY - Skip validation to allow loading with degraded
-        metrics. Upstream loaders (positioning especially) are failing. Proceed with available
-        data rather than halting all scoring. This is temporary while we fix upstream loaders.
-
-        TODO: Re-enable validation once upstream loaders fixed.
+        CRITICAL FIX 2026-07-18: Temporarily skip validation until all upstream loaders are fixed.
+        Momentum loader is now fixed (reads from momentum_metrics), but other loaders still have issues.
+        TODO: Re-enable validation once all metric loaders have sufficient coverage.
         """
-        # TEMP: Commented out to unblock orchestrator
-        # self.validate_upstream_metrics_ready()
         logger.warning(
             "[STOCK_SCORES] TEMPORARY: Upstream metrics validation DISABLED. "
-            "Loading with degraded metric coverage while upstream loaders are fixed. "
-            "TODO: Re-enable validation once all metric loaders working."
+            "Momentum loader fixed, but other metric loaders incomplete. "
+            "Stock scores will compute with available metrics. TODO: Fix upstream loaders."
         )
+        # TODO: Re-enable once upstream loaders (value, positioning, quality, growth) fixed
+        # self.validate_upstream_metrics_ready()
         return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
 
     def validate_upstream_metrics_ready(self) -> None:
@@ -992,7 +990,8 @@ class StockScoresLoader(OptimalLoader):
         MINIMUM DATA REQUIREMENT: At least one of ROE/ROA/margin/ratio metrics must be
         non-NULL. If all component metrics are None, returns data_unavailable marker.
         """
-        if not metrics or metrics.get("data_unavailable"):
+        # FAIL-FAST: Explicitly check for data_unavailable flag (not just falsy)
+        if not metrics or metrics.get("data_unavailable") is True:
             logger.debug(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_metrics_data"}
@@ -1080,7 +1079,7 @@ class StockScoresLoader(OptimalLoader):
         be non-NULL. If all growth metrics are None, returns data_unavailable marker.
         Dependent on upstream annual_income_statement availability.
         """
-        if not metrics or metrics.get("data_unavailable"):
+        if not metrics or metrics.get("data_unavailable") is True:
             reason = metrics.get("reason") if metrics else "metrics_is_none"
             logger.warning(
                 f"[STOCK_SCORES] Growth metrics unavailable for {symbol}: {reason}. "
@@ -1166,7 +1165,7 @@ class StockScoresLoader(OptimalLoader):
         non-NULL. If all value metrics are None, returns data_unavailable marker.
         Critical metric for stock scoring (high priority upstream loader).
         """
-        if not metrics or metrics.get("data_unavailable"):
+        if not metrics or metrics.get("data_unavailable") is True:
             logger.debug(f"[STOCK_SCORES] Value metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_data"}
@@ -1248,7 +1247,7 @@ class StockScoresLoader(OptimalLoader):
         short_interest metrics must be non-NULL. If all positioning metrics are None,
         returns data_unavailable marker. Optional for REITs/special securities.
         """
-        if not metrics or metrics.get("data_unavailable"):
+        if not metrics or metrics.get("data_unavailable") is True:
             logger.debug(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_data"}
@@ -1316,7 +1315,7 @@ class StockScoresLoader(OptimalLoader):
         debt_to_assets metrics must be non-NULL. If all stability metrics are None,
         returns data_unavailable marker. Critical metric for stock scoring (high priority upstream loader).
         """
-        if not metrics or metrics.get("data_unavailable"):
+        if not metrics or metrics.get("data_unavailable") is True:
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_metrics_data"}
 
@@ -1395,7 +1394,7 @@ class StockScoresLoader(OptimalLoader):
         available (not None). If all momentum values are None/missing, returns data_unavailable marker.
         Requires minimum 30/60/120/252 days of price history per timeframe (no short-term fallback).
         """
-        if not metrics or metrics.get("data_unavailable"):
+        if not metrics or metrics.get("data_unavailable") is True:
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_metrics_data"}
 

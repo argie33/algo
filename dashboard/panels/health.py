@@ -2015,18 +2015,17 @@ def panel_status(  # noqa: C901
     cfg: dict[str, Any] | None = None,
 ) -> Panel:
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
-    try:
-        error_pnl = _error_panel("health", hlth, "STATUS")
-        if error_pnl is not None:
-            return error_pnl
-        error_pnl = _error_panel("notifications", notifs, "STATUS")
-        if error_pnl is not None:
-            return error_pnl
+    error_pnl = _error_panel("health", hlth, "STATUS")
+    if error_pnl is not None:
+        return error_pnl
+    error_pnl = _error_panel("notifications", notifs, "STATUS")
+    if error_pnl is not None:
+        return error_pnl
 
-        rows: list[Text | Rule] = []
+    rows: list[Text | Rule] = []
 
-        # Extract items from data dicts using safe helpers
-        hlth_items_raw = safe_get_list(hlth)
+    # Extract items from data dicts using safe helpers
+    hlth_items_raw = safe_get_list(hlth)
     # Type guard: ensure hlth_items is a list
     hlth_items: list[Any] = hlth_items_raw if isinstance(hlth_items_raw, list) else []
 
@@ -2822,143 +2821,6 @@ def _build_results_panel(  # noqa: C901
         elif summary:
             right_rows.append(Text.from_markup(f"  [dim]{summary}[/]"))
 
-    phase_badges_e: list[str] = []
-    if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
-        if "phase_results" in run:
-            phase_data = run.get("phase_results")
-            if phase_data is None:
-                logger.warning("[PHASE_RESULTS_BADGES] Phase results data is None")
-            else:
-                try:
-                    phase_results_list_raw = safe_get_list(phase_data)
-                    if isinstance(phase_results_list_raw, list) and phase_results_list_raw:
-                        for p in phase_results_list_raw:
-                            if not isinstance(p, dict):
-                                continue
-                            name_val = p.get("name")
-                            phase_val = p.get("phase")
-                            if phase_val is None:
-                                phase_val = ""
-                            raw = (name_val if name_val is not None else phase_val).lower()
-                            parts_p = raw.split("_")
-                            base = "_".join(parts_p[:2]) if len(parts_p) >= 2 else raw
-                            short = PHASE_NAMES.get(base, base.replace("phase_", "P"))[:8]
-                            ps_raw = p.get("status")
-                            if ps_raw is None:
-                                ps_raw = ""
-                            ps = ps_raw
-                            sc, si = _format_phase_badge(ps)
-                            phase_badges_e.append(f"[{sc}]{si}[dim]{short}[/][/]")
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Phase results data error: {e}")
-    if phase_badges_e:
-        right_rows.append(Text.from_markup("  ".join(phase_badges_e)))
-
-    signals_gen: int | None = 0
-    entries_exec: int | None = 0
-    exits_exec: int | None = 0
-    if run_valid and isinstance(run, dict) and run.get("_source") == "exec_log":
-        if "phase_results" in run:
-            phase_data = run.get("phase_results")
-            if phase_data is None:
-                logger.warning("[PHASE_RESULTS_COUNTS] Phase results data is None")
-            else:
-                try:
-                    phase_results_list_raw = safe_get_list(phase_data)
-                    if isinstance(phase_results_list_raw, list):
-                        for p in phase_results_list_raw:
-                            if not isinstance(p, dict):
-                                continue
-                            pdata = p.get("data")
-                            if isinstance(pdata, str):
-                                try:
-                                    pdata = json.loads(pdata)
-                                except (json.JSONDecodeError, ValueError):
-                                    pdata = None
-                            elif not isinstance(pdata, dict):
-                                pdata = None
-                            if pdata:
-                                sg = pdata.get("signals_generated")
-                                ee = pdata.get("entries_executed")
-                                if ee is None:
-                                    ee = pdata.get("trades_executed")
-                                xe = pdata.get("exits_executed")
-                                if sg and signals_gen is not None:
-                                    signals_gen = max(signals_gen, int(sg))
-                                if ee and entries_exec is not None:
-                                    entries_exec = max(entries_exec, int(ee))
-                                if xe and exits_exec is not None:
-                                    exits_exec = max(exits_exec, int(xe))
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"Phase results data error: {e}")
-
-    valid_metrics_e = (
-        algo_metrics if (algo_metrics and not (isinstance(algo_metrics, dict) and has_error(algo_metrics))) else []
-    )
-    if not valid_metrics_e:
-        logger.debug("[HEALTH] Execution metrics unavailable (empty list)")
-    today_m_e = valid_metrics_e[0] if valid_metrics_e else {}
-    # CRITICAL: Fail-fast on missing execution counts in fallback logic.
-    # Never cascade None→0 silently without logging.
-    if not entries_exec:
-        en = today_m_e.get("entries")
-        if en is None:
-            logger.warning("Fallback: Execution metric 'entries' still missing - data unavailable")
-            entries_exec = None
-        else:
-            try:
-                entries_exec = int(en)
-            except (ValueError, TypeError):
-                logger.error(f"Fallback: Invalid entries type {type(en).__name__}: {en}")
-                entries_exec = None
-    if not exits_exec:
-        ex = today_m_e.get("exits")
-        if ex is None:
-            logger.warning("Fallback: Execution metric 'exits' still missing - data unavailable")
-            exits_exec = None
-        else:
-            try:
-                exits_exec = int(ex)
-            except (ValueError, TypeError):
-                logger.error(f"Fallback: Invalid exits type {type(ex).__name__}: {ex}")
-                exits_exec = None
-
-    action_parts_e = []
-    if signals_gen is not None and signals_gen > 0:
-        action_parts_e.append(f"[dim]Signals:[/][white]{signals_gen}[/]")
-    # Handle None entries_exec and exits_exec - show "?" when data unavailable instead of 0
-    entries_display = entries_exec if entries_exec is not None else "?"
-    exits_display = exits_exec if exits_exec is not None else "?"
-    entries_color = G if (entries_exec is not None and entries_exec > 0) else DIM
-    exits_color = Y if (exits_exec is not None and exits_exec > 0) else DIM
-    action_parts_e.append(f"[dim]Entries:[/][{entries_color}]{entries_display}[/]")
-    action_parts_e.append(f"[dim]Exits:[/][{exits_color}]{exits_display}[/]")
-    avg_sig_score_e = today_m_e.get("avg_signal_score")
-    if avg_sig_score_e is not None:
-        avg_sig_v = float(avg_sig_score_e)
-        if avg_sig_v > 0:
-            sc_c = G if avg_sig_v >= 80 else (Y if avg_sig_v >= 65 else "white")
-            action_parts_e.append(f"[dim]Avg score:[/][{sc_c}]{avg_sig_v:.0f}[/]")
-    if action_parts_e:
-        right_rows.append(Text.from_markup("  ".join(action_parts_e)))
-
-    if len(valid_metrics_e) >= 3:
-        day_parts_e = []
-        for m in valid_metrics_e[:5]:
-            d = m.get("date")
-            if d is None or not hasattr(d, "strftime"):
-                logger.warning("[HEALTH] Execution metrics missing date field")
-                d_s = "-"
-            else:
-                d_s = d.strftime("%d")
-            en = m.get("entries")
-            ex = m.get("exits")
-            en_s = str(int(en)) if en is not None else "--"
-            ex_s = str(int(ex)) if ex is not None else "--"
-            e_c = G if en is not None and en > 0 else DIM
-            x_c = Y if ex is not None and ex > 0 else DIM
-            day_parts_e.append(f"[dim]{d_s}:[/][{e_c}]{en_s}up[/][{x_c}]{ex_s}dn[/]")
-        right_rows.append(Text.from_markup("[dim]5d:[/] " + "  ".join(day_parts_e)))
 
     right_rows.append(Rule(style="dim"))
 

@@ -207,9 +207,10 @@ class MarketStatusDailyLoader(OptimalLoader):
             put_call = None
             try:
                 put_call_result = self._put_call_fetcher.fetch(eval_date)
-                if isinstance(put_call_result, dict) and not put_call_result.get("data_unavailable"):
+                # FAIL-FAST: Explicitly check for data_unavailable flag (missing = error, not "data OK")
+                if isinstance(put_call_result, dict) and put_call_result.get("data_unavailable") is False:
                     put_call = put_call_result.get("put_call_ratio")
-                elif isinstance(put_call_result, dict) and put_call_result.get("data_unavailable"):
+                elif isinstance(put_call_result, dict) and put_call_result.get("data_unavailable") is True:
                     # Put/call data unavailable - log at WARNING for visibility (not DEBUG)
                     logger.warning(
                         f"[MARKET_STATUS] Put/call ratio unavailable for {eval_date}: "

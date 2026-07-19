@@ -56,6 +56,10 @@ class ShortInterestFinraLoader(OptimalLoader):
 
         Short interest data is only updated on trading days, so skip fetching
         on weekends/holidays to avoid unnecessary yfinance rate limiting.
+
+        CRITICAL: Force parallelism=1 for short interest. yfinance has ~2000 req/hour
+        limit for free tier. Parallel workers cause cascade failures (all 8 retry at same time).
+        Sequential mode + sleep is reliable, adds ~8 min runtime for 4711 symbols.
         """
         now_et = datetime.now(EASTERN_TZ)
         run_date = now_et.date()
@@ -76,6 +80,15 @@ class ShortInterestFinraLoader(OptimalLoader):
                 "status": "SKIPPED_NON_TRADING_DAY",
             }
 
+        # Force sequential processing to avoid yfinance rate limiting
+        # (parallel workers cascade on yfinance's 2000 req/hour free tier)
+        if parallelism != 1:
+            logger.info(
+                f"[{self.table_name}] Overriding parallelism={parallelism} to 1 "
+                f"(yfinance rate limit requires sequential processing)"
+            )
+            parallelism = 1
+
         return super().run(symbols, parallelism, backfill_days)
 
     def _prepare_batch_context(self) -> None:
@@ -85,7 +98,7 @@ class ShortInterestFinraLoader(OptimalLoader):
         so we fetch per-symbol rather than batching.
         """
         logger.info("[SHORT_INTEREST] Initializing yfinance short interest loader...")
-        self._batch_context = {}
+        self._batch_context = {"last_request_time": None}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch short interest for one symbol from yfinance with rate limit retry.
@@ -102,8 +115,16 @@ class ShortInterestFinraLoader(OptimalLoader):
         now_et = datetime.now(EASTERN_TZ)
         max_retries = 3
 
+        # Throttle requests: yfinance has ~2000 req/hour for free tier.
+        # With 4711 symbols at 0.1s/request = ~471s total (~8 min), well below rate limit.
+        if self._batch_context.get("last_request_time"):
+            elapsed = time.time() - self._batch_context["last_request_time"]
+            if elapsed < 0.1:
+                time.sleep(0.1 - elapsed)
+
         for attempt in range(max_retries):
             try:
+                self._batch_context["last_request_time"] = time.time()
                 # Fetch ticker info from yfinance (includes short interest data)
                 ticker = yf.Ticker(symbol)
                 info = ticker.info

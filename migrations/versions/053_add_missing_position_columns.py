@@ -156,8 +156,8 @@ def up():
               ap.target_2_r_multiple,
               ap.target_3_r_multiple,
 
-              COALESCE(lt.sector, 'Unknown') as sector,
-              COALESCE(lt.industry, 'Unknown') as industry,
+              lt.sector,
+              lt.industry,
 
               lt_tech.minervini_trend_score,
               lt_tech.weinstein_stage,
@@ -279,7 +279,7 @@ def down():
               ap.symbol,
               ap.quantity,
               ap.avg_entry_price,
-              COALESCE(lp.current_price, ap.current_price) as current_price,
+              lp.current_price,
               ap.position_value,
               ap.unrealized_pnl,
               ap.unrealized_pnl_pct,
@@ -322,27 +322,27 @@ def down():
               END as open_risk_dollars,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) IS NULL OR lt.stop_loss_price IS NULL
+                WHEN lp.current_price IS NULL OR lt.stop_loss_price IS NULL
                 THEN NULL
-                ELSE (COALESCE(lp.current_price, ap.current_price) - lt.stop_loss_price) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (lp.current_price - lt.stop_loss_price) / NULLIF(lp.current_price, 0) * 100
               END::DECIMAL(8, 4) as distance_to_stop_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR lt.target_1_price IS NULL
+                WHEN lp.current_price = 0 OR lt.target_1_price IS NULL
                 THEN NULL
-                ELSE (lt.target_1_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (lt.target_1_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
               END::DECIMAL(8, 4) as distance_to_t1_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR lt.target_2_price IS NULL
+                WHEN lp.current_price = 0 OR lt.target_2_price IS NULL
                 THEN NULL
-                ELSE (lt.target_2_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (lt.target_2_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
               END::DECIMAL(8, 4) as distance_to_t2_pct,
 
               CASE
-                WHEN COALESCE(lp.current_price, ap.current_price) = 0 OR lt.target_3_price IS NULL
+                WHEN lp.current_price = 0 OR lt.target_3_price IS NULL
                 THEN NULL
-                ELSE (lt.target_3_price - COALESCE(lp.current_price, ap.current_price)) / NULLIF(COALESCE(lp.current_price, ap.current_price), 0) * 100
+                ELSE (lt.target_3_price - lp.current_price) / NULLIF(lp.current_price, 0) * 100
               END::DECIMAL(8, 4) as distance_to_t3_pct
 
             FROM algo_positions ap
