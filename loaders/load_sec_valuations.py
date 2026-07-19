@@ -77,11 +77,10 @@ class SecValuationsLoader(OptimalLoader):
                 ttm_revenue, _ttm_net_income, ttm_eps_basic = income_row
 
                 # Validate critical fields are not NULL (fail-fast if SEC data incomplete)
-                if ttm_revenue is None:
-                    return [self._unavailable_marker(symbol, "income_statement_revenue_null")]
-                if ttm_eps_basic is None:
-                    return [self._unavailable_marker(symbol, "income_statement_eps_null")]
-                latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest
+                # Allow revenue-only companies: can compute PS ratio even without EPS
+                if ttm_revenue is None and ttm_eps_basic is None:
+                    return [self._unavailable_marker(symbol, "income_statement_revenue_and_eps_null")]
+                latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest (can be None)
 
                 # Compute shares outstanding from SEC financial data: shares = net_income / eps
                 # This is more reliable than fetching from company_info_sec which often lacks this data.
@@ -166,12 +165,12 @@ class SecValuationsLoader(OptimalLoader):
                 symbol,
                 float(current_price),
                 float(shares_out),
-                float(ttm_eps_basic) if ttm_eps_basic else 0.0,
+                float(ttm_eps_basic) if ttm_eps_basic else None,
                 float(ttm_revenue) if ttm_revenue else 0.0,
                 float(book_value) if book_value else None,
                 float(ocf) if ocf else 0.0,
                 float(capex) if capex else 0.0,
-                float(latest_eps) if latest_eps else 0.0,
+                float(latest_eps) if latest_eps else None,
             )]
 
         except TimeoutError as e:
@@ -199,12 +198,12 @@ class SecValuationsLoader(OptimalLoader):
         symbol: str,
         current_price: float,
         shares_out: float,
-        ttm_eps: float,
-        ttm_revenue: float,
+        ttm_eps: float | None,
+        ttm_revenue: float | None,
         book_value: float | None,
         ocf: float,
         capex: float,
-        latest_eps: float,
+        latest_eps: float | None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data."""
         result: dict[str, Any] = {

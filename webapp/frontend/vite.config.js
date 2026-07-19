@@ -27,11 +27,20 @@ export default defineConfig(({ mode }) => {
     ? (proxyTargetEnv.trim() || "http://localhost:3001")  // Empty string or whitespace → localhost
     : "";
 
-  if (isDevelopment) {
-    console.log(`[VITE_CONFIG] env.VITE_PROXY_TARGET="${env.VITE_PROXY_TARGET}"`);
-    console.log(`[VITE_CONFIG] process.env.VITE_PROXY_TARGET="${process.env.VITE_PROXY_TARGET}"`);
-    console.log(`[VITE_CONFIG] Final proxyTarget=${proxyTarget}`);
+  // CRITICAL FIX: If VITE_PROXY_TARGET is accidentally set to AWS in local dev,
+  // override it to localhost. This prevents 404 errors when proxying to AWS instead of local dev_server.
+  let finalProxyTarget = proxyTarget;
+  if (isDevelopment && proxyTarget.includes("amazonaws.com")) {
+    finalProxyTarget = "http://localhost:3001";
+    console.warn(`[VITE_CONFIG] ⚠️  AWS proxy detected in local dev; redirecting to localhost:3001`);
   }
+
+  if (isDevelopment) {
+    console.log(`[VITE_CONFIG] proxyTarget=${finalProxyTarget} (development mode)`);
+  }
+
+  // Update proxy target reference for use below
+  const effectiveProxyTarget = finalProxyTarget;
 
   return {
     plugins: [
@@ -72,7 +81,7 @@ export default defineConfig(({ mode }) => {
       proxy: isDevelopment
         ? {
             "/api": {
-              target: proxyTarget,
+              target: effectiveProxyTarget,
               changeOrigin: true,
               timeout: 30000,
             },

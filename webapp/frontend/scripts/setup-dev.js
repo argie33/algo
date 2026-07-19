@@ -9,6 +9,14 @@ const __dirname = path.dirname(__filename);
 
 // Get values from environment variables or sensible defaults
 const isDev = process.env.NODE_ENV !== "production" && !process.argv.includes("--production");
+
+// CRITICAL: Local dev must NOT have VITE_PROXY_TARGET set to AWS
+// Clear it if accidentally set globally. Vite will default to http://localhost:3001
+if (isDev && process.env.VITE_PROXY_TARGET?.includes("amazonaws")) {
+  delete process.env.VITE_PROXY_TARGET;
+  console.warn("⚠️  VITE_PROXY_TARGET was set to AWS; cleared for local dev (will use localhost:3001)");
+}
+
 const apiUrl = isDev
   ? (process.env.VITE_API_URL || "")  // empty = use Vite proxy (set VITE_PROXY_TARGET to route to AWS)
   : (process.env.API_URL || process.env.VITE_API_URL || "");
