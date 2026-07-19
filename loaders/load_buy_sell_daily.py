@@ -127,7 +127,10 @@ class SignalsDailyLoader(OptimalLoader):
                         if date_row and date_row[0]:
                             price_data_date = date_row[0]
                             cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (price_data_date,))
-                            price_data_count = cur.fetchone()[0]
+                            price_count_row = cur.fetchone()
+                            if not price_count_row:
+                                raise RuntimeError(f"CRITICAL: No result from symbol count query for date {price_data_date}")
+                            price_data_count = price_count_row[0]
                         else:
                             raise RuntimeError("CRITICAL: No price_daily data found. Cannot generate signals.")
 
@@ -1008,6 +1011,36 @@ def main() -> int:  # noqa: C901
             # Enrichment module not available - this is OK, it's optional
             logger.info(f"[LOADER] Technical data enrichment module not available ({e}). Skipping enrichment.")
 
+        # SANITY CHECK (Session 267 FIX): Detect signal count degradation BEFORE marking loader COMPLETED
+        # Problem: Loader marked as 100% complete even when generating only 17 signals/day instead of 300-800
+        # This cascaded into Phase 7 failures and 167 halted orchestrator runs
+        # Solution: Validate signal count is healthy. If < threshold, log CRITICAL and warn operator.
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute("SELECT COUNT(*) FROM buy_sell_daily")
+                result = cur.fetchone()
+                total_signals = result[0] if result else 0
+
+                cur.execute("SELECT COUNT(DISTINCT date) FROM buy_sell_daily")
+                result = cur.fetchone()
+                trading_days = result[0] if result else 1
+
+                signals_per_day = total_signals / max(trading_days, 1) if trading_days > 0 else 0
+                min_signals_per_day_threshold = 150  # Conservative: expect 300-800, warn at < 150
+
+                if signals_per_day < min_signals_per_day_threshold and total_signals > 0:
+                    logger.critical(
+                        f"[SIGNAL_DEGRADATION_DETECTED] buy_sell_daily generating only {signals_per_day:.1f} signals/day "
+                        f"(total: {total_signals}, days: {trading_days}). Expected >= {min_signals_per_day_threshold}/day. "
+                        f"This indicates either: (1) Pivot detection logic is too strict, "
+                        f"(2) Price/technical data quality is poor, (3) Market conditions unusual. "
+                        f"Phase 7 requires minimum ~300 signals/day to function. "
+                        f"OPERATOR ACTION: Check BuySignalGenerator logic and price_daily coverage. "
+                        f"Do NOT accept this as normal - investigate immediately."
+                    )
+        except Exception as sanity_check_err:
+            logger.warning(f"[SANITY_CHECK] Could not validate signal count: {sanity_check_err}. Continuing.")
+
         # CRITICAL FIX: Update loader status to COMPLETED with actual latest_date from table
         # Bug fix: Use MAX(date) from buy_sell_daily, not calendar date (today_et)
         # Root cause: Reporting today's calendar date when signals may only be generated through yesterday
@@ -1016,7 +1049,10 @@ def main() -> int:  # noqa: C901
                 cur.execute("SET statement_timeout = 0")
                 # Get actual maximum date from buy_sell_daily (signals generated up to this date)
                 cur.execute("SELECT COALESCE(MAX(date), %s) FROM buy_sell_daily", (today_et,))
-                actual_max_date = cur.fetchone()[0]
+                date_result = cur.fetchone()
+                if not date_result:
+                    raise RuntimeError("CRITICAL: Failed to query max date from buy_sell_daily")
+                actual_max_date = date_result[0]
 
                 cur.execute(
                     """UPDATE data_loader_status

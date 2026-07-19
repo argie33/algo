@@ -64,7 +64,11 @@ def lambda_handler(event, context):
 
             # Terminate it
             cur.execute("SELECT pg_terminate_backend(%s);", (pid,))
-            result = cur.fetchone()[0]
+            result_row = cur.fetchone()
+            if not result_row:
+                logger.warning(f"Query returned no result for pg_terminate_backend({pid})")
+                continue
+            result = result_row[0]
             if result:
                 killed.append({"pid": pid, "user": user, "duration_s": int(duration)})
                 logger.info(f"Terminated PID {pid}")

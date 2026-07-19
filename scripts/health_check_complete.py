@@ -47,12 +47,21 @@ def check_database() -> dict:
         conn = psycopg2.connect(dbname="stocks", user="stocks", password=db_password, host="localhost")
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM price_daily")
-        price_count = cursor.fetchone()[0]
+        price_result = cursor.fetchone()
+        if not price_result:
+            raise RuntimeError("Failed to query price_daily count")
+        price_count = price_result[0]
         cursor.execute("SELECT MAX(date) FROM price_daily")
-        latest_price_date = cursor.fetchone()[0]
+        date_result = cursor.fetchone()
+        if not date_result:
+            raise RuntimeError("Failed to query max date from price_daily")
+        latest_price_date = date_result[0]
 
         cursor.execute("SELECT COUNT(*) FROM algo_metrics_daily WHERE date IS NOT NULL")
-        metrics_count = cursor.fetchone()[0]
+        metrics_result = cursor.fetchone()
+        if not metrics_result:
+            raise RuntimeError("Failed to query algo_metrics_daily count")
+        metrics_count = metrics_result[0]
 
         cursor.close()
         conn.close()

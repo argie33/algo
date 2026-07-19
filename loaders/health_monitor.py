@@ -137,7 +137,10 @@ class LoaderHealthMonitor:
         try:
             cur = self.conn.cursor()
             cur.execute("SELECT COUNT(*) FROM pg_tables WHERE table_schema = 'public'")
-            table_count = cur.fetchone()[0]
+            result = cur.fetchone()
+            if not result:
+                raise RuntimeError("Failed to query table count")
+            table_count = result[0]
 
             check = {
                 "name": "Database Health",

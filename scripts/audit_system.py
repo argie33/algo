@@ -68,7 +68,12 @@ def check_data_freshness():
                 c2 = psycopg2.connect("dbname=stocks user=stocks host=localhost")
                 cur2 = c2.cursor()
                 cur2.execute(f"SELECT MAX({date_col}) FROM {table}")
-                latest = cur2.fetchone()[0]
+                result = cur2.fetchone()
+                if not result:
+                    issues.append(f"{table}: query failed")
+                    c2.close()
+                    continue
+                latest = result[0]
                 c2.close()
                 if not latest:
                     issues.append(f"{table}: EMPTY")

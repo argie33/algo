@@ -29,7 +29,8 @@ def check_local_database():
 
         # Check prices
         cur.execute("SELECT MAX(date) FROM price_daily")
-        max_price_date = cur.fetchone()[0]
+        price_result = cur.fetchone()
+        max_price_date = price_result[0] if price_result else None
         if max_price_date:
             days_old = (datetime.now().date() - max_price_date).days
             print(f"[LOCAL] Price data: {max_price_date} ({days_old} days old)")
