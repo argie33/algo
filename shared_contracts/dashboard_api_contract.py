@@ -1013,6 +1013,25 @@ DASHBOARD_ENDPOINTS = {
         "strict_fields": [],
         "critical": False,
     },
+    "prices": {
+        "path": "/api/prices/batch-history",
+        "method": "GET",
+        "description": "Historical price data for multiple symbols",
+        "response_schema": ResponseSchema(
+            required_fields=["symbols", "limit"],
+            optional_fields=["data_freshness"],
+            field_types={
+                "symbols": dict,
+                "limit": int,
+                "data_freshness": (dict, type(None)),
+            },
+            nested_schema={"symbols": {"*": list}},
+            description="Batch historical prices with symbols keyed to lists of OHLCV data",
+        ),
+        "freshness_max_age_seconds": 300,
+        "strict_fields": ["symbols", "limit"],
+        "critical": False,
+    },
 }
 
 # ============================================================================
