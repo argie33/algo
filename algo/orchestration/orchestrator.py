@@ -1438,6 +1438,20 @@ class Orchestrator:
         logger.info(f"\n{'=' * 70}")
         logger.info("PRE-FLIGHT CHECKS (before Phase 1)")
         logger.info(f"{'=' * 70}")
+
+        logger.info("[CRITICAL] Checking market calendar...")
+        if not MarketCalendar.is_trading_day(self.run_date):
+            logger.critical(
+                f"[MARKET_HALT] {self.run_date.strftime('%A, %B %d, %Y')} is NOT a trading day. "
+                f"Orchestrator cannot execute trading logic on weekends/holidays. "
+                f"GOVERNANCE: Trading must occur during market hours only."
+            )
+            report = self._final_report()
+            report["skipped"] = True
+            report["reason"] = f"non_trading_day: {self.run_date.strftime('%A')}"
+            return report
+        logger.info(f"[OK] {self.run_date.strftime('%A')} is a trading day - proceeding with orchestration")
+
         logger.info("[CRITICAL] Running critical data checks...")
         try:
             logger.debug("[PREFLIGHT] Opening database context (timeout=10s)")
