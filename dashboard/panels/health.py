@@ -2489,20 +2489,12 @@ def panel_status(  # noqa: C901
                 "Check orchestrator logs and data freshness."
             )
             rows.append(Text("⚠ No activity data available - check system logs", style="yellow"))
-        return Panel(
-            Group(*rows),
-            title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]",
-            border_style="yellow",
-            padding=(0, 1),
-        )
-    except Exception as e:
-        logger.error(f"[HEALTH_PANEL] Panel rendering failed: {type(e).__name__}: {e}", exc_info=True)
-        return Panel(
-            Text(f"[red]Panel rendering error: {str(e)[:100]}[/]"),
-            title="[red]STATUS - Error[/]",
-            border_style="red",
-            padding=(0, 1),
-        )
+    return Panel(
+        Group(*rows),
+        title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]",
+        border_style="yellow",
+        padding=(0, 1),
+    )
 
 
 def panel_algo_health(  # noqa: C901
