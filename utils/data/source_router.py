@@ -630,22 +630,95 @@ class DataSourceRouter:
 
     # ============== FUNDAMENTALS ==============
 
-    def fetch_balance_sheet(self, symbol: str, period: str = "annual") -> Any | None:
-        """Balance sheet rows. SEC EDGAR primary (free, official)."""
+    def fetch_balance_sheet(self, symbol: str, period: str = "annual", require_sec: bool = False) -> Any | None:
+        """Balance sheet rows. SEC EDGAR primary (free, official).
+
+        CRITICAL: For signal generation (Phase 7), use require_sec=True to enforce official SEC data only.
+        Do NOT fall back to yfinance (estimated) for trading decisions.
+        """
+        if require_sec:
+            # STRICT: Phase 7 requires SEC data (official filings), not yfinance estimates
+            # Falling back to yfinance for fundamentals would degrade signal quality silently
+            try:
+                result = self._sec_balance_sheet(symbol, period)
+                if _is_data_unavailable_marker(result) or result is None:
+                    return {
+                        "data_unavailable": True,
+                        "reason": "sec_edgar_unavailable",
+                        "symbol": symbol,
+                        "period": period,
+                        "details": "SEC EDGAR data unavailable - NOT falling back to yfinance for signal generation",
+                    }
+                return result
+            except Exception as e:
+                logger.warning(
+                    f"[DataSourceRouter] SEC EDGAR balance_sheet failed for {symbol} {period}: {e}. "
+                    f"Require_sec=True prevents fallback to yfinance."
+                )
+                return {
+                    "data_unavailable": True,
+                    "reason": "sec_edgar_error",
+                    "symbol": symbol,
+                    "error": str(e)[:100],
+                }
+
+        # Non-strict mode: allow fallback to yfinance (for enrichment, monitoring)
         sources = [
             ("sec_edgar", lambda: self._sec_balance_sheet(symbol, period)),
             ("yfinance", lambda: self._yf_balance_sheet(symbol, period)),
         ]
         return self._try_chain(sources, f"BalanceSheet[{symbol} {period}]")
 
-    def fetch_income_statement(self, symbol: str, period: str = "annual") -> Any | None:
+    def fetch_income_statement(self, symbol: str, period: str = "annual", require_sec: bool = False) -> Any | None:
+        """Income statement rows. SEC EDGAR primary (free, official).
+
+        CRITICAL: For signal generation (Phase 7), use require_sec=True to enforce official SEC data only.
+        """
+        if require_sec:
+            # STRICT: Phase 7 requires SEC data, NOT yfinance estimates
+            try:
+                result = self._sec_income(symbol, period)
+                if _is_data_unavailable_marker(result) or result is None:
+                    return {
+                        "data_unavailable": True,
+                        "reason": "sec_edgar_unavailable",
+                        "symbol": symbol,
+                        "period": period,
+                    }
+                return result
+            except Exception as e:
+                logger.warning(f"[DataSourceRouter] SEC EDGAR income_statement failed for {symbol}: {e}. Require_sec=True prevents fallback.")
+                return {"data_unavailable": True, "reason": "sec_edgar_error", "symbol": symbol}
+
+        # Non-strict mode: allow fallback
         sources = [
             ("sec_edgar", lambda: self._sec_income(symbol, period)),
             ("yfinance", lambda: self._yf_income(symbol, period)),
         ]
         return self._try_chain(sources, f"Income[{symbol} {period}]")
 
-    def fetch_cash_flow(self, symbol: str, period: str = "annual") -> Any | None:
+    def fetch_cash_flow(self, symbol: str, period: str = "annual", require_sec: bool = False) -> Any | None:
+        """Cash flow statement rows. SEC EDGAR primary (free, official).
+
+        CRITICAL: For signal generation (Phase 7), use require_sec=True to enforce official SEC data only.
+        """
+        if require_sec:
+            # STRICT: Phase 7 requires SEC data, NOT yfinance estimates
+            try:
+                result = self._sec_cash_flow(symbol, period)
+                if _is_data_unavailable_marker(result) or result is None:
+                    return {
+                        "data_unavailable": True,
+                        "reason": "sec_edgar_unavailable",
+                        "symbol": symbol,
+                        "period": period,
+                    }
+                return result
+            except Exception as e:
+                logger.warning(f"[DataSourceRouter] SEC EDGAR cash_flow failed for {symbol}: {e}. Require_sec=True prevents fallback.")
+                return {"data_unavailable": True, "reason": "sec_edgar_error", "symbol": symbol}
+
+        # Non-strict mode: allow fallback
         sources = [
             ("sec_edgar", lambda: self._sec_cash_flow(symbol, period)),
             ("yfinance", lambda: self._yf_cash_flow(symbol, period)),

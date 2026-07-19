@@ -335,7 +335,6 @@ def _get_candidates_from_buysell(
                         WHERE signal = 'BUY'
                           AND date >= %s
                           AND date <= %s
-                          AND symbol NOT IN (SELECT symbol FROM etf_symbols)
                         ORDER BY symbol, date DESC
                     ) bsd
                     INNER JOIN stock_scores ss ON ss.symbol = bsd.symbol AND ss.composite_score IS NOT NULL

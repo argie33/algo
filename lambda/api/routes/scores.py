@@ -132,7 +132,7 @@ def _get_stock_scores(
             # Only return scores with >= 70% metric completeness per GOVERNANCE.md line 62.
             # stock_scores computes at >=50% but API must gate to >=70% for downstream use.
             # This prevents clients from receiving degraded data without visibility into completeness %.
-            where_clause += " AND sc.data_completeness >= 70"
+            where_clause += " AND sc.data_completeness >= 70 AND (sc.data_unavailable = false OR sc.data_unavailable IS NULL)"
 
         # PERFORMANCE: filter/sort/limit to the target page FIRST in a CTE, then run the
         # per-symbol LATERAL lookups (price_daily/technical_data_daily) only against that
