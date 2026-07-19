@@ -126,18 +126,21 @@ class PhaseRegistry:
             skip_if_halted=True,
         ),
         # Phase 6: EXIT EXECUTION
-        # Input: Positions from Phase 3, exposure actions from Phase 5 (optional)
+        # Input: Positions from Phase 3, exposure actions from Phase 5 (optional if Phase 5 skipped)
         # Output: result={'exit_orders': list, 'exit_count': int} with executed orders
         # Contract: CRITICAL - Always runs regardless of halt (risk reduction must execute)
         # This allows position closure during market emergencies even when entries are blocked
-        # NOTE: Removed Phase 5 from dependencies because executor wrapper gracefully handles
-        # missing exposure_actions when Phase 5 is skipped (e.g., due to halt flag). Phase 6
-        # can execute with just positions from Phase 3. Hard dependency on Phase 5 would block
-        # Phase 6 from running when the circuit breaker halts the pipeline.
+        # NOTE: Phase 6 depends only on Phase 3 (position monitor) to enable always_run behavior.
+        # Phase 5 (exposure policy) is optional - if halted/skipped due to circuit breaker,
+        # Phase 6 can still execute exits based on Phase 3 recommendations. The executor wrapper
+        # gracefully handles missing exposure_actions when Phase 5 is unavailable.
+        # CRITICAL: Phase 5 itself has been fixed to return halted=True when market regime
+        # data is unavailable, ensuring the orchestrator halts before Phase 6 executes without
+        # proper market context.
         PhaseRegistryEntry(
             phase_num=6,
             phase_name="EXIT EXECUTION",
-            dependencies=[3],  # Depends only on position monitor (Phase 3); Phase 5 is optional
+            dependencies=[3],  # Depends on position monitor; Phase 5 data is optional
             execute_fn=None,
             skip_if_halted=False,  # CRITICAL: Exits ALWAYS run even when circuit breaker halts entries (risk management)
             always_run=True,  # Exits must execute to close positions during market emergencies

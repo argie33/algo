@@ -1264,11 +1264,25 @@ class Orchestrator:
         # Note: Phase 6 always runs even if Phase 5 failed, but we must log degradation
         phase5_result = executor.get_result(5)
         if phase5_result and phase5_result.halted:
-            logger.warning(
-                f"[PHASE 6] Phase 5 halted: {phase5_result.error or 'unknown reason'}. "
-                f"Phase 6 (always_run) continuing with position-monitor-only exits. "
-                f"Exposure policy enforcement may be degraded."
-            )
+            # CRITICAL: Check if Phase 5 halted due to missing market regime data
+            # This is a system-critical issue that should block exits until resolved
+            halt_reason = phase5_result.error or 'unknown reason'
+            if "market" in halt_reason.lower() or "regime" in halt_reason.lower():
+                logger.critical(
+                    f"[PHASE 6 CRITICAL] Phase 5 halted due to missing market data: {halt_reason}. "
+                    f"Cannot execute exits safely without market context. This is a system-critical failure."
+                )
+                # FAIL-FAST: Market regime data is non-negotiable for risk management
+                raise RuntimeError(
+                    f"[PHASE 6] Cannot execute exits: Phase 5 failed to load market regime data. "
+                    f"Market exposure assessment is required for safe position management. {halt_reason}"
+                )
+            else:
+                logger.warning(
+                    f"[PHASE 6] Phase 5 halted: {halt_reason}. "
+                    f"Phase 6 (always_run) continuing with position-monitor-only exits. "
+                    f"Exposure policy enforcement may be degraded."
+                )
 
         try:
             exposure_actions = executor.get_phase_data_required(5, "actions")

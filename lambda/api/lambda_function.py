@@ -76,8 +76,8 @@ def _apply_critical_migrations() -> tuple[bool, str]:
 
             db_config = get_db_config()
         except Exception as e:
-            logger.warning(f"[STARTUP] Could not fetch credentials from credential_manager: {e} - skipping migrations")
-            return False, f"Credential fetch failed: {str(e)[:50]}"
+            logger.critical(f"[STARTUP] Could not fetch credentials from credential_manager: {e}. Cannot initialize Lambda without database access.")
+            raise RuntimeError(f"Database credential fetch failed at startup: {e}") from e
 
         # GOVERNANCE: Fail-fast on missing database configuration.
         # get_db_config() validates all required fields and raises ValueError if any are missing.
@@ -89,12 +89,12 @@ def _apply_critical_migrations() -> tuple[bool, str]:
             db_user = db_config["user"]
             db_password = db_config["password"]
         except KeyError as e:
-            logger.warning(f"[STARTUP] Database config missing required field {e} - skipping migrations")
-            return False, f"Config missing field: {e}"
+            logger.critical(f"[STARTUP] Database config missing required field {e}. Cannot initialize Lambda in degraded state.")
+            raise RuntimeError(f"Database config missing required field: {e}") from e
 
         if not all([db_host, db_user, db_password]):
-            logger.warning("[STARTUP] Database configuration has empty required fields - skipping migrations")
-            return False, "Configuration has empty fields"
+            logger.critical("[STARTUP] Database configuration has empty required fields. Cannot initialize Lambda with incomplete configuration.")
+            raise RuntimeError("Database configuration has empty required fields")
 
         # Connect to database
         # Use sslmode="prefer" (try SSL, fall back to unencrypted) for local dev compatibility

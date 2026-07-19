@@ -556,15 +556,9 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
     Stale data is worse than missing data. Callers MUST see explicit errors when
     data is unavailable so they know to halt trading or refresh manually.
 
-    If an operator wants to trade with stale data, that's their choice to make
-    explicitly - not a silent fallback that hides the problem.
-
-    Previous implementation: _try_stale_cache_fallback() function existed but was
-    never called. Removed to prevent accidental usage.
-
     CRITICAL FAIL-FAST: Returns error dict on all failures (retries exhausted or circuit open).
     Never attempts stale cache fallback. In finance applications, data unavailability must
-    surface immediately to users-stale data for position sizing or risk calculations is
+    surface immediately to users - stale data for position sizing or risk calculations is
     unacceptable. Callers must show "data unavailable" error to users on API failures.
 
     Args:

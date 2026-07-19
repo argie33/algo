@@ -95,15 +95,16 @@ def _load_db_credentials() -> dict[str, Any]:
         }
     except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
+        environment = os.getenv("ENVIRONMENT", "unknown").lower()
 
-        # If local mode is enabled, fall back to localhost
-        if local_mode:
+        # Only allow localhost fallback in development mode (explicit environment check)
+        if local_mode and environment in ("development", "dev", "test"):
             print(
                 f"[DEV_SERVER] AWS Secrets Manager unavailable ({error_msg})",
                 flush=True,
             )
             print(
-                "[DEV_SERVER] LOCAL_MODE=true, falling back to localhost postgres",
+                "[DEV_SERVER] LOCAL_MODE=true and ENVIRONMENT=dev, falling back to localhost postgres",
                 flush=True,
             )
             return {
@@ -114,10 +115,11 @@ def _load_db_credentials() -> dict[str, Any]:
                 "database": os.getenv("DB_NAME", "stocks"),
             }
 
-        # In production mode, raise exception for Lambda handler to return 500 error
-        # Don't call sys.exit(1) - that's inappropriate for Lambda (terminates process)
+        # CRITICAL FAIL-FAST: In production or unknown environment, never fall back to localhost
+        # This prevents accidental connection to wrong database if AWS config is incorrect
         error_detail = (
-            f"FATAL: AWS Secrets Manager failed. "
+            f"FATAL: AWS Secrets Manager failed and cannot fall back to localhost "
+            f"(ENVIRONMENT={environment}, LOCAL_MODE={local_mode}). "
             f"Error: {error_msg}. "
             f"Ensure DB_SECRET_ARN is set and Secrets Manager secret exists in AWS account."
         )
@@ -177,9 +179,11 @@ if not os.path.isdir(log_dir):
     try:
         os.makedirs(log_dir, exist_ok=True)
     except (OSError, PermissionError) as e:
-        # Fall back to current directory if TEMP directory doesn't work
-        log_dir = "."
-        print(f"Warning: Cannot use {os.environ.get('TEMP', '/tmp')} for logs: {e}", flush=True)
+        # CRITICAL: Fail-fast if log directory can't be created
+        # Silently falling back to current directory masks permission issues that should be fixed
+        error_detail = f"Cannot create log directory {log_dir}: {e}"
+        print(f"[FATAL] {error_detail}", flush=True)
+        raise RuntimeError(error_detail) from e
 
 log_file_path = os.path.join(log_dir, "dev_server.log")
 log_file: str | None = log_file_path
@@ -188,15 +192,17 @@ log_file: str | None = log_file_path
 try:
     os.makedirs(os.path.dirname(log_file_path) or ".", exist_ok=True)
 except (OSError, PermissionError) as e:
-    print(f"Error: Cannot create log directory for {log_file_path}: {e}", flush=True)
-    log_file = None
+    error_detail = f"Cannot create log directory for {log_file_path}: {e}"
+    print(f"[FATAL] {error_detail}", flush=True)
+    raise RuntimeError(error_detail) from e
 
 log_handlers: list[logging.Handler] = [logging.StreamHandler()]
-if log_file:
-    try:
-        log_handlers.append(logging.FileHandler(log_file, mode="w"))
-    except (OSError, PermissionError) as e:
-        print(f"Warning: Cannot create log file {log_file}: {e}. Using console logging only.", flush=True)
+try:
+    log_handlers.append(logging.FileHandler(log_file, mode="w"))
+except (OSError, PermissionError) as e:
+    error_detail = f"Cannot create log file {log_file}: {e}"
+    print(f"[FATAL] {error_detail}", flush=True)
+    raise RuntimeError(error_detail) from e
 
 logging.basicConfig(
     level=logging.INFO,

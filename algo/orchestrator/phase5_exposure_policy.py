@@ -184,7 +184,7 @@ def run(
             "exposure_policy",
             "error",
             {"constraints": fail_halt_constraints, "actions": []},
-            False,
+            True,  # CRITICAL: Market data missing = halt orchestrator
             str(e),
         )
 
@@ -216,6 +216,6 @@ def run(
             "exposure_policy",
             "error",
             {"constraints": fail_halt_constraints, "actions": []},
-            False,
+            True,  # CRITICAL: Exposure policy error = halt orchestrator
             str(e),
         )
