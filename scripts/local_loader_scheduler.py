@@ -39,6 +39,7 @@ LOADERS = {
         "loaders": [
             "load_prices.py",
             "load_technical_indicators.py",
+            "load_trend_analysis.py",  # CRITICAL: Phase 1 freshness check requires trend_template_data
             "load_market_status_daily.py",
             "load_short_interest_finra.py",  # Phase 1: FINRA short interest (authoritative, replaces yfinance)
             "load_price_extremes.py",  # Quick win: 52-week high/low from price_daily
