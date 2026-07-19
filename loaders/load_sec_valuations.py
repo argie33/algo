@@ -83,22 +83,36 @@ class SecValuationsLoader(OptimalLoader):
                     return [self._unavailable_marker(symbol, "income_statement_eps_null")]
                 latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest
 
-                # Fetch shares outstanding from SEC company info (required for valuations)
-                cur.execute(
-                    """
-                    SELECT shares_outstanding FROM company_info_sec
-                    WHERE symbol = %s AND data_unavailable = FALSE AND shares_outstanding IS NOT NULL
-                    ORDER BY filing_date DESC LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                shares_row = cur.fetchone()
-                if not shares_row or not shares_row[0]:
-                    return [self._unavailable_marker(symbol, "shares_outstanding_unavailable")]
+                # Compute shares outstanding from SEC financial data: shares = net_income / eps
+                # This is more reliable than fetching from company_info_sec which often lacks this data.
+                # If both net_income and eps are available, we can compute shares directly from SEC audited data.
+                shares_out = None
+                if ttm_eps_basic and ttm_eps_basic != 0 and _ttm_net_income and _ttm_net_income != 0:
+                    try:
+                        # Shares = Net Income / EPS (mathematical identity from SEC financial statements)
+                        shares_out = abs(float(_ttm_net_income) / float(ttm_eps_basic))
+                        logger.debug(f"[{symbol}] Computed shares_outstanding from income_statement: {shares_out:,.0f}")
+                    except (ValueError, ZeroDivisionError):
+                        pass  # If computation fails, shares_out stays None and we fail below
 
-                shares_out = safe_float(shares_row[0], f"{symbol}.shares_outstanding", allow_none=False)
-                if shares_out <= 0:
-                    return [self._unavailable_marker(symbol, "invalid_shares_outstanding")]
+                # If computation didn't work, try fetching from company_info_sec as fallback
+                if not shares_out:
+                    cur.execute(
+                        """
+                        SELECT shares_outstanding FROM company_info_sec
+                        WHERE symbol = %s AND shares_outstanding IS NOT NULL AND shares_outstanding > 0
+                        ORDER BY filing_date DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    shares_row = cur.fetchone()
+                    if shares_row and shares_row[0]:
+                        shares_out = safe_float(shares_row[0], f"{symbol}.shares_outstanding", allow_none=False)
+                        logger.debug(f"[{symbol}] Fetched shares_outstanding from company_info_sec: {shares_out:,.0f}")
+
+                # Fail if still no shares outstanding available
+                if not shares_out or shares_out <= 0:
+                    return [self._unavailable_marker(symbol, "shares_outstanding_unavailable")]
 
                 # Get current price for valuation computations
                 cur.execute(
