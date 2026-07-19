@@ -174,12 +174,20 @@ Per session_285_comprehensive_findings.md:
 
 ---
 
+## FIXES APPLIED (This Session)
+
+✅ **Market Day Enforcement (Commit 082277485)**
+- Added is_trading_day() check in orchestrator preflight checks
+- Prevents orchestrator execution on weekends/holidays
+- Prevents future weekend trades
+
 ## ACTION ITEMS (Priority Order)
 
 ### IMMEDIATE (Today)
-- [ ] Stop weekend orchestrator runs - add market day check at entry point
+- [x] Stop weekend orchestrator runs - add market day check at entry point ✅ FIXED
 - [ ] Verify EventBridge Scheduler is running morning/EOD pipelines
 - [ ] Check CloudWatch logs for loader failures since 2026-07-17
+- [ ] Fix AWS credentials for local orchestrator runs (DynamoDB lock access)
 - [ ] Refresh stale data manually: `python scripts/run_local_orchestrator.py --morning`
 
 ### SHORT-TERM (This Week)

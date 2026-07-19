@@ -147,9 +147,14 @@ def _validate_pnl_step(
                 logger.critical(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
         else:
             pnl_validation_summary = "Skipped (reconciliation failed or no Broker data)"
-    except Exception as e:
-        logger.error(f"[PHASE 9] P&L validation failed: {e}")
-        pnl_validation_summary = f"error: {str(e)[:60]}"
+    except (ValueError, RuntimeError, KeyError) as e:
+        error_msg = (
+            f"[PHASE 9 CRITICAL] P&L validation failed: {e}. "
+            f"Cannot proceed with reconciliation when P&L validation unavailable. "
+            f"Check broker connectivity, account sync, and local portfolio state."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
     finally:
         log_phase_result_fn(9, "pnl_validation", pnl_validation_status, pnl_validation_summary)
     return pnl_validation_status, pnl_validation_summary
@@ -180,8 +185,14 @@ def _audit_exit_prices_step(
                 log_phase_result_fn(9, "exit_reconciliation_audit", "warn", msg)
             else:
                 logger.info("[PHASE 9 AUDIT] All exit prices reconciled properly")
-    except (psycopg2.DatabaseError, psycopg2.OperationalError, KeyError) as e:
-        logger.error(f"[PHASE 9] Exit price audit failed: {e}")
+    except (psycopg2.DatabaseError, psycopg2.OperationalError, KeyError, ValueError) as e:
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Exit price audit failed: {e}. "
+            f"Cannot proceed when exit prices cannot be verified. "
+            f"Check database connectivity and reconciliation state."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
 
 
 def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) -> int:
@@ -284,13 +295,21 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
         report = daily_report.generate(run_date)
         report_text = daily_report.format_text(report)
         logger.info(f"\n{report_text}")
-    except Exception as e:
-        logger.error(
-            f"Daily report generation failed (could not generate): {e}",
-            exc_info=True,
+    except (ValueError, RuntimeError, KeyError, TypeError) as e:
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Daily report generation failed: {e}. "
+            f"Cannot proceed when portfolio reporting unavailable. "
+            f"Check DailyFinanceReport implementation and portfolio state."
         )
-        log_phase_result_fn(9, "daily_report", "warn", f"generation error: {str(e)[:60]}")
-        return
+        logger.critical(error_msg, exc_info=True)
+        raise RuntimeError(error_msg) from e
+    except Exception as e:
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Daily report generation failed unexpectedly: {e}. "
+            f"Cannot proceed when portfolio reporting unavailable."
+        )
+        logger.critical(error_msg, exc_info=True)
+        raise RuntimeError(error_msg) from e
 
     # Validate critical report data before use
     try:
@@ -360,8 +379,13 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
             f"Portfolio ${current_val if isinstance(current_val, str) else f'{current_val:,.0f}'}, P&L {pnl_pct if isinstance(pnl_pct, str) else f'{pnl_pct:+.2f}%'}",
         )
     except ValueError as e:
-        logger.error(f"Daily report validation failed (generated but data incomplete): {e}")
-        log_phase_result_fn(9, "daily_report", "warn", f"validation error: {str(e)[:60]}")
+        error_msg = (
+            f"[PHASE 9 CRITICAL] Daily report validation failed: {e}. "
+            f"Report was generated but contains incomplete or invalid data. "
+            f"Cannot proceed with incomplete portfolio reporting per GOVERNANCE (data integrity)."
+        )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
 
 
 def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_fn: Callable[..., Any]) -> None:
