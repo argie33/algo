@@ -299,9 +299,8 @@ class MarketSymbolsConfig:
     def stock_only_where_clause(col_prefix: str = "s") -> str:
         """SQL WHERE clause to include STOCKS ONLY (exclude ETFs).
 
-        CRITICAL: Two-condition AND for robustness:
-        1. Explicit etf_symbols table (definitive source)
-        2. ETF flag in stock_scores/company_profile table (redundant safety check)
+        Uses etf_symbols table (definitive source) for filtering.
+        Note: stock_scores and buy_sell_daily tables do NOT have etf columns.
 
         Use this pattern in ALL queries fetching stock_scores or similar tables
         that will be used for trading decisions or recommendations.
@@ -312,9 +311,9 @@ class MarketSymbolsConfig:
 
         Returns:
             WHERE clause fragment filtering to stocks only.
-            Example: "AND (s.symbol NOT IN (SELECT symbol FROM etf_symbols) AND (s.etf IS NULL OR s.etf = 'N'))"
+            Example: "AND (s.symbol NOT IN (SELECT symbol FROM etf_symbols))"
         """
-        return f"AND ({col_prefix}.symbol NOT IN (SELECT symbol FROM etf_symbols) AND ({col_prefix}.etf IS NULL OR {col_prefix}.etf = 'N'))"
+        return f"AND ({col_prefix}.symbol NOT IN (SELECT symbol FROM etf_symbols))"
 
     @staticmethod
     def buy_sell_only_where_clause(col_prefix: str = "bsd") -> str:
