@@ -101,7 +101,8 @@ Or with auto-refresh every 30s:
 python dashboard.py -w 30
 ```
 
-Dashboard auto-detects localhost and connects. No configuration needed.
+**IMPORTANT:** Dashboard auto-detects localhost ONLY if dev_server is already running on Terminal 1.
+If you skip Terminal 1 or dev_server stops, dashboard will fail with "data not available". Always ensure Terminal 1 is running first.
 
 ### Optional Terminal 3: Refresh Data
 

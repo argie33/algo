@@ -35,7 +35,10 @@ def check_port_open(host: str, port: int, timeout: float = 2.0) -> bool:
         result = sock.connect_ex((host, port))
         sock.close()
         return result == 0
-    except Exception:
+    except Exception as e:
+        # Socket errors are expected (port unreachable), log at debug level
+        import logging
+        logging.debug(f"[DEBUG] Port check failed for {host}:{port}: {type(e).__name__}: {e}")
         return False
 
 

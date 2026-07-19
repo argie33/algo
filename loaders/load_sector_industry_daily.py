@@ -116,11 +116,13 @@ class SectorIndustryDailyLoader(OptimalLoader):
             with DatabaseContext("write") as cur:
                 # ===== SECTOR PERFORMANCE =====
                 # Calculate daily % return per sector (weighted by price as market cap proxy)
+                # FIXED (Session 279): Use company_info_sec.sic_description (SEC data) instead of
+                # broken company_profile.sector (76% "Unknown" due to deprecated yfinance loader)
                 cur.execute(
                     """
                     WITH daily_changes AS (
                         SELECT
-                            cp.sector,
+                            COALESCE(c.sic_description, 'Unknown') as sector,
                             pd_today.symbol,
                             (pd_today.close - pd_prev.close) / NULLIF(pd_prev.close, 0) as daily_return,
                             pd_today.close as market_cap_proxy
@@ -128,10 +130,8 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         INNER JOIN price_daily pd_prev
                             ON pd_today.symbol = pd_prev.symbol
                             AND pd_prev.date = %s
-                        INNER JOIN company_profile cp ON pd_today.symbol = cp.symbol
+                        LEFT JOIN company_info_sec c ON pd_today.symbol = c.symbol
                         WHERE pd_today.date = %s
-                            AND cp.sector IS NOT NULL
-                            AND cp.sector != ''
                     ),
                     sector_weighted_avg AS (
                         SELECT
@@ -139,6 +139,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                             SUM(daily_return * market_cap_proxy) / NULLIF(SUM(market_cap_proxy), 0) as return_pct,
                             COUNT(DISTINCT symbol) as stock_count
                         FROM daily_changes
+                        WHERE sector != ''
                         GROUP BY sector
                     )
                     INSERT INTO sector_performance (sector, date, return_pct, relative_strength, created_at, updated_at)
@@ -150,6 +151,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         NOW() as created_at,
                         NOW() as updated_at
                     FROM sector_weighted_avg
+                    WHERE return_pct IS NOT NULL
                     ON CONFLICT (sector, date) DO UPDATE SET
                         return_pct = EXCLUDED.return_pct,
                         updated_at = NOW()
@@ -158,27 +160,25 @@ class SectorIndustryDailyLoader(OptimalLoader):
                 )
                 perf_count = cur.rowcount
                 row_counts["sector_performance"] = perf_count
-                logger.info(f"[SECTOR_INDUSTRY] Inserted {perf_count} sector performance rows")
+                logger.info(f"[SECTOR_INDUSTRY] Inserted {perf_count} sector performance rows using SEC SIC data")
 
                 # ===== SECTOR RANKINGS =====
                 # Rank sectors by average composite score + compute momentum
                 # GOVERNANCE FIX: Removed COALESCE(ss.composite_score, 50) - no fabricated scores
                 # Only include sectors with stocks that have real scores
+                # FIXED (Session 279): Use company_info_sec.sic_description (SEC data) instead of company_profile.sector
                 cur.execute(
                     """
                     WITH sector_stats AS (
                         SELECT
-                            cp.sector AS sector_name,
+                            COALESCE(c.sic_description, 'Unknown') AS sector_name,
                             COUNT(DISTINCT ss.symbol) AS stock_count,
                             AVG(ss.composite_score) AS avg_score,
                             RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
-                        FROM company_profile cp
-                        LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
-                        WHERE cp.sector IS NOT NULL
-                          AND cp.sector != ''
-                          AND cp.sector != 'Unknown'
-                          AND ss.composite_score IS NOT NULL
-                        GROUP BY cp.sector
+                        FROM stock_scores ss
+                        LEFT JOIN company_info_sec c ON ss.symbol = c.symbol
+                        WHERE ss.composite_score IS NOT NULL
+                        GROUP BY COALESCE(c.sic_description, 'Unknown')
                     )
                     INSERT INTO sector_ranking
                       (sector_name, date, current_rank, momentum_score, data_source,

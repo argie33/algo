@@ -112,12 +112,18 @@ If this fails, PostgreSQL is not running or credentials are wrong.
 
 ### Root Causes by Age
 
-| Age | Likely Cause | Fix |
-|-----|--------------|-----|
-| < 1 hour | Normal (orchestrator runs every 5 min, may not have run recently) | Wait 5-10 min, refresh |
-| 1-4 hours | Orchestrator not running | Manually trigger: `python scripts/run_local_orchestrator.py --morning` |
-| 4-24 hours | Loaders not running | Run: `python3 scripts/run_local_orchestrator.py --run-all` (all three pipelines) |
-| > 24 hours | Data system halted | See `steering/LOADER_RECOVERY_GUIDE.md` |
+**Different tables have different freshness thresholds.** See `utils/validation/freshness_config.py` for exact values.
+
+| Data Type | Acceptable Age | Risk Level | Fix |
+|-----------|---|---|---|
+| **Prices** (price_daily) | < 1d (24h) | CRITICAL if > 1d | Run: `python scripts/run_local_orchestrator.py --morning` |
+| **Portfolio snapshots** (algo_portfolio_snapshots) | < 1d (24h) | CRITICAL if > 1d | Run Phase 9: `python3 -c "from algo.orchestrator import phase9_reconciliation; phase9_reconciliation.run(...)"` |
+| **Performance metrics** (algo_performance_daily) | < 1d (24h) | CRITICAL if > 1d | Rerun orchestrator morning pipeline |
+| **Risk metrics** (algo_risk_daily) | < 1d (24h) | CRITICAL if > 1d | Rerun orchestrator morning pipeline |
+| **Weekly prices** (price_weekly) | < 7d | HIGH if > 7d | Rerun with weekly aggregation |
+| **Monthly prices** (price_monthly) | < 30d | MEDIUM if > 30d | Rerun with monthly aggregation |
+
+**Quick check:** `python scripts/monitor_data_staleness.py` shows actual age of each table.
 
 ### Quick Data Refresh (Local)
 ```bash

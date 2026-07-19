@@ -20,13 +20,48 @@ Benefits:
 import argparse
 import logging
 import os
+import signal
 import socket
+import threading
 
 from utils.loaders.config import get_default_parallelism
 from utils.loaders.helpers import get_active_symbols
 from utils.optimal_loader import OptimalLoader
 
 logger = logging.getLogger(__name__)
+
+# CRITICAL: Loader timeout enforcement (prevents hung processes from blocking orchestrator)
+# Session 278 audit found 2 hung loaders (4.6h, 2.0h stuck) that prevented orchestrator from proceeding
+# Set process-level timeout to 45 minutes - should be sufficient for any large data load
+LOADER_TIMEOUT_SECONDS = 45 * 60  # 45 minutes
+
+
+def _timeout_handler(signum: int, frame: object) -> None:
+    """Signal handler for SIGALRM timeout. Raises RuntimeError to interrupt hung loader."""
+    raise RuntimeError(f"Loader execution exceeded timeout of {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS//60} minutes)")
+
+
+def _setup_timeout() -> None:
+    """Set up process-level timeout using signal.SIGALRM (Unix-like systems).
+
+    Falls back gracefully on Windows where signal.SIGALRM is unavailable.
+    ECS tasks can still be terminated by AWS if they exceed overall task timeout (900s default).
+    """
+    if hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, _timeout_handler)
+        signal.alarm(LOADER_TIMEOUT_SECONDS)
+        logger.info(f"[TIMEOUT] Loader timeout set to {LOADER_TIMEOUT_SECONDS//60} minutes")
+    else:
+        logger.warning("[TIMEOUT] signal.SIGALRM not available (Windows). Falling back to threading.Timer.")
+        timer = threading.Timer(
+            LOADER_TIMEOUT_SECONDS,
+            lambda: (
+                logger.critical(f"[TIMEOUT] Loader exceeded {LOADER_TIMEOUT_SECONDS//60} minute timeout. Exiting forcefully."),
+                os._exit(1)
+            )
+        )
+        timer.daemon = True
+        timer.start()
 
 
 def run_loader(
@@ -45,6 +80,7 @@ def run_loader(
     Returns:
         Exit code: 0 on success, 1 if fail_rate > 5%.
     """
+    _setup_timeout()
     socket.setdefaulttimeout(30.0)
 
     parser = argparse.ArgumentParser(description=description or f"{loader_class.table_name} loader")
