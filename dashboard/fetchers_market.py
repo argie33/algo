@@ -116,19 +116,16 @@ def fetch_market(c: None) -> dict[str, Any]:
                 record_data_quality_issue("market", "critical_field", "missing_spy")
                 return FetcherValidator.build_error_response(error_msg)
 
-            # Handle case where vix_raw is list (data corruption/malformed response)
+            # FAIL-FAST: VIX must be scalar, not list (indicates upstream data corruption)
             if isinstance(vix_raw, list):
-                if len(vix_raw) == 0:
-                    error_msg = "Critical market data invalid: VIX is empty list. Data quality issue."
-                    logger.error(error_msg)
-                    record_data_quality_issue("market", "critical_field", "invalid_vix_list", "empty_list")
-                    return FetcherValidator.build_error_response(error_msg)
-                # Use first element if it's a list
-                vix_raw = vix_raw[0]
-                logger.warning(
-                    f"[MARKET] VIX value was list (data corruption), extracting first element: {vix_raw}. "
-                    f"Check vix_history table and loader."
+                error_msg = (
+                    f"Critical market data invalid: VIX should be scalar but got list ({len(vix_raw)} elements). "
+                    f"This indicates data corruption in load_market_status_daily or vix_history table. "
+                    f"Fix upstream - do not work around at dashboard layer. VIX={vix_raw}"
                 )
+                logger.error(error_msg)
+                record_data_quality_issue("market", "critical_field", "invalid_vix_data_corruption", f"is_list:{len(vix_raw)}")
+                return FetcherValidator.build_error_response(error_msg)
 
             vix = float(vix_raw)
             spy = float(spy_raw)
@@ -148,7 +145,10 @@ def fetch_market(c: None) -> dict[str, Any]:
 
         # Issue #9: Market regime is REQUIRED - no fallback to "unknown"
         tier = current.get("regime")
-        if not tier:
+        # CRITICAL FIX: Use explicit None check, not falsy check
+        # Falsy check ("if not tier") treats 0, "", False as missing - wrong for numeric values
+        # Example: if regime can legitimately be 0, falsy check would incorrectly reject it
+        if tier is None:
             error_msg = (
                 f"[MARKET CRITICAL] Market regime missing from current.regime. "
                 f"Cannot position size without regime tier. "

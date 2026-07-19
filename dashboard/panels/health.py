@@ -538,26 +538,38 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
     # Phase 3: Positions
     pos = execution_health.get("phase_3_position_monitor")
     if pos:
-        open_count = pos.get("open_positions", 0)
+        open_count = pos.get("open_positions")
         oldest = pos.get("oldest_days")
         max_loss = pos.get("max_loss_pct")
-        pos_color = G if open_count == 0 else Y if open_count <= 5 else R
-        pos_metrics = [f"{open_count} open"]
-        if oldest is not None:
-            pos_metrics.append(f"{oldest}d old")
-        if max_loss is not None:
-            pos_metrics.append(f"max {max_loss:.1f}%")
+        # Fail explicitly if critical field missing (don't default to 0)
+        if open_count is None:
+            logger.warning("Phase 3 position monitor missing 'open_positions' field - data incomplete")
+            pos_color = DIM
+            pos_metrics = ["data unavailable"]
+        else:
+            pos_color = G if open_count == 0 else Y if open_count <= 5 else R
+            pos_metrics = [f"{open_count} open"]
+            if oldest is not None:
+                pos_metrics.append(f"{oldest}d old")
+            if max_loss is not None:
+                pos_metrics.append(f"max {max_loss:.1f}%")
         rows.append(Text.from_markup(f"  [{pos_color}]● P3:[/] " + " ".join(pos_metrics)))
 
     # Phase 4: Broker Reconciliation
     recon = execution_health.get("phase_4_broker_reconciliation")
     if recon:
-        sync_count = recon.get("sync_count", 0)
+        sync_count = recon.get("sync_count")
         match_pct = recon.get("avg_match_pct")
-        recon_color = G if sync_count > 0 and (match_pct is None or match_pct >= 95) else Y if sync_count > 0 else DIM
-        recon_metrics = [f"{sync_count} syncs"]
-        if match_pct is not None:
-            recon_metrics.append(f"{match_pct:.0f}% match")
+        # Fail explicitly if critical field missing (don't default to 0)
+        if sync_count is None:
+            logger.warning("Phase 4 broker reconciliation missing 'sync_count' field - data incomplete")
+            recon_color = DIM
+            recon_metrics = ["data unavailable"]
+        else:
+            recon_color = G if sync_count > 0 and (match_pct is None or match_pct >= 95) else Y if sync_count > 0 else DIM
+            recon_metrics = [f"{sync_count} syncs"]
+            if match_pct is not None:
+                recon_metrics.append(f"{match_pct:.0f}% match")
         rows.append(Text.from_markup(f"  [{recon_color}]↔ P4:[/] " + " ".join(recon_metrics)))
 
     # Phase 6: Exit Execution
@@ -1588,19 +1600,26 @@ def _extract_phase_metrics_from_pdata(pdata: dict[str, Any] | None) -> tuple[int
         return 0, 0, 0
 
     # Metrics may not be present if orchestrator hasn't populated them yet
-    sg = pdata.get("signals_generated", 0)
+    sg = pdata.get("signals_generated")
     # CRITICAL: Check explicitly for None to avoid confusing 0 (no entries) with missing data
     # Do not use `or` which treats 0 as falsy and falls back to alternative field
     ee = pdata.get("entries_executed")
     if ee is None:
-        ee = pdata.get("trades_executed", 0)
-    xe = pdata.get("exits_executed", 0)
+        ee = pdata.get("trades_executed")
+    xe = pdata.get("exits_executed")
 
-    # Try to convert to int, but if it fails or is None, use 0
+    # Fail explicitly if any metric is missing - don't convert missing to 0
+    if sg is None or ee is None or xe is None:
+        raise ValueError(
+            f"[DATA_UNAVAILABLE] Phase data incomplete: "
+            f"signals_generated={sg}, entries_executed={ee}, exits_executed={xe}. "
+            f"Cannot compute phase metrics until all required fields are present."
+        )
+
     try:
-        return int(sg) if sg else 0, int(ee) if ee else 0, int(xe) if xe else 0
-    except (ValueError, TypeError):
-        return 0, 0, 0
+        return int(sg), int(ee), int(xe)
+    except (ValueError, TypeError) as e:
+        raise ValueError(f"[DATA_TYPE_ERROR] Cannot convert phase metrics to int: {e}") from e
 
 
 def _parse_phase_data_json(pdata_raw: str | dict[str, Any] | None) -> dict[str, Any]:

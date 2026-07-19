@@ -174,38 +174,65 @@ class DataSourceRouter:
 
         Treats data_unavailable marker dicts as "no data" and continues to next source.
         Returns the marker from the last source if all return markers.
+
+        CRITICAL: Marks returned data with _source_name and _primary_source_failed
+        so consumers can detect degraded data sources.
         """
         last_exc = None
         last_marker = None
         sources_attempted = []
+        primary_failed = False
         for i, (name, fn) in enumerate(sources):
             sources_attempted.append(name)
             health = self._get_health(name)
             if health.is_paused:
                 logger.debug(f"Skipping paused source '{name}' for {request_desc}")
+                if i == 0:
+                    primary_failed = True
                 continue
             try:
                 result = fn()
                 # Check for explicit unavailability markers
                 if _is_data_unavailable_marker(result):
                     last_marker = result
+                    if i == 0:
+                        primary_failed = True
                     # Treat marker like None - no data from this source, try next
                     continue
                 if result is None or (hasattr(result, "__len__") and len(result) == 0):
                     # Empty result = symbol doesn't exist or has no data (not a source problem)
                     # Don't count as source failure - skip gracefully without affecting health
+                    if i == 0:
+                        primary_failed = True
                     continue
                 health.record(True)
                 self.last_source = name
+
+                # CRITICAL: Mark data with source info and degradation status
+                # Consumers MUST check _primary_source_failed before using data
+                if isinstance(result, dict) and not _is_data_unavailable_marker(result):
+                    result["_source_name"] = name
+                    result["_primary_source_failed"] = primary_failed
+                    if primary_failed and i > 0:
+                        logger.error(
+                            "[DataSourceRouter] PRIMARY SOURCE FAILED for %s, using fallback source '%s'. "
+                            "Data quality/freshness may be degraded. Callers should check _primary_source_failed flag.",
+                            request_desc,
+                            name,
+                        )
+
                 logger.debug(f"Source '{name}' served {request_desc}")
                 return result
             except Exception as e:
                 health.record(False, str(e))
                 last_exc = e
+                if i == 0:
+                    primary_failed = True
                 if i < len(sources) - 1:
                     next_source = sources[i + 1][0]
-                    logger.warning(
-                        "[DataSourceRouter] Primary source '%s' failed for %s: %s. Falling back to '%s'.",
+                    logger.error(
+                        "[DataSourceRouter] PRIMARY SOURCE '%s' FAILED for %s: %s. Falling back to '%s'. "
+                        "Data quality/freshness may be degraded. Callers should check _primary_source_failed flag.",
                         name,
                         request_desc,
                         e,

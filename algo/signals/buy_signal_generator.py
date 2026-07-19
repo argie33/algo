@@ -438,8 +438,18 @@ class BuySignalGenerator:
                     "Cannot proceed without valid risk level. "
                     "Check _generate_signal() logic for swing low detection."
                 )
+            # CRITICAL: Require ATR for volatility-adjusted profit targets (fail-fast if missing)
+            if atr is None or atr <= 0:
+                raise ValueError(
+                    f"[SIGNAL_GENERATION_CRITICAL] Cannot calculate profit targets without ATR data. "
+                    f"ATR is required for volatility-adjusted exits (stocks vary: low-vol 2-3%, high-vol 8-15%). "
+                    f"Profit targets must adapt to market volatility - fixed percentages are unreliable. "
+                    f"ATR={atr}. Verify technical_data_daily loader populated atr field."
+                )
+
             buy_dec = Decimal(str(buylevel))
             stop_dec = Decimal(str(stoplevel))
+            atr_dec = Decimal(str(atr))
 
             result["buylevel"] = buy_dec
             result["stoplevel"] = stop_dec
@@ -449,9 +459,10 @@ class BuySignalGenerator:
             result["pivot_price"] = buy_dec
             result["buy_zone_start"] = (buy_dec * Decimal("0.99")).quantize(Decimal("0.0001"))
             result["buy_zone_end"] = (buy_dec * Decimal("1.05")).quantize(Decimal("0.0001"))
-            result["profit_target_8pct"] = (buy_dec * Decimal("1.08")).quantize(Decimal("0.0001"))
-            result["profit_target_20pct"] = (buy_dec * Decimal("1.20")).quantize(Decimal("0.0001"))
-            result["profit_target_25pct"] = (buy_dec * Decimal("1.25")).quantize(Decimal("0.0001"))
+            # Profit targets scaled by ATR: conservative (1.5x), moderate (3x), aggressive (4.5x)
+            result["profit_target_8pct"] = (buy_dec + atr_dec * Decimal("1.5")).quantize(Decimal("0.0001"))
+            result["profit_target_20pct"] = (buy_dec + atr_dec * Decimal("3.0")).quantize(Decimal("0.0001"))
+            result["profit_target_25pct"] = (buy_dec + atr_dec * Decimal("4.5")).quantize(Decimal("0.0001"))
             result["exit_trigger_1"] = result["profit_target_8pct"]
             result["exit_trigger_2"] = result["profit_target_20pct"]
             result["rr"] = (
@@ -473,8 +484,18 @@ class BuySignalGenerator:
                     "Cannot proceed without valid risk level. "
                     "Check _generate_signal() logic."
                 )
+            # CRITICAL: Require ATR for volatility-adjusted profit targets (fail-fast if missing)
+            if atr is None or atr <= 0:
+                raise ValueError(
+                    f"[SIGNAL_GENERATION_CRITICAL] Cannot calculate profit targets without ATR data. "
+                    f"ATR is required for volatility-adjusted exits (stocks vary: low-vol 2-3%, high-vol 8-15%). "
+                    f"Profit targets must adapt to market volatility - fixed percentages are unreliable. "
+                    f"ATR={atr}. Verify technical_data_daily loader populated atr field."
+                )
+
             buy_dec = Decimal(str(buylevel))
             stop_dec = Decimal(str(stoplevel))
+            atr_dec = Decimal(str(atr))
 
             result["buylevel"] = buy_dec
             result["stoplevel"] = stop_dec
@@ -482,9 +503,10 @@ class BuySignalGenerator:
             result["trailing_stop"] = stop_dec
             result["sell_level"] = Decimal(str(close)).quantize(Decimal("0.0001"))
             result["pivot_price"] = buy_dec
-            result["profit_target_8pct"] = (buy_dec * Decimal("0.92")).quantize(Decimal("0.0001"))
-            result["profit_target_20pct"] = (buy_dec * Decimal("0.80")).quantize(Decimal("0.0001"))
-            result["profit_target_25pct"] = (buy_dec * Decimal("0.75")).quantize(Decimal("0.0001"))
+            # Profit targets (downside for shorts) scaled by ATR: conservative (1.5x), moderate (3x), aggressive (4.5x)
+            result["profit_target_8pct"] = (buy_dec - atr_dec * Decimal("1.5")).quantize(Decimal("0.0001"))
+            result["profit_target_20pct"] = (buy_dec - atr_dec * Decimal("3.0")).quantize(Decimal("0.0001"))
+            result["profit_target_25pct"] = (buy_dec - atr_dec * Decimal("4.5")).quantize(Decimal("0.0001"))
             result["exit_trigger_1"] = result["profit_target_8pct"]
             result["exit_trigger_2"] = result["profit_target_20pct"]
             result["rr"] = (
