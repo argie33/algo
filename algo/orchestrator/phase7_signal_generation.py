@@ -535,9 +535,10 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
             # CRITICAL #2: market_exposure_daily must have valid data on or before run_date
             # Uses same query pattern as read_market_regime() so guard is consistent with actual read.
             # On weekends/holidays, the most recent trading day's data is sufficient.
+            # GOVERNANCE: Must check data_unavailable flag before using exposure data
             cur.execute(
                 """
-                SELECT exposure_pct, date
+                SELECT exposure_pct, date, data_unavailable, reason
                 FROM market_exposure_daily
                 WHERE date <= %s AND exposure_pct IS NOT NULL
                 ORDER BY date DESC
@@ -557,7 +558,21 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
 
-            exposure_data_date = exposure_row[1]
+            exposure_pct, exposure_data_date, data_unavailable, reason = (
+                exposure_row[0],
+                exposure_row[1],
+                exposure_row[2],
+                exposure_row[3],
+            )
+            # GOVERNANCE ENFORCEMENT: Fail if data marked unavailable
+            if data_unavailable is True:
+                msg = (
+                    f"[PHASE 7 CRITICAL] market_exposure_daily marked unavailable (reason: {reason or 'unknown'}). "
+                    "Cannot generate signals without valid market exposure assessment."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
             if exposure_data_date < run_date:
                 logger.info(
                     f"[PHASE 7] market_exposure_daily: using data from {exposure_data_date} "
