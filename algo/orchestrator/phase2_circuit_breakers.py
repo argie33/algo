@@ -73,7 +73,7 @@ def run(
                 halt_level = cb_result.get("level", "?")
                 halt_reason = cb_result.get("description", "market circuit breaker triggered")
                 if verbose:
-                    logger.info(f"  [WARN] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
+                    logger.info(f"  [HALT] circuit_breaker_L{halt_level:>1s}: {halt_reason}")
                 alerts.send_position_alert(
                     "PORTFOLIO",
                     "MARKET_CIRCUIT_BREAKER",
@@ -84,17 +84,23 @@ def run(
                         "pct_down": cb_result.get("pct_down"),
                     },
                 )
-                logger.warning(
-                    f"[PHASE 2] Market circuit breaker L{halt_level} active but proceeding (may need trading halt)"
+                logger.critical(
+                    f"[PHASE 2] MARKET CIRCUIT BREAKER L{halt_level} ACTIVE - Trading halted: {halt_reason}"
                 )
                 log_phase_result_fn(
                     2,
                     "market_circuit_breaker",
-                    "warn",
+                    "halt",
                     f"L{halt_level} breaker active: {halt_reason}",
                 )
-                # TEMPORARY: Log warning but allow orchestrator to proceed. In production, stricter enforcement needed.
-                # Continue to next phase for now
+                return PhaseResult(
+                    2,
+                    "circuit_breakers",
+                    "halted",
+                    {},
+                    True,
+                    f"Market circuit breaker L{halt_level}: {halt_reason}",
+                )
             elif cb_result and "error" in cb_result:
                 logger.warning(
                     f"[CIRCUIT_BREAKER] Market circuit breaker API check failed (treating as non-fatal): "

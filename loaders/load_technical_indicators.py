@@ -878,6 +878,12 @@ class VectorizedTechnicalLoader:
 
 
 def _update_tech_loader_status(status: str, error_message: str | None = None, latest_date: date | None = None) -> None:
+    # Map old status values to new health-based ones
+    # Old: "RUNNING", "COMPLETED", "FAILED"
+    # New: "loading", "ok", "error"
+    status_map = {"RUNNING": "loading", "COMPLETED": "ok", "FAILED": "error"}
+    db_status = status_map.get(status, status)  # Use mapped value or original if not in map
+
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
             cur.execute(
@@ -886,7 +892,7 @@ def _update_tech_loader_status(status: str, error_message: str | None = None, la
                 SET status = %s, last_updated = NOW(), execution_started = NOW()
                 WHERE table_name = %s
             """,
-                (status, "technical_data_daily"),
+                (db_status, "technical_data_daily"),
             )
             if cur.rowcount == 0:
                 cur.execute(
@@ -895,7 +901,7 @@ def _update_tech_loader_status(status: str, error_message: str | None = None, la
                     (table_name, status, last_updated, execution_started)
                     VALUES (%s, %s, NOW(), NOW())
                 """,
-                    ("technical_data_daily", status),
+                    ("technical_data_daily", db_status),
                 )
         else:
             if latest_date:
@@ -905,7 +911,7 @@ def _update_tech_loader_status(status: str, error_message: str | None = None, la
                     SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s, latest_date = %s
                     WHERE table_name = %s
                 """,
-                    (status, error_message, latest_date, "technical_data_daily"),
+                    (db_status, error_message, latest_date, "technical_data_daily"),
                 )
             else:
                 cur.execute(
@@ -914,7 +920,7 @@ def _update_tech_loader_status(status: str, error_message: str | None = None, la
                     SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s
                     WHERE table_name = %s
                 """,
-                    (status, error_message, "technical_data_daily"),
+                    (db_status, error_message, "technical_data_daily"),
                 )
 
 
@@ -935,7 +941,7 @@ def _tech_heartbeat_worker(stop_event: threading.Event) -> None:
                     SET last_updated = NOW()
                     WHERE table_name = %s AND status = %s
                 """,
-                    ("technical_data_daily", "RUNNING"),
+                    ("technical_data_daily", "loading"),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.critical(

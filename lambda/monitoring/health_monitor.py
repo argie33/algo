@@ -327,7 +327,23 @@ Time: {datetime.now(timezone.utc).isoformat()}
 
     logger.info(f"Health check complete: {overall_status} ({len(all_issues)} issues)")
 
+    # CRITICAL: Return appropriate HTTP status codes
+    # 200: All systems healthy
+    # 503: Degraded or unhealthy - service is having issues
+    # Do NOT return 202 (Accepted) for health status - use 503 for actual health failures
+    status_code = 200 if overall_status == "healthy" else 503
+    if overall_status == "degraded":
+        logger.warning(
+            f"[HEALTH_MONITOR] System degraded with {len(all_issues)} issues. "
+            f"Returning 503 Service Unavailable to signal downstream services."
+        )
+    elif overall_status == "unhealthy":
+        logger.critical(
+            f"[HEALTH_MONITOR] System unhealthy with {len(all_issues)} critical issues. "
+            f"Returning 503 Service Unavailable - trading halted until resolved."
+        )
+
     return {
-        "statusCode": 200 if overall_status == "healthy" else 202,
+        "statusCode": status_code,
         "body": json.dumps(response_body),
     }

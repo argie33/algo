@@ -56,7 +56,8 @@ CRITICAL_INCOMPLETE_LOADERS = {
     "technical_data_daily",
     # Metric loaders (Session 257 / 2026-07-05): Essential for stock scoring.
     # Phase 1 requires these fresh; stock_scores requires minimum 3/6 metrics per GOVERNANCE.md.
-    "growth_metrics",
+    # NOTE: growth_metrics is enrichment-only (Session 221), not critical for trading.
+    # Moved to auxiliary since core signals don't need it.
     "quality_metrics",
     "value_metrics",
     "positioning_metrics",
@@ -307,7 +308,9 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
 
     try:
         with DatabaseContext("read") as cur:
-            # Find loaders with <95% completion in the last 1 hour
+            # Find loaders with <95% completion or error/failed status in the last 1 hour
+            # Status values: "ok" (good), "error" (no data), "failed" (< 50% complete),
+            # "loading" (in progress), "stale" (data is old)
             cur.execute("""
                 SELECT
                     table_name,
@@ -319,7 +322,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                     execution_started,
                     last_updated
                 FROM data_loader_status
-                WHERE (completion_pct < 95.0 OR status = 'INCOMPLETE')
+                WHERE (completion_pct < 95.0 OR status IN ('error', 'failed'))
                     AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
                 ORDER BY completion_pct ASC, table_name
             """)

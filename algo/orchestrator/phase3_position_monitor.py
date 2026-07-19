@@ -42,22 +42,10 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
     Returns:
         PhaseResult with status 'ok', data containing position recommendations
     """
-    # In paper mode, still update prices but skip live-mode monitoring (halts, stale orders, stop raises)
-    # Skip entirely if explicitly disabled via env var
+    # Phase 3 (Position Monitor) is CRITICAL and cannot be skipped
+    # It detects: single-stock halts, stale orders, stuck positions, orphaned trades
+    # Position monitoring is non-negotiable - do not disable via environment variables
     is_paper_mode = config.get("execution_mode") == "paper"
-    skip_phase3 = os.getenv("SKIP_PHASE3_MONITOR", "").lower() in ("true", "1", "yes")
-
-    if skip_phase3:
-        logger.info("[PHASE 3] Position monitor SKIPPED (explicitly disabled)")
-        # Honestly report that phase was skipped - don't pretend it succeeded
-        return PhaseResult(
-            3,
-            "position_monitor",
-            "skipped",  # Phase was intentionally disabled, not successful
-            {"recommendations": [], "count": 0},
-            False,  # Don't halt - skipping intentionally doesn't block downstream
-            None,
-        )
 
     # CRITICAL FIX: In paper mode, we still need to update current_price and position_value
     # so the API doesn't filter out positions. Skip full analysis (requires sector/technical data).

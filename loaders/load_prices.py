@@ -1769,10 +1769,18 @@ class PriceLoader(OptimalLoader):
 
             completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
 
-            loader_status = "COMPLETED" if completion_pct >= 90 else "INCOMPLETE"
+            # Compute health status: ok, error, failed, or loading
+            # error = no data, failed = <50% complete, ok = >=50% complete
+            if total_rows == 0:
+                loader_status = "error"
+            elif completion_pct < 50:
+                loader_status = "failed"
+            else:
+                loader_status = "ok"
+
             if completion_pct < 90:
                 logger.warning(
-                    f"[{self.table_name}] Load completed but INCOMPLETE: "
+                    f"[{self.table_name}] Load completed but incomplete: "
                     f"{symbols_successfully_loaded}/{symbols_expected} symbols ({completion_pct:.1f}%)"
                 )
 
@@ -2287,7 +2295,7 @@ def derive_aggregate_prices(asset_class: str) -> None:
                 """UPDATE data_loader_status
                    SET status = %s, last_updated = NOW(), execution_completed = NOW(), latest_date = %s
                    WHERE table_name = %s""",
-                ("COMPLETED", latest_date, target_table),
+                ("ok", latest_date, target_table),
             )
             if cur.rowcount == 0:
                 cur.execute(

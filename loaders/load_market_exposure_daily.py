@@ -116,16 +116,16 @@ def main() -> int:  # noqa: C901
     table_name = "market_exposure_daily"
 
     try:
-        # Mark loader as RUNNING
+        # Mark loader as loading (in progress)
         with DatabaseContext("write") as cur:
             cur.execute(
                 "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() WHERE table_name = %s",
-                ("RUNNING", table_name),
+                ("loading", table_name),
             )
             if cur.rowcount == 0:
                 cur.execute(
                     "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
-                    (table_name, "RUNNING"),
+                    (table_name, "loading"),
                 )
 
         from algo.risk import MarketExposure
@@ -153,7 +153,7 @@ def main() -> int:  # noqa: C901
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
-                    ("FAILED", error_msg, table_name),
+                    ("error", error_msg, table_name),
                 )
             return 1
 
@@ -165,7 +165,7 @@ def main() -> int:  # noqa: C901
             with DatabaseContext("write") as cur:
                 cur.execute(
                     "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
-                    ("FAILED", error_msg, table_name),
+                    ("error", error_msg, table_name),
                 )
             return 1
 
@@ -328,7 +328,7 @@ def main() -> int:  # noqa: C901
                     table_name,
                     1,  # market_exposure_daily has 1 "symbol" (daily aggregate)
                     latest_date,
-                    "COMPLETED",
+                    "ok",
                     100.0,  # 100% completion
                     1,
                     1,
