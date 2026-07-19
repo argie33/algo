@@ -94,9 +94,7 @@ const NAV_SECTIONS = [
   {
     title: "Company",
     items: [
-      { text: "About", icon: Briefcase, path: "/about" },
-      { text: "Our Team", icon: Award, path: "/our-team" },
-      { text: "Contact", icon: Globe, path: "/contact" },
+      { text: "About Bullseye", icon: Globe, path: "/home" },
     ],
   },
 ];
@@ -467,33 +465,14 @@ export default function AppLayout({ children }) {
               }}
             >
               <a
-                href="/about"
+                href="/home"
                 style={{
                   color: "inherit",
                   textDecoration: "none",
-                  marginRight: "0.75rem",
                 }}
-                title="About the firm"
+                title="About Bullseye"
               >
-                About
-              </a>
-              <a
-                href="/our-team"
-                style={{
-                  color: "inherit",
-                  textDecoration: "none",
-                  marginRight: "0.75rem",
-                }}
-                title="Meet the team"
-              >
-                Team
-              </a>
-              <a
-                href="/contact"
-                style={{ color: "inherit", textDecoration: "none" }}
-                title="Get in touch"
-              >
-                Contact
+                About Bullseye
               </a>
             </span>
           </div>
