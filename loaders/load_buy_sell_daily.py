@@ -52,10 +52,11 @@ class SignalsDailyLoader(OptimalLoader):
         """
         try:
             logger.info(f"[RUN] Starting with {len(symbols)} symbols")
+
             # Only filter if symbols came from get_active_symbols() (not from explicit --symbols arg)
             # If user specified symbols explicitly, respect their choice
             if symbols and len(symbols) > 4000:  # Heuristic: if >4000 symbols, likely from get_active_symbols()
-                logger.info(f"[RUN] Len > 4000, applying universe and price filters")
+                logger.info(f"[RUN] Len > 4000, applying universe filter")
                 with DatabaseContext("read") as cur:
                     cur.execute(
                         "SELECT symbol FROM stock_scores WHERE data_unavailable = false"
@@ -69,11 +70,30 @@ class SignalsDailyLoader(OptimalLoader):
                     f"{original_count} → {len(symbols)} symbols ({len(symbols) / original_count * 100:.1f}% retained)"
                 )
 
-                # CRITICAL FIX (Session 262): Filter to symbols with price_daily data on the TARGET DATE.
-                # Root cause: Loader was generating signals for symbols without price data, causing
-                # foreign key constraint violations when trying to insert into buy_sell_daily.
-                # Fix: BEFORE starting parallel generation, filter symbols to those with actual
-                # price data on the target date. This prevents foreign key failures.
+                # CRITICAL: Delete ALL old buy_sell_daily signals that are NOT for scored symbols
+                # This clears out the entire mismatched universe from before this fix
+                try:
+                    with DatabaseContext("write") as cur:
+                        cur.execute(
+                            """DELETE FROM buy_sell_daily
+                               WHERE symbol NOT IN (SELECT symbol FROM stock_scores WHERE data_unavailable = false)"""
+                        )
+                        deleted_count = cur.rowcount
+                        logger.info(
+                            f"[CLEANUP] Deleted {deleted_count} signals for symbols without stock_scores"
+                        )
+                except Exception as e:
+                    logger.error(f"[CLEANUP] Failed to delete signals for unscored symbols: {e}")
+                    # Continue anyway - this is a data cleanup, not critical for functionality
+
+            # CRITICAL FIX (Session 262): Filter to symbols with price_daily data on the TARGET DATE.
+            # This runs ALWAYS, not just when len(symbols) > 4000.
+            # Root cause: Loader was generating signals for symbols without price data, causing
+            # foreign key constraint violations when trying to insert into buy_sell_daily.
+            # Fix: BEFORE starting parallel generation, filter symbols to those with actual
+            # price data on the target date. This prevents foreign key failures.
+            if symbols:
+                logger.info(f"[PRICE_FILTER] Starting price_daily filter for {len(symbols)} symbols")
                 now_et = datetime.now(EASTERN_TZ)
                 target_date = now_et.date()
                 max_iterations = 10
@@ -135,26 +155,10 @@ class SignalsDailyLoader(OptimalLoader):
                         f"CRITICAL: No symbols have price_daily data on {price_data_date}. "
                         "Cannot generate signals without prices. Check price loader status."
                     )
-
-                # CRITICAL: Delete ALL old buy_sell_daily signals that are NOT for scored symbols
-                # This clears out the entire mismatched universe from before this fix
-                try:
-                    with DatabaseContext("write") as cur:
-                        cur.execute(
-                            """DELETE FROM buy_sell_daily
-                               WHERE symbol NOT IN (SELECT symbol FROM stock_scores WHERE data_unavailable = false)"""
-                        )
-                        deleted_count = cur.rowcount
-                        logger.info(
-                            f"[CLEANUP] Deleted {deleted_count} signals for symbols without stock_scores"
-                        )
-                except Exception as e:
-                    logger.error(f"[CLEANUP] Failed to delete signals for unscored symbols: {e}")
-                    # Continue anyway - this is a data cleanup, not critical for functionality
         except Exception as e:
             logger.warning(
-                f"[UNIVERSE FILTER] Failed to filter symbols by stock_scores: {e}. "
-                f"Proceeding with all {len(symbols)} symbols."
+                f"[RUN] Failed to apply filters: {e}. "
+                f"Proceeding with {len(symbols)} symbols (may cause foreign key errors)."
             )
 
         # Call parent run() with filtered symbols
@@ -735,7 +739,12 @@ class SignalsDailyLoader(OptimalLoader):
         """Cap DECIMAL(8,4) columns to prevent numeric field overflow on high-price stocks.
 
         Also ensures data_unavailable and reason columns are present on all rows.
+        CRITICAL FIX: Filter out sentinel rows (data_unavailable=True) before returning.
+        These rows indicate "no data available for this symbol" and should NOT be inserted
+        into the database. They were previously being inserted with signal=NULL,
+        causing Phase 7 to falsely detect stale data (Session 261).
         """
+        valid_rows = []
         for row in rows:
             # Ensure data_unavailable and reason columns are present on all rows
             if "data_unavailable" not in row:
@@ -743,9 +752,12 @@ class SignalsDailyLoader(OptimalLoader):
             if "reason" not in row:
                 row["reason"] = None
 
-            # Skip metric validation and capping for sentinel rows (data_unavailable=True)
+            # CRITICAL: Sentinel rows (data_unavailable=True) indicate "skip this symbol"
+            # They must NOT be inserted into buy_sell_daily table
             if row.get("data_unavailable"):
                 continue
+
+            valid_rows.append(row)
 
             capped_cols = []
             for col in self._DECIMAL84_COLS:
@@ -758,7 +770,7 @@ class SignalsDailyLoader(OptimalLoader):
                 logger.warning(
                     f"{row.get('symbol')} [{row.get('date')}]: Metrics capped at {self.decimal84_max}: {capped_cols}"
                 )
-        return rows
+        return valid_rows
 
 
 def main() -> int:  # noqa: C901
