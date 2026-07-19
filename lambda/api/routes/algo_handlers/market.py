@@ -366,7 +366,25 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(f"Unexpected error: {e}") from e
 
-        rows = loader_rows + algo_rows
+        # CRITICAL FIX: For loader tables with NULL row_count, fetch actual count from database
+        # data_loader_status.row_count is populated by loaders on run, but orchestrator-generated
+        # tables (algo_positions, algo_trades, etc.) never have their row_count updated by loaders.
+        # This causes false "empty" status. Query actual counts to fix display.
+        enriched_rows = []
+        for row in loader_rows:
+            if row.get("row_count") is None:
+                tbl_name = row.get("table_name")
+                try:
+                    cur.execute(f"SELECT COUNT(*) AS cnt FROM {psycopg2.sql.Identifier(tbl_name).as_string(cur)}")
+                    count_row = cur.fetchone()
+                    if count_row:
+                        actual_count = safe_dict_convert(count_row).get("cnt")
+                        row["row_count"] = actual_count
+                except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception):
+                    pass
+            enriched_rows.append(row)
+
+        rows = enriched_rows + algo_rows
 
         # Critical tables: trading cannot proceed if these are stale/empty
         # These are the core input/output tables for all 9 phases
