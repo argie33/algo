@@ -379,11 +379,15 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         psycopg2.sql.Identifier(tbl_name)
                     ))
                     count_row = cur.fetchone()
-                    if count_row:
-                        actual_count = safe_dict_convert(count_row).get("cnt")
-                        row["row_count"] = actual_count
-                except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception):
-                    pass
+                    if count_row and len(count_row) > 0:
+                        actual_count = count_row[0]
+                        if actual_count is not None:
+                            row["row_count"] = actual_count
+                            logger.debug(f"[DATA_STATUS] Updated {tbl_name}: row_count={actual_count}")
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    logger.warning(f"[DATA_STATUS] Could not refresh row_count for {tbl_name}: {e}")
+                except Exception as e:
+                    logger.warning(f"[DATA_STATUS] Unexpected error refreshing {tbl_name}: {e}")
             enriched_rows.append(row)
 
         rows = enriched_rows + algo_rows
