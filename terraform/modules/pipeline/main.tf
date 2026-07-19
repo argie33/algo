@@ -631,7 +631,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogFredFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MarketExposureDaily"
+        Next = "MarketStatusDaily"
       }
 
       LogFredFailure = {

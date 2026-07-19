@@ -103,7 +103,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
                     # Check if value metrics are available (CRITICAL - value metrics required for scoring)
                     if value_row and value_row.get("data_unavailable"):
-                        logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Value metrics unavailable: {value_row.get('reason')}")
+                        logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Value metrics unavailable: {value_row.get('reason')}")
                         # Still insert unavailable marker for audit trail, but don't count as success
                         with DatabaseContext("write") as cur:
                             self._insert_value_metrics(cur, value_row)
@@ -123,14 +123,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                             self._insert_quality_metrics(cur, quality_row)
                             quality_inserts += 1
                         elif quality_row and quality_row.get("data_unavailable"):
-                            logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics unavailable: {quality_row.get('reason')}")
+                            logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics unavailable: {quality_row.get('reason')}")
 
                         # Insert growth metrics (OPTIONAL - missing if income statement history unavailable)
                         if growth_row and not growth_row.get("data_unavailable"):
                             self._insert_growth_metrics(cur, growth_row)
                             growth_inserts += 1
                         elif growth_row and growth_row.get("data_unavailable"):
-                            logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}")
+                            logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}")
 
                     symbols_succeeded += 1
 
@@ -218,7 +218,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 )
                 income_rows = cur.fetchall()
                 if not income_rows:
-                    logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable")
+                    logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable")
 
             # Construct value metrics from sec_valuations only (Session 271 - yfinance-free)
             value_dict = self._build_value_metrics(symbol, sec_val_row)

@@ -554,7 +554,7 @@ class StockScoresLoader(OptimalLoader):
                                 f"API contract violation: unavailable markers must include reason. Marker: {clamped_value_score}"
                             )
                         unavailable_metrics[metric_name] = reason
-                        logger.debug(f"[STOCK_SCORES] {metric_name} unavailable for {symbol}: {reason}")
+                        logger.warning(f"[STOCK_SCORES] {metric_name} unavailable for {symbol}: {reason}")
                     elif clamped_value_score is None:
                         raise ValueError(
                             f"[{symbol}] Metric '{metric_name}' has weight {weight:.3f} but returned None (not a marker dict). "
@@ -959,7 +959,7 @@ class StockScoresLoader(OptimalLoader):
 
             # Symbol not in momentum_metrics cache (loader hasn't run for this symbol yet)
             logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - momentum_metrics not populated")
-            logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
+            logger.warning(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_data_available"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
@@ -989,7 +989,7 @@ class StockScoresLoader(OptimalLoader):
         """
         # FAIL-FAST: Explicitly check for data_unavailable flag (not just falsy)
         if not metrics or metrics.get("data_unavailable") is True:
-            logger.debug(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
+            logger.warning(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_metrics_data"}
 
@@ -1163,7 +1163,7 @@ class StockScoresLoader(OptimalLoader):
         Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable") is True:
-            logger.debug(f"[STOCK_SCORES] Value metrics unavailable for {symbol}")
+            logger.warning(f"[STOCK_SCORES] Value metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for value_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_value_metrics_data"}
 
@@ -1245,7 +1245,7 @@ class StockScoresLoader(OptimalLoader):
         returns data_unavailable marker. Optional for REITs/special securities.
         """
         if not metrics or metrics.get("data_unavailable") is True:
-            logger.debug(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
+            logger.warning(f"[STOCK_SCORES] Positioning metrics unavailable for {symbol}")
             logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for positioning_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_metrics_data"}
 
@@ -1313,7 +1313,7 @@ class StockScoresLoader(OptimalLoader):
         returns data_unavailable marker. Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable") is True:
-            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol})")
+            logger.warning(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_metrics_data"}
 
         weighted_sum = 0.0
@@ -1392,7 +1392,7 @@ class StockScoresLoader(OptimalLoader):
         Requires minimum 30/60/120/252 days of price history per timeframe (no short-term fallback).
         """
         if not metrics or metrics.get("data_unavailable") is True:
-            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
+            logger.warning(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_metrics_data"}
 
         # Named weights â€" recent timeframes matter more for swing trading

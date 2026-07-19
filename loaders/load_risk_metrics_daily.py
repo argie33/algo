@@ -124,7 +124,7 @@ class RiskMetricsLoader(OptimalLoader):
                 }
 
         except RuntimeError as e:
-            logger.debug(f"[RISK_METRICS] {symbol}: momentum unavailable - {e}")
+            logger.warning(f"[RISK_METRICS] {symbol}: momentum unavailable - {e}")
             return {
                 "symbol": symbol,
                 "momentum_1m": None,
@@ -181,7 +181,7 @@ class RiskMetricsLoader(OptimalLoader):
             if not rows or len(rows) < 5:
                 actual_rows = len(rows) if rows else 0
                 reason = f"insufficient_price_history: {actual_rows}/5 days available"
-                logger.debug(f"[RISK_METRICS] {symbol}: stability unavailable - {reason}")
+                logger.warning(f"[RISK_METRICS] {symbol}: stability unavailable - {reason}")
                 return {
                     "symbol": symbol,
                     "volatility_30d": None,
@@ -212,7 +212,7 @@ class RiskMetricsLoader(OptimalLoader):
 
             if not returns:
                 reason = "invalid_price_data: no valid price transitions"
-                logger.debug(f"[RISK_METRICS] {symbol}: stability unavailable - {reason}")
+                logger.warning(f"[RISK_METRICS] {symbol}: stability unavailable - {reason}")
                 return {
                     "symbol": symbol,
                     "volatility_30d": None,
@@ -248,7 +248,7 @@ class RiskMetricsLoader(OptimalLoader):
             unavailability_reason: str | None = "; ".join(unavailability_reasons) if unavailability_reasons else None
 
             if data_unavailable and unavailability_reasons:
-                logger.debug(f"[RISK_METRICS] {symbol}: incomplete stability metrics - {unavailability_reason}")
+                logger.warning(f"[RISK_METRICS] {symbol}: incomplete stability metrics - {unavailability_reason}")
 
             return {
                 "symbol": symbol,
@@ -395,7 +395,7 @@ class RiskMetricsLoader(OptimalLoader):
             beta = float(cov_matrix[0, 1]) / spy_var
 
             if abs(beta) > 10:
-                logger.debug(f"[RISK_METRICS] {symbol}: extreme DB beta {beta:.2f} - marking unavailable.")
+                logger.warning(f"[RISK_METRICS] {symbol}: extreme DB beta {beta:.2f} - marking unavailable.")
                 return {
                     "symbol": symbol,
                     "data_unavailable": True,

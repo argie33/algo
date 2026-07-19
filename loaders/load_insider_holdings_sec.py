@@ -112,7 +112,16 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
             forms = recent_filings["form"]
             accession_numbers = recent_filings["accessionNumber"]
             filing_dates = recent_filings["filingDate"]
-            isXBRL = recent_filings.get("isXBRL", [])
+            # CRITICAL: isXBRL field from SEC API is required to distinguish XBRL vs plain-text Form 4s
+            # If missing, it indicates SEC API contract change and data quality degradation.
+            # Must fail-fast to alert operators, not silently degrade to plain-text-only parsing.
+            if "isXBRL" not in recent_filings:
+                raise RuntimeError(
+                    f"[{symbol}] SEC API contract violation: 'isXBRL' field missing from submissions. "
+                    "Cannot distinguish XBRL vs plain-text Form 4 filings. "
+                    "Data will be marked unavailable. Check if SEC submissions API schema changed."
+                )
+            isXBRL = recent_filings["isXBRL"]
 
             # Separate XBRL and plain-text Form 4 filings
             xbrl_form4_filings = []

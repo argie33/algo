@@ -148,13 +148,12 @@ class ShortInterestFinraLoader(OptimalLoader):
 
         except Exception as e:
             logger.error(f"[SHORT_INTEREST] Fatal error: {type(e).__name__}: {str(e)}", exc_info=True)
-            return {
-                "symbols_succeeded": 0,
-                "symbols_failed": len(symbols),
-                "rows_inserted": 0,
-                "status": "error",
-                "error": str(e)[:200],
-            }
+            # CRITICAL: Fail-fast on fatal errors (no silent fallback to empty result dict)
+            # Returning a dict with status="error" masks the failure from orchestrator.
+            # Re-raise to ensure orchestrator detects the failure and marks data unavailable.
+            raise RuntimeError(
+                f"[SHORT_INTEREST] Fatal loader error: {type(e).__name__}: {str(e)[:200]}"
+            ) from e
 
 
 def main() -> int:

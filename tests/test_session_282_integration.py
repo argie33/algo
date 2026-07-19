@@ -189,7 +189,9 @@ class TestBasicValidation:
             from algo.trading.executor_entry_handler import create_entry_result
             from loaders.load_buy_sell_daily import load_all_buy_sell_signals
             from utils.db.local_file_lock import FileLockManager
-            from lambda.api.dev_server import is_local_dev_mode
+            import importlib
+            dev_server_module = importlib.import_module("lambda.api.dev_server")
+            is_local_dev_mode = dev_server_module.is_local_dev_mode
         except Exception as e:
             pytest.fail(f"Failed to import critical module: {e}")
 

@@ -248,12 +248,12 @@ class SecValuationsLoader(OptimalLoader):
             if pe <= 10000:  # Reasonable PE bounds
                 result["pe_ratio"] = round(pe, 2)
             else:
-                logger.debug(f"[{symbol}] PE ratio out of bounds ({pe:.0f}), marking as NULL")
+                logger.warning(f"[{symbol}] PE ratio out of bounds ({pe:.0f}), marking as NULL")
         elif ttm_eps == 0:
             # Company is unprofitable this TTM
             result["pe_ratio"] = None
         else:
-            logger.debug(f"[{symbol}] TTM EPS missing or invalid, PE ratio unavailable")
+            logger.warning(f"[{symbol}] TTM EPS missing or invalid, PE ratio unavailable")
 
         # PB Ratio = Price ÷ Book Value Per Share (bound to 0..1000)
         if book_value and book_value > 0:
@@ -263,9 +263,9 @@ class SecValuationsLoader(OptimalLoader):
                 if pb <= 1000:  # Reasonable PB bounds
                     result["pb_ratio"] = round(pb, 2)
                 else:
-                    logger.debug(f"[{symbol}] PB ratio out of bounds ({pb:.0f}), marking as NULL")
+                    logger.warning(f"[{symbol}] PB ratio out of bounds ({pb:.0f}), marking as NULL")
         else:
-            logger.debug(f"[{symbol}] Book value missing, PB ratio unavailable")
+            logger.warning(f"[{symbol}] Book value missing, PB ratio unavailable")
 
         # PS Ratio = Price ÷ Revenue Per Share (bound to 0..10000)
         if ttm_revenue and ttm_revenue > 0:
@@ -275,9 +275,9 @@ class SecValuationsLoader(OptimalLoader):
                 if ps <= 10000:  # Reasonable PS bounds
                     result["ps_ratio"] = round(ps, 2)
                 else:
-                    logger.debug(f"[{symbol}] PS ratio out of bounds ({ps:.0f}), marking as NULL")
+                    logger.warning(f"[{symbol}] PS ratio out of bounds ({ps:.0f}), marking as NULL")
         else:
-            logger.debug(f"[{symbol}] TTM revenue missing, PS ratio unavailable")
+            logger.warning(f"[{symbol}] TTM revenue missing, PS ratio unavailable")
 
         # PEG Ratio = PE ÷ Earnings Growth Rate % (bound to 0..10000)
         # Growth rate: (Latest Quarter EPS - EPS from 1yr ago) / EPS from 1yr ago
