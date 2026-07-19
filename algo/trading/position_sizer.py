@@ -65,6 +65,35 @@ class PositionSizer:
                 f"Cannot proceed with position sizing without explicit risk configuration."
             )
 
+    def _calculate_trading_days_elapsed(self, start_date: _date, end_date: _date) -> int:
+        """Count the number of trading days elapsed between two dates (inclusive of start, exclusive of end).
+
+        Uses MarketCalendar to determine trading days, avoiding false positives on weekends/holidays.
+        For example: Friday to Monday = 1 trading day (Mon is a new trading day, Fri->Mon is only Fri's day).
+
+        Args:
+            start_date: Start date (e.g., snapshot_date)
+            end_date: End date (e.g., current_date)
+
+        Returns:
+            Number of trading days elapsed (0 if same day, 1 if next trading day, etc.)
+        """
+        if start_date >= end_date:
+            return 0
+
+        trading_days = 0
+        current = start_date
+
+        # Iterate from start to end, counting trading days
+        # Start from the day after start_date to count elapsed days
+        current += timedelta(days=1)
+        while current <= end_date:
+            if MarketCalendar.is_trading_day(current):
+                trading_days += 1
+            current += timedelta(days=1)
+
+        return trading_days
+
     def _with_cursor(self, operation: Callable[[Any], Any]) -> Any:
         """Execute an operation with a database cursor."""
         with DatabaseContext("read") as cur:
@@ -123,36 +152,41 @@ class PositionSizer:
                         "Portfolio snapshot date is NULL. Cannot calculate staleness without timestamp. "
                         "Check that Phase 7 reconciliation is updating portfolio snapshots."
                     )
-                age_days = (_date.today() - snapshot_date).days
-                if age_days <= 1:
+                # FIXED (Session 281): Use trading day logic instead of calendar days
+                # Calendar days false-positive on weekends (Fri snapshot = 3 calendar days old on Mon)
+                # but only 2 trading days old (Fri + Mon = 2 trading days elapsed)
+                calendar_age = (_date.today() - snapshot_date).days
+                trading_age = self._calculate_trading_days_elapsed(snapshot_date, _date.today())
+
+                if trading_age <= 1:
                     logger.info(
-                        f"[PORTFOLIO] Using snapshot from {age_days}d ago (threshold: 1 day): ${snapshot_value:,.2f}"
+                        f"[PORTFOLIO] Using snapshot from {trading_age}d ago (trading days, {calendar_age}d calendar): ${snapshot_value:,.2f}"
                     )
                     # Edge case: 0 days = current snapshot (normal case)
                     # Edge case: 1 day = yesterday's data (acceptable, position sizing proceeds)
-                    if age_days == 0:
-                        logger.debug("[PORTFOLIO_SNAPSHOT] Using current day snapshot (latest available)")
-                    elif age_days == 1:
+                    if trading_age == 0:
+                        logger.debug("[PORTFOLIO_SNAPSHOT] Using current trading day snapshot (latest available)")
+                    elif trading_age == 1:
                         logger.warning(
                             "[PORTFOLIO_SNAPSHOT] Using yesterday's snapshot (Phase 7 may have missed today)"
                         )
                     return snapshot_value
-                # CRITICAL: Snapshot is too stale. Stricter 1-day threshold prevents position
+                # CRITICAL: Snapshot is too stale. Stricter 1-trading-day threshold prevents position
                 # sizing on multi-day-old data when Phase 7 fails. Better to halt than risk
                 # thousands of dollars in wrong position sizes.
                 # Log edge cases: negative age_days or very old data
-                if age_days < 0:
+                if trading_age < 0:
                     logger.critical(
-                        f"[PORTFOLIO_SNAPSHOT CRITICAL] Snapshot date in future ({age_days}d): {snapshot_date}. "
+                        f"[PORTFOLIO_SNAPSHOT CRITICAL] Snapshot date in future ({trading_age}d): {snapshot_date}. "
                         "Clock skew detected or snapshot timestamp corrupted."
                     )
                 else:
                     logger.critical(
-                        f"[PORTFOLIO_SNAPSHOT CRITICAL] Snapshot too stale ({age_days}d ago). "
+                        f"[PORTFOLIO_SNAPSHOT CRITICAL] Snapshot too stale ({trading_age}d old, trading days). "
                         "Phase 7 (reconciliation) must run daily. Last successful Phase 7 run: {snapshot_date}"
                     )
                 error_msg = (
-                    f"Portfolio snapshot too stale ({age_days}d old, threshold 1 day). "
+                    f"Portfolio snapshot too stale ({trading_age}d old trading days, threshold 1 day). "
                     "Phase 7 must run daily. Position sizing halted."
                 )
                 logger.critical(error_msg)
@@ -382,10 +416,12 @@ class PositionSizer:
             if not row or row[0] is None:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
             data_date = row[1]
-            age_days = (_date.today() - data_date).days
-            if age_days > 1:
+            # FIXED (Session 281): Use trading day logic instead of calendar days
+            calendar_age = (_date.today() - data_date).days
+            trading_age = self._calculate_trading_days_elapsed(data_date, _date.today())
+            if trading_age > 1:
                 raise ValueError(
-                    f"Market exposure data too stale: {age_days} days old (max 1 day). "
+                    f"Market exposure data too stale: {trading_age} trading days old (max 1 day, {calendar_age}d calendar). "
                     f"Loader must run to provide fresh market exposure for position sizing."
                 )
             return Decimal(str(row[0])) / Decimal(100)
