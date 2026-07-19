@@ -375,6 +375,7 @@ def _get_candidates_from_buysell(
                       AND p.high > p.low
                       AND ((p.close - p.low) / (p.high - p.low)) > %s
                       AND bsd.strength IS NOT NULL
+                      AND (ss.symbol NOT IN (SELECT symbol FROM etf_symbols) AND (ss.etf IS NULL OR ss.etf = 'N'))
                 )
                 SELECT * FROM ranked
                 ORDER BY composite_score DESC
