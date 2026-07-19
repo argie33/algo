@@ -1362,9 +1362,11 @@ class Orchestrator:
         # NOTE: Paper trading is NOT exempt from locking. Paper runs still write
         # shared production state (DB rows, live Alpaca paper-account orders), so
         # concurrent unlocked runs corrupt that state exactly like live trading would
-        # (duplicate signals/orders, inconsistent portfolio snapshots). Only dry-run
-        # (no writes) and the explicit env override are safe to skip.
-        skip_lock_check = self.dry_run or os.getenv("SKIP_ORCHESTRATOR_LOCK", "").lower() in ("true", "1", "yes")
+        # (duplicate signals/orders, inconsistent portfolio snapshots).
+        # CRITICAL: Distributed lock is ALWAYS required except for dry-run (which doesn't write).
+        # The SKIP_ORCHESTRATOR_LOCK bypass has been PERMANENTLY REMOVED (Session 272).
+        # If you need to skip locking for testing, use dry_run=True instead.
+        skip_lock_check = self.dry_run
 
         if not skip_lock_check:
             lock_acquired = self._acquire_run_lock()
@@ -1396,8 +1398,14 @@ class Orchestrator:
                             "error": "Distributed lock system unavailable. Cannot proceed with trading.",
                         }
         else:
-            reason = "dry-run mode" if self.dry_run else "SKIP_ORCHESTRATOR_LOCK environment variable"
-            logger.info(f"[LOCK-SKIP] Skipping distributed lock check ({reason})")
+            # Only reason to skip lock is dry_run (which doesn't write to database/broker)
+            if not self.dry_run:
+                raise RuntimeError(
+                    "[CRITICAL] Lock check was skipped but dry_run is False. "
+                    "This should never happen - distributed lock is ALWAYS required for non-dry-run executions. "
+                    "Check for SKIP_ORCHESTRATOR_LOCK bypass in orchestrator initialization."
+                )
+            logger.info(f"[LOCK-SKIP] Skipping distributed lock check (dry-run mode - no database writes)")
         return None
 
     # ---------- Main entrypoint ----------

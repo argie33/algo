@@ -49,10 +49,12 @@ class EnvironmentValidator:
     RECOMMENDED_VARS = {
         "LOG_LEVEL": "DEBUG, INFO, WARNING, ERROR (default: INFO)",
         "BACKFILL_DAYS": "Number of days to backfill data on loader runs",
-        "SKIP_ORCHESTRATOR_LOCK": "true to skip distributed lock (for testing only)",
         "MAX_RUNTIME_SECONDS": "Maximum orchestrator runtime in seconds",
         "DATA_FRESHNESS_THRESHOLD_MINUTES": "Max age for data to be considered fresh",
     }
+    # NOTE: SKIP_ORCHESTRATOR_LOCK has been REMOVED (Session 272).
+    # Distributed lock is required for all production runs to prevent duplicate trades.
+    # Use dry_run=True for testing without writes.
 
     @classmethod
     def validate_required(cls) -> tuple[bool, list[str]]:
