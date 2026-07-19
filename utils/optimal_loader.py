@@ -413,37 +413,39 @@ class OptimalLoader:
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             except RuntimeError as ddb_err:
-                # DynamoDB locking unavailable (CRITICAL for orchestrator, but loaders can degrade)
-                # For loaders (idempotent ops), fall back to file-based locking as graceful degradation
-                logger.warning(
+                # CRITICAL (Session 282): DynamoDB unavailable - fail fast, no fallback
+                # Reason: FileLockManager has Windows race condition (non-atomic file creation).
+                # Better to fail-fast and trigger infrastructure retry than silently degrade to unsafe locking.
+                # Loaders are orchestrated by Step Functions/EventBridge which handles retries.
+                logger.critical(
                     f"[{self.table_name}] DynamoDB lock unavailable: {ddb_err}. "
-                    f"Falling back to file-based locking (loaders are idempotent)."
+                    f"Cannot proceed without distributed locking. Fix DynamoDB access or AWS credentials."
                 )
-                lock_manager = FileLockManager(
-                    table_name=lock_table,
-                    lock_duration_seconds=lock_ttl,
-                    enable_auto_cleanup=True
-                )
+                from algo.exceptions import LockAcquisitionError
+                raise LockAcquisitionError(
+                    lock_key=lock_table,
+                    reason=f"DynamoDB lock manager unavailable: {ddb_err}",
+                    context={"table_name": self.table_name}
+                ) from ddb_err
 
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
-                # Check if DynamoDB is unavailable (permission denied) vs. actual lock contention
+                # Lock acquisition failed. Check if it's a permission issue or actual contention.
                 if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
-                    logger.warning(
-                        f"[{self.table_name}] DynamoDB lock unavailable (credential issue) - "
-                        f"falling back to file-based locking"
+                    # CRITICAL (Session 282): DynamoDB permission error - fail fast, never fall back to FileLockManager
+                    # Reason: FileLockManager has Windows race condition (non-atomic file creation).
+                    # Fallback makes situation WORSE, not better. Fail-fast with clear error so ops can fix AWS access.
+                    logger.critical(
+                        f"[{self.table_name}] DynamoDB lock unavailable (permission denied). "
+                        f"Cannot proceed with idempotency guarantee. Fix AWS credentials or DynamoDB access."
                     )
-                    # Re-acquire with file-based lock as fallback
-                    lock_manager = None
-                    from utils.db.local_file_lock import FileLockManager
-                    lock_manager = FileLockManager(
-                        table_name=lock_table,
-                        lock_duration_seconds=lock_ttl,
-                        enable_auto_cleanup=True
+                    from algo.exceptions import LockAcquisitionError
+                    raise LockAcquisitionError(
+                        lock_key=self.table_name,
+                        reason="DynamoDB lock manager unavailable (permission/access error)",
+                        context={"table_name": self.table_name}
                     )
-                    if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
-                        logger.warning(f"[{self.table_name}] Skipping: another instance already running")
-                        return self._stats.to_dict()
                 else:
+                    # Lock timeout - another instance running, skip gracefully
                     logger.warning(f"[{self.table_name}] Skipping: another instance already running")
                     return self._stats.to_dict()
         except Exception as _lock_err:
