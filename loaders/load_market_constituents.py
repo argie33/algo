@@ -213,7 +213,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 for r in reader:
                     # CRITICAL: Symbol is required - explicit validation, no defaults
                     if "Symbol" not in r or not r["Symbol"]:
-                        logger.debug("[MARKET_CONSTITUENTS] Skipping row with missing or empty 'Symbol' field.")
+                        logger.warning("[MARKET_CONSTITUENTS] Skipping row with missing or empty 'Symbol' field.")
                         continue
                     sym = r["Symbol"].strip()
                     if sym.startswith("File Creation Time"):

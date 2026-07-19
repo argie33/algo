@@ -386,15 +386,10 @@ class MarketFactorCalculator:
     def put_call_ratio(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Put/call ratio (contrarian indicator, 8pt factor).
 
-        No verified real-time CBOE put/call ratio feed exists (see loaders/market_health_fetchers.py
-        PutCallRatioFetcher docstring), so this factor degrades gracefully rather than blocking the
-        other 11 factors' regime computation: an unavailable or out-of-range value scores as neutral
-        (50/100, i.e. contributes no bullish/bearish signal) with an explicit `data_unavailable` marker,
-        per the loader's own documented "optional enrichment" contract. Range-checked (0.2-3.0 is the
-        realistic band for a real put/call ratio) so a stale corrupted row (e.g. a stock price
-        mis-stored as a ratio by a past bug) can't silently distort the score either.
+        Raises RuntimeError if data unavailable - Put/call ratio is a critical 8pt factor.
+        Missing options sentiment data is a data error, not a skip condition.
+        No graceful degradation allowed (violates GOVERNANCE fail-fast principle).
         """
-        neutral_score = 50.0
         try:
             cur.execute(
                 "SELECT put_call_ratio FROM market_health_daily "
@@ -403,29 +398,35 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if not row:
-                logger.warning(
-                    f"[PUT_CALL] No put/call ratio data available on or before {eval_date}; degrading to neutral."
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] No put/call ratio data available on or before {eval_date}. "
+                    f"Put/call ratio is a critical 8pt factor for market sentiment. "
+                    f"Check: (1) market_health_daily table freshness, (2) put_call_ratio column populated"
                 )
-                return {"value": None, "score": neutral_score, "data_unavailable": True, "reason": "no_data"}
 
             # Support both DictCursor (row is dict) and tuple cursor (row is tuple)
             pcr_val = row.get("put_call_ratio") if isinstance(row, dict) else row[0]
             if pcr_val is None:
-                logger.warning(f"[PUT_CALL] put_call_ratio value is NULL for {eval_date}; degrading to neutral.")
-                return {"value": None, "score": neutral_score, "data_unavailable": True, "reason": "no_data"}
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] put_call_ratio value is NULL for {eval_date}. "
+                    f"Data quality issue in market_health_daily - put_call_ratio column not populated properly."
+                )
 
             pcr = float(pcr_val)
             if not (0.2 <= pcr <= 3.0):
-                logger.error(
-                    f"[PUT_CALL] Put/call ratio {pcr} for {eval_date} is outside the realistic 0.2-3.0 "
-                    f"range; treating as corrupted and degrading to neutral instead of using it."
+                raise RuntimeError(
+                    f"[PUT_CALL CRITICAL] Put/call ratio {pcr} for {eval_date} is outside realistic 0.2-3.0 range. "
+                    f"Cannot use corrupted data for position sizing. Fix upstream data source."
                 )
-                return {"value": None, "score": neutral_score, "data_unavailable": True, "reason": "out_of_range"}
             score = max(0, min(100, (pcr - 0.7) * 100))
             return {"value": round(pcr, 2), "score": score}
+        except RuntimeError:
+            raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"[PUT_CALL] Query failed for {eval_date}: {e}; degrading to neutral.")
-            return {"value": None, "score": neutral_score, "data_unavailable": True, "reason": "query_failed"}
+            raise RuntimeError(
+                f"[PUT_CALL CRITICAL] Put/call ratio query failed: {e}. "
+                f"Cannot proceed with position sizing without sentiment data."
+            ) from e
 
     def new_highs_lows(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """52-week new highs vs new lows (critical).

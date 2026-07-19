@@ -262,7 +262,7 @@ class InsiderHoldingsSECLoader(SecLoaderBase):
                 required_fields = ["insider_name", "shares_owned", "ownership_pct"]
                 missing_fields = [f for f in required_fields if f not in parsed_data or parsed_data[f] is None]
                 if missing_fields:
-                    logger.debug(f"[{symbol}] Plain-text Form 4 missing required fields: {missing_fields}")
+                    logger.warning(f"[{symbol}] Plain-text Form 4 missing required fields: {missing_fields}")
                     continue
 
                 # Aggregate insider data (use insider name as key)

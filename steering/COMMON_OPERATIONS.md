@@ -8,15 +8,14 @@
 
 **Use ONLY when:** Scheduled stock_scores loader fails or stalls for >2 hours during trading hours
 
-**Temporary Workaround:** Endpoint at `lambda/api/routes/rds_sync.py` syncs stock_scores to RDS directly
+**Temporary Workaround:** API endpoint at `/api/admin/sync-stock-scores-rds` (implemented in `lambda/api/routes/sync_stock_scores.py`)
 
 ```bash
-# Manually trigger stock scores refresh (LOCAL ONLY)
+# Manually trigger stock scores refresh via API endpoint
 # WARNING: This is a workaround, not the normal data flow
-python3 lambda/api/routes/rds_sync.py
+curl -X POST http://localhost:3001/api/admin/sync-stock-scores-rds
 
-# Check status
-curl -s http://localhost:3001/api/sync/stock-scores-status | jq
+# In local dev mode, this endpoint will sync from your local database to RDS
 ```
 
 **When to use:**

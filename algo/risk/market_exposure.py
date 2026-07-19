@@ -1188,8 +1188,9 @@ class MarketExposure:
                     """
                     INSERT INTO market_exposure_daily
                         (date, exposure_pct, raw_score, regime, distribution_days, factors, halt_reasons,
-                         long_exposure_pct, short_exposure_pct, is_entry_allowed, exposure_tier)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         long_exposure_pct, short_exposure_pct, is_entry_allowed, exposure_tier,
+                         data_unavailable, reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (date) DO UPDATE SET
                         exposure_pct = EXCLUDED.exposure_pct,
                         raw_score = EXCLUDED.raw_score,
@@ -1200,7 +1201,9 @@ class MarketExposure:
                         long_exposure_pct = EXCLUDED.long_exposure_pct,
                         short_exposure_pct = EXCLUDED.short_exposure_pct,
                         is_entry_allowed = EXCLUDED.is_entry_allowed,
-                        exposure_tier = EXCLUDED.exposure_tier
+                        exposure_tier = EXCLUDED.exposure_tier,
+                        data_unavailable = EXCLUDED.data_unavailable,
+                        reason = EXCLUDED.reason
                     """,
                     (
                         eval_date,
@@ -1214,6 +1217,8 @@ class MarketExposure:
                         short_exp,
                         is_entry_allowed,
                         tier,
+                        False,  # data_unavailable - explicitly FALSE on successful computation
+                        None,   # reason - NULL on successful computation
                     ),
                 )
             logger.info(
@@ -1257,7 +1262,7 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
                 """
                 SELECT
                     is_entry_allowed, exposure_pct, regime, halt_reasons,
-                    raw_score, exposure_tier, date
+                    raw_score, exposure_tier, date, data_unavailable, reason
                 FROM market_exposure_daily
                 WHERE date <= %s
                 ORDER BY date DESC
@@ -1281,7 +1286,19 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
                 raw_score,
                 exposure_tier,
                 _cached_date,
+                data_unavailable,
+                reason,
             ) = row
+
+            # GOVERNANCE: Check data_unavailable flag FIRST before using any data
+            # If upstream loader marked data as unavailable, fail-fast regardless of other fields
+            if data_unavailable is True:
+                raise MarketDataUnavailableError(
+                    f"[MARKET REGIME] market_exposure_daily for {eval_date} marked data_unavailable=True. "
+                    f"Reason: {reason}. "
+                    f"Cannot apply position sizing policy with unavailable market regime data. "
+                    f"Check upstream loader status and fix the data source."
+                )
 
             # CRITICAL FIX: Use trading-day logic, not calendar days
             # market_exposure_daily is generated after market close each trading day.

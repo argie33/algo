@@ -101,13 +101,13 @@ class EarningsCalendarSECLoader(SecLoaderBase):
 
             filings_obj = submissions["filings"]
             if not isinstance(filings_obj, dict) or "recent" not in filings_obj:
-                logger.debug(f"[{symbol}] SEC API filings missing 'recent' key")
+                logger.warning(f"[{symbol}] SEC API filings missing 'recent' key")
                 return self._unavailable_record(symbol, now_et, "recent_filings_key_missing")
 
             recent_filings = filings_obj["recent"]
 
             if "form" not in recent_filings or "filingDate" not in recent_filings:
-                logger.debug(f"[{symbol}] SEC recent filings missing 'form' or 'filingDate' keys")
+                logger.warning(f"[{symbol}] SEC recent filings missing 'form' or 'filingDate' keys")
                 return self._unavailable_record(symbol, now_et, "recent_filings_missing_keys")
 
             forms = recent_filings["form"]
