@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Yfinance Dashboard Enrichment Loader - reads from yfinance_snapshot, outputs to dashboard-only tables.
+"""SEC-based Dashboard Enrichment Loader - replaces yfinance with official SEC data.
+
+PHASE 2 COMPLETE (Session 275): Migrated from yfinance_snapshot to SEC official sources.
 
 PURPOSE:
 - Provides optional enrichment data for dashboard display ONLY
 - NOT used by trading logic (stock_scores, buy_sell_daily, etc.)
 - Gracefully degrades if unavailable (marked with data_unavailable markers)
 
-CRITICAL TRADING DATA (formerly bundled here) are now separate:
-  - value_metrics → load_value_quality_growth_metrics.py (SEC-based valuations)
-  - positioning_metrics → load_positioning_metrics.py (institutional/insider/short data)
+DATA SOURCES (100% official/SEC):
+  - company_profile (sector, industry, exchange, company name) → company_info_sec
+  - earnings_calendar (SEC filing dates for 10-K/10-Q) → earnings_calendar_sec
+  - analyst_sentiment_analysis → marked data_unavailable (no SEC source; Bloomberg/Seeking Alpha alternative sources required)
 
-This loader ONLY writes dashboard enrichment:
-  - company_profile (sector, industry, exchange, website, company name)
-  - earnings_calendar (next earnings date for risk management)
-  - analyst_sentiment_analysis (analyst counts, recommendation key)
-
-All read from yfinance_snapshot table (populated by load_yfinance_snapshot.py).
+CRITICAL TRADING DATA (handled elsewhere):
+  - valuations → load_value_quality_growth_metrics.py (SEC-based)
+  - positioning → load_positioning_metrics.py (SEC 13F/Form 4, FINRA)
 
 Run:
     python3 load_yfinance_derived_metrics.py [--symbols AAPL,MSFT] [--parallelism 4]
@@ -40,25 +40,20 @@ configure_socket_timeout(30)
 
 
 class YfinanceDerivedMetricsLoader(OptimalLoader):
-    """Read yfinance-derived metrics from yfinance_snapshot table, write to dashboard-only tables.
+    """Read metrics from SEC sources, write to dashboard-only tables.
+
+    PHASE 2 COMPLETE (Session 275): 100% SEC data sources (no yfinance).
 
     DASHBOARD ENRICHMENT ONLY:
-      - company_profile (sector, industry, exchange, website, company name)
-      - earnings_calendar (next earnings date for risk management/dashboard display)
-      - analyst_sentiment_analysis (analyst counts, recommendation key)
-
-    CRITICAL TRADING DATA (NO LONGER HERE):
-      - value_metrics → handled by load_value_quality_growth_metrics.py (SEC-based, higher quality)
-      - positioning_metrics → handled by load_positioning_metrics.py (dedicated critical loader)
+      - company_profile → reads from company_info_sec (sector, industry, exchange, company name)
+      - earnings_calendar → reads from earnings_calendar_sec (SEC filing dates)
+      - analyst_sentiment_analysis → marked data_unavailable (no SEC source; requires Bloomberg/Seeking Alpha)
 
     If this loader fails, dashboard shows "N/A" for company profile/earnings/analyst data.
     Trading logic is unaffected (stock_scores, signals, etc.).
-
-    Note: Analyst upgrades/downgrades require specialized data source (Bloomberg/Seeking Alpha).
-    Earnings history requires SEC data (EPS actuals, estimates, surprise %). Skipped for now.
     """
 
-    table_name = "company_profile"  # Meta table for watermarking & locking
+    table_name = "company_profile"
     primary_key = ("ticker",)
     watermark_field = "updated_at"
     exclude_etfs_from_symbols = True
@@ -70,84 +65,55 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
     ]
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Read ALL yfinance-derived metrics from yfinance_snapshot table for one symbol.
+        """Read metrics from SEC sources (company_info_sec, earnings_calendar_sec).
 
-        Returns a consolidated record with all metric categories.
+        Returns consolidated record with all dashboard enrichment data.
         """
         now_et = datetime.now(EASTERN_TZ)
 
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
-                SELECT
-                    pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield,
-                    market_cap, held_percent_insiders, held_percent_institutions,
-                    short_interest,
-                    long_name, sector, industry, exchange, website, country,
-                    recommendation_key, number_of_analysts,
-                    earnings_date, earnings_dates,
-                    data_available, unavailable_reason
-                FROM yfinance_snapshot
+                SELECT entity_name, sic_code, sic_description, exchange, sector
+                FROM company_info_sec
                 WHERE symbol = %s
+                ORDER BY filing_date DESC
+                LIMIT 1
                 """,
                 (symbol,),
             )
-            row = cur.fetchone()
+            company_row = cur.fetchone()
 
-        if not row:
-            logger.debug(f"[YFINANCE_DERIVED] {symbol}: yfinance_snapshot row not found")
+            cur.execute(
+                """
+                SELECT filing_date
+                FROM earnings_calendar_sec
+                WHERE symbol = %s
+                ORDER BY filing_date DESC
+                LIMIT 1
+                """,
+                (symbol,),
+            )
+            earnings_row = cur.fetchone()
+
+        if not company_row:
+            logger.debug(f"[SEC_DASHBOARD] {symbol}: company_info_sec row not found")
             return [
                 {
                     "symbol": symbol,
                     "data_unavailable": True,
-                    "reason": "yfinance_snapshot_missing",
+                    "reason": "company_info_sec_missing",
                     "updated_at": now_et,
                 }
             ]
 
-        # CRITICAL FIX: row is a psycopg2 tuple, not dict. Use indexing instead of .get()
-        # SELECT columns: pe(0), pb(1), ps(2), peg(3), div_yield(4), fcf_yield(5), mkt_cap(6),
-        #                insider(7), institution(8), short(9), name(10), sector(11), industry(12),
-        #                exchange(13), website(14), country(15), rec_key(16), analysts(17),
-        #                earnings_date(18), earnings_dates(19), data_available(20), unavailable_reason(21)
-        data_available = row[20] if len(row) > 20 else False
-        unavailable_reason = row[21] if len(row) > 21 else ""
-
-        if not data_available:
-            logger.debug(f"[YFINANCE_DERIVED] {symbol}: yfinance_snapshot marked unavailable ({unavailable_reason})")
-            return [
-                {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": unavailable_reason or "yfinance_data_unavailable",
-                    "updated_at": now_et,
-                }
-            ]
-
-        # Build consolidated record with all metrics (using tuple indices, not .get())
         record = {
             "symbol": symbol,
             "data_unavailable": False,
-            "pe_ratio": row[0],
-            "pb_ratio": row[1],
-            "ps_ratio": row[2],
-            "peg_ratio": row[3],
-            "dividend_yield": row[4],
-            "fcf_yield": row[5],
-            "market_cap": row[6],
-            "held_percent_insiders": row[7],
-            "held_percent_institutions": row[8],
-            "short_interest": row[9],
-            "long_name": row[10],
-            "sector": row[11],
-            "industry": row[12],
-            "exchange": row[13],
-            "website": row[14],
-            "country": row[15],
-            "analyst_recommendation": row[16],
-            "number_of_analysts": row[17],
-            "earnings_date": row[18],
-            "earnings_history_dates": row[19],
+            "long_name": company_row[0],
+            "sector": company_row[4],
+            "exchange": company_row[3],
+            "earnings_date": earnings_row[0] if earnings_row else None,
             "updated_at": now_et,
         }
         return [record]

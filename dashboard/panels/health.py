@@ -228,16 +228,19 @@ def _build_phase_execution_panel(
     execution_health: dict[str, Any] | None,
     run: dict[str, Any] | None = None,
 ) -> Panel | None:
-    """Build PHASE EXECUTION HEALTH panel showing ALL 9 phases with detailed status.
+    """Build PHASE EXECUTION HEALTH panel showing ALL 9 phases with expanded details.
 
-    Shows all phases regardless of execution state:
-    - ✓ COMPLETED: phase executed successfully
-    - ~ HALTED/SKIPPED: phase halted or skipped
-    - ✗ ERROR: phase failed
+    Each phase shows:
+    - ✓ COMPLETED: phase executed successfully with full metrics
+    - ~ HALTED/SKIPPED: phase halted or skipped with reason
+    - ✗ ERROR: phase failed with error details
     - ⊘ NOT RUN: phase hasn't executed yet
 
     Returns a Rich Panel with all phases, or None if no data available.
     """
+    if not execution_health:
+        return None
+
     # Build phase status map from run data
     phase_status_map: dict[int, dict[str, Any]] = {}
     if run and isinstance(run, dict):
@@ -261,15 +264,15 @@ def _build_phase_execution_panel(
 
     # Define all 9 phases with metadata
     phases_def = [
-        (1, "Data Freshness Check", "data_check", execution_health.get("phase_1_data_check") if execution_health else None),
-        (2, "Circuit Breakers", "circuit_breakers", execution_health.get("phase_2_circuit_breakers") if execution_health else None),
-        (3, "Position Monitor", "position_monitor", execution_health.get("phase_3_position_monitor") if execution_health else None),
-        (4, "Broker Reconciliation", "reconciliation", execution_health.get("phase_4_broker_reconciliation") if execution_health else None),
-        (5, "Exposure Policy", "exposure_policy", execution_health.get("phase_5_exposure_policy") if execution_health else None),
-        (6, "Exit Execution", "exit_execution", execution_health.get("phase_6_exit_execution") if execution_health else None),
-        (7, "Signal Generation", "signal_generation", execution_health.get("phase_7_signal_generation") if execution_health else None),
-        (8, "Entry Execution", "entry_execution", execution_health.get("phase_8_entry_execution") if execution_health else None),
-        (9, "Portfolio Snapshot", "portfolio_snapshot", execution_health.get("phase_9_portfolio_snapshot") if execution_health else None),
+        (1, "Data Freshness Check", "data_check", execution_health.get("phase_1_data_check")),
+        (2, "Circuit Breakers", "circuit_breakers", execution_health.get("phase_2_circuit_breakers")),
+        (3, "Position Monitor", "position_monitor", execution_health.get("phase_3_position_monitor")),
+        (4, "Broker Reconciliation", "reconciliation", execution_health.get("phase_4_broker_reconciliation")),
+        (5, "Exposure Policy", "exposure_policy", execution_health.get("phase_5_exposure_policy")),
+        (6, "Exit Execution", "exit_execution", execution_health.get("phase_6_exit_execution")),
+        (7, "Signal Generation", "signal_generation", execution_health.get("phase_7_signal_generation")),
+        (8, "Entry Execution", "entry_execution", execution_health.get("phase_8_entry_execution")),
+        (9, "Portfolio Snapshot", "portfolio_snapshot", execution_health.get("phase_9_portfolio_snapshot")),
     ]
 
     # Track phase statistics
@@ -278,8 +281,8 @@ def _build_phase_execution_panel(
     errored = sum(1 for p in phase_status_map.values() if p["status"] in ("error", "failed"))
     not_run = 9 - len(phase_status_map)
 
-    # Build phase rows showing ALL 9 phases
-    phase_rows: list[Text] = []
+    # Build phase rows showing ALL 9 phases with expanded details
+    phase_rows: list[Text | Rule] = []
 
     for phase_num, phase_name, _phase_key, phase_data in phases_def:
         phase_status = phase_status_map.get(phase_num, {})
@@ -303,218 +306,204 @@ def _build_phase_execution_panel(
             status_text = "NOT RUN"
             base_color = DIM
 
-        # Build phase line with status and metrics (if available)
-        metrics_str = ""
+        # Phase header
+        phase_header = f"  {status_icon} [bold]{phase_name}[/] [{base_color}]{status_text}[/]"
+        phase_rows.append(Text.from_markup(phase_header))
 
-        # Render phase-specific metrics only if data exists and is valid
+        # Phase details - expand each phase with all relevant info
         if phase_data is None:
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]"
+            phase_rows.append(Text.from_markup(f"      [dim]─ no data available[/]"))
         elif phase_num == 1:  # Data Freshness Check
-            # Validate required fields for Phase 1
-            required_fields = {"tables_validated", "tables_fresh", "tables_stale", "validation_status"}
-            missing_fields = required_fields - set(phase_data.keys()) if isinstance(phase_data, dict) else required_fields
-            if missing_fields and status_str in ("success", "completed", "ok", "halt", "halted", "warn", "degraded"):
-                # Phase ran but data corrupted - render error
-                phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
-            else:
-                tables_fresh = phase_data.get("tables_fresh") if isinstance(phase_data, dict) else None
-                tables_stale = phase_data.get("tables_stale") if isinstance(phase_data, dict) else None
+            tables_validated = phase_data.get("tables_validated")
+            tables_fresh = phase_data.get("tables_fresh")
+            tables_stale = phase_data.get("tables_stale")
+            validation_status = phase_data.get("validation_status")
+            stale_tables = phase_data.get("stale_tables")
 
-                # CRITICAL: Check for None (data missing) vs 0 (no stale tables)
-                if tables_stale is None or tables_fresh is None:
-                    # Data missing - don't default to 0, show error state
-                    metrics_str = " [dim]freshness:[/] [dim]?[/]"
-                elif tables_stale > 0:
-                    stale_color = R if tables_stale >= 3 else Y
-                    metrics_str = f" [dim]stale:[/] [{stale_color}]{tables_stale}[/]"
-                else:
-                    metrics_str = f" [dim]all:[/] [{G}]{tables_fresh}[/] fresh"
+            if tables_validated is not None:
+                phase_rows.append(Text.from_markup(f"      [dim]Tables validated:[/] {tables_validated}"))
+            if tables_fresh is not None:
+                phase_rows.append(Text.from_markup(f"      [dim]Tables fresh:[/] [{G}]{tables_fresh}[/]"))
+            if tables_stale is not None:
+                stale_color = R if tables_stale >= 3 else Y if tables_stale > 0 else G
+                phase_rows.append(Text.from_markup(f"      [dim]Tables stale:[/] [{stale_color}]{tables_stale}[/]"))
+            if stale_tables and isinstance(stale_tables, (list, dict)):
+                if isinstance(stale_tables, list):
+                    for tbl_info in stale_tables[:3]:
+                        if isinstance(tbl_info, dict):
+                            tbl_name = tbl_info.get("table_name", "unknown")
+                            age = tbl_info.get("age", "?")
+                            phase_rows.append(Text.from_markup(f"        [dim]•[/] {tbl_name} [{Y}]{age}[/]"))
+                elif isinstance(stale_tables, dict):
+                    for tbl_name, age_info in list(stale_tables.items())[:3]:
+                        phase_rows.append(Text.from_markup(f"        [dim]•[/] {tbl_name} [{Y}]{age_info}[/]"))
+            if validation_status:
+                phase_rows.append(Text.from_markup(f"      [dim]Status:[/] {validation_status}"))
 
-                phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 2:  # Circuit Breakers
-            # CRITICAL: Explicit None check - don't silently default if field missing
-            any_triggered = phase_data.get("any_triggered")
-            if any_triggered is None:
-                logger.debug("[HEALTH] Phase 2: any_triggered field missing, defaulting to False for display")
-                any_triggered = False
+            any_triggered = phase_data.get("any_triggered", False)
             dd = phase_data.get("drawdown_pct")
             dl = phase_data.get("daily_loss_pct")
             vix = phase_data.get("vix_level")
+            var95 = phase_data.get("var95")
+
+            triggered_status = "TRIGGERED" if any_triggered else "OK"
+            triggered_color = R if any_triggered else G
+            phase_rows.append(Text.from_markup(f"      [dim]Status:[/] [{triggered_color}]{triggered_status}[/]"))
 
             if dd is not None:
                 dd_color = R if dd >= 20 else Y if dd >= 10 else G
-                metrics_str += f" [dim]DD[/] [{dd_color}]{dd:.1f}%[/]"
+                phase_rows.append(Text.from_markup(f"      [dim]Drawdown:[/] [{dd_color}]{dd:.1f}%[/]"))
             if dl is not None:
                 dl_color = R if dl >= 2 else Y if dl >= 1 else G
-                metrics_str += f" [dim]DL[/] [{dl_color}]{dl:.1f}%[/]"
+                phase_rows.append(Text.from_markup(f"      [dim]Daily Loss:[/] [{dl_color}]{dl:.1f}%[/]"))
             if vix is not None:
-                vix_color = R if vix >= 35 else Y if vix >= 25 else G
-                metrics_str += f" [dim]VIX[/] [{vix_color}]{vix:.1f}[/]"
+                vix_color = R if vix >= 35 else Y if vix >= 25 else CY if vix >= 15 else G
+                phase_rows.append(Text.from_markup(f"      [dim]VIX:[/] [{vix_color}]{vix:.1f}[/]"))
+            if var95 is not None:
+                var_color = R if var95 >= 4 else Y if var95 >= 2 else G
+                phase_rows.append(Text.from_markup(f"      [dim]VaR 95%:[/] [{var_color}]{var95:.2f}%[/]"))
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 3:  # Position Monitor
-            # Validate required fields for Phase 3
-            required_fields = {"open_positions"}
-            missing_fields = required_fields - set(phase_data.keys()) if isinstance(phase_data, dict) else required_fields
-            if missing_fields and status_str in ("success", "completed", "ok", "halt", "halted", "warn", "degraded"):
-                # Phase ran but data corrupted - render error
-                phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
-            else:
-                open_count = phase_data.get("open_positions") if isinstance(phase_data, dict) else None
-                oldest = phase_data.get("oldest_days") if isinstance(phase_data, dict) else None
-                max_loss = phase_data.get("max_loss_pct") if isinstance(phase_data, dict) else None
+            open_positions = phase_data.get("open_positions")
+            oldest_days = phase_data.get("oldest_days")
+            max_loss_pct = phase_data.get("max_loss_pct")
+            total_unrealized = phase_data.get("total_unrealized_pnl")
 
-                # CRITICAL: Check for None (data missing) vs 0 (no open positions)
-                if open_count is None:
-                    metrics_str = " [dim]open:[/] [dim]?[/]"
-                else:
-                    pos_color = G if open_count == 0 else Y if open_count <= 5 else R
-                    metrics_str = f" [dim]open:[/] [{pos_color}]{open_count}[/]"
-                    if oldest is not None:
-                        metrics_str += f" [dim]age:[/] {oldest}d"
-                    if max_loss is not None:
-                        loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
-                        metrics_str += f" [dim]loss:[/] [{loss_color}]{max_loss:.1f}%[/]"
+            if open_positions is not None:
+                pos_color = G if open_positions == 0 else Y if open_positions <= 5 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Open positions:[/] [{pos_color}]{open_positions}[/]"))
+            if oldest_days is not None:
+                phase_rows.append(Text.from_markup(f"      [dim]Oldest position:[/] {oldest_days}d"))
+            if max_loss_pct is not None:
+                loss_color = R if max_loss_pct <= -5 else Y if max_loss_pct <= -2 else G
+                phase_rows.append(Text.from_markup(f"      [dim]Max loss:[/] [{loss_color}]{max_loss_pct:.1f}%[/]"))
+            if total_unrealized is not None:
+                pnl_color = G if total_unrealized >= 0 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Total P&L:[/] [{pnl_color}]${total_unrealized:,.0f}[/]"))
 
-                phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 4:  # Broker Reconciliation
-            # Validate required fields for Phase 4
-            required_fields = {"sync_count"}
-            missing_fields = required_fields - set(phase_data.keys()) if isinstance(phase_data, dict) else required_fields
-            if missing_fields and status_str in ("success", "completed", "ok", "halt", "halted", "warn", "degraded"):
-                # Phase ran but data corrupted - render error
-                phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
-            else:
-                sync_count = phase_data.get("sync_count") if isinstance(phase_data, dict) else None
-                match_pct = phase_data.get("avg_match_pct") if isinstance(phase_data, dict) else None
+            sync_count = phase_data.get("sync_count")
+            avg_match_pct = phase_data.get("avg_match_pct")
+            errors_found = phase_data.get("errors_found")
 
-                # CRITICAL: Check for None (data missing) vs 0 (no syncs)
-                if sync_count is None:
-                    metrics_str = " [dim]sync:[/] [dim]?[/]"
-                elif match_pct is not None:
-                    match_color = G if match_pct >= 95 else Y if match_pct >= 80 else R
-                    metrics_str = f" [dim]sync:[/] {sync_count} [dim]match:[/] [{match_color}]{match_pct:.0f}%[/]"
-                else:
-                    metrics_str = f" [dim]sync:[/] {sync_count}"
+            if sync_count is not None:
+                phase_rows.append(Text.from_markup(f"      [dim]Syncs attempted:[/] {sync_count}"))
+            if avg_match_pct is not None:
+                match_color = G if avg_match_pct >= 95 else Y if avg_match_pct >= 80 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Match rate:[/] [{match_color}]{avg_match_pct:.0f}%[/]"))
+            if errors_found is not None and errors_found > 0:
+                phase_rows.append(Text.from_markup(f"      [dim]Errors found:[/] [{R}]{errors_found}[/]"))
 
-                phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 5:  # Exposure Policy
-            # Validate required fields for Phase 5
-            required_fields = {"market_regime", "entry_allowed", "halt_active"}
-            missing_fields = required_fields - set(phase_data.keys()) if isinstance(phase_data, dict) else required_fields
-            if missing_fields and status_str in ("success", "completed", "ok", "halt", "halted", "warn", "degraded"):
-                # Phase ran but data corrupted - render error
-                phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
-            else:
-                market_regime = phase_data.get("market_regime") if isinstance(phase_data, dict) else None
-                entry_allowed = phase_data.get("entry_allowed") if isinstance(phase_data, dict) else None
-                # CRITICAL: Explicit None check - halt_active is critical safety signal
-                halt_active = phase_data.get("halt_active") if isinstance(phase_data, dict) else None
-                if halt_active is None and isinstance(phase_data, dict):
-                    logger.debug("[HEALTH] Phase 5: halt_active field missing, defaulting to False for display")
-                    halt_active = False
-                elif halt_active is None:
-                    halt_active = False
-                max_entries = phase_data.get("max_new_entries") if isinstance(phase_data, dict) else None
+            market_regime = phase_data.get("market_regime")
+            entry_allowed = phase_data.get("entry_allowed")
+            halt_active = phase_data.get("halt_active", False)
+            max_new_entries = phase_data.get("max_new_entries")
+            halt_reason = phase_data.get("halt_reason")
 
-                # Override status display if halt is active (fail-closed design)
-                if halt_active:
-                    display_icon = "[bold yellow]~[/]"
-                    display_text = "HALTED"
-                    display_color = Y
-                    halt_reason = phase_data.get("halt_reason") if isinstance(phase_data, dict) else None
-                    metrics_str = f" [dim]{halt_reason}[/]" if halt_reason else ""
-                else:
-                    display_icon = status_icon
-                    display_text = status_text
-                    display_color = base_color
-                    if entry_allowed is False:
-                        metrics_str = f" [dim]entries:[/] [{R}]blocked[/]"
-                    elif entry_allowed is True:
-                        entry_info = f" [{G}]{max_entries}[/]" if max_entries else ""
-                        metrics_str = f" [dim]entries:[/]{entry_info}"
-                    else:
-                        metrics_str = f" [dim]regime:[/] {market_regime}" if market_regime else ""
+            if market_regime:
+                phase_rows.append(Text.from_markup(f"      [dim]Market regime:[/] {market_regime}"))
+            if entry_allowed is not None:
+                entry_status = "ALLOWED" if entry_allowed else "BLOCKED"
+                entry_color = G if entry_allowed else R
+                phase_rows.append(Text.from_markup(f"      [dim]New entries:[/] [{entry_color}]{entry_status}[/]"))
+            if max_new_entries is not None and entry_allowed:
+                phase_rows.append(Text.from_markup(f"      [dim]Max slots available:[/] {max_new_entries}"))
+            if halt_active:
+                halt_color = R if halt_active else G
+                phase_rows.append(Text.from_markup(f"      [dim]Halt status:[/] [{halt_color}]ACTIVE[/]"))
+                if halt_reason:
+                    phase_rows.append(Text.from_markup(f"      [dim]Reason:[/] {halt_reason[:60]}"))
 
-                phase_line = f"  P{phase_num}: {display_icon} {phase_name:.<30} [{display_color}]{display_text}[/]{metrics_str}"
         elif phase_num == 6:  # Exit Execution
-            exits = phase_data.get("exits_executed")
+            exits_executed = phase_data.get("exits_executed")
             success_rate = phase_data.get("success_rate")
+            avg_profit = phase_data.get("avg_profit")
+            symbols_exited = phase_data.get("symbols_exited")
 
-            # CRITICAL: Check for None (data missing) vs 0 (no exits)
-            if exits is None:
-                metrics_str = " [dim]exits:[/] [dim]?[/]"
-            elif exits > 0:
-                sr = success_rate if success_rate is not None else 0
-                sr_color = G if sr >= 80 else Y if sr >= 50 else R
-                metrics_str = f" [dim]exits:[/] {exits} [dim]success:[/] [{sr_color}]{sr:.0f}%[/]"
-            else:
-                metrics_str = f" [dim]exits:[/] {exits}"
+            if exits_executed is not None:
+                phase_rows.append(Text.from_markup(f"      [dim]Exits executed:[/] {exits_executed}"))
+            if success_rate is not None and exits_executed and exits_executed > 0:
+                sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Success rate:[/] [{sr_color}]{success_rate:.0f}%[/]"))
+            if avg_profit is not None:
+                profit_color = G if avg_profit > 0 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Avg profit/exit:[/] [{profit_color}]${avg_profit:,.0f}[/]"))
+            if symbols_exited and isinstance(symbols_exited, (list, str)):
+                if isinstance(symbols_exited, str):
+                    phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {symbols_exited[:50]}"))
+                elif isinstance(symbols_exited, list):
+                    phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {', '.join(symbols_exited[:5])}"))
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 7:  # Signal Generation
-            signals = phase_data.get("signals_generated")
+            signals_generated = phase_data.get("signals_generated")
             buy_signals = phase_data.get("buy_signals")
             sell_signals = phase_data.get("sell_signals")
             avg_strength = phase_data.get("avg_strength")
+            symbols_with_signals = phase_data.get("symbols_with_signals")
 
-            # CRITICAL: Check for None (data missing) vs 0 (no signals)
-            if signals is None:
-                metrics_str = " [dim]signals:[/] [dim]?[/]"
-            elif signals > 0:
-                sig_color = G
-                metrics_str = f" [dim]signals:[/] [{sig_color}]{signals}[/]"
+            if signals_generated is not None:
+                phase_rows.append(Text.from_markup(f"      [dim]Signals generated:[/] [{G}]{signals_generated}[/]"))
+            if buy_signals is not None or sell_signals is not None:
                 bs = buy_signals if buy_signals is not None else 0
                 ss = sell_signals if sell_signals is not None else 0
-                if bs > 0 or ss > 0:
-                    metrics_str += f" [dim]({bs}↑ {ss}↓)[/]"
-                if avg_strength is not None:
-                    strength_color = G if avg_strength >= 70 else Y if avg_strength >= 50 else R
-                    metrics_str += f" [dim]avg:[/] [{strength_color}]{avg_strength:.1f}[/]"
-            else:
-                metrics_str = f" [dim]signals:[/] [{DIM}]0[/]"
+                phase_rows.append(Text.from_markup(f"      [dim]Buy signals:[/] [{G}]{bs}[/] [dim]Sell signals:[/] [{Y}]{ss}[/]"))
+            if avg_strength is not None:
+                strength_color = G if avg_strength >= 70 else Y if avg_strength >= 50 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Avg strength:[/] [{strength_color}]{avg_strength:.1f}[/]"))
+            if symbols_with_signals and isinstance(symbols_with_signals, (list, str)):
+                if isinstance(symbols_with_signals, str):
+                    phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {symbols_with_signals[:50]}"))
+                elif isinstance(symbols_with_signals, list):
+                    phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {', '.join(symbols_with_signals[:5])}"))
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 8:  # Entry Execution
-            entries = phase_data.get("entries_executed")
+            entries_executed = phase_data.get("entries_executed")
             success_rate = phase_data.get("success_rate")
+            avg_entry_price = phase_data.get("avg_entry_price")
+            symbols_entered = phase_data.get("symbols_entered")
 
-            # CRITICAL: Check for None (data missing) vs 0 (no entries)
-            if entries is None:
-                metrics_str = " [dim]entries:[/] [dim]?[/]"
-            elif entries > 0:
-                sr = success_rate if success_rate is not None else 0
-                sr_color = G if sr >= 80 else Y if sr >= 50 else R
-                metrics_str = f" [dim]entries:[/] {entries} [dim]success:[/] [{sr_color}]{sr:.0f}%[/]"
-            else:
-                metrics_str = f" [dim]entries:[/] {entries}"
+            if entries_executed is not None:
+                phase_rows.append(Text.from_markup(f"      [dim]Entries executed:[/] [{G}]{entries_executed}[/]"))
+            if success_rate is not None and entries_executed and entries_executed > 0:
+                sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Success rate:[/] [{sr_color}]{success_rate:.0f}%[/]"))
+            if avg_entry_price is not None:
+                phase_rows.append(Text.from_markup(f"      [dim]Avg entry price:[/] ${avg_entry_price:,.2f}"))
+            if symbols_entered and isinstance(symbols_entered, (list, str)):
+                if isinstance(symbols_entered, str):
+                    phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {symbols_entered[:50]}"))
+                elif isinstance(symbols_entered, list):
+                    phase_rows.append(Text.from_markup(f"      [dim]Symbols:[/] {', '.join(symbols_entered[:5])}"))
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 9:  # Portfolio Snapshot
             portfolio_value = phase_data.get("portfolio_value")
-            latest = phase_data.get("latest_snapshot")
+            cash_available = phase_data.get("cash_available")
+            total_return_pct = phase_data.get("total_return_pct")
+            latest_snapshot = phase_data.get("latest_snapshot")
 
             if portfolio_value is not None:
-                metrics_str = f" [dim]portfolio:[/] ${portfolio_value:,.0f}"
-                if latest:
-                    metrics_str += f" [dim]({latest[:10]})[/]"
-            else:
-                metrics_str = ""
+                phase_rows.append(Text.from_markup(f"      [dim]Portfolio value:[/] ${portfolio_value:,.0f}"))
+            if cash_available is not None:
+                cash_color = G if cash_available > 0 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Cash available:[/] [{cash_color}]${cash_available:,.0f}[/]"))
+            if total_return_pct is not None:
+                ret_color = G if total_return_pct > 0 else R
+                phase_rows.append(Text.from_markup(f"      [dim]Total return:[/] [{ret_color}]{total_return_pct:.2f}%[/]"))
+            if latest_snapshot:
+                phase_rows.append(Text.from_markup(f"      [dim]Last snapshot:[/] {latest_snapshot[:19]}"))
 
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
-        else:
-            phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]"
-
-        phase_rows.append(Text.from_markup(phase_line))
+        # Separator between phases
+        phase_rows.append(Text(""))
 
     # Build summary header
-    total_phases = 9
     summary = f"[dim]{executed}✓  {halted}~  {errored}✗  {not_run}⊘[/]"
 
     # Build panel with all phases
     return Panel(
         Group(*phase_rows),
-        title=f"[bold cyan]PHASES[/]  {summary}",
+        title=f"[bold cyan]PHASE EXECUTION DETAILS[/]  {summary}",
         border_style="cyan",
         padding=(0, 1),
     )

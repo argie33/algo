@@ -132,9 +132,10 @@ class FreshnessValidator:
         age = reference_time - last_update
         max_age = timedelta(hours=self.max_age_hours[data_name])
 
-        # TRADING DAY AWARENESS: For price_data on non-trading days, allow older data
+        # TRADING DAY AWARENESS: For market-critical data on non-trading days, allow older data
         # If it's a weekend/holiday and data is from last trading day, that's fresh enough
-        if "price" in data_name.lower():
+        market_critical = {"price", "vix", "spy_close"}
+        if any(mc in data_name.lower() for mc in market_critical):
             try:
                 from algo.infrastructure import MarketCalendar
 
