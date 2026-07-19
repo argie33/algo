@@ -1,10 +1,13 @@
 """Calculate trade metrics: exit_r_multiple, duration, MFE/MAE, exit_time."""
 
+import logging
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
 from psycopg2.extensions import cursor
+
+logger = logging.getLogger(__name__)
 
 
 def calculate_exit_r_multiple(
@@ -94,7 +97,13 @@ def calculate_mfe_pct(
             return None
 
         return ((max_price - entry) / entry) * 100
-    except Exception:
+    except (TypeError, ValueError, ArithmeticError) as e:
+        # Expected errors: bad data types, arithmetic issues
+        logger.debug(f"[MFE] Invalid data for {symbol}: {type(e).__name__}: {e}")
+        return None
+    except Exception as e:
+        # Unexpected errors: database issues, etc. - log for investigation
+        logger.error(f"[MFE] Failed to calculate MFE for {symbol}: {type(e).__name__}: {e}")
         return None
 
 
@@ -137,7 +146,13 @@ def calculate_mae_pct(
             return None
 
         return ((min_price - entry) / entry) * 100
-    except Exception:
+    except (TypeError, ValueError, ArithmeticError) as e:
+        # Expected errors: bad data types, arithmetic issues
+        logger.debug(f"[MAE] Invalid data for {symbol}: {type(e).__name__}: {e}")
+        return None
+    except Exception as e:
+        # Unexpected errors: database issues, etc. - log for investigation
+        logger.error(f"[MAE] Failed to calculate MAE for {symbol}: {type(e).__name__}: {e}")
         return None
 
 

@@ -27,8 +27,17 @@ def check_postgres() -> bool:
             capture_output=True,
             timeout=5
         )
+        if result.returncode != 0:
+            print(f"PostgreSQL check failed: {result.stderr}", file=sys.stderr)
         return result.returncode == 0
-    except Exception:
+    except subprocess.TimeoutExpired:
+        print("PostgreSQL check timed out (5s) - server may be slow or unresponsive", file=sys.stderr)
+        return False
+    except FileNotFoundError:
+        print("PostgreSQL check failed: 'python' command not found", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"PostgreSQL check failed: {type(e).__name__}: {e}", file=sys.stderr)
         return False
 
 def check_dev_server() -> bool:
@@ -39,8 +48,17 @@ def check_dev_server() -> bool:
             capture_output=True,
             timeout=3
         )
+        if result.returncode != 0:
+            print(f"Dev server check failed: {result.stderr}", file=sys.stderr)
         return result.returncode == 0
-    except Exception:
+    except subprocess.TimeoutExpired:
+        print("Dev server check timed out (3s) - server may be slow or unresponsive", file=sys.stderr)
+        return False
+    except FileNotFoundError:
+        print("Dev server check failed: 'curl' command not found", file=sys.stderr)
+        return False
+    except Exception as e:
+        print(f"Dev server check failed: {type(e).__name__}: {e}", file=sys.stderr)
         return False
 
 def setup_environment() -> None:
@@ -119,9 +137,16 @@ def check_status() -> bool:
             checks.append(("Dashboard", True))
         else:
             print("[FAIL]")
+            error_msg = result.stderr if result.stderr else result.stdout
+            print(f"Dashboard import failed: {error_msg}", file=sys.stderr)
             checks.append(("Dashboard", False))
-    except Exception:
+    except subprocess.TimeoutExpired:
+        print("[ERROR - timeout]")
+        print("Dashboard import check timed out (5s)", file=sys.stderr)
+        checks.append(("Dashboard", False))
+    except Exception as e:
         print("[ERROR]")
+        print(f"Dashboard import check failed: {type(e).__name__}: {e}", file=sys.stderr)
         checks.append(("Dashboard", False))
 
     # Summary

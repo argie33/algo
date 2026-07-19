@@ -115,8 +115,9 @@ def check_secrets_freshness() -> tuple[bool, str]:
 
             if age_days > ROTATION_THRESHOLD_DAYS:
                 stale_secrets.append((name, age_days))
-        except Exception:
-            pass  # Skip parsing errors
+        except (ValueError, TypeError) as e:
+            # Parsing error - log but continue checking other secrets
+            print(f"[DEBUG] Could not parse secret {name} update date: {type(e).__name__}: {e}", file=sys.stderr)
 
     if stale_secrets:
         msg = "Stale secrets found (not rotated in > 90 days):\n"
@@ -142,9 +143,12 @@ def check_credential_loading() -> tuple[bool, str]:
 
         try:
             mgr.get_alpaca_credentials()
-        except Exception:
-            # OK if Alpaca not available (paper trading optional)
+        except ImportError:
+            # OK if Alpaca module not available (optional)
             pass
+        except Exception as e:
+            # Alpaca credential loading failed - log but don't fail (paper trading optional)
+            print(f"[WARNING] Alpaca credentials not available (optional): {type(e).__name__}: {e}", file=sys.stderr)
 
         return True, "✓ Credentials can be loaded"
     except ImportError:
