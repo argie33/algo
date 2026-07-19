@@ -367,6 +367,7 @@ class OrchestratorPhaseExecutor:
                         phase_num=phase_num,
                         phase_name=phase_def.phase_name,
                         status="skipped",
+                        data=self._get_default_skip_data(phase_num),
                         halted=False,
                     )
                     self.phase_results[phase_num] = result
@@ -383,6 +384,7 @@ class OrchestratorPhaseExecutor:
                     phase_num=phase_num,
                     phase_name=phase_def.phase_name,
                     status="skipped",
+                    data=self._get_default_skip_data(phase_num),
                     halted=True,
                 )
                 self.phase_results[phase_num] = result
