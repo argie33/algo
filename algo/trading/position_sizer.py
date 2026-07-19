@@ -411,11 +411,21 @@ class PositionSizer:
         """
 
         def fetch_exposure(cur: PsycopgCursor[Any]) -> Decimal:
-            cur.execute("SELECT exposure_pct, date FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
+            # GOVERNANCE: Must check data_unavailable flag before using exposure data
+            # Position size depends critically on accurate market exposure assessment
+            cur.execute(
+                "SELECT exposure_pct, date, data_unavailable, reason FROM market_exposure_daily ORDER BY date DESC LIMIT 1"
+            )
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
-            data_date = row[1]
+            exposure_pct, data_date, data_unavailable, reason = row[0], row[1], row[2], row[3]
+            # GOVERNANCE ENFORCEMENT: Fail-fast if data marked unavailable
+            if data_unavailable is True:
+                raise ValueError(
+                    f"Market exposure marked unavailable (reason: {reason or 'unknown'}). "
+                    f"Cannot calculate safe position size without valid market exposure analysis."
+                )
             # FIXED (Session 281): Use trading day logic instead of calendar days
             calendar_age = (_date.today() - data_date).days
             trading_age = self._calculate_trading_days_elapsed(data_date, _date.today())
@@ -424,7 +434,7 @@ class PositionSizer:
                     f"Market exposure data too stale: {trading_age} trading days old (max 1 day, {calendar_age}d calendar). "
                     f"Loader must run to provide fresh market exposure for position sizing."
                 )
-            return Decimal(str(row[0])) / Decimal(100)
+            return Decimal(str(exposure_pct)) / Decimal(100)
 
         result: Decimal | int | float = self._with_cursor(fetch_exposure)
         if result is not None:
