@@ -70,21 +70,17 @@ class SignalsDailyLoader(OptimalLoader):
                     f"{original_count} → {len(symbols)} symbols ({len(symbols) / original_count * 100:.1f}% retained)"
                 )
 
-                # CRITICAL: Delete ALL old buy_sell_daily signals that are NOT for scored symbols
-                # This clears out the entire mismatched universe from before this fix
-                try:
-                    with DatabaseContext("write") as cur:
-                        cur.execute(
-                            """DELETE FROM buy_sell_daily
-                               WHERE symbol NOT IN (SELECT symbol FROM stock_scores WHERE data_unavailable = false)"""
-                        )
-                        deleted_count = cur.rowcount
-                        logger.info(
-                            f"[CLEANUP] Deleted {deleted_count} signals for symbols without stock_scores"
-                        )
-                except Exception as e:
-                    logger.error(f"[CLEANUP] Failed to delete signals for unscored symbols: {e}")
-                    # Continue anyway - this is a data cleanup, not critical for functionality
+                # DATA DELETION REMOVED (Session 262 Fix)
+                # ISSUE: Pre-emptive deletion of signals for unscored symbols was too aggressive
+                # When the loader failed to generate new signals (e.g., weekend with no market),
+                # the pre-deleted data was gone forever, leaving empty tables.
+                #
+                # NEW APPROACH: Don't delete pre-emptively. Instead:
+                # - Signal universe will naturally include only scored symbols (INNER JOIN in Phase 7)
+                # - Unscored symbols' signals will simply not be used by downstream phases
+                # - Historical data is preserved for analysis
+                #
+                # This follows fail-safe principle: keep data until explicitly proven unnecessary
 
             # CRITICAL FIX (Session 262): Filter to symbols with price_daily data on the TARGET DATE.
             # This runs ALWAYS, not just when len(symbols) > 4000.
