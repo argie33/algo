@@ -129,6 +129,20 @@ def _handle_breadth(cur: cursor) -> Any:
         raise_db_error(e, "market breadth query")
 
     if breadth:
+        # CRITICAL: Validate breadth data completeness before returning
+        # Breadth metrics drive market regime calculations - incomplete data is worse than missing data
+        required_fields = ["date", "advances", "declines", "unchanged", "total"]
+        for row in breadth:
+            row_dict = dict(row)
+            for field in required_fields:
+                if field not in row_dict or row_dict[field] is None:
+                    raise RuntimeError(
+                        f"[MARKET_BREADTH] Breadth data incomplete: missing '{field}' field. "
+                        f"Breadth metrics {required_fields} are required for market regime calculation. "
+                        f"Incomplete breadth data would cause incorrect market exposure sizing. "
+                        f"Check price_daily data quality and breadth query integrity."
+                    )
+
         # Only fetch freshness if query succeeded
         try:
             freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
