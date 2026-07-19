@@ -60,7 +60,7 @@ class PositionTracker:
         cur: Any,
         position_id: int,
         new_qty: float,
-        new_stop_price: float | None = None,
+        new_stop_price: Decimal | float | None = None,
         full_exit: bool = False,
         exit_stage: str | None = None,
     ) -> tuple[bool, str | None]:
@@ -80,11 +80,18 @@ class PositionTracker:
                 raise ValueError(f"Position {position_id} not found")
 
             current_qty = result[0]
-            current_stop = float(result[1])
+            # CRITICAL: Keep stop price as Decimal to avoid floating-point rounding errors
+            # in financial calculations. Convert to float only for display/logging.
+            current_stop = Decimal(str(result[1])) if result[1] is not None else None
+            if current_stop is None:
+                raise ValueError(f"Position {position_id} missing current_stop_price")
 
             effective_stop = new_stop_price
-            if new_stop_price is not None and current_stop >= new_stop_price:
-                effective_stop = current_stop
+            if new_stop_price is not None:
+                # Convert new_stop_price to Decimal for proper comparison
+                new_stop_decimal = Decimal(str(new_stop_price))
+                if current_stop >= new_stop_decimal:
+                    effective_stop = current_stop
 
             if full_exit or new_qty <= 0:
                 cur.execute(
