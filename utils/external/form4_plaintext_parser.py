@@ -19,6 +19,8 @@ import re
 from datetime import date, datetime
 from typing import Any, Optional
 
+from utils.monitoring.form4_parsing_metrics import track_form4_parsing_error, track_form4_parsing_success
+
 logger = logging.getLogger(__name__)
 
 
@@ -122,6 +124,7 @@ class Form4PlaintextParser:
         """
         if not content or not isinstance(content, str):
             logger.warning(f"[{symbol}] Form 4: invalid content type")
+            track_form4_parsing_error(symbol, "invalid_content", "non_string_or_empty")
             return None
 
         # Preprocess: remove HTML tags and entities from SEC plaintext files
@@ -131,6 +134,7 @@ class Form4PlaintextParser:
         insider_name = Form4PlaintextParser._extract_insider_name(content, symbol)
         if not insider_name:
             logger.warning(f"[{symbol}] Form 4: could not extract insider name")
+            track_form4_parsing_error(symbol, "insider_name_extraction_failed")
             return None
 
         # Extract insider title (optional)
@@ -143,12 +147,14 @@ class Form4PlaintextParser:
         shares_owned = Form4PlaintextParser._extract_shares_owned(content, symbol)
         if shares_owned is None:
             logger.warning(f"[{symbol}] Form 4: could not extract shares owned")
+            track_form4_parsing_error(symbol, "shares_owned_extraction_failed")
             return None
 
         # Extract ownership percentage
         ownership_pct = Form4PlaintextParser._extract_ownership_pct(content, symbol)
         if ownership_pct is None:
             logger.warning(f"[{symbol}] Form 4: could not extract ownership percentage")
+            track_form4_parsing_error(symbol, "ownership_pct_extraction_failed")
             ownership_pct = 0.0
 
         result: dict[str, Any] = {
@@ -161,6 +167,7 @@ class Form4PlaintextParser:
             "net_transactions": net_txns,
             "latest_transaction_date": latest_date,
         }
+        track_form4_parsing_success(symbol)
         return result
 
     @staticmethod
@@ -301,7 +308,7 @@ class Form4PlaintextParser:
 
     @staticmethod
     def _find_transaction_section(content: str) -> Optional[str]:
-        """Find and extract the transaction data section from Form 4.
+        r"""Find and extract the transaction data section from Form 4.
 
         Tries multiple section markers to handle variations in SEC Form 4 structure.
         Uses \Z (absolute end of string) not $ (end of line) to avoid MULTILINE mode issues.
