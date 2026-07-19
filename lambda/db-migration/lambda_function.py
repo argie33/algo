@@ -41,7 +41,7 @@ def get_credentials() -> dict[str, Any]:
 
         return get_db_credentials()
     except ImportError:
-        logger.warning("Could not import credential_manager, falling back to manual boto3 fetch")
+        logger.info("[CREDENTIALS] credential_manager module not available; using direct boto3/env var fetch (expected in Lambda)")
         import boto3
 
         secret_arn = os.environ.get("DB_SECRET_ARN")

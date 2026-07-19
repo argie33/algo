@@ -38,7 +38,23 @@ vi.mock("react-router-dom", async () => {
 });
 
 vi.mock("../../../services/api.js", () => {
-  const mockGet = vi.fn().mockResolvedValue({ data: {} });
+  const mockGet = vi.fn((url) => {
+    // Return appropriate mock data based on endpoint
+    if (url.includes("/api/algo/markets")) {
+      return Promise.resolve({
+        data: {
+          market_health: "healthy",
+          regimeExposure: 0.7,
+          regimeTier: "tier_1",
+          indices: [
+            { symbol: "SPX", value: 5000, change: 1.2, vol_30d: [] },
+            { symbol: "NDX", value: 20000, change: 2.1, vol_30d: [] },
+          ],
+        },
+      });
+    }
+    return Promise.resolve({ data: {} });
+  });
   const mockApi = {
     get: mockGet,
     post: vi.fn().mockResolvedValue({ data: {} }),
@@ -57,7 +73,7 @@ vi.mock("../../../services/api.js", () => {
       .fn()
       .mockResolvedValue({ success: true, data: [] }),
     healthCheck: vi.fn().mockResolvedValue({ success: true }),
-    getMarketOverview: vi.fn().mockResolvedValue({ success: true, data: {} }),
+    getMarketOverview: vi.fn().mockResolvedValue({ success: true, data: { market_health: "healthy" } }),
     getMarketSentimentHistory: vi
       .fn()
       .mockResolvedValue({ success: true, data: {} }),

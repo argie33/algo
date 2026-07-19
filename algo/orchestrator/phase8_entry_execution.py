@@ -872,14 +872,11 @@ def run(
             # FAIL-FAST: Technical data is required for stop-loss calculation and position sizing
             # Do NOT use synthetic/approximated values - they mask data quality issues and can cause
             # wrong position sizing (especially ATR which directly affects stop loss placement).
-            # Reason: This ensures backtests/paper mode reveal data gaps before live trading.
             if close is None or atr is None or sma_50 is None:
-                logger.warning(
-                    f"[PHASE 8 DATA GAP] {symbol}: Incomplete technical data (ATR={atr}, SMA_50={sma_50}, close={close}). "
-                    f"Cannot execute entry without complete data. Skipping trade to avoid synthetic position sizing."
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: Incomplete technical data (ATR={atr}, SMA_50={sma_50}, close={close}). "
+                    f"Cannot execute entry without complete data. This indicates upstream loader failure or data cache corruption."
                 )
-                skipped_count += 1
-                continue
 
             entry_price = cast(float, close)
             atr = cast(float, atr)
@@ -887,28 +884,23 @@ def run(
 
             # VALIDATION: Technical indicators must be positive (sanity check for data corruption)
             if entry_price <= 0:
-                logger.warning(
-                    f"[PHASE 8 CRITICAL DATA ERROR] {symbol}: entry_price={entry_price} is non-positive. "
-                    "Skipping trade - indicates corrupted price data."
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: entry_price={entry_price} is non-positive. "
+                    "This indicates corrupted price data in technical_data_daily table. "
+                    "Cannot proceed with trade execution."
                 )
-                skipped_count += 1
-                continue
 
             if atr < 0:
-                logger.warning(
-                    f"[PHASE 8 CRITICAL DATA ERROR] {symbol}: ATR={atr} is negative. "
-                    "ATR cannot be negative. Skipping trade - indicates corrupted volatility data."
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: ATR={atr} is negative. "
+                    "ATR cannot be negative. This indicates corrupted volatility data in technical_data_daily table."
                 )
-                skipped_count += 1
-                continue
 
             if sma_50 <= 0:
-                logger.warning(
-                    f"[PHASE 8 CRITICAL DATA ERROR] {symbol}: SMA_50={sma_50} is non-positive. "
-                    "50-day moving average corrupted. Skipping trade."
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: SMA_50={sma_50} is non-positive. "
+                    "50-day moving average is corrupted. Cannot calculate valid stop loss levels."
                 )
-                skipped_count += 1
-                continue
 
             # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
             # SMA_50 - ATR = below moving-average support.

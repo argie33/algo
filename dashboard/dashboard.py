@@ -29,8 +29,12 @@ if sys.platform.startswith("win") and "pytest" not in sys.modules:
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    except Exception:
-        pass  # If redirection fails, continue anyway - better than crashing
+    except Exception as e:
+        raise RuntimeError(
+            f"[CRITICAL] Failed to configure UTF-8 output encoding on Windows: {e}. "
+            f"This is a system configuration issue, not a dashboard bug. "
+            f"Try: `python -X utf8=1 dashboard/dashboard.py` or set PYTHONIOENCODING=utf-8"
+        ) from e
 
 _repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _dashboard_dir = os.path.dirname(os.path.abspath(__file__))
@@ -267,8 +271,11 @@ def render_dashboard(
 ) -> Layout:
     """Render dashboard layout for current state."""
     if not ViewMode.is_valid(view_mode):
-        logger.warning(f"Invalid view_mode '{view_mode}', falling back to 'normal'")
-        view_mode = "normal"
+        raise ValueError(
+            f"[DASHBOARD] Invalid view_mode '{view_mode}'. "
+            f"Must be one of: {', '.join(ViewMode.valid_modes())}. "
+            f"Check environment variable or CLI argument."
+        )
 
     ctx = DashboardContext(data)
     hdr_panel, exp_panel = render_header_components(

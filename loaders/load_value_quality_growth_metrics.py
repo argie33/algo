@@ -498,10 +498,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_1y"),
                 row.get("eps_growth_3y"),
                 row.get("eps_growth_5y"),
-                # INTENTIONAL DESIGN: Normal rows have data available (False). Only _unavailable_marker()
-                # sets data_unavailable=True for rows with complete data fetch failure. Default False
-                # indicates this row successfully fetched metric values.
-                row.get("data_unavailable", False),
+                # CRITICAL: data_unavailable field MUST be present in all rows (set by _unavailable_marker or loader).
+                # Fail-fast if missing - a row without explicit unavailability marker indicates data integrity issue.
+                # Do NOT use .get(..., False) - that silently marks unavailable metrics as available.
+                row["data_unavailable"],
                 row.get("reason"),
                 row.get("data_source", "sec_audited"),
                 row["updated_at"],
