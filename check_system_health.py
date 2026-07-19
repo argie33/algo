@@ -114,7 +114,10 @@ def check_database() -> dict:
                             f"FROM {table_name}"
                         )
 
-                    cnt, _, age_hours = cur.fetchone()
+                    result = cur.fetchone()
+                    if not result:
+                        raise RuntimeError(f"Failed to query {table_name} stats")
+                    cnt, _, age_hours = result
                     age_hours = float(age_hours) if age_hours is not None else None
 
                     # Use market-calendar-aware thresholds (consistent with monitor_data_staleness.py)
@@ -246,6 +249,8 @@ def check_orchestrator() -> dict:
         )
 
         row = cur.fetchone()
+        if not row:
+            raise RuntimeError("Failed to query orchestrator run stats")
         runs_24h, _latest_run, _has_success, age_minutes = row
 
         if runs_24h > 0:

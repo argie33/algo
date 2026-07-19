@@ -77,7 +77,10 @@ class LoaderHealthMonitor:
                     WHERE {date_col} < CURRENT_TIMESTAMP - INTERVAL '{max_hours} hours'
                 """
                 cur.execute(query)
-                stale_count, _max_date = cur.fetchone()
+                result = cur.fetchone()
+                if not result:
+                    raise RuntimeError(f"Failed to query stale data for {table}")
+                stale_count, _max_date = result
 
                 if stale_count > 0:
                     pct_stale = 100 * stale_count / max(1, self._get_table_row_count(table))
@@ -113,7 +116,10 @@ class LoaderHealthMonitor:
             WHERE started_at > CURRENT_TIMESTAMP - INTERVAL '24 hours'
         """)
 
-        total, successful, latest = cur.fetchone()
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("Failed to query orchestrator run stats")
+        total, successful, latest = result
         success_rate = (100 * successful / total) if total > 0 else 0
 
         check = {
