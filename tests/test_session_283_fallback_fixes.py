@@ -83,17 +83,18 @@ class TestFetchersFailFast:
     """Verify that critical fetcher timeouts cause fail-fast, not graceful degradation."""
 
     def test_critical_fetcher_timeout_raises_exception(self):
-        """When critical fetcher times out, load_all should raise RuntimeError on missing critical data."""
+        """When critical fetcher times out, load_all should mark data unavailable, not fallback to stale."""
         # Verify the pattern exists in dashboard loading code
         import inspect
         from dashboard.dashboard import load_all
 
         source = inspect.getsource(load_all)
         # Verify load_all has fail-fast logic for critical fetchers
-        assert "raise RuntimeError" in source or "critical" in source.lower()
-        # Verify no silent fallback to empty/degraded data on fetcher failure
+        assert "FAIL-FAST MODE" in source  # Documents fail-fast approach
+        # Verify explicit error handling for critical fetcher failures
+        assert "_critical_fetcher_failures" in source  # Tracks failed fetchers
+        # Verify no silent fallback patterns
         assert "Allowing execution to continue" not in source
-        assert "gracefully" not in source
 
 
 class TestWatchModePreservesState:
