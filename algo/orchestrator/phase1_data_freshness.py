@@ -841,12 +841,27 @@ def run(  # noqa: C901
                     has_recent_metrics = any(row[0] > 0 for row in metric_counts)
 
                     if has_recent_metrics:
-                        # Metrics exist and are reasonably recent (< 7 days), allow degraded mode
-                        logger.warning(
-                            "[PHASE 1] Metrics exist but may be slightly stale. "
-                            "Proceeding in DEGRADED mode - stock scores may use older metric data."
-                        )
-                        degraded_reason = "Stale metric data (older than 1 day) - using available data"
+                        # Metrics exist and are reasonably recent (< 7 days)
+                        # CRITICAL FIX: On weekends/holidays, metrics from last trading day (Fri) are NORMAL, not degraded
+                        # Metric loaders only run on trading days (Mon-Fri 4:05 PM ET), so:
+                        # - Saturday: metrics from Friday are 1 day old (normal)
+                        # - Sunday: metrics from Friday are 2 days old (normal)
+                        # - Monday after 3-day weekend: metrics from Friday are 3 days old (normal)
+                        # Do NOT treat this as degradation. Only degrade if metrics are stale beyond normal weekend window.
+                        if MarketCalendar.is_trading_day(run_date_obj):
+                            # On trading days, if metrics are > 1 day old, that's degraded
+                            logger.warning(
+                                "[PHASE 1] Metrics exist but are stale (loaded before today). "
+                                "Proceeding in DEGRADED mode - stock scores may use older metric data."
+                            )
+                            degraded_reason = "Stale metric data (loaded before trading day) - using available data"
+                        else:
+                            # On weekends/holidays, metrics from last trading day are normal - don't degrade
+                            logger.info(
+                                f"[PHASE 1] Metrics from {run_date_obj.strftime('%A')} are from most recent trading day. "
+                                "Proceeding normally (non-trading day pattern is expected)."
+                            )
+                            # Don't set degraded_reason - metrics are fresh for a weekend/holiday
                     else:
                         # Metrics are completely missing or too old, must halt
                         logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")

@@ -618,16 +618,54 @@ class CircuitBreaker:
             data_date = None
         else:
             data_date = row[1]
-            age_days = (current_date - data_date).days
-            # On trading days: require same-day VIX data
-            # On non-trading days: accept most recent trading day's VIX data
-            max_age_allowed = 0 if is_trading_day else 4  # Allow up to 4 days (weekend + holiday)
-            if age_days > max_age_allowed:
-                logger.critical(f"VIX data stale ({age_days} days old) - cannot assess current volatility risk. Trading halted.")
+            # CRITICAL FIX: Use trading-day logic, not calendar days
+            # On trading days: accept data from today OR the most recent trading day (pre-market runs get yesterday's EOD)
+            # On non-trading days: data from most recent trading day is valid (market regime unchanged while closed)
+            # DO NOT compare calendar days (Friday vs Monday = 3-5 days apart)
+
+            is_acceptable_age = False
+            min_acceptable_date = None
+
+            if is_trading_day:
+                # Today is a trading day (Mon-Fri)
+                # Find the most recent trading day (to handle cases where today is trading day)
+                most_recent_trading_day = current_date
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(most_recent_trading_day):
+                        break
+                    most_recent_trading_day -= timedelta(days=1)
+
+                # Also find the previous trading day (pre-market runs use yesterday's EOD)
+                prev_trading_day = current_date - timedelta(days=1)
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(prev_trading_day):
+                        break
+                    prev_trading_day -= timedelta(days=1)
+
+                # Accept data from current trading day OR previous trading day
+                min_acceptable_date = prev_trading_day
+                is_acceptable_age = (data_date >= min_acceptable_date)
+            else:
+                # Today is weekend/holiday: find most recent trading day and require that date
+                most_recent_trading_day = current_date - timedelta(days=1)
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(most_recent_trading_day):
+                        break
+                    most_recent_trading_day -= timedelta(days=1)
+
+                min_acceptable_date = most_recent_trading_day
+                is_acceptable_age = (data_date >= min_acceptable_date)
+
+            if not is_acceptable_age:
+                calendar_age = (current_date - data_date).days
+                logger.critical(
+                    f"VIX data stale: latest from {data_date}, expected from {min_acceptable_date} or later. "
+                    f"Calendar age: {calendar_age} days. Trading halted."
+                )
                 vix_max_val = self._get_required_config("vix_max_threshold", "in VIX circuit breaker check")
                 return {
                     "halted": True,
-                    "reason": f"VIX data stale ({age_days} days old) - cannot assess current volatility. Trading halted.",
+                    "reason": f"VIX data stale ({data_date}): expected {min_acceptable_date} or later. Trading halted.",
                     "value": None,
                     "threshold": _float(vix_max_val, None),
                 }

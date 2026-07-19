@@ -17,7 +17,7 @@ Alerts:
 """
 
 import logging
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
@@ -368,11 +368,33 @@ class ValueAtRisk:
                 if snapshot_date:
                     from datetime import date
 
+                    from algo.infrastructure import MarketCalendar
+
                     today = date.today()
-                    age_days = (today - snapshot_date).days
-                    if age_days > 1:  # Allow up to 1 day old for post-market calculations
+                    is_trading_today = MarketCalendar.is_trading_day(today)
+
+                    # CRITICAL FIX: Use trading-day logic, not calendar days
+                    # Portfolio snapshots are updated daily via Phase 9 after market close
+                    # On Mondays, snapshot from Friday is 3-5 calendar days old but CURRENT - that's NORMAL
+                    snapshot_is_from_expected_day = False
+                    if is_trading_today:
+                        # Today is trading day: require today's snapshot
+                        snapshot_is_from_expected_day = (snapshot_date == today)
+                    else:
+                        # Today is weekend/holiday: require snapshot from most recent trading day
+                        expected_trading_day = today - timedelta(days=1)
+                        for _ in range(10):
+                            if MarketCalendar.is_trading_day(expected_trading_day):
+                                break
+                            expected_trading_day -= timedelta(days=1)
+                        snapshot_is_from_expected_day = (snapshot_date >= expected_trading_day)
+
+                    if not snapshot_is_from_expected_day:
+                        calendar_age = (today - snapshot_date).days
                         raise RuntimeError(
-                            f"[VAR CRITICAL] Portfolio snapshot is stale ({age_days} days old, from {snapshot_date}). "
+                            f"[VAR CRITICAL] Portfolio snapshot is stale: {snapshot_date} vs expected "
+                            f"{'today' if is_trading_today else 'most recent trading day'} "
+                            f"(calendar age: {calendar_age} days). "
                             f"Beta calculations must use current portfolio value to be accurate. "
                             f"Portfolio snapshot must be updated daily via Phase 9 reconciliation. "
                             f"Check that daily orchestration is running."
@@ -573,13 +595,33 @@ class ValueAtRisk:
                         "[CONCENTRATION CRITICAL] Portfolio snapshot has NULL date. "
                         "Cannot validate data freshness. Snapshot must always have a timestamp."
                     )
-                from datetime import date
+                from algo.infrastructure import MarketCalendar
 
                 today = date.today()
-                age_days = (today - snapshot_date).days
-                if age_days > 1:  # Allow up to 1 day old for post-market calculations
+                is_trading_today = MarketCalendar.is_trading_day(today)
+
+                # CRITICAL FIX: Use trading-day logic, not calendar days
+                # Portfolio snapshots are updated daily via Phase 9 after market close
+                # On Mondays, snapshot from Friday is 3-5 calendar days old but CURRENT - that's NORMAL
+                snapshot_is_from_expected_day = False
+                if is_trading_today:
+                    # Today is trading day: require today's snapshot
+                    snapshot_is_from_expected_day = (snapshot_date == today)
+                else:
+                    # Today is weekend/holiday: require snapshot from most recent trading day
+                    expected_trading_day = today - timedelta(days=1)
+                    for _ in range(10):
+                        if MarketCalendar.is_trading_day(expected_trading_day):
+                            break
+                        expected_trading_day -= timedelta(days=1)
+                    snapshot_is_from_expected_day = (snapshot_date >= expected_trading_day)
+
+                if not snapshot_is_from_expected_day:
+                    calendar_age = (today - snapshot_date).days
                     raise RuntimeError(
-                        f"[CONCENTRATION CRITICAL] Portfolio snapshot is stale ({age_days} days old, from {snapshot_date}). "
+                        f"[CONCENTRATION CRITICAL] Portfolio snapshot is stale: {snapshot_date} vs expected "
+                        f"{'today' if is_trading_today else 'most recent trading day'} "
+                        f"(calendar age: {calendar_age} days). "
                         f"Concentration metrics must use current portfolio value. "
                         f"Portfolio snapshot must be updated daily via Phase 9 reconciliation. "
                         f"Check that daily orchestration is running."
