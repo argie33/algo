@@ -216,6 +216,8 @@ class OptimalLoader:
         else:
             previous_date = self._watermark.get_current_watermark(symbol=symbol)
 
+        logger.debug(f"[{self.table_name}] {symbol}: watermark={previous_date}, backfill_days={self._backfill_days}")
+
         # Retry transient API errors (timeouts, connection errors) with exponential backoff
         max_attempts = 3
         last_exception: Exception | None = None
@@ -256,26 +258,31 @@ class OptimalLoader:
 
         if rows is None or not rows:
             # No new data since watermark-expected for incremental loads
-            logger.debug(
-                f"[{self.table_name}] {symbol}: No new data since watermark (previous={previous_date}), skipping"
+            logger.warning(
+                f"[{self.table_name}] {symbol}: Empty result from fetch_incremental (previous={previous_date}), rows={len(rows) if rows else 'None'}, skipping"
             )
             self._stats.increment("symbols_skipped_by_watermark")
             return 0
 
+        logger.debug(f"[{self.table_name}] {symbol}: fetch_incremental returned {len(rows)} rows")
         self._stats.increment("rows_fetched", len(rows))
         if self.router and self.router.last_source:
             self._stats.add_source(self.router.last_source)
 
         rows = self.transform(rows)
+        logger.debug(f"[{self.table_name}] {symbol}: After transform, {len(rows)} rows")
         validated_rows = []
         for i, r in enumerate(rows):
             try:
                 self._validate_row(r)
                 validated_rows.append(r)
             except ValueError as e:
+                logger.error(f"[{self.table_name}] {symbol}: Row {i} validation failed: {e}")
                 raise ValueError(f"Row {i} failed validation: {e}") from e
 
+        logger.debug(f"[{self.table_name}] {symbol}: {len(validated_rows)} rows passed validation")
         if not validated_rows:
+            logger.warning(f"[{self.table_name}] {symbol}: No rows passed validation, skipping")
             return 0
 
         rows = validated_rows
