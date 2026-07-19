@@ -158,8 +158,8 @@ class CompanyInfoSECLoader(SecLoaderBase):
                     "sic_description": sic_description,
                     "entity_type": entity_type,
                     "shares_outstanding": shares_outstanding,
-                    "data_unavailable": False,
-                    "reason": None,
+                    "data_unavailable": shares_outstanding is None,
+                    "reason": "shares_outstanding_unavailable" if shares_outstanding is None else None,
                     "data_source": "sec_edgar_submissions",
                 }
             ]

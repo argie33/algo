@@ -17,7 +17,7 @@ import logging
 import os
 import time
 from collections.abc import Callable
-from datetime import date as _date
+from datetime import date as _date, datetime as _datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
@@ -371,15 +371,22 @@ class PositionSizer:
     def get_market_exposure_multiplier(self) -> Decimal:
         """Look up the most recent market exposure pct (0-100). Returns multiplier 0.0-1.0.
 
-        Fail-fast  -" if data unavailable, raises exception. Position sizing requires
+        Fail-fast  -" if data unavailable or stale (>1 day old). Position sizing requires
         current market exposure to avoid over-committing during risk-off periods.
         """
 
         def fetch_exposure(cur: PsycopgCursor[Any]) -> Decimal:
-            cur.execute("SELECT exposure_pct FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
+            cur.execute("SELECT exposure_pct, date FROM market_exposure_daily ORDER BY date DESC LIMIT 1")
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError("Market exposure data unavailable. Phase must run daily to maintain this.")
+            data_date = row[1]
+            age_days = (_date.today() - data_date).days
+            if age_days > 1:
+                raise ValueError(
+                    f"Market exposure data too stale: {age_days} days old (max 1 day). "
+                    f"Loader must run to provide fresh market exposure for position sizing."
+                )
             return Decimal(str(row[0])) / Decimal(100)
 
         result: Decimal | int | float = self._with_cursor(fetch_exposure)
