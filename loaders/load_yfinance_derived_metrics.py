@@ -1,25 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""SEC-based Dashboard Enrichment Loader - replaces yfinance with official SEC data.
+"""DEPRECATED (Session 276): Dashboard Enrichment Loader - NO LONGER USED.
 
-PHASE 2 COMPLETE (Session 275): Migrated from yfinance_snapshot to SEC official sources.
+DEPRECATION NOTICE: This loader is NOT called by the orchestrator.
+It is kept for historical reference only.
 
-PURPOSE:
-- Provides optional enrichment data for dashboard display ONLY
-- NOT used by trading logic (stock_scores, buy_sell_daily, etc.)
-- Gracefully degrades if unavailable (marked with data_unavailable markers)
+The functionality has been replaced by:
+- company_profile → load_company_info_sec.py
+- earnings_calendar → load_earnings_calendar_sec.py
+- analyst_sentiment → marked data_unavailable (no SEC source)
 
-DATA SOURCES (100% official/SEC):
-  - company_profile (sector, industry, exchange, company name) → company_info_sec
-  - earnings_calendar (SEC filing dates for 10-K/10-Q) → earnings_calendar_sec
-  - analyst_sentiment_analysis → marked data_unavailable (no SEC source; Bloomberg/Seeking Alpha alternative sources required)
+If you need dashboard enrichment data, use the individual loaders above.
 
-CRITICAL TRADING DATA (handled elsewhere):
-  - valuations → load_value_quality_growth_metrics.py (SEC-based)
-  - positioning → load_positioning_metrics.py (SEC 13F/Form 4, FINRA)
-
-Run:
-    python3 load_yfinance_derived_metrics.py [--symbols AAPL,MSFT] [--parallelism 4]
+DEPRECATED 2026-07-19 (Session 276): Removed from orchestrator execution.
 """
 
 import logging

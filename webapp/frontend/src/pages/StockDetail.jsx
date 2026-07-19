@@ -1621,9 +1621,6 @@ function AnalystsTab({ data, last, error }) {
   const bullishCount = Number(metrics?.bullish ?? metrics?.bullish_count);
   const neutralCount = Number(metrics?.neutral ?? metrics?.neutral_count);
   const bearishCount = Number(metrics?.bearish ?? metrics?.bearish_count);
-  const bullish = SafeMetricValue({ value: bullishCount, fallback: "â€”" });
-  const neutral = SafeMetricValue({ value: neutralCount, fallback: "â€”" });
-  const bearish = SafeMetricValue({ value: bearishCount, fallback: "â€”" });
 
   const dist = [
     { name: "Bullish", value: isNaN(bullishCount) ? 0 : bullishCount, color: "var(--success)" },

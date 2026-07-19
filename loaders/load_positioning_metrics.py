@@ -5,17 +5,18 @@
 PURPOSE:
 - Fetch positioning metrics (institutional ownership %, insider ownership %, short interest %)
 - These are REQUIRED by load_stock_scores.py (minimum 30% coverage needed)
-- Previously bundled with dashboard-only data in load_yfinance_derived_metrics.py
+- 100% SEC-based sources (no yfinance dependency)
 
-DATA SOURCES (Phase 1 Optimization - Session 225):
-- short_interest: FINRA Reg SHO Transparency Data (load_short_interest_finra.py) ✅ PRIMARY
-- institutional_ownership: yfinance_snapshot (temporary; will replace with SEC 13F in Phase 2)
-- insider_ownership: yfinance_snapshot (temporary; will replace with SEC insider filings in Phase 2)
+DATA SOURCES (Session 275+):
+- short_interest: FINRA Reg SHO Transparency Data (load_short_interest_finra.py)
+- institutional_ownership: SEC 13F filings (load_institutional_holdings_13f.py)
+- insider_ownership: SEC Form 4/5 filings (load_insider_holdings_sec.py)
 - Writes to: positioning_metrics table (READ BY stock_scores.py)
 
 DEPENDENCIES:
 - load_short_interest_finra.py must run FIRST (populates short_interest_finra table)
-- load_yfinance_snapshot.py must run for institutional/insider data (temporary)
+- load_institutional_holdings_13f.py must run (populates institutional_holdings_13f table)
+- load_insider_holdings_sec.py must run (populates insider_holdings_sec table)
 
 Run:
     python3 loaders/load_positioning_metrics.py [--symbols AAPL,MSFT] [--parallelism 4]
@@ -39,12 +40,12 @@ configure_socket_timeout(30)
 
 
 class PositioningMetricsLoader(OptimalLoader):
-    """Load positioning metrics from yfinance_snapshot.
+    """Load positioning metrics from official SEC sources.
 
     CRITICAL LOADER: Stock scores require 30% coverage of positioning metrics.
     Without this data, stock scoring fails pre-flight validation.
 
-    Reads from yfinance_snapshot (populated by load_yfinance_snapshot.py).
+    Reads from: SEC 13F (institutional holdings), SEC Form 4/5 (insider holdings), FINRA (short interest).
     Writes to positioning_metrics table (read by stock_scores.py).
     """
 
@@ -54,18 +55,17 @@ class PositioningMetricsLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch positioning metrics with tiered source priority.
+        """Fetch positioning metrics from official SEC sources (TIER 1 only).
 
-        TIER 1 (Authoritative):
+        CRITICAL (Session 275+): Removed yfinance_snapshot TIER 2 fallback.
+        Governance rule: no silent fallbacks. If SEC data unavailable, report data_unavailable explicitly.
+
+        TIER 1 (Authoritative, only tier):
         - short_interest: FINRA Reg SHO
         - institutional_ownership: SEC 13F filings
         - insider_ownership: SEC Form 4/5 filings
 
-        TIER 2 (Secondary, used only when Tier 1 unavailable):
-        - institutional_ownership: yfinance_snapshot
-        - insider_ownership: yfinance_snapshot
-
-        Returns positioning data or data_unavailable marker if all tiers exhausted.
+        Returns positioning data or data_unavailable marker if all sources exhausted.
         """
         now_et = datetime.now(EASTERN_TZ)
 
@@ -135,34 +135,10 @@ class PositioningMetricsLoader(OptimalLoader):
         else:
             insider_source = "unavailable"
 
-        # TIER 2: Fall back to yfinance for institutional and insider if Tier 1 missing
-        tier1_complete = (
-            short_interest_source != "unavailable"
-            or institutional_source != "unavailable"
-            or insider_source != "unavailable"
-        )
-
-        if not tier1_complete:
-            # Try yfinance as secondary tier
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT held_percent_institutions, held_percent_insiders
-                    FROM yfinance_snapshot
-                    WHERE symbol = %s
-                    ORDER BY fetched_at DESC LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                yf_row = cur.fetchone()
-
-            if yf_row:
-                if yf_row[0] is not None:
-                    institutional_pct = yf_row[0]
-                    institutional_source = "yfinance"
-                if yf_row[1] is not None and yf_row[1] > 0:
-                    insider_pct = yf_row[1]
-                    insider_source = "yfinance"
+        # CRITICAL (Session 275+): Removed TIER 2 yfinance_snapshot fallback.
+        # Governance rule: no silent fallbacks. If SEC data unavailable, report data_unavailable explicitly.
+        # yfinance_snapshot is deprecated; institutional_holdings_13f and insider_holdings_sec
+        # are authoritative sources. If they fail to produce data, that's a real failure to report.
 
         # Final availability check: data_unavailable only if ALL three metrics are missing
         all_unavailable = (

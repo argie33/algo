@@ -36,7 +36,7 @@ import {
   money,
 } from "../components/dashboard/shared/utils/dashboardFormatters";
 import ErrorBoundary from "../components/ErrorBoundary";
-import { SafeMetric, SafeMetricValue, SafeMetricInline } from "../components/SafeMetric";
+import { SafeMetricValue } from "../components/SafeMetric";
 
 const TT_STYLE = {
   background: "var(--surface)",

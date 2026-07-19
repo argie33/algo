@@ -14,7 +14,7 @@ import { extractData, extractPaginatedData } from "./responseNormalizer";
  *
  * Use this when API data is required for correct UI rendering.
  */
-export const safeExtractData = (response, fallback = null) => {
+export const safeExtractData = (response, _fallback = null) => {
   if (!response) {
     throw new Error(
       "[API_HANDLER] Response is null/undefined. Cannot extract data. " +
@@ -49,7 +49,7 @@ export const safeExtractData = (response, fallback = null) => {
  */
 export const safeExtractPaginatedData = (
   response,
-  fallback = { items: [], pagination: {} }
+  _fallback = { items: [], pagination: {} }
 ) => {
   if (!response) {
     throw new Error(

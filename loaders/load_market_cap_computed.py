@@ -19,7 +19,9 @@ class MarketCapComputedLoader(OptimalLoader):
         from utils.infrastructure.timezone import EASTERN_TZ
         now_et = datetime.now(EASTERN_TZ)
         with DatabaseContext("read") as cur:
-            # Try SEC-computed market cap first (price × shares from audited SEC data)
+            # CRITICAL (Session 275+): Only use SEC-audited market cap.
+            # Removed yfinance_snapshot fallback - if SEC data unavailable, market cap is unavailable.
+            # No silent fallbacks: governance requires explicit data_unavailable flags.
             cur.execute("SELECT market_cap, shares_outstanding FROM sec_valuations WHERE symbol = %s AND NOT data_unavailable ORDER BY computed_at DESC LIMIT 1", (symbol,))
             sec_row = cur.fetchone()
             if sec_row and sec_row[0] is not None:
@@ -35,29 +37,14 @@ class MarketCapComputedLoader(OptimalLoader):
                     "computed_at": now_et
                 }]
 
-            # Fallback to yfinance market_cap when SEC data unavailable (authoritative real data)
-            cur.execute("SELECT market_cap FROM yfinance_snapshot WHERE symbol = %s AND data_available ORDER BY fetched_at DESC LIMIT 1", (symbol,))
-            yf_row = cur.fetchone()
-            if yf_row and yf_row[0] is not None:
-                market_cap = safe_float(yf_row[0], "market_cap")
-                return [{
-                    "symbol": symbol,
-                    "market_cap": market_cap,
-                    "shares_outstanding": None,
-                    "data_source": "yfinance",
-                    "data_unavailable": False,
-                    "reason": None,
-                    "computed_at": now_et
-                }]
-
-            # No data available from either source
+            # No SEC data available - fail-fast with explicit unavailable marker
             return [{
                 "symbol": symbol,
                 "market_cap": None,
                 "shares_outstanding": None,
                 "data_source": None,
                 "data_unavailable": True,
-                "reason": "no_market_cap_data",
+                "reason": "sec_data_unavailable",
                 "computed_at": now_et
             }]
 

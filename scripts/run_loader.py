@@ -56,7 +56,7 @@ def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None
             "quality_metrics": "load_value_quality_growth_metrics",
             "growth_metrics": "load_value_quality_growth_metrics",
             "stock_scores": "load_stock_scores",
-            "positioning_metrics": "load_yfinance_derived_metrics",
+            "positioning_metrics": "load_positioning_metrics",
             "stability_metrics": "load_risk_metrics_daily",
         }
 
@@ -247,10 +247,10 @@ def run_stock_scores_loader(limit=None):
 
 
 def run_positioning_metrics_loader():
-    """Run positioning metrics loader (yfinance derived)."""
+    """Run positioning metrics loader (institutional/insider/short interest data)."""
     import psycopg2
 
-    from loaders.load_yfinance_derived_metrics import YfinanceDerivedMetricsLoader
+    from loaders.load_positioning_metrics import PositioningMetricsLoader
 
     # Fetch universe symbols from stock_symbols table
     try:
@@ -265,7 +265,7 @@ def run_positioning_metrics_loader():
         logger.warning(f"Could not load symbols: {e}")
         symbols = ["AAPL", "SPY", "QQQ", "MSFT", "NVDA"]
 
-    loader = YfinanceDerivedMetricsLoader()
+    loader = PositioningMetricsLoader()
     result = loader.run(symbols=symbols, parallelism=4)
     logger.info(f"Positioning metrics loader result: {result}")
     return result

@@ -1,31 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""yfinance Snapshot Loader - Fetch ALL yfinance data once per symbol, store in DB.
+"""DEPRECATED (Session 275+): yfinance Snapshot Loader - NO LONGER USED.
 
-CRITICAL FIX 2026-07-02: Consolidates 30,000+ redundant yfinance API calls by having
-6+ loaders read from a single snapshot table instead of each calling yfinance separately.
+This loader has been deprecated and is NOT called by the orchestrator.
+All data sources have been replaced with official/authoritative sources:
+- Prices: Alpaca Market Data (free SIP plan)
+- Fundamentals: SEC EDGAR (companyfacts, 13G, Form 4/5)
+- Economic: FRED (yields, rates)
+- Short Interest: FINRA Regulation SHO data
+- Earnings: SEC EDGAR filing dates
+- Company Info: SEC EDGAR company metadata
 
-Consolidates redundant calls from:
-- value_metrics (PE, PB, PS, dividend)
-- positioning_metrics (institutional/insider holdings, short interest)
-- company_profile (sector, industry, country)
-- earnings_history (earnings dates)
-- earnings_calendar (next earnings date)
-- analyst_upgrade_downgrade (analyst counts)
-- analyst_sentiment_analysis (recommendation key, analyst counts)
+This file is kept for historical reference only.
+Do NOT import or run this loader - use load_positioning_metrics.py or
+load_value_quality_growth_metrics.py instead.
 
-BETA OPTIMIZATION (Session 196): Removed beta fetch from yfinance - computed from
-price_daily in load_risk_metrics_daily.py instead. Reduces yfinance API calls by ~4%.
-
-FRESHNESS SKIP 2026-07-14: symbols with an available snapshot row newer than
-YFINANCE_SNAPSHOT_MAX_AGE_HOURS (default 20h) are skipped entirely - re-runs and
-crash-retries fetch only the unfetched tail instead of restarting all ~5,300
-quoteSummary requests from zero. (The earlier "batches 50 symbols per request"
-claim was false: batch_tickers groups symbols for iteration, but every symbol
-still costs one quoteSummary HTTP request; requests are serialized through
-YFinanceWrapper with the shared IP circuit breaker.)
-Single fetch per symbol → yfinance_snapshot table → all downstream loaders read
-from the table instead of calling yfinance themselves.
+DEPRECATED 2026-07-19 (Session 276): Removed from terraform all_loaders.
+If you need to revive yfinance functionality, check git history and the
+comment in terraform/modules/loaders/main.tf (line 490).
 """
 
 import logging

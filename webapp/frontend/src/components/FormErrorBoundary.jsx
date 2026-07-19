@@ -12,7 +12,7 @@ import ErrorBoundary from "./ErrorBoundary";
  *     <MyForm />
  *   </ErrorBoundary>
  */
-export default function FormErrorBoundary({ children, onError, ...props }) {
+export default function FormErrorBoundary({ children, _onError, ...props }) {
   return (
     <ErrorBoundary variant="form" {...props}>
       {children}

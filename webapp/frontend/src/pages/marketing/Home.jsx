@@ -1,18 +1,14 @@
 import React from 'react';
 import { Box, Container, Typography, Grid, alpha, useTheme, Card, CardContent } from '@mui/material';
-import { useNavigate } from 'react-router-dom';
 import MarketingLayout from '../../components/marketing/MarketingLayout';
 import HeroSection from '../../components/marketing/HeroSection';
 import FeatureGrid from '../../components/marketing/FeatureGrid';
-import ImagePlaceholder from '../../components/marketing/ImagePlaceholder';
-import CTAButtonGroup from '../../components/marketing/CTAButtonGroup';
 import CTASection from '../../components/marketing/CTASection';
 import {
   TrendingUp as TrendingUpIcon,
   Event as EventIcon,
   Psychology as PsychologyIcon,
   Business as BusinessIcon,
-  Storage as StorageIcon,
   Analytics as AnalyticsIcon,
   School as SchoolIcon,
   Groups as GroupsIcon,
@@ -20,7 +16,6 @@ import {
 
 const Home = () => {
   const theme = useTheme();
-  const navigate = useNavigate();
 
   const dataCapabilities = [
     { label: 'Market Data', detail: 'Real-time pricing, volume, and liquidity analysis' },

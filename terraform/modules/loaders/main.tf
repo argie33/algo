@@ -371,60 +371,31 @@ locals {
     # Continuous updates (quarterly and annual filings)
     "earnings_calendar_sec" = "load_earnings_calendar_sec.py"
 
-    # ============================================================
-    # LEGACY: Old loaders (marked for retirement after validation)
-    # These will be removed once Phase 1-4 validation is complete (2 weeks)
-    # ============================================================
-    "market_health_daily" = "load_market_health_daily.py"
-    "market_exposure_daily" = "load_market_exposure_daily.py"
-    "market_sentiment"    = "load_market_sentiment.py"
-    # Consolidated: both quality + growth from single loader (fetch SEC once, compute both)
-    # Computed metrics from SEC financials (DEPENDS ON: financials_annual_income, financials_annual_balance)
-    # Reads annual_income_statement & annual_balance_sheet tables populated by load_financial_statements.py
-    "quality_metrics" = "load_quality_growth_metrics.py"
-    "growth_metrics"  = "load_quality_growth_metrics.py"
-    # Consolidated yfinance readers: 1 loader → 5 output tables (read snapshot once, write to 5 tables in parallel)
-    # Output tables: company_profile, analyst_sentiment_analysis, analyst_upgrade_downgrade, earnings_calendar, earnings_history
-    # PHASE 1 OPTIMIZATION (Session 225): positioning_metrics moved to load_positioning_metrics.py (reads from multiple sources)
-    "value_metrics"       = "load_yfinance_derived_metrics.py"
-    "company_profile"     = "load_yfinance_derived_metrics.py"
-    "earnings_history"    = "load_yfinance_derived_metrics.py"
-    "earnings_calendar"   = "load_yfinance_derived_metrics.py"
-
-    # PHASE 1 OPTIMIZATION (Session 225): Positioning metrics now read from multiple sources
-    # Primary: short_interest_finra (FINRA bi-weekly data, authoritative source)
-    # Secondary: institutional/insider from yfinance_snapshot (temporary; Phase 2 will replace with SEC 13F/insider filings)
-    "positioning_metrics" = "load_positioning_metrics.py"
-
-    # PHASE 1 OPTIMIZATION (Session 225): Short interest from FINRA (replacing yfinance)
-    # Replaces ~20% of yfinance_snapshot dependency (short_interest field)
-    # Updates bi-weekly; sufficient for stock scoring (short interest doesn't change daily)
-    # Cost: Free (FINRA public data)
-    # Quality: Official regulatory source (FINRA is the regulator; yfinance is a reseller)
-    "short_interest_finra" = "load_short_interest_finra.py"
-    # Consolidated: Both metrics from single loader (Phase 5 optimization - single pass, unified watermark)
+    # Risk metrics: volatility + beta calculations for position monitoring
     "stability_metrics" = "load_risk_metrics_daily.py"
     "momentum_metrics"  = "load_risk_metrics_daily.py"
-    "stock_scores"      = "load_stock_scores.py"
 
-    "market_constituents" = "load_market_constituents.py"
+    # Positioning: short interest + institutional/insider holdings
+    "positioning_metrics" = "load_positioning_metrics.py"
+    "short_interest_finra" = "load_short_interest_finra.py"
+
+    # Stock scoring: 6-factor composite
+    "stock_scores" = "load_stock_scores.py"
+
+    # Trading signals
+    "buy_sell_daily" = "load_buy_sell_daily.py"
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
-    "buy_sell_daily"     = "load_buy_sell_daily.py"
 
-    # ============================================================
-    # YFINANCE DEPRECATION (Session 274+): Replace with SEC data sources
-    # ============================================================
-    # Phase 2 Complete: Institutional/insider holdings from SEC filings instead of yfinance
+    # Reference data
+    "market_constituents" = "load_market_constituents.py"
+
+    # SEC holdings (Phase 2 complete - institutional + insider from SEC filings)
     "institutional_holdings_13f" = "load_institutional_holdings_13f.py"
-    "insider_holdings_sec"       = "load_insider_holdings_sec.py"
+    "insider_holdings_sec" = "load_insider_holdings_sec.py"
 
-    # New SEC Data Sources: Cash Flow & Segment Analysis
+    # SEC cash flow & segment metrics
     "sec_cash_flow_metrics" = "load_sec_cash_flow_metrics.py"
-    "sec_segment_metrics"   = "load_sec_segment_metrics.py"
-
-    # DEPRECATED: yfinance_snapshot (replaced by SEC 13F, Form 4/5, SEC cash flow, and new segment loaders)
-    # Kept here for reference; should be removed after validation period (2-4 weeks)
-    # "yfinance_snapshot"     = "load_yfinance_snapshot.py"
+    "sec_segment_metrics" = "load_sec_segment_metrics.py"
   }
 
   # ============================================================
@@ -487,57 +458,9 @@ locals {
     "trend_template_data"  = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
     # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~10-30s, 2x headroom)
     "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
-    "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 14400, parallelism = 1 }
-    # Cost-optimized: Reduced from 2048 to 512 (yfinance API fetch + lightweight metric calc, <100MB actual)
-    "growth_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
-    # Cost-optimized: Reduced from 2048 to 512 (SEC filing parse + DB insert, <100MB actual)
-    "quality_metrics" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 2 }
-    # Consolidated yfinance readers: All read from yfinance_snapshot, write to different tables
-    # Previously 6 separate tasks (value, positioning, company_profile, analyst×2, earnings×2)
-    # Now consolidated into 1 loader that reads snapshot once, writes to 6 tables in parallel
-    # FIXED (Session 193): Doubled resources (cpu 512→1024, memory 1024→2048, timeout 1800→3600, parallelism 1→2)
-    # Tasks were failing silently due to insufficient memory/CPU for 4711 stocks processing.
-    # Increased timeout from 30min to 60min to allow yfinance fetch + database writes for all stocks.
-    "value_metrics"       = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    "positioning_metrics" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-    # Reduced memory from 1024 to 512 (actual peak usage <100MB for parsing metadata)
-    "company_profile"   = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
-    "earnings_history"  = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
-    "earnings_calendar" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
-    # FIXED (2026-07-15): Increased timeout from 1800s (30m) to 4200s (70m) — load_risk_metrics_daily
-    # computes BOTH stability AND momentum for 5000+ symbols. Expected runtime 40-60 min (volatility + beta + momentum calculations).
-    "stability_metrics" = { cpu = 512, memory = 1024, timeout = 4200, parallelism = 2 }
-    # Cost-optimized: Reduced from 1024 to 512 (return calculations on historical prices, <80MB actual)
-    "momentum_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
-    # Cost-optimized: Reduced from 2048 to 1024 (score aggregation, vectorized SQL, moderate memory for DF ops)
-    # FIXED (2026-07-13): memory=1024 is not a valid Fargate combo for cpu=1024 (min is 2048) -
-    # ECS RegisterTaskDefinition rejected this outright, blocking every terraform apply.
-    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
-
-    # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~30-60s, 2x headroom)
-    # OPTIMIZED (Session 201): Reduced CPU 256→128 (minimal memory operations, list download only)
-    "market_constituents" = { cpu = 128, memory = 256, timeout = 120, parallelism = 1 }
-    # OPTIMIZED (Session 201): Reduced CPU 256→128 (simple breadth calculation from API data)
-    "market_health_daily" = { cpu = 128, memory = 256, timeout = 1200, parallelism = 1 }
-    # FIXED (2026-07-12): Reduced timeout 300s→60s (actual runtime ~3-5s, 10x+ over-provisioned)
-    "market_sentiment" = { cpu = 256, memory = 512, timeout = 60, parallelism = 1 }
-    # Consolidated economic data loader: FRED series + DXY (lightweight: API calls + DB writes)
-    "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
-    # FIXED (2026-07-12): Reduced memory 2048→512 (actual ~150MB), timeout 10800s→600s (actual ~5-10m, 2x headroom)
-    # FIXED (2026-07-13): cpu=1024/memory=512 is not a valid Fargate combo (1024 cpu needs
-    # memory>=2048) - ECS RegisterTaskDefinition rejected this, blocking every terraform apply.
-    # Actual usage (~150MB) doesn't need 1024 cpu either, so drop to 256/512 (valid, cheaper,
-    # matches the other lightweight reporting loaders below) instead of bumping memory to 2048.
-    "algo_metrics_daily" = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
-    # Cost-optimized: Reduced from 2048/4096 (signal generation: talib calculations + DB queries, moderate CPU)
-    "buy_sell_daily" = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
-    # NOTE: analyst_sentiment + analyst_upgrades_downgrades are outputs from load_yfinance_derived_metrics.py, not separate tasks
-    # They share ECS task definition with other yfinance-derived metrics (value, positioning, company_profile, earnings*)
-
-    # FIXED (2026-07-12): Reduced timeout 15000s→3600s (actual ~16-20m, 3x headroom still generous)
-    # Consolidated: All 8 statement types in single task (runs sequentially)
-    "financials_all" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
-
+    # DEPRECATED (Session 275+): yfinance_snapshot removed — all loaders now use real data sources
+    # (Alpaca prices, SEC EDGAR, FINRA). Python file kept for reference only.
+    # "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 14400, parallelism = 1 }
     # ============================================================
     # PHASE 1-4 OPTIMIZATION: Reduce yfinance dependence (Session 204+)
     # ============================================================
@@ -554,17 +477,17 @@ locals {
     "market_status_daily" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
 
     # Phase 3: Consolidated value/quality/growth metrics (DEPENDS ON Phase 1)
-    # Replaces: value_metrics (1024/2048) + quality_metrics (512/1024) + growth_metrics (512/1024)
+    # Replaces: old value_metrics + quality_metrics + growth_metrics loaders
     # Combined workload: SEC valuations + financial ratios + growth computations (actual ~200MB)
     # Uses optimized sec_valuations (Phase 1) instead of yfinance quoteSummary
-    # Timeout: value_metrics was 3600s (heaviest), add 20% headroom
+    # Timeout: 3600s (heaviest phase), add 20% headroom
     "value_quality_growth_metrics" = { cpu = 1024, memory = 2048, timeout = 4500, parallelism = 2 }
 
     # Phase 4: Consolidated sector/industry loader (unified OptimalLoader framework)
-    # Replaces: sector_performance (512/1024) + sector_ranking (512/1024) + industry_ranking (512/1024)
+    # Replaces: old sector_performance + sector_ranking + industry_ranking loaders
     # Combined workload: daily returns + ranking aggregation + momentum calculations
     # Single transaction for atomic updates to all 3 tables (actual ~100MB)
-    # Timeout: sum of old loaders (900 + 900 + 900) reduced by consolidation efficiency = 1800s
+    # Timeout: 1800s (consolidated from old 900s×3)
     "sector_industry_daily" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
 
     # PHASE 5: SEC Company Info & Earnings Calendar (Session 237+)
@@ -597,20 +520,35 @@ locals {
     "sec_cash_flow_metrics" = { cpu = 256, memory = 512, timeout = 1800, parallelism = 2 }
     "sec_segment_metrics"   = { cpu = 256, memory = 512, timeout = 1800, parallelism = 2 }
 
-    # PHASE 1 OPTIMIZATION (Session 225): Short interest from FINRA (authoritative regulatory data)
-    # Replaces yfinance short_interest field (~20% of yfinance_snapshot dependency)
-    # Lightweight: Single CSV fetch + parsing (FINRA publishes bi-weekly)
-    # CPU/Memory: Minimal (HTTP fetch + CSV parsing, <50MB)
-    # Timeout: 300s sufficient (typical run <5 min for CSV download + 5k symbols parsing)
-    # Parallelism: 1 (single FINRA fetch per run, then all symbols parsed in-memory)
+    # Core Stock Scoring & Risk Metrics (ACTIVE)
+    # Stock scores: 6-factor composite (quality/growth/value/momentum/positioning/stability)
+    "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
+
+    # Risk metrics: volatility, beta, momentum for position monitoring (Session 275: consolidated from separate loaders)
+    "stability_metrics" = { cpu = 512, memory = 1024, timeout = 4200, parallelism = 2 }
+    "momentum_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
+
+    # Positioning metrics: short interest (FINRA) + institutional/insider holdings (SEC)
+    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+
+    # FINRA short interest (bi-weekly regulatory data)
     "short_interest_finra" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
-    # PHASE 1 OPTIMIZATION (Session 225): Update positioning_metrics task (now reads from multiple sources)
-    # Previously: Read from yfinance_snapshot (slow; depends on 30-45 min loader)
-    # Now: Reads short_interest_finra (fast, bi-weekly) + yfinance_snapshot (temp; will replace in Phase 2)
-    # Reduced resources: CPU 1024→512, memory 2048→1024, timeout 3600→1800, parallelism 2→1
-    # (No longer slowed by yfinance_snapshot load time; just reads cached data)
-    "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
+    # Core Market Data
+    "market_constituents" = { cpu = 128, memory = 256, timeout = 120, parallelism = 1 }
+    "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
+
+    # Financial statements (SEC EDGAR, all 8 statement/period combos in single task)
+    "financials_all" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
+
+    # Prices and technicals (ALPACA SIP data, Session 275+)
+    "stock_prices_daily"    = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+    "technical_data_daily"  = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
+    "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
+
+    # Signals & algo metrics
+    "buy_sell_daily"        = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
+    "algo_metrics_daily"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
   }
   default_loaders = local.all_loaders
 

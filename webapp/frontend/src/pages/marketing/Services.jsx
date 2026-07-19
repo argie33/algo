@@ -4,7 +4,7 @@ import MarketingLayout from '../../components/marketing/MarketingLayout';
 import PageHeader from '../../components/marketing/PageHeader';
 import CTASection from '../../components/marketing/CTASection';
 import PromoBanner from '../../components/marketing/PromoBanner';
-import { Rocket as RocketIcon, TrendingUp as TrendingUpIcon } from '@mui/icons-material';
+import { Rocket as RocketIcon } from '@mui/icons-material';
 import {
   Star as StarIcon,
   Event as EventIcon,
@@ -14,7 +14,6 @@ import {
   ShowChart as ShowChartIcon,
   HealthAndSafety as HealthAndSafetyIcon,
   Timeline as TimelineIcon,
-  DataUsage as DataUsageIcon,
 } from '@mui/icons-material';
 
 const Services = () => {

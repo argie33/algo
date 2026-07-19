@@ -1283,62 +1283,15 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
 
   definition = jsonencode({
     Comment = "Daily computed metrics: quality/growth/value/stability/stock scores (depends on financial data)"
-    StartAt = "YFinanceSnapshot"
+    StartAt = "FinancialDataLoaders"
 
     States = {
-      # ── StartAt: Direct to metrics loading ──
-      # FIXED (Session 192): Removed aggressive concurrency check.
-
-      # ── Fetch yfinance snapshot once (all PE, PB, PS, dividend, beta, volatility for all symbols) ──
-      # CRITICAL FIX 2026-07-02: Consolidated yfinance calls into single snapshot loader to fix rate limiting.
-      # Fetches once per symbol, caches 24h. Eliminates 6x redundant API calls (value_metrics, positioning, stability).
-      # Before: value_metrics parallelism=2 took 176 min due to rate limiting. After: 2h expected, reads from cache.
-      YFinanceSnapshot = {
-        Type           = "Task"
-        Resource       = "arn:aws:states:::ecs:runTask.sync"
-        TimeoutSeconds = 32400
-        Parameters = {
-          Cluster              = var.ecs_cluster_arn
-          LaunchType           = "FARGATE"
-          TaskDefinition       = var.loader_task_definition_arns["yfinance_snapshot"]
-          NetworkConfiguration = local.network_config
-        }
-        Retry = [{
-          ErrorEquals     = ["States.ALL"]
-          IntervalSeconds = 30
-          MaxAttempts     = 0
-          BackoffRate     = 1.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "LogYFinanceSnapshotFailure"
-          ResultPath  = "$.loaderError"
-        }]
-        Next = "FinancialDataLoaders"
-      }
-
-      LogYFinanceSnapshotFailure = {
-        Type     = "Task"
-        Resource = var.loader_failure_handler_arn
-        Parameters = {
-          loader_name       = "yfinance_snapshot"
-          "error.$"         = "$.loaderError.Error"
-          "error_message.$" = "$.loaderError.Cause"
-        }
-        ResultPath = "$.failureLog"
-        Retry = [{
-          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
-          IntervalSeconds = 2
-          MaxAttempts     = 2
-          BackoffRate     = 2.0
-        }]
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "FinancialDataLoaders"
-          ResultPath  = "$.logError"
-        }]
-        Next = "FinancialDataLoaders"
-      }
+      # ── DEPRECATED (Session 275+): Removed yfinance_snapshot loader ──
+      # yfinance_snapshot was the first step in this pipeline, but it's no longer needed:
+      # - load_market_cap_computed.py: removed yfinance fallback, uses SEC only
+      # - load_positioning_metrics.py: removed yfinance TIER 2 fallback, uses SEC 13F/Form4/FINRA only
+      # - load_yfinance_derived_metrics.py: already migrated to SEC (company_info_sec, earnings_calendar_sec)
+      # All loaders now use 100% SEC data sources. Fail-fast if SEC data unavailable (no fallbacks).
 
       # ── Financial Data Loaders (Consolidated) ──────────────────────────
       # OPTIMIZATION ACTIVATED (2026-07-12): Replaced 8 parallel tasks with single consolidated task
@@ -1469,7 +1422,7 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
       # - Single validation point (one error handler)
       # - Unified OptimalLoader framework
       #
-      # Depends on: FinancialDataLoaders (financial statements), YFinanceSnapshot (enrichment)
+      # Depends on: FinancialDataLoaders (financial statements), SecValuations
       # Outputs atomically to: value_metrics, quality_metrics, growth_metrics
       #
       # Timeout: value_metrics was 1800s + quality_metrics was 6600s = 8400s total;
