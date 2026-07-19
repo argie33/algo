@@ -28,7 +28,9 @@ export default defineConfig(({ mode }) => {
     : "";
 
   if (isDevelopment) {
-    console.log(`[VITE_CONFIG] proxyTarget=${proxyTarget}, proxyTargetEnv="${proxyTargetEnv}", isDev=${isDevelopment}`);
+    console.log(`[VITE_CONFIG] env.VITE_PROXY_TARGET="${env.VITE_PROXY_TARGET}"`);
+    console.log(`[VITE_CONFIG] process.env.VITE_PROXY_TARGET="${process.env.VITE_PROXY_TARGET}"`);
+    console.log(`[VITE_CONFIG] Final proxyTarget=${proxyTarget}`);
   }
 
   return {
