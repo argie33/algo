@@ -45,13 +45,14 @@ VALID_LOADER_NAMES = frozenset(
         "market_constituents",
         "market_health_daily",
         "market_sentiment",
-        "sector_ranking",
-        "industry_ranking",
+        # DEPRECATED (Session 273 FIX): Below loaders were consolidated into sector_industry_daily
+        # Removed: "sector_ranking", "industry_ranking", "sector_performance"
+        # Consolidation deployed but old loaders were still callable - removed from allowlist
         "algo_metrics_daily",
         "buy_sell_daily",
         "economic_data",
         "financials_all",
-        "sector_performance",
+        "sector_industry_daily",  # NEW: Consolidated loader (replaces sector_ranking + industry_ranking + sector_performance)
     }
 )
 

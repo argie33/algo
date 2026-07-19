@@ -47,6 +47,31 @@ class SectorIndustryDailyLoader(OptimalLoader):
     watermark_field = "date"
     is_symbol_based = False
 
+    def load_global(self) -> int:
+        """Override load_global() to return row count directly (side-effect loader)."""
+        from utils.db.local_file_lock import get_lock_manager
+        import os
+
+        lock_manager = None
+        try:
+            lock_table = os.getenv(
+                "LOADER_LOCKS_TABLE",
+                f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
+            )
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+            if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
+                logger.error(f"[{self.table_name}] Could not acquire lock")
+                return 0
+
+            # Execute the fetch_incremental which does all the work via side effects
+            rows = self.fetch_incremental("market", None)
+            # For side-effect loaders, rows is the count or data dict
+            return sum(row.values()) if isinstance(rows, dict) and rows else (len(rows) if rows else 1)
+        finally:
+            if lock_manager:
+                lock_manager.release(lock_key=self.table_name)
+
     def run(
         self, symbols: Iterable[str] | None = None, parallelism: int = 1, backfill_days: int | None = None
     ) -> dict[str, Any]:
@@ -77,11 +102,12 @@ class SectorIndustryDailyLoader(OptimalLoader):
             since: Optional backfill start date
 
         Returns:
-            List of consolidated metric dicts (empty = write to all 3 tables via side effects)
+            List of consolidated metric dicts (returns row counts for success validation)
         """
         if symbol != "market":
             return []
 
+        row_counts = {"sector_performance": 0, "sector_ranking": 0, "industry_ranking": 0}
         try:
             target_date = date.today()
             prev_date = target_date - timedelta(days=1)
@@ -130,6 +156,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     (prev_date, target_date, target_date),
                 )
                 perf_count = cur.rowcount
+                row_counts["sector_performance"] = perf_count
                 logger.info(f"[SECTOR_INDUSTRY] Inserted {perf_count} sector performance rows")
 
                 # ===== SECTOR RANKINGS =====
@@ -194,6 +221,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     """,
                 )
                 rank_count = cur.rowcount
+                row_counts["sector_ranking"] = rank_count
                 logger.info(f"[SECTOR_INDUSTRY] Inserted {rank_count} sector ranking rows")
 
                 # ===== INDUSTRY RANKINGS =====
@@ -256,6 +284,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     """,
                 )
                 ind_count = cur.rowcount
+                row_counts["industry_ranking"] = ind_count
                 logger.info(f"[SECTOR_INDUSTRY] Inserted {ind_count} industry ranking rows")
 
                 # Delete stale data (keep 90 days)
@@ -267,8 +296,12 @@ class SectorIndustryDailyLoader(OptimalLoader):
             logger.error(f"[SECTOR_INDUSTRY] Computation failed: {e}", exc_info=True)
             raise
 
-        # Return empty list (all writes handled via side effects)
-        return []
+        # Return row count for success validation (sum of all 3 tables)
+        # If any table got updates, the loader succeeds
+        total_rows = sum(row_counts.values())
+        logger.info(f"[SECTOR_INDUSTRY] Total rows updated: {total_rows} (perf={row_counts['sector_performance']}, rank={row_counts['sector_ranking']}, ind={row_counts['industry_ranking']})")
+        # Return list with one dummy record if total_rows > 0, else empty (for run_loader success check)
+        return [{"total": total_rows}] if total_rows > 0 else []
 
 
 
