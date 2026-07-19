@@ -78,6 +78,7 @@ _localhost_checked = False
 
 def _check_localhost_available() -> bool:
     """Check if dev_server is running on localhost:3001."""
+    import logging
     import socket
 
     try:
@@ -86,7 +87,11 @@ def _check_localhost_available() -> bool:
         result = sock.connect_ex(("127.0.0.1", 3001))
         sock.close()
         return result == 0
-    except Exception:
+    except Exception as e:
+        logging.debug(
+            f"[API_LAYER] Socket connectivity check for localhost:3001 failed: "
+            f"{type(e).__name__}: {e}. Assuming dev_server not available."
+        )
         return False
 
 

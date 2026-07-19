@@ -366,28 +366,54 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(f"Unexpected error: {e}") from e
 
-        # CRITICAL FIX: For loader tables with NULL row_count, fetch actual count from database
-        # data_loader_status.row_count is populated by loaders on run, but orchestrator-generated
-        # tables (algo_positions, algo_trades, etc.) never have their row_count updated by loaders.
-        # This causes false "empty" status. Query actual counts to fix display.
+        # CRITICAL FIX: For loader tables with NULL row_count/last_updated, fetch actual values from database
+        # data_loader_status.row_count/last_updated are populated by loaders on run, but orchestrator-generated
+        # tables (algo_positions, algo_trades, etc.) never have their counts updated by loaders.
+        # This causes false "empty" status. Query actual counts and timestamps to fix display.
         enriched_rows = []
         for row in loader_rows:
-            if row.get("row_count") is None:
-                tbl_name = row.get("table_name")
+            tbl_name = row.get("table_name")
+            needs_refresh = row.get("row_count") is None or row.get("last_updated") is None
+
+            if needs_refresh and tbl_name:
                 try:
-                    cur.execute(psycopg2.sql.SQL("SELECT COUNT(*) AS cnt FROM {}").format(
+                    # Query timestamp column name - varies by table
+                    ts_columns = {
+                        "algo_positions": "entry_date",
+                        "algo_trades": "entry_date",
+                        "algo_reconciliation_log": "reconciliation_date",
+                        "algo_signals": "signal_date",
+                        "algo_signals_evaluated": "signal_date",
+                        "circuit_breaker_status": "check_date",
+                        "algo_performance_daily": "report_date",
+                        "algo_portfolio_snapshots": "snapshot_date",
+                        "algo_risk_daily": "report_date",
+                        "algo_metrics_daily": "report_date",
+                        "equity_curve_daily": "date",
+                        "growth_metrics": "report_date",
+                    }
+                    ts_col = ts_columns.get(tbl_name, "created_at")
+
+                    cur.execute(psycopg2.sql.SQL(
+                        "SELECT COUNT(*) AS cnt, MAX({}) AS last_ts FROM {}"
+                    ).format(
+                        psycopg2.sql.Identifier(ts_col),
                         psycopg2.sql.Identifier(tbl_name)
                     ))
-                    count_row = cur.fetchone()
-                    if count_row and len(count_row) > 0:
-                        actual_count = count_row[0]
+                    refresh_row = cur.fetchone()
+                    if refresh_row:
+                        actual_count = refresh_row[0]
+                        last_ts = refresh_row[1]
                         if actual_count is not None:
                             row["row_count"] = actual_count
-                            logger.debug(f"[DATA_STATUS] Updated {tbl_name}: row_count={actual_count}")
+                        if last_ts is not None:
+                            row["last_updated"] = last_ts
+                        logger.debug(f"[DATA_STATUS] Refreshed {tbl_name}: count={actual_count}, ts={last_ts}")
                 except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                    logger.warning(f"[DATA_STATUS] Could not refresh row_count for {tbl_name}: {e}")
+                    logger.warning(f"[DATA_STATUS] Could not refresh {tbl_name}: {e}")
                 except Exception as e:
                     logger.warning(f"[DATA_STATUS] Unexpected error refreshing {tbl_name}: {e}")
+
             enriched_rows.append(row)
 
         rows = enriched_rows + algo_rows

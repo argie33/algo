@@ -418,8 +418,14 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     init_cur.execute(
                         "ALTER TABLE algo_portfolio_snapshots ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW()"
                     )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.error(
+                        f"[CRITICAL] Failed to migrate algo_portfolio_snapshots schema: {type(e).__name__}: {e}. "
+                        f"Phase 9 cannot proceed without this column."
+                    )
+                    raise RuntimeError(
+                        f"Schema migration failed for algo_portfolio_snapshots - Phase 9 cannot proceed: {e}"
+                    ) from e
                 # Add missing columns to metric tables (critical - loaders write these)
                 metric_tables = [
                     "quality_metrics",
@@ -434,8 +440,15 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                             f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS data_unavailable BOOLEAN DEFAULT FALSE"
                         )
                         init_cur.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS reason VARCHAR(500)")
-                    except Exception:
-                        pass
+                        logger.debug(f"[SCHEMA] Initialized data_unavailable columns on {table}")
+                    except Exception as e:
+                        logger.error(
+                            f"[CRITICAL] Failed to initialize {table} schema: {type(e).__name__}: {e}. "
+                            f"Data loading will fail when loaders write to this table."
+                        )
+                        raise RuntimeError(
+                            f"Schema migration failed for {table} - data pipeline cannot proceed: {e}"
+                        ) from e
                 # Add missing columns to stock_scores
                 try:
                     init_cur.execute(
@@ -443,8 +456,13 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                     )
                     init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS reason VARCHAR(500)")
                     init_cur.execute("ALTER TABLE stock_scores ADD COLUMN IF NOT EXISTS data_completeness NUMERIC(4,2)")
-                except Exception:
-                    pass
+                    logger.debug("[SCHEMA] Initialized data_unavailable columns on stock_scores")
+                except Exception as e:
+                    logger.error(
+                        f"[CRITICAL] Failed to initialize stock_scores schema: {type(e).__name__}: {e}. "
+                        f"Stock scoring will fail."
+                    )
+                    raise RuntimeError(f"Schema migration failed for stock_scores: {e}") from e
                 # Create yfinance_snapshot if missing (migrations/versions/1006_create_yfinance_snapshot.sql
                 # sat only in the db-migration Lambda pipeline, which cannot reach RDS due to unresolved VPC
                 # networking issues in that pipeline as of 2026-07-07; loaders/load_value_metrics.py (and
@@ -472,8 +490,14 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                         "CREATE INDEX IF NOT EXISTS idx_yfinance_snapshot_data_available "
                         "ON yfinance_snapshot(data_available)"
                     )
-                except Exception:
-                    pass
+                    logger.debug("[SCHEMA] yfinance_snapshot table created/verified")
+                except Exception as e:
+                    # Note: yfinance_snapshot is deprecated (Session 275+), but some legacy loaders
+                    # may still reference it. Log the issue but don't fail completely.
+                    logger.warning(
+                        f"[SCHEMA] Could not create yfinance_snapshot: {type(e).__name__}: {e}. "
+                        f"Legacy loaders may fail if they try to reference this table."
+                    )
                 init_cur.connection.commit()
             logger.info("[STARTUP] Database schema verified and fixed")
         except Exception as db_init_err:

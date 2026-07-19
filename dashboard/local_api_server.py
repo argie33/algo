@@ -547,7 +547,8 @@ class APIHandler(BaseHTTPRequestHandler):
                         "vix_level": float(cb_row["vix_level"]) if cb_row.get("vix_level") is not None else None,
                         "last_check": check_date_str,
                     }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[HEALTH] Failed to fetch phase_2 (circuit breaker) status: {type(e).__name__}: {e}")
                 execution_health["phase_2_circuit_breakers"] = None
 
             # Phase 3: Position Monitor Health
@@ -566,7 +567,8 @@ class APIHandler(BaseHTTPRequestHandler):
                         "oldest_days": int(pos_row["oldest_days"]) if pos_row.get("oldest_days") is not None else None,
                         "max_loss_pct": float(pos_row["max_loss_pct"]) if pos_row.get("max_loss_pct") is not None else None,
                     }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[HEALTH] Failed to fetch phase_3 (position monitor) status: {type(e).__name__}: {e}")
                 execution_health["phase_3_position_monitor"] = None
 
             # Phase 6: Exit Execution Health (last 24h)
@@ -587,7 +589,8 @@ class APIHandler(BaseHTTPRequestHandler):
                         "successful_exits": successful,
                         "success_rate": (successful / total_exits * 100) if total_exits > 0 else 0,
                     }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[HEALTH] Failed to fetch phase_6 (exit execution) status: {type(e).__name__}: {e}")
                 execution_health["phase_6_exit_execution"] = None
 
             # Phase 7: Signal Generation Health
@@ -605,7 +608,8 @@ class APIHandler(BaseHTTPRequestHandler):
                         "signals_generated": int(sig_row["signal_count"]) if sig_row.get("signal_count") else 0,
                         "avg_strength": float(sig_row["avg_strength"]) if sig_row.get("avg_strength") else None,
                     }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[HEALTH] Failed to fetch phase_7 (signal generation) status: {type(e).__name__}: {e}")
                 execution_health["phase_7_signal_generation"] = None
 
             # Phase 8: Entry Execution Health (last 24h)
@@ -626,7 +630,8 @@ class APIHandler(BaseHTTPRequestHandler):
                         "successful_entries": successful,
                         "success_rate": (successful / total_entries * 100) if total_entries > 0 else 0,
                     }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[HEALTH] Failed to fetch phase_8 (entry execution) status: {type(e).__name__}: {e}")
                 execution_health["phase_8_entry_execution"] = None
 
             # Phase 9: Portfolio Snapshot Health
@@ -644,7 +649,8 @@ class APIHandler(BaseHTTPRequestHandler):
                         "latest_snapshot": snap_row.get("latest_date").isoformat() if snap_row.get("latest_date") else None,
                         "portfolio_value": float(snap_row["latest_value"]) if snap_row.get("latest_value") else None,
                     }
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[HEALTH] Failed to fetch phase_9 (portfolio snapshot) status: {type(e).__name__}: {e}")
                 execution_health["phase_9_portfolio_snapshot"] = None
 
             conn.close()
