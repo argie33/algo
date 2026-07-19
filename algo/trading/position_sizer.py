@@ -26,6 +26,7 @@ import requests
 from psycopg2.extensions import cursor as PsycopgCursor
 
 from algo.infrastructure import get_alpaca_timeout
+from algo.infrastructure.market_calendar import MarketCalendar
 from algo.trading.exceptions import (
     ConfigurationError,
     DatabaseError,
@@ -413,11 +414,21 @@ class PositionSizer:
                     "VIX level unavailable from market_health_daily. Cannot adjust position size for volatility."
                 )
             data_date = row[1]
-            age_days = (_date.today() - data_date).days
-            if age_days > 1:
+            today = _date.today()
+            calendar_days_old = (today - data_date).days
+
+            trading_days_old = 0
+            if calendar_days_old > 0:
+                check_date = data_date
+                while check_date < today:
+                    check_date += timedelta(days=1)
+                    if MarketCalendar.is_trading_day(check_date):
+                        trading_days_old += 1
+
+            if trading_days_old > 1:
                 raise ValueError(
-                    f"VIX data too stale: {age_days} days old (max 1 day). "
-                    f"Volatility protection requires fresh VIX data."
+                    f"VIX data too stale: {trading_days_old} trading days old (max 1 trading day). "
+                    f"Volatility protection requires fresh VIX data from last trading day."
                 )
             vix = Decimal(str(row[0]))
             caution_threshold = Decimal(str(self.config["vix_caution_threshold"]))
