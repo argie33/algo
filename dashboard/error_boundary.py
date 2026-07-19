@@ -142,8 +142,21 @@ def get_data_staleness_warning(data: Any, max_age_hours: float = 24.0) -> str:
         age_hours = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
         if age_hours > max_age_hours:
             return f" ⚠ STALE ({age_hours:.0f}h old)"
-    except Exception:
-        pass
+    except ValueError as e:
+        logger.warning(
+            f"[STALENESS_CHECK] Failed to parse timestamp '{timestamp_val}': "
+            f"ValueError: {e}. Cannot calculate data age."
+        )
+    except TypeError as e:
+        logger.warning(
+            f"[STALENESS_CHECK] Invalid timestamp type {type(timestamp_val).__name__}: "
+            f"TypeError: {e}. Expected string or datetime."
+        )
+    except Exception as e:
+        logger.warning(
+            f"[STALENESS_CHECK] Unexpected error calculating data staleness: "
+            f"{type(e).__name__}: {e}. Returning empty warning."
+        )
 
     return ""
 
