@@ -12,11 +12,14 @@ try:
     # Check orchestrator runs
     cur.execute("SELECT COUNT(*) as runs FROM algo_orchestrator_runs WHERE started_at > NOW() - INTERVAL '1 day'")
     result = cur.fetchone()
-    print(f"Orchestrator runs (last 24h): {result[0]}")
+    if result is None:
+        print("Orchestrator runs (last 24h): 0")
+    else:
+        print(f"Orchestrator runs (last 24h): {result[0]}")
 
     cur.execute("SELECT MAX(started_at) as latest FROM algo_orchestrator_runs")
     result = cur.fetchone()
-    if result[0]:
+    if result and result[0]:
         age = datetime.utcnow() - result[0].replace(tzinfo=None)
         print(f"Latest orchestrator run: {result[0]}")
         print(f"Age: {age.total_seconds() / 3600:.1f} hours")
@@ -24,11 +27,14 @@ try:
     # Check Phase 9 snapshots
     cur.execute("SELECT COUNT(*) as snapshots FROM algo_portfolio_snapshots WHERE snapshot_date >= CURRENT_DATE - INTERVAL '7 days'")
     result = cur.fetchone()
-    print(f"\nPortfolio snapshots (last 7 days): {result[0]}")
+    if result is None:
+        print("\nPortfolio snapshots (last 7 days): 0")
+    else:
+        print(f"\nPortfolio snapshots (last 7 days): {result[0]}")
 
     cur.execute("SELECT MAX(snapshot_date) as latest FROM algo_portfolio_snapshots")
     result = cur.fetchone()
-    if result[0]:
+    if result and result[0]:
         print(f"Latest snapshot: {result[0]}")
 
     # Check data freshness
@@ -40,19 +46,22 @@ try:
 
     cur.execute("SELECT MAX(updated_at) FROM growth_metrics")
     result = cur.fetchone()
-    if result[0]:
+    if result and result[0]:
         print(f"Growth metrics: {result[0]}")
 
     cur.execute("SELECT MAX(updated_at) FROM quality_metrics")
     result = cur.fetchone()
-    if result[0]:
+    if result and result[0]:
         print(f"Quality metrics: {result[0]}")
 
     # Check halt reasons (recent halts)
     print("\n=== RECENT HALTS ===")
     cur.execute("SELECT COUNT(*) FROM algo_orchestrator_runs WHERE halt_reason IS NOT NULL AND started_at > NOW() - INTERVAL '24 hours'")
     result = cur.fetchone()
-    print(f"Halts in last 24h: {result[0]}")
+    if result is None:
+        print("Halts in last 24h: 0")
+    else:
+        print(f"Halts in last 24h: {result[0]}")
 
     cur.execute("SELECT halt_reason, COUNT(*) as count FROM algo_orchestrator_runs WHERE halt_reason IS NOT NULL GROUP BY halt_reason ORDER BY count DESC LIMIT 5")
     for row in cur.fetchall():

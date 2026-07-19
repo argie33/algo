@@ -102,10 +102,14 @@ def check_database_status():
         cur.close()
         conn.close()
 
+        market_exp_str = f"{market_exp[0]} ({market_exp[1]} days old)" if (market_exp and market_exp[0]) else "N/A"
+        value_metrics_str = f"{value_metrics[0]} ({value_metrics[1]} days old)" if (value_metrics and value_metrics[0]) else "N/A"
+        last_run_str = f"{last_run[0]}: {last_run[1]} - {last_run[2][:80] if last_run[2] else 'N/A'}" if last_run else "No runs"
+
         return {
-            "market_exposure": f"{market_exp[0]} ({market_exp[1]} days old)" if market_exp else "N/A",
-            "value_metrics": f"{value_metrics[0]} ({value_metrics[1]} days old)" if value_metrics else "N/A",
-            "last_run": f"{last_run[0]}: {last_run[1]} - {last_run[2][:80]}" if last_run else "No runs"
+            "market_exposure": market_exp_str,
+            "value_metrics": value_metrics_str,
+            "last_run": last_run_str
         }
     except Exception as e:
         return {"error": f"Database connection failed: {e}"}

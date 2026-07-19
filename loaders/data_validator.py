@@ -20,7 +20,11 @@ class DataValidator:
     def validate_table_not_empty(self, table_name: str, min_rows: int = 1) -> bool:
         cur = self.conn.cursor()
         cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-        count = cur.fetchone()[0]
+        result = cur.fetchone()
+        if result is None:
+            count = 0
+        else:
+            count = result[0]
 
         if count < min_rows:
             msg = f"{table_name}: Only {count} rows (expected >= {min_rows})"
@@ -40,7 +44,11 @@ class DataValidator:
             ) x
         """
         cur.execute(query)
-        dup_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        if result is None:
+            dup_count = 0
+        else:
+            dup_count = result[0]
 
         if dup_count > 0:
             msg = f"{table_name}: {dup_count} duplicate records on {key_columns}"
@@ -55,10 +63,12 @@ class DataValidator:
             WHERE {date_column} < CURRENT_TIMESTAMP - INTERVAL '{max_age_hours} hours'
         """
         cur.execute(query)
-        stale_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        stale_count = result[0] if result else 0
 
         cur.execute(f"SELECT COUNT(*) FROM {table_name}")
-        total_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        total_count = result[0] if result else 0
 
         if total_count > 0:
             stale_pct = 100 * stale_count / total_count
@@ -75,7 +85,8 @@ class DataValidator:
         for col in critical_columns:
             query = f"SELECT COUNT(*) FROM {table_name} WHERE {col} IS NULL"
             cur.execute(query)
-            null_count = cur.fetchone()[0]
+            result = cur.fetchone()
+            null_count = result[0] if result else 0
 
             if null_count > 0:
                 msg = f"{table_name}.{col}: {null_count} NULL values"

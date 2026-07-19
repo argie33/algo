@@ -52,10 +52,11 @@ def check_data_freshness() -> dict[str, tuple[int, bool]]:
                     query = f"SELECT EXTRACT(EPOCH FROM (NOW() - MAX(date::timestamp)))/3600 FROM {table}"
 
                 cur.execute(query)
-                hours_old = cur.fetchone()[0]
-
-                if hours_old is None:
+                result = cur.fetchone()
+                if result is None:
                     hours_old = 999  # No data at all = stale
+                else:
+                    hours_old = result[0] if result[0] is not None else 999
 
                 is_fresh = hours_old <= threshold_hours
                 results[table] = (hours_old, is_fresh)

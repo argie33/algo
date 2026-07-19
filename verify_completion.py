@@ -27,7 +27,13 @@ if log_exists:
 print("\n[2] POSITIONS DATA STATUS")
 with DatabaseContext("read") as cur:
     cur.execute("SELECT COUNT(*), STRING_AGG(symbol, ', ' ORDER BY symbol) FROM algo_positions WHERE status = 'open'")
-    count, symbols = cur.fetchone()
+    result = cur.fetchone()
+    if result is None:
+        print("    ERROR: Could not retrieve position data from database")
+        count = 0
+        symbols = None
+    else:
+        count, symbols = result
     print(f"    Open positions in database: {count}")
     if symbols and count > 0:
         symbols_list = symbols.split(", ")
