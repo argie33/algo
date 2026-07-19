@@ -5,20 +5,17 @@ CONSOLIDATION: Merges 2 separate metric loaders into one:
   - load_yfinance_derived_metrics.py (reads yfinance_snapshot → value_metrics + others)
   - load_quality_growth_metrics.py (reads financial_statements → quality + growth)
 
-CRITICAL DEPENDENCY: Requires these to run first:
+CRITICAL DEPENDENCY: Requires these to run first (Session 271 - yfinance-free):
   1. load_financial_statements.py → annual_income_statement, balance_sheet, cash_flow
   2. load_sec_valuations.py → sec_valuations (computed PE/PB/PS/PEG/FCF)
-  3. load_yfinance_snapshot.py → yfinance_snapshot (as fallback/enrichment)
 
-Data Flow:
+Data Flow (SEC-only, no yfinance):
   Phase 1: load_financial_statements.py fetches SEC data
   Phase 1: load_sec_valuations.py computes PE/PB/PS/PEG/FCF from SEC
-  Phase 2: load_yfinance_snapshot.py fetches yfinance data
-  Phase 3: load_value_quality_growth_metrics.py (THIS LOADER)
-    ├─ Reads: sec_valuations (primary value metrics)
-    ├─ Reads: financial_statements (quality + growth)
-    ├─ Reads: yfinance_snapshot (fallback/enrichment: dividend, analyst, etc.)
-    ├─ Computes: value_metrics (PE, PB, PS, PEG, FCF, dividend, market_cap)
+  Phase 2: load_value_quality_growth_metrics.py (THIS LOADER) - SEC ONLY
+    ├─ Reads: sec_valuations (PE, PB, PS, PEG, FCF, market_cap)
+    ├─ Reads: financial_statements (ROE, margins, EPS growth)
+    ├─ Computes: value_metrics (PE, PB, PS, PEG, FCF, market_cap - no yfinance)
     ├─ Computes: quality_metrics (ROE, margins, debt ratios)
     ├─ Computes: growth_metrics (revenue/EPS growth)
     └─ Writes: value_metrics, quality_metrics, growth_metrics (3 tables)
@@ -222,15 +219,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 if not income_rows:
                     logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable")
 
-                # Get yfinance snapshot for enrichment (dividend, analyst, etc.)
-                cur.execute(
-                    "SELECT * FROM yfinance_snapshot WHERE symbol = %s",
-                    (symbol,),
-                )
-                yfinance_row = cur.fetchone()
-
-            # Construct value metrics from sec_valuations + yfinance dividend
-            value_dict = self._build_value_metrics(symbol, sec_val_row, yfinance_row)
+            # Construct value metrics from sec_valuations only (Session 271 - yfinance-free)
+            value_dict = self._build_value_metrics(symbol, sec_val_row)
             quality_dict = self._compute_quality_metrics(symbol, quality_row_db)
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
@@ -245,12 +235,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 self._unavailable_marker("growth_metrics", symbol),
             )]
 
-    def _build_value_metrics(self, symbol: str, sec_val_row: Any, yfinance_row: Any) -> dict[str, Any]:
-        """Build value_metrics dict from sec_valuations + yfinance dividend."""
+    def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:
+        """Build value_metrics from SEC valuations (yfinance-free, Session 271).
+
+        All metrics from SEC-audited data. Dividend yield not available from SEC.
+        """
         if not sec_val_row or sec_val_row[2]:  # data_unavailable flag at index 2
             return self._unavailable_marker("value_metrics", symbol)
 
-        # Extract SEC-derived valuations
+        # Extract SEC-derived valuations (all from sec_valuations table)
         pe = sec_val_row[7]  # pe_ratio index
         pb = sec_val_row[8]  # pb_ratio
         ps = sec_val_row[9]  # ps_ratio
@@ -263,21 +256,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if all(m is None for m in core_metrics):
             return self._unavailable_marker("value_metrics", symbol)
 
-        # Get dividend from yfinance if available
-        dividend_yield = None
-        if yfinance_row:
-            try:
-                dividend_yield = safe_float(yfinance_row[8], f"{symbol}.dividend_yield", allow_none=True)
-            except Exception:
-                pass
-
         return {
             "symbol": symbol,
             "pe_ratio": pe,
             "pb_ratio": pb,
             "ps_ratio": ps,
             "peg_ratio": peg,
-            "dividend_yield": dividend_yield,
+            "dividend_yield": None,  # Not available from SEC; skipped per governance
             "fcf_yield": fcf_yield,
             "market_cap": market_cap,
             "data_unavailable": False,

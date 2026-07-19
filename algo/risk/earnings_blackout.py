@@ -59,6 +59,7 @@ class EarningsBlackout:
                        WHERE symbol = %s
                        AND earnings_date >= %s
                        AND earnings_date <= %s
+                       AND (data_unavailable IS FALSE OR data_unavailable IS NULL)
                        ORDER BY earnings_date LIMIT 1""",
                     (symbol, lookback_date, lookahead_date),
                 )

@@ -671,6 +671,12 @@ class DailyReconciliation:
                     # Paper mode: Compute actual remaining cash from portfolio and positions
                     # pv is a float (from the broker adapter's JSON response); total_position_value
                     # is a Decimal (from PositionAnalyzer, for precision) - must align types before subtracting.
+                    if total_position_value is None:
+                        raise ValueError(
+                            "Paper mode reconciliation requires total_position_value from PositionAnalyzer - got None. "
+                            "Cannot proceed without complete position analysis."
+                        )
+                    # Ensure both are Decimals to prevent float/Decimal type errors
                     cash_computed = Decimal(str(pv)) - total_position_value
                     logger.info(
                         f"[PAPER MODE] Computed cash: ${pv:,.2f} (portfolio) - ${total_position_value:,.2f} (positions) = ${cash_computed:,.2f}"
