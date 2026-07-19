@@ -325,7 +325,8 @@ locals {
     "stock_prices_daily"    = "load_prices.py"
     "technical_data_daily"  = "load_technical_indicators.py"
     "trend_template_data"   = "load_trend_analysis.py"
-    "yfinance_snapshot"     = "load_yfinance_snapshot.py"
+    # DEPRECATED (Session 275): Replaced by SEC loaders (company_info_sec, earnings_calendar_sec, institutional_holdings_13f, etc.)
+    # "yfinance_snapshot"     = "load_yfinance_snapshot.py"
     # Consolidated economic data: FRED (T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA) + DXY
     # Feeds into market_exposure calculations for regime detection
     # CONSOLIDATION: Merged load_fred_economic_data.py + load_dxy_index.py to eliminate
@@ -619,7 +620,8 @@ locals {
     "algo_metrics_daily",
     "stock_scores",
     "buy_sell_daily",
-    "yfinance_snapshot",
+    # DEPRECATED (Session 275): yfinance_snapshot replaced by SEC loaders (company_info_sec, earnings_calendar_sec, etc.)
+    # "yfinance_snapshot",
     "economic_data",  # Consolidated (FRED + DXY)
     "financials_all", # Consolidated financial statements (replaces 8 individual tasks)
 

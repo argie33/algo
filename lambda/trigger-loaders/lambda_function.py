@@ -31,7 +31,8 @@ VALID_LOADER_NAMES = frozenset(
         "technical_data_daily",
         "trend_template_data",
         "market_exposure_daily",
-        "yfinance_snapshot",
+        # DEPRECATED (Session 275): yfinance_snapshot replaced by SEC loaders
+        # "yfinance_snapshot",
         "quality_metrics",
         "growth_metrics",
         "value_metrics",
@@ -45,14 +46,20 @@ VALID_LOADER_NAMES = frozenset(
         "market_constituents",
         "market_health_daily",
         "market_sentiment",
-        # DEPRECATED (Session 273 FIX): Below loaders were consolidated into sector_industry_daily
-        # Removed: "sector_ranking", "industry_ranking", "sector_performance"
-        # Consolidation deployed but old loaders were still callable - removed from allowlist
+        # DEPRECATED (Session 273): Consolidated into sector_industry_daily
+        # "sector_ranking", "industry_ranking", "sector_performance"
         "algo_metrics_daily",
         "buy_sell_daily",
         "economic_data",
         "financials_all",
-        "sector_industry_daily",  # NEW: Consolidated loader (replaces sector_ranking + industry_ranking + sector_performance)
+        "sector_industry_daily",
+        # NEW SEC loaders (Session 274-275)
+        "company_info_sec",
+        "earnings_calendar_sec",
+        "institutional_holdings_13f",
+        "insider_holdings_sec",
+        "sec_cash_flow_metrics",
+        "sec_segment_metrics",
     }
 )
 
