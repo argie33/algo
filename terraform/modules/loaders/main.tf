@@ -407,14 +407,8 @@ locals {
     "stock_scores"      = "load_stock_scores.py"
 
     "market_constituents" = "load_market_constituents.py"
-    # Consolidated market rankings loader (replaces 2 separate loaders)
-    "sector_ranking"     = "load_sector_rankings.py"
-    "industry_ranking"   = "load_sector_rankings.py"
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
     "buy_sell_daily"     = "load_buy_sell_daily.py"
-
-    # Sector performance loader (optional, not in critical path)
-    "sector_performance" = "load_sector_performance.py"
 
     # ============================================================
     # YFINANCE DEPRECATION (Session 274+): Replace with SEC data sources
@@ -528,9 +522,6 @@ locals {
     "market_sentiment" = { cpu = 256, memory = 512, timeout = 60, parallelism = 1 }
     # Consolidated economic data loader: FRED series + DXY (lightweight: API calls + DB writes)
     "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
-    # Cost-optimized: Reduced from 1024 to 512 (sector ranking DB queries, <50MB actual)
-    "sector_ranking"   = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
-    "industry_ranking" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
     # FIXED (2026-07-12): Reduced memory 2048→512 (actual ~150MB), timeout 10800s→600s (actual ~5-10m, 2x headroom)
     # FIXED (2026-07-13): cpu=1024/memory=512 is not a valid Fargate combo (1024 cpu needs
     # memory>=2048) - ECS RegisterTaskDefinition rejected this, blocking every terraform apply.
@@ -574,9 +565,6 @@ locals {
     # Single transaction for atomic updates to all 3 tables (actual ~100MB)
     # Timeout: sum of old loaders (900 + 900 + 900) reduced by consolidation efficiency = 1800s
     "sector_industry_daily" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
-
-    # Cost-optimized: Reduced from 1024 to 512 (sector performance ranking, <50MB actual)
-    "sector_performance" = { cpu = 512, memory = 1024, timeout = 900, parallelism = 1 }
 
     # PHASE 5: SEC Company Info & Earnings Calendar (Session 237+)
     # Phase 5a: Company Info from SEC EDGAR (lightweight: SEC API calls + metadata parsing, <100MB)
