@@ -414,6 +414,67 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 
 ---
 
+## Orchestrator Edge Cases & Recovery (Session 281)
+
+**Background:** The orchestrator enforces strict safety constraints. These documented edge cases explain how failures are handled.
+
+### Edge Case 1: Phase 3 (Position Monitor) + Database Failure
+
+**Scenario:** Position monitoring fails AND database connection lost
+**What happens:** Phase 3 is ALWAYS_RUN (even if previous phases failed), but fails when database is unavailable
+
+**Recovery:**
+1. Check database connectivity: `python3 -c "import psycopg2; psycopg2.connect('dbname=stocks user=stocks host=localhost')"`
+2. If database down, restart it (AWS RDS/local Postgres)
+3. Manually run position monitoring: `python3 -c "from algo.orchestrator.phase3_position_monitor import run; run({})"`
+4. Check orchestrator logs for halt reason
+
+**Why this behavior:** Position monitoring (detecting halted stocks, stale orders) is NON-NEGOTIABLE for safety. Failure is intentional - better to halt than silently skip stock halt detection.
+
+### Edge Case 2: Portfolio Snapshot Staleness (Friday→Monday)
+
+**Scenario:** Friday trading session → Monday pre-market orchestrator run
+**Old behavior (BROKEN):** Calendar day check: Friday to Monday = 3 days old → rejected as stale
+**New behavior (FIXED, Session 281):** Trading day check: Friday to Monday = 1 trading day old → accepted
+
+**Why the fix:** Portfolio snapshots are only stale if they're from a prior TRADING day. Weekends don't count as trading days, so Friday's snapshot is still fresh for Monday.
+
+**Monitoring:** Position sizing logs include both trading days and calendar days:
+```
+[PORTFOLIO] Using snapshot from 1d ago (trading days, 3d calendar): $100,000.00
+```
+
+### Edge Case 3: Signal Quality Degradation (Entry Price Behavior)
+
+**Scenario:** Position sized with signal entry_price, but executed at different price
+**Why:** Phase 8 calculates position size using signal entry_price from Phase 7, but places orders at best current price at execution time
+
+**Impact:** Backtest vs live discrepancy (backtest uses signal entry_price, live uses execution price)
+**Documented in:** Code comments in Phase 7 & Phase 8 entry execution
+
+**Mitigation:** Monitor position_tracker logs for:
+- Entry price from signal (what was used for sizing)
+- Execution price from broker (what actually happened)
+- Difference logged as "entry_price_slippage" for analysis
+
+### Edge Case 4: Concurrent LOCAL_MODE Processes (FIXED, Session 281)
+
+**Old behavior (BROKEN):** Two LOCAL_MODE users could trade simultaneously (filesystem locks only)
+**New behavior (FIXED):** All orchestrator runs require DynamoDB distributed locks, even LOCAL_MODE
+
+**Enforcement:**
+- `get_lock_manager()` ALWAYS returns DynamoDB manager
+- If DynamoDB unavailable, orchestrator fails FAST with clear error (no silent degradation)
+- Loaders can fall back to file-based locks (idempotent operations)
+- Orchestrator NEVER falls back (non-idempotent trading)
+
+**Testing:** See `tests/test_distributed_lock_race_condition.py` for verification that:
+1. Orchestrator always uses DynamoDB
+2. Two concurrent processes cannot both acquire lock
+3. LOCAL_MODE env var is ignored for locking
+
+---
+
 ## Getting Help
 
 | Issue | Guide |
