@@ -127,7 +127,7 @@ class BuySignalGenerator:
                 # else: market_stage remains None
 
                 # Phase 4: Calculate entry/exit levels
-                entry_exit = self._calculate_entry_exit_levels(signal_type, close, buylevel, stoplevel)
+                entry_exit = self._calculate_entry_exit_levels(signal_type, close, buylevel, stoplevel, atr)
 
                 # Build signal record
                 signal = {
@@ -402,6 +402,7 @@ class BuySignalGenerator:
         close: float,
         buylevel: Decimal | float | None,
         stoplevel: Decimal | float | None,
+        atr: float | None,
     ) -> dict[str, Any]:
         """Calculate entry/exit levels and risk/reward metrics."""
         risk_pct = 8.0

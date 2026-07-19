@@ -241,3 +241,56 @@ class MarketSymbolsConfig:
         """
         names = MarketSymbolsConfig.get_index_names()
         return names.get(symbol, symbol)
+
+    @staticmethod
+    def filter_non_etf_symbols(symbols: list[str]) -> list[str]:
+        """Filter symbol list to exclude ETFs and funds.
+
+        SINGLE SOURCE OF TRUTH: All loaders, orchestrator, and API routes must use this function
+        to filter out ETFs. This ensures consistent symbol universe across entire system.
+
+        Args:
+            symbols: List of ticker symbols to filter
+
+        Returns:
+            List of non-ETF symbols (stocks only)
+
+        Raises:
+            RuntimeError: If database unavailable or query fails (fail-fast principle)
+        """
+        if not symbols:
+            return []
+
+        try:
+            from utils.db import DatabaseContext
+
+            with DatabaseContext("read") as cur:
+                # Query company_profile to identify ETFs
+                # etf column: 'Y' for ETF, 'N' or NULL for regular stocks
+                placeholders = ",".join(["%s"] * len(symbols))
+                query = f"""
+                    SELECT symbol FROM company_profile
+                    WHERE symbol IN ({placeholders})
+                    AND COALESCE(etf, 'N') = 'N'
+                    ORDER BY symbol
+                """
+                cur.execute(query, symbols)
+                rows = cur.fetchall()
+                non_etf_symbols = [row[0] for row in rows]
+
+                # Log which symbols were filtered out as ETFs
+                etf_symbols = [s for s in symbols if s not in non_etf_symbols]
+                if etf_symbols:
+                    logger.debug(
+                        f"[SYMBOL_FILTER] Filtered {len(etf_symbols)} ETF symbols from {len(symbols)} total: {etf_symbols}"
+                    )
+
+                return non_etf_symbols
+        except Exception as e:
+            msg = (
+                f"[SYMBOL_FILTER CRITICAL] Failed to filter ETF symbols from company_profile: {e}. "
+                f"Symbol filtering is required for consistent universe across loaders/orchestrator/API. "
+                f"Check database connectivity and company_profile table."
+            )
+            logger.error(msg)
+            raise RuntimeError(msg) from e

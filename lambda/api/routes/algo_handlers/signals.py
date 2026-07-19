@@ -75,43 +75,59 @@ def _get_symbol_sector(cur: cursor, symbol: str) -> str | Any:
 def _fetch_sector_exposure(cur: cursor) -> dict[str, Any] | Any:
     sector_exposure = {}
     try:
+        # FAIL-FAST: Do not use COALESCE(sector, 'Unknown') - this masks missing enrichment data
+        # Instead, fail explicitly when sector enrichment unavailable
+        # Positions without sector enrichment indicate data quality issue in company_profile loader
         cur.execute("""
-            SELECT COALESCE(cp.sector, 'Unknown') AS sector,
-                   SUM(ap.position_value) AS sector_value
+            SELECT cp.sector,
+                   SUM(ap.position_value) AS sector_value,
+                   COUNT(ap.symbol) as sector_position_count
             FROM algo_positions ap
             LEFT JOIN company_profile cp ON cp.ticker = ap.symbol
             WHERE ap.status = 'open'
             GROUP BY cp.sector
         """)
         for sr in cur.fetchall():
-            if sr["sector"]:
-                sector_val_raw = sr["sector_value"]
-                if sector_val_raw is None:
+            # CRITICAL FAIL-FAST: Sector NULL means company_profile enrichment missing
+            # Do not silently skip positions without sector data
+            if sr["sector"] is None:
+                unmapped_count = sr.get("sector_position_count", 0)
+                error_msg = (
+                    f"CRITICAL: {unmapped_count} open positions missing sector enrichment in company_profile. "
+                    f"Cannot compute sector exposure without complete enrichment. "
+                    f"Sector exposure calculations would be invalid. "
+                    f"Fix company_profile loader or skip signal generation until data complete."
+                )
+                logger.error(error_msg)
+                return error_response(503, "sector_enrichment_incomplete", error_msg)
+
+            sector_val_raw = sr["sector_value"]
+            if sector_val_raw is None:
+                error_msg = (
+                    f"Sector {sr['sector']} has NULL position_value sum - "
+                    "cannot proceed without complete sector exposure"
+                )
+                logger.error(error_msg)
+                return error_response(503, "sector_exposure_incomplete", error_msg)
+            # Validate type before conversion - non-numeric values cause silent failures downstream
+            if not isinstance(sector_val_raw, (int, float)):
+                error_msg = (
+                    f"Sector {sr['sector']} has non-numeric position_value: {type(sector_val_raw).__name__} "
+                    f"(value={sector_val_raw}). Cannot compute signal without valid numeric exposure."
+                )
+                logger.error(error_msg)
+                return error_response(503, "invalid_sector_value_type", error_msg)
+            try:
+                sector_val = float(sector_val_raw)
+                if sector_val < 0:
                     error_msg = (
-                        f"Sector {sr['sector']} has NULL position_value sum - "
-                        "cannot proceed without complete sector exposure"
+                        f"Sector {sr['sector']} has negative exposure ({sector_val}) - data corruption detected"
                     )
                     logger.error(error_msg)
-                    return error_response(503, "sector_exposure_incomplete", error_msg)
-                # Validate type before conversion - non-numeric values cause silent failures downstream
-                if not isinstance(sector_val_raw, (int, float)):
-                    error_msg = (
-                        f"Sector {sr['sector']} has non-numeric position_value: {type(sector_val_raw).__name__} "
-                        f"(value={sector_val_raw}). Cannot compute signal without valid numeric exposure."
-                    )
-                    logger.error(error_msg)
-                    return error_response(503, "invalid_sector_value_type", error_msg)
-                try:
-                    sector_val = float(sector_val_raw)
-                    if sector_val < 0:
-                        error_msg = (
-                            f"Sector {sr['sector']} has negative exposure ({sector_val}) - data corruption detected"
-                        )
-                        logger.error(error_msg)
-                        return error_response(503, "data_corruption", error_msg)
-                except (ValueError, TypeError) as e:
-                    return error_response(503, "data_format_error", f"Sector exposure not numeric: {e}")
-                sector_exposure[sr["sector"]] = sector_val
+                    return error_response(503, "data_corruption", error_msg)
+            except (ValueError, TypeError) as e:
+                return error_response(503, "data_format_error", f"Sector exposure not numeric: {e}")
+            sector_exposure[sr["sector"]] = sector_val
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         raise RuntimeError(f"Unexpected error: {e}") from e
 
