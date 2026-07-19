@@ -398,19 +398,26 @@ class PositionSizer:
         """Reduce risk if VIX is in caution zone (caution_threshold < VIX < max_threshold).
 
         Returns risk multiplier: 1.0 if VIX is normal, reduced multiplier if in caution zone.
-        Fail-fast  -" if data unavailable, raises exception.
+        Fail-fast if data unavailable or stale (>1 day old), raises exception.
 
         VIX thresholds validated at init; assumes all config keys are present.
         """
 
         def fetch_vix(cur: PsycopgCursor[Any]) -> Decimal:
             cur.execute(
-                "SELECT vix_level FROM market_health_daily WHERE vix_level IS NOT NULL ORDER BY date DESC LIMIT 1"
+                "SELECT vix_level, date FROM market_health_daily WHERE vix_level IS NOT NULL ORDER BY date DESC LIMIT 1"
             )
             row = cur.fetchone()
             if not row or row[0] is None:
                 raise ValueError(
                     "VIX level unavailable from market_health_daily. Cannot adjust position size for volatility."
+                )
+            data_date = row[1]
+            age_days = (_date.today() - data_date).days
+            if age_days > 1:
+                raise ValueError(
+                    f"VIX data too stale: {age_days} days old (max 1 day). "
+                    f"Volatility protection requires fresh VIX data."
                 )
             vix = Decimal(str(row[0]))
             caution_threshold = Decimal(str(self.config["vix_caution_threshold"]))

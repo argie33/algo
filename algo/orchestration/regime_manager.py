@@ -105,7 +105,7 @@ class RegimeManager:
 
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    """SELECT regime FROM market_exposure_daily
+                    """SELECT regime, date FROM market_exposure_daily
                        WHERE date <= %s AND regime IS NOT NULL
                        ORDER BY date DESC LIMIT 1""",
                     (as_of_date,),
@@ -120,6 +120,14 @@ class RegimeManager:
                 )
 
             regime = str(row[0])
+            data_date = row[1]
+            age_days = (as_of_date - data_date).days
+            if age_days > 1:
+                raise RuntimeError(
+                    f"Market regime data too stale: {age_days} days old (max 1 day). "
+                    f"Current market regime cannot be determined from stale data. "
+                    f"Phase 4 must run daily to provide fresh market exposure analysis."
+                )
 
             if regime not in self.REGIMES:
                 raise RuntimeError(

@@ -1282,6 +1282,14 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
                 _cached_date,
             ) = row
 
+            age_days = (eval_date - _cached_date).days
+            if age_days > 1:
+                raise MarketDataUnavailableError(
+                    f"[MARKET REGIME] market_exposure_daily data too stale: {age_days} days old (max 1 day). "
+                    f"Cannot apply position sizing policy with stale market regime. "
+                    f"Phase 4 must run daily to provide fresh market exposure analysis."
+                )
+
             if exposure_pct is None:
                 raise MarketDataUnavailableError(
                     f"[MARKET REGIME] market_exposure_daily for {eval_date} has NULL exposure_pct. "

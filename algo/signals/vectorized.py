@@ -286,7 +286,7 @@ class VectorizedSignalGenerator:
 
                 # Weinstein stages - require ma150_slope and price/MA data, no synthetic fallbacks
                 if ma150_slope is None or np.isnan(sma200_val) or np.isnan(c):
-                    results[symbol] = {"stage": None, "confidence": 0.0, "failed": True}
+                    results[symbol] = {"stage": 0, "confidence": 0.0, "failed": True}
                 elif c > sma200_val:
                     stage = 2 if ma150_slope > 0 else 3  # Uptrend or Distribution
                     results[symbol] = {"stage": stage, "confidence": 0.75}

@@ -602,14 +602,27 @@ class CircuitBreaker:
 
     def _check_vix_spike(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         cur.execute(
-            "SELECT vix_level FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
+            "SELECT vix_level, date FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
         row = cur.fetchone()
         # First check if row/data exists; if not, return None for later detection
         if row is None or row[0] is None:
             vix = None
+            data_date = None
         else:
+            data_date = row[1]
+            age_days = (current_date - data_date).days
+            # CRITICAL: Require same-day VIX data for circuit breaker decisions
+            if age_days > 0:
+                logger.critical(f"VIX data stale ({age_days} days old) - cannot assess current volatility risk. Trading halted.")
+                vix_max_val = self._get_required_config("vix_max_threshold", "in VIX circuit breaker check")
+                return {
+                    "halted": True,
+                    "reason": f"VIX data stale ({age_days} days old) - cannot assess current volatility. Trading halted.",
+                    "value": None,
+                    "threshold": _float(vix_max_val, None),
+                }
             # Row data exists - validate with _float to reject NaN/Inf
             try:
                 vix = _float(row[0], context="vix_level")
