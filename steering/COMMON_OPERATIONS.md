@@ -4,6 +4,41 @@
 
 ---
 
+## EMERGENCY: Manual Stock Scores Sync
+
+**Use ONLY when:** Scheduled stock_scores loader fails or stalls for >2 hours during trading hours
+
+**Temporary Workaround:** Endpoint at `lambda/api/routes/rds_sync.py` syncs stock_scores to RDS directly
+
+```bash
+# Manually trigger stock scores refresh (LOCAL ONLY)
+# WARNING: This is a workaround, not the normal data flow
+python3 lambda/api/routes/rds_sync.py
+
+# Check status
+curl -s http://localhost:3001/api/sync/stock-scores-status | jq
+```
+
+**When to use:**
+- Stock scores missing/stale for >2 hours DURING trading hours (off-hours staleness is expected)
+- Orchestrator halted due to empty stock_scores
+- Dashboard showing "stock scores data unavailable"
+
+**When NOT to use:**
+- Weekends/holidays (expected stale - market closed)
+- <2 hours into trading session (normal delay)
+- Use scheduled pipeline fix instead
+
+**Next steps after manual sync:**
+1. Restart orchestrator: `python3 scripts/run_local_orchestrator.py`
+2. Verify scores populated: `SELECT COUNT(*) FROM stock_scores WHERE data_unavailable=FALSE`
+3. Root cause: Why did scheduled loader fail? Check CloudWatch/logs
+4. FIX: Don't rely on manual sync long-term - fix the scheduled pipeline
+
+**Note:** This workaround exists because metric loaders sometimes timeout. The proper fix is improving loader reliability, not increasing dependence on manual intervention.
+
+---
+
 ## Problem: Dashboard Shows "Data Not Available"
 
 **Symptom:** Dashboard displays "data not available" on all panels.
