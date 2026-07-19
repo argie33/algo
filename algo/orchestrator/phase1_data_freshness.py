@@ -136,8 +136,11 @@ def _check_failsafe_retry_result(
         )
         still_failing = failsafe_result.get("still_failing")
         if still_failing is None:
-            logger.error("[PHASE 1] failsafe_result missing 'still_failing' field - data quality issue")
-            still_failing = ["unknown"]
+            raise RuntimeError(
+                "[PHASE 1] FATAL: failsafe_result missing 'still_failing' field. "
+                "Cannot determine which loaders failed. This indicates corruption in failsafe retry logic. "
+                "Verify failsafe_retry.py returns complete result dict with all required fields."
+            )
         log_phase_result_fn(
             1,
             "incomplete_loaders_after_retry",
@@ -850,11 +853,12 @@ def run(  # noqa: C901
                         # Do NOT treat this as degradation. Only degrade if metrics are stale beyond normal weekend window.
                         if MarketCalendar.is_trading_day(run_date_obj):
                             # On trading days, if metrics are > 1 day old, that's degraded
+                            # GOVERNANCE: Degraded data is not allowed - system WILL HALT below
                             logger.warning(
                                 "[PHASE 1] Metrics exist but are stale (loaded before today). "
-                                "Proceeding in DEGRADED mode - stock scores may use older metric data."
+                                "This is DEGRADED mode - will HALT trading per governance."
                             )
-                            degraded_reason = "Stale metric data (loaded before trading day) - using available data"
+                            degraded_reason = "Stale metric data - trading halted per governance (incomplete metrics not allowed)"
                         else:
                             # On weekends/holidays, metrics from last trading day are normal - don't degrade
                             logger.info(

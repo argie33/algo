@@ -23,7 +23,8 @@
   "todoFeatureEnabled": true,
   "env": {
     "DEV_BYPASS_AUTH": "true",
-    "DEBUG_TERRAFORM": "1"
+    "DEBUG_TERRAFORM": "1",
+    "LOADER_AUDIT_ACTIVE": "true"
   },
   "hooks": {
     "SessionStart": [

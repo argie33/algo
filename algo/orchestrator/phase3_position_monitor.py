@@ -86,11 +86,19 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                 for position_id, symbol, quantity, old_price, entry_date, stop_loss, avg_entry in positions:
                     try:
-                        # Use database price if available, otherwise keep existing price
+                        # GOVERNANCE: Require fresh price data for position monitoring
+                        # Falling back to stale old_price masks data gaps in price_daily
                         current_price = prices.get(symbol)
                         if current_price is None:
-                            logger.debug(f"[PHASE 3] {symbol}: no price in database, keeping existing {old_price}")
-                            current_price = old_price
+                            logger.critical(
+                                f"[PHASE 3] {symbol}: Fresh price data missing from price_daily. "
+                                f"Position monitoring requires current market data. "
+                                f"Verify price_daily loader completed with today's prices."
+                            )
+                            raise RuntimeError(
+                                f"[PHASE 3] {symbol}: Cannot update position without fresh price. "
+                                f"price_daily does not contain {symbol} for current trading day."
+                            )
 
                         if current_price is None or quantity is None:
                             logger.warning(
