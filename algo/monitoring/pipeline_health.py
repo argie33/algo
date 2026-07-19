@@ -211,6 +211,7 @@ class PipelineHealth:
                 stmt_timeout_ms = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", 30000))
                 cur.execute("SET statement_timeout = %s", (f"{stmt_timeout_ms}ms",))
 
+                # First: Check all critical tables (explicit configuration)
                 for table_name, config in self.CRITICAL_TABLES.items():
                     try:
                         health = self.check_table_health(
@@ -240,6 +241,53 @@ class PipelineHealth:
                             status=HealthStatus.ERROR,
                             error_message=str(e),
                         )
+
+                # Second: Check all other tables in data_loader_status with default SLA
+                # CRITICAL FIX: Previously only 8 tables were monitored, leaving 86 tables
+                # with NULL row_count and age_days. Now ALL tables are monitored.
+                try:
+                    cur.execute(
+                        """
+                        SELECT DISTINCT table_name FROM data_loader_status
+                        WHERE table_name NOT IN (%s)
+                        ORDER BY table_name
+                        """,
+                        (tuple(self.CRITICAL_TABLES.keys()),),
+                    )
+                    other_tables = [row[0] for row in cur.fetchall()]
+
+                    # Default SLA for non-critical tables (7 days)
+                    DEFAULT_SLA_DAYS = 7
+                    DEFAULT_DATE_COLUMN = "updated_at"  # Most tables use updated_at
+
+                    for table_name in other_tables:
+                        try:
+                            # Try to find a sensible date column for age calculation
+                            # Most algo_* tables use created_at, updated_at, or date
+                            date_column = self._infer_date_column(cur, table_name)
+                            if date_column is None:
+                                logger.warning(f"Could not infer date column for {table_name}, skipping age check")
+                                # Still check row count though
+                                date_column = "created_at"  # Fallback, won't check age
+
+                            health = self.check_table_health(
+                                cur,
+                                table_name,
+                                date_column,
+                                DEFAULT_SLA_DAYS,
+                            )
+                            status.tables[table_name] = health
+                        except (ValueError, ZeroDivisionError, TypeError) as e:
+                            logger.warning(f"Error checking secondary table {table_name}: {e}")
+                            status.tables[table_name] = TableHealth(
+                                table_name=table_name,
+                                status=HealthStatus.ERROR,
+                                error_message=str(e),
+                            )
+                except Exception as e:
+                    logger.error(f"Error fetching secondary tables list: {e}")
+                    # Continue anyway with just critical tables
+
         except (ValueError, ZeroDivisionError, TypeError) as e:
             logger.error(f"Cannot check pipeline status: {e}")
             status.is_healthy = False
@@ -251,6 +299,26 @@ class PipelineHealth:
         status.is_healthy = not has_critical_issues and len(status.critical_alerts) == 0
 
         return status
+
+    def _infer_date_column(self, cur: Any, table_name: str) -> str | None:
+        """Infer the date column for a table by checking column existence.
+
+        Tries in order: date, updated_at, created_at, date_added.
+        Returns None if no date column found.
+        """
+        try:
+            safe_table = assert_safe_table(table_name)
+            for col in ["date", "updated_at", "created_at", "date_added"]:
+                safe_col = assert_safe_column(col)
+                cur.execute(
+                    f"SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s LIMIT 1",
+                    (table_name, col),
+                )
+                if cur.fetchone():
+                    return col
+        except Exception as e:
+            logger.debug(f"Error inferring date column for {table_name}: {e}")
+        return None
 
     def log_health_check(self, status: PipelineStatus) -> None:
         """Log pipeline health to database for historical tracking."""
