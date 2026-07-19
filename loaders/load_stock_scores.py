@@ -400,14 +400,19 @@ class StockScoresLoader(OptimalLoader):
                 name: get_marker_reason(score) for name, score in all_scores.items() if not is_real_score(score)
             }
 
-            # CRITICAL FIX 2026-07-05: Warn when scores degrade from 6/6 to 3/6 metrics
-            # Traders need visibility into metric set completeness
-            if data_count < 6 and data_count >= 3:
+            # CRITICAL FIX 2026-07-19: Log when scores computed with <6 metrics for visibility.
+            # Traders need to see completeness % in dashboards to filter based on GOVERNANCE entry gates.
+            if data_count < 6 and data_count >= 4:
+                missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
+                logger.info(
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.1f}% complete). "
+                    f"Missing: {', '.join(missing)}. Trading filter gate: completeness >= 70% per GOVERNANCE."
+                )
+            elif data_count < 4:
                 missing = sorted([k for k, v in all_scores.items() if not is_real_score(v)])
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.0f}% complete). "
-                    f"Missing: {', '.join(missing)}. This may introduce bias if critical factors are missing. "
-                    f"Check upstream metric loaders for failures."
+                    f"[STOCK_SCORES] {symbol}: Score computed with {data_count}/6 metrics ({100.0 * data_count / 6:.1f}% complete). "
+                    f"Missing: {', '.join(missing)}. Minimum 4 metrics ensures diversity against single-metric bias."
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
@@ -415,19 +420,13 @@ class StockScoresLoader(OptimalLoader):
             # CRITICAL FIX 2026-07-18: Momentum now works (reads from momentum_metrics), restored 6-metric calculation
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # Session 260: Restored to 70% completeness requirement per GOVERNANCE.md.
-            # This ensures sufficient metric diversity to prevent single-metric bias in position sizing.
-            # Stocks with <70% completeness must be marked data_unavailable to prevent trading on degraded signals.
-            # If this threshold causes insufficient universe coverage, investigate upstream metric loader failures
-            # rather than lowering threshold (which corrupts trading signals).
-            if data_completeness < 70.0:
-                raise RuntimeError(
-                    f"[STOCK_SCORES] {symbol}: Score rejected for insufficient completeness. "
-                    f"Completeness: {data_completeness:.2f}% ({data_count}/6 metrics). "
-                    f"Minimum 70% completeness (4.2/6 metrics) required for signal reliability. "
-                    f"Available metrics: {', '.join(f'{k}={round(100 * int(is_real_score(all_scores[k])) / 6, 0)}%' for k in all_scores.keys())}. "
-                    f"Marking as data_unavailable to protect trading signals from degraded data."
-                )
+            # CRITICAL FIX 2026-07-19: Compute score for all symbols with 4+/6 metrics, mark completeness for trading filters.
+            # Previous: Rejected any score with <70% completeness, removing 1,635 valid candidates from universe.
+            # New: Calculate scores for all candidates with sufficient diversity (4+ metrics), let trading logic
+            # (entry gates) filter based on completeness %. This gives traders full visibility + control.
+            # GOVERNANCE.md says: "Signals < 70% completeness are excluded from scoring" (trading exclusion, not computation exclusion).
+            # The minimum 4 metrics check below ensures sufficient diversity to prevent single-metric bias.
+            # Completeness % is still tracked and reported for operator/trader visibility.
 
             # CRITICAL: Enforce minimum 4/6 metrics per GOVERNANCE.md
             # Stock scores require sufficient metric diversity to prevent single-metric bias

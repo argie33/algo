@@ -161,12 +161,14 @@ class SecValuationsLoader(OptimalLoader):
                 # Note: None values here mean FCF yield will be NULL (not available)
 
             # Compute valuations (convert all values to float)
+            # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
+            # If revenue is None, _compute_valuations will skip PS ratio (but that's OK)
             return [self._compute_valuations(
                 symbol,
                 float(current_price),
                 float(shares_out),
                 float(ttm_eps_basic) if ttm_eps_basic else None,
-                float(ttm_revenue) if ttm_revenue else 0.0,
+                float(ttm_revenue) if ttm_revenue else None,  # Changed from 0.0 to None
                 float(book_value) if book_value else None,
                 float(ocf) if ocf else 0.0,
                 float(capex) if capex else 0.0,

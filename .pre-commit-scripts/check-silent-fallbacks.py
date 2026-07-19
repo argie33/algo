@@ -538,7 +538,8 @@ def main() -> int:
         for pattern in sorted(by_pattern.keys()):
             print(f"\n{pattern.upper()} ({len(by_pattern[pattern])} violations):")
             for v in sorted(by_pattern[pattern], key=lambda x: (str(x["file"]), x["line"]))[:10]:  # Show first 10
-                print(f"  {v['file']}:{v['line']}")
+                file_path = str(v['file']).replace("\\", "/")
+                print(f"  {file_path}:{v['line']}")
                 print(f"    {v['message']}")
                 print(f"    Fix: {v['fix']}")
 
