@@ -201,10 +201,12 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                         f"[POSITIONS] Loaded technical scores for {len(technical_map)} symbols from trend_template_data"
                     )
                 except (psycopg2.errors.QueryCanceled, psycopg2.errors.OperationalError) as enrichment_error:
-                    # Enrichment queries timed out or failed - log but continue without enrichment
+                    # Enrichment queries timed out or failed - EXPLICIT FLAG required
                     logger.warning(
                         f"[POSITIONS] Enrichment queries timed out or failed (acceptable): {type(enrichment_error).__name__}"
                     )
+                    # Mark that enrichment data is incomplete so caller knows to handle gracefully
+                    enrichment_incomplete = True
     except Exception as e:
         logger.warning(
             f"[POSITIONS] Could not load company_profile/trend_template_data enrichment: {type(e).__name__}: {e}"

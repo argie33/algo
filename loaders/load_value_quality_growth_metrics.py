@@ -202,6 +202,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 quality_row_db = cur.fetchone()
 
                 # Get annual income statement history for growth computation (not from growth_metrics table)
+                # NOTE: Filters by revenue IS NOT NULL - companies without revenue will be skipped
                 cur.execute(
                     """
                     SELECT revenue, operating_income, net_income, earnings_per_share
@@ -213,6 +214,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     (symbol,),
                 )
                 income_rows = cur.fetchall()
+                if not income_rows:
+                    logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable")
 
                 # Get yfinance snapshot for enrichment (dividend, analyst, etc.)
                 cur.execute(
