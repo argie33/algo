@@ -456,8 +456,9 @@ locals {
     # (exit 137) twice in a row at 2048MB. Bumped to 4096MB for backlog-catch-up headroom.
     "technical_data_daily" = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
     "trend_template_data"  = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-    # FIXED (2026-07-12): Reduced timeout 600s→120s (actual runtime ~10-30s, 2x headroom)
-    "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
+    # DEPRECATED (Session 276): market_exposure_daily consolidated into market_status_daily (Phase 2 consolidation)
+    # No longer run as separate task; outputs produced atomically by market_status_daily
+    # "market_exposure_daily" = { cpu = 256, memory = 512, timeout = 120, parallelism = 1 }
     # DEPRECATED (Session 275+): yfinance_snapshot removed — all loaders now use real data sources
     # (Alpaca prices, SEC EDGAR, FINRA). Python file kept for reference only.
     # "yfinance_snapshot"     = { cpu = 1024, memory = 2048, timeout = 14400, parallelism = 1 }
@@ -541,11 +542,6 @@ locals {
     # Financial statements (SEC EDGAR, all 8 statement/period combos in single task)
     "financials_all" = { cpu = 512, memory = 1024, timeout = 3600, parallelism = 1 }
 
-    # Prices and technicals (ALPACA SIP data, Session 275+)
-    "stock_prices_daily"    = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-    "technical_data_daily"  = { cpu = 1024, memory = 4096, timeout = 2400, parallelism = 1 }
-    "trend_template_data"   = { cpu = 1024, memory = 2048, timeout = 5400, parallelism = 1 }
-
     # Signals & algo metrics
     "buy_sell_daily"        = { cpu = 1024, memory = 2048, timeout = 2400, parallelism = 2 }
     "algo_metrics_daily"    = { cpu = 256, memory = 512, timeout = 600, parallelism = 1 }
@@ -559,6 +555,7 @@ locals {
     "technical_data_daily",
     "trend_template_data",
     "market_constituents",
+    # NOTE: market_exposure_daily removed (consolidated into market_status_daily, Session 276)
 
     # Metrics & scoring
     "stock_scores",

@@ -8,6 +8,9 @@ import { cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import React from "react";
 
+// Create jest alias for vitest vi API (for backward compatibility with jest-style test code)
+global.jest = vi;
+
 // Mock ResizeObserver for recharts and other components
 global.ResizeObserver = class ResizeObserver {
   constructor(cb) {
