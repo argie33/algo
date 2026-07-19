@@ -169,8 +169,10 @@ def get_lock_manager(
     table_name: str | None = None,
     lock_duration_seconds: int = 600,
     enable_auto_cleanup: bool = True,
-) -> "FileLockManager | DynamoDBLockManager":
+) -> "DynamoDBLockManager":
     """Factory function that returns a distributed lock manager.
+
+    CRITICAL: Always uses DynamoDB distributed locks, never filesystem locks for orchestrator.
 
     LOCAL_MODE ("run orchestrator directly instead of via Lambda") is NOT the
     same thing as "isolated sandbox with no shared state": LOCAL_MODE runs still
@@ -178,37 +180,35 @@ def get_lock_manager(
     account as every other instance. A filesystem lock file only protects
     against contention within one machine's temp dir, so it does nothing to
     prevent two concurrent LOCAL_MODE processes (e.g. separate dev sessions)
-    from racing on shared state. Always try the real distributed (DynamoDB)
-    lock first; only fall back to file locks if DynamoDB truly can't be
-    constructed (e.g. boto3 missing). A runtime AccessDenied on the DynamoDB
-    lock is handled separately by DynamoDBLockManager itself (is_available)
-    and causes callers to fail closed rather than silently degrading.
+    from racing on shared state.
+
+    FIXED (Session 281): Removed LOCAL_MODE fallback to FileLockManager.
+    - LOCAL_MODE only controls orchestrator invocation method (direct vs Lambda wrapper)
+    - Distributed locking ALWAYS uses DynamoDB (non-negotiable for safety)
+    - If DynamoDB unavailable, orchestrator fails fast with clear error
+    - This prevents silent race conditions where multiple users could trade simultaneously
     """
     import os
 
     from utils.db.dynamo_lock import DynamoDBLockManager
 
-    # Use file-based locks in LOCAL_MODE for simpler local development
-    local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true")
-    if local_mode:
-        logger.info("[LOCK_FACTORY] LOCAL_MODE detected - using file-based locks")
-        return FileLockManager(
-            table_name=table_name,
-            lock_duration_seconds=lock_duration_seconds,
-            enable_auto_cleanup=enable_auto_cleanup,
-        )
-
     try:
-        logger.info("[LOCK_FACTORY] Using DynamoDB locks")
+        logger.info("[LOCK_FACTORY] Using DynamoDB locks (required for distributed safety)")
         return DynamoDBLockManager(
             table_name=table_name,
             lock_duration_seconds=lock_duration_seconds,
             enable_auto_cleanup=enable_auto_cleanup,
         )
     except Exception as e:
-        logger.warning(f"[LOCK_FACTORY] DynamoDB lock manager unavailable ({e}) - falling back to file-based locks")
-        return FileLockManager(
-            table_name=table_name,
-            lock_duration_seconds=lock_duration_seconds,
-            enable_auto_cleanup=enable_auto_cleanup,
+        # CRITICAL: DynamoDB lock initialization is non-negotiable
+        # If DynamoDB is unavailable, the orchestrator must fail fast, not silently degrade
+        # to filesystem locks which provide zero protection across machines
+        error_msg = (
+            f"[LOCK_FACTORY] CRITICAL: DynamoDB lock manager unavailable: {e}. "
+            "Orchestrator requires distributed locking (DynamoDB) to prevent race conditions. "
+            "LOCAL_MODE development still connects to shared prod DB and live Alpaca account, "
+            "so filesystem locks are insufficient. "
+            "Fix: Ensure AWS credentials available and orchestrator-locks DynamoDB table exists."
         )
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg) from e
