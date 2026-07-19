@@ -877,10 +877,10 @@ def main() -> int:  # noqa: C901
                     f"Expected at least 1 column, got {len(result)}. Query may be malformed."
                 )
             prices_status = result[0]
-            if prices_status not in ("COMPLETED", "success", "OK"):
+            if prices_status not in ("COMPLETED", "success", "OK", "ok"):
                 logger.error(
                     f"[DEPENDENCY] Aborting buy_sell_daily: price_daily status is {prices_status}. "
-                    f"Expected COMPLETED/success/OK. Cannot generate signals without complete price data."
+                    f"Expected COMPLETED/success/OK/ok. Cannot generate signals without complete price data."
                 )
                 return 1  # Return error code (1), will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
@@ -1058,13 +1058,13 @@ def main() -> int:  # noqa: C901
                     """UPDATE data_loader_status
                        SET status = %s, latest_date = %s, last_updated = NOW(), completion_pct = 100.0
                        WHERE table_name = %s""",
-                    ("COMPLETED", actual_max_date, "buy_sell_daily"),
+                    ("ok", actual_max_date, "buy_sell_daily"),
                 )
                 logger.info(
-                    f"[STATUS] Updated buy_sell_daily status to COMPLETED with latest_date={actual_max_date} (actual table max, not calendar date)"
+                    f"[STATUS] Updated buy_sell_daily status to ok with latest_date={actual_max_date} (actual table max, not calendar date)"
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:
-            logger.error(f"[STATUS] Could not update loader status to COMPLETED: {status_err}")
+            logger.error(f"[STATUS] Could not update loader status to ok: {status_err}")
             return 1
 
         return 0

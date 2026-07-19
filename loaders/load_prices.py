@@ -2301,7 +2301,7 @@ def derive_aggregate_prices(asset_class: str) -> None:
                 cur.execute(
                     """INSERT INTO data_loader_status (table_name, status, last_updated, execution_completed, latest_date)
                        VALUES (%s, %s, NOW(), NOW(), %s)""",
-                    (target_table, "COMPLETED", latest_date),
+                    (target_table, "ok", latest_date),
                 )
 
 

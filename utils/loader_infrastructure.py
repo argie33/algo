@@ -150,8 +150,18 @@ class LoaderInfrastructure:
     def update_loader_status(self, status: str) -> None:
         """Update loader status in data_loader_status table.
 
-        Status values: 'RUNNING', 'COMPLETED', 'FAILED', 'INCOMPLETE'.
+        Status values: 'loading' (was 'RUNNING'), 'ok' (was 'COMPLETED'), 'error' (was 'FAILED'/'INCOMPLETE').
+        Maps legacy status values to new enum for backward compatibility with existing callers.
         """
+        # Map old status values to new health-based enum
+        status_map = {
+            "RUNNING": "loading",
+            "COMPLETED": "ok",
+            "FAILED": "error",
+            "INCOMPLETE": "error",
+        }
+        db_status = status_map.get(status, status)  # Use mapped value, or original if not in map
+
         try:
             from utils.db.pooled_context_var import (
                 get_pooled_connection,
@@ -167,26 +177,26 @@ class LoaderInfrastructure:
                         cur.execute(
                             "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() "
                             "WHERE table_name = %s",
-                            (status, self.table_name),
+                            (db_status, self.table_name),
                         )
                         if cur.rowcount == 0:
                             cur.execute(
                                 "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) "
                                 "VALUES (%s, %s, NOW(), NOW())",
-                                (self.table_name, status),
+                                (self.table_name, db_status),
                             )
-                        logger.debug(f"[{self.table_name}] Status updated to RUNNING")
+                        logger.debug(f"[{self.table_name}] Status updated to {db_status}")
                     elif status in ("COMPLETED", "FAILED", "INCOMPLETE"):
                         cur.execute(
                             "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() "
                             "WHERE table_name = %s",
-                            (status, self.table_name),
+                            (db_status, self.table_name),
                         )
-                        logger.debug(f"[{self.table_name}] Status updated to {status}")
+                        logger.debug(f"[{self.table_name}] Status updated to {db_status}")
             finally:
                 set_pooled_connection(saved_conn)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"[{self.table_name}] CRITICAL: Failed to update loader status to {status}: {e}") from e
+            raise RuntimeError(f"[{self.table_name}] CRITICAL: Failed to update loader status to {db_status}: {e}") from e
 
     def check_shutdown_requested(self) -> bool:
         with self._shutdown_lock:

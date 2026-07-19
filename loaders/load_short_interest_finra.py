@@ -135,7 +135,7 @@ class ShortInterestFinraLoader(OptimalLoader):
                 "symbols_succeeded": rows_inserted,
                 "symbols_failed": rows_unavailable,
                 "rows_inserted": rows_inserted,
-                "status": "COMPLETED",
+                "status": "ok",
                 "duration_sec": round(duration, 2),
                 "latest_date": run_date.isoformat(),
             }
@@ -152,7 +152,7 @@ class ShortInterestFinraLoader(OptimalLoader):
                 "symbols_succeeded": 0,
                 "symbols_failed": len(symbols),
                 "rows_inserted": 0,
-                "status": "FAILED",
+                "status": "error",
                 "error": str(e)[:200],
             }
 

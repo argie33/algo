@@ -77,17 +77,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         parallelism = parallelism or get_default_parallelism("value_quality_growth_metrics")
 
         try:
-            # Mark all 3 tables as RUNNING
+            # Mark all 3 tables as loading
             with DatabaseContext("write") as cur:
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                     cur.execute(
                         "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_started = NOW() WHERE table_name = %s",
-                        ("RUNNING", table),
+                        ("loading", table),
                     )
                     if cur.rowcount == 0:
                         cur.execute(
                             "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
-                            (table, "RUNNING"),
+                            (table, "loading"),
                         )
 
             # Process each symbol
@@ -140,7 +140,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: {type(e).__name__}: {e}")
                     symbols_failed += 1
 
-            # Mark all 3 tables as COMPLETED with their actual latest_date (not calendar date)
+            # Mark all 3 tables as ok with their actual latest_date (not calendar date)
             with DatabaseContext("write") as cur:
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                     # Query the actual MAX(date) from each table
@@ -150,7 +150,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
                     cur.execute(
                         "UPDATE data_loader_status SET status = %s, latest_date = %s, last_updated = NOW(), execution_completed = NOW() WHERE table_name = %s",
-                        ("COMPLETED", actual_latest_date, table),
+                        ("ok", actual_latest_date, table),
                     )
 
             logger.info(
@@ -173,7 +173,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                     cur.execute(
                         "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s WHERE table_name = %s",
-                        ("FAILED", error_msg, table),
+                        ("error", error_msg, table),
                     )
             raise
 

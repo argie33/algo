@@ -343,20 +343,38 @@ class MarketFactorCalculator:
         VIX is a 10pt factor. Missing volatility data is a data error, not a skip condition.
         """
         try:
+            # Get latest VIX data on or before eval_date
             cur.execute(
-                "SELECT vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+                "SELECT date, vix_level FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
                 (eval_date,),
             )
             row = cur.fetchone()
-            if row and row[0] is not None:
-                vix = float(row[0])
-                # Simplified: no term structure data
-                score, detail = self._vix_score(vix, vix > 20)
-                return {"value": round(vix, 1), "score": score, **detail}
-            raise RuntimeError(
-                "[VIX CRITICAL] VIX level unavailable. "
-                "Check: (1) market_health_daily table has recent VIX readings, (2) vix_level column is populated"
-            )
+
+            # No data available: fail-fast with diagnostic info
+            if not row:
+                cur.execute("SELECT MAX(date) FROM market_health_daily")
+                latest_date = cur.fetchone()[0]
+                raise RuntimeError(
+                    f"[VIX CRITICAL] No market_health_daily data found on or before {eval_date}. "
+                    f"Latest available date: {latest_date}. "
+                    f"Check: (1) market_health_daily freshness, (2) eval_date not in future"
+                )
+
+            # Data exists but VIX level is NULL: data quality issue
+            data_date = row[0]
+            vix = row[1]
+            if vix is None:
+                raise RuntimeError(
+                    f"[VIX CRITICAL] VIX level is NULL for {data_date}. "
+                    f"Data quality issue in market_health_daily - vix_level column not populated. "
+                    f"Check market health loader."
+                )
+
+            # VIX level available: compute score
+            vix = float(vix)
+            score, detail = self._vix_score(vix, vix > 20)
+            return {"value": round(vix, 1), "score": score, **detail}
+
         except RuntimeError:
             raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

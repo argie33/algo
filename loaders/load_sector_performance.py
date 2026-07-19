@@ -4,43 +4,41 @@
 Calculates daily percentage returns for each sector based on weighted average
 of constituent stock prices. Updates sector_performance table with latest data.
 
-Schedule: Daily after market close (included in evening orchestrator run)
+Schedule: Daily after market close
 Cost: ~$0.01/run (single query)
 """
 
 from __future__ import annotations
 
 import logging
+import sys
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any
 
 import psycopg2
 import psycopg2.errors
-from psycopg2.extensions import cursor
-from shared.base_loader import BaseLoader, LoaderPhase
-from shared.exceptions import LoaderFatalError, LoaderRetryableError
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from loaders.runner import run_loader
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
 
-class SectorPerformanceLoader(BaseLoader):  # type: ignore[misc]
+class SectorPerformanceLoader:
     """Load daily sector performance (return %) from stock prices."""
 
-    def __init__(self, cur: cursor) -> None:
-        super().__init__(cur, "sector_performance")
-        self.phase = LoaderPhase.METRICS
+    table_name = "sector_performance"
 
-    def load(self) -> int:
-        try:
-            target_date = date.today()
-            rows_inserted = self._load_sector_performance(target_date)
-            return rows_inserted
-        except psycopg2.errors.OperationalError as e:
-            raise LoaderRetryableError(f"[{self.name}] Database connection error: {e}. Will retry on next run.") from e
-        except psycopg2.errors.UndefinedTable as e:
-            raise LoaderFatalError(f"[{self.name}] Required table missing: {e}. Check database schema.") from e
+    @staticmethod
+    def load_symbol(symbol: str, since: date | None = None) -> list[dict[str, Any]]:
+        """Not used for sector performance (global computation, not per-symbol)."""
+        return []
 
-    def _load_sector_performance(self, target_date: date) -> int:
+    @staticmethod
+    def load_global() -> int:
         """Calculate sector performance from daily price changes.
 
         Uses weighted average approach:
