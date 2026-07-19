@@ -351,6 +351,7 @@ class SignalsDailyLoader(OptimalLoader):
                 "This indicates run() was called but batch context setup failed or was skipped."
             )
         end = self._batch_context["end_date"]
+        debug_symbol = symbol == 'AAPL'  # Debug logging for AAPL only
 
         # ISSUE #9 FIX: Look up symbol watermark from pre-cached batch_context
         # (populated at startup with all symbols' watermarks in one query).
