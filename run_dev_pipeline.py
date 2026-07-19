@@ -25,6 +25,7 @@ from zoneinfo import ZoneInfo
 # Environment setup
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
+os.environ["ALPACA_PAPER_TRADING"] = "true"  # CRITICAL: Paper trading mode for local development
 # NOTE: SKIP_ORCHESTRATOR_LOCK removed - distributed lock prevents duplicate trades during concurrent runs
 
 LOADERS_DIR = Path("loaders")

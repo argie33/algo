@@ -554,33 +554,38 @@ locals {
 
   # Loaders that must run on on-demand FARGATE (cannot tolerate interruption)
   critical_loaders = toset([
+    # Core pricing & technicals (FAIL-CLOSED dependencies)
     "stock_prices_daily",
-    "algo_metrics_daily",
+    "technical_data_daily",
+    "trend_template_data",
+    "market_constituents",
+
+    # Metrics & scoring
     "stock_scores",
-    "buy_sell_daily",
-    # DEPRECATED (Session 275): yfinance_snapshot replaced by SEC loaders (company_info_sec, earnings_calendar_sec, etc.)
-    # "yfinance_snapshot",
-    "economic_data",  # Consolidated (FRED + DXY)
-    "financials_all", # Consolidated financial statements (replaces 8 individual tasks)
-
-    # Phase 1-4 Optimization: New consolidated loaders (replacing old separate loaders)
-    "sec_valuations",                  # Phase 1: Replaces ~5,300 yfinance quoteSummary calls/day
-    "short_interest_finra",            # Phase 1: Replaces yfinance short_interest (~20% of snapshot)
-    "positioning_metrics",             # Phase 1: Now reads from short_interest_finra + yfinance (dep on Phase 1)
-    "market_status_daily",             # Phase 2: Consolidates market_health + exposure + sentiment
-    "value_quality_growth_metrics",    # Phase 3: Consolidates value + quality + growth (depends on Phase 1)
-    "sector_industry_daily",           # Phase 4: Consolidates sector + industry loaders
-
-    # Phase 5: SEC Company Info & Earnings Calendar (Session 237+)
-    "company_info_sec",                # Phase 5a: Replaces yfinance company info (~15% of snapshot)
-    "earnings_calendar_sec",           # Phase 5b: Replaces yfinance earnings dates (~10% of snapshot)
-
-    # Legacy old loaders (marked for retirement after 2-week validation)
-    "growth_metrics",
-    "quality_metrics",
-    "value_metrics",
+    "sec_valuations",
+    "value_quality_growth_metrics",
+    "market_status_daily",
+    "sector_industry_daily",
+    "positioning_metrics",
     "stability_metrics",
-    "momentum_metrics"
+    "momentum_metrics",
+
+    # SEC data sources
+    "financials_all",
+    "company_info_sec",
+    "earnings_calendar_sec",
+    "institutional_holdings_13f",
+    "insider_holdings_sec",
+    "sec_cash_flow_metrics",
+    "sec_segment_metrics",
+
+    # Signals & execution
+    "buy_sell_daily",
+    "algo_metrics_daily",
+
+    # Economic data
+    "economic_data",
+    "short_interest_finra"
   ])
 }
 

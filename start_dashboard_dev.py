@@ -208,6 +208,7 @@ def start_dev_server() -> subprocess.Popen:
     env = os.environ.copy()
     env["LOCAL_MODE"] = "true"
     env["ENVIRONMENT"] = "development"
+    env["ALPACA_PAPER_TRADING"] = "true"  # CRITICAL: Ensure paper trading mode for local dev
 
     process = subprocess.Popen(
         [sys.executable, str(dev_server_path)],

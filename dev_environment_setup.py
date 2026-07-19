@@ -47,6 +47,7 @@ def setup_environment() -> None:
     """Set LOCAL_MODE and dev environment variables."""
     os.environ["LOCAL_MODE"] = "true"
     os.environ["ENVIRONMENT"] = "development"
+    os.environ["ALPACA_PAPER_TRADING"] = "true"  # CRITICAL: Paper trading mode for local development
     # NOTE: SKIP_ORCHESTRATOR_LOCK removed - distributed lock prevents duplicate trades.
 
     # Write to .env.local for persistence
