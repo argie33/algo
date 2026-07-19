@@ -425,7 +425,10 @@ def load_all_statements() -> int:
         return 1
 
     # Per-table run locks: same lock keys and skip semantics as OptimalLoader.run.
-    lock_manager = None
+    from utils.db.local_file_lock import FileLockManager, get_lock_manager
+    from utils.db.dynamo_lock import DynamoDBLockManager
+
+    lock_manager: DynamoDBLockManager | FileLockManager | None = None
     active: list[ConsolidatedFinancialStatementsLoader] = []
     try:
         lock_table = os.getenv(
@@ -436,14 +439,27 @@ def load_all_statements() -> int:
         # legitimately runs 45+ min, so a 1800s TTL would expire mid-run and allow a
         # concurrent instance to double-write. Locks are still released in finally.
         lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
-        lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+        try:
+            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+        except RuntimeError as ddb_err:
+            # DynamoDB locking unavailable - fall back to file-based for loaders (idempotent)
+            logger.warning(
+                f"[FINANCIAL_STATEMENTS ALL MODE] DynamoDB lock unavailable: {ddb_err}. "
+                f"Falling back to file-based locking (loaders are idempotent)."
+            )
+            lock_manager = FileLockManager(
+                table_name=lock_table,
+                lock_duration_seconds=lock_ttl,
+                enable_auto_cleanup=True
+            )
+
         for loader in loaders:
             if lock_manager.acquire(lock_key=loader.table_name, timeout_seconds=5):
                 active.append(loader)
             else:
                 logger.warning(f"[{loader.table_name}] Skipping: another instance already running")
     except Exception as lock_err:
-        logger.critical(f"[FINANCIAL_STATEMENTS ALL MODE] DynamoDB lock failed: {lock_err}")
+        logger.critical(f"[FINANCIAL_STATEMENTS ALL MODE] Lock initialization failed: {lock_err}")
         _release_combo_locks(lock_manager, active)
         return 1
 

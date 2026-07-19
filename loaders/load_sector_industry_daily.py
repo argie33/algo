@@ -49,17 +49,32 @@ class SectorIndustryDailyLoader(OptimalLoader):
 
     def load_global(self) -> int:
         """Override load_global() to return row count directly (side-effect loader)."""
-        from utils.db.local_file_lock import get_lock_manager
         import os
 
-        lock_manager = None
+        from utils.db.local_file_lock import FileLockManager, get_lock_manager
+        from utils.db.dynamo_lock import DynamoDBLockManager
+
+        lock_manager: DynamoDBLockManager | FileLockManager | None = None
         try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
             )
             lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
-            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+            try:
+                lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+            except RuntimeError as ddb_err:
+                # DynamoDB locking unavailable - fall back to file-based for loaders (idempotent)
+                logger.warning(
+                    f"[{self.table_name}] DynamoDB lock unavailable: {ddb_err}. "
+                    f"Falling back to file-based locking (loaders are idempotent)."
+                )
+                lock_manager = FileLockManager(
+                    table_name=lock_table,
+                    lock_duration_seconds=lock_ttl,
+                    enable_auto_cleanup=True
+                )
+
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 logger.error(f"[{self.table_name}] Could not acquire lock")
                 return 0
@@ -67,7 +82,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
             # Execute the fetch_incremental which does all the work via side effects
             rows = self.fetch_incremental("market", None)
             # For side-effect loaders, rows is the count or data dict
-            return sum(row.values()) if isinstance(rows, dict) and rows else (len(rows) if rows else 1)
+            return sum(rows.values()) if isinstance(rows, dict) and rows else (len(rows) if rows else 1)
         finally:
             if lock_manager:
                 lock_manager.release(lock_key=self.table_name)

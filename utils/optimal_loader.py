@@ -391,13 +391,15 @@ class OptimalLoader:
         # If invalid, use file-based locking instead of failing.
         # This allows loaders to run locally without DynamoDB access.
         is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
+        from utils.db.local_file_lock import FileLockManager, get_lock_manager
+        from utils.db.dynamo_lock import DynamoDBLockManager
+
+        lock_manager: DynamoDBLockManager | FileLockManager | None = None
         if is_local_mode:
             logger.info(f"[{self.table_name}] LOCAL_MODE enabled - using file-based locks")
             lock_manager = None
 
         try:
-            from utils.db.local_file_lock import get_lock_manager
-
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
@@ -410,7 +412,21 @@ class OptimalLoader:
             # frees the lock immediately on any normal exit; the TTL only backstops
             # hard-killed tasks (OOM, StopTask).
             lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
-            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+            try:
+                lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+            except RuntimeError as ddb_err:
+                # DynamoDB locking unavailable (CRITICAL for orchestrator, but loaders can degrade)
+                # For loaders (idempotent ops), fall back to file-based locking as graceful degradation
+                logger.warning(
+                    f"[{self.table_name}] DynamoDB lock unavailable: {ddb_err}. "
+                    f"Falling back to file-based locking (loaders are idempotent)."
+                )
+                lock_manager = FileLockManager(
+                    table_name=lock_table,
+                    lock_duration_seconds=lock_ttl,
+                    enable_auto_cleanup=True
+                )
+
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 # Check if DynamoDB is unavailable (permission denied) vs. actual lock contention
                 if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
@@ -542,10 +558,11 @@ class OptimalLoader:
                     logger.warning(f"[{self.table_name}] Failed to release lock: {lock_err}")
 
     def load_global(self) -> int:
-        lock_manager = None
-        try:
-            from utils.db.local_file_lock import get_lock_manager
+        from utils.db.local_file_lock import FileLockManager, get_lock_manager
+        from utils.db.dynamo_lock import DynamoDBLockManager
 
+        lock_manager: DynamoDBLockManager | FileLockManager | None = None
+        try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
                 f"{os.getenv('PROJECT_NAME', 'algo')}-loader-locks-{os.getenv('ENVIRONMENT', 'dev')}",
@@ -558,7 +575,21 @@ class OptimalLoader:
             # frees the lock immediately on any normal exit; the TTL only backstops
             # hard-killed tasks (OOM, StopTask).
             lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
-            lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+            try:
+                lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+            except RuntimeError as ddb_err:
+                # DynamoDB locking unavailable (CRITICAL for orchestrator, but loaders can degrade)
+                # For loaders (idempotent ops), fall back to file-based locking as graceful degradation
+                logger.warning(
+                    f"[{self.table_name}] DynamoDB lock unavailable: {ddb_err}. "
+                    f"Falling back to file-based locking (loaders are idempotent)."
+                )
+                lock_manager = FileLockManager(
+                    table_name=lock_table,
+                    lock_duration_seconds=lock_ttl,
+                    enable_auto_cleanup=True
+                )
+
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 # Check if DynamoDB is unavailable (permission denied) vs. actual lock contention
                 if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
