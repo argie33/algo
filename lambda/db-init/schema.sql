@@ -1,6 +1,20 @@
 -- Comprehensive database schema for algo trading system
 -- Created: 2026-07-05
+-- Last Updated: 2026-07-19
 -- Purpose: Initialize all tables needed for data loaders, API, and orchestration
+--
+-- NOTE: This schema defines the CORE tables. The live database also contains ~130 additional tables
+-- created dynamically by loaders (buy_sell_daily_*, technical_data_*, company_info_*, etc).
+-- See memory/loader_inventory_complete.md for complete loader table mapping.
+--
+-- Key tables NOT in this file but in live database (auto-created by loaders):
+-- - buy_sell_daily_* (daily/weekly/etf variants)
+-- - company_info_sec (SEC company data, 4,680+ symbols)
+-- - technical_data_daily, stability_metrics, positioning_metrics (auto-created)
+-- - circuit_breaker_status, market_exposure_daily (risk monitoring)
+-- - sector_industry_daily (market structure)
+--
+-- This design allows loaders to create tables on-demand while core tables are pre-initialized.
 
 -- ============================================================================
 -- METRIC TABLES (Foundation for stock scoring)
@@ -710,6 +724,24 @@ CREATE TABLE IF NOT EXISTS data_patrol_log (
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_run_id ON data_patrol_log(patrol_run_id);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_date ON data_patrol_log(patrol_date DESC);
 CREATE INDEX IF NOT EXISTS idx_data_patrol_log_severity ON data_patrol_log(severity);
+
+-- ============================================================================
+-- WEIGHT OPTIMIZATION (Dynamic weight management for portfolio components)
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS algo_weight_history (
+    id BIGSERIAL PRIMARY KEY,
+    change_date DATE NOT NULL,
+    component VARCHAR(50) NOT NULL,
+    old_weight INT NOT NULL CHECK (old_weight >= 0 AND old_weight <= 100),
+    new_weight INT NOT NULL CHECK (new_weight >= 0 AND new_weight <= 100),
+    reason VARCHAR(100),
+    blending_factor NUMERIC(5, 3),
+    regime VARCHAR(50),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_algo_weight_history_date ON algo_weight_history(change_date DESC);
+CREATE INDEX IF NOT EXISTS idx_algo_weight_history_component ON algo_weight_history(component);
 
 INSERT INTO algo_config (key, value, data_type, is_critical)
 SELECT 'system_initialized', 'true', 'boolean', TRUE
