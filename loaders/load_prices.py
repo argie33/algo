@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 """UNIFIED Price Loader - loads all intervals (1d, 1wk, 1mo) and asset classes (stock, etf).
 

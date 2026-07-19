@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Market Status Daily Loader - Consolidated market health + exposure + sentiment.
 
 CONSOLIDATION: Merges 3 separate market-wide loaders into one atomic operation:

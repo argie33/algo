@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """yfinance Snapshot Loader - Fetch ALL yfinance data once per symbol, store in DB.
 
 CRITICAL FIX 2026-07-02: Consolidates 30,000+ redundant yfinance API calls by having

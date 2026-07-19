@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Daily buy/sell signals generator.
 
 Generates daily trading signals from technical indicators and quality scores.

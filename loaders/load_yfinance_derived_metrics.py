@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Yfinance Dashboard Enrichment Loader - reads from yfinance_snapshot, outputs to dashboard-only tables.
 
 PURPOSE:

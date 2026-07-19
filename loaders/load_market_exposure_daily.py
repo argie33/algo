@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Load market_exposure_daily: Compute market regime + exposure % from price & market health data.
 

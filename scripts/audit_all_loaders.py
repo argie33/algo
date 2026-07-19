@@ -42,7 +42,7 @@ def load_module_from_file(file_path):
 def check_loader_imports(loader_file):
     """Check if a loader file can be imported."""
     try:
-        with open(loader_file) as f:
+        with open(loader_file, encoding='utf-8') as f:
             code = f.read()
             compile(code, str(loader_file), 'exec')
         return {'importable': True, 'error': None}

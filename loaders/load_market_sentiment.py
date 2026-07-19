@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Market Sentiment Loader - Computes fear/greed and market sentiment indicators.
 
 Runs daily to populate market_sentiment table with current market sentiment metrics.

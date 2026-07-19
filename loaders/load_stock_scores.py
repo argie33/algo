@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Stock Scores Loader - Multi-factor composite stock scoring.
 
 Computes composite stock scores by aggregating:

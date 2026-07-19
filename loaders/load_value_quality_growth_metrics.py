@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """Consolidated Value + Quality + Growth Metrics Loader.
 
 CONSOLIDATION: Merges 2 separate metric loaders into one:
