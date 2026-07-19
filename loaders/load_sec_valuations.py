@@ -239,38 +239,54 @@ class SecValuationsLoader(OptimalLoader):
             result["reason"] = "invalid_shares_outstanding"
             return result
 
-        # PE Ratio = Price ÷ TTM EPS
+        # PE Ratio = Price ÷ TTM EPS (bound to -10k..10k to reject data errors)
         if ttm_eps and ttm_eps > 0:
-            result["pe_ratio"] = round(current_price / ttm_eps, 2)
+            pe = current_price / ttm_eps
+            if pe <= 10000:  # Reasonable PE bounds
+                result["pe_ratio"] = round(pe, 2)
+            else:
+                logger.debug(f"[{symbol}] PE ratio out of bounds ({pe:.0f}), marking as NULL")
         elif ttm_eps == 0:
             # Company is unprofitable this TTM
             result["pe_ratio"] = None
         else:
             logger.debug(f"[{symbol}] TTM EPS missing or invalid, PE ratio unavailable")
 
-        # PB Ratio = Price ÷ Book Value Per Share
+        # PB Ratio = Price ÷ Book Value Per Share (bound to 0..1000)
         if book_value and book_value > 0:
             bvps = book_value / shares_out
             if bvps > 0:
-                result["pb_ratio"] = round(current_price / bvps, 2)
+                pb = current_price / bvps
+                if pb <= 1000:  # Reasonable PB bounds
+                    result["pb_ratio"] = round(pb, 2)
+                else:
+                    logger.debug(f"[{symbol}] PB ratio out of bounds ({pb:.0f}), marking as NULL")
         else:
             logger.debug(f"[{symbol}] Book value missing, PB ratio unavailable")
 
-        # PS Ratio = Price ÷ Revenue Per Share
+        # PS Ratio = Price ÷ Revenue Per Share (bound to 0..10000)
         if ttm_revenue and ttm_revenue > 0:
             rps = ttm_revenue / shares_out
             if rps > 0:
-                result["ps_ratio"] = round(current_price / rps, 2)
+                ps = current_price / rps
+                if ps <= 10000:  # Reasonable PS bounds
+                    result["ps_ratio"] = round(ps, 2)
+                else:
+                    logger.debug(f"[{symbol}] PS ratio out of bounds ({ps:.0f}), marking as NULL")
         else:
             logger.debug(f"[{symbol}] TTM revenue missing, PS ratio unavailable")
 
-        # PEG Ratio = PE ÷ Earnings Growth Rate %
+        # PEG Ratio = PE ÷ Earnings Growth Rate % (bound to 0..10000)
         # Growth rate: (Latest Quarter EPS - EPS from 1yr ago) / EPS from 1yr ago
         # NOTE: This is approximate with available data; full 1yr lookback would require quarterly history
         if result["pe_ratio"] and latest_eps and latest_eps > 0 and ttm_eps > 0:
             growth_rate = ((ttm_eps - latest_eps) / abs(latest_eps)) * 100 if latest_eps != 0 else None
             if growth_rate and growth_rate > 0 and result["pe_ratio"] > 0:
-                result["peg_ratio"] = round(result["pe_ratio"] / growth_rate, 2)
+                peg = result["pe_ratio"] / growth_rate
+                if peg <= 10000:  # Reasonable PEG bounds
+                    result["peg_ratio"] = round(peg, 2)
+                else:
+                    logger.debug(f"[{symbol}] PEG ratio out of bounds ({peg:.0f}), marking as NULL")
 
         # FCF Yield = Free Cash Flow ÷ Market Cap
         # FCF = Operating Cash Flow - Capital Expenditures
@@ -278,7 +294,12 @@ class SecValuationsLoader(OptimalLoader):
             fcf = ocf - capex
             if fcf and result["market_cap"] and result["market_cap"] > 0:
                 fcf_yield_pct = (fcf / result["market_cap"]) * 100
-                result["fcf_yield"] = round(fcf_yield_pct, 2)
+                # Only store if within reasonable bounds (-1000% to +1000%)
+                # Extreme values indicate data errors or tiny market caps
+                if -1000 <= fcf_yield_pct <= 1000:
+                    result["fcf_yield"] = round(fcf_yield_pct, 2)
+                else:
+                    logger.debug(f"[{symbol}] FCF yield out of bounds ({fcf_yield_pct:.1f}%), marking as NULL")
 
         return result
 
