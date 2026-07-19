@@ -578,6 +578,9 @@ class ValueAtRisk:
                 top_holdings = []
                 sector_exposure: dict[str, float] = {}
                 industry_exposure: dict[str, float] = {}
+                unmeasured_sector_pct = 0.0
+                unmeasured_industry_pct = 0.0
+                unmeasured_symbols = []
 
                 # CRITICAL: Validate all position pricing BEFORE computing concentration
                 # Concentration metrics are only meaningful if computed on complete position data
@@ -611,32 +614,32 @@ class ValueAtRisk:
                         }
                     )
 
-                    # Log warning for missing sector/industry but use "Unknown" fallback
-                    # so a single position's missing enrichment data doesn't block all risk metrics
-                    if sector is None:
+                    # CRITICAL: Track unmeasured sector/industry separately - do NOT use synthetic "Unknown"
+                    # as a sector class. Concentration metrics must reflect actual measured data only.
+                    if sector is None or not sector:
                         logger.warning(
-                            f"Position {symbol} missing 'sector' in company_profile - classifying as 'Unknown'"
+                            f"Position {symbol} missing 'sector' in company_profile - excluding from sector concentration"
                         )
-                        sector = "Unknown"
-                    if industry is None:
+                        unmeasured_sector_pct += position_pct
+                        unmeasured_symbols.append(symbol)
+                    else:
+                        if sector not in sector_exposure:
+                            sector_exposure[sector] = 0.0
+                        sector_exposure[sector] += position_pct
+
+                    if industry is None or not industry:
                         logger.warning(
-                            f"Position {symbol} missing 'industry' in company_profile - classifying as 'Unknown'"
+                            f"Position {symbol} missing 'industry' in company_profile - excluding from industry concentration"
                         )
-                        industry = "Unknown"
-                    if not sector:
-                        sector = "Unknown"
-                    if not industry:
-                        industry = "Unknown"
-                    if sector not in sector_exposure:
-                        sector_exposure[sector] = 0.0
-                    if industry not in industry_exposure:
-                        industry_exposure[industry] = 0.0
-                    sector_exposure[sector] += position_pct
-                    industry_exposure[industry] += position_pct
+                        unmeasured_industry_pct += position_pct
+                    else:
+                        if industry not in industry_exposure:
+                            industry_exposure[industry] = 0.0
+                        industry_exposure[industry] += position_pct
 
                 top_5_pct = sum([h["pct_of_portfolio"] for h in top_holdings[:5]])
 
-                return {
+                result = {
                     "portfolio_value": round(portfolio_value, 2),
                     "position_count": len(positions),
                     "top_holdings": top_holdings[:5],
@@ -650,6 +653,18 @@ class ValueAtRisk:
                     },
                     "diversification_status": ("CONCENTRATED" if top_5_pct > 30 else "DIVERSIFIED"),
                 }
+
+                # Add unmeasured data indicators so consumers know concentration analysis is incomplete
+                if unmeasured_sector_pct > 0:
+                    result["unmeasured_sector_pct"] = round(unmeasured_sector_pct, 1)
+                    result["unmeasured_sector_symbols"] = unmeasured_symbols
+                    result["sector_exposure_completeness"] = round(100 * (100 - unmeasured_sector_pct) / 100, 1)
+
+                if unmeasured_industry_pct > 0:
+                    result["unmeasured_industry_pct"] = round(unmeasured_industry_pct, 1)
+                    result["industry_exposure_completeness"] = round(100 * (100 - unmeasured_industry_pct) / 100, 1)
+
+                return result
 
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
