@@ -45,10 +45,11 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         """Loader should return explicit data_unavailable when no institutional ownership data found."""
         loader = InstitutionalHoldings13FLoader()
 
-        # Mock SEC client to return empty companyfacts (no institutional ownership metric)
+        # Mock SEC client to return companyfacts with other metrics but no institutional ownership
         mock_sec_client = MagicMock()
         mock_sec_client.symbol_to_cik.return_value = "0000320193"
-        mock_sec_client.get_company_facts.return_value = {}
+        # Return facts dict with some content but no institutional ownership metric
+        mock_sec_client.get_company_facts.return_value = {"some_other_metric": "value"}
 
         loader.sec_client = mock_sec_client
 
