@@ -102,7 +102,8 @@ class DataValidator:
             WHERE {column} < {min_val} OR {column} > {max_val}
         """
         cur.execute(query)
-        outlier_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        outlier_count = result[0] if result else 0
 
         if outlier_count > 0:
             msg = f"{table_name}.{column}: {outlier_count} outliers outside [{min_val}, {max_val}]"
