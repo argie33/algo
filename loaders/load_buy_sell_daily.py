@@ -35,6 +35,7 @@ class SignalsDailyLoader(OptimalLoader):
     table_name = "buy_sell_daily"
     primary_key = ("symbol", "date")
     watermark_field = "date"
+    exclude_etfs_from_symbols = True  # Trading signals for stocks only, not ETFs
 
     def run(self, symbols: list[str], parallelism: int | None = None, backfill_days: int | None = None) -> dict[str, Any]:  # type: ignore[override]
         """Override run() to filter symbols to only those with stock_scores AND price_daily.
