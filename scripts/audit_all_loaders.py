@@ -69,11 +69,12 @@ def get_loader_table_mapping():
         'load_insider_holdings_sec.py': ['insider_holdings_sec'],
         'load_positioning_metrics.py': ['positioning_metrics'],
         'load_market_health_daily.py': ['market_health_daily'],
-        'load_market_sentiment.py': ['market_sentiment_daily'],
+        'load_market_sentiment.py': ['market_sentiment'],
         'load_economic_data.py': ['economic_data'],
-        'load_market_constituents.py': ['market_constituents'],
+        'load_market_constituents.py': ['stock_symbols', 'etf_symbols'],
         'load_algo_metrics_daily.py': ['algo_metrics_daily'],
-        'load_risk_metrics_daily.py': ['risk_metrics_daily'],
+        'load_risk_metrics_daily.py': ['momentum_metrics', 'stability_metrics'],
+        'load_trend_analysis.py': ['trend_template_data'],
     }
 
 def check_table_exists(table_name):

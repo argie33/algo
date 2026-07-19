@@ -970,7 +970,22 @@ def _parse_range_param(params: dict[str, Any], default: int = 30) -> int:
         if not isinstance(range_val, list) or not range_val:
             raise ValueError("CRITICAL: 'range' parameter must be a non-empty list")
         try:
-            parsed = int(range_val[0])
+            val_str = str(range_val[0]).strip()
+            # Handle time suffixes: 30d, 4w, 12m, 1y
+            if val_str and val_str[-1].lower() in 'dwmy':
+                suffix = val_str[-1].lower()
+                num = int(val_str[:-1])
+                if suffix == 'd':
+                    parsed = num
+                elif suffix == 'w':
+                    parsed = num * 7
+                elif suffix == 'm':
+                    parsed = num * 30  # Approximate 30 days per month
+                elif suffix == 'y':
+                    parsed = num * 365  # Approximate 365 days per year
+            else:
+                parsed = int(val_str)
+
             if parsed <= 0:
                 raise ValueError(f"CRITICAL: 'range' must be positive, got {parsed}")
             return parsed
@@ -982,7 +997,22 @@ def _parse_range_param(params: dict[str, Any], default: int = 30) -> int:
         if not isinstance(days_val, list) or not days_val:
             raise ValueError("CRITICAL: 'days' parameter must be a non-empty list")
         try:
-            parsed = int(days_val[0])
+            val_str = str(days_val[0]).strip()
+            # Handle time suffixes: 30d, 4w, 12m, 1y
+            if val_str and val_str[-1].lower() in 'dwmy':
+                suffix = val_str[-1].lower()
+                num = int(val_str[:-1])
+                if suffix == 'd':
+                    parsed = num
+                elif suffix == 'w':
+                    parsed = num * 7
+                elif suffix == 'm':
+                    parsed = num * 30
+                elif suffix == 'y':
+                    parsed = num * 365
+            else:
+                parsed = int(val_str)
+
             if parsed <= 0:
                 raise ValueError(f"CRITICAL: 'days' must be positive, got {parsed}")
             return parsed
