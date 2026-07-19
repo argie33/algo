@@ -857,15 +857,11 @@ def run(
 
             # Fetch technical data from merged cache
             if str(symbol) not in merged_technical_data:
-                if execution_mode in ("paper", "auto"):
-                    logger.warning(f"[PHASE 8] {symbol}: not in technical data cache, skipping")
-                    skipped_count += 1
-                    continue
-                else:
-                    raise RuntimeError(
-                        f"[PHASE 8] {symbol}: technical data not in batch cache. "
-                        f"Cannot execute trade without technical indicators."
-                    )
+                raise RuntimeError(
+                    f"[PHASE 8] {symbol}: technical data not in batch cache. "
+                    f"Cannot execute trade without technical indicators. "
+                    f"This indicates an upstream data quality issue - technical indicators not loaded for this symbol."
+                )
             tech_data = merged_technical_data[str(symbol)]
 
             # Extract technical indicators - CRITICAL: Must have all values for position sizing
@@ -921,6 +917,39 @@ def run(
                 sma_50 - atr,
                 entry_price - 2.0 * atr,
             )
+
+            # AUDIT FIX (Session 276): Validate stop placement against recent support levels
+            # In extended rallies, SMA_50 - ATR can sit far above chart support, leading to
+            # mathematically correct but technically unsound stop placement.
+            # Get 52-week low as reference support level
+            try:
+                with DatabaseContext("read") as cur_support:
+                    cur_support.execute(
+                        """
+                        SELECT MIN(low) as support_52w
+                        FROM price_daily
+                        WHERE symbol = %s AND date >= %s - INTERVAL '365 days'
+                        """,
+                        (symbol, run_date),
+                    )
+                    support_row = cur_support.fetchone()
+                    if support_row and support_row[0]:
+                        support_52w = float(support_row[0])
+                        # CRITICAL: Stop loss MUST be above recent support
+                        # Allow minimal slack (0.5%) above support to avoid false fills
+                        min_stop_above_support = support_52w * 1.005
+                        if stop_loss <= support_52w:
+                            logger.info(
+                                f"[PHASE 8] {symbol}: Stop loss ${stop_loss:.2f} below 52-week support ${support_52w:.2f}. "
+                                f"Adjusting to ${min_stop_above_support:.2f} (0.5% above support). "
+                                f"Original formula (min(sma-atr, entry-2*atr)) produced technically unsound placement."
+                            )
+                            stop_loss = min_stop_above_support
+            except Exception as e:
+                logger.warning(
+                    f"[PHASE 8] {symbol}: Could not validate stop against support (DB error): {e}. "
+                    f"Proceeding with formula-based stop ${stop_loss:.2f}."
+                )
 
             # EDGE CASE FIX: Stop loss can become negative when ATR is very large
             # (extreme volatility). This is invalid - cannot short at negative price.

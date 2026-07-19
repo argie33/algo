@@ -70,7 +70,7 @@ from utils.market_symbols_config import MarketSymbolsConfig
 
 logger = logging.getLogger(__name__)
 
-_LIQUIDITY_CHECK_LIMIT = 10
+_LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 for better coverage (AUDIT FIX Session 276)
 _HISTORICAL_SIGNAL_MEDIAN_MIN = 300  # Typical trading day has 300+ BUY signals in buy_sell_daily
 _SIGNAL_COUNT_ANOMALY_THRESHOLD = 50  # Alert if count drops below 5% of median (15 signals)
 _MAX_WORKERS = 4
@@ -84,6 +84,11 @@ def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
     CRITICAL: Fails fast if ATR or close unavailable (never silent 50.0 default).
     Risk scoring is fundamental to position sizing - using neutral defaults when data
     is missing violates fail-fast principle. Either data exists or scoring halts.
+
+    AUDIT FIX (Session 276): Added explicit volatility gate - rejects stocks with
+    ATR > 18% of close (extreme volatility). Prevents under-capitalized positions
+    in highly volatile stocks. Prior: formula would produce risk_score=0 but still
+    allow entry. Now: explicitly halts with clear error message.
     """
     if atr_14 is None:
         raise ValueError(
@@ -95,6 +100,16 @@ def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
             f"Close price invalid or unavailable ({close!r}) for risk scoring. Cannot proceed with signal generation."
         )
     atr_pct = (atr_14 / close) * 100
+
+    # AUDIT FIX: Explicit extreme volatility gate (reject if ATR > 18% of close)
+    # This proactively filters high-volatility stocks that create position sizing challenges
+    if atr_pct > 18.0:
+        raise ValueError(
+            f"ATR={atr_pct:.1f}% exceeds maximum volatility gate (18% of close). "
+            f"Stock is too volatile for reliable position sizing. "
+            f"Minimum stop loss would exceed acceptable risk parameters."
+        )
+
     return max(0.0, min(100.0, 100.0 - (atr_pct * 5)))
 
 
