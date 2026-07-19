@@ -987,14 +987,28 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
                 # data until today's first run completes. Staleness is "check_date is older
                 # than the most recent trading day whose row should exist by now" - NOT
                 # wall-clock age anchored at midnight of check_date, which falsely flagged
-                # every pre-market morning and every Monday as stale/trading-disabled.
-                # (Market holidays still use the weekday heuristic and can false-flag
-                # after 10:00 ET on a holiday - same limitation as before.)
+                # Trading day-aware freshness check (uses MarketCalendar to skip holidays correctly).
+                # On trading days: expect today's data
+                # On non-trading days (weekends/holidays): expect previous trading day's data
+                from algo.infrastructure import MarketCalendar
+
                 expected_date = now_et.date()
-                if now_et.weekday() >= 5 or now_et.hour < 10:
+                if MarketCalendar.is_trading_day(expected_date):
+                    # Today is a trading day: require today's data (or previous trading day if pre-market)
+                    if now_et.hour < 10:  # Pre-market: previous trading day's data is acceptable
+                        expected_date -= timedelta(days=1)
+                        for _ in range(10):
+                            if MarketCalendar.is_trading_day(expected_date):
+                                break
+                            expected_date -= timedelta(days=1)
+                else:
+                    # Today is not a trading day (weekend/holiday): use most recent trading day's data
                     expected_date -= timedelta(days=1)
-                while expected_date.weekday() >= 5:
-                    expected_date -= timedelta(days=1)
+                    for _ in range(10):
+                        if MarketCalendar.is_trading_day(expected_date):
+                            break
+                        expected_date -= timedelta(days=1)
+
                 data_stale = check_date < expected_date
 
                 if data_stale:
@@ -1709,7 +1723,6 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 AND s.data_completeness >= 70
                 AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
                 AND s.symbol NOT IN (SELECT symbol FROM etf_symbols)
-                AND (s.etf IS NULL OR s.etf = 'N')
                 ORDER BY s.composite_score DESC
                 LIMIT %s
             )

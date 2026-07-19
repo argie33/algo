@@ -620,18 +620,37 @@ def check_data_freshness(
         today = date.today()
         data_age = (today - max_date).days
 
-        # Financial market data only updates on trading days (Mon-Fri).
-        # Adjust the staleness threshold so Friday's data stays "fresh" through
-        # the weekend and into Monday morning (before EOD loaders run).
-        weekday = today.weekday()  # 0=Mon … 6=Sun
-        if weekday == 5:  # Saturday: Friday data is 1 day old → +1
-            effective_warning = warning_days + 1
-        elif weekday == 6:  # Sunday:   Friday data is 2 days old → +2
-            effective_warning = warning_days + 2
-        elif weekday == 0:  # Monday:   Friday data is 3 days old → +2
-            effective_warning = warning_days + 2
-        else:
+        # Financial market data only updates on trading days.
+        # Calculate the most recent trading day and allow grace relative to that.
+        # CRITICAL: Use MarketCalendar.is_trading_day() instead of hardcoded weekday checks
+        # to handle market holidays (e.g., Presidents Day, Thanksgiving).
+        # If today is a trading day: Friday data is 1 day old (if today is Monday) → +0 to +1 grace
+        # If today is weekend/holiday: Friday data is N days old but M trading days old → use trading days
+        from algo.infrastructure import MarketCalendar
+        from datetime import timedelta
+
+        # Find most recent trading day before or on today
+        most_recent_trading_day = today
+        for _ in range(10):
+            if MarketCalendar.is_trading_day(most_recent_trading_day):
+                break
+            most_recent_trading_day -= timedelta(days=1)
+
+        # If max_date is from the most recent trading day, data is fresh
+        # Allow up to warning_days of staleness (e.g., +1 = data from yesterday trading day OK)
+        if max_date >= most_recent_trading_day:
             effective_warning = warning_days
+        else:
+            # Data is from before most recent trading day - allow extra grace only if we're
+            # in the pre-market hours before market opens (9:30 AM ET)
+            from zoneinfo import ZoneInfo
+            from datetime import datetime
+
+            now_et = datetime.now(ZoneInfo("America/New_York"))
+            if now_et.hour < 10:  # Pre-market (before 10 AM ET = safe pre-market window)
+                effective_warning = warning_days + 1
+            else:
+                effective_warning = warning_days
 
         is_stale = data_age > effective_warning
 

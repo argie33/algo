@@ -169,9 +169,34 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                 max_date = cur.fetchone()[0]
 
                 if max_date:
-                    age = datetime.now().date() - max_date
-                    if age.days > 2:
-                        results["issues"].append(f"Stale data: {age.days} days old (max_date: {max_date})")
+                    today = datetime.now().date()
+                    age = today - max_date
+
+                    # CRITICAL FIX: Use trading-day logic instead of hardcoded 2-day threshold.
+                    # A 3-day weekend (Fri to Tue = 4 calendar days) is only 1 trading day apart.
+                    # Use MarketCalendar to correctly handle holidays and weekends.
+                    from algo.infrastructure import MarketCalendar
+                    from datetime import timedelta
+
+                    # Allow up to 2 trading days of staleness for monitoring purposes
+                    expected_date = today - timedelta(days=1)
+                    for _ in range(20):  # Look back up to 20 calendar days
+                        if MarketCalendar.is_trading_day(expected_date):
+                            break
+                        expected_date -= timedelta(days=1)
+
+                    # Also get the previous trading day
+                    prev_trading_day = expected_date - timedelta(days=1)
+                    for _ in range(20):
+                        if MarketCalendar.is_trading_day(prev_trading_day):
+                            break
+                        prev_trading_day -= timedelta(days=1)
+
+                    if max_date < prev_trading_day:
+                        results["issues"].append(
+                            f"Stale data: from {max_date} ({age.days} calendar days old, "
+                            f"older than {prev_trading_day})"
+                        )
             except Exception:
                 # Skip if date column doesn't work
                 pass

@@ -115,29 +115,32 @@ class DataAgeValidator:
         # Calculate age
         age_days = (current_date - max_date).days
 
-        # Strictly enforce freshness thresholds
-        # Markets are closed on weekends, so data from Friday may be used on Saturday/Sunday
-        # BUT only if max_age_days explicitly allows it (e.g., price_weekly allows 7 days)
-        # For daily data (max_age_days=1), we should NOT accept 2-day-old data on Sunday
-        # just because markets are closed.
+        # Strictly enforce freshness thresholds using trading-day logic.
+        # Markets are closed on weekends/holidays, so data from last trading day is acceptable.
+        # BUT: Only if max_age_days explicitly allows it (e.g., price_weekly allows 7 days).
+        # For daily data (max_age_days=1), stale data after 1 trading day is NOT acceptable.
         threshold_days = rule["max_age_days"]
 
-        # Apply strict threshold: only give slight grace for same-day-of-week data on weekends
-        # (E.g., Friday data can be used Saturday morning, but not 2+ days old on Sunday)
-        weekday = current_date.weekday()  # 0=Mon ... 6=Sun
-        if weekday in (5, 6):  # Saturday or Sunday
-            # Weekend data grace: allow data from 1 more day ago if markets are closed
-            # But only for tables specifically marked as "market_data" (prices, ETF data)
+        # CRITICAL FIX: Use MarketCalendar.is_trading_day() instead of hardcoded weekday checks
+        # This correctly handles market holidays (Presidents Day, Thanksgiving, etc.)
+        # which would be misclassified as weekdays by raw weekday() checks.
+        from algo.infrastructure import MarketCalendar
+
+        is_trading_day = MarketCalendar.is_trading_day(current_date)
+
+        if is_trading_day:
+            # Today is a trading day: use strict threshold
+            adjusted_threshold = threshold_days
+        else:
+            # Today is weekend/holiday: markets closed, data from last trading day is acceptable
+            # Allow 1 extra day of grace for market data (prices, ETFs)
             # For computed data (signals, scores, risk), enforce strict threshold
-            # CRITICAL: False default masks missing criticality flag - should validate
             if "price" in rule.get("description", "").lower():
-                # Price/market data can be 1 extra day old on weekends (Saturday allows Fri, Sunday allows Fri)
+                # Price/market data can be 1 extra day old on weekends/holidays
                 adjusted_threshold = threshold_days + 1
             else:
-                # Computed data must meet strict threshold regardless of day
+                # Computed data must meet strict threshold regardless of trading day status
                 adjusted_threshold = threshold_days
-        else:
-            adjusted_threshold = threshold_days
 
         is_fresh = age_days <= adjusted_threshold
 

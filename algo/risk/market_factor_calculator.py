@@ -278,12 +278,30 @@ class MarketFactorCalculator:
 
             most_recent_date = price_row[0]
             age = eval_date - most_recent_date
-            if age.days > 0:
+
+            # CRITICAL FIX: Use trading-day logic instead of calendar days.
+            # On a trading day (Mon-Fri, non-holiday): require today's data.
+            # On weekends/holidays: previous trading day's data is acceptable.
+            # Don't reject Friday data on Monday just because age.days > 0.
+            from algo.infrastructure import MarketCalendar
+            from datetime import timedelta
+
+            is_trading_day = MarketCalendar.is_trading_day(eval_date)
+            expected_date = eval_date
+            if not is_trading_day:
+                # Not a trading day (weekend/holiday): use previous trading day's data
+                expected_date -= timedelta(days=1)
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(expected_date):
+                        break
+                    expected_date -= timedelta(days=1)
+
+            if most_recent_date < expected_date:
                 raise RuntimeError(
                     f"[SELLING_PRESSURE CRITICAL] SPY price data is stale: from {most_recent_date}, "
-                    f"but eval_date is {eval_date} ({age.days} days old). "
-                    f"Distribution day detection requires TODAY's market data (prices, volumes). "
-                    f"Cannot use yesterday's selling pressure for today's risk assessment."
+                    f"but eval_date is {eval_date} (expected data from {expected_date}). "
+                    f"Distribution day detection requires most recent trading day's market data. "
+                    f"Cannot use older selling pressure for risk assessment."
                 )
 
             # Now calculate distribution days from last 25 sessions

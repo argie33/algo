@@ -265,16 +265,12 @@ def _get_system_health(cur: cursor) -> Any:
         today = datetime.now(timezone.utc).date()
 
         # Use trading-day-aware freshness: data is fresh if it's from the most
-        # recent trading day. A hardcoded day threshold causes false 'degraded'
-        # on 3-day holiday weekends where Friday data is 4 calendar days old.
-        def is_trading_day(d: date) -> bool:
-            # Simple heuristic: weekday 0-4 are trading days, 5-6 are weekends
-            # This doesn't account for holidays but provides basic correctness
-            return d.weekday() < 5
+        # recent trading day. MarketCalendar.is_trading_day() correctly handles holidays.
+        from algo.infrastructure import MarketCalendar
 
         expected = today - timedelta(days=1)
         for _ in range(10):
-            if is_trading_day(expected):
+            if MarketCalendar.is_trading_day(expected):
                 break
             expected -= timedelta(days=1)
         is_fresh = last_price_date_typed >= expected
