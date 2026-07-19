@@ -45,10 +45,13 @@ def handle(
         logger.info("[SYNC_SCORES] Starting emergency stock_scores sync...")
 
         # Get fresh data from current connection (should be RDS primary)
+        # CRITICAL: Filter to stocks only (exclude ETFs) per GOVERNANCE.md
         cur.execute("""
             SELECT COUNT(*) as cnt, MAX(updated_at) as latest
             FROM stock_scores
             WHERE growth_score IS NOT NULL
+            AND symbol NOT IN (SELECT symbol FROM etf_symbols)
+            AND (etf IS NULL OR etf = 'N')
         """)
         current = cur.fetchone()
         current_count = current["cnt"]
@@ -68,10 +71,13 @@ def handle(
                     logger.info("[SYNC_SCORES] Loader completed successfully")
 
                     # Verify
+                    # CRITICAL: Filter to stocks only (exclude ETFs) per GOVERNANCE.md
                     cur.execute("""
                         SELECT COUNT(*) as cnt, MAX(updated_at) as latest
                         FROM stock_scores
                         WHERE growth_score IS NOT NULL
+                        AND symbol NOT IN (SELECT symbol FROM etf_symbols)
+                        AND (etf IS NULL OR etf = 'N')
                     """)
                     after = cur.fetchone()
 

@@ -418,6 +418,7 @@ def _get_rejection_funnel(cur: cursor) -> Any:
         cur.execute("SET LOCAL statement_timeout = '10000ms'")
 
         # Get today's stock_scores evaluation stats by composite_score tier
+        # CRITICAL: Filter to stocks only (exclude ETFs) per GOVERNANCE.md
         cur.execute("""
             SELECT
                 COUNT(*) AS total,
@@ -430,6 +431,8 @@ def _get_rejection_funnel(cur: cursor) -> Any:
                 MAX(created_at::date) AS signal_date
             FROM stock_scores
             WHERE created_at::date = CURRENT_DATE AND data_unavailable = FALSE
+            AND symbol NOT IN (SELECT symbol FROM etf_symbols)
+            AND (etf IS NULL OR etf = 'N')
         """)
         result = cur.fetchone()
         if result is None:
@@ -588,8 +591,13 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
     """
     try:
         # Use psycopg2.sql for safe SQL composition
+        # CRITICAL: Filter to stocks only (exclude ETFs) per GOVERNANCE.md
         interval_14d = get_interval_sql("14d")
-        filters = [psycopg2.sql.SQL(f"s.created_at::date >= CURRENT_DATE - {interval_14d}")]
+        filters = [
+            psycopg2.sql.SQL(f"s.created_at::date >= CURRENT_DATE - {interval_14d}"),
+            psycopg2.sql.SQL("s.symbol NOT IN (SELECT symbol FROM etf_symbols)"),
+            psycopg2.sql.SQL("(s.etf IS NULL OR s.etf = 'N')"),
+        ]
         query_params: list[Any] = []
         if min_score is not None:
             filters.append(psycopg2.sql.SQL("s.composite_score >= %s"))
@@ -656,6 +664,8 @@ def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
                     ROUND(AVG(composite_score)::NUMERIC, 1) AS avg_score
                 FROM stock_scores
                 WHERE created_at::date >= %s AND data_unavailable = FALSE
+                AND symbol NOT IN (SELECT symbol FROM etf_symbols)
+                AND (etf IS NULL OR etf = 'N')
                 GROUP BY created_at::date
                 ORDER BY created_at::date ASC
             """,

@@ -203,6 +203,7 @@ def _get_signals_stocks(
             LEFT JOIN trend_template_data t ON t.symbol = b.symbol AND t.date = b.date
             LEFT JOIN company_profile cp ON cp.ticker = b.symbol
             WHERE b.date >= CURRENT_DATE - {interval_90d}
+            AND b.symbol NOT IN (SELECT symbol FROM etf_symbols)
             {symbol_clause}
             ORDER BY b.date DESC, b.signal DESC, b.entry_quality_score DESC
             LIMIT %s

@@ -37,10 +37,13 @@ def handle(
             return error_response(405, "method_not_allowed", "Only POST allowed")
 
         # Get count of growth_score records to sync
+        # CRITICAL: Filter to stocks only (exclude ETFs) per GOVERNANCE.md
         cur.execute("""
             SELECT COUNT(*) as cnt
             FROM stock_scores
             WHERE growth_score IS NOT NULL
+            AND symbol NOT IN (SELECT symbol FROM etf_symbols)
+            AND (etf IS NULL OR etf = 'N')
         """)
         row = safe_dict_convert(cur.fetchone())
         count = row.get("cnt")

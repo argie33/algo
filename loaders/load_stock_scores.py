@@ -969,9 +969,12 @@ class StockScoresLoader(OptimalLoader):
             # MAX(date) subqueries (~20,000 full-table scans/run). A symbol absent from the
             # cache has no price_daily rows at all - the original scalar subqueries returned
             # a row of 5 NULLs in that case, so we preserve that exact shape here.
-            row = self._momentum_cache.get(symbol, (None, None, None, None, None))
+            row = self._momentum_cache.get(symbol, None)
 
-            if row:
+            # CRITICAL FAIL-FAST: Explicit check for cache miss, not truthiness of tuple
+            # Tuple of Nones is truthy in Python, so "if row:" would enter this block
+            # even when symbol has no price data. Check if row actually exists in cache.
+            if row is not None:
                 if len(row) < 5:
                     raise ValueError(
                         f"[STOCK_SCORES] {symbol}: momentum cache returned {len(row)} columns, expected 5. "

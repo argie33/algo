@@ -66,6 +66,7 @@ import psycopg2
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from utils.db.context import DatabaseContext
+from utils.market_symbols_config import MarketSymbolsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -370,6 +371,7 @@ def _get_candidates_from_buysell(
                     LEFT JOIN company_profile cp ON cp.ticker = bsd.symbol
                     WHERE ss.composite_score >= %s
                       AND ss.data_completeness >= 70
+                      AND (ss.data_unavailable = false OR ss.data_unavailable IS NULL)
                       AND p.close > sma.avg_close
                       AND p.high > p.low
                       AND ((p.close - p.low) / (p.high - p.low)) > %s

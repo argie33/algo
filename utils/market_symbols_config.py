@@ -294,3 +294,39 @@ class MarketSymbolsConfig:
             )
             logger.error(msg)
             raise RuntimeError(msg) from e
+
+    @staticmethod
+    def stock_only_where_clause(col_prefix: str = "s") -> str:
+        """SQL WHERE clause to include STOCKS ONLY (exclude ETFs).
+
+        CRITICAL: Two-condition AND for robustness:
+        1. Explicit etf_symbols table (definitive source)
+        2. ETF flag in stock_scores/company_profile table (redundant safety check)
+
+        Use this pattern in ALL queries fetching stock_scores or similar tables
+        that will be used for trading decisions or recommendations.
+
+        Args:
+            col_prefix: Column alias for the table being filtered (default: "s").
+                       Examples: "s" for stock_scores, "ss" for stock_scores s.
+
+        Returns:
+            WHERE clause fragment filtering to stocks only.
+            Example: "AND (s.symbol NOT IN (SELECT symbol FROM etf_symbols) AND (s.etf IS NULL OR s.etf = 'N'))"
+        """
+        return f"AND ({col_prefix}.symbol NOT IN (SELECT symbol FROM etf_symbols) AND ({col_prefix}.etf IS NULL OR {col_prefix}.etf = 'N'))"
+
+    @staticmethod
+    def buy_sell_only_where_clause(col_prefix: str = "bsd") -> str:
+        """SQL WHERE clause for buy_sell_daily queries that should exclude ETFs.
+
+        buy_sell_daily does NOT have an etf column, so we only check etf_symbols table.
+        This is used for filtering signals to stock trading only.
+
+        Args:
+            col_prefix: Column alias for buy_sell_daily (default: "bsd").
+
+        Returns:
+            WHERE clause fragment: "AND {col_prefix}.symbol NOT IN (SELECT symbol FROM etf_symbols)"
+        """
+        return f"AND {col_prefix}.symbol NOT IN (SELECT symbol FROM etf_symbols)"

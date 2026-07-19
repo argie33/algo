@@ -1674,6 +1674,8 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
                 LEFT JOIN company_profile c ON s.symbol = c.symbol
                 WHERE s.composite_score > 0
                 AND s.data_completeness >= 70
+                AND s.symbol NOT IN (SELECT symbol FROM etf_symbols)
+                AND (s.etf IS NULL OR s.etf = 'N')
                 ORDER BY s.composite_score DESC
                 LIMIT %s
             )

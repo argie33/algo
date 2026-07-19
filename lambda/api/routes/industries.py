@@ -245,6 +245,7 @@ def _industry_detail(cur: cursor, industry_name: str) -> Any:
             FROM company_profile cp
             LEFT JOIN stock_scores ss ON cp.ticker = ss.symbol
             WHERE LOWER(TRIM(cp.industry)) = LOWER(TRIM(%s))
+            AND cp.ticker NOT IN (SELECT symbol FROM etf_symbols)
             GROUP BY cp.industry
         """,
             (industry_name,),
