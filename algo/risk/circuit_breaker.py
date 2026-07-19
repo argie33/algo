@@ -601,6 +601,12 @@ class CircuitBreaker:
         }
 
     def _check_vix_spike(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        from algo.infrastructure import MarketCalendar
+
+        # On non-trading days (weekends/holidays), VIX data from last trading day is valid
+        # (market regime unchanged while market is closed)
+        is_trading_day = MarketCalendar.is_trading_day(current_date)
+
         cur.execute(
             "SELECT vix_level, date FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
             (current_date,),
@@ -613,8 +619,10 @@ class CircuitBreaker:
         else:
             data_date = row[1]
             age_days = (current_date - data_date).days
-            # CRITICAL: Require same-day VIX data for circuit breaker decisions
-            if age_days > 0:
+            # On trading days: require same-day VIX data
+            # On non-trading days: accept most recent trading day's VIX data
+            max_age_allowed = 0 if is_trading_day else 4  # Allow up to 4 days (weekend + holiday)
+            if age_days > max_age_allowed:
                 logger.critical(f"VIX data stale ({age_days} days old) - cannot assess current volatility risk. Trading halted.")
                 vix_max_val = self._get_required_config("vix_max_threshold", "in VIX circuit breaker check")
                 return {
