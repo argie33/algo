@@ -139,6 +139,9 @@ export const SafeMetricValue = ({
   if (formatter === 'decimal2') {
     return Number(value).toFixed(2);
   }
+  if (formatter === 'decimal1') {
+    return Number(value).toFixed(1);
+  }
   if (typeof format === 'function') {
     return format(value);
   }

@@ -214,7 +214,64 @@ class OptimalLoader:
         if self._backfill_days > 0:
             previous_date = datetime.now(timezone.utc).date() - timedelta(days=self._backfill_days)
         else:
-            previous_date = self._watermark.get_current_watermark(symbol=symbol)
+            watermark_value = self._watermark.get_current_watermark(symbol=symbol)
+            previous_date = watermark_value
+
+        # CRITICAL FIX (Session 263 EXTENDED): Watermark initialization for buy_sell_daily
+        # Root cause: Loader running on weekends used calendar date (today) as watermark,
+        # then queried for NEW signals AFTER market close = empty fetch = stale data
+        # Solution: If watermark is None OR >= most_recent_trading_day, reset to enable full lookback
+        if self.table_name == "buy_sell_daily" and self._backfill_days == 0:
+            try:
+                from algo.infrastructure import MarketCalendar
+                from utils.infrastructure.timezone import EASTERN_TZ
+
+                now_et = datetime.now(EASTERN_TZ)
+                today_et = now_et.date()
+
+                # Find most recent trading day (may be 1-3 days back on weekends/holidays)
+                most_recent_trading_day = today_et
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(most_recent_trading_day):
+                        break
+                    most_recent_trading_day -= timedelta(days=1)
+
+                # CASE 1: No watermark exists (first run or new symbol)
+                # → Load full lookback window (fetch_incremental will use 120-day window)
+                if previous_date is None:
+                    logger.info(
+                        f"[{self.table_name}] {symbol}: No watermark exists. "
+                        f"Will load full lookback window (most recent trading day: {most_recent_trading_day})"
+                    )
+
+                # CASE 2: Watermark is on/after most_recent_trading_day (loaded today's/weekend's calendar date)
+                # → Reset to None to force full lookback (prevents searching after market close)
+                elif previous_date >= most_recent_trading_day:
+                    days_ahead = (previous_date - most_recent_trading_day).days
+                    logger.warning(
+                        f"[{self.table_name}] {symbol}: Watermark {previous_date} is {days_ahead}+ days "
+                        f"ahead of most recent trading day {most_recent_trading_day}. "
+                        f"This indicates loader may have run on weekend/after-hours with calendar date. "
+                        f"Resetting to None to force full lookback window."
+                    )
+                    previous_date = None
+
+                # CASE 3: Watermark is stale (>7 trading days behind)
+                # → Log warning, proceed with incremental load but orchestrator should retry
+                else:
+                    calendar_days_behind = (most_recent_trading_day - previous_date).days
+                    if calendar_days_behind > 7:
+                        logger.error(
+                            f"[{self.table_name}] {symbol}: Watermark is {calendar_days_behind} calendar days old "
+                            f"(watermark: {previous_date}, most recent trading day: {most_recent_trading_day}). "
+                            f"Loader has not run in 5+ trading days. This indicates missed runs or persistent failure."
+                        )
+
+            except Exception as e:
+                logger.warning(
+                    f"[{self.table_name}] {symbol}: Trading day detection failed ({e}). "
+                    f"Using watermark={previous_date} as-is (may be stale or invalid)."
+                )
 
         logger.debug(f"[{self.table_name}] {symbol}: watermark={previous_date}, backfill_days={self._backfill_days}")
 
@@ -404,6 +461,8 @@ class OptimalLoader:
 
             self._infrastructure.update_loader_status("RUNNING")
             self._infrastructure.start_heartbeat()
+
+            logger.warning(f"[{self.table_name}] DEBUG: _backfill_days={self._backfill_days}")
 
             start = time.time()
             self._execution_start_time = start

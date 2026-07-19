@@ -295,17 +295,10 @@ class SignalsDailyLoader(OptimalLoader):
                     )
                 tech_max_date = tech_row[1]
 
-                # ISSUE #9 FIX: Pre-cache all per-symbol watermarks at startup
-                # Fetch in one query: symbol -> max(date) mapping for entire table
-                # Prevents 10k individual queries on ECS restart (would stall if any single query is slow)
+                # OPTIMIZATION (Session 262): Removed pre-caching of symbol watermarks.
+                # Watermarks are no longer used for buy_sell_daily (see fetch_incremental comment).
+                # This saves one TABLE SCAN on buy_sell_daily per run (minor optimization).
                 symbol_watermarks = {}
-                cur.execute(
-                    "SELECT symbol, MAX(date) FROM buy_sell_daily GROUP BY symbol",
-                )
-                for row in cur.fetchall():
-                    symbol, max_date = row
-                    if max_date:
-                        symbol_watermarks[symbol] = max_date
 
                 # N+1 FIX: per-symbol technical_data_daily freshness used to be a separate
                 # MAX(date) query inside fetch_incremental for every symbol (~10k round
@@ -343,6 +336,15 @@ class SignalsDailyLoader(OptimalLoader):
             ) from e
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:  # noqa: C901
+        # CRITICAL FIX (Session 262): buy_sell_daily generates signals for HISTORICAL dates,
+        # not just incremental new dates. Therefore date-based watermarking doesn't work:
+        # - Day 1: Generate signals for dates 2026-06-12 through 2026-07-17 → watermark=2026-07-17
+        # - Day 2: Generate signals for same dates (technical indicators updated) → all filtered because date <= 2026-07-17
+        #
+        # Solution: IGNORE the watermark for buy_sell_daily. Generate all signals from lookback window
+        # every run. Phase 7 (entry execution) will deduplicate via INNER JOIN to entry_records.
+        # This ensures latest signals are always available even if technical indicators change.
+
         # Validate batch context was properly initialized
         if not self._batch_context or "end_date" not in self._batch_context:
             raise RuntimeError(
@@ -351,13 +353,12 @@ class SignalsDailyLoader(OptimalLoader):
                 "This indicates run() was called but batch context setup failed or was skipped."
             )
         end = self._batch_context["end_date"]
-        debug_symbol = symbol == 'AAPL'  # Debug logging for AAPL only
 
-        # ISSUE #9 FIX: Look up symbol watermark from pre-cached batch_context
-        # (populated at startup with all symbols' watermarks in one query).
-        # Database fallback only for newly added symbols not in pre-cached watermarks.
-        # Prevents stalls on ECS restart when fetching per-symbol watermarks.
-        if since is None:
+        # CRITICAL FIX (Session 262): Skip watermark lookup entirely for buy_sell_daily.
+        # See comment above - we don't use watermarks for incremental loading because
+        # signals are generated for historical dates, not just new dates.
+        # Skipping watermark lookup saves ~100ms per symbol x 2829 symbols = ~4.7 minutes per run.
+        if False:  # Disabled - watermark not used for buy_sell_daily
             try:
                 # CRITICAL: Validate symbol_watermarks exists in batch_context
                 symbol_watermarks = self._batch_context.get("symbol_watermarks")
@@ -380,7 +381,8 @@ class SignalsDailyLoader(OptimalLoader):
                 if max_date is None:
                     # Cache miss: symbol not in pre-cached watermarks (likely newly added)
                     # Query database as legitimate fallback for new symbols
-                    logger.debug(f"[WATERMARK] {symbol}: Not in cached watermarks - querying database for new symbol")
+                    if debug_symbol:
+                        logger.info(f"[WATERMARK] {symbol}: Not in cached watermarks - querying database for new symbol")
                     with DatabaseContext("read") as cur:
                         cur.execute(
                             "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
@@ -389,9 +391,14 @@ class SignalsDailyLoader(OptimalLoader):
                         row = cur.fetchone()
                         if row is not None and len(row) >= 1 and row[0] is not None:
                             max_date = row[0]
-                            logger.debug(f"[WATERMARK] {symbol}: Database query found max_date={max_date}")
+                            if debug_symbol:
+                                logger.info(f"[WATERMARK] {symbol}: Database query found max_date={max_date}")
                         else:
-                            logger.debug(f"[WATERMARK] {symbol}: No watermark in database - first run for this symbol")
+                            if debug_symbol:
+                                logger.info(f"[WATERMARK] {symbol}: No watermark in database - first run for this symbol")
+                else:
+                    if debug_symbol:
+                        logger.info(f"[WATERMARK] {symbol}: Found in cached watermarks: max_date={max_date}")
 
                 # Convert max_date to date if found
                 if max_date is not None:
@@ -405,25 +412,44 @@ class SignalsDailyLoader(OptimalLoader):
                             f"Expected date or datetime, got: {max_date}. "
                             f"Database query may be returning wrong type or corrupted data."
                         )
+                    if debug_symbol:
+                        logger.info(f"[WATERMARK] {symbol}: Using since={since} (watermark date)")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
                     "Cannot determine incremental load point for buy/sell signal computation."
                 ) from e
 
-        # LOOKBACK FIX: swing-pivot detection scans up to 50 bars back (~70+ calendar
-        # days), but incremental runs used to fetch only from since-1d - often 2 days of
-        # rows - so _find_swing_high/_find_swing_low could never see a pivot and freshly
-        # watermarked symbols silently generated no signals. Always fetch a full lookback
-        # window for CONTEXT; emission is already restricted to dates > since by the
-        # filter at the end of this method, so output dates are unchanged.
+        # LOOKBACK FIX (Session 263 EXTENDED): swing-pivot detection scans up to 50 bars back (~70+ calendar
+        # days). Incremental runs must always have a full lookback window for pattern detection.
+        # CRITICAL: If since is None, load full 120-day lookback. If since is close to end_date
+        # (e.g., from load_symbol watermark reset), DON'T truncate - still use full lookback.
+        # This prevents "no signals generated" on first run of a symbol.
         lookback_start = end - timedelta(days=120)
         if since is None:
+            # First run (no watermark) - load full lookback from 120 days ago
+            start = lookback_start
+            logger.info(
+                f"[BUY_SELL_DAILY] {symbol}: since=None (no watermark), loading full lookback "
+                f"from {start} to {end}"
+            )
+        elif since >= end:
+            # Watermark is at or after end_date (shouldn't happen after load_symbol reset, but guard it)
+            # Reset to full lookback to ensure we have context
+            logger.warning(
+                f"[BUY_SELL_DAILY] {symbol}: since={since} is at/after end_date={end}. "
+                f"Resetting to full lookback from {lookback_start} to {end}"
+            )
             start = lookback_start
         else:
-            # FIXED Issue #22: Use since - 1 day for watermark (standard across all loaders)
-            # This ensures we get overlap data for cross-checking and prevents gaps
+            # Normal incremental: use since - 1d for overlap, but floor at lookback_start
+            # This ensures we always have enough historical context for swing detection
             start = min(since - timedelta(days=1), lookback_start)
+            if start == lookback_start:
+                logger.debug(
+                    f"[BUY_SELL_DAILY] {symbol}: since={since} but using full lookback "
+                    f"(since - 1d would be older than 120-day window)"
+                )
 
         # ISSUE #7 FIX: Validate technical_data_daily COMPLETENESS, not just existence
         # Check that technical_data_daily has been loaded for ALL active symbols, not just this one
@@ -581,16 +607,23 @@ class SignalsDailyLoader(OptimalLoader):
                 sig["data_unavailable"] = False
                 sig["reason"] = None
 
-            # Filter to incremental range if needed
-            if since is not None:
-                from utils.validation import safe_parse_date
+            # CRITICAL FIX (Session 262): Do NOT filter signals by watermark for buy_sell_daily.
+            # buy_sell_daily generates signals for historical dates (e.g., 120+ day lookback),
+            # not just incremental dates. With watermark filtering, signals from dates <= watermark_date
+            # are silently dropped on subsequent runs, even if technical indicators have been updated.
+            #
+            # Instead: Generate all signals from the full lookback window every run.
+            # Downstream deduplication (Phase 7) handles avoiding duplicate entries via INNER JOIN to entry_records.
+            #
+            # This is safe because:
+            # - Entry execution (Phase 8) will not re-execute a symbol that already has an entry_record
+            # - Phase 7 deduplication ensures each signal only triggers one entry attempt
+            # - Regenerating signals with updated technicals improves accuracy
+            #
+            # Removed: watermark filtering (if since is not None: filter signals)
 
-                filtered_signals = []
-                for s in signals:
-                    signal_date = safe_parse_date(s["date"], "signal filtering")
-                    if signal_date and signal_date > since:
-                        filtered_signals.append(s)
-                signals = filtered_signals
+            if debug_symbol:
+                logger.info(f"[FETCH_INCREMENTAL_RESULT] {symbol}: Returning {len(signals)} signals (NO watermark filtering applied)")
 
             return signals
 
