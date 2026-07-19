@@ -24,6 +24,6 @@ _paths_to_add = [
     "/var/task",  # Lambda runtime path (AWS adds this, but explicit for clarity)
 ]
 
-for path in _paths_to_add:
+for path in reversed(_paths_to_add):
     if path not in sys.path:
         sys.path.insert(0, path)
