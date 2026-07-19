@@ -134,35 +134,15 @@ def run(
                 f"alpaca_paper_trading={alpaca_paper_trading}). Exit orders will execute against paper account."
             )
 
-        # Initialize TradeExecutor, gracefully handle missing credentials in paper mode
+        # Initialize TradeExecutor, FAIL-FAST if credentials missing
         try:
             executor = TradeExecutor(config)
         except ValueError as e:
             if "credentials not found" in str(e).lower() or "credentials" in str(e).lower():
-                # In paper trading mode, gracefully degrade if credentials missing
-                execution_mode = config.get("execution_mode", "paper")
-                if execution_mode in ("paper", "auto"):
-                    logger.warning(
-                        f"[PHASE 6] Alpaca credentials missing - exit execution degraded in {execution_mode} mode. "
-                        "Open positions will remain unchanged; only database updates (stop raises, etc.) will proceed."
-                    )
-                    log_phase_result_fn(
-                        6,
-                        "exit_execution",
-                        "degraded",
-                        f"Broker unavailable - {execution_mode} mode (no real exit orders placed)",
-                    )
-                    return PhaseResult(
-                        6,
-                        "exit_execution",
-                        "degraded",
-                        {},
-                        False,
-                        f"Alpaca credentials missing: exit orders not placed in {execution_mode} mode",
-                    )
-                else:
-                    # Live trading mode requires credentials
-                    raise RuntimeError(f"[PHASE 6 CRITICAL] Live trading mode requires Alpaca credentials: {e}") from e
+                # FAIL-FAST: Credentials required for exit execution in ALL modes.
+                # No graceful degradation - if we have open positions to manage,
+                # we MUST be able to execute exit orders. Missing credentials is a hard error.
+                raise RuntimeError(f"[PHASE 6 CRITICAL] Alpaca credentials required: {e}") from e
             else:
                 raise
         exit_count = 0

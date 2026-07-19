@@ -503,16 +503,26 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             phase1_row = cur.fetchone()
             if phase1_row:
                 phase1_dict = safe_dict_convert(phase1_row)
-                total_tables = int(phase1_dict.get("total_tables", 0)) or 0
-                fresh_count = int(phase1_dict.get("fresh_count", 0)) or 0
-                stale_count = int(phase1_dict.get("stale_count", 0)) or 0
-                execution_health["phase_1_data_check"] = {
-                    "tables_validated": total_tables,
-                    "tables_fresh": fresh_count,
-                    "tables_stale": stale_count,
-                    "validation_status": "pass" if stale_count == 0 else ("warn" if stale_count <= 2 else "fail"),
-                    "last_checked": phase1_dict.get("last_checked").isoformat() if phase1_dict.get("last_checked") else None,
-                }
+                total_tables = phase1_dict.get("total_tables")
+                fresh_count = phase1_dict.get("fresh_count")
+                stale_count = phase1_dict.get("stale_count")
+                if total_tables is None or fresh_count is None or stale_count is None:
+                    logger.error(
+                        "[HEALTH] Phase 1 data check incomplete: missing table counts. "
+                        f"total_tables={total_tables}, fresh_count={fresh_count}, stale_count={stale_count}"
+                    )
+                    execution_health["phase_1_data_check"] = None
+                else:
+                    total_tables = int(total_tables)
+                    fresh_count = int(fresh_count)
+                    stale_count = int(stale_count)
+                    execution_health["phase_1_data_check"] = {
+                        "tables_validated": total_tables,
+                        "tables_fresh": fresh_count,
+                        "tables_stale": stale_count,
+                        "validation_status": "pass" if stale_count == 0 else ("warn" if stale_count <= 2 else "fail"),
+                        "last_checked": phase1_dict.get("last_checked").isoformat() if phase1_dict.get("last_checked") else None,
+                    }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_1_data_check"] = None
 
@@ -666,17 +676,26 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             sig_row = cur.fetchone()
             if sig_row:
                 sig_dict = safe_dict_convert(sig_row)
-                total_signals = int(sig_dict.get("signal_count", 0)) or 0
-                buy_signals = int(sig_dict.get("buy_count", 0)) or 0
-                sell_signals = int(sig_dict.get("sell_count", 0)) or 0
-
-                execution_health["phase_7_signal_generation"] = {
-                    "signals_generated": total_signals,
-                    "buy_signals": buy_signals,
-                    "sell_signals": sell_signals,
-                    "avg_strength": float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") is not None else None,
-                    "latest_signal": sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None,
-                }
+                total_signals = sig_dict.get("signal_count")
+                buy_signals = sig_dict.get("buy_count")
+                sell_signals = sig_dict.get("sell_count")
+                if total_signals is None or buy_signals is None or sell_signals is None:
+                    logger.error(
+                        "[HEALTH] Phase 7 signal generation check incomplete: missing signal counts. "
+                        f"total_signals={total_signals}, buy_signals={buy_signals}, sell_signals={sell_signals}"
+                    )
+                    execution_health["phase_7_signal_generation"] = None
+                else:
+                    total_signals = int(total_signals)
+                    buy_signals = int(buy_signals)
+                    sell_signals = int(sell_signals)
+                    execution_health["phase_7_signal_generation"] = {
+                        "signals_generated": total_signals,
+                        "buy_signals": buy_signals,
+                        "sell_signals": sell_signals,
+                        "avg_strength": float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") is not None else None,
+                        "latest_signal": sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None,
+                    }
             else:
                 execution_health["phase_7_signal_generation"] = None
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):

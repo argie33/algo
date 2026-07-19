@@ -502,19 +502,38 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
                 logger.warning("[UNTRACKED] Position missing symbol - skipping")
                 continue
 
-            # Validate numeric fields
+            # Validate numeric fields (fail-fast on missing data)
+            qty = up_dict.get("quantity")
+            current_price = up_dict.get("current_price")
+            position_value = up_dict.get("position_value")
+            if qty is None or current_price is None or position_value is None:
+                logger.warning(
+                    f"[UNTRACKED] {symbol}: missing position data (qty={qty}, price={current_price}, value={position_value}) - skipping. "
+                    "This position requires manual enrichment."
+                )
+                continue
             try:
-                qty = float(up_dict.get("quantity") or 0)
-                current_price = float(up_dict.get("current_price") or 0)
-                position_value = float(up_dict.get("position_value") or 0)
+                qty = float(qty)
+                current_price = float(current_price)
+                position_value = float(position_value)
             except (ValueError, TypeError):
                 logger.warning(f"[UNTRACKED] {symbol}: invalid numeric fields - skipping")
                 continue
 
             # Look up enrichment data (sector, company name, technical scores)
-            sector = sector_map.get(symbol, "Unknown")
-            company_name = company_name_map.get(symbol, symbol)
-            technical = technical_map.get(symbol, {})
+            # FAIL-FAST: Don't silently default - check for missing data
+            sector = sector_map.get(symbol)
+            if sector is None:
+                logger.warning(f"[UNTRACKED] {symbol}: sector enrichment missing - skipping. Data quality issue detected.")
+                continue
+            company_name = company_name_map.get(symbol)
+            if company_name is None:
+                logger.warning(f"[UNTRACKED] {symbol}: company_name enrichment missing - skipping. Data quality issue detected.")
+                continue
+            technical = technical_map.get(symbol)
+            if technical is None:
+                logger.warning(f"[UNTRACKED] {symbol}: technical enrichment missing - skipping. Data quality issue detected.")
+                continue
 
             untracked_item = {
                 "symbol": symbol,
@@ -546,7 +565,11 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
     except Exception as e:
         logger.error(f"[UNTRACKED POSITIONS] Failed to fetch untracked positions: {e}")
-        # Don't fail the entire response if untracked positions query fails
+        # FAIL-FAST: Mark data unavailable instead of silently returning empty array
+        stale_alerts.append(
+            f"⚠️ UNTRACKED POSITIONS DATA UNAVAILABLE: Query failed ({type(e).__name__}). "
+            f"Manual/external positions cannot be retrieved. Check database connectivity."
+        )
         untracked_items = []
 
     response_data = {

@@ -273,7 +273,15 @@ class MarketConstituentsLoader(OptimalLoader):
                     market_cat = r[exchange_field].upper().strip()
                     # Map Market Category to exchange code
                     exchange_map = {"Q": "NASDAQ", "N": "NYSE", "S": "NYSE MKT", "G": "NASDAQ"}
-                    exchange = exchange_map.get(market_cat, market_cat if len(market_cat) <= 8 else "UNKNOWN")
+                    # FAIL-FAST: Skip symbols with unmapped exchange codes instead of using "UNKNOWN"
+                    if market_cat not in exchange_map:
+                        logger.warning(
+                            f"[MARKET_CONSTITUENTS] Symbol {sym} has unmapped exchange code '{market_cat}'. Skipping. "
+                            f"This indicates: (1) New exchange code from API, or (2) Data quality issue. "
+                            f"Known codes: {list(exchange_map.keys())}"
+                        )
+                        continue
+                    exchange = exchange_map[market_cat]
                     rows.append(
                         {
                             "symbol": sym,

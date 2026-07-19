@@ -795,9 +795,7 @@ def _get_performance_analytics(cur: cursor) -> Any:
         cur.execute("""
             SELECT metric_date, sharpe_ratio, sortino_ratio, calmar_ratio,
                    win_rate_pct, max_drawdown_pct,
-                   COALESCE(avg_win_r, 0.0) AS avg_win_r,
-                   COALESCE(avg_loss_r, 0.0) AS avg_loss_r,
-                   COALESCE(expectancy, 0.0) AS expectancy
+                   avg_win_r, avg_loss_r, expectancy
             FROM algo_performance_metrics
             ORDER BY metric_date DESC
             LIMIT 1

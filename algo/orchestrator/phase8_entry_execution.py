@@ -655,42 +655,24 @@ def run(
                 "Credential manager returned invalid data."
             )
     except (RuntimeError, ValueError, KeyError, ImportError) as e:
-        # Only fail if we have trades to execute; paper mode can degrade if no credentials
-        is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes")
+        # FAIL-FAST: Credentials are required for trade execution
+        # No graceful degradation for local/paper mode - if we have trades to execute,
+        # credentials MUST be available. Missing credentials is a hard error.
         if len(qualified_trades) > 0:
-            if is_local_mode:
-                logger.warning(
-                    f"[PHASE 8] LOCAL_MODE: Alpaca credentials not available, degrading {len(qualified_trades)} trades: {e}"
-                )
-                log_phase_result_fn(
-                    8,
-                    "entry_execution",
-                    "degraded",
-                    f"Local mode: {len(qualified_trades)} trades not executed (no credentials)",
-                )
-                return PhaseResult(
-                    8,
-                    "entry_execution",
-                    "degraded",
-                    {"entered": 0},
-                    False,
-                    f"Alpaca credentials missing: {len(qualified_trades)} qualified trades not executed",
-                )
-            else:
-                error_msg = (
-                    f"[PHASE 8 CRITICAL] Alpaca credentials not available: {e}\n"
-                    f"Cannot execute {len(qualified_trades)} qualified trades without credentials.\n"
-                    f"\nTO FIX:\n"
-                    f"1. LOCAL DEV: Run: source scripts/setup_local_alpaca_credentials.sh\n"
-                    f"2. AWS DEPLOYMENT: Set GitHub Secrets:\n"
-                    f"   - ALPACA_API_KEY_ID (e.g., PK_PAPER_xxxxx)\n"
-                    f"   - ALPACA_API_SECRET_KEY\n"
-                    f"   See: https://github.com/argie33/algo/settings/secrets/actions\n"
-                    f"3. Then run: terraform apply (or push to main for GitHub Actions)"
-                )
-                logger.critical(error_msg)
-                log_phase_result_fn(8, "entry_execution", "halt", error_msg)
-                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+            error_msg = (
+                f"[PHASE 8 CRITICAL] Alpaca credentials not available: {e}\n"
+                f"Cannot execute {len(qualified_trades)} qualified trades without credentials.\n"
+                f"\nTO FIX:\n"
+                f"1. LOCAL DEV: Run: source scripts/setup_local_alpaca_credentials.sh\n"
+                f"2. AWS DEPLOYMENT: Set GitHub Secrets:\n"
+                f"   - ALPACA_API_KEY_ID (e.g., PK_PAPER_xxxxx)\n"
+                f"   - ALPACA_API_SECRET_KEY\n"
+                f"   See: https://github.com/argie33/algo/settings/secrets/actions\n"
+                f"3. Then run: terraform apply (or push to main for GitHub Actions)"
+            )
+            logger.critical(error_msg)
+            log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+            return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
         else:
             logger.warning(f"[PHASE 8] No trades queued, skipping credential check: {e}")
 
@@ -763,21 +745,16 @@ def run(
         atr_14 = data.get("atr_14")
         close = data.get("close")
 
-        # For paper trading, allow graceful degradation if SMA/ATR missing
-        # (use reasonable defaults rather than halting)
-        if execution_mode in ("paper", "auto"):
-            if sma_50 is None or atr_14 is None or close is None:
-                logger.warning(
-                    f"[PHASE 8] {sym}: Incomplete technical data (SMA_50={sma_50}, ATR_14={atr_14}, close={close}). "
-                    f"Proceeding with paper mode (may use approximate values)."
-                )
-        else:
-            # Live mode: strict validation required
-            if sma_50 is None or atr_14 is None or close is None:
-                raise RuntimeError(
-                    f"[PHASE 8] {sym}: Required technical data missing. "
-                    f"SMA_50={sma_50}, ATR_14={atr_14}, close={close}."
-                )
+        # FAIL-FAST: Technical data is required for ALL trading modes (paper and live).
+        # No graceful degradation for paper mode - using synthetic defaults masks
+        # data quality issues and causes wrong position sizing. Backtests/paper runs
+        # must reveal data gaps before live trading.
+        if sma_50 is None or atr_14 is None or close is None:
+            raise RuntimeError(
+                f"[PHASE 8] {sym}: Required technical data missing. "
+                f"SMA_50={sma_50}, ATR_14={atr_14}, close={close}. "
+                f"Cannot execute trade without complete technical indicators (trading mode={execution_mode})."
+            )
 
         # Type check only if values present
         if sma_50 is not None and not _is_valid_numeric(sma_50):

@@ -373,20 +373,24 @@ class DataSourceRouter:
         Best-effort: a yfinance failure here must not discard the successful
         Alpaca batch - unresolved symbols simply stay None (same semantics as a
         symbol with no data).
+
+        TRANSPARENCY FIX: Mark each row with source attribution so callers know
+        which data came from Alpaca vs yfinance fallback.
         """
         residual = [s for s in symbols if not alpaca_results.get(s)]
         if not residual:
             return
+        alpaca_served = len(symbols) - len(residual)
         logger.info(
-            f"[DataSourceRouter] Alpaca served {len(symbols) - len(residual)}/{len(symbols)} symbols; "
-            f"fetching {len(residual)} residual via yfinance: {residual[:10]}"
+            f"[DataSourceRouter] Alpaca served {alpaca_served}/{len(symbols)} symbols; "
+            f"fetching {len(residual)} residual via yfinance fallback: {residual[:10]}"
         )
         try:
             yf_results = self._fetch_yfinance_ohlcv_batch(residual, start, end, interval="1d")
         except Exception as e:
             logger.warning(
                 f"[DataSourceRouter] yfinance residual fetch failed for {len(residual)} symbols "
-                f"(Alpaca batch retained): {e}"
+                f"(Alpaca batch retained). Primary source failure masked by fallback: {e}"
             )
             return
         if not isinstance(yf_results, dict) or _is_data_unavailable_marker(yf_results):
@@ -394,7 +398,19 @@ class DataSourceRouter:
         for sym in residual:
             rows = yf_results.get(sym)
             if rows and not _is_data_unavailable_marker(rows):
+                # TRANSPARENCY: Mark each row to indicate this came from yfinance fallback
+                for row in rows:
+                    row["_source_name"] = "yfinance"
+                    row["_primary_source_failed"] = "alpaca"  # Track that Alpaca failed for this symbol
                 alpaca_results[sym] = rows
+
+        # Log summary of source mixing for monitoring
+        yf_filled = sum(1 for s in residual if alpaca_results.get(s))
+        if yf_filled > 0:
+            logger.info(
+                f"[DataSourceRouter] Source mix for request: alpaca={alpaca_served}, "
+                f"yfinance_fallback={yf_filled}, unfilled={len(residual) - yf_filled}"
+            )
 
     def _fetch_alpaca_ohlcv_batch(
         self, symbols: list[str], start: date, end: date
@@ -409,6 +425,13 @@ class DataSourceRouter:
         # the same per-symbol semantics as the yfinance batch path.
         results: dict[str, list[dict[str, Any]] | None] = dict.fromkeys(symbols)
         results.update(fetched)
+
+        # TRANSPARENCY FIX: Mark each row with Alpaca source attribution
+        for sym, rows in results.items():
+            if rows and not _is_data_unavailable_marker(rows):
+                for row in rows:
+                    row["_source_name"] = "alpaca"
+
         return results
 
     @retry(max_attempts=2, base_delay=2.0, exceptions=(Exception,))

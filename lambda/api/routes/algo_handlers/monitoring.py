@@ -123,19 +123,23 @@ def _get_last_run(cur: cursor) -> Any:
     phase_results = latest_dict.get("phase_results")
 
     # Compute phases_completed: prefer the tracker's own count (it counts status
-    # "ok", which is what OrchestratorExecutionTracker records per phase), falling
-    # back to counting phase_results directly.
-    phases_completed = latest_dict.get("phases_completed") or 0
-    if phase_results:
-        try:
-            if isinstance(phase_results, str):
-                import json
+    # "ok", which is what OrchestratorExecutionTracker records per phase)
+    phases_completed = latest_dict.get("phases_completed")
+    if phases_completed is None:
+        # Fall back to counting phase_results if available
+        if phase_results:
+            try:
+                if isinstance(phase_results, str):
+                    import json
 
-                phase_results = json.loads(phase_results)
-            if not phases_completed and isinstance(phase_results, list):
-                phases_completed = len([p for p in phase_results if p.get("status") in ("ok", "success")])
-        except (ValueError, TypeError, KeyError):
-            pass
+                    phase_results = json.loads(phase_results)
+                if isinstance(phase_results, list):
+                    phases_completed = len([p for p in phase_results if p.get("status") in ("ok", "success")])
+            except (ValueError, TypeError, KeyError):
+                pass
+        if phases_completed is None:
+            logger.warning("[MONITORING] phases_completed missing from orchestrator run data - cannot determine execution progress")
+            phases_completed = 0
 
     if not run_id:
         return error_response(503, "invalid_data", "Run ID missing from latest orchestrator run")

@@ -365,4 +365,4 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             f"[PHASE 3 HALT] Position monitor crashed unexpectedly: {type(e).__name__}: {e}. "
             f"Cannot safely monitor open positions. Halting trading to prevent unmonitored position risks."
         )
-        return PhaseResult(3, "position_monitor", "degraded", {"recommendations": []}, True, str(e))
+        return PhaseResult(3, "position_monitor", "halted", {"recommendations": []}, True, str(e))
