@@ -66,18 +66,22 @@ def create_data_unavailable_marker(reason: str) -> dict[str, Any]:
 def has_error(data: Any) -> bool:
     """Check if data dict contains an error marker or is None/missing.
 
-    Safe to call on any type; returns True for None or dict with _error marker.
-    Contract: _error marker means data structure is invalid, None means data missing.
+    Safe to call on any type; returns True for None or dict with error markers.
+    Checks for both legacy _error marker and new _data_unavailable marker.
+    Contract: Error markers mean data structure is invalid or unavailable, None means data missing.
 
     Args:
         data: Any value to check
 
     Returns:
-        True if data is None or dict with _error marker, False otherwise
+        True if data is None, dict with _error marker, or dict with _data_unavailable marker, False otherwise
     """
     if data is None:
         return True
-    return isinstance(data, dict) and "_error" in data
+    if not isinstance(data, dict):
+        return False
+    # Check for both _error (legacy API layer) and _data_unavailable (new standard)
+    return "_error" in data or data.get("_data_unavailable") is True
 
 
 def is_data_unavailable_marker(data: Any) -> bool:

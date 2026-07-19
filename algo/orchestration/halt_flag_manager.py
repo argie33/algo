@@ -164,10 +164,11 @@ class HaltFlagManager:
 
             return False
         except Exception as e:
-            if "UnrecognizedClientException" in str(e) or "InvalidCredentials" in str(e):
-                logger.info(f"[HALT_FLAG] DynamoDB unavailable (local dev mode?). Allowing execution to continue. {e}")
-                return False
-
+            # SESSION 282 FIX: Eliminate LOCAL_MODE bypass for halt flag checks
+            # GOVERNANCE: Halt flag check is non-negotiable - fail-fast on any error
+            # Previously: Returned False for credential/authentication errors (allowed trading anyway)
+            # Now: Treat ALL failures as halt condition
+            # If developers need to test without AWS, use dry_run=True instead of relying on LOCAL_MODE bypasses
             logger.critical(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}")
             logger.critical("[CRITICAL] FAILING CLOSED: Treating DynamoDB unavailability as halt condition for safety")
 

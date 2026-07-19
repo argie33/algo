@@ -529,10 +529,18 @@ class WeightOptimizer:
 
         except (RuntimeError, ValueError, TypeError) as e:
             logger.error(f"Weight application failed: {e}")
+            # FAIL-FAST: Do not silently fall back to empty dict
+            # If weight application fails, we need to know the current state for recovery
             try:
                 current = self.get_current_weights()
-            except (RuntimeError, ValueError, TypeError):
-                current = {}
+            except (RuntimeError, ValueError, TypeError) as fetch_err:
+                # Cannot determine current weights after failure - this is critical
+                logger.critical(f"[CRITICAL] Could not fetch current weights after application failure: {fetch_err}")
+                logger.critical(f"[CRITICAL] Original failure: {e}")
+                raise RuntimeError(
+                    f"Weight optimization failed AND unable to recover current state: {e}. "
+                    f"Recovery error: {fetch_err}. Manual intervention required."
+                ) from fetch_err
             return {
                 "old_weights": current,
                 "new_weights": current,

@@ -147,6 +147,8 @@ except ImportError:
 
 from rich.layout import Layout
 from rich.live import Live
+from rich.panel import Panel
+from rich.text import Text
 
 # Support both: direct execution (python dashboard/dashboard.py) and module execution (python -m dashboard)
 try:
@@ -282,6 +284,22 @@ def render_dashboard(
             f"Must be one of: {', '.join(ViewMode.valid_modes())}. "
             f"Check environment variable or CLI argument."
         )
+
+    # GOVERNANCE: Fail-fast if data is marked unavailable (no silent rendering with empty data)
+    if isinstance(data, dict) and data.get("_data_unavailable"):
+        reason = data.get("reason", "Data source unavailable")
+        is_critical = data.get("_dashboard_critical", False)
+        error_title = "[bold red]CRITICAL: DATA UNAVAILABLE[/]" if is_critical else "[bold yellow]DATA UNAVAILABLE[/]"
+        panel = Panel(
+            Text(f"{reason}\n\nRefresh dashboard or check system health for details."),
+            title=error_title,
+            border_style="red" if is_critical else "yellow",
+            padding=(1, 2),
+        )
+        layout = Layout()
+        layout.split_column(Layout(name="content"))
+        layout["content"].update(panel)
+        return layout
 
     ctx = DashboardContext(data)
     hdr_panel, exp_panel = render_header_components(
@@ -496,16 +514,15 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
                             logger.info(f"[DASHBOARD] Transitioned to data display after {current_elapsed:.1f}s")
                             first_render_with_data = True
                     except Exception as e:
-                        logger.error(f"Render failed: {type(e).__name__}: {e}", exc_info=True)
-                        try:
-                            live.update(render_error_panel(e, recovery.get_recovery_status()))
-                        except Exception as panel_error:
-                            logger.error(f"Error panel render failed: {type(panel_error).__name__}: {panel_error}")
-                            # Last resort: show loading state instead of crashing
-                            try:
-                                live.update(loading_layout(current_frame, data_source=data_source))
-                            except Exception as load_err:
-                                logger.critical(f"All rendering failed: {load_err}")
+                        # CRITICAL: Recovery layer failure indicates data integrity issue, not transient render error
+                        # Do NOT attempt direct render retry (would fail for same reason)
+                        # Do NOT attempt error panel render (might also fail)
+                        # FAIL-FAST: Log and exit, let operator know system requires manual intervention
+                        logger.critical(f"[CRITICAL] Dashboard render failed due to data integrity issue: {type(e).__name__}: {e}", exc_info=True)
+                        logger.critical("[CRITICAL] Recovery layer cannot fix this data. System requires manual intervention.")
+                        logger.critical(f"Recovery status: {recovery.get_recovery_status()}")
+                        # Stop rendering loop on critical failure
+                        break
                 elif current_result is None:
                     first_render_with_data = False
                     if current_error:
@@ -564,21 +581,14 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
                 state.result = result[0]
             else:
                 # Timeout: load_all() didn't complete in 20 seconds
-                # GOVERNANCE: Do NOT silently replace state with empty dict
-                # In watch mode, preserve previous state but mark as stale
-                logger.warning("load_all() returned None (timeout) - preserving previous state and marking stale")
-                if state.result is None:
-                    # No previous state available - use explicit unavailable marker
-                    state.result = {
-                        "_data_unavailable": True,
-                        "_dashboard_critical": True,
-                        "reason": "Data load timeout (20s) - no previous data available",
-                    }
-                else:
-                    # Has previous state - mark as stale but preserve for display
-                    if isinstance(state.result, dict):
-                        state.result["_stale_refresh"] = True
-                        state.result["_stale_reason"] = "Last refresh timed out (20s) - showing cached state"
+                # GOVERNANCE: Fail-fast on timeout. Never silently preserve stale data.
+                # FAIL-FAST: Data older than 20 seconds is unsafe for trading decisions
+                logger.error("load_all() timeout (20s) - marking data unavailable instead of preserving stale state")
+                state.result = {
+                    "_data_unavailable": True,
+                    "_dashboard_critical": True,
+                    "reason": "Data refresh failed after 20 seconds - previous data is too stale for safe trading decisions",
+                }
 
             state.elapsed = time.monotonic() - t0
             state.last_load = time.monotonic()

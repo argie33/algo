@@ -1,8 +1,27 @@
 # Dashboard Troubleshooting Guide
 
-Last updated: 2026-07-17 (Session 203)
+Last updated: 2026-07-19 (Session 283)
 
 Quick reference for diagnosing dashboard issues. Always run `python check_system_health.py` first.
+
+---
+
+## ⚠️ CRITICAL: Never Assume Empty Dashboard is Normal
+
+**FAIL-FAST PRINCIPLE:** If dashboard shows blank/empty panels, this is ALWAYS a critical error - NOT a normal empty portfolio state.
+
+Specifically:
+- **Empty Portfolio** (0 positions) with **no error message** = Data load failed silently
+- **Empty Signals** (0 signals) = API timeout or database error
+- **Missing Circuit Breakers** = Risk monitoring is disabled
+- **Missing Performance** = Trade history data unavailable
+
+**NEVER trade based on empty dashboard state.** Always:
+1. Run `python check_system_health.py` to diagnose
+2. Check for error messages in dashboard status line
+3. Verify data is fresh before making trading decisions
+
+---
 
 ---
 
@@ -130,8 +149,15 @@ If this fails, PostgreSQL is not running or credentials are wrong.
 # Run all three pipeline phases locally
 python3 scripts/run_local_orchestrator.py --run-all
 
-# Then refresh dashboard
-# Wait 30-60s for data to process
+# CRITICAL: Wait for command to complete fully (do NOT interrupt)
+# Then wait 30-60s for data to process before checking dashboard
+```
+
+**CRITICAL: Verify the fix worked**
+```bash
+# Run after waiting 30-60 seconds
+python check_system_health.py
+# All checks should be ✓. If any show ✗, data refresh failed.
 ```
 
 ### Check Data Freshness Status
@@ -199,15 +225,24 @@ python3 scripts/run_local_orchestrator.py --morning
 python start_dashboard_dev.py
 ```
 
-### Check Latest Snapshot Age
+**CRITICAL: Verify the fix worked before continuing**
+```bash
+# Wait 30 seconds for data to process, then check:
+python check_system_health.py
+# Should show ✓ for all checks
+```
+
+### Verify Portfolio Data Loaded
 ```sql
+-- Check if new snapshots were created
 SELECT 
   EXTRACT(EPOCH FROM (NOW() - MAX(created_at)))/60 as minutes_old,
   COUNT(*) as snapshot_count
 FROM algo_portfolio_snapshots;
 ```
 
-If minutes_old > 360 (6 hours), portfolio is stale.
+If minutes_old < 1 (less than 1 minute old), portfolio is fresh.
+If minutes_old > 360 (6 hours), portfolio data is still stale - orchestrator run failed.
 
 ---
 
