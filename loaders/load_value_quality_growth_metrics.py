@@ -140,13 +140,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: {type(e).__name__}: {e}")
                     symbols_failed += 1
 
-            # Mark all 3 tables as COMPLETED
+            # Mark all 3 tables as COMPLETED with their actual latest_date (not calendar date)
             with DatabaseContext("write") as cur:
-                today = date.today()
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
+                    # Query the actual MAX(date) from each table
+                    cur.execute(f"SELECT MAX(updated_at)::date FROM {table}")
+                    result = cur.fetchone()
+                    actual_latest_date = result[0] if result and result[0] else None
+
                     cur.execute(
                         "UPDATE data_loader_status SET status = %s, latest_date = %s, last_updated = NOW(), execution_completed = NOW() WHERE table_name = %s",
-                        ("COMPLETED", today, table),
+                        ("COMPLETED", actual_latest_date, table),
                     )
 
             logger.info(
