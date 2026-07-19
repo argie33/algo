@@ -1754,9 +1754,8 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         null_rs_percentile_count = 0
         for row in rows:
             score_dict = safe_json_serialize(safe_dict_convert(row))
-            # CRITICAL AUDIT: Track RS percentile COALESCE fallback (when original is NULL, defaults to 50.0)
-            # The query has COALESCE(fs.rs_percentile, 50.0), so we can't detect it here directly.
-            # Instead, monitor in database query warning below.
+            # SESSION 255: rs_percentile COALESCE fallback removed - now selected directly without synthetic 50.0 default
+            # NULL values are preserved and tracked in the audit query below
             top_scores.append(score_dict)
 
         # AUDIT: Add monitoring for COALESCE fallback usage in RS percentile
