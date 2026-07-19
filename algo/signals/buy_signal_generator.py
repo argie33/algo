@@ -182,29 +182,30 @@ class BuySignalGenerator:
         return signals
 
     def _find_swing_high(self, symbol: str, rows: list[dict[str, Any]], i: int) -> tuple[float | None, float | None]:
-        """Find most recent swing high using extended 50-bar lookback with lenient data requirements.
+        """Find recent swing high with multiple strategies.
 
-        ISSUE FIX: Increased from 20-bar to 50-bar lookback to detect pivots that occurred
-        further back. Made data completeness lenient to work with real-world incomplete data
-        while maintaining pivot integrity.
+        Strategy 1: Perfect swing (high > all surrounding bars in 3-bar window) - most reliable
+        Strategy 2: Relative swing (high > most surrounding bars, allow 1 exception)
+        Strategy 3: Recent maximum (highest price in 20-bar window) - fallback for volatile markets
+
+        All strategies use actual data (no fabrication), providing mathematical
+        soundness even when perfect swing patterns unavailable in real market conditions.
         """
         recent_swing_high = None
         swing_high_sma50 = None
 
+        # STRATEGY 1: Try perfect swing (original strict logic)
         for j in range(max(0, i - 50), i):
             candidate = rows[j].get("high")
-            # EXPLICIT CHECK: Use "is None" not "not" to distinguish 0 (valid price) from None (missing)
             if candidate is None:
                 continue
 
             # Collect nearby bars (may have gaps)
-            # EXPLICIT CHECK: Only skip None values, not 0 (which is technically valid though rare)
             lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high") is not None]
             lookforward_bars = [
                 rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("high") is not None
             ]
 
-            # Lenient requirement: need at least 2 lookback and 2 lookforward bars (was requiring all)
             if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
                 continue
 
@@ -214,17 +215,60 @@ class BuySignalGenerator:
                     recent_swing_high = candidate
                     swing_high_sma50 = rows[j].get("sma_50")
 
-        return recent_swing_high, swing_high_sma50
+        if recent_swing_high is not None:
+            return recent_swing_high, swing_high_sma50
+
+        # STRATEGY 2: Try relative swing (high > most surrounding bars, allow 1 exception)
+        for j in range(max(0, i - 50), i):
+            candidate = rows[j].get("high")
+            if candidate is None:
+                continue
+
+            lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high") is not None]
+            lookforward_bars = [
+                rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("high") is not None
+            ]
+
+            if len(lookback_bars) < 1 or len(lookforward_bars) < 1:
+                continue
+
+            # Relative swing: candidate is higher than majority (allow 1 exception)
+            lookback_higher = sum(1 for b in lookback_bars if candidate > b)
+            lookforward_higher = sum(1 for b in lookforward_bars if candidate > b)
+            if lookback_higher >= len(lookback_bars) - 1 and lookforward_higher >= len(lookforward_bars) - 1:
+                if recent_swing_high is None or candidate > recent_swing_high:
+                    recent_swing_high = candidate
+                    swing_high_sma50 = rows[j].get("sma_50")
+
+        if recent_swing_high is not None:
+            return recent_swing_high, swing_high_sma50
+
+        # STRATEGY 3: Recent maximum (highest price in 20-bar window)
+        # Valid for all market conditions, no pattern required
+        lookback_window = 20
+        max_price = None
+        max_sma50 = None
+        for j in range(max(0, i - lookback_window), i):
+            high = rows[j].get("high")
+            if high is not None:
+                if max_price is None or high > max_price:
+                    max_price = high
+                    max_sma50 = rows[j].get("sma_50")
+        return max_price, max_sma50
 
     def _find_swing_low(self, symbol: str, rows: list[dict[str, Any]], i: int) -> float | None:
-        """Find most recent swing low using extended 50-bar lookback with lenient data requirements.
+        """Find recent swing low with multiple strategies.
 
-        ISSUE FIX: Increased from 10-bar to 50-bar lookback to detect stop loss levels
-        further back. Made data completeness lenient to work with real-world incomplete data
-        while maintaining pivot integrity.
+        Strategy 1: Perfect swing (low < all surrounding bars in 3-bar window) - most reliable
+        Strategy 2: Relative swing (low < most surrounding bars, allow 1 exception)
+        Strategy 3: Recent minimum (lowest price in 20-bar window) - fallback for volatile markets
+
+        All strategies use actual data (no fabrication), providing mathematical
+        soundness even when perfect swing patterns unavailable in real market conditions.
         """
         recent_swing_low = None
 
+        # STRATEGY 1: Try perfect swing (original strict logic)
         for j in range(max(0, i - 50), i):
             candidate = rows[j].get("low")
             if candidate is None:
@@ -236,7 +280,7 @@ class BuySignalGenerator:
                 rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low") is not None
             ]
 
-            # Lenient requirement: need at least 2 lookback and 2 lookforward bars (was requiring all)
+            # Lenient requirement: need at least 2 lookback and 2 lookforward bars
             if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
                 continue
 
@@ -245,7 +289,44 @@ class BuySignalGenerator:
                 if recent_swing_low is None or candidate < recent_swing_low:
                     recent_swing_low = candidate
 
-        return recent_swing_low
+        if recent_swing_low is not None:
+            return recent_swing_low
+
+        # STRATEGY 2: Try relative swing (low < most surrounding bars, allow 1 exception)
+        # This handles choppy markets where perfect swings are rare
+        for j in range(max(0, i - 50), i):
+            candidate = rows[j].get("low")
+            if candidate is None:
+                continue
+
+            lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
+            lookforward_bars = [
+                rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low") is not None
+            ]
+
+            if len(lookback_bars) < 1 or len(lookforward_bars) < 1:
+                continue
+
+            # Relative swing: candidate is lower than majority (allow 1 exception)
+            lookback_lower = sum(1 for b in lookback_bars if candidate < b)
+            lookforward_lower = sum(1 for b in lookforward_bars if candidate < b)
+            if lookback_lower >= len(lookback_bars) - 1 and lookforward_lower >= len(lookforward_bars) - 1:
+                if recent_swing_low is None or candidate < recent_swing_low:
+                    recent_swing_low = candidate
+
+        if recent_swing_low is not None:
+            return recent_swing_low
+
+        # STRATEGY 3: Recent minimum (lowest price in 20-bar window)
+        # Valid for all market conditions, no pattern required
+        lookback_window = 20
+        min_price = None
+        for j in range(max(0, i - lookback_window), i):
+            low = rows[j].get("low")
+            if low is not None:
+                if min_price is None or low < min_price:
+                    min_price = low
+        return min_price
 
     def _generate_signal(
         self,
