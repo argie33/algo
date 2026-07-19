@@ -169,7 +169,7 @@ def run(
             )
 
         log_phase_result_fn(2, "circuit_breakers", "success", "all clear")
-        return PhaseResult(2, "circuit_breakers", "ok", {}, False, None)
+        return PhaseResult(2, "circuit_breakers", "ok", {"status": "ok", "reason": "all circuit breaker checks passed"}, False, None)
 
     except Exception as e:
         error = PhaseError(
@@ -182,4 +182,4 @@ def run(
         log_phase_error(2, error, log_phase_result_fn)
         logger.critical(f"[PHASE 2] Circuit breaker check failed: {str(e)[:100]}")
         log_phase_result_fn(2, "circuit_breakers", "halt", f"Check failed: {str(e)[:50]}")
-        return PhaseResult(2, "circuit_breakers", "halted", {}, True, f"Circuit breaker check failed: {str(e)[:80]}")
+        return PhaseResult(2, "circuit_breakers", "halted", {"status": "halted", "reason": f"Circuit breaker check failed: {str(e)[:80]}"}, True, f"Circuit breaker check failed: {str(e)[:80]}")

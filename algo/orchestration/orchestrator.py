@@ -1221,6 +1221,9 @@ class Orchestrator:
 
         PHASE DEPENDENCY FIX: Phase 6 has always_run=True, so it must execute even if Phase 3/5 fail.
         Falls back to database reads if phase data unavailable.
+
+        CRITICAL: Even though Phase 6 always runs, we MUST log if dependencies are halted
+        so operators understand why exit logic might be degraded.
         """
         if not executor:
             raise RuntimeError(
@@ -1234,6 +1237,15 @@ class Orchestrator:
         exposure_actions = []
 
         # Try to get Phase 3 data (position recommendations)
+        # Note: Phase 6 always runs even if Phase 3 failed, but we must log degradation
+        phase3_result = executor.get_result(3)
+        if phase3_result and phase3_result.halted:
+            logger.warning(
+                f"[PHASE 6] Phase 3 halted: {phase3_result.error or 'unknown reason'}. "
+                f"Phase 6 (always_run) continuing with degraded position monitoring. "
+                f"Exits will proceed based on database state only."
+            )
+
         try:
             position_recs = executor.get_phase_data_required(3, "recommendations")
         except MissingPhaseDataError as e:
@@ -1244,6 +1256,15 @@ class Orchestrator:
             )
 
         # Try to get Phase 5 data (exposure actions)
+        # Note: Phase 6 always runs even if Phase 5 failed, but we must log degradation
+        phase5_result = executor.get_result(5)
+        if phase5_result and phase5_result.halted:
+            logger.warning(
+                f"[PHASE 6] Phase 5 halted: {phase5_result.error or 'unknown reason'}. "
+                f"Phase 6 (always_run) continuing with position-monitor-only exits. "
+                f"Exposure policy enforcement may be degraded."
+            )
+
         try:
             exposure_actions = executor.get_phase_data_required(5, "actions")
         except MissingPhaseDataError as e:
@@ -1268,7 +1289,7 @@ class Orchestrator:
     def _executor_phase_7(self, executor: Any = None, **kwargs: Any) -> Any:
         """Executor wrapper for Phase 7: Signal Generation.
 
-        PHASE DEPENDENCY FIX: Fetches validated data from Phase 5.
+        PHASE DEPENDENCY FIX: Fetches validated data from Phase 5 with halt checking.
         """
         if not executor:
             raise RuntimeError(
@@ -1276,6 +1297,29 @@ class Orchestrator:
                 "Cannot execute signal generation without validated market exposure constraints. "
                 "This should never happen - check phase_executor.py initialization."
             )
+
+        # CRITICAL FIX: Check if Phase 5 was halted/failed before extracting data
+        phase5_result = executor.get_result(5)
+        if phase5_result is None:
+            error_msg = "[PHASE 7] Phase 5 (Exposure Policy) never executed - dependency chain broken"
+            logger.critical(error_msg)
+            self.log_phase_result(7, "signal_generation", "halt", error_msg)
+            from algo.orchestrator.phase_result import PhaseResult
+            return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg)
+
+        if phase5_result.halted:
+            error_msg = f"[PHASE 7] Phase 5 halted: {phase5_result.error or 'unknown reason'}"
+            logger.critical(error_msg)
+            self.log_phase_result(7, "signal_generation", "halt", error_msg)
+            from algo.orchestrator.phase_result import PhaseResult
+            return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg)
+
+        if not phase5_result.ok:
+            error_msg = f"[PHASE 7] Phase 5 failed: status={phase5_result.status}, error={phase5_result.error}"
+            logger.critical(error_msg)
+            self.log_phase_result(7, "signal_generation", "halt", error_msg)
+            from algo.orchestrator.phase_result import PhaseResult
+            return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg)
 
         exposure_constraints = executor.get_phase_data_required(5, "constraints")
 

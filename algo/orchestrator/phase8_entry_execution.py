@@ -383,6 +383,28 @@ def run(
     # EXPLICIT DEPENDENCY RESOLUTION: Use executor if available (preferred pattern)
     if executor is not None:
         try:
+            # CRITICAL FIX: Check if Phase 7 was halted/failed before extracting data
+            # Phase 7 may return empty qualified_trades legitimately OR due to halt
+            # We must distinguish these cases to avoid silent cascade failures
+            phase7_result = executor.get_result(7)
+            if phase7_result is None:
+                msg = "[PHASE 8 DEPENDENCY FAILURE] Phase 7 never executed - dependency chain broken"
+                logger.critical(msg)
+                log_phase_result_fn(8, "entry_execution", "halt", msg)
+                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+
+            if phase7_result.halted:
+                msg = f"[PHASE 8 DEPENDENCY FAILURE] Phase 7 halted: {phase7_result.error or 'unknown reason'}"
+                logger.critical(msg)
+                log_phase_result_fn(8, "entry_execution", "halt", msg)
+                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+
+            if not phase7_result.ok:
+                msg = f"[PHASE 8 DEPENDENCY FAILURE] Phase 7 failed: status={phase7_result.status}, error={phase7_result.error}"
+                logger.critical(msg)
+                log_phase_result_fn(8, "entry_execution", "halt", msg)
+                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+
             qualified_trades = executor.get_phase_data_required(7, "qualified_trades")
             exposure_constraints = executor.get_phase_data_required(5, "constraints")
             logger.info("[PHASE 8 CONTRACTS] [OK] Retrieved validated data from Phase 7 & 5")

@@ -295,7 +295,7 @@ def run(  # noqa: C901
             if max_date is None:
                 logger.critical("[PHASE 1] price_daily table is empty")
                 log_phase_result_fn(1, "price_data", "halt", "price_daily table is empty")
-                return PhaseResult(1, "price_data", "halted", {}, True, "price_daily table is empty")
+                return PhaseResult(1, "price_data", "halted", {"status": "halted", "reason": "price_daily table is empty - no pricing data available"}, True, "price_daily table is empty")
 
             # CRITICAL FIX: Ensure max_date is a date object, not datetime
             # PostgreSQL date columns can return datetime.datetime from some drivers
@@ -943,4 +943,4 @@ def run(  # noqa: C901
         error_summary = f"{exception_type}: {exception_msg}"[:200]
         logger.error(f"[PHASE 1] ERROR: {error_summary}", exc_info=True)
         log_phase_result_fn(1, "error", "error", error_summary)
-        return PhaseResult(1, "error", "error", {}, True, error_summary)
+        return PhaseResult(1, "error", "error", {"status": "error", "reason": f"Phase 1 failed: {error_summary}"}, True, error_summary)

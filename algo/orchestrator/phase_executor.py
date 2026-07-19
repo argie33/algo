@@ -242,11 +242,15 @@ class OrchestratorPhaseExecutor:
         if not phase.always_run and phase.skip_if_halted:
             if self.halt_check_fn():
                 logger.info(f"Phase {phase_num} ({phase.phase_name}) skipped due to halt flag")
+                skip_data = self._get_default_skip_data(phase_num)
+                # CRITICAL: Ensure skip data always includes status field for clarity
+                if "status" not in skip_data:
+                    skip_data["status"] = "halted"
                 result = PhaseResult(
                     phase_num=phase_num,
                     phase_name=phase.phase_name,
                     status="skipped",
-                    data=self._get_default_skip_data(phase_num),
+                    data=skip_data,
                     halted=True,
                     dependencies=phase.dependencies,
                 )

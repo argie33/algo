@@ -838,7 +838,7 @@ def run(  # noqa: C901
 
                     # Broker unavailable - can't reconcile positions, so report error
                     log_phase_result_fn(9, "reconciliation", "error", f"Broker unavailable - reconciliation not performed in {execution_mode} mode")
-                    return PhaseResult(9, "reconciliation", "error", {}, False, f"Broker API unavailable in {execution_mode} mode")
+                    return PhaseResult(9, "reconciliation", "error", {"status": "error", "reason": f"Broker API unavailable in {execution_mode} mode", "positions": 0}, False, f"Broker API unavailable in {execution_mode} mode")
                 else:
                     # Live trading requires credentials
                     raise RuntimeError(f"[PHASE 9 CRITICAL] Live trading requires Alpaca credentials: {e}") from e
@@ -1104,4 +1104,4 @@ def run(  # noqa: C901
         # CRITICAL: Include full traceback in summary so it persists to execution log
         error_summary = f"{error_type}: {error_msg[:100]}\n{full_traceback[:500]}"
         log_phase_result_fn(9, "reconciliation", "error", error_summary)
-        return PhaseResult(9, "reconciliation", "error", {}, True, f"Phase 9 error ({error_type}): {error_msg[:100]}")
+        return PhaseResult(9, "reconciliation", "error", {"status": "error", "reason": f"Phase 9 error ({error_type}): {error_msg[:100]}", "positions": 0}, True, f"Phase 9 error ({error_type}): {error_msg[:100]}")
