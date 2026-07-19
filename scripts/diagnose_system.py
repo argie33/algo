@@ -70,8 +70,12 @@ def check_database():
             for table in tables:
                 try:
                     cur.execute(f"SELECT COUNT(*) FROM {table}")
-                    count = cur.fetchone()[0]
-                    print(f"  {table:35} {count:10,}")
+                    result = cur.fetchone()
+                    if not result:
+                        print(f"  {table:35} ERROR: Query returned no results")
+                    else:
+                        count = result[0]
+                        print(f"  {table:35} {count:10,}")
                 except Exception as e:
                     print(f"  {table:35} ERROR: {str(e)[:40]}")
 

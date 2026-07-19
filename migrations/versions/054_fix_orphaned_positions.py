@@ -45,7 +45,8 @@ def up():
                             "SELECT COUNT(*) FROM algo_trades WHERE trade_id = %s",
                             (trade_id,)
                         )
-                        if cur.fetchone()[0] == 0:
+                        result = cur.fetchone()
+                        if result and result[0] == 0:
                             orphaned_trade_ids.add(trade_id)
 
             if orphaned_trade_ids:

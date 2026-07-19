@@ -27,7 +27,8 @@ def main():
         # 1. Delete future-dated rows from market_exposure_daily
         print("\n1. Cleaning up future-dated rows in market_exposure_daily...")
         cur.execute("SELECT COUNT(*) FROM market_exposure_daily WHERE date > %s", (today,))
-        future_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        future_count = result[0] if result else 0
 
         if future_count > 0:
             cur.execute("DELETE FROM market_exposure_daily WHERE date > %s", (today,))
@@ -37,7 +38,8 @@ def main():
 
         # Also clean market_health_daily if needed
         cur.execute("SELECT COUNT(*) FROM market_health_daily WHERE date > %s", (today,))
-        health_future_count = cur.fetchone()[0]
+        result = cur.fetchone()
+        health_future_count = result[0] if result else 0
 
         if health_future_count > 0:
             cur.execute("DELETE FROM market_health_daily WHERE date > %s", (today,))

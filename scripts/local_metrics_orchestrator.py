@@ -105,12 +105,18 @@ def check_data_coverage() -> dict[str, float]:
 
         # Get total stock count
         cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE symbol IS NOT NULL")
-        total = cur.fetchone()[0]
+        total_result = cur.fetchone()
+        if not total_result:
+            raise RuntimeError("Failed to query stock_symbols count")
+        total = total_result[0]
 
         coverage = {}
         for table in MIN_COVERAGE.keys():
             cur.execute(f"SELECT COUNT(DISTINCT symbol) FROM {table} WHERE symbol IS NOT NULL")
-            count = cur.fetchone()[0]
+            count_result = cur.fetchone()
+            if not count_result:
+                raise RuntimeError(f"Failed to query {table} count")
+            count = count_result[0]
             pct = (count / total * 100) if total > 0 else 0
             coverage[table] = pct
 

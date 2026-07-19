@@ -39,8 +39,12 @@ try:
 
         # Verify
         cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
-        count = cur.fetchone()[0]
-        print(f"Total open positions in database: {count}")
+        result = cur.fetchone()
+        if not result:
+            print("ERROR: Failed to query position count")
+        else:
+            count = result[0]
+            print(f"Total open positions in database: {count}")
 
 except Exception as e:
     print(f"Error: {e}")

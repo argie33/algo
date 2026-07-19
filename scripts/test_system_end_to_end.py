@@ -81,7 +81,12 @@ def test_database():
         all_ok = True
         for table in tables:
             cur.execute(f"SELECT COUNT(*) FROM {table}")
-            count = cur.fetchone()[0]
+            result = cur.fetchone()
+            if not result:
+                logger.error(f"  ✗ {table}: query failed")
+                all_ok = False
+                continue
+            count = result[0]
             if count > 0:
                 logger.info(f"  ✓ {table}: {count:,} rows")
             else:

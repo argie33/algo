@@ -48,8 +48,12 @@ def check_data_freshness() -> dict:
         for table, query in tables.items():
             try:
                 cur.execute(query)
-                count = cur.fetchone()[0]
-                results[table] = count
+                result = cur.fetchone()
+                if not result:
+                    results[table] = "ERROR: Query returned no results"
+                else:
+                    count = result[0]
+                    results[table] = count
             except Exception as e:
                 results[table] = f"ERROR: {e}"
 

@@ -241,8 +241,12 @@ def apply_migrations():
         )
         cur = conn.cursor()
         cur.execute("SELECT current_database()")
-        db_name = cur.fetchone()[0]
-        print(f"   Connected to: {db_name}")
+        result = cur.fetchone()
+        if not result:
+            print("   ERROR: Failed to query current database")
+        else:
+            db_name = result[0]
+            print(f"   Connected to: {db_name}")
     except Exception as e:
         print(f"   ERROR: Failed to connect to RDS: {e}")
         print("\n   NOTE: RDS is in a private VPC. Connect via:")
