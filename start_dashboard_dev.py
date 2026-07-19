@@ -34,7 +34,11 @@ def is_port_open(port: int, timeout: float = 1.0) -> bool:
         result = sock.connect_ex(("127.0.0.1", port))
         sock.close()
         return result == 0
-    except Exception:
+    except Exception as e:
+        logger.warning(
+            f"[PORT_CHECK] Port check failed for 127.0.0.1:{port}: "
+            f"{type(e).__name__}: {e}. Assuming port is unavailable."
+        )
         return False
 
 
@@ -63,10 +67,17 @@ def cleanup_orphaned_dev_servers() -> None:
                 capture_output=True,
                 timeout=5,
             )
-        time.sleep(1)  # Give port time to be released
-    except Exception:
-        # Silently fail - not critical if cleanup doesn't work
-        pass
+        time.sleep(1)
+    except subprocess.TimeoutExpired as e:
+        logger.warning(
+            f"[STARTUP] Dev server cleanup timed out: {type(e).__name__}: {e}. "
+            "Port may still be in use by orphaned process."
+        )
+    except Exception as e:
+        logger.warning(
+            f"[STARTUP] Dev server cleanup failed: {type(e).__name__}: {e}. "
+            "Proceeding despite cleanup failure - port may conflict if orphaned process still running."
+        )
 
 
 def check_stock_scores_completeness() -> float:

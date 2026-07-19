@@ -110,11 +110,31 @@ class TradeExecutor:
             alpaca_creds = get_alpaca_credentials()
             self.alpaca_key = alpaca_creds.get("key")
             self.alpaca_secret = alpaca_creds.get("secret")
-        except ValueError:
-            # Credentials not found - if in paper mode, this is OK
-            if self.execution_mode != "paper" and self.execution_mode != "auto":
+        except ValueError as e:
+            logger.debug(f"[EXECUTOR] Alpaca credentials not found (ValueError): {e}")
+            if self.execution_mode not in ("paper", "auto"):
+                logger.critical(
+                    f"[EXECUTOR_INIT] Non-paper mode requires Alpaca credentials, but got ValueError: {e}"
+                )
                 raise
             logger.warning("[EXECUTOR] Alpaca credentials not found - paper trading mode without live broker")
+        except (TypeError, AttributeError, KeyError) as e:
+            logger.error(
+                f"[EXECUTOR] Failed to extract credentials from manager response: "
+                f"{type(e).__name__}: {e}. Response structure may be invalid."
+            )
+            if self.execution_mode not in ("paper", "auto"):
+                raise ValueError(
+                    f"Credential manager returned invalid structure: {type(e).__name__}: {e}"
+                ) from e
+            logger.warning("[EXECUTOR] Credential structure invalid - paper trading mode without live broker")
+        except Exception as e:
+            logger.exception(
+                f"[EXECUTOR] Unexpected error during credential retrieval: {type(e).__name__}: {e}"
+            )
+            if self.execution_mode not in ("paper", "auto"):
+                raise
+            logger.warning("[EXECUTOR] Credential retrieval failed - paper trading mode without live broker")
 
         # Use strategy pattern to resolve correct endpoint based on execution mode
         configured_url = os.getenv("APCA_API_BASE_URL")
