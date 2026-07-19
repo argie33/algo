@@ -62,6 +62,52 @@ THRESHOLDS = {
         "stale": 1440,  # 24 hours
         "critical": 2880,  # 48 hours
     },
+    "growth_metrics": {
+        "fresh": 240,
+        "stale": 480,
+        "critical": 1440,
+    },
+    "quality_metrics": {
+        "fresh": 240,
+        "stale": 480,
+        "critical": 1440,
+    },
+    "value_metrics": {
+        "fresh": 240,
+        "stale": 480,
+        "critical": 1440,
+    },
+    "algo_trades": {
+        "fresh": 1440,
+        "stale": 2880,
+        "critical": 5760,
+    },
+    "algo_positions": {
+        "fresh": 480,
+        "stale": 1440,
+        "critical": 2880,
+    },
+    "algo_reconciliation_log": {
+        "fresh": 480,
+        "stale": 1440,
+        "critical": 2880,
+    },
+    "industry_ranking": {
+        "fresh": 1440,
+        "stale": 5040,
+        "critical": 10080,
+    },
+    "sector_rotation_signal": {
+        "fresh": 1440,
+        "stale": 5040,
+        "critical": 10080,
+    },
+    "trend_template_data": {
+        "fresh": 1440,
+        "stale": 5040,
+        "critical": 10080,
+    }
+}
 }
 
 
@@ -83,6 +129,15 @@ def get_table_age_minutes(table_name: str) -> float | None:
                 "stock_scores": "updated_at",
                 "market_exposure_daily": "date",
                 "algo_signals": "signal_date",
+                "growth_metrics": "created_at",
+                "quality_metrics": "created_at",
+                "value_metrics": "created_at",
+                "algo_trades": "signal_date",
+                "algo_positions": "updated_at",
+                "algo_reconciliation_log": "reconciliation_date",
+                "industry_ranking": "date_recorded",
+                "sector_rotation_signal": "date",
+                "trend_template_data": "date",
             }
 
             if table_name not in timestamp_cols:
