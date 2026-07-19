@@ -108,7 +108,6 @@ THRESHOLDS = {
         "critical": 10080,
     }
 }
-}
 
 
 def get_table_age_minutes(table_name: str) -> float | None:
