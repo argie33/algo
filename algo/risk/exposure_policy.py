@@ -139,8 +139,11 @@ class ExposurePolicy:
 
         try:
             with DatabaseContext("read") as cur:
+                # GOVERNANCE: Check data_unavailable flag before using market exposure data
+                # If marked unavailable, caller must not proceed with position management
                 cur.execute(
-                    """SELECT date, exposure_pct, regime, halt_reasons FROM market_exposure_daily
+                    """SELECT date, exposure_pct, regime, halt_reasons, data_unavailable, reason
+                       FROM market_exposure_daily
                        WHERE date <= %s ORDER BY date DESC LIMIT 1""",
                     (eval_date,),
                 )
@@ -150,13 +153,20 @@ class ExposurePolicy:
                         f"CRITICAL: No market exposure data available for {eval_date}. "
                         "Phase 4 must compute daily market exposure. Cannot apply entry/exit policies without it."
                     )
-                exposure = float(row[1])
+                # GOVERNANCE ENFORCEMENT: Fail-fast if data marked unavailable
+                date_val, exposure_pct, regime, halt_reasons, data_unavailable, reason = row
+                if data_unavailable is True:
+                    raise RuntimeError(
+                        f"CRITICAL: Market exposure data marked unavailable for {date_val}: {reason or 'no reason provided'}. "
+                        "Cannot apply position policies without valid market exposure assessment."
+                    )
+                exposure = float(exposure_pct)
                 tier = tier_for_exposure(exposure)
                 return {
-                    "as_of_date": row[0].isoformat(),
+                    "as_of_date": date_val.isoformat(),
                     "exposure_pct": exposure,
-                    "regime": row[2],
-                    "halt_reasons": row[3],
+                    "regime": regime,
+                    "halt_reasons": halt_reasons,
                     "tier": tier,
                 }
         except RuntimeError:
