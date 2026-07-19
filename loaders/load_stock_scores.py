@@ -383,9 +383,9 @@ class StockScoresLoader(OptimalLoader):
 
             # Count data completeness: only float scores count as "real data"
             # Markers (dicts with data_unavailable=True) are excluded from count
-            # CRITICAL FIX 2026-07-18: Momentum loader currently broken (0% coverage), so exclude
-            # it from completeness calculation to avoid halting all scoring. This is temporary
-            # until momentum loader is fixed. Momentum still calculated, just not required.
+            # Session 260: Momentum loader now fixed and included in completeness calculation
+            # All 6 metrics are evaluated: quality, growth, value, positioning, stability, momentum
+            # Minimum 70% completeness (4.2/6 metrics) required per GOVERNANCE.md
             all_scores = {
                 "quality": quality_score,
                 "growth": growth_score,
@@ -415,28 +415,29 @@ class StockScoresLoader(OptimalLoader):
             # CRITICAL FIX 2026-07-18: Momentum now works (reads from momentum_metrics), restored 6-metric calculation
             data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
-            # TEMPORARY (Session 254): Lowered threshold from 70% to 50% due to upstream failures.
-            # Value and positioning metrics not available, so threshold needs to account for 4-metric baseline.
-            # Will restore to 70% once upstream loaders fixed (Session 254 TODO).
-            # Stocks with <50% completeness must be marked data_unavailable to prevent trading on degraded signals.
-            if data_completeness < 50.0:
+            # Session 260: Restored to 70% completeness requirement per GOVERNANCE.md.
+            # This ensures sufficient metric diversity to prevent single-metric bias in position sizing.
+            # Stocks with <70% completeness must be marked data_unavailable to prevent trading on degraded signals.
+            # If this threshold causes insufficient universe coverage, investigate upstream metric loader failures
+            # rather than lowering threshold (which corrupts trading signals).
+            if data_completeness < 70.0:
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: Score rejected for insufficient completeness. "
                     f"Completeness: {data_completeness:.2f}% ({data_count}/6 metrics). "
-                    f"Minimum 50% completeness (3/6 metrics) required for signal reliability. "
+                    f"Minimum 70% completeness (4.2/6 metrics) required for signal reliability. "
                     f"Available metrics: {', '.join(f'{k}={round(100 * int(is_real_score(all_scores[k])) / 6, 0)}%' for k in all_scores.keys())}. "
                     f"Marking as data_unavailable to protect trading signals from degraded data."
                 )
 
-            # CRITICAL: Enforce minimum 3/5 metrics (momentum currently broken, not required)
+            # CRITICAL: Enforce minimum 4/6 metrics per GOVERNANCE.md
             # Stock scores require sufficient metric diversity to prevent single-metric bias
             # (e.g., pure value without growth/quality check).
-            # With fewer than 3 metrics, position sizing becomes unreliable:
-            # - 1 metric: may favor one factor (value or stability) over balanced approach
-            # - 2 metrics: missing critical dimension (growth/quality check)
-            # - 3+ metrics: balanced evaluation across multiple dimensions
-            # TODO: Restore to 4/6 when momentum loader fixed
-            min_required_metrics = 3
+            # With fewer than 4 metrics, position sizing becomes unreliable:
+            # - 1-2 metrics: extreme bias (may favor one factor without balance)
+            # - 3 metrics: insufficient diversity (missing critical dimension)
+            # - 4+ metrics: balanced evaluation across multiple dimensions
+            # Momentum now available from momentum_metrics loader (Session 260)
+            min_required_metrics = 4
 
             if data_count < min_required_metrics:
                 raise RuntimeError(

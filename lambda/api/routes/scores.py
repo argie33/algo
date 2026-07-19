@@ -109,11 +109,11 @@ def _get_stock_scores(
 
         # ETF FILTERING (GOVERNANCE compliance): Stock scores are for equity trading signals.
         # Exclude ETFs per GOVERNANCE.md: "financial data loaders and trading signals are stocks only".
-        # Two-condition AND for robustness: (1) etf_symbols table (definitive source), (2) etf flag.
+        # Use etf_symbols table (definitive source). Note: ss.etf column does not exist in stock_scores.
         # This pattern is mirrored in /api/market/breadth and Phase 7 signal generation.
         where_clause = """
             WHERE sc.composite_score > 0
-            AND (ss.symbol NOT IN (SELECT symbol FROM etf_symbols) AND (ss.etf IS NULL OR ss.etf = 'N'))
+            AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
             """
         params_list: list[Any] = []
 

@@ -322,8 +322,8 @@ def _handle_top_movers(cur: cursor) -> Any:
             FROM today t
             INNER JOIN yesterday y ON t.symbol = y.symbol
             LEFT JOIN stock_symbols ss ON t.symbol = ss.symbol
-                                          AND (ss.etf IS NULL OR ss.etf != 'Y')
-            ORDER BY ABS(t.close - y.close) / y.close DESC
+            WHERE t.symbol NOT IN (SELECT symbol FROM etf_symbols)
+            ORDER BY ABS((t.close - y.close) / y.close) DESC
             LIMIT 40
         """)
         movers = cur.fetchall()
@@ -1260,8 +1260,7 @@ def _get_cap_distribution(cur: cursor) -> Any:
         FROM stock_symbols ss
         JOIN company_profile cp ON ss.symbol = cp.ticker AND cp.sector IS NOT NULL
         JOIN key_metrics km ON ss.symbol = km.symbol AND km.market_cap > 0
-        WHERE COALESCE(ss.etf, 'N') != 'Y'
-              AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
+        WHERE ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
         ORDER BY km.market_cap DESC
         LIMIT 10000
     """)

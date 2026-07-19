@@ -345,7 +345,7 @@ def handle(  # noqa: C901
         search = extract_param(params, "search")
         sector = extract_param(params, "sector")
 
-        where_clauses = ["ss.symbol NOT LIKE '^%'", "COALESCE(ss.etf, 'N') != 'Y'"]
+        where_clauses = ["ss.symbol NOT LIKE '^%'", "ss.symbol NOT IN (SELECT symbol FROM etf_symbols)"]
         query_params = []
 
         if search:
