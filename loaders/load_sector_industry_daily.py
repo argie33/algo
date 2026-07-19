@@ -105,6 +105,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
             List of consolidated metric dicts (returns row counts for success validation)
         """
         if symbol != "market":
+            # No work to do: this loader only processes market-wide metrics, not individual symbols
             return []
 
         row_counts = {"sector_performance": 0, "sector_ranking": 0, "industry_ranking": 0}

@@ -58,8 +58,27 @@ def _loader_name_from_family(family: str) -> str:
 def _get_configured_timeout(task_def_arn: str) -> int:
     """Read the LOADER_TIMEOUT env var from the task's own task definition."""
     task_def = ecs.describe_task_definition(taskDefinition=task_def_arn)["taskDefinition"]
-    for container in task_def.get("containerDefinitions", []):
-        for env in container.get("environment", []):
+
+    # FAIL-FAST: Task definition must include containerDefinitions
+    # Missing key indicates API error or corrupted task definition - timeout guardian cannot proceed
+    if "containerDefinitions" not in task_def:
+        raise RuntimeError(
+            f"[CRITICAL] Task definition {task_def_arn} malformed: missing 'containerDefinitions'. "
+            f"Cannot extract LOADER_TIMEOUT configuration. Loader timeout guardian disabled. "
+            f"Task definition keys: {list(task_def.keys())}"
+        )
+
+    for container in task_def["containerDefinitions"]:
+        # FAIL-FAST: Container must have environment list (even if empty)
+        # Missing key indicates corrupted task definition
+        if "environment" not in container:
+            logger.error(
+                f"[LOADER_TIMEOUT] Container in {task_def_arn} missing 'environment' key. "
+                f"Container keys: {list(container.keys())}"
+            )
+            continue
+
+        for env in container["environment"]:
             if env.get("name") == "LOADER_TIMEOUT":
                 try:
                     return int(env["value"])
@@ -71,8 +90,31 @@ def _get_configured_timeout(task_def_arn: str) -> int:
 def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     """Stop ECS loader tasks that have exceeded their own configured timeout."""
     cluster = _cluster_name()
-    task_arns = ecs.list_tasks(cluster=cluster, desiredStatus="RUNNING").get("taskArns", [])
-    tasks = ecs.describe_tasks(cluster=cluster, tasks=task_arns).get("tasks", []) if task_arns else []
+
+    # FAIL-FAST: ECS list_tasks response must include taskArns key
+    list_response = ecs.list_tasks(cluster=cluster, desiredStatus="RUNNING")
+    if "taskArns" not in list_response:
+        raise RuntimeError(
+            f"[CRITICAL] ECS list_tasks response malformed: missing 'taskArns' key. "
+            f"Timeout guardian cannot evaluate cluster tasks. "
+            f"Response keys: {list(list_response.keys())}"
+        )
+    task_arns = list_response["taskArns"]
+
+    # Fetch task details if tasks are running
+    if not task_arns:
+        logger.info(f"No running loader tasks in cluster {cluster}")
+        return {"statusCode": 200, "message": "No tasks to monitor", "killed": []}
+
+    # FAIL-FAST: ECS describe_tasks response must include tasks key
+    describe_response = ecs.describe_tasks(cluster=cluster, tasks=task_arns)
+    if "tasks" not in describe_response:
+        raise RuntimeError(
+            f"[CRITICAL] ECS describe_tasks response malformed: missing 'tasks' key. "
+            f"Timeout guardian cannot get task details. "
+            f"Response keys: {list(describe_response.keys())}"
+        )
+    tasks = describe_response["tasks"]
 
     now = datetime.now(timezone.utc)
     killed = []

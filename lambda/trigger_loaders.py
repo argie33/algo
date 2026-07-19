@@ -54,7 +54,19 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             },
         )
 
-        tasks = response.get("tasks", [])
+        # FAIL-FAST: ECS run_task response must include both 'tasks' and 'failures' keys
+        # Missing keys indicate API error - data pipeline initialization must not silently fail
+        if "tasks" not in response or "failures" not in response:
+            raise RuntimeError(
+                f"[CRITICAL] ECS run_task response malformed. "
+                f"Missing required keys: {[k for k in ['tasks', 'failures'] if k not in response]}. "
+                f"Response keys: {list(response.keys())}. "
+                f"Loader {loader_name} failed to initialize."
+            )
+
+        tasks = response["tasks"]
+        failures = response["failures"]
+
         if tasks:
             task_arns = [task["taskArn"] for task in tasks]
             logger.info(f"[TRIGGER] Started {len(task_arns)} ECS task(s): {task_arns}")
@@ -69,7 +81,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "body": json.dumps(body),
             }
         else:
-            failures = response.get("failures", [])
             logger.error(f"[TRIGGER] Failed to start task: {failures}")
             body = {
                 "statusCode": 500,

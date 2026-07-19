@@ -259,6 +259,7 @@ class MarketSymbolsConfig:
             RuntimeError: If database unavailable or query fails (fail-fast principle)
         """
         if not symbols:
+            # No work to do: empty input list returns empty output (not an error)
             return []
 
         try:

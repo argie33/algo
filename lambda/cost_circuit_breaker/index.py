@@ -87,8 +87,24 @@ def get_daily_costs() -> dict:
         total_cost = 0.0
         service_breakdown = {}
 
-        for result in response.get("ResultsByTime", []):
-            for group in result.get("Groups", []):
+        # FAIL-FAST: CloudWatch response must include ResultsByTime (even if empty)
+        # Missing key indicates API error - cost monitoring must not silently fail
+        if "ResultsByTime" not in response:
+            raise RuntimeError(
+                f"[CRITICAL] CloudWatch Cost Explorer response malformed: missing 'ResultsByTime' key. "
+                f"Cost monitoring unavailable. Response keys: {list(response.keys())}"
+            )
+
+        for result in response["ResultsByTime"]:
+            # FAIL-FAST: Each result must have Groups key
+            if "Groups" not in result:
+                logger.error(
+                    f"[COST_MONITOR] CloudWatch result missing 'Groups' key - skipping. "
+                    f"Keys present: {list(result.keys())}"
+                )
+                continue
+
+            for group in result["Groups"]:
                 service = group["Keys"][0]
                 cost = float(group["Metrics"]["UnblendedCost"]["Amount"])
                 service_breakdown[service] = cost
@@ -119,7 +135,19 @@ def disable_scheduler_rules() -> list:
 
         paginator = scheduler_client.get_paginator("list_schedules")
         for page in paginator.paginate():
-            for schedule in page.get("Schedules", []):
+            # FAIL-FAST: EventBridge paginator response must include Schedules key
+            # Missing key indicates API error - cost control must not silently proceed
+            if "Schedules" not in page:
+                logger.error(
+                    f"[COST_CONTROL] EventBridge list_schedules response malformed: missing 'Schedules' key. "
+                    f"Cost circuit breaker cannot suspend loaders/orchestrator. "
+                    f"Page keys: {list(page.keys())}"
+                )
+                raise RuntimeError(
+                    "[CRITICAL] EventBridge API response incomplete - cannot suspend schedules for cost control"
+                )
+
+            for schedule in page["Schedules"]:
                 schedule_name = schedule["Name"]
 
                 if PROJECT_NAME not in schedule_name:
@@ -160,7 +188,16 @@ def suspend_ecs_tasks() -> dict:
         stopped_tasks = []
 
         list_response = ecs_client.list_tasks(cluster=ECS_CLUSTER_NAME)
-        task_arns = list_response.get("taskArns", [])
+
+        # FAIL-FAST: ECS response must include taskArns key
+        # Missing key indicates API error - cost control requires this data
+        if "taskArns" not in list_response:
+            raise RuntimeError(
+                f"[CRITICAL] ECS list_tasks response malformed: missing 'taskArns' key. "
+                f"Cost circuit breaker cannot evaluate cluster health. "
+                f"Response keys: {list(list_response.keys())}"
+            )
+        task_arns = list_response["taskArns"]
 
         if not task_arns:
             logger.info(f"No ECS tasks running in cluster {ECS_CLUSTER_NAME}")

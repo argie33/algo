@@ -22,7 +22,16 @@ def lambda_handler(event, context):
     try:
         # Get all tasks
         tasks_resp = ecs.list_tasks(cluster=cluster)
-        task_arns = tasks_resp.get("taskArns", [])
+
+        # FAIL-FAST: ECS response must include taskArns key
+        # Missing key indicates API error - cost control cannot proceed silently
+        if "taskArns" not in tasks_resp:
+            raise RuntimeError(
+                f"[CRITICAL] ECS list_tasks response malformed: missing 'taskArns' key. "
+                f"Auto-stop unhealthy tasks unavailable. "
+                f"Response keys: {list(tasks_resp.keys())}"
+            )
+        task_arns = tasks_resp["taskArns"]
 
         if not task_arns:
             return {"statusCode": 200, "body": "No tasks running"}

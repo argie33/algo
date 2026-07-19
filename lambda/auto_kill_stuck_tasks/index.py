@@ -18,9 +18,19 @@ def get_unhealthy_tasks(cluster_name):
     """Get all unhealthy and stuck tasks in cluster."""
     try:
         response = ecs.list_tasks(cluster=cluster_name)
-        task_arns = response.get('taskArns', [])
+
+        # FAIL-FAST: ECS response must include 'taskArns' key (even if empty list)
+        # Missing key indicates API malformation or network error - don't silently continue
+        if 'taskArns' not in response:
+            raise RuntimeError(
+                f"[CRITICAL] ECS list_tasks response malformed: missing 'taskArns' key. "
+                f"This indicates API unavailability or response parsing error. "
+                f"Response keys: {list(response.keys())}"
+            )
+        task_arns = response['taskArns']
 
         if not task_arns:
+            # No work to do: no running tasks in cluster
             return []
 
         details = ecs.describe_tasks(cluster=cluster_name, tasks=task_arns)
