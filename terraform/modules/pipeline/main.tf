@@ -912,43 +912,6 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
 # FIXED Issue #32: Wire reference data loaders into Step Functions
 # Reference (9:15 AM ET): Runs early morning before prices load
 # Loads: earnings_calendar, earnings_history, company_profile, analyst data
-# CONSOLIDATED: All 7 tables (earnings, company, analyst sentiment/upgrades) now loaded from single
-# load_yfinance_derived_metrics.py loader which reads yfinance_snapshot once and writes to all 7 tables
-# No dependencies (reads from cache, can fail gracefully)
-# ============================================================
-
-resource "aws_sfn_state_machine" "reference_data_pipeline" {
-  name     = "${var.project_name}-reference-data-pipeline-${var.environment}"
-  role_arn = aws_iam_role.sfn_pipeline.arn
-  type     = "STANDARD"
-
-  logging_configuration {
-    log_destination        = "${aws_cloudwatch_log_group.sfn_pipeline.arn}:*"
-    include_execution_data = true
-    level                  = "ALL"
-  }
-
-  definition = jsonencode({
-    Comment = "Reference data pipeline (DEPRECATED: Phase 3 consolidation removed yfinance_derived_metrics - now using value_quality_growth_metrics in computed_metrics_pipeline)"
-    StartAt = "ReferenceDataSuccess"
-
-    States = {
-      # ── PHASE 3 CONSOLIDATION: Removed YfinanceDerivedMetrics ──
-      # REASON: Only 1 of 7 yfinance_derived_metrics outputs (value_metrics) was used; 6 tables were dead data
-      # REPLACEMENT: value_quality_growth_metrics now outputs value_metrics + quality_metrics + growth_metrics
-      # LOCATION: Moved to computed_metrics_pipeline (runs after FinancialDataLoaders, before PositioningMetrics)
-      # BENEFIT: -1 ECS task, -$0.01-0.02/run, 5-10 min faster EOD pipeline
-      # STATUS: Reference data pipeline now empty (graceful-open success state)
-
-      ReferenceDataSuccess = {
-        Type = "Succeed"
-      }
-    }
-  })
-
-  tags = var.common_tags
-}
-
 # ============================================================
 # Morning Prep Pipeline - Separate State Machine
 # FIXED Issue #5: Split morning and EOD pipelines to prevent signal double-generation
@@ -1857,31 +1820,9 @@ resource "aws_scheduler_schedule" "computed_metrics_pipeline_trigger" {
   }
 }
 
-resource "aws_scheduler_schedule" "reference_data_pipeline_trigger" {
-  name                         = "${var.project_name}-reference-data-pipeline-${var.environment}"
-  description                  = "Daily reference data: earnings calendar/history, company profile, analyst sentiment - 9:15 AM ET"
-  schedule_expression          = "cron(15 9 ? * MON-FRI *)"
-  schedule_expression_timezone = "America/New_York"
-  state                        = "ENABLED"
-
-  flexible_time_window {
-    mode = "OFF"
-  }
-
-  target {
-    arn      = aws_sfn_state_machine.reference_data_pipeline.arn
-    role_arn = var.eventbridge_scheduler_role_arn
-
-    input = jsonencode({
-      execution_name = "reference-<aws.scheduler.execution-id>"
-    })
-
-    retry_policy {
-      maximum_event_age_in_seconds = 3600
-      maximum_retry_attempts       = 2
-    }
-  }
-}
+# DEPRECATED PIPELINE REMOVED (Session 276): reference_data_pipeline was empty after Phase 3 consolidation
+# (yfinance_derived_metrics merged into computed_metrics_pipeline). The state machine and daily 9:15 AM
+# scheduler were wasting $0.01-0.02/day in Step Functions overhead with zero functionality.
 
 # FIXED: Force Terraform to re-create missing EOD scheduler (Session 157)
 resource "aws_scheduler_schedule" "eod_pipeline_trigger" {
