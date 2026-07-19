@@ -83,21 +83,24 @@ def test_orchestrator_fails_fast_if_lock_manager_unavailable():
             Orchestrator(config=mock_config)
 
 
-def test_loader_fallback_pattern_exists():
-    """Verify loaders can degrade gracefully to FileLockManager if DynamoDB unavailable.
+def test_loader_fail_fast_on_ddb_error():
+    """Verify loaders fail-fast when DynamoDB unavailable (Session 282).
 
-    Loaders are idempotent (multiple runs = same result), so they can use weaker locking.
-    This test verifies the fallback code pattern exists in optimal_loader.py.
+    Session 282 removed FileLockManager fallback because it has Windows race condition
+    (non-atomic file creation). Better to fail-fast and trigger infrastructure retry
+    than silently degrade to unsafe locking.
+
+    This test verifies optimal_loader.py properly raises LockAcquisitionError when
+    DynamoDB locking unavailable.
     """
-    # Just verify that optimal_loader.py has been updated with fallback handling
     import inspect
     from utils import optimal_loader
 
-    # Check that optimal_loader module has the DynamoDB fallback pattern
+    # Check that optimal_loader module fails-fast on DynamoDB errors
     source = inspect.getsource(optimal_loader)
-    assert "RuntimeError as ddb_err" in source  # Expects RuntimeError from get_lock_manager()
-    assert "FileLockManager" in source  # Has fallback to FileLockManager
-    assert "Falling back to file-based locking" in source  # Has logging message for fallback
+    assert "RuntimeError as ddb_err" in source  # Catches RuntimeError from get_lock_manager()
+    assert "LockAcquisitionError" in source  # Raises LockAcquisitionError (fail-fast)
+    assert "Cannot proceed without distributed locking" in source  # Clear error message
 
 
 if __name__ == "__main__":
