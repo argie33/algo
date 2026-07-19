@@ -98,17 +98,35 @@ class HaltFlagManager:
                         if now_et >= market_open_et:
                             logger.info(
                                 f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
-                                f"on {now_date_et} - auto-clearing"
+                                f"on {now_date_et} - auto-clearing with atomic condition"
                             )
-                            table.put_item(
-                                Item={
-                                    "key": self.HALT_FLAG_DYNAMODB_KEY,
-                                    "halt_flag": False,
-                                    "reason": "Auto-expired: halt flag from prior trading day after market open",
-                                    "reset_at": now_utc.isoformat(),
-                                }
-                            )
-                            return False
+                            # CRITICAL FIX: Use ConditionExpression to atomically check AND clear
+                            # Prevents race: if another orchestrator modified halt between our check and write,
+                            # DynamoDB will reject the write and we'll return True (halt active) on next check
+                            try:
+                                table.put_item(
+                                    Item={
+                                        "key": self.HALT_FLAG_DYNAMODB_KEY,
+                                        "halt_flag": False,
+                                        "reason": "Auto-expired: halt flag from prior trading day after market open",
+                                        "reset_at": now_utc.isoformat(),
+                                        "previous_triggered_at": triggered_at_str,  # Track what we cleared
+                                    },
+                                    # Atomic condition: Only clear if halt_flag is still True and triggered_at hasn't changed
+                                    ConditionExpression="halt_flag = :true AND triggered_at = :orig_time",
+                                    ExpressionAttributeValues={
+                                        ":true": True,
+                                        ":orig_time": triggered_at_str,
+                                    }
+                                )
+                                return False
+                            except Exception as cond_err:
+                                # Condition failed: another orchestrator modified halt between our check and write
+                                logger.warning(
+                                    f"[HALT_FLAG] Atomic clear condition failed (another instance modified halt): {cond_err}. "
+                                    f"Returning True (halt still active)."
+                                )
+                                return True
                         else:
                             logger.info(f"[HALT_FLAG] Halt from {trigger_date} still active before market open today")
                             return True
@@ -210,64 +228,66 @@ class HaltFlagManager:
             now_utc = datetime.now(timezone.utc)
             now_et = now_utc.astimezone(EASTERN_TZ)
 
-            halt_count = 1
-            halt_escalated = False
-            response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
-            if "Item" in response:
-                item = response["Item"]
-                if item.get("halt_flag") is True:
+            # CRITICAL FIX: Use atomic UpdateExpression to increment halt_count
+            # Prevents race: two concurrent halts both reading count=1 and writing count=2
+            # Instead: use DynamoDB ADD operation which is atomic
+            try:
+                # First, set up the halt with initial values if not exists
+                table.update_item(
+                    Key={"key": self.HALT_FLAG_DYNAMODB_KEY},
+                    UpdateExpression=(
+                        "SET halt_flag = :flag, "
+                        "triggered_at = if_not_exists(triggered_at, :now), "
+                        "reason = if_not_exists(reason, :reason), "
+                        "last_halt_at = :now "
+                        "ADD halt_count :inc"
+                    ),
+                    ExpressionAttributeValues={
+                        ":flag": True,
+                        ":now": now_utc.isoformat(),
+                        ":reason": reason or "Phase 1 degraded: stale data detected",
+                        ":inc": 1,
+                    }
+                )
+
+                # Now fetch to get the updated count and log escalation if needed
+                response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
+                if "Item" in response:
+                    item = response["Item"]
+                    halt_count = item.get("halt_count", 1)
                     first_trigger = item.get("triggered_at")
+
                     if first_trigger:
                         try:
                             first_dt = datetime.fromisoformat(first_trigger.replace("Z", "+00:00"))
                             first_et = first_dt.astimezone(EASTERN_TZ)
                             if first_et.date() == now_et.date():
-                                prev_halt_count = item.get("halt_count")
-                                if prev_halt_count is None:
-                                    raise RuntimeError(
-                                        "[HALT_FLAG_ESCALATION CRITICAL] Previous halt count is NULL. "
-                                        "Cannot properly escalate repeated daily halts without halt counter. "
-                                        "DynamoDB halt_flag record corrupted."
-                                    )
-                                halt_count = prev_halt_count + 1
-                                halt_escalated = True
-                            logger.critical(
-                                f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
-                                f"Halt #{halt_count} in same day. "
-                                f"First at {first_et.strftime('%H:%M ET')}, now at {now_et.strftime('%H:%M ET')}. "
-                                f"Reason: {reason[:100]}"
-                            )
-                            if halt_count >= 2:
-                                try:
-                                    self.alerts.send_position_alert(
-                                        "HALT_ESCALATION",
-                                        f"HALT_REPEAT_{halt_count}",
-                                        f"Halt flag triggered {halt_count} times on {now_et.date()}. "
-                                        "Repeated data quality issues. Manual investigation required.",
-                                        {
-                                            "halt_count": halt_count,
-                                            "first_at": first_trigger,
-                                            "latest_reason": reason[:100],
-                                        },
-                                    )
-                                except (
-                                    ValueError,
-                                    ZeroDivisionError,
-                                    TypeError,
-                                ) as alert_err:
-                                    logger.warning(f"Could not send escalation alert: {alert_err}")
+                                logger.critical(
+                                    f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
+                                    f"Halt #{halt_count} in same day. "
+                                    f"First at {first_et.strftime('%H:%M ET')}, now at {now_et.strftime('%H:%M ET')}. "
+                                    f"Reason: {reason[:100]}"
+                                )
+                                if halt_count >= 2:
+                                    try:
+                                        self.alerts.send_position_alert(
+                                            "HALT_ESCALATION",
+                                            f"HALT_REPEAT_{halt_count}",
+                                            f"Halt flag triggered {halt_count} times on {now_et.date()}. "
+                                            "Repeated data quality issues. Manual investigation required.",
+                                            {
+                                                "halt_count": halt_count,
+                                                "first_at": first_trigger,
+                                                "latest_reason": reason[:100],
+                                            },
+                                        )
+                                    except (ValueError, ZeroDivisionError, TypeError) as alert_err:
+                                        logger.warning(f"Could not send escalation alert: {alert_err}")
                         except (ValueError, KeyError) as escalation_err:
-                            logger.warning(f"Could not check halt escalation: {escalation_err}")
-
-            table.put_item(
-                Item={
-                    "key": self.HALT_FLAG_DYNAMODB_KEY,
-                    "halt_flag": True,
-                    "triggered_at": now_utc.isoformat(),
-                    "reason": reason or "Phase 1 degraded: stale data detected",
-                    "halt_count": halt_count,
-                }
-            )
+                            logger.warning(f"Could not parse halt escalation: {escalation_err}")
+            except Exception as update_err:
+                logger.error(f"Failed to atomically update halt count: {update_err}")
+                raise
 
             if halt_escalated and halt_count >= 2:
                 logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")

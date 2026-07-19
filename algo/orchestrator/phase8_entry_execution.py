@@ -649,32 +649,70 @@ def run(
     liquidity = LiquidityChecks(config=config)
 
     # Fetch portfolio value once - avoids one Alpaca API call per symbol
-    # For paper mode, use configured capital if Alpaca API unavailable
+    # CRITICAL FIX: Use database snapshot for atomic value, not live Alpaca fetch
+    # Prevents: stale value being used for position sizing if API times out and fallback activates
     execution_mode = config.get("execution_mode", "paper")
+    portfolio_value = None
+    portfolio_value_source = None
+
+    # Primary: Try database snapshot (atomic, consistent across all trades)
     try:
-        portfolio_value = sizer.get_portfolio_value()
-        logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from Alpaca API)")
-    except RuntimeError as e:
-        if execution_mode in ("paper", "auto"):
-            initial_capital = config.get("initial_capital_paper_trading")
-            if not initial_capital or initial_capital <= 0:
-                error_msg = (
-                    f"[PHASE 8 HALT] Paper mode requires 'initial_capital_paper_trading' config, got {initial_capital}. "
-                    f"Cannot determine portfolio value. Configure: initial_capital_paper_trading=<amount>"
+        from algo.trading.position_sizer import PortionSizer
+        cur = db_context.get_cursor()
+        cur.execute("""
+            SELECT total_portfolio_value, snapshot_date
+            FROM algo_portfolio_snapshots
+            WHERE snapshot_date = CURRENT_DATE AT TIME ZONE 'America/New_York'
+            ORDER BY snapshot_date DESC LIMIT 1
+        """)
+        result = cur.fetchone()
+        if result and result[0] is not None:
+            portfolio_value = Decimal(str(result[0]))
+            portfolio_value_source = "database_snapshot"
+            logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from database snapshot)")
+        else:
+            raise ValueError("No portfolio snapshot available for today")
+    except Exception as db_err:
+        logger.warning(f"[PHASE 8] Database snapshot unavailable: {db_err}. Trying Alpaca API...")
+
+        # Secondary: Try Alpaca API (may be stale/slow but more current than config)
+        try:
+            portfolio_value = sizer.get_portfolio_value()
+            portfolio_value_source = "alpaca_api"
+            logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from Alpaca API)")
+        except RuntimeError as api_err:
+            # Tertiary: Use configured fallback ONLY in paper mode
+            if execution_mode in ("paper", "auto"):
+                initial_capital = config.get("initial_capital_paper_trading")
+                if not initial_capital or initial_capital <= 0:
+                    error_msg = (
+                        f"[PHASE 8 HALT] Cannot determine portfolio value. "
+                        f"Tried: database snapshot, Alpaca API. "
+                        f"Configured fallback invalid: initial_capital_paper_trading={initial_capital}. "
+                        f"Cannot proceed with trading without reliable portfolio value."
+                    )
+                    logger.critical(error_msg)
+                    log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+                    return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+                portfolio_value = Decimal(str(initial_capital))
+                portfolio_value_source = "configured_fallback"
+                logger.warning(
+                    f"[PHASE 8] Using configured paper trading capital ${portfolio_value:,.0f} "
+                    f"(database and API unavailable). "
+                    f"Position sizing may be inaccurate. Database error: {db_err}. API error: {api_err}"
                 )
+            else:
+                # Live mode: never use fallback, fail-fast
+                error_msg = f"[PHASE 8 HALT] Cannot determine portfolio value (live mode). Database error: {db_err}. API error: {api_err}"
                 logger.critical(error_msg)
                 log_phase_result_fn(8, "entry_execution", "halt", error_msg)
                 return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
-            portfolio_value = Decimal(str(initial_capital))
-            logger.warning(
-                f"[PHASE 8] Portfolio value fetch failed, using configured paper trading capital ${portfolio_value:,.0f}: {e}"
-            )
-        else:
-            # Live mode requires accurate portfolio value
-            error_msg = f"[PHASE 8 HALT] Cannot determine portfolio value (live mode): {e}"
-            logger.critical(error_msg)
-            log_phase_result_fn(8, "entry_execution", "halt", error_msg)
-            return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
+
+    if portfolio_value is None or portfolio_value <= 0:
+        error_msg = f"[PHASE 8 HALT] Invalid portfolio value: {portfolio_value} (source: {portfolio_value_source}). Cannot execute trades."
+        logger.critical(error_msg)
+        log_phase_result_fn(8, "entry_execution", "halt", error_msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, error_msg)
 
     # CRITICAL: Get Alpaca credentials - FAIL LOUD if missing and trades are queued
     # Previously: silent fallback would skip trades without any indication (WRONG!)

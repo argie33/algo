@@ -831,8 +831,6 @@ def run(  # noqa: C901
                     )
             except RuntimeError as e:
                 metric_error = str(e)
-                # RESILIENCE FIX: Instead of HALT on stale metrics, allow DEGRADED mode
-                # Check if metrics exist but are just stale (vs completely missing)
                 logger.warning(f"[PHASE 1] Metric loaders validation failed: {metric_error}")
                 try:
                     cur.execute("""
@@ -844,33 +842,26 @@ def run(  # noqa: C901
                     has_recent_metrics = any(row[0] > 0 for row in metric_counts)
 
                     if has_recent_metrics:
-                        # Metrics exist and are reasonably recent (< 7 days)
-                        # CRITICAL FIX: On weekends/holidays, metrics from last trading day (Fri) are NORMAL, not degraded
-                        # Metric loaders only run on trading days (Mon-Fri 4:05 PM ET), so:
-                        # - Saturday: metrics from Friday are 1 day old (normal)
-                        # - Sunday: metrics from Friday are 2 days old (normal)
-                        # - Monday after 3-day weekend: metrics from Friday are 3 days old (normal)
-                        # Do NOT treat this as degradation. Only degrade if metrics are stale beyond normal weekend window.
-                        if MarketCalendar.is_trading_day(run_date_obj):
-                            # On trading days, if metrics are > 1 day old, that's degraded
-                            # GOVERNANCE: Degraded data is not allowed - system WILL HALT below
-                            logger.warning(
-                                "[PHASE 1] Metrics exist but are stale (loaded before today). "
-                                "This is DEGRADED mode - will HALT trading per governance."
-                            )
-                            degraded_reason = "Stale metric data - trading halted per governance (incomplete metrics not allowed)"
-                        else:
-                            # On weekends/holidays, metrics from last trading day are normal - don't degrade
-                            logger.info(
-                                f"[PHASE 1] Metrics from {run_date_obj.strftime('%A')} are from most recent trading day. "
-                                "Proceeding normally (non-trading day pattern is expected)."
-                            )
-                            # Don't set degraded_reason - metrics are fresh for a weekend/holiday
+                        logger.critical(
+                            f"[PHASE 1] CRITICAL: Metrics exist but validation failed. {metric_error}. "
+                            f"GOVERNANCE requires fail-fast on metric validation failure. "
+                            f"Root cause must be resolved before trading resumes."
+                        )
+                        halt_reason = f"Metric loader validation failed: {metric_error[:100]}"
+                        log_phase_result_fn(1, "metric_validation_failed", "halt", halt_reason)
+                        return PhaseResult(
+                            1,
+                            "metric_validation_failed",
+                            "halted",
+                            {},
+                            True,
+                            halt_reason,
+                        )
                     else:
-                        # Metrics are completely missing or too old, must halt
                         logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
+                        halt_reason = f"Required metric loaders not ready: {metric_error[:100]}"
                         log_phase_result_fn(
-                            1, "metric_loaders_not_ready", "halt", f"Metric loaders incomplete: {metric_error[:100]}"
+                            1, "metric_loaders_not_ready", "halt", halt_reason
                         )
                         return PhaseResult(
                             1,
@@ -878,22 +869,22 @@ def run(  # noqa: C901
                             "halted",
                             {},
                             True,
-                            f"Required metric loaders not ready: {metric_error[:80]}",
+                            halt_reason,
                         )
                 except Exception as check_err:
-                    # If we can't check metric existence, halt safely
-                    logger.error(f"[PHASE 1] Could not verify metric availability: {check_err}")
+                    halt_reason = f"Could not verify metric availability: {str(check_err)[:100]}"
+                    logger.error(f"[PHASE 1] {halt_reason}")
                     logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
                     log_phase_result_fn(
-                        1, "metric_loaders_not_ready", "halt", f"Metric loaders incomplete: {metric_error[:100]}"
+                        1, "metric_verification_error", "halt", halt_reason
                     )
                     return PhaseResult(
                         1,
-                        "metric_loaders_not_ready",
+                        "metric_verification_error",
                         "halted",
                         {},
                         True,
-                        f"Required metric loaders not ready: {metric_error[:80]}",
+                        halt_reason,
                     )
 
             log_phase_result_fn(
