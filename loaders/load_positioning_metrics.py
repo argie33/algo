@@ -53,23 +53,22 @@ class PositioningMetricsLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch positioning metrics for a symbol from authoritative sources with fallback.
+        """Fetch positioning metrics for a symbol from authoritative sources only.
 
-        DATA SOURCE HIERARCHY:
-        - short_interest: (1) FINRA Reg SHO, (2) yfinance_snapshot fallback
-        - institutional_ownership: (1) SEC 13F filings, (2) yfinance_snapshot fallback
-        - insider_ownership: (1) SEC Form 4/5 filings, (2) yfinance_snapshot fallback
+        DATA SOURCES (Phase 2 optimization onwards):
+        - short_interest: FINRA Reg SHO (authoritative)
+        - institutional_ownership: SEC 13F filings (authoritative)
+        - insider_ownership: SEC Form 4/5 filings (authoritative)
 
-        CRITICAL FIX (Session 255): Restored yfinance fallback to prevent 0% coverage.
-        SEC sources are incomplete (98.5% missing) but we now have honest fallback instead of
-        silently marking all data unavailable. Each field tracks its source for transparency.
-        System now achieves 80%+ coverage while documenting which metrics came from where.
+        FAIL-FAST: Returns data_unavailable marker if authoritative sources missing.
+        NO secondary fallbacks to yfinance (was masking data quality issues).
 
-        Returns positioning data with source tracking, or data_unavailable only if ALL sources fail.
+        Returns positioning data (institutional %, insider %, short interest %) or
+        data_unavailable marker if sources missing/unavailable.
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        # Fetch short interest: FINRA first, then yfinance fallback
+        # Fetch short interest from FINRA (only authoritative source)
         short_interest_pct = None
         short_interest_source = None
 
@@ -89,25 +88,10 @@ class PositioningMetricsLoader(OptimalLoader):
             short_interest_pct = short_row[0]
             short_interest_source = "finra"
         else:
-            # FINRA missing - fallback to yfinance
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT short_interest
-                    FROM yfinance_snapshot
-                    WHERE symbol = %s AND short_interest IS NOT NULL
-                    ORDER BY snapshot_date DESC LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                yf_short = cur.fetchone()
-            if yf_short and yf_short[0] is not None:
-                short_interest_pct = yf_short[0]
-                short_interest_source = "yfinance"
-            else:
-                short_interest_source = "unavailable"
+            # FINRA data missing - no yfinance fallback (fail-fast)
+            short_interest_source = "unavailable"
 
-        # Fetch institutional ownership: SEC 13F first, then yfinance fallback
+        # Fetch institutional ownership from SEC 13F (only authoritative source)
         institutional_pct = None
         institutional_source = None
 
@@ -127,25 +111,10 @@ class PositioningMetricsLoader(OptimalLoader):
             institutional_pct = sec_inst_row[0]
             institutional_source = "sec_13f"
         else:
-            # SEC 13F missing - fallback to yfinance
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT held_percent_institutions
-                    FROM yfinance_snapshot
-                    WHERE symbol = %s AND held_percent_institutions IS NOT NULL
-                    ORDER BY snapshot_date DESC LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                yf_inst = cur.fetchone()
-            if yf_inst and yf_inst[0] is not None:
-                institutional_pct = yf_inst[0]
-                institutional_source = "yfinance"
-            else:
-                institutional_source = "unavailable"
+            # SEC 13F data missing - no yfinance fallback (fail-fast)
+            institutional_source = "unavailable"
 
-        # Fetch insider ownership: SEC Form 4/5 first, then yfinance fallback
+        # Fetch insider ownership from SEC Form 4/5 (only authoritative source)
         insider_pct = None
         insider_source = None
 
@@ -165,23 +134,8 @@ class PositioningMetricsLoader(OptimalLoader):
             insider_pct = sec_insider_row[0]
             insider_source = "sec_form4"
         else:
-            # SEC Form 4/5 missing - fallback to yfinance
-            with DatabaseContext("read") as cur:
-                cur.execute(
-                    """
-                    SELECT held_percent_insiders
-                    FROM yfinance_snapshot
-                    WHERE symbol = %s AND held_percent_insiders IS NOT NULL
-                    ORDER BY snapshot_date DESC LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                yf_insider = cur.fetchone()
-            if yf_insider and yf_insider[0] is not None:
-                insider_pct = yf_insider[0]
-                insider_source = "yfinance"
-            else:
-                insider_source = "unavailable"
+            # SEC Form 4/5 data missing - no yfinance fallback (fail-fast)
+            insider_source = "unavailable"
 
         # Mark unavailable only if ALL three sources missing (any one source makes data available)
         all_unavailable = (
