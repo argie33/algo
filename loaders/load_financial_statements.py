@@ -697,6 +697,8 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
     This eliminates redundant ECS task definitions and reduces scheduler complexity.
     """
 
+    max_fail_rate = 15.0  # Some stocks (foreign, delisted, recently-IPO'd) lack annual reports
+
     def __init__(
         self,
         backfill_days: int | None = None,

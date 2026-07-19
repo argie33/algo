@@ -56,6 +56,7 @@ class EarningsCalendarSECLoader(SecLoaderBase):
     primary_key = ("symbol", "filing_date")
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
+    max_fail_rate = 2.0  # SEC API occasionally fails on isolated symbols
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
