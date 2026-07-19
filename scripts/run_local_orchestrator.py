@@ -54,10 +54,10 @@ def main() -> None:
     else:
         runs = ["morning"]  # default
 
-    # Set LOCAL_MODE for direct database access and skip distributed locking
+    # Set LOCAL_MODE for direct database access
     os.environ["LOCAL_MODE"] = "true"
     os.environ["ENVIRONMENT"] = "development"
-    os.environ["SKIP_ORCHESTRATOR_LOCK"] = "true"
+    # NOTE: SKIP_ORCHESTRATOR_LOCK removed - distributed lock prevents concurrent execution and duplicate trades
 
     et = ZoneInfo("America/New_York")
     now = datetime.now(et)

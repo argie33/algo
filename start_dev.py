@@ -26,7 +26,8 @@ from zoneinfo import ZoneInfo
 # Set development mode
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
-os.environ["SKIP_ORCHESTRATOR_LOCK"] = "true"
+# NOTE: SKIP_ORCHESTRATOR_LOCK removed - distributed lock prevents duplicate trades during concurrent runs.
+# Use --dry-run flag if you need to skip the lock for testing single-instance scenarios.
 
 
 def check_postgres() -> bool:

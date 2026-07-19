@@ -25,7 +25,7 @@ from zoneinfo import ZoneInfo
 # Environment setup
 os.environ["LOCAL_MODE"] = "true"
 os.environ["ENVIRONMENT"] = "development"
-os.environ["SKIP_ORCHESTRATOR_LOCK"] = "true"
+# NOTE: SKIP_ORCHESTRATOR_LOCK removed - distributed lock prevents duplicate trades during concurrent runs
 
 LOADERS_DIR = Path("loaders")
 
