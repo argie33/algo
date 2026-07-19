@@ -709,32 +709,25 @@ class DailyReconciliation:
                         f"CRITICAL: {excluded_count}/{len(positions)} positions have NULL position_value in reconciliation. "
                         f"Cannot calculate concentration risk without complete position data."
                     )
-                if not position_values:
-                    raise ValueError(
-                        "[RECONCILIATION CRITICAL] No valid position values found after filtering NULLs. "
-                        "Cannot calculate concentration risk without position data. Portfolio has no open positions."
-                    )
-                largest_position_dec = Decimal(str(max(position_values)))
-                if total_equity_dec <= 0:
-                    logger.critical(
-                        f"CRITICAL: Total equity invalid ({total_equity_dec}) for concentration calculation"
-                    )
-                    raise ValueError(
-                        f"CRITICAL: Total equity invalid ({total_equity_dec}) - cannot calculate concentration"
-                    )
-                max_concentration_dec = largest_position_dec / total_equity_dec * Decimal(100)
 
-                if not positions or len(positions) == 0:
-                    raise ValueError(
-                        "[RECONCILIATION CRITICAL] Positions list is empty. "
-                        "Cannot calculate average position size without open positions."
-                    )
-                if total_position_value <= 0:
-                    raise ValueError(
-                        "[RECONCILIATION CRITICAL] Total position value is invalid or zero. "
-                        "Cannot calculate average position size with invalid portfolio value."
-                    )
-                avg_position_size_dec = total_position_value / len(positions)
+                # FIXED: Allow zero positions (fresh account) as valid state
+                # Fresh accounts have no positions - this is expected, not an error
+                if not position_values:
+                    logger.info("[RECONCILIATION] Portfolio has no open positions (fresh account or all exited)")
+                    largest_position_dec = Decimal(0)
+                    max_concentration_dec = Decimal(0)
+                    avg_position_size_dec = Decimal(0)
+                else:
+                    largest_position_dec = Decimal(str(max(position_values)))
+                    if total_equity_dec <= 0:
+                        logger.critical(
+                            f"CRITICAL: Total equity invalid ({total_equity_dec}) for concentration calculation"
+                        )
+                        raise ValueError(
+                            f"CRITICAL: Total equity invalid ({total_equity_dec}) - cannot calculate concentration"
+                        )
+                    max_concentration_dec = largest_position_dec / total_equity_dec * Decimal(100)
+                    avg_position_size_dec = total_position_value / len(positions) if len(positions) > 0 else Decimal(0)
 
                 cur.execute("""
                     SELECT total_portfolio_value FROM algo_portfolio_snapshots
