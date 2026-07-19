@@ -262,6 +262,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             "signal_trade_performance",
             "qualified_trades",
             "manual_positions",
+            # Orphaned/deprecated signal evaluation (no active writer as of Session 274)
+            "algo_signals_evaluated",
         }
 
         cur.execute("""
