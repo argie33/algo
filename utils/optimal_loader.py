@@ -385,8 +385,6 @@ class OptimalLoader:
         self._batch_context = {}
 
     def run(self, symbols: Iterable[str], parallelism: int = 1, backfill_days: int | None = None) -> dict[str, Any]:
-        lock_manager = None
-
         # FIXED (Session 258): Auto-detect if AWS credentials are valid.
         # If invalid, use file-based locking instead of failing.
         # This allows loaders to run locally without DynamoDB access.

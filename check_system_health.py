@@ -21,8 +21,10 @@ from pathlib import Path
 if sys.platform.startswith("win"):
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-    except Exception:
-        pass
+    except Exception as e:
+        # Log but don't crash - console encoding issues are non-fatal but should be visible
+        import logging
+        logging.warning(f"[STARTUP] Failed to set UTF-8 console encoding: {type(e).__name__}: {e}")
 
 # Add repo root to path
 sys.path.insert(0, str(Path(__file__).parent))

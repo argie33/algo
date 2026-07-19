@@ -422,8 +422,9 @@ def run_once(compact: bool, data_source: str = "AWS") -> None:
 
             ctx = DashboardContext({})
             render_header_components(ctx, 0, None, None, False, "AWS")
-        except Exception:
-            pass
+        except Exception as e:
+            # Warmup failure is non-fatal but should be logged for diagnostics
+            logger.warning(f"[RENDER_WARMUP] Failed to warm up render pipeline: {type(e).__name__}: {e}")
 
     threading.Thread(target=warmup_render, daemon=True).start()
 
@@ -571,8 +572,9 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
 
                 ctx = DashboardContext({})  # empty context for warmup
                 render_header_components(ctx, 0, None, None, False, data_source)
-            except Exception:
-                pass  # Warmup failures don't block dashboard startup
+            except Exception as e:
+                # Warmup failure is non-fatal but should be logged for diagnostics
+                logger.warning(f"[RENDER_WARMUP] Failed to warm up render pipeline: {type(e).__name__}: {e}")
 
         threading.Thread(target=warmup_render, daemon=True).start()
 

@@ -638,8 +638,9 @@ def api_call(endpoint: str, params: dict[str, Any] | None = None, method: str = 
                             "_error": f"API error {resp.status_code}: {msg}",
                             "_endpoint_deprecated": True,
                         }
-                except (ValueError, AttributeError):
-                    pass  # If JSON parsing fails, continue with normal error handling
+                except (ValueError, AttributeError) as e:
+                    # JSON parsing failed - log and continue with normal error handling
+                    logger.debug(f"API {endpoint}: Failed to parse response as JSON: {type(e).__name__}: {e}")
 
                 # Auth errors (401/403) are permanent, don't retry and don't count toward circuit breaker
                 if resp.status_code in (401, 403):

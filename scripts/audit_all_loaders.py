@@ -85,7 +85,8 @@ def check_table_exists(table_name):
         cur.execute(f"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='{table_name}')")
         exists = cur.fetchone()[0]
         return exists
-    except:
+    except psycopg2.Error as e:
+        logger.error(f"[DB_ERROR] Failed to check table existence for {table_name}: {type(e).__name__}: {e}")
         return False
     finally:
         cur.close()
@@ -114,13 +115,15 @@ def get_table_freshness(table_name):
                 break
             except psycopg2.errors.UndefinedColumn:
                 continue
-            except:
+            except psycopg2.Error as e:
+                logger.error(f"[DB_ERROR] Failed to get freshness for table {table_name}, column {date_col}: {type(e).__name__}: {e}")
                 break
 
         # No data found
         return {'rows': 0, 'latest': None, 'age_days': None}
 
-    except Exception as e:
+    except psycopg2.Error as e:
+        logger.error(f"[DB_ERROR] Failed to check table freshness for {table_name}: {type(e).__name__}: {e}")
         return {'error': str(e)[:50]}
     finally:
         cur.close()
