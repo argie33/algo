@@ -86,20 +86,26 @@ def run(
                 )
 
             # Log reconciliation result to database for audit trail
-            try:
-                with DatabaseContext("write") as cur:
-                    # Calculate match percentage (all positions reconciled = 100%)
-                    match_pct = 100.0 if positions_count >= 0 else 0.0
+            # CRITICAL: Audit trail persistence is non-negotiable per GOVERNANCE (data integrity).
+            with DatabaseContext("write") as cur:
+                # Calculate match percentage (all positions reconciled = 100%)
+                match_pct = 100.0 if positions_count >= 0 else 0.0
 
+                try:
                     cur.execute(
                         """INSERT INTO algo_reconciliation_log
                            (reconciliation_date, match_percentage, sync_count, created_at)
                            VALUES (%s, %s, %s, NOW())""",
                         (run_date, match_pct, positions_count),
                     )
-            except psycopg2.DatabaseError as db_err:
-                logger.error(f"[PHASE 4] Failed to log reconciliation result: {db_err}")
-                # Non-blocking - reconciliation succeeded, just couldn't log it
+                except psycopg2.DatabaseError as db_err:
+                    error_msg = (
+                        f"[PHASE 4 CRITICAL] Failed to persist reconciliation result to audit log: {db_err}. "
+                        f"Cannot proceed with reconciliation when audit trail is unavailable. "
+                        f"Database may be corrupted or inaccessible. Check database connectivity and disk space."
+                    )
+                    logger.critical(error_msg)
+                    raise RuntimeError(error_msg) from db_err
 
             log_phase_result_fn(
                 4,

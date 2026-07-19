@@ -331,9 +331,15 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
                 finally:
                     release_advisory_lock(cur, ALGO_AUDIT_LOG_LOCK_ID, "algo_audit_log")
         except (psycopg2.DatabaseError, psycopg2.OperationalError, RuntimeError) as e:
-            logger.critical(f"[AUDIT_FAILURE] Could not log daily report to audit log: {e}")
-            logger.warning(f"[PHASE 9] Audit log write failed but continuing: {str(e)[:100]}")
-            # Don't raise - allow Phase 9 to continue to risk metrics and other critical steps
+            # CRITICAL: Audit log persistence is non-negotiable. Cannot continue without persisting
+            # portfolio snapshots to audit trail per GOVERNANCE (data integrity).
+            error_msg = (
+                f"[PHASE 9 CRITICAL] Failed to persist portfolio snapshot to audit log: {e}. "
+                f"Cannot proceed with reconciliation when audit trail is unavailable. "
+                f"Database may be corrupted or inaccessible. Check database connectivity and disk space."
+            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg) from e
 
         # Portfolio data must be present for daily reporting
         if not portfolio_data:
@@ -394,9 +400,10 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
             perf_status = "warn"
             perf_summary = "insufficient history"
     except (RuntimeError, ValueError) as e:
-        logger.warning(f"Performance metrics computation failed (degrading gracefully): {e}")
-        perf_status = "warn"
-        perf_summary = f"computation failed: {str(e)[:50]}"
+        # CRITICAL: RuntimeError/ValueError indicate data quality issues (insufficient history, etc).
+        # These MUST propagate to halt Phase 9 per GOVERNANCE (fail-fast).
+        # Never silently degrade on data quality failures.
+        raise
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.warning(f"Performance metrics database error: {e}")
         perf_status = "warn"
@@ -752,18 +759,12 @@ def run(  # noqa: C901
         # CRITICAL: Validate that local P&L matches Broker P&L
         # Skip if reconciliation failed (recon object may be incomplete or paper mode)
         if reconciliation_succeeded:
-            try:
-                _validate_pnl_step(recon, result, log_phase_result_fn)
-            except Exception as validation_err:
-                logger.warning(f"[PHASE 9] P&L validation failed (non-blocking): {validation_err}")
+            _validate_pnl_step(recon, result, log_phase_result_fn)
 
         # CRITICAL: Audit for stale estimated exit prices (reconciliation issues)
         # Skip if reconciliation failed (recon object may be incomplete or paper mode)
         if reconciliation_succeeded:
-            try:
-                _audit_exit_prices_step(recon, log_phase_result_fn)
-            except Exception as audit_err:
-                logger.warning(f"[PHASE 9] Exit price audit failed (non-blocking): {audit_err}")
+            _audit_exit_prices_step(recon, log_phase_result_fn)
 
         # Portfolio snapshot is created by DailyReconciliation in reconciliation.py with full metrics
         # Do NOT create a second snapshot here as it would overwrite the proper one with incomplete data
@@ -786,38 +787,51 @@ def run(  # noqa: C901
         _compute_signal_attribution(run_date, log_phase_result_fn)
 
         # Step 3: Run weight optimization (if enough trades)
-        # Not wrapping this would let a routine "insufficient trades" condition (which
-        # _optimize_weights treats as CRITICAL and re-raises) abort the rest of Phase 9,
-        # discarding the reconciliation/position-sync work already done in steps above.
+        # Weight optimization raises explicit RuntimeError/ValueError on critical failures.
+        # These must propagate to halt Phase 9 per GOVERNANCE (fail-fast on missing data).
+        # Only catch ImportError (optional scipy/numpy dependency).
         try:
             _optimize_weights(config, run_date, log_phase_result_fn)
-        except Exception as e:
-            logger.warning(f"[PHASE 9] Weight optimization failed: {e}")
-            log_phase_result_fn(9, "weight_optimization", "warn", f"optimization error: {str(e)[:60]}")
+        except ImportError as e:
+            error_msg = (
+                f"[PHASE 9] Weight optimization requires scipy/numpy (not available): {e}. "
+                f"This is a setup issue, not a data quality issue. "
+                f"Install: pip install scipy numpy"
+            )
+            logger.error(error_msg)
+            log_phase_result_fn(9, "weight_optimization", "warn", f"dependency missing: scipy/numpy")
+            # Don't raise - scipy is optional for setup, but if weight optimization fails
+            # for data reasons, that WILL be caught and raised above
 
         # Step 4: Generate institutional daily report
         _generate_daily_report(run_date, log_phase_result_fn)
 
         # Step 5: Compute and log live performance metrics (always run, even on non-trading days)
+        # Performance metrics raises explicit RuntimeError/ValueError on critical failures.
+        # These must propagate to halt Phase 9 per GOVERNANCE (fail-fast on missing data).
+        # Only catch ImportError (optional scipy/numpy dependency).
         try:
             _compute_performance_metrics(config, run_date, log_phase_result_fn)
-        except Exception as e:
-            logger.warning(f"[PHASE 9] Performance metrics computation failed: {e}")
-            log_phase_result_fn(9, "performance", "warn", f"computation error: {str(e)[:60]}")
+        except ImportError as e:
+            error_msg = (
+                f"[PHASE 9] Performance metrics requires scipy/numpy (not available): {e}. "
+                f"This is a setup issue, not a data quality issue. "
+                f"Install: pip install scipy numpy"
+            )
+            logger.error(error_msg)
+            log_phase_result_fn(9, "performance", "warn", f"dependency missing: scipy/numpy")
+            # Don't raise - scipy is optional for setup, but if perf metrics fails
+            # for data reasons, that WILL be caught and raised above
 
         # Step 6: Compute and log risk metrics (always run, even on non-trading days)
-        try:
-            _compute_risk_metrics(config, run_date, log_phase_result_fn)
-        except Exception as e:
-            logger.warning(f"[PHASE 9] Risk metrics computation failed: {e}")
-            log_phase_result_fn(9, "risk_metrics", "warn", f"computation error: {str(e)[:60]}")
+        # Risk metrics computation MUST succeed - it feeds position sizing and risk limits.
+        # Fail-fast per GOVERNANCE if risk data unavailable.
+        _compute_risk_metrics(config, run_date, log_phase_result_fn)
 
         # Step 7: Update algo_metrics_daily with actual trade results from this run
-        try:
-            _update_daily_metrics(run_date, log_phase_result_fn)
-        except Exception as e:
-            logger.warning(f"[PHASE 9] Metrics update failed: {e}")
-            log_phase_result_fn(9, "metrics_update", "warn", f"update error: {str(e)[:60]}")
+        # Metrics update must persist trade results to audit trail.
+        # Fail-fast per GOVERNANCE - audit trail integrity is non-negotiable.
+        _update_daily_metrics(run_date, log_phase_result_fn)
 
         # CRITICAL FIX: Sync quantity column for all open positions (entry_quantity -> quantity)
         # This ensures the quantity field is populated for all open trades after reconciliation
@@ -852,8 +866,16 @@ def run(  # noqa: C901
                 "algo_positions_with_risk refreshed",
             )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning(f"[PHASE 9] Could not refresh algo_positions_with_risk: {e}")
-            log_phase_result_fn(9, "positions_view_refresh", "warn", f"refresh failed: {str(e)[:60]}")
+            # CRITICAL: Materialized view refresh failure means dashboard position data becomes stale.
+            # Dashboard readers depend on this view for current position state per GOVERNANCE (data integrity).
+            error_msg = (
+                f"[PHASE 9 CRITICAL] Failed to refresh algo_positions_with_risk materialized view: {e}. "
+                f"Dashboard position data will become stale. "
+                f"Cannot proceed with reconciliation when positions view is unavailable. "
+                f"Check: (1) materialized view definition, (2) database disk space, (3) permissions"
+            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg) from e
 
         # Compute circuit breaker metrics and write to circuit_breaker_status table.
         # Runs after reconciliation so algo_portfolio_snapshots has today's data.
@@ -889,16 +911,17 @@ def run(  # noqa: C901
                     f"{triggered} circuit breakers triggered",
                 )
             except Exception as e:
-                logger.warning(
-                    f"[PHASE 9] Circuit breaker metrics failed (non-blocking): {e}. "
-                    "circuit_breaker_status table not updated - dashboard CB panel will show stale data."
+                # CRITICAL: Circuit breaker metrics feed risk dashboards and position limits.
+                # Cannot allow stale CB status on dashboard per GOVERNANCE (data integrity).
+                error_msg = (
+                    f"[PHASE 9 CRITICAL] Circuit breaker metrics computation failed: {e}. "
+                    f"Cannot proceed without current risk assessment. "
+                    f"Dashboard risk panel will become stale if this phase continues. "
+                    f"Check: (1) compute_circuit_breaker_metrics() implementation, "
+                    f"(2) circuit_breaker_status table state, (3) database connectivity"
                 )
-                log_phase_result_fn(
-                    9,
-                    "circuit_breaker_metrics",
-                    "warn",
-                    f"failed: {str(e)[:80]}",
-                )
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg) from e
 
         # Degrade gracefully if reconciliation failed (e.g., broker unavailable in dry-run)
         # Phase 9 is always_run, so it should not cause a halt even if broker is unavailable

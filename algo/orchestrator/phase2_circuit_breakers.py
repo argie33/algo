@@ -69,7 +69,16 @@ def run(
 
             meh = MarketEventHandler(config)
             cb_result = meh.check_market_circuit_breaker()
-            if cb_result and "error" not in cb_result:  # None = clear; error dict = API failure (skip halt)
+            if cb_result and "error" in cb_result:
+                # CRITICAL: Market circuit breaker API failure must halt trading per GOVERNANCE.
+                # Cannot proceed with trading when market health check unavailable.
+                error_msg = cb_result.get('description', cb_result.get('reason', 'unknown'))
+                raise RuntimeError(
+                    f"[PHASE 2 CRITICAL] Market circuit breaker API check failed: {error_msg}. "
+                    f"Cannot proceed with trading without market health assessment. "
+                    f"Check MarketEventHandler API connectivity and data availability."
+                )
+            elif cb_result and "error" not in cb_result:
                 halt_level = cb_result.get("level", "?")
                 halt_reason = cb_result.get("description", "market circuit breaker triggered")
                 if verbose:
@@ -100,12 +109,6 @@ def run(
                     {},
                     True,
                     f"Market circuit breaker L{halt_level}: {halt_reason}",
-                )
-            elif cb_result and "error" in cb_result:
-                logger.warning(
-                    f"[CIRCUIT_BREAKER] Market circuit breaker API check failed (treating as non-fatal): "
-                    f"{cb_result.get('description', cb_result.get('reason', 'unknown'))}. "
-                    f"Proceeding with account circuit breakers only."
                 )
         except (OSError, RuntimeError, ValueError) as e:
             error = PhaseError(
