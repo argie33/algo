@@ -39,10 +39,15 @@ def test_alpaca_primary_merges_residual_from_yfinance(
     symbols = ["AAPL", "BK", "^GSPC"]
 
     def fake_alpaca(syms: list[str], start: date, end: date) -> dict[str, Any]:
-        return {"AAPL": _rows("AAPL"), "BK": None, "^GSPC": None}
+        # Add source attribution as the real code does
+        aapl_rows = _rows("AAPL")
+        for row in aapl_rows:
+            row["_source_name"] = "alpaca"
+        return {"AAPL": aapl_rows, "BK": None, "^GSPC": None}
 
     def fake_yfinance(syms: list[str], start: date, end: date, interval: str = "1d") -> dict[str, Any]:
         assert sorted(syms) == ["BK", "^GSPC"], "yfinance must only see the Alpaca residual"
+        # Return plain rows without source tracking - the router adds it
         return {s: _rows(s) for s in syms}
 
     with (
@@ -51,7 +56,19 @@ def test_alpaca_primary_merges_residual_from_yfinance(
     ):
         result = router.fetch_ohlcv_batch(symbols, START, END)
 
-    assert all(result[s] == _rows(s) for s in symbols)
+    # Verify data is present for all symbols
+    assert result["AAPL"] is not None, "AAPL should have data from Alpaca"
+    assert result["BK"] is not None, "BK should have data from yfinance fallback"
+    assert result["^GSPC"] is not None, "^GSPC should have data from yfinance fallback"
+
+    # Verify Alpaca data has source tracking
+    assert all(row.get("_source_name") == "alpaca" for row in result["AAPL"]), "AAPL rows should be marked as alpaca"
+
+    # Verify yfinance fallback data has source tracking
+    assert all(row.get("_source_name") == "yfinance" for row in result["BK"]), "BK rows should be marked as yfinance"
+    assert all(row.get("_source_name") == "yfinance" for row in result["^GSPC"]), "^GSPC rows should be marked as yfinance"
+    assert all(row.get("_primary_source_failed") == "alpaca" for row in result["BK"]), "BK should track Alpaca failure"
+
     assert router.last_source == "alpaca"
 
 
