@@ -146,10 +146,15 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         rows.append(Text.from_markup(f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/]{wks_s}{scores_s}{str_s}"))
 
     # Holdings by sector: 2-col pairs, up to 6 sectors
+    sorted_secs = None
     try:
-        sorted_secs, total_secs, pv = compute_sector_agg(pos, port)
-    except ValueError as e:
-        logger.warning(f"Cannot compute sector aggregation: {e}")
+        pos_items, _, _ = normalize_positions_data(pos)
+        if pos_items:
+            # Only compute aggregation if we have non-empty positions
+            sorted_secs, total_secs, pv = compute_sector_agg(pos, port)
+    except (ValueError, TypeError):
+        # Empty positions, error in positions data, or aggregation failed
+        # All are normal cases - just skip sector display
         sorted_secs = None
     if sorted_secs:
         show_secs = sorted_secs[:6]
