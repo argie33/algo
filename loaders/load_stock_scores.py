@@ -419,15 +419,13 @@ class StockScoresLoader(OptimalLoader):
                 )
 
             # NUMERIC(4,2) schema constraint: max 99.99 (not 100.0)
-            # TEMPORARY FIX 2026-07-18: Exclude momentum from denominator (currently broken - 0% coverage)
-            # Calculate completeness on 5/5 available metrics (quality, growth, value, positioning, stability)
-            # TODO: Fix momentum loader and restore full 6-metric scoring
-            data_completeness = min(99.99, round((data_count / 5.0) * 100, 2))
+            # Calculate completeness on 6 metrics (quality, growth, value, positioning, stability, momentum)
+            # CRITICAL FIX 2026-07-18: Momentum now works (reads from momentum_metrics), restored 6-metric calculation
+            data_completeness = min(99.99, round((data_count / 6.0) * 100, 2))
 
             # CRITICAL: GOVERNANCE.md line 62 - Reject scores with <70% completeness
-            # Stocks with <70% completeness (fewer than 3.5/5 metrics when momentum broken)
-            # must be marked data_unavailable to prevent trading on degraded signals.
-            if data_completeness < 50.0:
+            # Stocks with <70% completeness must be marked data_unavailable to prevent trading on degraded signals.
+            if data_completeness < 70.0:
                 raise RuntimeError(
                     f"[STOCK_SCORES] {symbol}: Score rejected for insufficient completeness. "
                     f"Completeness: {data_completeness:.2f}% ({data_count}/6 metrics). "
@@ -922,93 +920,40 @@ class StockScoresLoader(OptimalLoader):
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_metrics_found"}
 
     def _get_momentum_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
-        """Fetch momentum/RS metrics for symbol using DATE-based lookups (not OFFSET).
+        """Fetch momentum/RS metrics for symbol from momentum_metrics table.
 
-        Uses date arithmetic to find approximate prices at 1m/3m/6m/12m ago.
-        More robust than OFFSET which breaks on data gaps or different row counts.
+        CRITICAL FIX 2026-07-18: Now reads precomputed momentum values from momentum_metrics
+        table (populated by load_risk_metrics_daily.py) instead of computing from scratch.
+        This fixes the issue where stock_scores had all NULL momentum despite momentum_metrics
+        being populated.
 
-        VALIDATION RULES:
-        - Row length validation: Must have 5 columns (current, price_1m_ago, price_3m_ago,
-          price_6m_ago, price_12m_ago)
-        - Schema mismatch (len(row) < 5) → raises ValueError immediately
-        - All numeric fields converted via safe_float() (detects data corruption)
-        - Returns marker dict if any critical price is missing/None
-        - No row at all → returns marker dict with reason="no_momentum_data_available"
+        momentum_metrics provides:
+        - momentum_1m, momentum_3m, momentum_6m, momentum_12m (already calculated)
+        - data_unavailable flag (True if loader failed)
 
-        MINIMUM DATA REQUIREMENTS (STRICT FAIL-FAST):
-        - 1m momentum: 30 days of price history minimum (None if insufficient)
-        - 3m momentum: 60 days of price history minimum (None if insufficient)
-        - 6m momentum: 120 days of price history minimum (None if insufficient)
-        - 12m momentum: 252 days of price history minimum (None if insufficient)
-        - All momentum values set to None if corresponding historical price missing
-
-        REMOVED: Short-term fallback for new listings. Momentum metrics require proper historical
-        data; insufficient lookback periods (2/4/7/14 days) indicate unreliable technical signals.
-        If historical data is insufficient, momentum values are None (not guessed).
-
-        CRITICAL FIX 2026-07-03: Now uses safe_float() for all price fields to detect
-        data corruption. Previous inline float() bypassed error handling.
-
-        Returns marker dict if no prices at all. Otherwise returns dict with momentum values
-        (which may be None for individual timeframes if historical data missing).
+        Returns dict with momentum values (which may be None for individual timeframes if
+        upstream loader failed to calculate them).
         """
         try:
-            # PERF FIX: momentum prices for the whole universe are prefetched in
-            # _prepare_batch_context() (5 bulk queries total). This replaced a per-symbol
-            # 5-subquery round trip (~5000 queries/run), which itself replaced inline
-            # MAX(date) subqueries (~20,000 full-table scans/run). A symbol absent from the
-            # cache has no price_daily rows at all - the original scalar subqueries returned
-            # a row of 5 NULLs in that case, so we preserve that exact shape here.
             row = self._momentum_cache.get(symbol, None)
 
-            # CRITICAL FAIL-FAST: Explicit check for cache miss, not truthiness of tuple
-            # Tuple of Nones is truthy in Python, so "if row:" would enter this block
-            # even when symbol has no price data. Check if row actually exists in cache.
             if row is not None:
+                # momentum_metrics cache has 5 columns: momentum_1m, momentum_3m, momentum_6m, momentum_12m, data_unavailable
                 if len(row) < 5:
                     raise ValueError(
                         f"[STOCK_SCORES] {symbol}: momentum cache returned {len(row)} columns, expected 5. "
-                        f"Schema mismatch detected - cannot safely access price data. Failing fast."
+                        f"Schema mismatch detected. Failing fast."
                     )
 
-                prices = {
-                    "current": safe_float(row[0], f"{symbol}.current_price"),
-                    "price_1m_ago": safe_float(row[1], f"{symbol}.price_1m_ago"),
-                    "price_3m_ago": safe_float(row[2], f"{symbol}.price_3m_ago"),
-                    "price_6m_ago": safe_float(row[3], f"{symbol}.price_6m_ago"),
-                    "price_12m_ago": safe_float(row[4], f"{symbol}.price_12m_ago"),
-                }
+                momentum_1m = safe_float(row[0], f"{symbol}.momentum_1m", allow_none=True)
+                momentum_3m = safe_float(row[1], f"{symbol}.momentum_3m", allow_none=True)
+                momentum_6m = safe_float(row[2], f"{symbol}.momentum_6m", allow_none=True)
+                momentum_12m = safe_float(row[3], f"{symbol}.momentum_12m", allow_none=True)
+                data_unavailable = row[4]
 
-                current = prices["current"]
-
-                # STRICT DATA VALIDATION: Require actual historical prices at required intervals
-                # Do NOT fall back to short-term estimates or degraded data
-                momentum_1m = (
-                    ((current / prices["price_1m_ago"] - 1) * 100)
-                    if current is not None and prices["price_1m_ago"] is not None and prices["price_1m_ago"] != 0
-                    else None
-                )
-                momentum_3m = (
-                    ((current / prices["price_3m_ago"] - 1) * 100)
-                    if current is not None and prices["price_3m_ago"] is not None and prices["price_3m_ago"] != 0
-                    else None
-                )
-                momentum_6m = (
-                    ((current / prices["price_6m_ago"] - 1) * 100)
-                    if current is not None and prices["price_6m_ago"] is not None and prices["price_6m_ago"] != 0
-                    else None
-                )
-                momentum_12m = (
-                    ((current / prices["price_12m_ago"] - 1) * 100)
-                    if current is not None and prices["price_12m_ago"] is not None and prices["price_12m_ago"] != 0
-                    else None
-                )
-
-                # CRITICAL FIX: Removed short-term momentum fallback for new listings.
-                # Momentum requires proper lookback periods per financial standards:
-                # - 1m (30d), 3m (60d), 6m (120d), 12m (252d)
-                # Using 2/4/7/14 days violates these standards and produces unreliable signals.
-                # If historical data is insufficient, mark momentum unavailable instead of guessing.
+                # If momentum_metrics marked this symbol as unavailable, return marker
+                if data_unavailable:
+                    return {"data_unavailable": True, "reason": "momentum_metrics_loader_failed"}
 
                 return {
                     "momentum_1m": momentum_1m,
@@ -1017,9 +962,8 @@ class StockScoresLoader(OptimalLoader):
                     "momentum_12m": momentum_12m,
                 }
 
-            # CRITICAL: Momentum is HIGH-priority technical indicator data (price history)
-            # Logging at WARNING to ensure ops visibility of degraded scoring
-            logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - insufficient price history")
+            # Symbol not in momentum_metrics cache (loader hasn't run for this symbol yet)
+            logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - momentum_metrics not populated")
             logger.debug(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_data_available"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

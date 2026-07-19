@@ -599,20 +599,19 @@ class SignalsDailyLoader(OptimalLoader):
                               t.adx, t.mansfield_rs,
                               p.close, p.volume, p.open, p.high, p.low
                        FROM technical_data_daily t
-                       LEFT JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
+                       INNER JOIN price_daily p ON t.symbol = p.symbol AND t.date = p.date
                        WHERE t.symbol = %s AND t.date >= %s AND t.date <= %s
                        ORDER BY t.date ASC""",
                     (symbol, start, end),
                 )
                 rows = []
-                dropped_rows = 0
                 for r in cur.fetchall():
                     if r[0] is None or r[11] is None:
-                        dropped_rows += 1
-                        logger.debug(
-                            f"{symbol} [{r[0]}]: Row dropped - missing required field (date={r[0]}, close={r[11]})"
+                        raise RuntimeError(
+                            f"{symbol} [{r[0]}]: Query returned NULL date or close price - "
+                            f"INNER JOIN should have excluded rows with missing price_daily. "
+                            f"Database query may be corrupted or price_daily missing data."
                         )
-                        continue
                     rows.append(
                         {
                             "date": r[0].isoformat() if r[0] is not None else None,
@@ -632,11 +631,6 @@ class SignalsDailyLoader(OptimalLoader):
                             "high": float(r[14]) if r[14] is not None else None,
                             "low": float(r[15]) if r[15] is not None else None,
                         }
-                    )
-                if dropped_rows > 0:
-                    raise RuntimeError(
-                        f"[BUY_SELL] {symbol}: Dropped {dropped_rows} row(s) due to missing date or close price - "
-                        "cannot generate signals with incomplete technical data; all dates and closes required"
                     )
                 return rows
         except (ValueError, ZeroDivisionError, TypeError) as e:

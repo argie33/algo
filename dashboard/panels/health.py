@@ -2025,8 +2025,8 @@ def panel_status(  # noqa: C901
 
         rows: list[Text | Rule] = []
 
-    # Extract items from data dicts using safe helpers
-    hlth_items_raw = safe_get_list(hlth)
+        # Extract items from data dicts using safe helpers
+        hlth_items_raw = safe_get_list(hlth)
     # Type guard: ensure hlth_items is a list
     hlth_items: list[Any] = hlth_items_raw if isinstance(hlth_items_raw, list) else []
 
