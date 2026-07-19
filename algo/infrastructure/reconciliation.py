@@ -679,7 +679,7 @@ class DailyReconciliation:
                     # Ensure both are Decimals to prevent float/Decimal type errors
                     cash_computed = Decimal(str(pv)) - total_position_value
                     logger.info(
-                        f"[PAPER MODE] Computed cash: ${pv:,.2f} (portfolio) - ${total_position_value:,.2f} (positions) = ${cash_computed:,.2f}"
+                        f"[PAPER MODE] Computed cash: ${float(Decimal(str(pv))):,.2f} (portfolio) - ${float(total_position_value):,.2f} (positions) = ${float(cash_computed):,.2f}"
                     )
                     cash_dec = cash_computed
                 else:
