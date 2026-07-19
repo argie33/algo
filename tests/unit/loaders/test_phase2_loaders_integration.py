@@ -42,15 +42,13 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         self.assertIn("no_form4_filings", result[0]["reason"])
 
     def test_institutional_loader_returns_data_unavailable_on_no_filings(self):
-        """Loader should return explicit data_unavailable when no SCHEDULE 13G filings found."""
+        """Loader should return explicit data_unavailable when no institutional ownership data found."""
         loader = InstitutionalHoldings13FLoader()
 
-        # Mock SEC client
+        # Mock SEC client to return empty companyfacts (no institutional ownership metric)
         mock_sec_client = MagicMock()
         mock_sec_client.symbol_to_cik.return_value = "0000320193"
-        mock_sec_client.get_submissions.return_value = {
-            "filings": {"recent": {"form": [], "accessionNumber": [], "filingDate": []}}
-        }
+        mock_sec_client.get_company_facts.return_value = {}
 
         loader.sec_client = mock_sec_client
 
@@ -59,7 +57,7 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
         # Should return data_unavailable record
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0]["data_unavailable"])
-        self.assertIn("no_schedule13g", result[0]["reason"])
+        self.assertIn("no_institutional_ownership_metric", result[0]["reason"])
 
     def test_insider_loader_explicit_failure_reason(self):
         """Loader should provide explicit failure reasons for debugging."""

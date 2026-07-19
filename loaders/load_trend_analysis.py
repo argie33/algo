@@ -62,21 +62,27 @@ _LOOKBACK_DAYS = 10  # compute for the last N trading days to fill recent gaps
 
 
 def _update_loader_status(status: str, error_message: str | None = None, symbol_count: int | None = None) -> None:
+    # Map old status values to new health-based ones
+    # Old: "RUNNING", "COMPLETED", "FAILED"
+    # New: "loading", "ok", "error"
+    status_map = {"RUNNING": "loading", "COMPLETED": "ok", "FAILED": "error"}
+    db_status = status_map.get(status, status)  # Use mapped value or original if not in map
+
     with DatabaseContext("write") as cur:
         if status == "RUNNING":
             cur.execute(
                 "UPDATE data_loader_status SET status=%s, last_updated=NOW(), execution_started=NOW() WHERE table_name=%s",
-                (status, _TABLE),
+                (db_status, _TABLE),
             )
             if cur.rowcount == 0:
                 cur.execute(
                     "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
-                    (_TABLE, status),
+                    (_TABLE, db_status),
                 )
         else:
             cur.execute(
                 "UPDATE data_loader_status SET status=%s, last_updated=NOW(), execution_completed=NOW(), error_message=%s WHERE table_name=%s",
-                (status, error_message, _TABLE),
+                (db_status, error_message, _TABLE),
             )
 
 
