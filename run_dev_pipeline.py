@@ -48,13 +48,21 @@ MORNING_LOADERS = [
 # - load_market_status_daily.py replaces: load_market_health_daily + load_market_exposure_daily + load_market_sentiment
 # - load_value_quality_growth_metrics.py replaces: load_quality_growth_metrics + parts of load_yfinance_derived_metrics
 # - load_positioning_metrics.py is the new critical-path positioning data (split from yfinance_derived_metrics)
-# Old loaders (load_quality_growth_metrics.py, load_market_health_daily.py) deleted - see git log for details
+# YFINANCE DEPRECATION (Session 274+):
+# - load_yfinance_snapshot.py REMOVED - replaced with SEC 13F + SEC Form 4/5 filings + new cash flow/segment loaders
+# - load_institutional_holdings_13f.py replaces yfinance institutional ownership
+# - load_insider_holdings_sec.py replaces yfinance insider ownership
+# - load_sec_cash_flow_metrics.py NEW: derived working capital, capex, FCF from SEC cash flow statements
+# - load_sec_segment_metrics.py NEW: revenue/income by business segment from SEC 10-K/10-Q segment data
 EOD_LOADERS = [
     "load_market_status_daily.py",         # Consolidated: market health + exposure + sentiment (replaces 3 loaders)
     "load_financial_statements.py",        # SEC financials (prices, balance sheets, cash flow)
     "load_value_quality_growth_metrics.py", # SEC-based value + quality + growth metrics
+    "load_institutional_holdings_13f.py",  # SEC 13F: institutional ownership % (replaces yfinance)
+    "load_insider_holdings_sec.py",        # SEC Form 4/5: insider ownership % (replaces yfinance)
     "load_positioning_metrics.py",         # Institutional/insider/short data (CRITICAL for stock_scores)
-    "load_yfinance_snapshot.py",           # Optional: analyst sentiment + earnings dates (dashboard enrichment)
+    "load_sec_cash_flow_metrics.py",       # NEW: derived cash flow metrics from SEC statements
+    "load_sec_segment_metrics.py",         # NEW: revenue/income by segment from SEC 10-K/10-Q
 ]
 
 # Computed pipeline (scores + signals = 60 min)

@@ -889,16 +889,56 @@ def run(
             atr = cast(float, atr)
             sma_50 = cast(float, sma_50)
 
+            # VALIDATION: Technical indicators must be positive (sanity check for data corruption)
+            if entry_price <= 0:
+                logger.warning(
+                    f"[PHASE 8 CRITICAL DATA ERROR] {symbol}: entry_price={entry_price} is non-positive. "
+                    "Skipping trade - indicates corrupted price data."
+                )
+                skipped_count += 1
+                continue
+
+            if atr < 0:
+                logger.warning(
+                    f"[PHASE 8 CRITICAL DATA ERROR] {symbol}: ATR={atr} is negative. "
+                    "ATR cannot be negative. Skipping trade - indicates corrupted volatility data."
+                )
+                skipped_count += 1
+                continue
+
+            if sma_50 <= 0:
+                logger.warning(
+                    f"[PHASE 8 CRITICAL DATA ERROR] {symbol}: SMA_50={sma_50} is non-positive. "
+                    "50-day moving average corrupted. Skipping trade."
+                )
+                skipped_count += 1
+                continue
+
             # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
-
             # SMA_50 - ATR = below moving-average support.
-
             # entry - 2*ATR = volatility-based floor.
-
             stop_loss = min(
                 sma_50 - atr,
                 entry_price - 2.0 * atr,
             )
+
+            # EDGE CASE FIX: Stop loss can become negative when ATR is very large
+            # (extreme volatility). This is invalid - cannot short at negative price.
+            if stop_loss <= 0:
+                logger.info(
+                    f"[PHASE 8] {symbol}: Stop loss negative (${stop_loss:.2f}) due to extreme volatility (ATR ${atr:.2f}). "
+                    "Risk control: Rejecting trade - volatility too high to place safe stop."
+                )
+                _log_signal_rejection(
+                    symbol,
+                    "invalid_stop_loss",
+                    f"Stop loss ${stop_loss:.2f} <= 0 (ATR ${atr:.2f})",
+                    run_date,
+                    entry_price,
+                    None,
+                )
+                skipped_count += 1
+                continue
 
             risk_pct = (entry_price - stop_loss) / entry_price * 100
 

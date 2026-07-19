@@ -415,6 +415,21 @@ locals {
 
     # Sector performance loader (optional, not in critical path)
     "sector_performance" = "load_sector_performance.py"
+
+    # ============================================================
+    # YFINANCE DEPRECATION (Session 274+): Replace with SEC data sources
+    # ============================================================
+    # Phase 2 Complete: Institutional/insider holdings from SEC filings instead of yfinance
+    "institutional_holdings_13f" = "load_institutional_holdings_13f.py"
+    "insider_holdings_sec"       = "load_insider_holdings_sec.py"
+
+    # New SEC Data Sources: Cash Flow & Segment Analysis
+    "sec_cash_flow_metrics" = "load_sec_cash_flow_metrics.py"
+    "sec_segment_metrics"   = "load_sec_segment_metrics.py"
+
+    # DEPRECATED: yfinance_snapshot (replaced by SEC 13F, Form 4/5, SEC cash flow, and new segment loaders)
+    # Kept here for reference; should be removed after validation period (2-4 weeks)
+    # "yfinance_snapshot"     = "load_yfinance_snapshot.py"
   }
 
   # ============================================================
@@ -573,6 +588,25 @@ locals {
     # Timeout: 900s (typical run ~5-15 min for 5k symbols + 10-K/10-Q extraction, 2x headroom)
     # Parallelism: 1-2 (SEC API rate-limited, keep under global limit)
     "earnings_calendar_sec" = { cpu = 256, memory = 512, timeout = 900, parallelism = 2 }
+
+    # ============================================================
+    # PHASE 2 COMPLETE: Institutional/Insider Holdings from SEC (Session 274+)
+    # ============================================================
+    # Replaces yfinance held_percent_institutions/held_percent_insiders
+    # Data source: SEC SCHEDULE 13G (institutional) + SEC Form 4/5 (insider)
+    # Quality: SEC-published data > yfinance estimates; quarterly updates acceptable for scoring
+    # Lightweight: SEC API calls + aggregation (actual ~100MB each)
+    "institutional_holdings_13f" = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+    "insider_holdings_sec"       = { cpu = 256, memory = 512, timeout = 1200, parallelism = 2 }
+
+    # ============================================================
+    # NEW: SEC-Derived Cash Flow & Segment Metrics (Session 274+)
+    # ============================================================
+    # Working capital, capex, free cash flow from SEC financial statements
+    # Segment revenue/income concentration for diversification scoring
+    # Lightweight: DB joins + arithmetic calculations (actual ~50MB each)
+    "sec_cash_flow_metrics" = { cpu = 256, memory = 512, timeout = 1800, parallelism = 2 }
+    "sec_segment_metrics"   = { cpu = 256, memory = 512, timeout = 1800, parallelism = 2 }
 
     # PHASE 1 OPTIMIZATION (Session 225): Short interest from FINRA (authoritative regulatory data)
     # Replaces yfinance short_interest field (~20% of yfinance_snapshot dependency)
