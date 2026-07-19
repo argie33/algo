@@ -42,6 +42,27 @@ from utils.db.context import DatabaseContext
 logger = logging.getLogger(__name__)
 
 
+def _log_signal_rejection(
+    symbol: str,
+    rejection_stage: str,
+    rejection_reason: str,
+    run_date: _date,
+    entry_price: float | None = None,
+    risk_pct: float | None = None,
+) -> None:
+    """Log signal rejection to audit table."""
+    try:
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """INSERT INTO algo_signal_rejections
+                   (rejection_date, symbol, rejection_stage, rejection_reason, entry_price, risk_pct)
+                   VALUES (%s, %s, %s, %s, %s, %s)""",
+                (run_date, symbol, rejection_stage, rejection_reason, entry_price, risk_pct),
+            )
+    except Exception as e:
+        logger.warning(f"[AUDIT] Failed to log rejection for {symbol}: {e}")
+
+
 def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_date: _date, dry_run: bool) -> int:
     """Persist Phase 7 generated signals to algo_signals table for dashboard display.
 
@@ -868,6 +889,7 @@ def run(
 
             if risk_pct > 12.0:
                 logger.info(f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}%), skipping")
+                _log_signal_rejection(symbol, "stop_too_wide", f"Risk {risk_pct:.1f}% > 12%", run_date, entry_price, risk_pct)
 
                 skipped_count += 1
 
@@ -931,6 +953,7 @@ def run(
 
             if not pt_ok:
                 logger.info(f"[PHASE 8] {symbol}: pre-trade check - {pt_reason}")
+                _log_signal_rejection(symbol, "pretrade_check", pt_reason, run_date, entry_price, risk_pct)
 
                 skipped_count += 1
 
