@@ -442,16 +442,19 @@ def load_all_statements() -> int:
         try:
             lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
         except RuntimeError as ddb_err:
-            # DynamoDB locking unavailable - fall back to file-based for loaders (idempotent)
-            logger.warning(
+            # CRITICAL (Session 282): DynamoDB unavailable - fail fast, no fallback
+            # Reason: FileLockManager has Windows race condition (non-atomic file creation).
+            # Better to fail-fast and trigger infrastructure retry than silently degrade to unsafe locking.
+            logger.critical(
                 f"[FINANCIAL_STATEMENTS ALL MODE] DynamoDB lock unavailable: {ddb_err}. "
-                f"Falling back to file-based locking (loaders are idempotent)."
+                f"Cannot proceed without distributed locking. Fix DynamoDB access or AWS credentials."
             )
-            lock_manager = FileLockManager(
-                table_name=lock_table,
-                lock_duration_seconds=lock_ttl,
-                enable_auto_cleanup=True
-            )
+            from algo.exceptions import LockAcquisitionError
+            raise LockAcquisitionError(
+                lock_key="financial_statements_all_mode",
+                reason=f"DynamoDB lock manager unavailable: {ddb_err}",
+                context={"loader": "financial_statements"}
+            ) from ddb_err
 
         for loader in loaders:
             if lock_manager.acquire(lock_key=loader.table_name, timeout_seconds=5):
