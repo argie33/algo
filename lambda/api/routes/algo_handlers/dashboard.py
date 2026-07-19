@@ -34,13 +34,9 @@ from utils.validation import (
 )
 
 # Response caches for expensive queries - to avoid API Gateway timeout (30s limit)
-# OPTIMIZED TTL for dashboard freshness:
-# - positions_cache: 60s (positions update frequently during trading hours)
-# - scores_cache: 300s (stock scores computed daily, rarely change mid-day)
-# - signals_cache: 300s (signals updated once daily at market open)
+# OPTIMIZATION: positions cache reduces DB load during rapid dashboard refreshes (60s TTL)
+# Note: scores_cache and signals_cache were defined but never used - removed as dead code
 _positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 60}
-_scores_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 300}
-_signals_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_seconds": 300}
 
 logger = logging.getLogger(__name__)
 
@@ -72,10 +68,24 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         cache_is_valid = False
 
     if cache_is_valid:
-        logger.info(
-            f"[POSITIONS] Returning cached response (age: {int(current_time - _positions_cache['timestamp'])}s)"
-        )
-        return _positions_cache["data"]
+        cache_age_seconds = int(current_time - _positions_cache["timestamp"])
+        logger.info(f"[POSITIONS] Returning cached response (age: {cache_age_seconds}s)")
+
+        # CRITICAL: Add cache freshness metadata to cached response
+        # Frontend needs to know response was cached, not just when underlying data was fetched
+        cached_response = _positions_cache["data"].copy() if isinstance(_positions_cache["data"], dict) else _positions_cache["data"]
+        if isinstance(cached_response, dict) and "body" in cached_response:
+            # json_response format: {"statusCode": 200, "body": {...}}
+            body = cached_response.get("body")
+            if isinstance(body, dict):
+                if "data_freshness" not in body:
+                    body["data_freshness"] = {}
+                if isinstance(body["data_freshness"], dict):
+                    body["data_freshness"]["cache_age_seconds"] = cache_age_seconds
+                    body["data_freshness"]["cache_ttl_seconds"] = _positions_cache["cache_ttl_seconds"]
+                    body["data_freshness"]["from_cache"] = True
+
+        return cached_response
 
     # Use 5-second timeout for main query - enrichment queries are non-critical so they
     # can timeout without blocking the response. Main algo_positions query must complete.
