@@ -740,7 +740,9 @@ class SignalsDailyLoader(OptimalLoader):
         into the database. They were previously being inserted with signal=NULL,
         causing Phase 7 to falsely detect stale data (Session 261).
         """
+        input_count = len(rows)
         valid_rows = []
+        sentinel_count = 0
         for row in rows:
             # Ensure data_unavailable and reason columns are present on all rows
             if "data_unavailable" not in row:
@@ -751,6 +753,7 @@ class SignalsDailyLoader(OptimalLoader):
             # CRITICAL: Sentinel rows (data_unavailable=True) indicate "skip this symbol"
             # They must NOT be inserted into buy_sell_daily table
             if row.get("data_unavailable"):
+                sentinel_count += 1
                 continue
 
             valid_rows.append(row)
@@ -766,6 +769,10 @@ class SignalsDailyLoader(OptimalLoader):
                 logger.warning(
                     f"{row.get('symbol')} [{row.get('date')}]: Metrics capped at {self.decimal84_max}: {capped_cols}"
                 )
+        if input_count > 0:
+            logger.info(
+                f"[TRANSFORM] Processed {input_count} rows: {len(valid_rows)} valid, {sentinel_count} sentinel"
+            )
         return valid_rows
 
 
