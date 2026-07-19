@@ -245,7 +245,7 @@ def _get_aws_cfn_output(key: str) -> str | dict[str, Any]:
         if not stack_summaries:
             logger.warning(f"[Cognito] CloudFormation stacks unavailable for output '{key}'")
             return {
-                "data_unavailable": True,
+                "_data_unavailable": True,
                 "reason": "no_cloudformation_stacks",
                 "key": key,
             }
@@ -265,7 +265,7 @@ def _get_aws_cfn_output(key: str) -> str | dict[str, Any]:
         raise RuntimeError(f"Operation failed: {e}") from e
     logger.debug(f"[Cognito] CloudFormation output not found for key: {key}")
     return {
-        "data_unavailable": True,
+        "_data_unavailable": True,
         "reason": "cfn_output_not_found",
         "key": key,
     }

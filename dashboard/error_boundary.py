@@ -48,6 +48,8 @@ def create_data_unavailable_marker(reason: str) -> dict[str, Any]:
     Used when dashboard fetchers cannot retrieve data, ensuring callers
     distinguish "no data" from "error occurred" vs "loading".
 
+    Standardized format: Uses _data_unavailable (with underscore) to match dashboard.py usage.
+
     Args:
         reason: Human-readable explanation for missing data
 
@@ -58,7 +60,7 @@ def create_data_unavailable_marker(reason: str) -> dict[str, Any]:
         raise ValueError("[CRITICAL] data_unavailable reason cannot be empty")
 
     return {
-        "data_unavailable": True,
+        "_data_unavailable": True,
         "reason": reason.strip(),
     }
 
@@ -87,18 +89,18 @@ def has_error(data: Any) -> bool:
 def is_data_unavailable_marker(data: Any) -> bool:
     """Check if data dict is an unavailability marker.
 
-    Safe to call on any type; returns True only for dicts with data_unavailable=True.
+    Safe to call on any type; returns True only for dicts with _data_unavailable=True.
     Used to distinguish "no data available" from "error occurred" or valid data.
 
     Args:
         data: Any value to check
 
     Returns:
-        True if data is dict with data_unavailable=True and reason field, False otherwise
+        True if data is dict with _data_unavailable=True and reason field, False otherwise
     """
     if not isinstance(data, dict):
         return False
-    return data.get("data_unavailable") is True and "reason" in data
+    return data.get("_data_unavailable") is True and "reason" in data
 
 
 def is_data_stale(data: Any) -> bool:

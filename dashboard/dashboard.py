@@ -594,13 +594,18 @@ def run_watch(interval: int, compact: bool, data_source: str = "AWS") -> None:
             state.last_load = time.monotonic()
             state.loading = False
         except Exception as e:
-            logger.error(f"Reload thread error: {type(e).__name__}: {e}", exc_info=True)
+            logger.critical(f"[CRITICAL] Reload thread error: {type(e).__name__}: {e}", exc_info=True)
             state.loading = False
             state.error = f"{type(e).__name__}: {e}"
-            # On error, preserve previous state but mark as potentially stale
-            if state.result is not None and isinstance(state.result, dict):
-                state.result["_stale_refresh"] = True
-                state.result["_stale_reason"] = f"Last refresh failed: {type(e).__name__}"
+            # GOVERNANCE: Fail-fast on reload error. Never silently preserve stale data.
+            # Stale portfolio data risks incorrect position sizing. Stale risk metrics risks uncontrolled exposure.
+            # Mark data unavailable instead of showing potentially outdated state to user.
+            logger.error("Replacing stale cached state with explicit unavailability marker (GOVERNANCE: fail-fast on missing data)")
+            state.result = {
+                "_data_unavailable": True,
+                "_dashboard_critical": True,
+                "reason": f"Data refresh failed: {type(e).__name__}. Previous cached data unsafe for trading decisions.",
+            }
 
     try:
         reload_thread = threading.Thread(target=reload, daemon=False)

@@ -266,7 +266,14 @@ class VectorizedTechnicalLoader:
                     max_attempts=3,
                     context={"batch_start": i, "batch_size": len(batch)},
                 )
-                rows.extend(batch_rows or [])
+                # GOVERNANCE: Fail-fast on data fetch failure - no silent fallback to empty list
+                if batch_rows is None:
+                    raise RuntimeError(
+                        f"[PRICE_BATCH_FETCH] Failed to fetch price batch starting at index {i} "
+                        f"(size {len(batch)}) after 3 retries. Cannot compute technical indicators "
+                        f"without complete price data."
+                    )
+                rows.extend(batch_rows)
 
             # Convert to list of dicts for easier processing
             result = []
@@ -553,7 +560,8 @@ class VectorizedTechnicalLoader:
                 try:
                     self._compute_vcp_for_symbol(symbol, vcp_patterns)
                 except Exception as e:
-                    logger.debug(f"[VCP] Failed to compute VCP for {symbol}: {e}")
+                    # GOVERNANCE: Log at WARNING level (not DEBUG) for visibility to operators
+                    logger.warning(f"[VCP] Failed to compute VCP for {symbol}: {e}")
 
             if vcp_patterns:
                 self._bulk_insert_vcp_patterns(vcp_patterns)
@@ -630,7 +638,8 @@ class VectorizedTechnicalLoader:
                     }
                 )
         except Exception as e:
-            logger.debug(f"[VCP] Error computing VCP for {symbol}: {e}")
+            # GOVERNANCE: Log at WARNING level (not DEBUG) for visibility to operators
+            logger.warning(f"[VCP] Error computing VCP for {symbol}: {e}")
 
     def _bulk_insert_vcp_patterns(self, vcp_patterns: list[dict[str, Any]]) -> None:
         """Insert VCP patterns to database using COPY.

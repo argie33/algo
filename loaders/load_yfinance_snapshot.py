@@ -26,6 +26,8 @@ import sys
 from datetime import date, datetime, timezone
 from typing import Any, cast
 
+import psycopg2
+
 from loaders.helpers.yfinance_batcher import batch_tickers
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
@@ -71,9 +73,17 @@ class YFinanceSnapshotLoader(OptimalLoader):
                     (max_age_hours,),
                 )
                 self._fresh_symbols = {row[0] for row in cur.fetchall()}
+        except psycopg2.Error as e:
+            # GOVERNANCE: Database errors indicate operational issue - fail fast
+            raise RuntimeError(
+                f"[YFINANCE_SNAPSHOT] Failed to check freshness of cached snapshots: {e}. "
+                f"Cannot determine which snapshots are already fresh. Aborting."
+            ) from e
         except Exception as e:
-            logger.warning(f"[YFINANCE_SNAPSHOT] Freshness read failed ({e}); refetching everything")
-            self._fresh_symbols = set()
+            # Unexpected non-database error - also fail fast
+            raise RuntimeError(
+                f"[YFINANCE_SNAPSHOT] Unexpected error reading freshness cache: {e}. Aborting."
+            ) from e
         if self._fresh_symbols:
             logger.info(
                 f"[YFINANCE_SNAPSHOT] {len(self._fresh_symbols)} symbols already fresh "
