@@ -104,9 +104,13 @@ def fetch_from_fred(api_key: str, series_id: str, start_date: date, end_date: da
             raise ValueError(f"FRED response missing 'observations' field for {series_id}")
         observations = data["observations"]
 
-        # Filter out missing values (FRED uses "." for missing)
+        # Filter out missing values (FRED uses "." as explicit sentinel for missing observations)
+        # EXPLICIT VALIDATION: Fail-fast if API response structure changes (KeyError raised at line 113)
         records = []
         for obs in observations:
+            # SAFE PATTERN: .get("value", ".") is valid here because FRED API explicitly
+            # uses "." to denote missing values in the JSON response. This is different from
+            # ignoring errors - we explicitly check for the FRED-documented sentinel value.
             if obs.get("value", ".") != ".":
                 try:
                     records.append({"date": obs["date"], "value": float(obs["value"])})

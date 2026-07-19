@@ -164,8 +164,10 @@ class YFinanceSnapshotLoader(OptimalLoader):
         # Check batch cache first
         if symbol in self._ticker_batch_cache:
             ticker = self._ticker_batch_cache[symbol]
+            logger.debug(f"[YFINANCE_SNAPSHOT] {symbol}: Using batch cache fetch")
         else:
             # Fallback: fetch on-demand if not in batch (handles incremental updates)
+            logger.debug(f"[YFINANCE_SNAPSHOT] {symbol}: Using on-demand fetch (not in batch cache)")
             ticker = YFinanceWrapper.get_ticker(symbol)
 
         if not ticker:

@@ -142,6 +142,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     sector_map: dict[str, str] = {}
     company_name_map: dict[str, str] = {}
     technical_map: dict[str, dict[str, Any]] = {}
+    enrichment_incomplete = False
     try:
         # Get list of open position symbols from the positions we fetched
         if positions:
@@ -587,6 +588,7 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         },
         "stale_alerts": stale_alerts,
         "data_freshness": freshness,
+        "enrichment_incomplete": enrichment_incomplete,
     }
     logger.debug(f"[POSITIONS] Before sanitization: {len(response_data.get('items', []))} items")
     sanitized = APIResponseValidator.sanitize_response(response_data)

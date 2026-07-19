@@ -72,7 +72,24 @@ class AlpacaMockHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         """Handle POST requests (order submission)."""
-        content_length = int(self.headers.get("Content-Length", 0))
+        # FAIL-FAST: Content-Length header is required for POST (not optional)
+        # Missing header causes body data loss, which breaks order submission
+        if "Content-Length" not in self.headers:
+            self.send_json(
+                400,
+                {
+                    "error": "Missing Content-Length header in POST request. "
+                    "Client must specify body size for order submission."
+                },
+            )
+            return
+
+        try:
+            content_length = int(self.headers["Content-Length"])
+        except ValueError:
+            self.send_json(400, {"error": f"Invalid Content-Length header: {self.headers['Content-Length']}"})
+            return
+
         body = self.rfile.read(content_length).decode()
 
         try:

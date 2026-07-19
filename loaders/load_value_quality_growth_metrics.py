@@ -142,10 +142,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # Mark all 3 tables as COMPLETED
             with DatabaseContext("write") as cur:
+                today = date.today()
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                     cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW() WHERE table_name = %s",
-                        ("COMPLETED", table),
+                        "UPDATE data_loader_status SET status = %s, latest_date = %s, last_updated = NOW(), execution_completed = NOW() WHERE table_name = %s",
+                        ("COMPLETED", today, table),
                     )
 
             logger.info(
@@ -167,7 +168,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 error_msg = str(e)[:500]
                 for table in ["value_metrics", "quality_metrics", "growth_metrics"]:
                     cur.execute(
-                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), error_message = %s WHERE table_name = %s",
+                        "UPDATE data_loader_status SET status = %s, last_updated = NOW(), execution_completed = NOW(), error_message = %s WHERE table_name = %s",
                         ("FAILED", error_msg, table),
                     )
             raise

@@ -483,6 +483,20 @@ class AlpacaSyncManager:
             cur_price = pos.get("current_price")
             market_value = pos.get("market_value")
 
+            # Pre-initialize skip reasons dict with all possible keys (explicit, not lazy)
+            # This ensures every possible skip reason appears in the final audit trail,
+            # even if it was never encountered in this run (count = 0).
+            # FAIL-FAST GOVERNANCE: No lazy initialization of dict keys - all states explicit.
+            skip_reason_keys = [
+                "incomplete_data",
+                "zero_or_negative_qty",
+                "invalid_price",
+                "zero_or_negative_market_value",
+            ]
+            for key in skip_reason_keys:
+                if key not in skipped_reasons:
+                    skipped_reasons[key] = 0
+
             # Required fields for position recovery
             if not all([qty is not None, avg_entry is not None, cur_price is not None, market_value is not None]):
                 reason = (
@@ -490,7 +504,7 @@ class AlpacaSyncManager:
                     f"qty={qty is not None},avg_entry={avg_entry is not None},"
                     f"cur_price={cur_price is not None},market_value={market_value is not None}"
                 )
-                skipped_reasons[reason] = skipped_reasons.get(reason, 0) + 1
+                skipped_reasons[reason] += 1
                 continue
 
             try:
@@ -502,19 +516,17 @@ class AlpacaSyncManager:
 
                 # Skip zero/negative quantities (long-only algo)
                 if qty_float <= 0:
-                    skipped_reasons["zero_or_negative_qty"] = skipped_reasons.get("zero_or_negative_qty", 0) + 1
+                    skipped_reasons["zero_or_negative_qty"] += 1
                     continue
 
                 # Skip invalid prices
                 if avg_entry_float <= 0 or cur_price_float <= 0:
-                    skipped_reasons["invalid_price"] = skipped_reasons.get("invalid_price", 0) + 1
+                    skipped_reasons["invalid_price"] += 1
                     continue
 
                 # Skip zero/negative market value
                 if market_value_float <= 0:
-                    skipped_reasons["zero_or_negative_market_value"] = (
-                        skipped_reasons.get("zero_or_negative_market_value", 0) + 1
-                    )
+                    skipped_reasons["zero_or_negative_market_value"] += 1
                     continue
 
                 # Data is valid - increment retry count

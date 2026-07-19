@@ -136,6 +136,7 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
             ]
 
             for tag in possible_tags:
+                logger.debug(f"[{symbol}] Trying tag: {tag}")
                 if tag in facts:
                     # Get the most recent reported value
                     tag_facts = facts[tag]
@@ -153,7 +154,10 @@ class InstitutionalHoldings13FLoader(SecLoaderBase):
                                 latest_filing_date = datetime.fromisoformat(tag_facts["filed"]).date()
 
                     if institutional_pct is not None:
+                        logger.debug(f"[{symbol}] Success: using tag {tag} with value {institutional_pct}%")
                         break
+                else:
+                    logger.debug(f"[{symbol}] Tag not found in facts: {tag}")
 
             # Fail if no institutional ownership metric found
             if institutional_pct is None:
