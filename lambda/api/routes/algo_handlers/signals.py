@@ -420,7 +420,7 @@ def _get_rejection_funnel(cur: cursor) -> Any:
 
         # Get today's stock_scores evaluation stats by composite_score tier
         # CRITICAL: Filter to stocks only (exclude ETFs) per GOVERNANCE.md
-        stock_only_filter = MarketSymbolsConfig.stock_only_where_clause("s")
+        # Note: stock_scores has no 'etf' column, so use only etf_symbols table check
         cur.execute("""
             SELECT
                 COUNT(*) AS total,
@@ -433,7 +433,7 @@ def _get_rejection_funnel(cur: cursor) -> Any:
                 MAX(created_at::date) AS signal_date
             FROM stock_scores
             WHERE created_at::date = CURRENT_DATE AND data_unavailable = FALSE
-            {stock_only_filter}
+            AND symbol NOT IN (SELECT symbol FROM etf_symbols)
         """)
         result = cur.fetchone()
         if result is None:
