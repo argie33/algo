@@ -18,19 +18,47 @@ class MarketCapComputedLoader(OptimalLoader):
         from utils.infrastructure.timezone import EASTERN_TZ
         now_et = datetime.now(EASTERN_TZ)
         with DatabaseContext("read") as cur:
-            cur.execute("SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1", (symbol,))
-            price_row = cur.fetchone()
-            if not price_row or price_row[0] is None:
-                return [{"symbol": symbol, "market_cap": None, "data_unavailable": True, "reason": "no_price", "computed_at": now_et}]
-            latest_price = safe_float(price_row[0], "close")
-            cur.execute("SELECT shares_outstanding FROM sec_valuations WHERE symbol = %s ORDER BY computed_at DESC LIMIT 1", (symbol,))
-            shares_row = cur.fetchone()
-            if not shares_row or shares_row[0] is None:
-                return [{"symbol": symbol, "market_cap": None, "data_unavailable": True, "reason": "no_shares", "computed_at": now_et}]
-            shares = safe_float(shares_row[0], "shares_outstanding")
-            if latest_price and shares and latest_price > 0 and shares > 0:
-                return [{"symbol": symbol, "market_cap": latest_price * shares, "latest_price": latest_price, "shares_outstanding": int(shares) if shares else None, "data_unavailable": False, "computed_at": now_et}]
-            return [{"symbol": symbol, "market_cap": None, "data_unavailable": True, "reason": "invalid", "computed_at": now_et}]
+            # Try SEC-computed market cap first (price × shares from audited SEC data)
+            cur.execute("SELECT market_cap, shares_outstanding FROM sec_valuations WHERE symbol = %s AND NOT data_unavailable ORDER BY computed_at DESC LIMIT 1", (symbol,))
+            sec_row = cur.fetchone()
+            if sec_row and sec_row[0] is not None:
+                market_cap = safe_float(sec_row[0], "market_cap")
+                shares = safe_float(sec_row[1], "shares_outstanding")
+                return [{
+                    "symbol": symbol,
+                    "market_cap": market_cap,
+                    "shares_outstanding": int(shares) if shares else None,
+                    "data_source": "sec_audited",
+                    "data_unavailable": False,
+                    "reason": None,
+                    "computed_at": now_et
+                }]
+
+            # Fallback to yfinance market_cap when SEC data unavailable (authoritative real data)
+            cur.execute("SELECT market_cap FROM yfinance_snapshot WHERE symbol = %s AND data_available ORDER BY fetched_at DESC LIMIT 1", (symbol,))
+            yf_row = cur.fetchone()
+            if yf_row and yf_row[0] is not None:
+                market_cap = safe_float(yf_row[0], "market_cap")
+                return [{
+                    "symbol": symbol,
+                    "market_cap": market_cap,
+                    "shares_outstanding": None,
+                    "data_source": "yfinance",
+                    "data_unavailable": False,
+                    "reason": None,
+                    "computed_at": now_et
+                }]
+
+            # No data available from either source
+            return [{
+                "symbol": symbol,
+                "market_cap": None,
+                "shares_outstanding": None,
+                "data_source": None,
+                "data_unavailable": True,
+                "reason": "no_market_cap_data",
+                "computed_at": now_et
+            }]
 
 def main() -> int:
     return run_loader(MarketCapComputedLoader)
