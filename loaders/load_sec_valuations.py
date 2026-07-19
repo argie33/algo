@@ -76,12 +76,12 @@ class SecValuationsLoader(OptimalLoader):
 
                 ttm_revenue, _ttm_net_income, ttm_eps_basic = income_row
 
-                # Validate critical fields are not NULL (fail-fast if SEC data incomplete)
-                if ttm_revenue is None:
-                    return [self._unavailable_marker(symbol, "income_statement_revenue_null")]
-                if ttm_eps_basic is None:
-                    return [self._unavailable_marker(symbol, "income_statement_eps_null")]
-                latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest
+                # Validate at least ONE required metric is available (revenue OR EPS)
+                # Previously failed if EPS was NULL, but PS ratio can be computed from revenue alone
+                # Fail only if BOTH are missing
+                if ttm_revenue is None and ttm_eps_basic is None:
+                    return [self._unavailable_marker(symbol, "no_revenue_and_eps")]
+                latest_eps = ttm_eps_basic if ttm_eps_basic else None  # May be None - OK if revenue available
 
                 # Compute shares outstanding from SEC financial data: shares = net_income / eps
                 # This is more reliable than fetching from company_info_sec which often lacks this data.
