@@ -38,6 +38,7 @@ Run: python3 loaders/load_value_quality_growth_metrics.py [--symbols AAPL,MSFT]
 import logging
 import sys
 from datetime import date
+from math import isnan
 from typing import Any
 
 from loaders.runner import run_loader
@@ -259,17 +260,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "updated_at": date.today().isoformat(),
         }
 
+    @staticmethod
+    def _nan_to_none(value: float | None) -> float | None:
+        """Convert NaN to None for data integrity. NaN should never be stored in DB."""
+        if value is not None and isinstance(value, float) and isnan(value):
+            return None
+        return value
+
     def _compute_quality_metrics(self, symbol: str, quality_row: Any) -> dict[str, Any]:
         """Compute quality_metrics from SEC financials (balance sheet + income statement)."""
         if not quality_row:
             return self._unavailable_marker("quality_metrics", symbol)
 
         try:
-            stockholders_equity = safe_float(quality_row[0], f"{symbol}.stockholders_equity", allow_none=True)
-            total_liabilities = safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True)
-            net_income = safe_float(quality_row[2], f"{symbol}.net_income", allow_none=True)
-            revenue = safe_float(quality_row[3], f"{symbol}.revenue", allow_none=True)
-            operating_income = safe_float(quality_row[4], f"{symbol}.operating_income", allow_none=True)
+            stockholders_equity = self._nan_to_none(safe_float(quality_row[0], f"{symbol}.stockholders_equity", allow_none=True))
+            total_liabilities = self._nan_to_none(safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True))
+            net_income = self._nan_to_none(safe_float(quality_row[2], f"{symbol}.net_income", allow_none=True))
+            revenue = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.revenue", allow_none=True))
+            operating_income = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.operating_income", allow_none=True))
 
             metrics: dict[str, Any] = {
                 "symbol": symbol,
@@ -308,14 +316,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 metrics["net_margin"],
             ]
             available_components = [m for m in quality_components if m is not None]
-            if available_components:
-                # Normalize to 0-100 scale: ROE/margins can exceed 100, cap at 100
-                normalized = [min(100, max(0, m)) for m in available_components]
-                metrics["quality_score"] = float(sum(normalized) / len(normalized))
 
             # Mark unavailable if all metrics are None
             if all(metrics[k] is None for k in ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity"]):
                 return self._unavailable_marker("quality_metrics", symbol)
+
+            # Mark unavailable if all available quality components are negative or zero
+            # (unprofitable/break-even companies don't have meaningful "quality" scores)
+            if available_components and all(m <= 0 for m in available_components):
+                return self._unavailable_marker("quality_metrics", symbol)
+
+            if available_components:
+                # Normalize to 0-100 scale: ROE/margins can exceed 100, cap at 100
+                # Clamp negatives to 0 only if at least one component is positive
+                normalized = [min(100, max(0, m)) for m in available_components]
+                metrics["quality_score"] = float(sum(normalized) / len(normalized))
 
             return metrics
 
@@ -332,6 +347,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         except (ValueError, TypeError):
             return None
 
+        if isnan(latest_f) or isnan(previous_f):
+            return None
         if previous_f == 0 or previous_f is None:
             return None
         if (latest_f > 0 and previous_f < 0) or (latest_f < 0 and previous_f > 0):
@@ -376,6 +393,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             try:
                 rev = float(row[0]) if row[0] is not None else None
                 eps = float(row[3]) if row[3] is not None else None
+                rev = self._nan_to_none(rev)
+                eps = self._nan_to_none(eps)
                 if rev is not None and rev > 0:
                     revenues.append(rev)
                 if eps is not None and eps != 0:
