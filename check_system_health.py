@@ -114,10 +114,10 @@ def check_database() -> dict:
                             f"FROM {table_name}"
                         )
 
-                    result = cur.fetchone()
-                    if not result:
+                    query_result = cur.fetchone()
+                    if not query_result:
                         raise RuntimeError(f"Failed to query {table_name} stats")
-                    cnt, _, age_hours = result
+                    cnt, _, age_hours = query_result
                     age_hours = float(age_hours) if age_hours is not None else None
 
                     # Use market-calendar-aware thresholds (consistent with monitor_data_staleness.py)
