@@ -419,7 +419,8 @@ class MarketExposure:
             avail_max += vix_avail
             factors["vix_regime"] = {**vix, "pts": round(vix_pts, 1), "max": self.W_VIX}
             score += vix_pts
-            logger.debug(f"  VIX regime: {vix.get('value', 'N/A')} (score {vix_pts:.1f} pts)")
+            vix_value_display = vix.get("value") if vix.get("value") is not None else "N/A"
+            logger.debug(f"  VIX regime: {vix_value_display} (score {vix_pts:.1f} pts)")
 
             # --- 7. Put/call ratio (options sentiment - contrarian, daily) ---
             pc = self.calculator.put_call_ratio(eval_date, cur)
