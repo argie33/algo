@@ -1001,20 +1001,25 @@ class Orchestrator:
                 f"Check DynamoDB connectivity and orchestrator_locks table."
             ) from e
         except Exception as e:
-            # DynamoDB unavailable in LOCAL_MODE (no AWS credentials).
-            # Same pattern as Session 209: fail-open to allow local development.
-            is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes")
-            if is_local_mode and "security token" in str(e).lower():
-                logger.warning(
-                    f"[PHASE 1] DynamoDB halt flag unavailable in LOCAL_MODE (no AWS credentials). "
-                    f"Proceeding without halt flag update. Error: {e}"
-                )
-            else:
-                raise RuntimeError(
-                    f"[CRITICAL] Halt flag management failed after Phase 1: {e}. "
-                    f"Cannot proceed - halt flag is critical for trading safety. "
-                    f"Check DynamoDB connectivity and orchestrator_locks table."
-                ) from e
+            # CRITICAL FIX (Session 282): ALWAYS fail if halt flag management fails,
+            # including LOCAL_MODE. The Session 281 fix eliminated LOCAL_MODE fallbacks
+            # for distributed locking, and the same principle applies to halt flags.
+            #
+            # LOCAL_MODE still connects to shared production DB and Alpaca account,
+            # so halt flag enforcement is non-negotiable. A failure to update halt flags
+            # (e.g., credential errors) means we CANNOT safely proceed with trading.
+            # If you need to test without DynamoDB, use dry_run=True instead.
+            logger.critical(
+                f"[CRITICAL] Halt flag management failed after Phase 1: {e}. "
+                f"Cannot proceed - halt flag is critical for trading safety. "
+                f"LOCAL_MODE (if set) does not bypass safety requirements. "
+                f"Check DynamoDB connectivity or use dry_run=True if testing without DynamoDB."
+            )
+            raise RuntimeError(
+                f"[CRITICAL] Halt flag management failed after Phase 1: {e}. "
+                f"Cannot proceed - halt flag is critical for trading safety. "
+                f"Check DynamoDB connectivity and orchestrator_locks table."
+            ) from e
 
         return not result.halted
 

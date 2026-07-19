@@ -52,11 +52,12 @@ class HaltFlagManager:
         - 2:30 AM: Loaders detect stale data -> Phase 1 sets halt_flag with triggered_at=2:30 AM
         - 9:30 AM, 1 PM, 3 PM, 5:30 PM: Orchestrator runs check halt_flag -> still active (same day)
         - 9:30 AM NEXT DAY: Auto-clears halt_flag at market open (new trading day)
+
+        CRITICAL FIX (Session 282): ALWAYS check halt flag, including LOCAL_MODE.
+        LOCAL_MODE connects to the same shared production DB and Alpaca account,
+        so halt flag enforcement is NON-NEGOTIABLE. If you want to skip safety checks,
+        use dry_run=True instead of relying on LOCAL_MODE bypasses.
         """
-        # Skip DynamoDB operations in LOCAL_MODE (no AWS credentials available)
-        if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
-            logger.debug("[LOCAL_MODE] Skipping halt flag check (DynamoDB unavailable)")
-            return False
 
         try:
             import boto3
@@ -289,11 +290,11 @@ class HaltFlagManager:
         - If yes and it's before market open today: leave it (data might still be stale)
 
         Returns: True if halt was cleared, False if still active or no halt set
+
+        CRITICAL FIX (Session 282): ALWAYS attempt to clear stale halts, including LOCAL_MODE.
+        LOCAL_MODE connects to the same shared production DB, so stale halt flags
+        must be cleared. If you want to skip safety checks, use dry_run=True instead.
         """
-        # Skip DynamoDB operations in LOCAL_MODE (no AWS credentials available)
-        if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
-            logger.debug("[LOCAL_MODE] Skipping proactive halt clear (DynamoDB unavailable)")
-            return False
 
         try:
             import boto3
@@ -387,11 +388,11 @@ class HaltFlagManager:
             reason: Optional explanation for why halt was cleared
 
         Returns: True if successfully cleared, False on error
+
+        CRITICAL FIX (Session 282): ALWAYS clear halt flag, including LOCAL_MODE.
+        LOCAL_MODE connects to the same shared production DB, so halt flag updates
+        must persist. If you want to skip safety checks, use dry_run=True instead.
         """
-        # Skip DynamoDB operations in LOCAL_MODE (no AWS credentials available)
-        if os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes"):
-            logger.debug(f"[LOCAL_MODE] Skipping halt flag clear: {reason}")
-            return True
 
         try:
             import boto3
