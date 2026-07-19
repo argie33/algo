@@ -171,11 +171,12 @@ class TriggerLoadersHandler(LambdaHandler):
             "technical_data_daily",
             # Portfolio and risk metrics
             "algo_metrics_daily",
-            # Industry and sector analysis (dashboard API data)
-            "industry_ranking",
-            "sector_ranking",
+            # Industry and sector analysis (consolidated into sector_industry_daily - Session 273)
+            # DEPRECATED: industry_ranking, sector_ranking, sector_performance consolidated
+            "sector_industry_daily",
             "market_sentiment",  # Re-enabled daily (was weekly)
-            "sector_performance",  # Re-enabled daily
+            "buy_sell_daily",  # Signal generation
+            "trend_template_data",  # Minervini/Weinstein setup/teardown
         }
         # Use FARGATE for critical loaders (higher timeout, guaranteed resources)
         use_fargate = loader_name in critical_loaders

@@ -163,8 +163,14 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         import utils.validation as validation_module
         from algo.infrastructure import MarketCalendar
 
-        # FRESHNESS_RULES optional - use empty dict if not found
-        _fr: dict[str, dict[str, int | bool]] = getattr(validation_module, "FRESHNESS_RULES", {})
+        # FRESHNESS_RULES must exist - fail fast if configuration missing
+        if not hasattr(validation_module, "FRESHNESS_RULES"):
+            raise RuntimeError(
+                "[DATA STATUS] CRITICAL: FRESHNESS_RULES not found in utils.validation module. "
+                "This configuration is required for staleness detection. "
+                "Verify utils/validation/__init__.py imports FRESHNESS_RULES from freshness_config.py."
+            )
+        _fr: dict[str, dict[str, int | bool]] = validation_module.FRESHNESS_RULES
 
         # Tables intentionally removed from health tracking - these are optional enrichment only
         # (not core to algo trading decisions). Excluding them prevents noise on the health panel.
