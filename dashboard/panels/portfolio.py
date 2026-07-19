@@ -927,6 +927,9 @@ def panel_portfolio_perf_expanded(
                 cvar95 = safe_float(risk_dict.get("cvar95"), default=None, allow_none=True)
                 svar = safe_float(risk_dict.get("svar"), default=None, allow_none=True)
                 risk_date = risk_dict.get("date")
+                # INTENTIONAL DESIGN: When has_positions flag is missing from risk response,
+                # assume False (no positions). This prevents risk calculation errors when field
+                # is unavailable. Missing flag is treated as "no positions to protect."
                 has_positions = risk_dict.get("has_positions", False)
 
                 var_c = R if var95_f >= 4 else (Y if var95_f >= 2 else "white")

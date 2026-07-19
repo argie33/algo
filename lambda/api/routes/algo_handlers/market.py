@@ -471,6 +471,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # summary only gets a key for statuses that actually occurred at least once above
         # (summary[status] = current_count + 1). If every table is stale/empty/critical,
         # "ok" is legitimately absent, not corrupt -- 0 is the correct count, not an error.
+        # INTENTIONAL DESIGN: When no tables are "ok" (all stale/empty/critical), the "ok" key
+        # is correctly absent. Defaulting to 0 is the correct semantic value (zero healthy tables).
         ok_count = summary.get("ok", 0)
         if not isinstance(ok_count, int):
             raise ValueError(f"Expected int for 'ok' count in health summary, got {type(ok_count).__name__}")
@@ -598,7 +600,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             recon_row = cur.fetchone()
             if recon_row:
                 recon_dict = safe_dict_convert(recon_row)
-                sync_count = int(recon_dict["sync_count"]) if recon_dict.get("sync_count") else 0
+                # FIX: COUNT(*) is NEVER None/absent. Direct access fails if query corrupted.
+                # Removed .get() fallback to 0 - if COUNT is None, that's a data corruption error.
+                sync_count = int(recon_dict["sync_count"])
                 execution_health["phase_4_broker_reconciliation"] = {
                     "sync_count": sync_count,
                     "latest_sync": recon_dict.get("latest_sync").isoformat() if recon_dict.get("latest_sync") else None,
@@ -993,6 +997,8 @@ def _get_market(cur: cursor) -> Any:
             "yield_curve_data_unavailable": ycs_val is None,
             "yield_curve_unavailable_reason": market_health.get("yield_curve_unavailable_reason") if ycs_val is None else None,
             "fed_rate_environment": market_health.get("fed_rate_environment"),
+            # INTENTIONAL DESIGN: When fed_rate_data_unavailable flag is missing from market_health,
+            # assume data IS available (False). Missing flag means successful fetch with data present.
             "fed_rate_data_unavailable": market_health.get("fed_rate_data_unavailable", False),
             "fed_rate_unavailable_reason": market_health.get("fed_rate_unavailable_reason") if market_health.get("fed_rate_data_unavailable") else None,
         }

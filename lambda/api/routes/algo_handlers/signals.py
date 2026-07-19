@@ -92,7 +92,9 @@ def _fetch_sector_exposure(cur: cursor) -> dict[str, Any] | Any:
             # CRITICAL FAIL-FAST: Sector NULL means company_profile enrichment missing
             # Do not silently skip positions without sector data
             if sr["sector"] is None:
-                unmapped_count = sr.get("sector_position_count", 0)
+                # FIX: Direct access - query ALWAYS returns sector_position_count.
+                # Using .get() with default 0 masks when key is missing (indicates query corruption).
+                unmapped_count = sr["sector_position_count"]
                 error_msg = (
                     f"CRITICAL: {unmapped_count} open positions missing sector enrichment in company_profile. "
                     f"Cannot compute sector exposure without complete enrichment. "

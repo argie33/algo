@@ -384,10 +384,16 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
         elif (
             current_sector == "Unknown" or current_sector is None or current_sector == ""
         ) and symbol not in sector_map:
-            # Position has missing/invalid sector and not in company_profile - this is a data quality issue
-            logger.warning(
-                f"[POSITIONS DATA QUALITY] {symbol}: sector missing/invalid ({current_sector!r}) and not found in company_profile"
+            # CRITICAL: Position has missing/invalid sector and not in company_profile.
+            # This is a data quality issue that should FAIL, not silently continue with Unknown.
+            # Cannot compute sector exposure risk without complete enrichment.
+            error_msg = (
+                f"Position {symbol} has missing/invalid sector ({current_sector!r}) "
+                f"and not found in company_profile. Cannot proceed without sector enrichment. "
+                f"Fix company_profile loader or remove position from portfolio."
             )
+            logger.error(error_msg)
+            return error_response(503, "sector_enrichment_incomplete", error_msg)
 
         items.append(d)
         logger.debug(f"[POSITIONS] Added {symbol} to items list (total now: {len(items)})")

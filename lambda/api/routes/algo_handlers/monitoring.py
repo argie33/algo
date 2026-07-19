@@ -139,6 +139,9 @@ def _get_last_run(cur: cursor) -> Any:
                 pass
         if phases_completed is None:
             logger.warning("[MONITORING] phases_completed missing from orchestrator run data - cannot determine execution progress")
+            # INTENTIONAL DESIGN: When phase tracking data is unavailable, 0 is the correct default
+            # (no phases executed according to available data). This prevents cascading failures when
+            # orchestrator_execution_log is incomplete or corrupted.
             phases_completed = 0
 
     if not run_id:

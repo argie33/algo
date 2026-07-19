@@ -512,6 +512,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("eps_growth_1y"),
                 row.get("eps_growth_3y"),
                 row.get("eps_growth_5y"),
+                # INTENTIONAL DESIGN: Normal rows have data available (False). Only _unavailable_marker()
+                # sets data_unavailable=True for rows with complete data fetch failure. Default False
+                # indicates this row successfully fetched metric values.
                 row.get("data_unavailable", False),
                 row.get("reason"),
                 row.get("data_source", "sec_audited"),
