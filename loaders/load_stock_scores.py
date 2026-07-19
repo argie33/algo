@@ -215,10 +215,15 @@ class StockScoresLoader(OptimalLoader):
         a separate `WHERE symbol = %s` per symbol (~5 x symbol_count round-trips per run), and
         the momentum query re-evaluated `(SELECT MAX(date) FROM price_daily)` as an inline
         subquery up to 4 times per symbol against an 8.6M+ row table. Now: 6 bulk queries total,
-        cached by symbol; momentum's max date is computed once and passed as a bound parameter.
+        cached by symbol; momentum is read from momentum_metrics table (precomputed).
 
         Per-symbol row layout in each cache dict matches the original per-symbol SELECT exactly
         (same column order, `data_unavailable` last), so _get_*_metrics indexing is unchanged.
+
+        CRITICAL FIX 2026-07-18: Now reads momentum_metrics from database instead of computing
+        from price_daily. momentum_metrics is populated by load_risk_metrics_daily.py and has
+        momentum_1m/3m/6m/12m already calculated. This fixes the issue where stock_scores had
+        all NULL momentum values despite momentum_metrics being populated.
         """
         self._batch_context = {}
         with DatabaseContext("read") as cur:
@@ -252,42 +257,13 @@ class StockScoresLoader(OptimalLoader):
             )
             self._stability_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
-            cur.execute("SELECT MAX(date) FROM price_daily")
-            max_date_row = cur.fetchone()
-            if max_date_row is None or max_date_row[0] is None:
-                raise RuntimeError(
-                    "CRITICAL: No price_daily data found at all. Cannot compute momentum metrics without price data."
-                )
-            self._momentum_max_date: date = max_date_row[0]
-
-            # Momentum prices for the whole universe in 5 index scans instead of one
-            # 5-subquery round trip per symbol (~5000 queries/run). Each query returns the
-            # latest close per symbol at/before the horizon cutoff - identical semantics to
-            # the per-symbol scalar subqueries this replaces (no lower date bound: a symbol
-            # whose newest row predates the cutoff still gets that row, as before).
-            horizon_days = {"current": None, "1m": 30, "3m": 60, "6m": 120, "12m": 252}
-            horizon_closes: dict[str, dict[str, Any]] = {}
-            for name, days in horizon_days.items():
-                if days is None:
-                    cur.execute("SELECT DISTINCT ON (symbol) symbol, close FROM price_daily ORDER BY symbol, date DESC")
-                else:
-                    cur.execute(
-                        "SELECT DISTINCT ON (symbol) symbol, close FROM price_daily "
-                        "WHERE date <= %s - INTERVAL '1 day' * %s ORDER BY symbol, date DESC",
-                        (self._momentum_max_date, days),
-                    )
-                horizon_closes[name] = {row[0]: row[1] for row in cur.fetchall()}
-            # Every symbol with any price row appears in "current" (it has no date bound).
-            self._momentum_cache: dict[str, tuple[Any, Any, Any, Any, Any]] = {
-                sym: (
-                    close,
-                    horizon_closes["1m"].get(sym),
-                    horizon_closes["3m"].get(sym),
-                    horizon_closes["6m"].get(sym),
-                    horizon_closes["12m"].get(sym),
-                )
-                for sym, close in horizon_closes["current"].items()
-            }
+            # CRITICAL FIX 2026-07-18: Read momentum from momentum_metrics table instead of computing from scratch
+            # momentum_metrics is populated by load_risk_metrics_daily.py with precomputed momentum values
+            cur.execute(
+                "SELECT symbol, momentum_1m, momentum_3m, momentum_6m, momentum_12m, data_unavailable "
+                "FROM momentum_metrics"
+            )
+            self._momentum_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.

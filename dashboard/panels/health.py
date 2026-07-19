@@ -2015,14 +2015,15 @@ def panel_status(  # noqa: C901
     cfg: dict[str, Any] | None = None,
 ) -> Panel:
     """Algo activity phases + data health + recent notifications + action counts + loader status."""
-    error_pnl = _error_panel("health", hlth, "STATUS")
-    if error_pnl is not None:
-        return error_pnl
-    error_pnl = _error_panel("notifications", notifs, "STATUS")
-    if error_pnl is not None:
-        return error_pnl
+    try:
+        error_pnl = _error_panel("health", hlth, "STATUS")
+        if error_pnl is not None:
+            return error_pnl
+        error_pnl = _error_panel("notifications", notifs, "STATUS")
+        if error_pnl is not None:
+            return error_pnl
 
-    rows: list[Text | Rule] = []
+        rows: list[Text | Rule] = []
 
     # Extract items from data dicts using safe helpers
     hlth_items_raw = safe_get_list(hlth)
@@ -2482,19 +2483,27 @@ def panel_status(  # noqa: C901
                 sc = G if st == "success" else (Y if st == "warn" else R)
                 rows.append(Text.from_markup(f"  [{sc}]{at[:22]}[/]" + (f" [white]{sym}[/]" if sym else "")))
 
-    if not rows:
-        logger.warning(
-            "[HEALTH_PANEL] Status panel has no activity to display. "
-            "All data sources (run, activity, health, notifications) returned empty. "
-            "Check orchestrator logs and data freshness."
+        if not rows:
+            logger.warning(
+                "[HEALTH_PANEL] Status panel has no activity to display. "
+                "All data sources (run, activity, health, notifications) returned empty. "
+                "Check orchestrator logs and data freshness."
+            )
+            rows.append(Text("⚠ No activity data available - check system logs", style="yellow"))
+        return Panel(
+            Group(*rows),
+            title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]",
+            border_style="yellow",
+            padding=(0, 1),
         )
-        rows.append(Text("⚠ No activity data available - check system logs", style="yellow"))
-    return Panel(
-        Group(*rows),
-        title="[bold yellow]ALGO ACTIVITY & SYSTEM HEALTH[/]",
-        border_style="yellow",
-        padding=(0, 1),
-    )
+    except Exception as e:
+        logger.error(f"[HEALTH_PANEL] Panel rendering failed: {type(e).__name__}: {e}", exc_info=True)
+        return Panel(
+            Text(f"[red]Panel rendering error: {str(e)[:100]}[/]"),
+            title="[red]STATUS - Error[/]",
+            border_style="red",
+            padding=(0, 1),
+        )
 
 
 def panel_algo_health(  # noqa: C901
