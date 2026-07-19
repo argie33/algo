@@ -125,7 +125,10 @@ def check_database_tables():
         for table, date_col in tables.items():
             try:
                 cur.execute(f"SELECT MAX({date_col}), COUNT(*) FROM {table}")
-                latest, count = cur.fetchone()
+                result = cur.fetchone()
+                if not result:
+                    raise RuntimeError(f"No data returned for {table}")
+                latest, count = result
                 if latest:
                     days_old = (today - latest).days
                     status = "✓ FRESH" if days_old == 0 else "⚠ STALE" if days_old > 1 else "? 1d old"

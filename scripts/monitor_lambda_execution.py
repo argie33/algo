@@ -36,7 +36,10 @@ def check_orchestrator_status():
               MAX(updated_at) as latest_update
             FROM stock_scores
         """)
-        total, with_score, latest = cur.fetchone()
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("No stock_scores data returned")
+        total, with_score, latest = result
 
         conn.close()
 
