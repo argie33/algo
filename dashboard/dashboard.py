@@ -64,7 +64,9 @@ def _is_dev_server_available() -> bool:
         result = sock.connect_ex(("localhost", 3001))
         sock.close()
         return result == 0
-    except Exception:
+    except Exception as e:
+        import logging
+        logging.debug(f"[DEBUG] localhost:3001 connectivity check failed: {type(e).__name__}: {e}")
         return False
 
 
@@ -109,11 +111,15 @@ try:
                 try:
                     ch = msvcrt.getch()
                     return str(ch.decode("utf-8", errors="ignore").lower())
-                except Exception:
-                    return ""  # Ignore encoding/read errors
+                except Exception as e:
+                    import logging
+                    logging.debug(f"[DEBUG] Windows msvcrt getch() failed: {type(e).__name__}: {e}")
+                    return ""
             return ""
-        except Exception:
-            return ""  # Ignore any msvcrt errors
+        except Exception as e:
+            import logging
+            logging.debug(f"[DEBUG] Windows msvcrt kbhit() failed: {type(e).__name__}: {e}")
+            return ""
 
 except ImportError:
     import select

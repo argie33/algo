@@ -35,7 +35,14 @@ from datetime import datetime, timedelta, timezone
 import boto3
 
 logger = logging.getLogger()
-logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
+_log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+_valid_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+if _log_level not in _valid_levels:
+    raise RuntimeError(
+        f"[CRITICAL] Invalid LOG_LEVEL environment variable: {_log_level}. "
+        f"Must be one of: {', '.join(sorted(_valid_levels))}."
+    )
+logger.setLevel(_log_level)
 
 ce_client = boto3.client("ce")
 scheduler_client = boto3.client("scheduler")
@@ -46,7 +53,22 @@ cloudwatch_client = boto3.client("cloudwatch")
 PROJECT_NAME = os.environ.get("PROJECT_NAME", "stocks")
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
 SNS_ALERT_TOPIC_ARN = os.environ.get("SNS_ALERT_TOPIC_ARN", "")
-DAILY_COST_THRESHOLD_USD = float(os.environ.get("DAILY_COST_THRESHOLD_USD", "50.0"))
+
+try:
+    DAILY_COST_THRESHOLD_USD = float(os.environ.get("DAILY_COST_THRESHOLD_USD", "50.0"))
+except ValueError as e:
+    raise RuntimeError(
+        f"[CRITICAL] DAILY_COST_THRESHOLD_USD environment variable is not a valid float: "
+        f"{os.environ.get('DAILY_COST_THRESHOLD_USD')}. "
+        f"Cost circuit breaker cannot initialize. Set to a numeric value like '50.0'."
+    ) from e
+
+if not SNS_ALERT_TOPIC_ARN:
+    raise RuntimeError(
+        "[CRITICAL] SNS_ALERT_TOPIC_ARN environment variable is not set. "
+        "Cost alerts cannot be sent to the team. Set this to a valid SNS topic ARN."
+    )
+
 ECS_CLUSTER_NAME = os.environ.get("ECS_CLUSTER_NAME", f"{PROJECT_NAME}-{ENVIRONMENT}")
 
 

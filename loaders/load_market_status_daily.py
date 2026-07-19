@@ -273,6 +273,8 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "halt_reasons": None,
                 "distribution_days": None,
                 "factors": None,
+                "data_unavailable": True,
+                "reason": f"exposure_computation_failed: {str(e)[:100]}",
             }
 
     def _compute_market_sentiment(self, eval_date: date, health_data: dict[str, Any]) -> dict[str, Any]:
@@ -329,6 +331,8 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "bullish_pct": None,
                 "bearish_pct": None,
                 "neutral_pct": None,
+                "data_unavailable": True,
+                "reason": f"sentiment_computation_failed: {str(e)[:100]}",
             }
 
     def load_global(self) -> int:

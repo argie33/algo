@@ -25,6 +25,9 @@ except ImportError:
 
 logger = logging.getLogger()
 
+# Valid log levels from Python logging module
+_VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+
 
 class LambdaResponse:
     """Standardized Lambda response format."""
@@ -88,6 +91,12 @@ class LambdaHandler(ABC):
     def _setup_logging(self) -> None:
         """Setup handler logging."""
         log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
+        if log_level not in _VALID_LOG_LEVELS:
+            raise ValueError(
+                f"[CRITICAL] Invalid LOG_LEVEL environment variable: {log_level}. "
+                f"Must be one of: {', '.join(sorted(_VALID_LOG_LEVELS))}. "
+                f"Logging is disabled until LOG_LEVEL is corrected."
+            )
         logger.setLevel(log_level)
 
     @abstractmethod
@@ -126,7 +135,7 @@ class LambdaHandler(ABC):
         user: str | None = None,
         password: str | None = None,
         ssl_mode: str = "require",
-        timeout: int = 10,
+        timeout: int | None = None,
     ) -> Any:
         if psycopg2 is None:
             raise RuntimeError(
@@ -154,13 +163,30 @@ class LambdaHandler(ABC):
             if not all([db_host, db_name, db_user]):
                 raise ValueError("Missing required database configuration (host, name, user)")
 
+            # Timeout handling: explicit param > env var > safe default for Lambda cold-start (30s)
+            db_timeout = timeout
+            if db_timeout is None:
+                db_timeout_env = os.environ.get("DB_CONNECTION_TIMEOUT")
+                if db_timeout_env:
+                    try:
+                        db_timeout = int(db_timeout_env)
+                    except (ValueError, TypeError):
+                        raise ValueError(
+                            f"DB_CONNECTION_TIMEOUT must be numeric (seconds), got: {db_timeout_env}"
+                        )
+                else:
+                    db_timeout = 30  # Safe default for Lambda cold-start (can take 15-40s)
+
+            if db_timeout <= 0:
+                raise ValueError(f"DB_CONNECTION_TIMEOUT must be positive, got: {db_timeout}")
+
             return psycopg2.connect(
                 host=db_host,
                 port=db_port,
                 database=db_name,
                 user=db_user,
                 password=db_password,
-                connect_timeout=timeout,
+                connect_timeout=db_timeout,
                 sslmode=ssl_mode,
             )
         except (ValueError, TypeError) as e:
@@ -172,8 +198,17 @@ class LambdaHandler(ABC):
             client = boto3.client("secretsmanager", region_name=region)
             response = client.get_secret_value(SecretId=secret_arn)
             if "SecretString" in response:
-                return dict(json.loads(response["SecretString"]))
-            return dict(json.loads(response["SecretBinary"]))
+                secret_data = json.loads(response["SecretString"])
+            else:
+                secret_data = json.loads(response["SecretBinary"])
+
+            # Validate secret is a dict (not list, string, etc.)
+            if not isinstance(secret_data, dict):
+                raise ValueError(
+                    f"Secret must be a JSON object/dict, got {type(secret_data).__name__}. "
+                    f"Secrets Manager response: {type(secret_data).__name__}"
+                )
+            return dict(secret_data)
         except Exception as e:
             raise RuntimeError(f"Failed to fetch secret {secret_arn}: {e}") from e
 

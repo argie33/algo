@@ -654,10 +654,12 @@ class PriceLoader(OptimalLoader):
                         )
                         metrics.flush()
                     except Exception as metric_err:
-                        logger.warning(
-                            "[AUDIT_TRAIL] Could not publish market close success metric: %s. This breaks audit trail.",
+                        logger.error(
+                            "[AUDIT_TRAIL] CRITICAL: Could not publish market close success metric: %s. "
+                            "Audit trail broken - raising to retry.",
                             metric_err,
                         )
+                        raise RuntimeError(f"Metrics publishing failed (audit trail requirement): {metric_err}") from metric_err
                     return True
                 # Data not available yet, will retry
                 consecutive_errors = 0
@@ -1833,7 +1835,8 @@ class PriceLoader(OptimalLoader):
                 )
                 raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.warning("Failed to update data_loader_status for {self.table_name}: %s", e)
+            logger.critical(f"[LOADER STATUS] CRITICAL: Failed to update data_loader_status for {self.table_name}: {e}. Orchestrator cannot detect hung loaders.")
+            raise RuntimeError(f"Loader status update failed - cannot track loader health: {e}") from e
 
         # Finalization complete. Implicit None return signals successful cleanup.
         # Caller expects None return - this method is responsible for:

@@ -63,9 +63,19 @@ def get_db_credentials():
                 raise ValueError("Database credential missing: password") from None
             if not creds.get("port"):
                 raise ValueError("Database credential missing: port (required, no default)") from None
+
+            # Validate port is numeric before converting
+            port_str = str(creds.get("port"))
+            try:
+                port_int = int(port_str)
+                if port_int <= 0 or port_int > 65535:
+                    raise ValueError(f"Port out of valid range (1-65535): {port_int}")
+            except ValueError as e:
+                raise ValueError(f"Database port must be numeric (1-65535), got: {port_str}") from e
+
             return {
                 "host": creds.get("host"),
-                "port": int(creds.get("port")),
+                "port": port_int,
                 "database": creds.get("dbname"),
                 "user": creds.get("username"),
                 "password": creds.get("password"),

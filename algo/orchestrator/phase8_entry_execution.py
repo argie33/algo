@@ -60,7 +60,8 @@ def _log_signal_rejection(
                 (run_date, symbol, rejection_stage, rejection_reason, entry_price, risk_pct),
             )
     except Exception as e:
-        logger.warning(f"[AUDIT] Failed to log rejection for {symbol}: {e}")
+        logger.error(f"[AUDIT] CRITICAL: Failed to log signal rejection for {symbol}: {e}. Audit trail incomplete.")
+        raise RuntimeError(f"Signal rejection audit logging failed for {symbol}: {e}") from e
 
 
 def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_date: _date, dry_run: bool) -> int:
@@ -445,9 +446,8 @@ def run(
         _persisted = _persist_signals_to_database(qualified_trades, run_date, dry_run)
         logger.info(f"[PHASE 8] Persisted {_persisted}/{len(qualified_trades)} signals to database")
     except Exception as e:
-        logger.error(f"[PHASE 8] Failed to persist signals: {e}", exc_info=True)
-        # Non-blocking - continue execution even if signal persistence fails
-        # (trades will still execute, just signals won't be visible on dashboard)
+        logger.critical(f"[PHASE 8] CRITICAL: Failed to persist signals to database: {e}. Dashboard will not show trades.", exc_info=True)
+        raise RuntimeError(f"Signal persistence failed (dashboard sync broken): {e}") from e
 
     # Halt flag check before any trades
 
@@ -1036,7 +1036,8 @@ def run(
 
             if not pt_ok:
                 logger.info(f"[PHASE 8] {symbol}: pre-trade check - {pt_reason}")
-                _log_signal_rejection(symbol, "pretrade_check", pt_reason, run_date, entry_price, risk_pct)
+                rejection_reason = pt_reason if pt_reason else "Pre-trade validation failed"
+                _log_signal_rejection(symbol, "pretrade_check", rejection_reason, run_date, entry_price, risk_pct)
 
                 skipped_count += 1
 

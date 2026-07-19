@@ -1204,6 +1204,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
 
         # History: last 90 sessions for ExposureHistory chart (skip non-trading days)
         history = []
+        history_data_unavailable = False
         try:
             cur.execute("""
                     SELECT date, exposure_pct, regime, distribution_days
@@ -1225,13 +1226,16 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                         }
                     )
                 except Exception as hist_err:
-                    logger.warning(f"Skipping history item due to error: {hist_err}")
-                    continue
+                    logger.error(f"[MARKETS_API] Failed to parse history item: {hist_err}. Marking history unavailable.")
+                    history_data_unavailable = True
+                    break
         except Exception as h_err:
-            logger.warning(f"Could not fetch history: {h_err}")
+            logger.error(f"[MARKETS_API] Failed to fetch market history: {h_err}. History data unavailable.")
+            history_data_unavailable = True
 
         # Sector rankings for SectorRotationMap
         sectors = []
+        sectors_data_unavailable = False
         try:
             cur.execute("""
                     SELECT sector_name AS name, current_rank AS rank, rank_4w_ago, momentum_score AS momentum
@@ -1251,10 +1255,12 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                         }
                     )
                 except Exception as item_err:
-                    logger.warning(f"Skipping sector item due to error: {item_err}")
-                    continue
+                    logger.error(f"[MARKETS_API] Failed to parse sector item: {item_err}. Marking sectors unavailable.")
+                    sectors_data_unavailable = True
+                    break
         except Exception as se:
-            logger.warning(f"Could not fetch sector rankings: {se}")
+            logger.error(f"[MARKETS_API] Failed to fetch sector rankings: {se}. Sectors data unavailable.")
+            sectors_data_unavailable = True
 
         # Fetch market health from market_health_daily for dashboard KPIs
         # Skip today if it's not a trading day (Saturday/Sunday or holiday)
@@ -1404,7 +1410,9 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                 "current": response_data,
                 "active_tier": active_tier,
                 "history": history,
+                "history_data_unavailable": history_data_unavailable,
                 "sectors": sectors,
+                "sectors_data_unavailable": sectors_data_unavailable,
                 "market_health": market_health,
                 # Add breadth indicators at top level
                 "adr": float(market_health.get("advance_decline_ratio"))

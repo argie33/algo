@@ -632,11 +632,12 @@ def _record_closed_positions_exits(
                         quantity,
                     ) in closed_positions:
                         if not exit_price:
-                            logger.critical(
-                                f"[CRITICAL] Exit price missing for {symbol}: cannot use entry price "
-                                f"(${entry_price}) as fallback. This corrupts P&L. Skipping exit record."
+                            raise RuntimeError(
+                                f"[PHASE 9 CRITICAL] Exit price missing for {symbol} closed position. "
+                                f"Cannot record P&L without exit price. "
+                                f"This indicates a reconciliation failure or data corruption. "
+                                f"Halting Phase 9 to prevent audit trail gaps."
                             )
-                            continue
 
                         if entry_price is None or entry_price <= 0:
                             logger.error(f"CRITICAL: Trade {symbol} has invalid entry_price ({entry_price}), skipping")
