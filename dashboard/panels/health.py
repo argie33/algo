@@ -317,10 +317,14 @@ def _build_phase_execution_panel(
                 # Phase ran but data corrupted - render error
                 phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
             else:
-                tables_fresh = phase_data.get("tables_fresh", 0) if isinstance(phase_data, dict) else 0
-                tables_stale = phase_data.get("tables_stale", 0) if isinstance(phase_data, dict) else 0
+                tables_fresh = phase_data.get("tables_fresh") if isinstance(phase_data, dict) else None
+                tables_stale = phase_data.get("tables_stale") if isinstance(phase_data, dict) else None
 
-                if tables_stale > 0:
+                # CRITICAL: Check for None (data missing) vs 0 (no stale tables)
+                if tables_stale is None or tables_fresh is None:
+                    # Data missing - don't default to 0, show error state
+                    metrics_str = " [dim]freshness:[/] [dim]?[/]"
+                elif tables_stale > 0:
                     stale_color = R if tables_stale >= 3 else Y
                     metrics_str = f" [dim]stale:[/] [{stale_color}]{tables_stale}[/]"
                 else:
@@ -352,17 +356,21 @@ def _build_phase_execution_panel(
                 # Phase ran but data corrupted - render error
                 phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
             else:
-                open_count = phase_data.get("open_positions", 0) if isinstance(phase_data, dict) else 0
+                open_count = phase_data.get("open_positions") if isinstance(phase_data, dict) else None
                 oldest = phase_data.get("oldest_days") if isinstance(phase_data, dict) else None
                 max_loss = phase_data.get("max_loss_pct") if isinstance(phase_data, dict) else None
 
-                pos_color = G if open_count == 0 else Y if open_count <= 5 else R
-                metrics_str = f" [dim]open:[/] [{pos_color}]{open_count}[/]"
-                if oldest is not None:
-                    metrics_str += f" [dim]age:[/] {oldest}d"
-                if max_loss is not None:
-                    loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
-                    metrics_str += f" [dim]loss:[/] [{loss_color}]{max_loss:.1f}%[/]"
+                # CRITICAL: Check for None (data missing) vs 0 (no open positions)
+                if open_count is None:
+                    metrics_str = " [dim]open:[/] [dim]?[/]"
+                else:
+                    pos_color = G if open_count == 0 else Y if open_count <= 5 else R
+                    metrics_str = f" [dim]open:[/] [{pos_color}]{open_count}[/]"
+                    if oldest is not None:
+                        metrics_str += f" [dim]age:[/] {oldest}d"
+                    if max_loss is not None:
+                        loss_color = R if max_loss <= -5 else Y if max_loss <= -2 else G
+                        metrics_str += f" [dim]loss:[/] [{loss_color}]{max_loss:.1f}%[/]"
 
                 phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 4:  # Broker Reconciliation
@@ -373,10 +381,13 @@ def _build_phase_execution_panel(
                 # Phase ran but data corrupted - render error
                 phase_line = f"  P{phase_num}: [bold red]✗[/] {phase_name:.<30} [bold red]DATA CORRUPTED[/] (missing: {missing_fields})"
             else:
-                sync_count = phase_data.get("sync_count", 0) if isinstance(phase_data, dict) else 0
+                sync_count = phase_data.get("sync_count") if isinstance(phase_data, dict) else None
                 match_pct = phase_data.get("avg_match_pct") if isinstance(phase_data, dict) else None
 
-                if match_pct is not None:
+                # CRITICAL: Check for None (data missing) vs 0 (no syncs)
+                if sync_count is None:
+                    metrics_str = " [dim]sync:[/] [dim]?[/]"
+                elif match_pct is not None:
                     match_color = G if match_pct >= 95 else Y if match_pct >= 80 else R
                     metrics_str = f" [dim]sync:[/] {sync_count} [dim]match:[/] [{match_color}]{match_pct:.0f}%[/]"
                 else:
@@ -417,27 +428,36 @@ def _build_phase_execution_panel(
 
                 phase_line = f"  P{phase_num}: {display_icon} {phase_name:.<30} [{display_color}]{display_text}[/]{metrics_str}"
         elif phase_num == 6:  # Exit Execution
-            exits = phase_data.get("exits_executed", 0)
-            success_rate = phase_data.get("success_rate", 0)
+            exits = phase_data.get("exits_executed")
+            success_rate = phase_data.get("success_rate")
 
-            if exits > 0:
-                sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
-                metrics_str = f" [dim]exits:[/] {exits} [dim]success:[/] [{sr_color}]{success_rate:.0f}%[/]"
+            # CRITICAL: Check for None (data missing) vs 0 (no exits)
+            if exits is None:
+                metrics_str = " [dim]exits:[/] [dim]?[/]"
+            elif exits > 0:
+                sr = success_rate if success_rate is not None else 0
+                sr_color = G if sr >= 80 else Y if sr >= 50 else R
+                metrics_str = f" [dim]exits:[/] {exits} [dim]success:[/] [{sr_color}]{sr:.0f}%[/]"
             else:
                 metrics_str = f" [dim]exits:[/] {exits}"
 
             phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 7:  # Signal Generation
-            signals = phase_data.get("signals_generated", 0)
-            buy_signals = phase_data.get("buy_signals", 0)
-            sell_signals = phase_data.get("sell_signals", 0)
+            signals = phase_data.get("signals_generated")
+            buy_signals = phase_data.get("buy_signals")
+            sell_signals = phase_data.get("sell_signals")
             avg_strength = phase_data.get("avg_strength")
 
-            sig_color = G if signals > 0 else DIM
-            if signals > 0:
+            # CRITICAL: Check for None (data missing) vs 0 (no signals)
+            if signals is None:
+                metrics_str = " [dim]signals:[/] [dim]?[/]"
+            elif signals > 0:
+                sig_color = G
                 metrics_str = f" [dim]signals:[/] [{sig_color}]{signals}[/]"
-                if buy_signals > 0 or sell_signals > 0:
-                    metrics_str += f" [dim]({buy_signals}↑ {sell_signals}↓)[/]"
+                bs = buy_signals if buy_signals is not None else 0
+                ss = sell_signals if sell_signals is not None else 0
+                if bs > 0 or ss > 0:
+                    metrics_str += f" [dim]({bs}↑ {ss}↓)[/]"
                 if avg_strength is not None:
                     strength_color = G if avg_strength >= 70 else Y if avg_strength >= 50 else R
                     metrics_str += f" [dim]avg:[/] [{strength_color}]{avg_strength:.1f}[/]"
@@ -446,12 +466,16 @@ def _build_phase_execution_panel(
 
             phase_line = f"  P{phase_num}: {status_icon} {phase_name:.<30} [{base_color}]{status_text}[/]{metrics_str}"
         elif phase_num == 8:  # Entry Execution
-            entries = phase_data.get("entries_executed", 0)
-            success_rate = phase_data.get("success_rate", 0)
+            entries = phase_data.get("entries_executed")
+            success_rate = phase_data.get("success_rate")
 
-            if entries > 0:
-                sr_color = G if success_rate >= 80 else Y if success_rate >= 50 else R
-                metrics_str = f" [dim]entries:[/] {entries} [dim]success:[/] [{sr_color}]{success_rate:.0f}%[/]"
+            # CRITICAL: Check for None (data missing) vs 0 (no entries)
+            if entries is None:
+                metrics_str = " [dim]entries:[/] [dim]?[/]"
+            elif entries > 0:
+                sr = success_rate if success_rate is not None else 0
+                sr_color = G if sr >= 80 else Y if sr >= 50 else R
+                metrics_str = f" [dim]entries:[/] {entries} [dim]success:[/] [{sr_color}]{sr:.0f}%[/]"
             else:
                 metrics_str = f" [dim]entries:[/] {entries}"
 
@@ -539,27 +563,33 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
     # Phase 6: Exit Execution
     exit_ex = execution_health.get("phase_6_exit_execution")
     if exit_ex:
-        exits = exit_ex.get("exits_executed", 0)
-        success_rate = exit_ex.get("success_rate", 0)
-        exit_color = G if exits > 0 and success_rate >= 80 else (Y if exits > 0 else DIM)
-        rows.append(Text.from_markup(f"  [{exit_color}]↓ P6:[/] {exits} exits, {success_rate:.0f}% success"))
+        exits = exit_ex.get("exits_executed")
+        success_rate = exit_ex.get("success_rate")
+        if exits is None or success_rate is None:
+            rows.append(Text.from_markup(f"  [dim]↓ P6:[/] [dim]DATA UNAVAILABLE[/]"))
+        else:
+            exit_color = G if exits > 0 and success_rate >= 80 else (Y if exits > 0 else DIM)
+            rows.append(Text.from_markup(f"  [{exit_color}]↓ P6:[/] {exits} exits, {success_rate:.0f}% success"))
 
     # Phase 7: Signal Generation
     sig = execution_health.get("phase_7_signal_generation")
     if sig:
-        signals = sig.get("signals_generated", 0)
+        signals = sig.get("signals_generated")
         avg_str = sig.get("avg_strength")
-        sig_color = G if signals > 0 else DIM
-        if avg_str is not None:
-            rows.append(Text.from_markup(f"  [{sig_color}]◆ P7:[/] {signals} signals, {avg_str:.1f} avg strength"))
+        if signals is None:
+            rows.append(Text.from_markup(f"  [dim]◆ P7:[/] [dim]DATA UNAVAILABLE[/]"))
         else:
-            rows.append(Text.from_markup(f"  [{sig_color}]◆ P7:[/] {signals} signals"))
+            sig_color = G if signals > 0 else DIM
+            if avg_str is not None:
+                rows.append(Text.from_markup(f"  [{sig_color}]◆ P7:[/] {signals} signals, {avg_str:.1f} avg strength"))
+            else:
+                rows.append(Text.from_markup(f"  [{sig_color}]◆ P7:[/] {signals} signals"))
 
     # Phase 8: Entry Execution
     entry_ex = execution_health.get("phase_8_entry_execution")
     if entry_ex:
-        entries = entry_ex.get("entries_executed", 0)
-        success_rate = entry_ex.get("success_rate", 0)
+        entries = entry_ex.get("entries_executed")
+        success_rate = entry_ex.get("success_rate")
         entry_color = G if entries > 0 and success_rate >= 80 else (Y if entries > 0 else DIM)
         rows.append(Text.from_markup(f"  [{entry_color}]↑ P8:[/] {entries} entries, {success_rate:.0f}% success"))
 

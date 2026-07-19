@@ -21,6 +21,9 @@ Usage:
 """
 
 import logging
+import os
+import signal
+import time
 from collections.abc import Generator
 from typing import Any
 
@@ -51,14 +54,34 @@ def batch_tickers(symbols: list[str], batch_size: int = 50) -> Generator[dict[st
     # the shared-IP rate-limit storm that was starving every other loader.
     from utils.external.yfinance import YFinanceWrapper
 
+    start_time = time.time()
+    max_batch_time_sec = int(os.getenv("YFINANCE_BATCH_MAX_TIME_SEC", "120"))
+    max_elapsed_sec = int(os.getenv("YFINANCE_TOTAL_MAX_TIME_SEC", "3600"))
+
     for batch_idx in range(0, len(symbols), batch_size):
+        elapsed = time.time() - start_time
+        if elapsed > max_elapsed_sec:
+            logger.warning(
+                f"[YFINANCE_BATCHER] Total time budget exceeded ({elapsed:.0f}s > {max_elapsed_sec}s), "
+                f"stopping early at batch {batch_idx // batch_size}/{len(symbols) // batch_size}"
+            )
+            break
+
         batch = symbols[batch_idx : batch_idx + batch_size]
+        batch_start = time.time()
         logger.info(f"[YFINANCE_BATCHER] Fetching batch {batch_idx // batch_size + 1}: {len(batch)} symbols")
 
         result: dict[str, Any] = {}
         for symbol in batch:
             try:
                 result[symbol] = YFinanceWrapper.get_ticker(symbol)
+                batch_elapsed = time.time() - batch_start
+                if batch_elapsed > max_batch_time_sec:
+                    logger.warning(
+                        f"[YFINANCE_BATCHER] Batch time budget exceeded ({batch_elapsed:.0f}s > {max_batch_time_sec}s), "
+                        f"stopping batch early at {len(result)}/{len(batch)} symbols"
+                    )
+                    break
             except Exception as e:
                 logger.debug(f"[YFINANCE_BATCHER] {symbol}: {e}")
                 result[symbol] = None

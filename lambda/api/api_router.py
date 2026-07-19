@@ -36,33 +36,46 @@ except ImportError:
         ) from e
 
 
-# health is the only truly critical route - if it fails the API can't self-report its own status
+# Fail-fast critical routes: API cannot function without these
+# These routes provide essential dashboard functionality
+_CRITICAL_ROUTES = {"health", "algo", "scores", "market", "signals"}
+
+# Try to import critical routes - fail-fast if any are missing
 try:
     from routes import health
 except ImportError as e:
     raise RuntimeError(f"CRITICAL: Failed to import routes.health (required for API to function): {e}") from e
 
-# Import routes gracefully - if a single module fails, others still work
-_ROUTE_IMPORT_ERRORS = {}  # Track which routes failed to import: {module_name: error_msg}
-_AVAILABLE_ROUTES = {}  # Track which routes loaded successfully
-_CRITICAL_ROUTES = {"health"}
+_AVAILABLE_ROUTES = {}
+_ROUTE_IMPORT_ERRORS = {}
 
-# All optional routes: loaded with graceful fallback - one module failing doesn't break others
+# Populate critical routes (must succeed)
+_AVAILABLE_ROUTES["health"] = health
+
+# Critical dashboard routes - these MUST load or API startup fails
+for critical_module in ["algo", "scores", "market", "signals"]:
+    try:
+        module = __import__(f"routes.{critical_module}", fromlist=[critical_module])
+        _AVAILABLE_ROUTES[critical_module] = module
+    except Exception as e:
+        error_msg = f"{type(e).__name__}: {str(e)[:200]}"
+        _ROUTE_IMPORT_ERRORS[critical_module] = error_msg
+        raise RuntimeError(
+            f"CRITICAL: Failed to import routes.{critical_module} (required for dashboard): {error_msg}"
+        ) from e
+
+# Optional routes: loaded with graceful fallback - one module failing doesn't break others
 _OPTIONAL_ROUTE_MODULES = [
-    "algo",
     "openapi_spec",
     "logs",
     "financials",
     "earnings",
-    "signals",
     "prices",
     "stocks",
     "sectors",
     "industries",
-    "market",
     "economic",
     "sentiment",
-    "scores",
     "research",
     "audit",
     "trades",
@@ -82,7 +95,7 @@ _STARTUP_LOCK = threading.Lock()  # Protects startup time and import duration up
 # Populate health (statically imported above)
 _AVAILABLE_ROUTES["health"] = health
 
-# Dynamically import optional routes with error handling
+# Dynamically import optional routes with error handling (non-fatal if they fail)
 for module_name in _OPTIONAL_ROUTE_MODULES:
     try:
         module = __import__(f"routes.{module_name}", fromlist=[module_name])
@@ -91,31 +104,17 @@ for module_name in _OPTIONAL_ROUTE_MODULES:
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
         _ROUTE_IMPORT_ERRORS[module_name] = error_msg
         logger.warning(
-            f"Failed to import optional routes.{module_name}: {error_msg}",
+            f"Optional route failed to import (app still functional): routes.{module_name}: {error_msg}",
             exc_info=True,
         )
 
 # Report startup status: log all failures with clear visibility
 if _ROUTE_IMPORT_ERRORS:
     failed_modules = list(_ROUTE_IMPORT_ERRORS.keys())
-    critical_failures = [m for m in failed_modules if m in _CRITICAL_ROUTES]
-
-    # Log structured status for monitoring
-    logger.error(
-        f"ROUTE_IMPORT_STATUS: failed_count={len(failed_modules)}, critical_count={len(critical_failures)}, modules={failed_modules}"
+    logger.warning(
+        f"ROUTE_IMPORT_STATUS: optional_failures={len(failed_modules)}, modules={failed_modules}. "
+        f"These endpoints will return 503 Service Unavailable. Core dashboard routes (health, algo, scores, market, signals) loaded successfully."
     )
-
-    # If critical routes failed, the API cannot function
-    if critical_failures:
-        error_detail = {
-            "error": "CRITICAL_ROUTE_IMPORT_FAILURE",
-            "critical_failures": critical_failures,
-            "all_failures": failed_modules,
-            "details": {m: _ROUTE_IMPORT_ERRORS[m] for m in critical_failures},
-        }
-        logger.error(f"CRITICAL_ROUTE_IMPORT_FAILURE: {json.dumps(error_detail)}")
-        # Set environment variable that monitoring can detect
-        os.environ["API_CRITICAL_ROUTES_FAILED"] = json.dumps(critical_failures)
 
 # Build handler mappings from available routes (some may be missing if they failed to import)
 PUBLIC_HANDLERS = {}
@@ -199,19 +198,29 @@ if "algo" in _AVAILABLE_ROUTES:
 
 # Register other public analytics endpoints needed by dashboard
 # These support market context, economic data, and analytical views
-if all(m in _AVAILABLE_ROUTES for m in ["economic", "market", "sentiment", "prices", "stocks", "signals"]):
-    analytics_endpoints = [
-        ("/api/economic", _AVAILABLE_ROUTES.get("economic")),
-        ("/api/market", _AVAILABLE_ROUTES.get("market")),
-        ("/api/sentiment", _AVAILABLE_ROUTES.get("sentiment")),
-        ("/api/prices", _AVAILABLE_ROUTES.get("prices")),
-        ("/api/stocks", _AVAILABLE_ROUTES.get("stocks")),
-        ("/api/signals", _AVAILABLE_ROUTES.get("signals")),
-    ]
-    for path, handler in analytics_endpoints:
-        if handler:
-            PUBLIC_HANDLERS[path] = handler
-    logger.info(f"[STARTUP] Registered {len([e for e, h in analytics_endpoints if h])} analytics endpoints as public")
+# CRITICAL FIX: Register individually - don't skip all if one fails
+# (Previous: if all() meant one failure → zero endpoints registered = silent degradation)
+analytics_endpoints = [
+    ("/api/economic", _AVAILABLE_ROUTES.get("economic")),
+    ("/api/market", _AVAILABLE_ROUTES.get("market")),
+    ("/api/sentiment", _AVAILABLE_ROUTES.get("sentiment")),
+    ("/api/prices", _AVAILABLE_ROUTES.get("prices")),
+    ("/api/stocks", _AVAILABLE_ROUTES.get("stocks")),
+    ("/api/signals", _AVAILABLE_ROUTES.get("signals")),
+]
+analytics_registered = 0
+for path, handler in analytics_endpoints:
+    if handler:
+        PUBLIC_HANDLERS[path] = handler
+        analytics_registered += 1
+    else:
+        module_name = path.split("/")[-1]
+        logger.warning(f"Optional analytics endpoint {path} unavailable (module {module_name} failed to import)")
+
+if analytics_registered > 0:
+    logger.info(f"[STARTUP] Registered {analytics_registered} analytics endpoints as public (of 6 total)")
+else:
+    logger.warning("[STARTUP] WARNING: No analytics endpoints available (all 6 modules failed to import)")
 
 # Build authenticated handlers (order matters: /api/algo/risk-dashboard must come before /api/algo)
 # Note: /api/positions and /api/portfolio aliases are now in PUBLIC_HANDLERS
