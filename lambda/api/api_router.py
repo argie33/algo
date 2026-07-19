@@ -104,8 +104,8 @@ for module_name in _OPTIONAL_ROUTE_MODULES:
     except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)[:200]}"
         _ROUTE_IMPORT_ERRORS[module_name] = error_msg
-        logger.warning(
-            f"Optional route failed to import (app still functional): routes.{module_name}: {error_msg}",
+        logger.error(
+            f"Optional route failed to import (endpoint will return 503): routes.{module_name}: {error_msg}",
             exc_info=True,
         )
 
@@ -216,7 +216,7 @@ for path, handler in analytics_endpoints:
         analytics_registered += 1
     else:
         module_name = path.split("/")[-1]
-        logger.warning(f"Optional analytics endpoint {path} unavailable (module {module_name} failed to import)")
+        logger.error(f"Optional analytics endpoint {path} unavailable (module {module_name} failed to import)")
 
 if analytics_registered > 0:
     logger.info(f"[STARTUP] Registered {analytics_registered} analytics endpoints as public (of 6 total)")
@@ -268,7 +268,7 @@ for path, module_name in _HANDLER_CONFIG:
                 "error": _ROUTE_IMPORT_ERRORS.get(module_name, "unknown"),
             }
         )
-        logger.warning(
+        logger.error(
             f"Route {path} SKIPPED - module routes.{module_name} failed to import: {_ROUTE_IMPORT_ERRORS.get(module_name, 'unknown')}"
         )
 

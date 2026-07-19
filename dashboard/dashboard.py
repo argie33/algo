@@ -219,17 +219,12 @@ class _RenderState:
 
 
 _PANEL_REGISTRY = None
-_REGISTRY_SKIPPED = False
 
-if os.environ.get("SKIP_PANEL_REGISTRY"):
-    logger.info("Panel registry disabled via SKIP_PANEL_REGISTRY environment variable")
-    _REGISTRY_SKIPPED = True
-else:
-    try:
-        _PANEL_REGISTRY = _get_panel_registry()
-    except (ImportError, Exception) as e:
-        logger.critical(f"Panel registry initialization failed: {type(e).__name__}: {e}")
-        sys.exit(1)
+try:
+    _PANEL_REGISTRY = _get_panel_registry()
+except (ImportError, Exception) as e:
+    logger.critical(f"Panel registry initialization failed: {type(e).__name__}: {e}")
+    sys.exit(1)
 
 
 def _validate_watch_interval(value: str) -> int:
