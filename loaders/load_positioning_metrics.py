@@ -53,22 +53,18 @@ class PositioningMetricsLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch positioning metrics for a symbol from authoritative sources only.
+        """Fetch positioning metrics for a symbol from authoritative sources with fallback.
 
-        DATA SOURCES (Phase 2 optimization onwards):
-        - short_interest: FINRA Reg SHO (authoritative)
-        - institutional_ownership: SEC 13F filings (authoritative)
-        - insider_ownership: SEC Form 4/5 filings (authoritative)
+        DATA SOURCE HIERARCHY:
+        - short_interest: (1) FINRA Reg SHO, (2) yfinance_snapshot fallback
+        - institutional_ownership: (1) SEC 13F filings, (2) yfinance_snapshot fallback
+        - insider_ownership: (1) SEC Form 4/5 filings, (2) yfinance_snapshot fallback
 
-        FAIL-FAST: Returns data_unavailable marker if authoritative sources missing.
-        NO secondary fallbacks to yfinance (was masking data quality issues).
-
-        Returns positioning data (institutional %, insider %, short interest %) or
-        data_unavailable marker if sources missing/unavailable.
+        Returns positioning data with source tracking, or data_unavailable only if ALL sources fail.
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        # Fetch short interest from FINRA (only authoritative source)
+        # Fetch short interest: FINRA first, then yfinance fallback
         short_interest_pct = None
         short_interest_source = None
 
@@ -88,10 +84,6 @@ class PositioningMetricsLoader(OptimalLoader):
             short_interest_pct = short_row[0]
             short_interest_source = "finra"
         else:
-<<<<<<< Updated upstream
-            # FINRA data missing - no yfinance fallback (fail-fast)
-            short_interest_source = "unavailable"
-=======
             # FINRA missing - fallback to yfinance
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -109,9 +101,8 @@ class PositioningMetricsLoader(OptimalLoader):
                 short_interest_source = "yfinance"
             else:
                 short_interest_source = "unavailable"
->>>>>>> Stashed changes
 
-        # Fetch institutional ownership from SEC 13F (only authoritative source)
+        # Fetch institutional ownership: SEC 13F first, then yfinance fallback
         institutional_pct = None
         institutional_source = None
 
@@ -131,10 +122,6 @@ class PositioningMetricsLoader(OptimalLoader):
             institutional_pct = sec_inst_row[0]
             institutional_source = "sec_13f"
         else:
-<<<<<<< Updated upstream
-            # SEC 13F data missing - no yfinance fallback (fail-fast)
-            institutional_source = "unavailable"
-=======
             # SEC 13F missing - fallback to yfinance
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -152,9 +139,8 @@ class PositioningMetricsLoader(OptimalLoader):
                 institutional_source = "yfinance"
             else:
                 institutional_source = "unavailable"
->>>>>>> Stashed changes
 
-        # Fetch insider ownership from SEC Form 4/5 (only authoritative source)
+        # Fetch insider ownership: SEC Form 4/5 first, then yfinance fallback
         insider_pct = None
         insider_source = None
 
@@ -174,10 +160,6 @@ class PositioningMetricsLoader(OptimalLoader):
             insider_pct = sec_insider_row[0]
             insider_source = "sec_form4"
         else:
-<<<<<<< Updated upstream
-            # SEC Form 4/5 data missing - no yfinance fallback (fail-fast)
-            insider_source = "unavailable"
-=======
             # SEC Form 4/5 missing - fallback to yfinance
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -195,7 +177,6 @@ class PositioningMetricsLoader(OptimalLoader):
                 insider_source = "yfinance"
             else:
                 insider_source = "unavailable"
->>>>>>> Stashed changes
 
         # Mark unavailable only if ALL three sources missing (any one source makes data available)
         all_unavailable = (
@@ -207,8 +188,8 @@ class PositioningMetricsLoader(OptimalLoader):
         return [
             {
                 "symbol": symbol,
-                "institutional_ownership_pct": institutional_pct,
-                "insider_ownership_pct": insider_pct,
+                "institutional_ownership": institutional_pct,
+                "insider_ownership": insider_pct,
                 "short_interest_pct": short_interest_pct,
                 "data_unavailable": all_unavailable,
                 "reason": (
@@ -217,50 +198,15 @@ class PositioningMetricsLoader(OptimalLoader):
                     else None
                 ),
                 "data_source": (
-                    # Set data_source to the primary available source, or "none" if all unavailable
                     short_interest_source if short_interest_source != "unavailable"
                     else institutional_source if institutional_source != "unavailable"
                     else insider_source if insider_source != "unavailable"
                     else "none"
                 ),
-                "source_tracking": {
-                    "short_interest": short_interest_source,
-                    "institutional": institutional_source,
-                    "insider": insider_source,
-                },
                 "updated_at": now_et,
             }
         ]
 
 
-def main() -> int:
-    """Wrapped main with exception handling for data_unavailable markers."""
-    try:
-        return run_loader(PositioningMetricsLoader)
-    except Exception as e:
-        logger.error(f"[POSITIONING FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
-        # Mark data unavailable only for symbols with no row yet -- a crash partway through
-        # must not clobber symbols already fetched and committed earlier in this same run
-        try:
-            symbols = set()
-            with DatabaseContext("read") as cur:
-                cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE active = TRUE")
-                symbols = {row[0] for row in cur.fetchall()}
-
-            with DatabaseContext("write") as cur:
-                for symbol in symbols:
-                    cur.execute(
-                        """
-                        INSERT INTO positioning_metrics (symbol, data_unavailable, reason, updated_at)
-                        VALUES (%s, TRUE, %s, NOW())
-                        ON CONFLICT (symbol) DO NOTHING
-                        """,
-                        (symbol, f"loader_crash:{type(e).__name__}"),
-                    )
-        except Exception as mark_err:
-            logger.error(f"[POSITIONING] Failed to mark positioning_metrics data unavailable: {mark_err}")
-        return 1
-
-
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(run_loader(PositioningMetricsLoader, description="Load positioning metrics from SEC + yfinance"))
