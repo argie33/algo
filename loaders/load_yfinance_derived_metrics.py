@@ -132,110 +132,90 @@ class YfinanceDerivedMetricsLoader(OptimalLoader):
         return 1
 
     def _persist_to_all_tables(self, record: dict[str, Any]) -> None:
-        """Persist dashboard enrichment data to output tables (company_profile, earnings_calendar, analyst_sentiment_analysis).
+        """Persist dashboard enrichment from SEC sources to output tables.
 
-        REMOVED (now handled elsewhere):
-          - value_metrics → load_value_quality_growth_metrics.py (SEC-based, higher quality)
-          - positioning_metrics → load_positioning_metrics.py (dedicated critical loader)
+        Tables: company_profile, earnings_calendar, analyst_sentiment_analysis.
+        Note: analyst_sentiment_analysis marked data_unavailable (no SEC source for analyst recommendations).
         """
         from datetime import timezone
 
         symbol = record.get("symbol")
         updated_at = record.get("updated_at")
 
-        # Guard against None updated_at
         if updated_at is None:
             updated_at = datetime.now(timezone.utc)
 
         with DatabaseContext("write") as cur:
-            # 1. company_profile
-            # 1a. company_profile (dashboard display: sector, industry, exchange, website)
             if not record.get("data_unavailable"):
                 cur.execute(
                     """
-                    INSERT INTO company_profile (ticker, symbol, long_name, sector, industry, exchange, website, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO company_profile (ticker, symbol, long_name, sector, exchange, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (ticker) DO UPDATE SET
-                      symbol = EXCLUDED.symbol, long_name = EXCLUDED.long_name, sector = EXCLUDED.sector, industry = EXCLUDED.industry,
-                      exchange = EXCLUDED.exchange, website = EXCLUDED.website,
-                      updated_at = EXCLUDED.updated_at
+                      symbol = EXCLUDED.symbol, long_name = EXCLUDED.long_name, sector = EXCLUDED.sector,
+                      exchange = EXCLUDED.exchange, updated_at = EXCLUDED.updated_at
                     """,
                     (
                         symbol,
                         symbol,
                         record.get("long_name"),
                         record.get("sector"),
-                        record.get("industry"),
                         record.get("exchange"),
-                        record.get("website"),
                         updated_at,
                     ),
                 )
-            else:
-                cur.execute(
-                    "INSERT INTO company_profile (ticker, symbol, sector, data_unavailable, reason, updated_at) VALUES (%s, %s, %s, TRUE, %s, %s) ON CONFLICT (ticker) DO UPDATE SET symbol = EXCLUDED.symbol, sector = EXCLUDED.sector, data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                    (symbol, symbol, "Unknown", record.get("reason", "unknown"), updated_at),
-                )
 
-            # 1b. earnings_calendar (dashboard display: next earnings date)
-            if not record.get("data_unavailable"):
-                earnings_date_unix = record.get("earnings_date")
-                if earnings_date_unix:
-                    try:
-                        earnings_date_py = datetime.fromtimestamp(earnings_date_unix).date()
-                        cur.execute(
-                            """
-                            INSERT INTO earnings_calendar (symbol, earnings_date, market_cap, updated_at)
-                            VALUES (%s, %s, %s, %s)
-                            ON CONFLICT (symbol, earnings_date) DO UPDATE SET
-                              market_cap = EXCLUDED.market_cap, updated_at = EXCLUDED.updated_at
-                            """,
-                            (symbol, earnings_date_py, record.get("market_cap"), updated_at),
-                        )
-                    except (ValueError, OSError, OverflowError):
-                        cur.execute(
-                            "INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, earnings_date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                            (symbol, updated_at.date(), "invalid_earnings_timestamp", updated_at),
-                        )
+                earnings_date = record.get("earnings_date")
+                if earnings_date:
+                    cur.execute(
+                        """
+                        INSERT INTO earnings_calendar (symbol, earnings_date, updated_at)
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (symbol, earnings_date) DO UPDATE SET updated_at = EXCLUDED.updated_at
+                        """,
+                        (symbol, earnings_date, updated_at),
+                    )
                 else:
                     cur.execute(
-                        "INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, earnings_date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
-                        (symbol, updated_at.date(), "no_next_earnings_available", updated_at),
+                        """
+                        INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at)
+                        VALUES (%s, %s, TRUE, %s, %s)
+                        ON CONFLICT (symbol, earnings_date) DO UPDATE SET
+                          data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at
+                        """,
+                        (symbol, updated_at.date(), "no_earnings_in_sec", updated_at),
                     )
             else:
                 cur.execute(
-                    "INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at) VALUES (%s, %s, TRUE, %s, %s) ON CONFLICT (symbol, earnings_date) DO UPDATE SET data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at",
+                    """
+                    INSERT INTO company_profile (ticker, symbol, sector, data_unavailable, reason, updated_at)
+                    VALUES (%s, %s, %s, TRUE, %s, %s)
+                    ON CONFLICT (ticker) DO UPDATE SET
+                      data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at
+                    """,
+                    (symbol, symbol, "Unknown", record.get("reason", "unknown"), updated_at),
+                )
+
+                cur.execute(
+                    """
+                    INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at)
+                    VALUES (%s, %s, TRUE, %s, %s)
+                    ON CONFLICT (symbol, earnings_date) DO UPDATE SET
+                      data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at
+                    """,
                     (symbol, updated_at.date(), record.get("reason", "unknown"), updated_at),
                 )
 
-            # 5. analyst_sentiment_analysis (analyst counts and recommendation)
-            # Note: analyst_sentiment_analysis table does not support data_unavailable markers
-            # Only insert when data is available
-            if not record.get("data_unavailable") and record.get("analyst_count"):
-                cur.execute(
-                    """
-                    INSERT INTO analyst_sentiment_analysis
-                    (symbol, date, analyst_count, bullish_count, bearish_count, neutral_count, recommendation_key, updated_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (symbol, date) DO UPDATE SET
-                      analyst_count = EXCLUDED.analyst_count,
-                      bullish_count = EXCLUDED.bullish_count,
-                      bearish_count = EXCLUDED.bearish_count,
-                      neutral_count = EXCLUDED.neutral_count,
-                      recommendation_key = EXCLUDED.recommendation_key,
-                      updated_at = EXCLUDED.updated_at
-                    """,
-                    (
-                        symbol,
-                        updated_at.date(),
-                        record.get("analyst_count"),
-                        record.get("bullish_count"),
-                        record.get("bearish_count"),
-                        record.get("neutral_count"),
-                        record.get("analyst_recommendation"),
-                        updated_at,
-                    ),
-                )
+            today = updated_at.date()
+            cur.execute(
+                """
+                INSERT INTO analyst_sentiment_analysis (symbol, date, data_unavailable, reason, updated_at)
+                VALUES (%s, %s, TRUE, %s, %s)
+                ON CONFLICT (symbol, date) DO UPDATE SET
+                  data_unavailable = TRUE, reason = EXCLUDED.reason, updated_at = EXCLUDED.updated_at
+                """,
+                (symbol, today, "no_sec_source_for_analyst_data", updated_at),
+            )
 
 
 def main() -> int:
@@ -243,62 +223,44 @@ def main() -> int:
     try:
         return run_loader(YfinanceDerivedMetricsLoader)
     except Exception as e:
-        logger.error(f"[YFINANCE_DERIVED FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
-        # Backfill a placeholder unavailable row for symbols never reached this run.
-        # DO NOTHING (not DO UPDATE) is required here -- a crash/timeout partway
-        # through must not clobber symbols already fetched and committed earlier
-        # in this same run. The previous DO UPDATE unconditionally overwrote every
-        # active symbol across all 5 tables on any exception, silently destroying
-        # real data for whatever had already succeeded before the crash point.
+        logger.error(f"[SEC_DASHBOARD] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         try:
             symbols = set()
             with DatabaseContext("read") as cur:
                 cur.execute("SELECT DISTINCT symbol FROM stock_symbols WHERE active = TRUE")
                 symbols = {row[0] for row in cur.fetchall()}
 
-            tables = [
-                "company_profile",
-                "earnings_calendar",
-                "analyst_sentiment_analysis",
-            ]
-
-            from datetime import datetime
-
-            from utils.infrastructure.timezone import EASTERN_TZ
+            today = datetime.now(EASTERN_TZ).date()
+            now = datetime.now(EASTERN_TZ)
 
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
-                    for table in tables:
-                        if table == "company_profile":
-                            cur.execute(
-                                f"""
-                                INSERT INTO {table} (ticker, symbol, sector, data_unavailable, reason, updated_at)
-                                VALUES (%s, %s, %s, TRUE, %s, NOW())
-                                ON CONFLICT (ticker) DO NOTHING
-                                """,
-                                (symbol, symbol, "Unknown", f"loader_crash:{type(e).__name__}"),
-                            )
-                        elif table == "analyst_sentiment_analysis":
-                            today = datetime.now(EASTERN_TZ).date()
-                            cur.execute(
-                                f"""
-                                INSERT INTO {table} (symbol, date, data_unavailable, reason, updated_at)
-                                VALUES (%s, %s, TRUE, %s, NOW())
-                                ON CONFLICT (symbol, date) DO NOTHING
-                                """,
-                                (symbol, today, f"loader_crash:{type(e).__name__}"),
-                            )
-                        else:
-                            cur.execute(
-                                f"""
-                                INSERT INTO {table} (symbol, data_unavailable, reason, updated_at)
-                                VALUES (%s, TRUE, %s, NOW())
-                                ON CONFLICT (symbol) DO NOTHING
-                                """,
-                                (symbol, f"loader_crash:{type(e).__name__}"),
-                            )
+                    cur.execute(
+                        """
+                        INSERT INTO company_profile (ticker, symbol, sector, data_unavailable, reason, updated_at)
+                        VALUES (%s, %s, %s, TRUE, %s, %s)
+                        ON CONFLICT (ticker) DO NOTHING
+                        """,
+                        (symbol, symbol, "Unknown", f"loader_crash:{type(e).__name__}", now),
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO earnings_calendar (symbol, earnings_date, data_unavailable, reason, updated_at)
+                        VALUES (%s, %s, TRUE, %s, %s)
+                        ON CONFLICT (symbol, earnings_date) DO NOTHING
+                        """,
+                        (symbol, today, f"loader_crash:{type(e).__name__}", now),
+                    )
+                    cur.execute(
+                        """
+                        INSERT INTO analyst_sentiment_analysis (symbol, date, data_unavailable, reason, updated_at)
+                        VALUES (%s, %s, TRUE, %s, %s)
+                        ON CONFLICT (symbol, date) DO NOTHING
+                        """,
+                        (symbol, today, f"loader_crash:{type(e).__name__}", now),
+                    )
         except Exception as inner_e:
-            logger.error(f"[YFINANCE_DERIVED] Failed to mark tables unavailable: {inner_e}", exc_info=True)
+            logger.error(f"[SEC_DASHBOARD] Failed to mark tables unavailable: {inner_e}", exc_info=True)
 
         return 1
 
