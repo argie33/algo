@@ -295,7 +295,59 @@ except RuntimeError as e:
 
 ---
 
-### 11. 44 Known Issues in Codebase
+### 11. Loader Fallback Logic Introduces Race Condition
+**Location:** `utils/optimal_loader.py:428-448`  
+**Severity:** HIGH  
+**Pattern:**
+```python
+if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
+    if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
+        logger.warning(...)
+        # Fall back to FileLockManager when DynamoDB unavailable
+        lock_manager = FileLockManager(...)  # INTRODUCES RACE CONDITION!
+```
+
+**Risk:** 
+- When DynamoDB permission denied, code falls back to FileLockManager
+- But FileLockManager has Windows race condition (non-atomic file creation)
+- Fallback makes situation WORSE for Windows users, not better
+- AWS credential issue is not fixed by switching to file-based locking
+
+**Fix:** Remove fallback to FileLockManager - fail-fast with clear error if DynamoDB unavailable
+
+---
+
+### 12. Buy/Sell Signal Generation Foreign Key Fallback
+**Location:** `loaders/load_buy_sell_daily.py:158-162`  
+**Severity:** HIGH  
+**Pattern:**
+```python
+except Exception as e:
+    logger.warning(
+        f"[RUN] Failed to apply filters: {e}. "
+        f"Proceeding with {len(symbols)} symbols (may cause foreign key errors)."
+    )
+```
+
+**Risk:**
+- When price filtering fails, code proceeds anyway with all symbols
+- Symbols without price_daily data → foreign key violation when inserting buy_sell signals
+- Data inconsistency: signals without corresponding price data
+- Signal generation could silently fail for symbols
+
+**Fix:** Make price filtering mandatory - fail-closed if it fails
+```python
+except Exception as e:
+    logger.critical(
+        f"[RUN] Price filter failed (critical for data integrity): {e}. "
+        f"Cannot proceed without validating signals have prices. Halting."
+    )
+    raise
+```
+
+---
+
+### 13. 44 Known Issues in Codebase
 **Total Count:** 44 instances of TODO/FIXME/XXX/HACK/BUG  
 **Severity:** MEDIUM (known-knowns, being tracked)
 

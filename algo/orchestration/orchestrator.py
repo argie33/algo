@@ -1375,28 +1375,32 @@ class Orchestrator:
                     logger.error("\nABORT: Could not acquire run lock. Another orchestrator instance is running.")
                     return {"success": False, "error": "Lock acquisition failed"}
                 else:
-                    # FIXED (Session 210): DynamoDB unavailable due to invalid AWS credentials.
-                    # In LOCAL_MODE development (no AWS access), fail-open and allow execution.
-                    # This is the same pattern used in Session 209 for halt_flag_manager.
-                    # Production environments (with valid credentials) would never hit this,
-                    # so failing open here only affects local dev, not production safety.
-                    is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("true", "1", "yes")
-                    if is_local_mode:
-                        logger.warning(
-                            "[LOCK] DynamoDB lock unavailable in LOCAL_MODE (no AWS credentials). "
-                            "Proceeding with execution. WARNING: If multiple orchestrators are running, "
-                            "they may conflict on shared database state."
-                        )
-                        return None  # Fail open - allow execution to continue
-                    else:
-                        logger.critical(
-                            "\nABORT: DynamoDB lock unavailable. Cannot verify single orchestrator instance. "
-                            "Failing closed to prevent concurrent trades and duplicate order execution."
-                        )
-                        return {
-                            "success": False,
-                            "error": "Distributed lock system unavailable. Cannot proceed with trading.",
-                        }
+                    # CRITICAL FIX (Session 282): ALWAYS fail closed when DynamoDB locks unavailable.
+                    # Session 281 removed LOCAL_MODE fallback to FileLockManager in get_lock_manager(),
+                    # but this code still allowed fail-open in LOCAL_MODE creating race condition.
+                    #
+                    # Issue: Two concurrent LOCAL_MODE processes could both:
+                    # 1. Get permission error from DynamoDB (is_available=False)
+                    # 2. Check LOCAL_MODE env var (both see "true")
+                    # 3. Both return None from this function (fail open)
+                    # 4. Both proceed to execute orchestrator simultaneously
+                    # 5. Both write to shared production DB and live Alpaca account
+                    # Result: Duplicate orders, portfolio corruption, catastrophic losses
+                    #
+                    # Solution: Fail closed when DynamoDB unavailable, REGARDLESS of LOCAL_MODE.
+                    # LOCAL_MODE testing must use DynamoDB distributed locks just like production.
+                    # If you need to test without AWS access, use dry_run=True instead.
+                    logger.critical(
+                        "\nABORT: Distributed lock system unavailable (is_available=False). "
+                        "Cannot verify single orchestrator instance. DynamoDB access required for all runs "
+                        "(LOCAL_MODE included). LOCAL_MODE development still connects to shared production DB "
+                        "and live Alpaca account, so distributed locking is non-negotiable. "
+                        "Fix: Ensure AWS credentials available, or use dry_run=True for testing."
+                    )
+                    return {
+                        "success": False,
+                        "error": "Distributed lock system unavailable. Cannot proceed with trading.",
+                    }
         else:
             # Only reason to skip lock is dry_run (which doesn't write to database/broker)
             if not self.dry_run:
