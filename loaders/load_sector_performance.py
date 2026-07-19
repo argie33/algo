@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """Sector Performance Loader - Calculate daily sector returns.
 
-Calculates daily percentage returns for each sector based on weighted average
-of constituent stock prices. Updates sector_performance table with latest data.
+Market-wide computation (not per-symbol). Calculates daily percentage returns for each
+sector based on weighted average of constituent stock prices.
 
 Schedule: Daily after market close
 Cost: ~$0.01/run (single query)
 """
-
-from __future__ import annotations
 
 import logging
 import sys
@@ -17,107 +15,46 @@ from pathlib import Path
 from typing import Any
 
 import psycopg2
-import psycopg2.errors
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
 
-class SectorPerformanceLoader:
-    """Load daily sector performance (return %) from stock prices."""
+def main() -> int:
+    """Calculate sector performance for latest trading date.
 
+    Exit codes: 0=success, 1=error
+    """
     table_name = "sector_performance"
 
-    @staticmethod
-    def load_symbol(symbol: str, since: date | None = None) -> list[dict[str, Any]]:
-        """Not used for sector performance (global computation, not per-symbol)."""
-        return []
+    try:
+        # Mark as RUNNING
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                "UPDATE data_loader_status SET status=%s, last_updated=NOW(), execution_started=NOW() WHERE table_name=%s",
+                ("RUNNING", table_name),
+            )
+            if cur.rowcount == 0:
+                cur.execute(
+                    "INSERT INTO data_loader_status (table_name, status, last_updated, execution_started) VALUES (%s, %s, NOW(), NOW())",
+                    (table_name, "RUNNING"),
+                )
 
-    @staticmethod
-    def load_global() -> int:
-        """Calculate sector performance from daily price changes.
-
-        Uses weighted average approach:
-        1. Get all stocks with prices for target_date and previous day
-        2. Calculate daily return % for each stock
-        3. Group by sector and weight by market cap (using current price as proxy)
-        4. Upsert into sector_performance table
-
-        Args:
-            target_date: Date to calculate performance for
-
-        Returns:
-            Number of records inserted/updated
-        """
+        target_date = date.today()
         prev_date = target_date - timedelta(days=1)
 
         # CRITICAL: Only calculate for trading days (Monday-Friday, market open)
         # Skip weekends and holidays automatically when no price data exists
-        self.cur.execute(
-            """
-            WITH daily_changes AS (
-                SELECT
-                    cp.sector,
-                    pd_today.symbol,
-                    (pd_today.close - pd_prev.close) / NULLIF(pd_prev.close, 0) as daily_return,
-                    pd_today.close as market_cap_proxy
-                FROM price_daily pd_today
-                INNER JOIN price_daily pd_prev
-                    ON pd_today.symbol = pd_prev.symbol
-                    AND pd_prev.date = %s
-                INNER JOIN company_profile cp ON pd_today.symbol = cp.symbol
-                WHERE pd_today.date = %s
-                    AND cp.sector IS NOT NULL
-                    AND cp.sector != ''
-            ),
-            sector_weighted_avg AS (
-                SELECT
-                    sector,
-                    SUM(daily_return * market_cap_proxy) / NULLIF(SUM(market_cap_proxy), 0) as return_pct,
-                    COUNT(DISTINCT symbol) as stock_count
-                FROM daily_changes
-                GROUP BY sector
-            )
-            INSERT INTO sector_performance (sector, date, return_pct, relative_strength, created_at, updated_at)
-            SELECT
-                sector,
-                %s as date,
-                return_pct,  -- CRITICAL: Do NOT default missing returns to 0%
-                1.0 as relative_strength,
-                NOW() as created_at,
-                NOW() as updated_at
-            FROM sector_weighted_avg
-            WHERE return_pct IS NOT NULL  -- CRITICAL: Skip sectors with missing/incomplete data
-            ON CONFLICT (sector, date) DO UPDATE SET
-                return_pct = EXCLUDED.return_pct,
-                updated_at = NOW()
-        """,
-            (prev_date, target_date, target_date),
-        )
-
-        rows = self.cur.rowcount
-        if rows <= 0:
-            logger.warning(
-                f"[{self.name}] No sector performance data calculated for {target_date} "
-                "(may be weekend or missing price data)"
-            )
-            return 0
-
-        # CRITICAL: Log if any sectors had missing/incomplete data
-        # (These are skipped by WHERE return_pct IS NOT NULL clause)
-        self.cur.execute(
-            """
-            WITH sector_calc AS (
-                SELECT
-                    sector,
-                    SUM(daily_return * market_cap_proxy) / NULLIF(SUM(market_cap_proxy), 0) as return_pct
-                FROM (
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                WITH daily_changes AS (
                     SELECT
                         cp.sector,
+                        pd_today.symbol,
                         (pd_today.close - pd_prev.close) / NULLIF(pd_prev.close, 0) as daily_return,
                         pd_today.close as market_cap_proxy
                     FROM price_daily pd_today
@@ -128,27 +65,62 @@ class SectorPerformanceLoader:
                     WHERE pd_today.date = %s
                         AND cp.sector IS NOT NULL
                         AND cp.sector != ''
-                ) daily_changes
-                GROUP BY sector
-            )
-            SELECT sector FROM sector_calc WHERE return_pct IS NULL
+                ),
+                sector_weighted_avg AS (
+                    SELECT
+                        sector,
+                        SUM(daily_return * market_cap_proxy) / NULLIF(SUM(market_cap_proxy), 0) as return_pct,
+                        COUNT(DISTINCT symbol) as stock_count
+                    FROM daily_changes
+                    GROUP BY sector
+                )
+                INSERT INTO sector_performance (sector, date, return_pct, relative_strength, created_at, updated_at)
+                SELECT
+                    sector,
+                    %s as date,
+                    return_pct,
+                    1.0 as relative_strength,
+                    NOW() as created_at,
+                    NOW() as updated_at
+                FROM sector_weighted_avg
+                WHERE return_pct IS NOT NULL
+                ON CONFLICT (sector, date) DO UPDATE SET
+                    return_pct = EXCLUDED.return_pct,
+                    updated_at = NOW()
             """,
-            (prev_date, target_date),
-        )
-        missing_sectors = [row[0] for row in self.cur.fetchall()]
-        if missing_sectors:
-            logger.warning(
-                f"[{self.name}] Sectors with missing/incomplete data (skipped): {missing_sectors}. "
-                f"Possible causes: sector has no stocks with prices, missing price data"
+                (prev_date, target_date, target_date),
             )
 
-        self.cur.connection.commit()
-        logger.info(f"[{self.name}] Loaded/updated {rows} sector performance records for {target_date}")
-        return int(rows)
+            rows = cur.rowcount
+            if rows <= 0:
+                logger.warning(f"[SECTOR_PERFORMANCE] No data for {target_date} (may be weekend/missing data)")
+                rows_str = "0"
+            else:
+                logger.info(f"[SECTOR_PERFORMANCE] Loaded {rows} sector records for {target_date}")
+                rows_str = str(rows)
+
+            # Mark as COMPLETED
+            cur.execute(
+                "UPDATE data_loader_status SET status=%s, latest_date=%s, last_updated=NOW(), execution_completed=NOW() WHERE table_name=%s",
+                ("COMPLETED", target_date, table_name),
+            )
+
+        logger.info(f"[SECTOR_PERFORMANCE] Completed successfully ({rows_str} rows)")
+        return 0
+
+    except Exception as e:
+        logger.error(f"[SECTOR_PERFORMANCE] Failed: {type(e).__name__}: {e}", exc_info=True)
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    "UPDATE data_loader_status SET status=%s, last_updated=NOW(), execution_completed=NOW(), error_message=%s WHERE table_name=%s",
+                    ("FAILED", str(e)[:500], table_name),
+                )
+        except Exception as update_err:
+            logger.error(f"[SECTOR_PERFORMANCE] Failed to update status: {update_err}")
+        return 1
 
 
-def run(cur: cursor) -> dict[str, Any]:
-    """Entry point for orchestrator."""
-    loader = SectorPerformanceLoader(cur)
-    rows = loader.load()
-    return {"status": "success", "rows_loaded": rows}
+if __name__ == "__main__":
+    exit_code = main()
+    sys.exit(exit_code)
