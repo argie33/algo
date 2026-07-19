@@ -60,16 +60,25 @@ with DatabaseContext("read") as cur:
     }
     for table, desc in tables.items():
         cur.execute(f"SELECT COUNT(*) FROM {table}")
-        count = cur.fetchone()[0]
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError(f"Failed to fetch count for table {table}")
+        count = result[0]
         check(f"{desc} ({table})", count > 0, f"Rows: {count}")
 
 # 4. Recent data
 with DatabaseContext("read") as cur:
     cur.execute("SELECT MAX(date) FROM price_daily")
-    latest_price = cur.fetchone()[0]
+    result = cur.fetchone()
+    if not result:
+        raise RuntimeError("Failed to fetch latest price date")
+    latest_price = result[0]
 
     cur.execute("SELECT MAX(date) FROM buy_sell_daily")
-    latest_signal = cur.fetchone()[0]
+    result = cur.fetchone()
+    if not result:
+        raise RuntimeError("Failed to fetch latest signal date")
+    latest_signal = result[0]
 
     from datetime import date
 

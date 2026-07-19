@@ -26,7 +26,10 @@ def check_database():
 
             for table in tables:
                 cur.execute(f"SELECT COUNT(*) FROM {table} LIMIT 1")
-                count = cur.fetchone()[0]
+                result = cur.fetchone()
+                if not result:
+                    raise RuntimeError(f"Failed to fetch count for table {table}")
+                count = result[0]
                 logger.info(f"  {table}: {count} rows")
 
         logger.info("✓ Database connectivity: OK")
@@ -128,7 +131,10 @@ def check_schema_integrity():
                 SELECT numeric_precision FROM information_schema.columns
                 WHERE table_name = 'technical_data_daily' AND column_name = 'roc'
             """)
-            precision = cur.fetchone()[0]
+            result = cur.fetchone()
+            if not result:
+                raise RuntimeError("Failed to fetch ROC column precision from schema")
+            precision = result[0]
             if precision >= 14:
                 logger.info(f"  ROC columns: NUMERIC({precision},4) ✓")
             else:
@@ -139,7 +145,10 @@ def check_schema_integrity():
                 SELECT COUNT(*) FROM information_schema.columns
                 WHERE table_name = 'stock_scores' AND column_name = 'reason_type'
             """)
-            has_reason_type = cur.fetchone()[0] > 0
+            result = cur.fetchone()
+            if not result:
+                raise RuntimeError("Failed to fetch reason_type column count from schema")
+            has_reason_type = result[0] > 0
             if has_reason_type:
                 logger.info("  reason_type column: Present ✓")
             else:

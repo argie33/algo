@@ -226,7 +226,10 @@ def cleanup_test_trades() -> None:
     try:
         # Get count before deletion
         cur.execute("SELECT COUNT(*) as count FROM algo_trades WHERE trade_id LIKE %s", (f"{TEST_MARKER}%",))
-        count = cur.fetchone()["count"]
+        result = cur.fetchone()
+        if not result:
+            raise RuntimeError("Failed to fetch count of test trades")
+        count = result["count"]
 
         if count == 0:
             logger.info("✅ No test trades to clean up.")
