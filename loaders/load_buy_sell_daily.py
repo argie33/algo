@@ -381,8 +381,6 @@ class SignalsDailyLoader(OptimalLoader):
                 if max_date is None:
                     # Cache miss: symbol not in pre-cached watermarks (likely newly added)
                     # Query database as legitimate fallback for new symbols
-                    if debug_symbol:
-                        logger.info(f"[WATERMARK] {symbol}: Not in cached watermarks - querying database for new symbol")
                     with DatabaseContext("read") as cur:
                         cur.execute(
                             "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
@@ -391,14 +389,6 @@ class SignalsDailyLoader(OptimalLoader):
                         row = cur.fetchone()
                         if row is not None and len(row) >= 1 and row[0] is not None:
                             max_date = row[0]
-                            if debug_symbol:
-                                logger.info(f"[WATERMARK] {symbol}: Database query found max_date={max_date}")
-                        else:
-                            if debug_symbol:
-                                logger.info(f"[WATERMARK] {symbol}: No watermark in database - first run for this symbol")
-                else:
-                    if debug_symbol:
-                        logger.info(f"[WATERMARK] {symbol}: Found in cached watermarks: max_date={max_date}")
 
                 # Convert max_date to date if found
                 if max_date is not None:
@@ -412,8 +402,6 @@ class SignalsDailyLoader(OptimalLoader):
                             f"Expected date or datetime, got: {max_date}. "
                             f"Database query may be returning wrong type or corrupted data."
                         )
-                    if debug_symbol:
-                        logger.info(f"[WATERMARK] {symbol}: Using since={since} (watermark date)")
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 raise RuntimeError(
                     f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
@@ -621,9 +609,6 @@ class SignalsDailyLoader(OptimalLoader):
             # - Regenerating signals with updated technicals improves accuracy
             #
             # Removed: watermark filtering (if since is not None: filter signals)
-
-            if debug_symbol:
-                logger.info(f"[FETCH_INCREMENTAL_RESULT] {symbol}: Returning {len(signals)} signals (NO watermark filtering applied)")
 
             return signals
 

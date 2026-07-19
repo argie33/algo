@@ -50,6 +50,8 @@ export const SafeMetric = ({
       displayValue = Number(value).toLocaleString('en-US');
     } else if (formatter === 'decimal2') {
       displayValue = Number(value).toFixed(2);
+    } else if (formatter === 'decimal1') {
+      displayValue = Number(value).toFixed(1);
     } else if (typeof format === 'function') {
       // Apply custom format function
       displayValue = format(value);
@@ -100,6 +102,7 @@ SafeMetric.propTypes = {
     'money',
     'number',
     'decimal2',
+    'decimal1',
   ]),
 };
 
@@ -156,6 +159,7 @@ SafeMetricValue.propTypes = {
     'money',
     'number',
     'decimal2',
+    'decimal1',
   ]),
   format: PropTypes.func,
   fallback: PropTypes.any,
@@ -194,6 +198,7 @@ SafeMetricInline.propTypes = {
     'money',
     'number',
     'decimal2',
+    'decimal1',
   ]),
   format: PropTypes.func,
   fallback: PropTypes.any,
