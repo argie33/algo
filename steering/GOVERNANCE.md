@@ -109,17 +109,17 @@ All fail-fast patterns are enforced. See git log for remediation commits: `git l
 
 Orchestrator executes all 9 phases in sequence per `algo/orchestrator/phase_registry.py`:
 
-1. **Data Freshness Check** — Validates upstream loader data freshness; halts if >1 trading day stale. Always runs (skips if halted: NO)
-2. **Circuit Breakers** — Checks 8 risk metrics (drawdown ≥20%, daily loss ≥2%, loss streak ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%); sets halt flag. Always runs (skips if halted: NO)
-3. **Position Monitor** — Reviews open positions, checks against risk limits, validates data integrity. Skipped if halted (skip_if_halted: YES)
-4. **Reconciliation** — Reconciles broker positions vs. algo_trades table. Skipped if halted (skip_if_halted: YES)
-5. **Exposure Policy Actions** — Enforces sector/exposure limits, may liquidate excess. Skipped if halted (skip_if_halted: YES)
-6. **Exit Execution** — Executes stop-loss/target exits unblocked by halt. Always runs (always_run: YES, skip_if_halted: NO)
-7. **Signal Generation & Ranking** — Generates BUY/SELL signals from technical + fundamental scores. Skipped if halted (skip_if_halted: YES)
-8. **Entry Execution** — Executes BUY trades from ranked signals. Skipped if halted (skip_if_halted: YES)
-9. **Reconciliation & Snapshot** — Final portfolio reconciliation, creates snapshot for dashboard. Always runs (always_run: YES, skip_if_halted: NO)
+1. **Data Freshness Check** — Validates upstream loader data freshness; halts if >1 trading day stale. Always runs (skip_if_halted: NO, always_run: NO)
+2. **Circuit Breakers** — Checks 8 risk metrics (drawdown ≥20%, daily loss ≥2%, loss streak ≥3, open risk ≥4%, VIX ≥35, market stage=4, weekly loss ≥5%, win rate <40%); sets halt flag. Always runs (skip_if_halted: NO, always_run: NO)
+3. **Position Monitor** — Reviews open positions, checks against risk limits, validates data integrity. ALWAYS RUNS - risk management (skip_if_halted: NO, always_run: YES)
+4. **Reconciliation** — Reconciles broker positions vs. algo_trades table. Skipped if halted (skip_if_halted: YES, always_run: NO)
+5. **Exposure Policy Actions** — Enforces sector/exposure limits, may liquidate excess. Skipped if halted (skip_if_halted: YES, always_run: NO)
+6. **Exit Execution** — Executes stop-loss/target exits. ALWAYS RUNS - risk management (skip_if_halted: NO, always_run: YES)
+7. **Signal Generation & Ranking** — Generates BUY/SELL signals from technical + fundamental scores. Skipped if halted (skip_if_halted: YES, always_run: NO)
+8. **Entry Execution** — Executes BUY trades from ranked signals. Skipped if halted (skip_if_halted: YES, always_run: NO)
+9. **Reconciliation & Snapshot** — Final portfolio reconciliation, creates snapshot for dashboard. ALWAYS RUNS - audit trail (skip_if_halted: NO, always_run: YES)
 
-**Key Principle:** Phases 1, 2, 6, 9 always run (exits/halts/reporting unblocked by circuit breaker). Phases 3-5, 7-8 skip if halt flag set (trading entry/exposure management blocked).
+**Key Principle:** Phases 1-2, 3, 6, 9 always run. Phases 4-5, 7-8 skip if halt flag set. Always-run phases (3, 6, 9) ensure position monitoring, exit execution, and reconciliation continue during emergencies to prevent catastrophic losses.
 
 ---
 

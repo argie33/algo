@@ -58,6 +58,17 @@ class SectorIndustryDailyLoader(OptimalLoader):
             symbol_list = list(symbols) if not isinstance(symbols, list) else symbols
         return super().run(symbols=symbol_list, parallelism=parallelism, backfill_days=backfill_days)
 
+    def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
+        """Compute sector/industry metrics globally (market-wide).
+
+        This is the fetch_global() entry point for OptimalLoader's load_global() pattern.
+        Computes sector/industry rankings and performance for all securities.
+
+        Returns:
+            Empty list (all writes handled via side effects)
+        """
+        return self.fetch_incremental("market", since)
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute sector/industry metrics for today.
 
@@ -103,19 +114,17 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         FROM daily_changes
                         GROUP BY sector
                     )
-                    INSERT INTO sector_performance (sector, date, return_pct, relative_strength, data_source, created_at, updated_at)
+                    INSERT INTO sector_performance (sector, date, return_pct, relative_strength, created_at, updated_at)
                     SELECT
                         sector,
                         %s as date,
                         return_pct,
                         1.0 as relative_strength,
-                        'price_daily_aggregated' as data_source,
                         NOW() as created_at,
                         NOW() as updated_at
                     FROM sector_weighted_avg
                     ON CONFLICT (sector, date) DO UPDATE SET
                         return_pct = EXCLUDED.return_pct,
-                        data_source = EXCLUDED.data_source,
                         updated_at = NOW()
                     """,
                     (prev_date, target_date, target_date),
@@ -206,7 +215,7 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         GROUP BY cp.industry
                     )
                     INSERT INTO industry_ranking
-                      (industry_name, date_recorded, current_rank, momentum_score, data_source,
+                      (industry, date_recorded, current_rank, momentum_score, data_source,
                        rank_1w_ago, rank_4w_ago, rank_12w_ago)
                     SELECT
                         i_stats.industry_name,
@@ -220,23 +229,23 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     FROM industry_stats i_stats
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir
-                        WHERE ir.industry_name = i_stats.industry_name
+                        WHERE ir.industry = i_stats.industry_name
                           AND ir.date_recorded <= NOW()::date - INTERVAL '7 days'
                         ORDER BY ir.date_recorded DESC LIMIT 1
                     ) r1 ON TRUE
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir
-                        WHERE ir.industry_name = i_stats.industry_name
+                        WHERE ir.industry = i_stats.industry_name
                           AND ir.date_recorded <= NOW()::date - INTERVAL '28 days'
                         ORDER BY ir.date_recorded DESC LIMIT 1
                     ) r4 ON TRUE
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir
-                        WHERE ir.industry_name = i_stats.industry_name
+                        WHERE ir.industry = i_stats.industry_name
                           AND ir.date_recorded <= NOW()::date - INTERVAL '84 days'
                         ORDER BY ir.date_recorded DESC LIMIT 1
                     ) r12 ON TRUE
-                    ON CONFLICT (industry_name, date_recorded) DO UPDATE SET
+                    ON CONFLICT (industry, date_recorded) DO UPDATE SET
                         current_rank = EXCLUDED.current_rank,
                         momentum_score = EXCLUDED.momentum_score,
                         rank_1w_ago = EXCLUDED.rank_1w_ago,
@@ -261,10 +270,6 @@ class SectorIndustryDailyLoader(OptimalLoader):
         # Return empty list (all writes handled via side effects)
         return []
 
-    def load_global(self) -> int:
-        """Market-wide loader uses load_global pattern."""
-        self.run(["market"], parallelism=1)
-        return 0
 
 
 if __name__ == "__main__":
