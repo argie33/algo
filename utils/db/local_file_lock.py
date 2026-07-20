@@ -221,11 +221,19 @@ def get_lock_manager(
             lock_duration_seconds=lock_duration_seconds,
             enable_auto_cleanup=enable_auto_cleanup,
         )
-        if lock_mgr.is_available:
+        # Test DynamoDB availability by attempting a dummy acquire (with short timeout)
+        # This will catch credential issues that don't surface during __init__
+        test_acquired = lock_mgr.acquire(lock_key="__lock_test__", timeout_seconds=1)
+        if test_acquired:
+            lock_mgr.release(lock_key="__lock_test__")
             logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available")
             return lock_mgr
+        elif lock_mgr.is_available:
+            # Timeout acquiring lock (contention) but DynamoDB is reachable
+            logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available (contention on test lock)")
+            return lock_mgr
     except Exception as e:
-        logger.debug(f"[LOCK_FACTORY] DynamoDB initialization failed: {e}")
+        logger.debug(f"[LOCK_FACTORY] DynamoDB initialization/test failed: {e}")
 
     # DynamoDB unavailable, try RDS fallback (works without AWS credentials)
     logger.info("[LOCK_FACTORY] DynamoDB unavailable, falling back to RDS locks")
