@@ -19,6 +19,7 @@ Subsequent runs faster if stock_scores already complete.
 """
 
 import argparse
+import logging
 import os
 import socket
 import subprocess
@@ -29,6 +30,8 @@ from pathlib import Path
 # Load .env.local credentials BEFORE any imports
 from utils.dotenv_loader import load_env_local
 load_env_local()
+
+logger = logging.getLogger(__name__)
 
 
 def is_port_open(port: int, timeout: float = 1.0) -> bool:
