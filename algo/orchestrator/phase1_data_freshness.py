@@ -622,6 +622,23 @@ def run(  # noqa: C901
                 logger.error(f"[PHASE 1] CRITICAL: Database error fetching VIX/health reference dates: {e}")
                 raise RuntimeError(f"[PHASE 1] Cannot fetch market reference dates from database: {e}") from e
 
+            # CRITICAL FIX (Session 288): Validate UPSTREAM reference tables are fresh
+            # before using them to validate downstream tables.
+            # Previous bug: if market_health_daily was 9 days stale, and market_exposure_daily
+            # was also 9 days stale, comparing them to each other would pass (both same age).
+            # Solution: Compare upstream tables (market_health_daily, etc.) to expected trading day.
+
+            if health_max_date < acceptable_min_date:
+                days_behind = (acceptable_min_date - health_max_date).days
+                logger.critical(
+                    f"[PHASE 1] UPSTREAM TABLE STALE: market_health_daily is {days_behind} day(s) old "
+                    f"(expected {acceptable_min_date}, got {health_max_date}). "
+                    f"Cannot use stale upstream table to validate downstream tables."
+                )
+                halt_stale.append(
+                    f"market_health_daily is {days_behind} day(s) stale (upstream reference invalid)"
+                )
+
             # Map each table to its upstream reference date for staleness comparison
             table_reference_dates = {
                 "market_health_daily": vix_max_date,
