@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Consolidated Value + Quality + Growth Metrics Loader.
 
 CONSOLIDATION: Merges 2 separate metric loaders into one:
@@ -45,6 +44,15 @@ from utils.optimal_loader import OptimalLoader
 from utils.type_conversion import safe_float
 
 logger = logging.getLogger(__name__)
+
+# GOVERNANCE: quality/growth metrics previously stamped updated_at=today() regardless of
+# how old the underlying SEC fiscal-year data was - verified live examples scoring stocks
+# off 13-17 year old financials as if freshly updated (LPL/SID fiscal_year 2009-2012). The
+# universe's actual fiscal-year-age distribution has a sharp cliff at 2 years (156 symbols
+# at age=2, only 6 at age=3) - real active filers report annually with at most ~2 years of
+# lag through this pipeline, so anything older is either delisted/inactive or a genuine
+# data gap that must be flagged, not silently scored as current.
+MAX_FISCAL_YEAR_AGE_YEARS = 2
 
 
 class ValueQualityGrowthMetricsLoader(OptimalLoader):
@@ -118,19 +126,27 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         self._insert_value_metrics(cur, value_row)
                         value_inserts += 1
 
-                        # Insert quality metrics (OPTIONAL - missing if balance sheet data unavailable)
-                        if quality_row and not quality_row.get("data_unavailable"):
+                        # Insert quality metrics (write the unavailable marker too, same as
+                        # value_metrics above - GOVERNANCE: previously this branch only wrote
+                        # on success and skipped the write entirely when data_unavailable=True,
+                        # so a symbol whose quality data later became unavailable (stale fiscal
+                        # data, source removed, etc.) kept showing its last-good row forever
+                        # with no way to ever downgrade it. Always upsert so the table reflects
+                        # current truth.
+                        if quality_row:
                             self._insert_quality_metrics(cur, quality_row)
-                            quality_inserts += 1
-                        elif quality_row and quality_row.get("data_unavailable"):
-                            logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics unavailable: {quality_row.get('reason')}")
+                            if not quality_row.get("data_unavailable"):
+                                quality_inserts += 1
+                            else:
+                                logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics unavailable: {quality_row.get('reason')}")
 
-                        # Insert growth metrics (OPTIONAL - missing if income statement history unavailable)
-                        if growth_row and not growth_row.get("data_unavailable"):
+                        # Insert growth metrics (same reasoning as quality metrics above).
+                        if growth_row:
                             self._insert_growth_metrics(cur, growth_row)
-                            growth_inserts += 1
-                        elif growth_row and growth_row.get("data_unavailable"):
-                            logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}")
+                            if not growth_row.get("data_unavailable"):
+                                growth_inserts += 1
+                            else:
+                                logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Growth metrics unavailable: {growth_row.get('reason')}")
 
                     symbols_succeeded += 1
 
@@ -194,7 +210,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
                            ais.net_income, ais.revenue, ais.operating_income,
-                           abs.current_assets, abs.current_liabilities
+                           abs.current_assets, abs.current_liabilities, abs.fiscal_year
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
                     WHERE abs.symbol = %s
@@ -209,7 +225,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # NOTE: Filters by revenue IS NOT NULL - companies without revenue will be skipped
                 cur.execute(
                     """
-                    SELECT revenue, operating_income, net_income, earnings_per_share
+                    SELECT fiscal_year, revenue, operating_income, net_income, earnings_per_share
                     FROM annual_income_statement
                     WHERE symbol = %s AND revenue IS NOT NULL
                     ORDER BY fiscal_year DESC
@@ -226,6 +242,41 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             quality_dict = self._compute_quality_metrics(symbol, quality_row_db)
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
+
+            # GOVERNANCE: quality and growth are each derived from a DIFFERENT fiscal-year
+            # source - quality_row_db's fiscal_year is driven by annual_balance_sheet (the
+            # table the quality query is joined FROM), while growth uses the standalone
+            # annual_income_statement history. These can diverge significantly (verified
+            # live: LPL/SID have a balance sheet frozen at fiscal_year 2009 while their
+            # income statement history runs through 2024) - checking a blended/max value
+            # would let a fresh income statement mask a 17-year-stale balance sheet that
+            # quality_metrics (ROE, debt ratios, current ratio) actually depends on. Each
+            # metric family is gated on its own actual source fiscal year.
+            quality_fiscal_year = quality_row_db[8] if quality_row_db else None
+            growth_fiscal_year = income_rows[0][0] if income_rows else None
+            current_year = date.today().year
+
+            if quality_fiscal_year is not None and not quality_dict.get("data_unavailable"):
+                quality_age = current_year - int(quality_fiscal_year)
+                if quality_age > MAX_FISCAL_YEAR_AGE_YEARS:
+                    stale_reason = (
+                        f"stale_fiscal_data: latest balance-sheet fiscal_year={int(quality_fiscal_year)} "
+                        f"is {quality_age} years old (max allowed {MAX_FISCAL_YEAR_AGE_YEARS})"
+                    )
+                    logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: {stale_reason}")
+                    quality_dict = self._unavailable_marker("quality_metrics", symbol)
+                    quality_dict["reason"] = stale_reason
+
+            if growth_fiscal_year is not None and not growth_dict.get("data_unavailable"):
+                growth_age = current_year - int(growth_fiscal_year)
+                if growth_age > MAX_FISCAL_YEAR_AGE_YEARS:
+                    stale_reason = (
+                        f"stale_fiscal_data: latest income-statement fiscal_year={int(growth_fiscal_year)} "
+                        f"is {growth_age} years old (max allowed {MAX_FISCAL_YEAR_AGE_YEARS})"
+                    )
+                    logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: {stale_reason}")
+                    growth_dict = self._unavailable_marker("growth_metrics", symbol)
+                    growth_dict["reason"] = stale_reason
 
             return [(value_dict, quality_dict, growth_dict)]
 
@@ -438,8 +489,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         ratio = latest_f / previous_f
         return float(((ratio ** (1.0 / years)) - 1) * 100)
 
-    def _compute_period_growth(self, symbol: str, values: list[float], offset: int, years: int, metric_key: str, metrics: dict[str, Any], failed_metrics: list[str]) -> None:
-        """Compute growth for a single period (1y, 3y, or 5y).
+    def _compute_period_growth(
+        self,
+        symbol: str,
+        values: list[tuple[int, float]],
+        offset: int,
+        metric_key: str,
+        metrics: dict[str, Any],
+        failed_metrics: list[str],
+    ) -> None:
+        """Compute growth for a single period (nominally 1y, 3y, or 5y).
+
+        values: list of (fiscal_year, value) tuples, most recent first, with any fiscal
+        years lacking usable data already filtered out - so `values[offset]` may be more
+        (or less) than `offset` calendar years before `values[0]` if SEC filings have a
+        gap (missing annual filing, restatement, etc). CAGR is annualized over the REAL
+        fiscal-year gap between the two points, not a hardcoded nominal period - using a
+        fixed `years` here previously overstated annualized growth whenever a gap existed
+        (e.g. a 2-year gap compounded as if it were 1 year).
 
         Sets metrics[metric_key] if computation succeeds; appends metric_key to failed_metrics if it fails.
         """
@@ -448,7 +515,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             failed_metrics.append(metric_key)
             return
 
-        growth = self._cagr(values[0], values[offset], years)
+        latest_year, latest_val = values[0]
+        target_year, target_val = values[offset]
+        actual_years = latest_year - target_year
+        if actual_years <= 0:
+            # Duplicate/out-of-order fiscal_year (restatement) - can't annualize.
+            failed_metrics.append(metric_key)
+            return
+
+        growth = self._cagr(latest_val, target_val, actual_years)
         if growth is not None:
             metrics[metric_key] = float(round(growth, 2))
         else:
@@ -458,8 +533,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         """Compute multi-year growth rates from annual income statement history.
 
         Calculates CAGR for 1y, 3y, 5y periods using compound annual growth rate formula.
-        income_rows: List of (total_revenue, operating_income, net_income, earnings_per_share)
-        sorted DESC by fiscal_year (most recent first).
+        income_rows: List of (fiscal_year, total_revenue, operating_income, net_income,
+        earnings_per_share) sorted DESC by fiscal_year (most recent first).
         """
         if not income_rows or len(income_rows) < 2:
             return self._unavailable_marker("growth_metrics", symbol)
@@ -477,28 +552,31 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "data_source": "sec_audited",
         }
 
-        revenues = []
-        eps_values = []
+        revenues: list[tuple[int, float]] = []
+        eps_values: list[tuple[int, float]] = []
         for row in income_rows:
             try:
-                rev = float(row[0]) if row[0] is not None else None
-                eps = float(row[3]) if row[3] is not None else None
+                fiscal_year = int(row[0]) if row[0] is not None else None
+                rev = float(row[1]) if row[1] is not None else None
+                eps = float(row[4]) if row[4] is not None else None
                 rev = self._nan_to_none(rev)
                 eps = self._nan_to_none(eps)
+                if fiscal_year is None:
+                    continue
                 if rev is not None and rev > 0:
-                    revenues.append(rev)
+                    revenues.append((fiscal_year, rev))
                 if eps is not None and eps != 0:
-                    eps_values.append(eps)
+                    eps_values.append((fiscal_year, eps))
             except (ValueError, TypeError):
                 continue
 
         failed_metrics: list[str] = []
-        self._compute_period_growth(symbol, revenues, 1, 1, "revenue_growth_1y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, eps_values, 1, 1, "eps_growth_1y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, revenues, 3, 3, "revenue_growth_3y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, eps_values, 3, 3, "eps_growth_3y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, revenues, 5, 5, "revenue_growth_5y", metrics, failed_metrics)
-        self._compute_period_growth(symbol, eps_values, 5, 5, "eps_growth_5y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, revenues, 1, "revenue_growth_1y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, eps_values, 1, "eps_growth_1y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, revenues, 3, "revenue_growth_3y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, eps_values, 3, "eps_growth_3y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, revenues, 5, "revenue_growth_5y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, eps_values, 5, "eps_growth_5y", metrics, failed_metrics)
 
         if not revenues and not eps_values:
             return self._unavailable_marker("growth_metrics", symbol)

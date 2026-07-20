@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Stock Scores Loader - Multi-factor composite stock scoring.
 
 Computes composite stock scores by aggregating:
@@ -1137,13 +1136,23 @@ class StockScoresLoader(OptimalLoader):
         total_weight = 0.0
 
         def _score_single_growth(val: float | None, cap: float) -> float | None:
-            """Score a single growth rate capped at `cap`%."""
+            """Score a single growth rate capped at `cap`%.
+
+            Continuous through val=0: negative growth maps [-50, 0] -> [0, 40], positive
+            growth maps [0, cap] -> [40, 100]. Both branches meet at 40 for 0% growth, so a
+            modest positive grower always outscores any decliner. Previously the positive
+            branch was (val/cap)*100, i.e. [0, cap] -> [0, 100] with no floor - a stock
+            growing a slim +1% could score near 0, well below a stock shrinking -10% (which
+            scored 40 - (10/50)*40 = 32), silently inverting the intended growth ranking for
+            any modest grower against any modest decliner.
+            """
             if val is None:
                 return None
             if val <= 0:
                 # Negative growth: map [-50, 0] → [0, 40]
                 return max(0, 40 + (val / 50) * 40)
-            return min(100, (val / cap) * 100)
+            # Positive growth: map [0, cap] → [40, 100]
+            return min(100, 40 + (val / cap) * 60)
 
         # 1-year EPS growth: target 25%+ for growth stocks (highest weight)
         eps_1y = _score_single_growth(metrics.get("eps_growth_1y"), 50)
@@ -1623,6 +1632,14 @@ class StockScoresLoader(OptimalLoader):
         Uses PERCENT_RANK() so a stock scoring higher than 90% of peers gets rs_percentile=90.
         Must run after all per-symbol scores are loaded.
 
+        GOVERNANCE: PostgreSQL sorts NULLs last by default, so ranking over the full table
+        (including rows with no momentum_score) previously gave every NULL-momentum stock a
+        false top-quintile rs_percentile (~81, the percentile of the last real row) instead
+        of reflecting that the stock has no momentum data at all. That fabricated value fed
+        straight into Phase 7's signal-generation completeness gate, defeating the exact
+        check meant to catch missing data. Rank only over rows with real momentum_score, and
+        explicitly null out rs_percentile for the rest so missing data stays visibly missing.
+
         CRITICAL: Raises on failure. RS percentiles are essential for ranking signal quality;
         missing or stale percentiles invalidate momentum-based signal filtering.
         """
@@ -1638,8 +1655,14 @@ class StockScoresLoader(OptimalLoader):
                                    2
                                ) AS pct
                         FROM stock_scores
+                        WHERE momentum_score IS NOT NULL
                     ) ranked
                     WHERE ss.symbol = ranked.symbol
+                """)
+                cur.execute("""
+                    UPDATE stock_scores
+                    SET rs_percentile = NULL
+                    WHERE momentum_score IS NULL AND rs_percentile IS NOT NULL
                 """)
             logger.info("RS percentiles updated via batch rank")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

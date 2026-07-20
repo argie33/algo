@@ -431,8 +431,8 @@ def load_all_statements() -> int:
         return 1
 
     # Per-table run locks: same lock keys and skip semantics as OptimalLoader.run.
-    from utils.db.local_file_lock import FileLockManager, get_lock_manager
     from utils.db.dynamo_lock import DynamoDBLockManager
+    from utils.db.local_file_lock import FileLockManager
 
     lock_manager: DynamoDBLockManager | FileLockManager | None = None
     active: list[ConsolidatedFinancialStatementsLoader] = []

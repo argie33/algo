@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Daily buy/sell signals generator.
 
 Generates daily trading signals from technical indicators and quality scores.
@@ -57,7 +56,7 @@ class SignalsDailyLoader(OptimalLoader):
             # Only filter if symbols came from get_active_symbols() (not from explicit --symbols arg)
             # If user specified symbols explicitly, respect their choice
             if symbols and len(symbols) > 4000:  # Heuristic: if >4000 symbols, likely from get_active_symbols()
-                logger.info(f"[RUN] Len > 4000, applying universe filter")
+                logger.info("[RUN] Len > 4000, applying universe filter")
                 with DatabaseContext("read") as cur:
                     cur.execute(
                         "SELECT symbol FROM stock_scores WHERE data_unavailable = false"

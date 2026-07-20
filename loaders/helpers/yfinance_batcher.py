@@ -22,7 +22,6 @@ Usage:
 
 import logging
 import os
-import signal
 import time
 from collections.abc import Generator
 from typing import Any

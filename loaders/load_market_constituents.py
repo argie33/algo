@@ -219,7 +219,7 @@ class MarketConstituentsLoader(OptimalLoader):
             # check and was silently skipped - meaning stock_symbols has never contained a
             # single true NYSE-listed company (AbbVie, Abbott, Alcoa, ADM, ...) via this
             # loader; only NASDAQ + the NASDAQ feed's own "NYSE MKT" rows ever landed there.
-            _SCHEMAS = [
+            schemas = [
                 {
                     "text": nas_text,
                     "symbol_field": "Symbol",
@@ -236,7 +236,7 @@ class MarketConstituentsLoader(OptimalLoader):
                 },
             ]
 
-            for schema in _SCHEMAS:
+            for schema in schemas:
                 symbol_field = cast(str, schema["symbol_field"])
                 exchange_field = cast(str, schema["exchange_field"])
                 exchange_map = cast(dict[str, str], schema["exchange_map"])

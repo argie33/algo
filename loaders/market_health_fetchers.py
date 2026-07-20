@@ -2,11 +2,10 @@
 
 import logging
 import time
-from datetime import date, datetime, timezone
+from datetime import date
 from typing import Any
 
 from utils.infrastructure.circuit_breaker import CircuitBreaker, DataImportance
-from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 

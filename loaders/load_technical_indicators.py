@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Technical Data Daily Loader - Vectorized for Institutional Speed
 
 Computes technical indicators (SMA, Bollinger Bands, RSI, MACD, ATR, ADX) for ALL symbols.

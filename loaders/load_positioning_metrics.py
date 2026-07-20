@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Positioning Metrics Loader - CRITICAL for stock scoring (institutional/insider/short data).
 
 PURPOSE:

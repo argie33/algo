@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Market Status Daily Loader - Consolidated market health + exposure + sentiment.
 
 CONSOLIDATION: Merges 3 separate market-wide loaders into one atomic operation:
@@ -147,9 +146,17 @@ class MarketStatusDailyLoader(OptimalLoader):
             sentiment_data = self._compute_market_sentiment(end_date, health_data)
 
             # Return consolidated data (caller will write to all 3 tables)
+            # GOVERNANCE: data_unavailable must reflect whether exposure computation
+            # actually succeeded, not be hardcoded False. Regime/exposure_pct/factors feed
+            # directly into position sizing and risk tier classification (exposure_policy.py)
+            # - if _compute_market_exposure() failed, those fields land as NULL while this
+            # row was still marked "available", so downstream consumers gating on
+            # data_unavailable would trust a NULL as "checked, fine" instead of halting.
+            exposure_unavailable = bool(exposure_data.get("data_unavailable"))
             return [{
                 "date": end_date,
-                "data_unavailable": False,
+                "data_unavailable": exposure_unavailable,
+                **({"reason": exposure_data["reason"]} if exposure_unavailable and exposure_data.get("reason") else {}),
 
                 # market_health_daily fields (column names per market_health_daily schema -
                 # health_data uses different internal key names, see _fetch_market_health)
@@ -292,6 +299,8 @@ class MarketStatusDailyLoader(OptimalLoader):
                     "halt_reasons": None,
                     "distribution_days": None,
                     "factors": None,
+                    "data_unavailable": True,
+                    "reason": result.get("reason", "exposure_data_unavailable") if result else "exposure_no_result",
                 }
 
             return {

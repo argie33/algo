@@ -134,7 +134,13 @@ class ShortInterestFinraLoader(OptimalLoader):
                         reason = "shares_outstanding_unavailable"
                     else:
                         short_shares = finra_row["short_shares"]
-                        short_pct = min(round((short_shares / outstanding) * 100, 2), 100.0)
+                        # No upper clamp: short interest CAN legitimately exceed 100% of float
+                        # (naked shorting, ETF create/redeem mechanics - well-documented, e.g.
+                        # GME repeatedly reported >100%). Clamping to 100.0 fabricated a lower
+                        # number and masked exactly the extreme readings that matter most for
+                        # squeeze/risk assessment, with no flag indicating a clamp occurred.
+                        # DECIMAL(6,2) allows up to 9999.99, comfortably above any real reading.
+                        short_pct = round((short_shares / outstanding) * 100, 2)
                         data_unavailable = False
                         reason = None
 
@@ -183,7 +189,7 @@ class ShortInterestFinraLoader(OptimalLoader):
             return result
 
         except Exception as e:
-            logger.error(f"[SHORT_INTEREST] Fatal error: {type(e).__name__}: {str(e)}", exc_info=True)
+            logger.error(f"[SHORT_INTEREST] Fatal error: {type(e).__name__}: {e!s}", exc_info=True)
             # CRITICAL: Fail-fast on fatal errors (no silent fallback to empty result dict)
             # Returning a dict with status="error" masks the failure from orchestrator.
             # Re-raise to ensure orchestrator detects the failure and marks data unavailable.

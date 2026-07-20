@@ -51,8 +51,8 @@ class SectorIndustryDailyLoader(OptimalLoader):
         """Override load_global() to return row count directly (side-effect loader)."""
         import os
 
-        from utils.db.local_file_lock import FileLockManager, get_lock_manager
         from utils.db.dynamo_lock import DynamoDBLockManager
+        from utils.db.local_file_lock import FileLockManager, get_lock_manager
 
         lock_manager: DynamoDBLockManager | FileLockManager | None = None
         try:
