@@ -4477,16 +4477,21 @@ router.get("/signals/stocks", async (req, res) => {
     ensureConnection();
     const pool = getPool();
 
+    // NOTE: previously read algo_signals_evaluated, whose only writer was deleted in commit
+    // c45211720 (2026-05-31, an unrelated stop-loss refactor). No code has written to that
+    // table since - this endpoint returned the same ~7-week-stale rows on every call.
+    // algo_signals (populated by phase8_entry_execution.py) is the current, actively-written
+    // record of signals that passed all filter tiers.
     const result = await pool.query(`
-      SELECT symbol, final_signal_quality_score, final_risk_score, raw_signal, signal_date
-      FROM algo_signals_evaluated
-      ORDER BY signal_date DESC, final_signal_quality_score DESC LIMIT 20
+      SELECT symbol, signal_quality_score, risk_score, raw_signal, signal_date
+      FROM algo_signals
+      ORDER BY signal_date DESC, signal_quality_score DESC LIMIT 20
     `);
 
     const signals = (result.rows || []).map((row) => ({
       symbol: row.symbol,
-      score: row.final_signal_quality_score,
-      risk: row.final_risk_score,
+      score: row.signal_quality_score,
+      risk: row.risk_score,
       signal: row.raw_signal,
     }));
 

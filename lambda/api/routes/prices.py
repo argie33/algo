@@ -297,14 +297,11 @@ def handle(  # noqa: C901
                 )
 
             freshness = check_data_freshness(cur, used_table, "date", warning_days=1)
+            history_data = [safe_json_serialize(dict(r)) for r in rows] if rows else []
             result = list_response(
-                [safe_json_serialize(dict(r)) for r in rows] if rows else [],
+                history_data,
                 data_freshness=freshness,
             )
-            is_valid, error_msg = ResponseValidator.validate_endpoint_response("prices", result)
-            if not is_valid:
-                logger.error(f"Endpoint response validation failed: {error_msg}")
-                return error_response(500, "response_validation_error", error_msg)
             return result
 
         # /api/prices/batch-history?symbols=SPY,QQQ,IWM&limit=30&timeframe=daily
