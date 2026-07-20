@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""Institutional Holdings Loader - yfinance (Fallback after SEC attempt).
+"""Institutional Holdings Loader - SEC Form 13F DATA AVAILABILITY TRACKING.
 
-PRIMARY: SEC SCHEDULE 13G institutional ownership data
-FALLBACK: yfinance heldPercentInstitutions (when SEC data unavailable)
+CRITICAL GOVERNANCE NOTE: Institutional ownership data is NOT currently available.
+SEC Form 13F filings (which contain investor holdings >5%) require complex aggregation.
 
-Data source: yfinance.Ticker.info['heldPercentInstitutions']
-Update frequency: Regular (more frequent than SEC quarterly filings)
-Quality: yfinance aggregates multiple data sources
+DATA SOURCES EVALUATED (Session 298):
+- SEC Form 13F: Investor filings (requires aggregation - NOT YET IMPLEMENTED)
+- SEC companyfacts API: Company-reported metrics only (doesn't have investor holdings)
+- yfinance: Rate-limited, inaccurate - EXPLICITLY NOT USED per governance
 
-NOTE: Switched from SEC companyfacts API (which doesn't have institutional ownership)
-to yfinance as primary practical source. SEC data attempted first for future flexibility.
+CURRENT STATUS: Marked unavailable until Form 13F parser implemented
+Coverage: 8.7% (from legacy data created with older implementations)
 
 Run:
     python3 loaders/load_institutional_holdings_13f.py [--symbols AAPL,MSFT]

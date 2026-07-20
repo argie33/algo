@@ -487,6 +487,15 @@ class HaltFlagManager:
         try:
             import boto3
 
+            # Check if AWS credentials available - skip DynamoDB if not configured (local dev)
+            if not os.environ.get("AWS_ACCESS_KEY_ID"):
+                logger.debug("[PROACTIVE_CLEAR] AWS credentials not configured - skipping DynamoDB, using RDS fallback")
+                try:
+                    return self._proactive_clear_stale_halt_rds()
+                except Exception as rds_err:
+                    logger.warning(f"[PROACTIVE_CLEAR] RDS fallback failed: {rds_err}. Continuing anyway.")
+                    return False
+
             dynamodb = boto3.resource("dynamodb")
             table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
             table = dynamodb.Table(table_name)

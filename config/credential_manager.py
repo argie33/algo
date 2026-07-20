@@ -529,42 +529,43 @@ class CredentialManager:
                 f"APCA_API_SECRET_KEY={'set' if secret_env else 'not set'}"
             )
 
-        # Step 4: Local dev fallback - check database (algo_config table)
-        # For development only: allows credentials to be stored in postgres instead of env vars
-        if not self._is_aws:
-            try:
-                import psycopg2
-                db_host = os.getenv("DB_HOST", "localhost")
-                db_user = os.getenv("DB_USER", "stocks")
-                db_password = os.getenv("DB_PASSWORD", "")
-                db_name = os.getenv("DB_NAME", "stocks")
+        # Step 4: Database fallback - check algo_config table
+        # Works in both local dev and AWS (as final fallback after Secrets Manager fails)
+        # CRITICAL FIX: This should work in AWS too, not just local dev. If Secrets Manager
+        # is unavailable and credentials are stored in RDS, we should use them.
+        try:
+            import psycopg2
+            db_host = os.getenv("DB_HOST", "localhost")
+            db_user = os.getenv("DB_USER", "stocks")
+            db_password = os.getenv("DB_PASSWORD", "")
+            db_name = os.getenv("DB_NAME", "stocks")
 
-                conn = psycopg2.connect(
-                    host=db_host,
-                    user=db_user,
-                    password=db_password,
-                    database=db_name,
-                    connect_timeout=5
-                )
-                cur = conn.cursor()
+            conn = psycopg2.connect(
+                host=db_host,
+                user=db_user,
+                password=db_password,
+                database=db_name,
+                connect_timeout=5
+            )
+            cur = conn.cursor()
 
-                # Fetch credentials from algo_config table
-                cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_key"])
-                key_row = cur.fetchone()
-                key = key_row[0] if key_row else None
+            # Fetch credentials from algo_config table
+            cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_key"])
+            key_row = cur.fetchone()
+            key = key_row[0] if key_row else None
 
-                cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_secret"])
-                secret_row = cur.fetchone()
-                secret = secret_row[0] if secret_row else None
+            cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_secret"])
+            secret_row = cur.fetchone()
+            secret = secret_row[0] if secret_row else None
 
-                cur.close()
-                conn.close()
+            cur.close()
+            conn.close()
 
-                if key and secret:
-                    logger.info("[CREDENTIALS] Alpaca credentials loaded from database (local dev fallback)")
-                    return {"key": key, "secret": secret}
-            except Exception as e:
-                logger.debug(f"[CREDENTIALS] Database fallback failed (local dev only): {e}")
+            if key and secret:
+                logger.info("[CREDENTIALS] Alpaca credentials loaded from database (final fallback)")
+                return {"key": key, "secret": secret}
+        except Exception as e:
+            logger.debug(f"[CREDENTIALS] Database fallback failed: {e}")
 
         # No credentials found from any source. Fail hard.
         # CRITICAL: We DO NOT fall back to stale cached credentials or use legacy/secondary sources.

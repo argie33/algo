@@ -444,7 +444,7 @@ class StockScoresLoader(OptimalLoader):
                     f"[STOCK_SCORES] {symbol}: CRITICAL - insufficient metrics for scoring. "
                     f"Got {data_count}/6 metrics (need minimum {min_required_metrics}). "
                     f"With fewer than {min_required_metrics} metrics, position sizing decisions are unreliable. "
-                    f"Score computation requires: growth (IPO/SEC), quality (SEC), value, positioning (yfinance), "
+                    f"Score computation requires: growth (SEC), quality (SEC), value, positioning (SEC/FINRA), "
                     f"stability (technical), momentum (price). Upstream loaders must populate sufficient data. "
                     f"Failing fast to prevent single-metric-biased trading positions."
                 )
