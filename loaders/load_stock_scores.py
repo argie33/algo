@@ -239,7 +239,7 @@ class StockScoresLoader(OptimalLoader):
             self._value_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
             cur.execute(
-                "SELECT symbol, institutional_ownership, insider_ownership, short_interest_percent, "
+                "SELECT symbol, institutional_ownership_pct, insider_ownership_pct, short_interest_pct, "
                 "data_unavailable FROM positioning_metrics"
             )
             self._positioning_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
