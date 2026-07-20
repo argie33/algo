@@ -73,14 +73,20 @@ class RiskMetricsLoader(OptimalLoader):
                 )
                 rows = cur.fetchall()
 
-                if len(rows) < 252:
-                    raise RuntimeError(f"Insufficient price history: {len(rows)} days (need 252 for 12m momentum)")
+                # FIX 2026-07-20: Previously required the full 252 days (needed only
+                # for 12m momentum) before computing ANYTHING, discarding real 1m/3m/6m
+                # momentum for the ~2,400 symbols with partial history (recent IPOs,
+                # newly-listed names). The per-period loop below already handles partial
+                # windows gracefully (target_idx < 0 -> None for that period only); the
+                # downstream consumer (_score_momentum in load_stock_scores.py) is
+                # explicitly documented to work from "≥1 momentum field" and normalizes
+                # by the weight of whichever timeframes are available. 22 days is the
+                # floor: the shortest window (1m = 21 days back) needs a day-0 anchor.
+                if len(rows) < 22:
+                    raise RuntimeError(f"Insufficient price history: {len(rows)} days (need at least 22 for 1m momentum)")
 
                 prices = {row[0]: safe_float(row[1], f"{symbol}.close[{row[0]}]", allow_none=False) for row in rows}
                 sorted_dates = sorted(prices.keys())
-
-                if len(sorted_dates) < 252:
-                    raise RuntimeError(f"Not enough price data: {len(sorted_dates)} dates (need 252)")
 
                 today = sorted_dates[-1]
 
@@ -100,6 +106,9 @@ class RiskMetricsLoader(OptimalLoader):
 
                     ret_pct = ((price_new - price_old) / price_old) * 100
                     momentum[f"momentum_{period_name}"] = round(ret_pct, 4)
+
+                if all(v is None for v in momentum.values()):
+                    raise RuntimeError("No momentum timeframe could be computed from available price history")
 
                 return {
                     "symbol": symbol,
