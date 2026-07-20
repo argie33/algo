@@ -137,8 +137,14 @@ class PipelineHealth:
             safe_table = assert_safe_table(table_name)
 
             # Use pg_class.reltuples for O(1) approximate row count instead of
-            # COUNT(*) full scan. reltuples is updated by ANALYZE and is accurate
-            # enough to detect empty vs populated tables without blocking I/O.
+            # COUNT(*) full scan on large tables. reltuples is only refreshed by
+            # ANALYZE/VACUUM though, and Postgres's autovacuum-analyze threshold
+            # (~10% of rows changed, floor 50 rows) means a table that only ever
+            # gains 1-2 rows/day - e.g. market_exposure_daily, algo_risk_daily -
+            # can sit at reltuples=0 indefinitely even with real data present,
+            # permanently misreporting MISSING/empty. COUNT(*) is trivially cheap
+            # below a few hundred thousand rows, so fall back to an exact count
+            # whenever the estimate is small instead of trusting a stale stat.
             cur.execute(
                 "SELECT GREATEST(reltuples, 0)::BIGINT FROM pg_class WHERE relname = %s LIMIT 1",
                 (table_name,),
@@ -152,10 +158,24 @@ class PipelineHealth:
             # DictCursor names the GREATEST() expression result as "greatest"
             if isinstance(result, dict):
                 greatest_val = result.get("greatest")
-                cnt: int = int(greatest_val) if greatest_val is not None else int(result.get("cnt") or 0)
-                health.row_count = cnt
+                estimated_cnt: int = int(greatest_val) if greatest_val is not None else int(result.get("cnt") or 0)
             else:
-                health.row_count = int(result[0])
+                estimated_cnt = int(result[0])
+
+            EXACT_COUNT_THRESHOLD = 100_000
+            if estimated_cnt < EXACT_COUNT_THRESHOLD:
+                cur.execute(f"SELECT COUNT(*) FROM {safe_table}")
+                exact_result = cur.fetchone()
+                exact_cnt = (
+                    int(exact_result.get("count", 0))
+                    if isinstance(exact_result, dict)
+                    else int(exact_result[0])
+                    if exact_result
+                    else 0
+                )
+                health.row_count = exact_cnt
+            else:
+                health.row_count = estimated_cnt
 
             if health.row_count == 0:
                 health.status = HealthStatus.MISSING
