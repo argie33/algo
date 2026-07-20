@@ -21,6 +21,7 @@ Run:
 import logging
 import sys
 import time
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -55,12 +56,13 @@ class ShortInterestFinraLoader(OptimalLoader):
     watermark_field = "settlement_date"
     exclude_etfs_from_symbols = True
 
-    def run(self, symbols: list[str], parallelism: int = 8, backfill_days: int | None = None) -> dict[str, Any]:
+    def run(self, symbols: Iterable[str], parallelism: int = 8, backfill_days: int | None = None) -> dict[str, Any]:
         """Load short interest from FINRA, computing short_pct via shares_outstanding.
 
         Performance: O(1) FINRA fetch (paginated bulk pull, ~5 requests) + O(1)
         shares_outstanding bulk query, then O(n) in-memory symbol matching.
         """
+        symbols = list(symbols)
         now_et = datetime.now(EASTERN_TZ)
         run_date = now_et.date()
 
