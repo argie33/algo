@@ -259,6 +259,13 @@ class TestHaltFlagManagerFailFast:
 
             # Ensure LOCAL_MODE is not set (some tests may set it and not clean up)
             saved_local_mode = os.environ.pop("LOCAL_MODE", None)
+            # _check_halt_flag_dynamodb() skips straight to RDS (this scenario's mocked
+            # boto3.resource is never even called) unless AWS_ACCESS_KEY_ID is set, so this
+            # env var is required for the mock above to actually be exercised. Without it,
+            # this test was silently depending on whatever real state happened to be in the
+            # shared algo_runtime_state RDS table instead of the DynamoDB mock it sets up.
+            saved_aws_key = os.environ.get("AWS_ACCESS_KEY_ID")
+            os.environ["AWS_ACCESS_KEY_ID"] = "test-fake-key"
             try:
                 # Should fail-closed: raise ValueError with CRITICAL message (not use default "Unknown")
                 # The exception is caught and logged, fail-safe returns halt_flag=True
@@ -272,6 +279,10 @@ class TestHaltFlagManagerFailFast:
                 # Restore LOCAL_MODE if it was set before
                 if saved_local_mode is not None:
                     os.environ["LOCAL_MODE"] = saved_local_mode
+                if saved_aws_key is not None:
+                    os.environ["AWS_ACCESS_KEY_ID"] = saved_aws_key
+                else:
+                    os.environ.pop("AWS_ACCESS_KEY_ID", None)
 
 
 if __name__ == "__main__":

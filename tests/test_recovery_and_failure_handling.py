@@ -42,11 +42,11 @@ if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
 from algo.exceptions import (
-    DataLoadError,
-    LockAcquisitionError,
     AlgoError,
     CircuitBreakerError,
+    DataLoadError,
     ErrorCategory,
+    LockAcquisitionError,
 )
 from algo.orchestration.halt_flag_manager import HaltFlagManager
 
@@ -778,7 +778,7 @@ class RecoveryTestReport:
         """Initialize report generator."""
         self.findings: list[dict] = []
 
-    def add_finding(self, category: str, severity: str, description: str, gap: str, mitigation: str = None) -> None:
+    def add_finding(self, category: str, severity: str, description: str, gap: str, mitigation: str | None = None) -> None:
         """Add a finding to the report.
 
         Args:

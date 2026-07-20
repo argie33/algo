@@ -61,7 +61,6 @@ class TestCAGRCalculation:
     def test_cagr_zero_beginning_rejected(self) -> None:
         """Cannot divide by zero."""
         beginning = 0.0
-        ending = 100.0
         is_invalid = beginning == 0
         assert is_invalid
 

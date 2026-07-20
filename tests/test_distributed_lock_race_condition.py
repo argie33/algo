@@ -3,12 +3,16 @@
 
 Session 281 Critical Fix: Two LOCAL_MODE users can no longer both acquire
 the orchestrator lock simultaneously. This test verifies that distributed
-locking (DynamoDB) is enforced for the orchestrator, even in LOCAL_MODE.
+locking (DynamoDB, with an RDS fallback added in Session 290 - see
+utils/db/rds_lock.py) is enforced for the orchestrator, even in LOCAL_MODE.
+A purely local file lock must never be used for this.
 """
 
 import os
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from utils.db.dynamo_lock import DynamoDBLockManager
 
 
@@ -28,15 +32,39 @@ def test_get_lock_manager_always_returns_dynamodb():
         assert isinstance(result, MagicMock)  # Our mock
 
 
-def test_get_lock_manager_fails_fast_if_dynamodb_unavailable():
-    """Verify get_lock_manager() raises RuntimeError if DynamoDB initialization fails."""
+def test_get_lock_manager_falls_back_to_rds_if_dynamodb_unavailable():
+    """Verify get_lock_manager() falls back to RDSLockManager if DynamoDB init fails (Session 290).
+
+    RDS is a shared, centralized backend (the same production DB every instance connects
+    to, using atomic INSERT ... ON CONFLICT locking), so this fallback preserves the
+    Session 281 safety guarantee - it is NOT a regression to the original bug (two
+    LOCAL_MODE processes racing on a purely local, per-machine file lock). Only a true
+    "both backends down" case should fail fast - see the test below.
+    """
     from utils.db.local_file_lock import get_lock_manager
 
-    with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb:
-        # Simulate DynamoDB initialization failure
+    with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb, \
+         patch('utils.db.rds_lock.RDSLockManager') as mock_rds:
         mock_dynamodb.side_effect = RuntimeError("DynamoDB table not found")
+        mock_rds_manager = MagicMock()
+        mock_rds_manager.is_available = True
+        mock_rds.return_value = mock_rds_manager
 
-        with pytest.raises(RuntimeError, match="DynamoDB lock manager unavailable"):
+        result = get_lock_manager()
+
+        assert result is mock_rds_manager
+
+
+def test_get_lock_manager_fails_fast_if_both_dynamodb_and_rds_unavailable():
+    """Verify get_lock_manager() raises RuntimeError only when BOTH backends fail (Session 290)."""
+    from utils.db.local_file_lock import get_lock_manager
+
+    with patch('utils.db.dynamo_lock.DynamoDBLockManager') as mock_dynamodb, \
+         patch('utils.db.rds_lock.RDSLockManager') as mock_rds:
+        mock_dynamodb.side_effect = RuntimeError("DynamoDB table not found")
+        mock_rds.side_effect = RuntimeError("RDS connection refused")
+
+        with pytest.raises(RuntimeError, match="Both DynamoDB and RDS lock managers unavailable"):
             get_lock_manager()
 
 
@@ -94,6 +122,7 @@ def test_loader_fail_fast_on_ddb_error():
     DynamoDB locking unavailable.
     """
     import inspect
+
     from utils import optimal_loader
 
     # Check that optimal_loader module fails-fast on DynamoDB errors

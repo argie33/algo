@@ -29,7 +29,7 @@ class TestExceptionClassification:
 
     def test_classify_socket_timeout(self):
         """socket.timeout should classify as transient_timeout."""
-        error = socket.timeout("Socket timeout")
+        error = TimeoutError("Socket timeout")
         assert classify_exception(error) == "transient_timeout"
 
     def test_classify_connection_error(self):

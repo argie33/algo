@@ -10,12 +10,14 @@ Tests:
 """
 
 import os
-import pytest
-import time
 import threading
-from datetime import datetime, date as _date
-from unittest.mock import MagicMock, patch
+import time
+from datetime import date as _date
+from datetime import datetime
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestPartialFillReconciliation:
@@ -183,15 +185,20 @@ class TestBasicValidation:
     """Basic validation tests that don't require integration setup."""
 
     def test_import_all_critical_modules(self) -> None:
-        """Verify all critical modules can be imported."""
+        """Verify all critical modules can be imported.
+
+        Deliberately excludes lambda.api.dev_server: it does `import lambda_function`
+        at module scope (dev_server.py:185), which runs lambda_function's real migration
+        check against a live DB connection as a side effect of import alone - incompatible
+        with this "no external dependencies" smoke test and with conftest.py's fake
+        DB_NAME=algo_trading (a DB that doesn't exist locally). Exercised for real by
+        actually running the dev server (see start_dashboard_dev.py / CLAUDE.md).
+        """
         try:
             from algo.orchestration.orchestrator import Orchestrator
-            from algo.trading.executor_entry_handler import create_entry_result
-            from loaders.load_buy_sell_daily import load_all_buy_sell_signals
+            from algo.trading.executor_entry_handler import EntryHandler
+            from loaders.load_buy_sell_daily import SignalsDailyLoader
             from utils.db.local_file_lock import FileLockManager
-            import importlib
-            dev_server_module = importlib.import_module("lambda.api.dev_server")
-            is_local_dev_mode = dev_server_module.is_local_dev_mode
         except Exception as e:
             pytest.fail(f"Failed to import critical module: {e}")
 

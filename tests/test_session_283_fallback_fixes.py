@@ -1,8 +1,9 @@
 """Tests for Session 283 fallback fixes - ensuring no silent data degradation."""
 
-import pytest
-from unittest.mock import patch, MagicMock
 from typing import Any
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestDashboardDataUnavailableMarker:
@@ -46,7 +47,7 @@ class TestDashboardLoadTimeout:
         # This test requires mocking the load_all function to timeout
         from dashboard.dashboard import WatchState
 
-        state = WatchState()
+        WatchState()
 
         # Simulate timeout condition (load_all returns None)
         # After fix, state.result should have _data_unavailable marker
@@ -86,6 +87,7 @@ class TestFetchersFailFast:
         """When critical fetcher times out, load_all should mark data unavailable, not fallback to stale."""
         # Verify the pattern exists in dashboard loading code
         import inspect
+
         from dashboard.dashboard import load_all
 
         source = inspect.getsource(load_all)
@@ -113,6 +115,7 @@ class TestRecoveryLayerFailFast:
     def test_recovery_failure_does_not_fallback_to_direct_render(self):
         """If recovery.render_with_recovery() fails, should NOT fallback to direct render."""
         import inspect
+
         from dashboard.dashboard import run_watch
 
         source = inspect.getsource(run_watch)

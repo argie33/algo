@@ -11,11 +11,12 @@ Tests verify:
 """
 
 import os
-import pytest
 import tempfile
-from pathlib import Path
 from datetime import datetime, timedelta
-from unittest.mock import patch, MagicMock
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 
 class TestFileLockManagerAtomicity:
@@ -23,8 +24,9 @@ class TestFileLockManagerAtomicity:
 
     def test_acquire_uses_os_open_with_o_excl(self) -> None:
         """Verify acquire() uses os.open() with O_CREAT | O_EXCL flag."""
-        from utils.db.local_file_lock import FileLockManager
         import inspect
+
+        from utils.db.local_file_lock import FileLockManager
 
         manager = FileLockManager()
         source = inspect.getsource(manager.acquire)
@@ -39,8 +41,9 @@ class TestFileLockManagerAtomicity:
 
     def test_lock_file_creation_is_atomic(self) -> None:
         """Verify two concurrent attempts to acquire same lock only one succeeds."""
-        from utils.db.local_file_lock import FileLockManager
         import threading
+
+        from utils.db.local_file_lock import FileLockManager
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Override lock directory for testing
@@ -91,20 +94,35 @@ class TestDevModeSecurityBypass:
             "dev_server.py must warn about security bypass risk"
 
     def test_dev_server_fails_if_imported_with_dev_tokens_enabled(self) -> None:
-        """Verify importing dev_server with ALLOW_DEV_TOKENS_TEST=true fails."""
-        # This test simulates the import-time check
-        # Set the flag BEFORE import to test the security check
-        os.environ["ALLOW_DEV_TOKENS_TEST"] = "true"
+        """Verify importing dev_server with ALLOW_DEV_TOKENS_TEST=true fails.
 
-        try:
-            with pytest.raises(RuntimeError, match="CRITICAL SECURITY"):
-                # The import of dev_server module should raise if ALLOW_DEV_TOKENS_TEST is set
-                # (This test documents the expected behavior even though we can't easily trigger it)
-                pass
-        finally:
-            # Clean up
-            if "ALLOW_DEV_TOKENS_TEST" in os.environ:
-                del os.environ["ALLOW_DEV_TOKENS_TEST"]
+        The guard in dev_server.py runs at module-import time (top-level code, not inside a
+        function), so it can only be triggered by a fresh import - re-importing an
+        already-cached module in this process would be a no-op. Spawn a subprocess that
+        imports the module with the flag set beforehand, and assert it fails with the
+        expected security error (not just any RuntimeError).
+        """
+        import subprocess
+        import sys
+
+        # "lambda" is a Python keyword and can't appear in a plain `import` statement -
+        # importlib.import_module() takes the dotted path as a string instead.
+        env = {**os.environ, "ALLOW_DEV_TOKENS_TEST": "true"}
+        result = subprocess.run(
+            [sys.executable, "-c", "import importlib; importlib.import_module('lambda.api.dev_server')"],
+            cwd=str(Path(__file__).parent.parent),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode != 0, (
+            "Importing dev_server.py with ALLOW_DEV_TOKENS_TEST=true must fail "
+            f"(security bypass guard did not trigger). stdout={result.stdout!r} stderr={result.stderr!r}"
+        )
+        assert "CRITICAL SECURITY" in result.stderr, (
+            f"Expected 'CRITICAL SECURITY' RuntimeError, got stderr={result.stderr!r}"
+        )
 
 
 class TestPositionCreationValidation:
@@ -112,9 +130,6 @@ class TestPositionCreationValidation:
 
     def test_position_creation_requires_stop_price(self) -> None:
         """Verify position creation raises error if stop_loss_price is NULL."""
-        from algo.trading.executor_entry_handler import create_entry_result
-        import inspect
-
         # Check that validation is present in entry handler
         # This is a documentation test - actual validation happens at DB insert
         source_files = [
@@ -148,10 +163,11 @@ class TestBuySellSignalForeignKeyValidation:
 
     def test_price_filter_failure_raises_error(self) -> None:
         """Verify buy_sell_daily loader fails-closed if price filtering fails."""
-        from loaders.load_buy_sell_daily import load_all_buy_sell_signals
         import inspect
 
-        source = inspect.getsource(load_all_buy_sell_signals)
+        from loaders.load_buy_sell_daily import SignalsDailyLoader
+
+        source = inspect.getsource(SignalsDailyLoader.run)
 
         # Verify fail-closed behavior
         assert "raise RuntimeError" in source or "raise Exception" in source, \
@@ -167,8 +183,9 @@ class TestPartialFillHandling:
 
     def test_partial_fill_status_tracked(self) -> None:
         """Document that 'partially_filled' status is tracked in reconciliation."""
-        from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
         import inspect
+
+        from algo.infrastructure.alpaca_broker_adapter import AlpacaBrokerAdapter
 
         # Check that partially_filled is referenced
         source = inspect.getsource(AlpacaBrokerAdapter)
@@ -191,8 +208,9 @@ class TestOrchhestratorLockingFailsClosed:
 
     def test_orchestrator_lock_no_failopen_in_local_mode(self) -> None:
         """Verify orchestrator._handle_concurrency_lock() does NOT fail-open in LOCAL_MODE."""
-        from algo.orchestration.orchestrator import Orchestrator
         import inspect
+
+        from algo.orchestration.orchestrator import Orchestrator
 
         source = inspect.getsource(Orchestrator._handle_concurrency_lock)
 

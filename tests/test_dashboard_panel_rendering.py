@@ -166,7 +166,7 @@ class TestPanelExposure:
         """Exposure panel should use exp_factors endpoint (not exp)."""
         from dashboard.panel_registry import PanelRegistry
 
-        registry = PanelRegistry()
+        PanelRegistry()
         # This is a manual check - registry should have the panel registered
         # If it doesn't, the panel won't be available
         print("✓ Exposure panel uses exp_factors endpoint")
@@ -370,7 +370,7 @@ class TestPanelIntegration:
 
         data = _mock_panel_data()
         start = time.time()
-        layout = render_dashboard(data, frame=0)
+        render_dashboard(data, frame=0)
         elapsed = time.time() - start
 
         assert elapsed < 2.0, f"Dashboard render took {elapsed:.2f}s (expected < 2s)"

@@ -69,12 +69,14 @@ class TestCompleteAWSDeployment:
         assert hasattr(loader, "_score_growth"), "StockScoresLoader must have _score_growth method"
 
         # Check the method contains the proper weights in code comments/implementation
+        # Weights per tests/test_formula_accuracy.py::test_growth_component_weights (updated
+        # 2026-07-20 to make room for revenue_growth_5y, previously a fetched-but-dead field).
         source = inspect.getsource(loader._score_growth)
-        assert "0.35" in source, "EPS 1Y should have 35% weight"
-        assert "0.25" in source, "Revenue 1Y should have 25% weight"
-        assert "0.20" in source, "EPS 3Y should have 20% weight"
-        assert "0.15" in source, "Revenue 3Y should have 15% weight"
-        assert "0.05" in source, "EPS 5Y should have 5% weight"
+        assert "0.33" in source, "EPS 1Y should have 33% weight"
+        assert "0.24" in source, "Revenue 1Y should have 24% weight"
+        assert "0.19" in source, "EPS 3Y should have 19% weight"
+        assert "0.14" in source, "Revenue 3Y should have 14% weight"
+        assert "0.05" in source, "EPS 5Y and Revenue 5Y should each have 5% weight"
 
     def test_growth_metrics_marked_enrichment(self):
         """Verify growth_metrics is enrichment-only (not critical for core trading)."""
