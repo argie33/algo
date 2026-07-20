@@ -151,52 +151,68 @@ clamped to parallelism 1-2 to protect rate limits.
 
 ---
 
-## KNOWN GAP: 5 "critical" loaders are registered but never actually scheduled in AWS (found 2026-07-20)
+## FIXED 2026-07-20: 4 broken/dangling Step Functions transitions + 5 unscheduled "critical" loaders
 
-`terraform/modules/loaders/main.tf`'s `critical_loaders` set (task-def catalog, controls
-FARGATE launch type + IAM) lists 24 loaders. Cross-checked every one against actual
-`var.loader_task_definition_arns[...]` usages inside Step Functions Task states in
-`terraform/modules/pipeline/main.tf` (the only thing that actually triggers a loader run in
-AWS) - **5 have zero matches, meaning they never run automatically in production**:
+Two distinct classes of bug found in `terraform/modules/pipeline/main.tf`, both from the same
+pattern: a state got renamed/removed/added during a consolidation commit, but not every
+transition that pointed at it was updated to match.
 
-- `company_info_sec` (`load_company_info_sec.py`) - company master data (sector/industry,
-  shares outstanding used by the FINRA short-interest % calc below)
-- `earnings_calendar_sec` (`load_earnings_calendar_sec.py`) - earnings dates
-- `short_interest_finra` (`load_short_interest_finra.py`) - the loader this doc credits with
-  lifting `positioning_metrics` coverage 58.9% -> ~93% and `stock_scores` tradeable coverage
-  53.4% -> ~64%; that lift may only be reflected in whichever DB last ran it manually/locally,
-  not on an ongoing basis in AWS
-- `sec_cash_flow_metrics` / `sec_segment_metrics` (see below - the former is now fixed and
-  functional, just still unscheduled in AWS; the latter is a genuine dead end)
+**Class 1 - dangling `Next` references (AWS rejects these at deploy time):**
+- `computed_metrics_pipeline`: `SecValuations` (+ its failure handler) had `Next =
+  "QualityMetrics"`, a state renamed to `ValueQualityGrowthMetrics` by commit `0eb93ea27`
+  (Phase 3 consolidation) - 3 occurrences, never updated.
+- `eod_pipeline`: `TechnicalDataDaily.Next = "MarketHealthDaily"`, a state removed by commit
+  `60bccc14b` (Phase 2 consolidation into `MarketStatusDaily`). Corrected to `"BuySellDaily"`,
+  the real next step.
+- `eod_pipeline`: `AlgoMetricsAfterSignals` (+ its failure handler) had `Next =
+  "SectorRanking"`, a state removed by commit `5bc60bb97` (Phase 4 consolidation into
+  `SectorIndustryDaily`) - 3 occurrences, never updated.
 
-**Root cause, `company_info_sec`/`earnings_calendar_sec`:** a `reference_data_pipeline` state
-machine used to trigger these at 9:15 AM ET. Session 276 deleted it, believing its
-functionality had been "merged into computed_metrics_pipeline" after the yfinance Phase 3
-consolidation (see the Session 276 comment right above `eod_pipeline_trigger` in
-`terraform/modules/pipeline/main.tf`). That belief was incorrect for these two loaders -
-grepped the full pipeline file for both script names and `loader_task_definition_arns["company_info_sec"|"earnings_calendar_sec"]`
-and found zero references anywhere. This looks like an unintentional regression from Session
-276, not a deliberate deprecation (contrast with the *actually*-deprecated yfinance loaders in
-`loaders/DEPRECATED_LOADERS.md`, which were removed from terraform on purpose and documented
-as such).
+Since AWS Step Functions validates every `Next` target exists at `CreateStateMachine`/
+`UpdateStateMachine` time, any `terraform apply` touching these state machines after those
+consolidation commits would have been rejected outright - meaning production was very likely
+still running whatever version last applied successfully *before* the rename, silently
+skipping the intended consolidated loaders.
 
-**Root cause, `short_interest_finra`/`sec_cash_flow_metrics`/`sec_segment_metrics`:** appear to
-have been added to the `critical_loaders` task-def catalog (Session 274/298) without a
-corresponding Step Functions wiring step ever being added - infrastructure was scaffolded but
-the actual pipeline integration was never finished.
+**Class 2 - structurally unreachable (orphaned) states, no deploy-time error, but the state
+never runs:** `computed_metrics_pipeline`'s `ValueQualityGrowthMetrics.Next` was hardcoded to
+`"PositioningMetrics"`, skipping straight past `InstitutionalHoldings13F` and
+`InsiderHoldingsSec` - both defined, both with correct internal wiring to each other and to
+`PositioningMetrics`, but nothing ever transitioned *into* `InstitutionalHoldings13F`. Commit
+`5327a555b` (Session 294, "restore positioning metrics pipeline") added these two states but
+never repointed the predecessor's `Next`. This is the direct explanation for the live-DB
+finding that `institutional_ownership_pct` is ~0% populated (2 of 4,826 stocks) despite
+`load_institutional_holdings_13f.py` existing and being registered - it has likely never
+actually run via this pipeline since Session 294.
 
-**Local dev is NOT affected** (as of 2026-07-20): `scripts/local_loader_scheduler.py` already
-runs `load_company_info_sec.py` + `load_earnings_calendar_sec.py` in its "reference" pipeline
-and `load_short_interest_finra.py` in its "morning" pipeline; `load_sec_cash_flow_metrics.py`
-was just added to "metrics" (see below). Only AWS production has this gap.
+All fixed by correcting the `Next` targets in place (verified with a scripted reachability
+scan of every state machine + `terraform validate` with dummy AWS creds - both clean for
+`pipeline/main.tf`, no dangling or orphaned states remain).
 
-**Not fixed in this pass:** this needs new Step Functions Task states added to
-`computed_metrics_pipeline` (or a revived reference-data step) in
-`terraform/modules/pipeline/main.tf`, which is a production infrastructure change this
-environment cannot validate (no working AWS credentials here - confirmed via live
-`UnrecognizedClientException`/`InvalidClientTokenId` errors when the loaders themselves tried
-to reach DynamoDB/CloudWatch/Secrets Manager during testing). Flagging for the user to review
-and apply via the normal `terraform plan`/`apply` + CI flow rather than hand-editing blind.
+**Class 3 - registered but never wired in at all** (separate root cause, same symptom -
+missing data): `terraform/modules/loaders/main.tf`'s `critical_loaders` set lists 24 loaders;
+5 had zero `var.loader_task_definition_arns[...]` usages anywhere in the pipeline file, so
+they never ran automatically in production, ever:
+- `company_info_sec` / `earnings_calendar_sec` - a `reference_data_pipeline` state machine
+  used to trigger these at 9:15 AM ET; Session 276 deleted it believing its functionality had
+  been "merged into computed_metrics_pipeline" after the yfinance Phase 3 consolidation - true
+  for value/quality/growth metrics, false for these two (never actually added anywhere).
+- `short_interest_finra` / `sec_cash_flow_metrics` - added to the task-def catalog (Session
+  274/298) without a corresponding Step Functions wiring step ever being added.
+- `sec_segment_metrics` - genuine dead end, see below; intentionally left unscheduled.
+
+**Fix:** added `CompanyInfoSec` -> `EarningsCalendarSec` -> `ShortInterestFinra` ->
+(existing `InstitutionalHoldings13F` chain) and `SecCashFlowMetrics` (after `SecValuations`,
+before `ValueQualityGrowthMetrics`) as new Task states in `computed_metrics_pipeline`,
+matching the dependency order `scripts/local_loader_scheduler.py` already used locally.
+`short_interest_finra` kept at `LOADER_PARALLELISM=1` per the SEC/FINRA rate-limit clamp
+documented above.
+
+**Still needs a human:** this environment has no working AWS credentials (confirmed via live
+`InvalidClientTokenId` from a bare-creds `terraform validate`/STS check), so none of this could
+be applied or exercised against real infrastructure - only validated locally (state-machine
+JSON structure, `terraform fmt`, `terraform validate` schema checks). Review the diff and run
+the normal `terraform plan`/`apply` + CI flow before trusting it in production.
 
 ---
 

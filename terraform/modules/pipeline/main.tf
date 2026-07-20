@@ -393,7 +393,12 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogTechDataFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MarketHealthDaily"
+        # FIX 2026-07-20: was "MarketHealthDaily", a state removed by commit 60bccc14b
+        # (Phase 2 consolidation into MarketStatusDaily) without updating this transition -
+        # a dangling Next reference AWS Step Functions rejects at deploy time. BuySellDaily
+        # is the actual next step in the pipeline (Step 8b was consolidated away; see comment
+        # below). MarketStatusDaily still runs later, after FredEconomicData.
+        Next = "BuySellDaily"
       }
 
       LogTechDataFailure = {
@@ -566,7 +571,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogMetricsFailureAfterSignals"
           ResultPath  = "$.loaderError"
         }]
-        Next = "SectorRanking"
+        # FIX 2026-07-20: was "SectorRanking", a state removed by commit 5bc60bb97 (Phase 4
+        # consolidation into SectorIndustryDaily) without updating this transition - a
+        # dangling Next reference AWS Step Functions rejects at deploy time.
+        Next = "SectorIndustryDaily"
       }
 
       LogMetricsFailureAfterSignals = {
@@ -586,10 +594,10 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "SectorRanking"
+          Next        = "SectorIndustryDaily"
           ResultPath  = "$.logError"
         }]
-        Next = "SectorRanking"
+        Next = "SectorIndustryDaily"
       }
 
       # ── Step 8c: PHASE 4 - Sector Industry Daily (CONSOLIDATED) ──
@@ -1500,7 +1508,10 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogSecValuationsFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "QualityMetrics"
+        # FIX 2026-07-20: was "QualityMetrics", a state renamed to ValueQualityGrowthMetrics by
+        # commit 0eb93ea27 (Phase 3 consolidation) without updating this transition - a
+        # dangling Next reference AWS Step Functions rejects at deploy time.
+        Next = "SecCashFlowMetrics"
       }
 
       LogSecValuationsFailure = {
@@ -1520,10 +1531,73 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "QualityMetrics"
+          Next        = "SecCashFlowMetrics"
           ResultPath  = "$.logError"
         }]
-        Next = "QualityMetrics"
+        Next = "SecCashFlowMetrics"
+      }
+
+      # ── RESTORED 2026-07-20: Cash Flow Health Metrics (working capital/CapEx/FCF) ──
+      # `sec_cash_flow_metrics` has been registered "critical" in the ECS task-def catalog
+      # (terraform/modules/loaders/main.tf) since Session 274 but was never wired into any
+      # Step Functions pipeline - infrastructure was scaffolded but the actual pipeline
+      # integration was never finished (confirmed via grep: zero references anywhere in this
+      # file before this fix). Reads from annual/quarterly_cash_flow, populated by
+      # FinancialDataLoaders above. Non-critical: fails open like its siblings.
+      SecCashFlowMetrics = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["sec_cash_flow_metrics"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-sec_cash_flow_metrics"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogSecCashFlowMetricsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ValueQualityGrowthMetrics"
+      }
+
+      LogSecCashFlowMetricsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "sec_cash_flow_metrics"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "ValueQualityGrowthMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "ValueQualityGrowthMetrics"
       }
 
       # ── PHASE 3 CONSOLIDATION: Value + Quality + Growth Metrics ──
@@ -1575,7 +1649,14 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
           Next        = "LogValueQualityGrowthFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "PositioningMetrics"
+        # FIX 2026-07-20: was "PositioningMetrics", which skips InstitutionalHoldings13F and
+        # InsiderHoldingsSec entirely. Commit 5327a555b (Session 294) added those two states
+        # "to restore the positioning metrics pipeline" but never repointed this predecessor's
+        # Next at them - they were defined but structurally unreachable (nothing transitions
+        # into InstitutionalHoldings13F), so institutional_holdings_13f has never actually been
+        # populated by this pipeline since. Matches the live-DB finding that
+        # institutional_ownership_pct is ~0% populated (2 of 4,826 stocks).
+        Next = "CompanyInfoSec"
       }
 
       LogValueQualityGrowthFailure = {
@@ -1595,10 +1676,193 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         }]
         Catch = [{
           ErrorEquals = ["States.ALL"]
-          Next        = "PositioningMetrics"
+          Next        = "CompanyInfoSec"
           ResultPath  = "$.logError"
         }]
-        Next = "PositioningMetrics"
+        Next = "CompanyInfoSec"
+      }
+
+      # ── RESTORED 2026-07-20: Company Info + Earnings Calendar + FINRA Short Interest ──
+      # All 3 registered "critical" in the ECS task-def catalog since Session 274/298 but never
+      # wired into any Step Functions pipeline (confirmed via grep before this fix). Root cause
+      # per steering/DATA_LOADERS.md: a `reference_data_pipeline` state machine used to trigger
+      # company_info_sec/earnings_calendar_sec at 9:15 AM; Session 276 deleted it believing its
+      # functionality was "merged into computed_metrics_pipeline" after the yfinance Phase 3
+      # consolidation - true for value/quality/growth metrics, false for these two loaders (they
+      # were never actually added here). short_interest_finra (Session 298) was added to the
+      # task-def catalog with a pipeline step that was scaffolded but never finished.
+      # Ordering: CompanyInfoSec provides shares_outstanding (SEC DEI) that
+      # load_short_interest_finra.py needs to convert FINRA's raw share counts into short_pct -
+      # run it first so same-day data is available. Local dev already runs this exact sequence
+      # in scripts/local_loader_scheduler.py's "reference" + "morning" pipelines.
+      CompanyInfoSec = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["company_info_sec"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-company_info_sec"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogCompanyInfoSecFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "EarningsCalendarSec"
+      }
+
+      LogCompanyInfoSecFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "company_info_sec"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "EarningsCalendarSec"
+          ResultPath  = "$.logError"
+        }]
+        Next = "EarningsCalendarSec"
+      }
+
+      EarningsCalendarSec = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["earnings_calendar_sec"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-earnings_calendar_sec"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "2" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogEarningsCalendarSecFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "ShortInterestFinra"
+      }
+
+      LogEarningsCalendarSecFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "earnings_calendar_sec"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "ShortInterestFinra"
+          ResultPath  = "$.logError"
+        }]
+        Next = "ShortInterestFinra"
+      }
+
+      # short_interest_finra clamped to parallelism 1 (steering/DATA_LOADERS.md: SEC/FINRA-facing
+      # loaders are clamped 1-2 to protect rate limits) - matches its task-def catalog entry.
+      ShortInterestFinra = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["short_interest_finra"]
+          NetworkConfiguration = local.network_config
+          Overrides = {
+            ContainerOverrides = [{
+              Name = "algo-short_interest_finra"
+              Environment = [
+                { Name = "AWS_EXECUTION_ENV", Value = "ECS_FARGATE" },
+                { Name = "LOADER_PARALLELISM", Value = "1" }
+              ]
+            }]
+          }
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogShortInterestFinraFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "InstitutionalHoldings13F"
+      }
+
+      LogShortInterestFinraFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "short_interest_finra"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "InstitutionalHoldings13F"
+          ResultPath  = "$.logError"
+        }]
+        Next = "InstitutionalHoldings13F"
       }
 
       # ── PHASE 3b: Institutional Holdings (SEC 13F) ──
