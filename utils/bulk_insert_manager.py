@@ -16,6 +16,8 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+STAGING_TABLE_UUID_LENGTH = 12
+
 
 class BulkInsertManager:
     """Manages bulk inserts with staging tables, constraint checking, and schema validation."""
@@ -43,6 +45,36 @@ class BulkInsertManager:
             cur.execute("SHOW timezone")
             self._session_tz_cache = ZoneInfo(cur.fetchone()[0])
         return self._session_tz_cache
+
+    def _create_staging_table(self, cur: Any) -> str:
+        """Create staging table with unique UUID, retrying if conflict exists.
+
+        Returns: Name of created staging table
+        """
+        unique_id = str(uuid.uuid4()).replace("-", "")[:STAGING_TABLE_UUID_LENGTH]
+        staging = f"_stage_{self.table_name}_{unique_id}"
+
+        try:
+            cur.execute(
+                psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
+                    psycopg2.sql.Identifier(staging),
+                    psycopg2.sql.Identifier(self.table_name),
+                )
+            )
+            return staging
+        except psycopg2.ProgrammingError as e:
+            if e.pgcode == "42P07":  # relation already exists
+                try:
+                    cur.execute(
+                        psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
+                            psycopg2.sql.Identifier(staging)
+                        )
+                    )
+                except psycopg2.Error as drop_err:
+                    logger.warning(f"Failed to drop staging table {staging}: {drop_err}")
+                # Retry with new UUID
+                return self._create_staging_table(cur)
+            raise
 
     def bulk_insert(
         self,
@@ -84,35 +116,7 @@ class BulkInsertManager:
             if not columns:
                 raise ValueError(f"No valid columns to write for {self.table_name}")
 
-            # Use UUID for uniqueness across concurrent executions
-            unique_id = str(uuid.uuid4()).replace("-", "")[:12]
-            staging = f"_stage_{self.table_name}_{unique_id}"
-
-            try:
-                cur.execute(
-                    psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
-                        psycopg2.sql.Identifier(staging),
-                        psycopg2.sql.Identifier(self.table_name),
-                    )
-                )
-            except psycopg2.ProgrammingError as e:
-                if e.pgcode == "42P07":  # relation already exists (PostgreSQL error code)
-                    try:
-                        cur.execute(
-                            psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(psycopg2.sql.Identifier(staging))
-                        )
-                    except psycopg2.Error as drop_err:
-                        logger.warning(f"Failed to drop staging table {staging}: {drop_err}")
-                    unique_id = str(uuid.uuid4()).replace("-", "")[:12]
-                    staging = f"_stage_{self.table_name}_{unique_id}"
-                    cur.execute(
-                        psycopg2.sql.SQL("CREATE UNLOGGED TABLE {} (LIKE {} INCLUDING DEFAULTS)").format(
-                            psycopg2.sql.Identifier(staging),
-                            psycopg2.sql.Identifier(self.table_name),
-                        )
-                    )
-                else:
-                    raise
+            staging = self._create_staging_table(cur)
 
             # Write CSV buffer
             session_tz = self._session_timezone(cur)

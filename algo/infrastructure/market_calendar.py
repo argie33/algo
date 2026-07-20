@@ -247,6 +247,29 @@ class MarketCalendar:
 
         return next_date if iterations < max_iterations else None
 
+    @staticmethod
+    def get_previous_trading_day(from_date: _date | None = None) -> _date | None:
+        """Get the most recent trading day before from_date.
+
+        Args:
+            from_date: Date to search backwards from (default: yesterday)
+
+        Returns:
+            Previous trading day, or None if none found in last 10 calendar days
+        """
+        if not from_date:
+            from_date = _date.today()
+
+        prev_date = from_date
+        max_iterations = 10  # prevent infinite loop
+        iterations = 0
+
+        while not MarketCalendar.is_trading_day(prev_date) and iterations < max_iterations:
+            prev_date = _date.fromordinal(prev_date.toordinal() - 1)
+            iterations += 1
+
+        return prev_date if iterations < max_iterations else None
+
 
 if __name__ == "__main__":
     from datetime import timedelta

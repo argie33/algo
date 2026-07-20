@@ -26,6 +26,7 @@ logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 EASTERN_TZ = ZoneInfo("America/New_York")
+LOADER_TIMEOUT_SECONDS = 3600  # 1 hour - allow loaders to fetch/transform data
 
 # Loader definitions for each pipeline
 # Note: Phase 2-4 consolidations mean multiple old loaders are now single consolidated loaders:
@@ -35,23 +36,23 @@ EASTERN_TZ = ZoneInfo("America/New_York")
 # - Phase 5 (Session 211): load_sec_valuations replaces yfinance quoteSummary calls (PE/PB/PS/PEG/FCF)
 LOADERS = {
     "morning": {
-        "description": "Morning pipeline (2:00 AM ET): prices + technicals + market status + FINRA short interest (Phase 1 optimization)",
+        "description": "Morning pipeline (2:00 AM ET): sentiment + prices + technicals + market status + FINRA short interest (Phase 1 optimization)",
         "loaders": [
+            "load_naaim.py",  # Restored Session 301 - NAAIM factor (Core-12 market exposure input) was silently reading stale data after its loader was deleted Session ~283
+            "load_aaii_sentiment.py",  # Restored Session 301 - AAII factor (Core-12 market exposure input), same bug as NAAIM. Requires Playwright (bot-protection bypass); run before load_market_status_daily.py which reads both.
             "load_prices.py",
             "load_technical_indicators.py",
             "load_trend_analysis.py",  # CRITICAL: Phase 1 freshness check requires trend_template_data
             "load_market_status_daily.py",
             "load_short_interest_finra.py",  # Phase 1: FINRA short interest (authoritative, replaces yfinance)
-            "load_price_extremes.py",  # Quick win: 52-week high/low from price_daily
         ],
         "interval_hours": 24,
         "target_hour": 2,
         "target_minute": 0,
     },
     "reference": {
-        "description": "Reference data (9:15 AM ET): yfinance snapshot + SEC company info + earnings calendar",
+        "description": "Reference data (9:15 AM ET): SEC company info + earnings calendar",
         "loaders": [
-            "load_yfinance_snapshot.py",
             "load_company_info_sec.py",  # Phase 3: Replaces ~15% yfinance (company info)
             "load_earnings_calendar_sec.py",  # Phase 3: Replaces ~10% yfinance (earnings dates)
         ],
@@ -72,7 +73,6 @@ LOADERS = {
             "load_stock_scores.py",
             "load_buy_sell_daily.py",  # EOD signals: depends on stock_scores (must be after load_stock_scores.py)
             "load_sector_industry_daily.py",
-            "load_market_cap_computed.py",  # Quick win: market cap from shares_outstanding + price_daily
         ],
         "interval_hours": 24,
         "target_hour": 19,
@@ -95,7 +95,7 @@ def run_loader_now(loader_name):
         env["LOCAL_MODE"] = "1"
         result = subprocess.run(
             ["python3", loader_path],
-            timeout=3600,  # 1 hour timeout
+            timeout=LOADER_TIMEOUT_SECONDS,
             check=False,
             env=env,
         )

@@ -167,8 +167,6 @@ class LivePerformance:
                 avg_win_pct,
                 avg_loss_pct,
             ) = row
-            win_count = win_count
-            loss_count = loss_count
 
             # avg_win_r/avg_loss_r come back NULL from the SQL AVG(...) FILTER whenever every
             # closed trade in the lookback window is a loss (avg_win_r NULL) or a win (avg_loss_r
