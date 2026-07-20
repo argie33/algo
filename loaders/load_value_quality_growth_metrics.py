@@ -192,7 +192,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # Get quality from SEC financials (annual balance sheet + income statement latest year)
                 cur.execute(
                     """
-                    SELECT abs.stockholders_equity, abs.total_liabilities,
+                    SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
                            ais.net_income, ais.revenue, ais.operating_income
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
@@ -286,9 +286,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         try:
             stockholders_equity = self._nan_to_none(safe_float(quality_row[0], f"{symbol}.stockholders_equity", allow_none=True))
             total_liabilities = self._nan_to_none(safe_float(quality_row[1], f"{symbol}.total_liabilities", allow_none=True))
-            net_income = self._nan_to_none(safe_float(quality_row[2], f"{symbol}.net_income", allow_none=True))
-            revenue = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.revenue", allow_none=True))
-            operating_income = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.operating_income", allow_none=True))
+            total_assets = self._nan_to_none(safe_float(quality_row[2], f"{symbol}.total_assets", allow_none=True))
+            net_income = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.net_income", allow_none=True))
+            revenue = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.revenue", allow_none=True))
+            operating_income = self._nan_to_none(safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True))
 
             metrics: dict[str, Any] = {
                 "symbol": symbol,
@@ -310,6 +311,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 metrics["roe"] = float((net_income / stockholders_equity) * 100)
             else:
                 failed_metrics.append("roe")
+
+            # ROA = Net Income / Total Assets
+            if net_income is not None and total_assets is not None and total_assets != 0:
+                metrics["roa"] = float((net_income / total_assets) * 100)
+            else:
+                failed_metrics.append("roa")
 
             # Operating Margin = Operating Income / Revenue
             if operating_income is not None and revenue is not None and revenue != 0:
@@ -337,19 +344,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Score is average of available metrics (0-100 scale)
             quality_components = [
                 metrics["roe"],
+                metrics["roa"],
                 metrics["operating_margin"],
                 metrics["net_margin"],
             ]
             available_components = [m for m in quality_components if m is not None]
 
-            # Mark unavailable if all available quality components are negative or zero
-            # (unprofitable/break-even companies don't have meaningful "quality" scores)
-            if available_components and all(m <= 0 for m in available_components):
-                return self._unavailable_marker("quality_metrics", symbol)
-
+            # An unprofitable company still has a real, computed quality score (0,
+            # after clamping) - that's honest data, not missing data. Do not mark
+            # data_unavailable just because every component came out <= 0.
             if available_components:
-                # Normalize to 0-100 scale: ROE/margins can exceed 100, cap at 100
-                # Clamp negatives to 0 only if at least one component is positive
+                # Normalize to 0-100 scale: ROE/margins can exceed 100, cap at 100;
+                # negative components clamp to 0 (floor of the quality scale).
                 normalized = [min(100, max(0, m)) for m in available_components]
                 metrics["quality_score"] = float(sum(normalized) / len(normalized))
 
