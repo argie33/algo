@@ -141,14 +141,24 @@ def check_database() -> dict:
                         # Always use 24h for other tables
                         threshold = 24
 
-                    fresh = age_hours is None or age_hours < threshold
-                    status_icon = "[OK]" if fresh else "[WARN]"
-                    age_str = f"{age_hours:.1f}h" if age_hours is not None else "N/A"
+                    # A negative age means the stored timestamp is after NOW() - not
+                    # legitimate staleness, but a data-integrity problem (e.g. a clock
+                    # glitch on the writer at insert time). Surface it explicitly instead
+                    # of silently reporting "fresh" with a nonsensical "-2.1h ago".
+                    is_future = age_hours is not None and age_hours < 0
+                    fresh = age_hours is None or (0 <= age_hours < threshold)
+                    status_icon = "[WARN]" if (is_future or not fresh) else "[OK]"
+                    if is_future:
+                        age_str = f"{-age_hours:.1f}h in the FUTURE (clock/data-integrity issue, not stale)"
+                    elif age_hours is not None:
+                        age_str = f"{age_hours:.1f}h ago"
+                    else:
+                        age_str = "N/A"
                     day_type = "(trading)" if is_trading_day else "(non-trading)"
 
-                    result["details"].append(f"{status_icon} {table_name}: {cnt} rows, latest: {age_str} ago {day_type}")
+                    result["details"].append(f"{status_icon} {table_name}: {cnt} rows, latest: {age_str} {day_type}")
 
-                    if not fresh:
+                    if not fresh or is_future:
                         all_fresh = False
 
                 except Exception as e:

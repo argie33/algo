@@ -5,8 +5,9 @@ import io
 import logging
 import uuid
 from collections.abc import Sequence
-from datetime import date
+from datetime import date, datetime
 from typing import Any, cast
+from zoneinfo import ZoneInfo
 
 import psycopg2
 import psycopg2.sql
@@ -25,6 +26,23 @@ class BulkInsertManager:
         self.chunk_size = chunk_size
         self._schema_cols_cache: set[str] | None = None
         self._constraint_checked = False
+        self._session_tz_cache: ZoneInfo | None = None
+
+    def _session_timezone(self, cur: Any) -> ZoneInfo:
+        """Session timezone Postgres uses to interpret naive `timestamp` values.
+
+        `COPY ... FORMAT CSV` into a `timestamp without time zone` column silently
+        DROPS any UTC offset present in the text instead of converting it (unlike a
+        normal parameterized INSERT of a tz-aware datetime, which psycopg2 converts
+        via this same session timezone before sending). Without this conversion,
+        every tz-aware datetime bulk-inserted here would land in the DB shifted by
+        the session's UTC offset (5-6h) and later misread as being in the future
+        whenever compared against NOW() - reproduced live for stock_scores.updated_at.
+        """
+        if self._session_tz_cache is None:
+            cur.execute("SHOW timezone")
+            self._session_tz_cache = ZoneInfo(cur.fetchone()[0])
+        return self._session_tz_cache
 
     def bulk_insert(
         self,
@@ -97,10 +115,19 @@ class BulkInsertManager:
                     raise
 
             # Write CSV buffer
+            session_tz = self._session_timezone(cur)
             buf = io.StringIO()
             writer = csv.DictWriter(buf, fieldnames=columns, extrasaction="ignore")
             for row in rows:
-                writer.writerow({k: ("" if v is None else v) for k, v in row.items()})
+                normalized: dict[str, Any] = {}
+                for k, v in row.items():
+                    if isinstance(v, datetime) and v.tzinfo is not None:
+                        # Convert to naive session-local wall-clock time - the same
+                        # value a parameterized (non-COPY) insert would produce -
+                        # since COPY/CSV would otherwise silently drop the offset.
+                        v = v.astimezone(session_tz).replace(tzinfo=None)
+                    normalized[k] = "" if v is None else v
+                writer.writerow(normalized)
             buf.seek(0)
 
             # COPY from buffer

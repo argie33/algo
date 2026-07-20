@@ -58,24 +58,32 @@ THRESHOLDS = {
         "critical": 1440,  # 24 hours
     },
     "algo_signals": {
-        "fresh": 480,  # 8 hours (signals only update with orchestrator)
-        "stale": 1440,  # 24 hours
+        # Signals are generated once per trading day (with the orchestrator's morning
+        # run), not continuously - a 1-trading-day-old row is the expected steady state
+        # every single morning before today's run has executed, not an incident. The
+        # previous 8h/24h thresholds guaranteed a false CRITICAL every single weekday
+        # (1 calendar day = 1440min already exceeds the old 1440min "stale" cutoff).
+        "fresh": 1440,  # 24 hours - one full trading day is the normal cadence
+        "stale": 2160,  # 36 hours
         "critical": 2880,  # 48 hours
     },
     "growth_metrics": {
-        "fresh": 240,
-        "stale": 480,
-        "critical": 1440,
+        # Same once-per-trading-day cadence mismatch as algo_signals above: these are
+        # computed by the EOD metrics pipeline once daily, so the old 4h/24h thresholds
+        # falsely reported CRITICAL every single morning regardless of actual health.
+        "fresh": 1440,
+        "stale": 2160,
+        "critical": 2880,
     },
     "quality_metrics": {
-        "fresh": 240,
-        "stale": 480,
-        "critical": 1440,
+        "fresh": 1440,
+        "stale": 2160,
+        "critical": 2880,
     },
     "value_metrics": {
-        "fresh": 240,
-        "stale": 480,
-        "critical": 1440,
+        "fresh": 1440,
+        "stale": 2160,
+        "critical": 2880,
     },
     "algo_trades": {
         "fresh": 1440,
@@ -88,8 +96,9 @@ THRESHOLDS = {
         "critical": 2880,
     },
     "algo_reconciliation_log": {
-        "fresh": 480,
-        "stale": 1440,
+        # Same once-per-trading-day cadence mismatch as algo_signals above.
+        "fresh": 1440,
+        "stale": 2160,
         "critical": 2880,
     },
     "industry_ranking": {
@@ -214,11 +223,12 @@ def check_all_tables() -> dict:
             # the size of that gap for tables tied to the trading calendar. Otherwise data
             # that's legitimately fresh-as-of-Friday still gets compared against the
             # 4h/24h intraday stale/critical cutoffs on Monday morning and reads as DEAD.
-            # Applies to every table keyed on a plain `date` column (one row per trading
-            # day) - price_daily/technical_data_daily aren't the only ones; market_exposure_daily,
-            # sector_rotation_signal and trend_template_data share the identical shape and were
-            # missed when this gap adjustment was first added, so they misreported as
-            # CRITICAL/DEAD every Monday despite being exactly as fresh as expected.
+            # Applies to every table that updates once per trading day - both plain `date`
+            # columns (one row per trading day: price_daily, technical_data_daily,
+            # market_exposure_daily, sector_rotation_signal, trend_template_data,
+            # algo_signals, algo_reconciliation_log, industry_ranking) and once-daily
+            # `created_at`/`updated_at` batch tables (growth_metrics, quality_metrics,
+            # value_metrics) whose EOD write is exactly as stale after a weekend as these.
             if (
                 table
                 in (
@@ -227,6 +237,12 @@ def check_all_tables() -> dict:
                     "market_exposure_daily",
                     "sector_rotation_signal",
                     "trend_template_data",
+                    "algo_signals",
+                    "algo_reconciliation_log",
+                    "industry_ranking",
+                    "growth_metrics",
+                    "quality_metrics",
+                    "value_metrics",
                 )
                 and spans_gap
             ):
