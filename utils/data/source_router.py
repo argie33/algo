@@ -7,8 +7,16 @@ unhealthy sources are temporarily skipped.
 
 Sources by data type (in priority order):
     OHLCV:        Alpaca (daily bars, PRICE_DATA_SOURCE=alpaca) → yfinance (fallback, other intervals)
-    Fundamentals: SEC EDGAR → yfinance
     Economic:     FRED (only)
+
+Fundamentals (balance sheet/income/cash flow) are NOT routed through here - every
+loader fetches them straight from SecEdgarClient with no yfinance fallback (see
+loaders/load_financial_statements.py). This router used to also expose
+fetch_balance_sheet/fetch_income_statement/fetch_cash_flow with an optional yfinance
+fallback, but nothing ever called them (confirmed 2026-07-20, zero call sites
+repo-wide) - removed as dead code implementing exactly the "secondary fallback"
+antipattern GOVERNANCE.md bans, before it could get wired in and silently degrade
+signal-generation data quality.
 
 Health tracking:
     Each source has a rolling success rate. If success rate drops below
@@ -35,7 +43,7 @@ from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from datetime import date
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, cast
 
 import requests
 import yfinance as yf
@@ -43,9 +51,6 @@ import yfinance as yf
 from algo.infrastructure import retry
 from utils.external.yfinance_circuit_breaker import get_circuit_breaker
 from utils.infrastructure import EASTERN_TZ
-
-if TYPE_CHECKING:
-    from utils.external import SecEdgarClient
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +160,6 @@ class DataSourceRouter:
         # Lazy clients - only construct when needed
         self._alpaca: Any = None
         self._alpaca_data: Any = None  # AlpacaMarketData, lazily constructed
-        self._sec: SecEdgarClient | None = None
 
     def _get_health(self, name: str) -> SourceHealth:
         with self._lock:
@@ -650,204 +654,6 @@ class DataSourceRouter:
                 raise Exception(f"yfinance batch rate limited: {e}") from e
             logger.error(f"yfinance batch error: {e}")
             raise
-
-    # ============== FUNDAMENTALS ==============
-
-    def fetch_balance_sheet(self, symbol: str, period: str = "annual", require_sec: bool = False) -> Any | None:
-        """Balance sheet rows. SEC EDGAR primary (free, official).
-
-        CRITICAL: For signal generation (Phase 7), use require_sec=True to enforce official SEC data only.
-        Do NOT fall back to yfinance (estimated) for trading decisions.
-        """
-        if require_sec:
-            # STRICT: Phase 7 requires SEC data (official filings), not yfinance estimates
-            # Falling back to yfinance for fundamentals would degrade signal quality silently
-            try:
-                result = self._sec_balance_sheet(symbol, period)
-                if _is_data_unavailable_marker(result) or result is None:
-                    return {
-                        "data_unavailable": True,
-                        "reason": "sec_edgar_unavailable",
-                        "symbol": symbol,
-                        "period": period,
-                        "details": "SEC EDGAR data unavailable - NOT falling back to yfinance for signal generation",
-                    }
-                return result
-            except Exception as e:
-                logger.warning(
-                    f"[DataSourceRouter] SEC EDGAR balance_sheet failed for {symbol} {period}: {e}. "
-                    f"Require_sec=True prevents fallback to yfinance."
-                )
-                return {
-                    "data_unavailable": True,
-                    "reason": "sec_edgar_error",
-                    "symbol": symbol,
-                    "error": str(e)[:100],
-                }
-
-        # Non-strict mode: allow fallback to yfinance (for enrichment, monitoring)
-        sources = [
-            ("sec_edgar", lambda: self._sec_balance_sheet(symbol, period)),
-            ("yfinance", lambda: self._yf_balance_sheet(symbol, period)),
-        ]
-        return self._try_chain(sources, f"BalanceSheet[{symbol} {period}]")
-
-    def fetch_income_statement(self, symbol: str, period: str = "annual", require_sec: bool = False) -> Any | None:
-        """Income statement rows. SEC EDGAR primary (free, official).
-
-        CRITICAL: For signal generation (Phase 7), use require_sec=True to enforce official SEC data only.
-        """
-        if require_sec:
-            # STRICT: Phase 7 requires SEC data, NOT yfinance estimates
-            try:
-                result = self._sec_income(symbol, period)
-                if _is_data_unavailable_marker(result) or result is None:
-                    return {
-                        "data_unavailable": True,
-                        "reason": "sec_edgar_unavailable",
-                        "symbol": symbol,
-                        "period": period,
-                    }
-                return result
-            except Exception as e:
-                logger.warning(f"[DataSourceRouter] SEC EDGAR income_statement failed for {symbol}: {e}. Require_sec=True prevents fallback.")
-                return {"data_unavailable": True, "reason": "sec_edgar_error", "symbol": symbol}
-
-        # Non-strict mode: allow fallback
-        sources = [
-            ("sec_edgar", lambda: self._sec_income(symbol, period)),
-            ("yfinance", lambda: self._yf_income(symbol, period)),
-        ]
-        return self._try_chain(sources, f"Income[{symbol} {period}]")
-
-    def fetch_cash_flow(self, symbol: str, period: str = "annual", require_sec: bool = False) -> Any | None:
-        """Cash flow statement rows. SEC EDGAR primary (free, official).
-
-        CRITICAL: For signal generation (Phase 7), use require_sec=True to enforce official SEC data only.
-        """
-        if require_sec:
-            # STRICT: Phase 7 requires SEC data, NOT yfinance estimates
-            try:
-                result = self._sec_cash_flow(symbol, period)
-                if _is_data_unavailable_marker(result) or result is None:
-                    return {
-                        "data_unavailable": True,
-                        "reason": "sec_edgar_unavailable",
-                        "symbol": symbol,
-                        "period": period,
-                    }
-                return result
-            except Exception as e:
-                logger.warning(f"[DataSourceRouter] SEC EDGAR cash_flow failed for {symbol}: {e}. Require_sec=True prevents fallback.")
-                return {"data_unavailable": True, "reason": "sec_edgar_error", "symbol": symbol}
-
-        # Non-strict mode: allow fallback
-        sources = [
-            ("sec_edgar", lambda: self._sec_cash_flow(symbol, period)),
-            ("yfinance", lambda: self._yf_cash_flow(symbol, period)),
-        ]
-        return self._try_chain(sources, f"CashFlow[{symbol} {period}]")
-
-    def _sec_client(self) -> Any:
-        if self._sec is None:
-            from utils.external import SecEdgarClient
-
-            self._sec = SecEdgarClient()
-        return self._sec
-
-    def _sec_balance_sheet(self, symbol: str, period: str) -> Any:
-        return self._sec_client().get_balance_sheet(symbol, period)
-
-    def _sec_income(self, symbol: str, period: str) -> Any:
-        return self._sec_client().get_income_statement(symbol, period)
-
-    def _sec_cash_flow(self, symbol: str, period: str) -> Any:
-        return self._sec_client().get_cash_flow(symbol, period)
-
-    def _yf_balance_sheet(self, symbol: str, period: str) -> Any:
-        try:
-            from utils.external import get_ticker
-
-            def fetch() -> Any:
-                # Use wrapper's get_ticker to ensure rate-limited access
-                ticker = get_ticker(symbol)
-                if not ticker:
-                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
-                    # Allows _try_chain() to distinguish API failure from missing data
-                    return {
-                        "data_unavailable": True,
-                        "reason": "ticker_fetch_failed",
-                        "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
-                    }
-                return ticker.balance_sheet if period == "annual" else ticker.quarterly_balance_sheet
-
-            df = _call_with_timeout(fetch, timeout_sec=30)
-            if df is None or df.empty:
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "balance_sheet_unavailable",
-                }
-            return df.to_dict(orient="index")
-        except TimeoutError as e:
-            raise TimeoutError(f"yfinance balance_sheet timeout for {symbol}") from e
-
-    def _yf_income(self, symbol: str, period: str) -> Any:
-        try:
-            from utils.external import get_ticker
-
-            def fetch() -> Any:
-                # Use wrapper's get_ticker to ensure rate-limited access
-                ticker = get_ticker(symbol)
-                if not ticker:
-                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
-                    return {
-                        "data_unavailable": True,
-                        "reason": "ticker_fetch_failed",
-                        "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
-                    }
-                return ticker.income_stmt if period == "annual" else ticker.quarterly_income_stmt
-
-            df = _call_with_timeout(fetch, timeout_sec=30)
-            if df is None or df.empty:
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "income_statement_unavailable",
-                }
-            return df.to_dict(orient="index")
-        except TimeoutError as e:
-            raise TimeoutError(f"yfinance income_stmt timeout for {symbol}") from e
-
-    def _yf_cash_flow(self, symbol: str, period: str) -> Any:
-        try:
-            from utils.external import get_ticker
-
-            def fetch() -> Any:
-                # Use wrapper's get_ticker to ensure rate-limited access
-                ticker = get_ticker(symbol)
-                if not ticker:
-                    # MEDIUM FIX: Return marker instead of None per GOVERNANCE.md
-                    return {
-                        "data_unavailable": True,
-                        "reason": "ticker_fetch_failed",
-                        "symbol": symbol,
-                        "details": "Could not fetch ticker (API error, rate limit, or invalid symbol)",
-                    }
-                return ticker.cashflow if period == "annual" else ticker.quarterly_cashflow
-
-            df = _call_with_timeout(fetch, timeout_sec=30)
-            if df is None or df.empty:
-                return {
-                    "symbol": symbol,
-                    "data_unavailable": True,
-                    "reason": "cashflow_unavailable",
-                }
-            return df.to_dict(orient="index")
-        except TimeoutError as e:
-            raise TimeoutError(f"yfinance cashflow timeout for {symbol}") from e
 
     # ============== MARKET CLOSE DATA CHECK ==============
 
