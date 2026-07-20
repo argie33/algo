@@ -27,6 +27,7 @@ from collections.abc import Iterable
 from datetime import date, timedelta
 from typing import Any
 
+from algo.infrastructure.market_calendar import MarketCalendar
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
@@ -129,7 +130,17 @@ class SectorIndustryDailyLoader(OptimalLoader):
         row_counts = {"sector_performance": 0, "sector_ranking": 0, "industry_ranking": 0}
         try:
             target_date = date.today()
-            prev_date = target_date - timedelta(days=1)
+            # Previous TRADING day, not literal calendar day-1: a naive timedelta(days=1)
+            # resolves to a weekend/holiday whenever target_date is a Monday (or the day
+            # after a market holiday), and price_daily has zero rows for a day the market
+            # never opened. The INNER JOIN below then matches nothing for any symbol - not
+            # an error, just a silently empty result set - so sector_performance quietly
+            # stopped advancing past 2026-07-10 (confirmed live: every run on/after a
+            # non-trading-day-adjacent date inserted "0 sector performance rows" with no
+            # error, while sector_ranking/industry_ranking in the same transaction kept
+            # advancing normally since they don't depend on a day-over-day price join).
+            prev_trading_day = MarketCalendar.get_previous_trading_day(target_date - timedelta(days=1))
+            prev_date = prev_trading_day if prev_trading_day is not None else target_date - timedelta(days=1)
 
             with DatabaseContext("write") as cur:
                 # ===== SECTOR PERFORMANCE =====
