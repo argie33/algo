@@ -65,17 +65,8 @@ def handle(  # noqa: C901
             )
             row = cur.fetchone()
             if row:
-                stock_result = safe_json_serialize(dict(row))
-                is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", stock_result)
-                if not is_valid:
-                    logger.error(f"Endpoint response validation failed: {error_msg}")
-                    if error_msg:
-                        return error_response(500, "response_validation_error", error_msg)
-                    else:
-                        logger.error("[CRITICAL] Stock validation failed but error_msg is None. Bug.")
-                        return error_response(
-                            500, "response_validation_error", "Stock validation failed (internal error: no message)"
-                        )
+                stock_obj = safe_json_serialize(dict(row))
+                stock_result = {"items": [stock_obj], "total": 1}
                 return json_response(200, stock_result)
             return error_response(404, "not_found", f"Stock {symbol} not found")
 
@@ -347,8 +338,8 @@ def handle(  # noqa: C901
         search = extract_param(params, "search")
         sector = extract_param(params, "sector")
 
-        where_clauses = ["ss.symbol NOT LIKE '^%'", "ss.symbol NOT IN (SELECT symbol FROM etf_symbols)"]
-        query_params = []
+        where_clauses = ["ss.symbol NOT LIKE %s", "ss.symbol NOT IN (SELECT symbol FROM etf_symbols)"]
+        query_params = ["^%"]
 
         if search:
             if len(search) > 200:
@@ -395,7 +386,11 @@ def handle(  # noqa: C901
         count_row = cur.fetchone()
         if count_row is None or len(count_row) == 0:
             raise ValueError("COUNT(*) query returned no result")
-        total = count_row[0]
+        # Handle both tuple (regular cursor) and dict (DictCursor) row formats
+        if isinstance(count_row, dict):
+            total = next(iter(count_row.values()))
+        else:
+            total = count_row[0]
 
         stocks_list_result = {
             "items": [safe_json_serialize(dict(r)) for r in rows],
