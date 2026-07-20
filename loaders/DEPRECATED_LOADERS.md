@@ -72,17 +72,11 @@ All deprecated functionality has been replaced with 100% real data sources:
 
 ## How to Clean Up
 
-If these files are confirmed unused:
-```bash
-# Safely archive deprecated loaders
-cd loaders
-mkdir -p _archived_$(date +%Y%m%d)
-mv load_sector_performance.py load_sector_rankings.py load_market_sentiment.py \
-   load_market_exposure_daily.py load_price_extremes.py load_market_cap_computed.py \
-   load_yfinance_snapshot.py load_yfinance_derived_metrics.py _archived_$(date +%Y%m%d)/
+**Done (Session 295, 2026-07-19):** all 8 files listed above (`load_sector_performance.py`,
+`load_sector_rankings.py`, `load_market_sentiment.py`, `load_market_exposure_daily.py`,
+`load_price_extremes.py`, `load_market_cap_computed.py`, `load_yfinance_snapshot.py`,
+`load_yfinance_derived_metrics.py`) were actually deleted from `loaders/` in commit
+`9f39753f8` - confirmed 2026-07-20, none exist on disk anymore. This section previously
+still described them as pending archival; that was stale.
 
-# Note: Only remove files after verified NOT imported anywhere else
-grep -r "load_sector_performance\|load_market_sentiment" ../ || echo "Safe to delete"
-```
-
-**Last Updated**: Session 277 (2026-07-19)
+**Last Updated**: Session 314 (2026-07-20)
