@@ -164,7 +164,7 @@ function ScoresDashboardPage() {
     error: dataError,
     refetch,
   } = queryResult;
-  const items = dataError ? [] : (rawData?.items || []);
+  const items = dataError ? [] : (rawData?.top || rawData?.items || []);
 
   useEffect(() => {
     setPage(1);
@@ -265,6 +265,12 @@ function ScoresDashboardPage() {
         let item = r.data?.items?.[0];
         if (!item) {
           item = r.data?.data?.items?.[0];
+        }
+        if (!item) {
+          item = r.data?.top?.[0];
+        }
+        if (!item) {
+          item = r.data?.data?.top?.[0];
         }
         if (!item && Array.isArray(r.data?.items)) {
           console.error(

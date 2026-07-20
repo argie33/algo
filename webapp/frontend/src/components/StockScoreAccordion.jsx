@@ -76,7 +76,7 @@ const SignalsForStock = ({ symbol }) => {
     setLoading(true);
     setError(null);
     api
-      .get(`/api/signals/stocks?symbol=${symbol}&limit=10`)
+      .get(`/api/signals/stocks?symbol=${symbol}&limit=10&timeframe=daily`)
       .then((res) => {
         setSignals(res.data?.items || []);
       })
