@@ -365,7 +365,35 @@ def fetch_scores(c: None) -> dict[str, Any]:
             record_data_quality_issue("scores", "validation", "top_not_list")
             return FetcherValidator.build_error_response(error_msg)
 
-        return {"top": top}
+        # Summary metrics over the full filtered universe (not just this page) - optional,
+        # since older API versions/mocks won't have them; the panel falls back to len(top).
+        universe_total = top_data.get("universe_total")
+        if universe_total is not None and not isinstance(universe_total, int):
+            error_msg = f"Scores response 'universe_total' must be int, got {type(universe_total).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("scores", "validation", "universe_total_invalid_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        avg_composite = top_data.get("avg_composite")
+        if avg_composite is not None and not isinstance(avg_composite, (int, float)):
+            error_msg = f"Scores response 'avg_composite' must be numeric, got {type(avg_composite).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("scores", "validation", "avg_composite_invalid_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        grades = top_data.get("grades")
+        if grades is not None and not isinstance(grades, dict):
+            error_msg = f"Scores response 'grades' must be dict, got {type(grades).__name__}"
+            logger.error(error_msg)
+            record_data_quality_issue("scores", "validation", "grades_invalid_type")
+            return FetcherValidator.build_error_response(error_msg)
+
+        return {
+            "top": top,
+            "universe_total": universe_total,
+            "avg_composite": avg_composite,
+            "grades": grades,
+        }
     except Exception as e:
         error_msg = format_fetcher_error("scores", e)
         logger.error(error_msg)

@@ -770,9 +770,9 @@ DASHBOARD_ENDPOINTS = {
         "description": "Stock composite scores with multi-factor ranking",
         "response_schema": ResponseSchema(
             required_fields=[],
-            optional_fields=["top", "total", "data_freshness"],
-            field_types={"top": list, "total": int},
-            description="Stock scores list with component factors (symbol, company_name, composite_score, growth_score, momentum_score, quality_score, value_score, positioning_score, stability_score, sector, industry, current_price, change_percent, rs_percentile)",
+            optional_fields=["top", "total", "universe_total", "avg_composite", "grades", "data_freshness"],
+            field_types={"top": list, "total": int, "universe_total": int, "avg_composite": float, "grades": dict},
+            description="Stock scores list with component factors (symbol, company_name, composite_score, growth_score, momentum_score, quality_score, value_score, positioning_score, stability_score, sector, industry, current_price, change_percent, rs_percentile), plus universe_total/avg_composite/grades summary metrics over the full filtered universe",
         ),
         "freshness_max_age_seconds": 14400,
         "strict_fields": [],

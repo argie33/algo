@@ -1594,39 +1594,56 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             # LATERAL-join the latest buy_sell_daily row per symbol for entry/target/exit and
             # technical fields (algo_signals itself only tracks symbol/price/quality-score).
             cur.execute("""
-                SELECT s.symbol, s.signal_quality_score,
-                       cp.sector, cp.industry, s.entry_price,
-                       s.signal_date::text as signal_date,
-                       b.close, b.buylevel, b.stoplevel,
-                       b.buy_zone_start, b.buy_zone_end, b.pivot_price,
-                       b.initial_stop, b.trailing_stop,
-                       b.profit_target_8pct, b.profit_target_20pct, b.profit_target_25pct,
-                       b.exit_trigger_1_price, b.exit_trigger_2_price,
-                       b.rsi, b.adx, b.atr, b.volume_surge_pct, b.risk_reward_ratio,
-                       b.base_type, b.base_length_days,
-                       CASE t.weinstein_stage
-                           WHEN 1 THEN 'Stage 1'
-                           WHEN 2 THEN 'Stage 2 - Markup'
-                           WHEN 3 THEN 'Stage 3 - Topping'
-                           WHEN 4 THEN 'Stage 4'
-                       END AS market_stage,
-                       t.weinstein_stage AS stage_number
-                FROM algo_signals s
-                LEFT JOIN company_profile cp ON cp.ticker = s.symbol
-                LEFT JOIN LATERAL (
-                    SELECT close, buylevel, stoplevel, buy_zone_start, buy_zone_end, pivot_price,
-                           initial_stop, trailing_stop, profit_target_8pct, profit_target_20pct,
-                           profit_target_25pct, exit_trigger_1_price, exit_trigger_2_price,
-                           rsi, adx, atr, volume_surge_pct, risk_reward_ratio,
-                           base_type, base_length_days, date
-                    FROM buy_sell_daily
-                    WHERE symbol = s.symbol
-                    ORDER BY date DESC
-                    LIMIT 1
-                ) b ON TRUE
-                LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = b.date
-                WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
-                ORDER BY s.signal_quality_score DESC NULLS LAST
+                SELECT * FROM (
+                    SELECT DISTINCT ON (s.symbol)
+                           s.symbol, s.signal_quality_score,
+                           cp.sector, cp.industry, s.entry_price,
+                           s.signal_date::text as signal_date,
+                           b.close, b.buylevel, b.stoplevel,
+                           b.buy_zone_start, b.buy_zone_end, b.pivot_price,
+                           b.initial_stop, b.trailing_stop,
+                           b.profit_target_8pct, b.profit_target_20pct, b.profit_target_25pct,
+                           b.exit_trigger_1_price, b.exit_trigger_2_price,
+                           b.rsi, b.adx, b.atr, b.volume_surge_pct, b.risk_reward_ratio,
+                           b.base_type, b.base_length_days,
+                           CASE t.weinstein_stage
+                               WHEN 1 THEN 'Stage 1'
+                               WHEN 2 THEN 'Stage 2 - Markup'
+                               WHEN 3 THEN 'Stage 3 - Topping'
+                               WHEN 4 THEN 'Stage 4'
+                           END AS market_stage,
+                           t.weinstein_stage AS stage_number
+                    FROM algo_signals s
+                    LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+                    LEFT JOIN LATERAL (
+                        SELECT close, buylevel, stoplevel, buy_zone_start, buy_zone_end, pivot_price,
+                               initial_stop, trailing_stop, profit_target_8pct, profit_target_20pct,
+                               profit_target_25pct, exit_trigger_1_price, exit_trigger_2_price,
+                               rsi, adx, atr, volume_surge_pct, risk_reward_ratio,
+                               base_type, base_length_days, date
+                        FROM buy_sell_daily
+                        WHERE symbol = s.symbol
+                        ORDER BY date DESC
+                        LIMIT 1
+                    ) b ON TRUE
+                    LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = b.date
+                    WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
+                        -- Exclude signals with no buy_sell_daily match at all: these have been
+                        -- active (signal_active=true, never flipped off - nothing in the codebase
+                        -- ever deactivates an algo_signals row) for days after the symbol dropped
+                        -- out of buy_sell_daily entirely, so every entry/target/exit/technical
+                        -- column would render blank. A "buy signal" with no buy level, stop, or
+                        -- target isn't actionable; showing it in this table (titled "with price
+                        -- targets") as a wall of "--" reads as broken data, not as a real signal.
+                        -- They still count in n/total/grades/top_a (separate queries, symbol-only).
+                        AND b.close IS NOT NULL
+                    -- DISTINCT ON (s.symbol) collapses re-triggers of the same symbol on different
+                    -- days within the 7-day active window down to its most recent signal (one row
+                    -- of the same 15-slot table was 8 EPRT duplicates before this fix) - pick the
+                    -- newest signal_date per symbol, tie-broken by quality.
+                    ORDER BY s.symbol, s.signal_date DESC, s.signal_quality_score DESC NULLS LAST
+                ) deduped
+                ORDER BY signal_quality_score DESC NULLS LAST
                 LIMIT 30
             """)
             buy_sigs_rows = cur.fetchall()
@@ -1863,9 +1880,40 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
 
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=1)
 
+        # Summary metrics over the FULL filtered universe (not just the returned page) - same
+        # filter as filtered_scores above, so counts/avg describe the same population being
+        # ranked. Without this, the panel can only show the page it happened to fetch (e.g. top
+        # 50) with no sense of how many candidates exist or how they're distributed by grade -
+        # the same "count + grade breakdown" context the SIGNALS panel already gives.
+        cur.execute("""
+            SELECT
+                COUNT(*) AS universe_total,
+                AVG(s.composite_score) AS avg_composite,
+                COUNT(*) FILTER (WHERE s.composite_score >= 80) AS a,
+                COUNT(*) FILTER (WHERE s.composite_score >= 60 AND s.composite_score < 80) AS b,
+                COUNT(*) FILTER (WHERE s.composite_score >= 40 AND s.composite_score < 60) AS c,
+                COUNT(*) FILTER (WHERE s.composite_score < 40) AS d
+            FROM stock_scores s
+            WHERE s.composite_score > 0
+              AND s.data_completeness >= 70
+              AND (s.data_unavailable = false OR s.data_unavailable IS NULL)
+              AND s.symbol NOT IN (SELECT symbol FROM etf_symbols)
+        """)
+        summary_row = cur.fetchone()
+        summary = safe_json_serialize(safe_dict_convert(summary_row)) if summary_row else {}
+        avg_composite = summary.get("avg_composite")
+
         response = {
             "top": top_scores,
             "total": len(top_scores),
+            "universe_total": summary.get("universe_total", len(top_scores)),
+            "avg_composite": round(float(avg_composite), 1) if avg_composite is not None else None,
+            "grades": {
+                "a": summary.get("a", 0),
+                "b": summary.get("b", 0),
+                "c": summary.get("c", 0),
+                "d": summary.get("d", 0),
+            },
         }
 
         return json_response(200, response, data_freshness=freshness, preserve_arrays=True)

@@ -40,8 +40,45 @@ from rich.text import Text
 
 from dashboard.data_validation import safe_float
 
+from ..utilities import CY, G, R, Y
 from ._helpers import _composite_score_color, _error_panel, _score_cell
 from .data_extractors import safe_get_dict, safe_get_field, safe_get_list
+
+
+def _build_scores_summary(scores: dict[str, Any], shown: int) -> Text | None:
+    """Build the summary line above the scores table: universe size, avg composite, A-D grades.
+
+    Mirrors the SIGNALS panel's header line (count + grade breakdown) so both panels give the
+    same at-a-glance context before their detail table. Returns None if the API didn't provide
+    summary metrics (e.g. an older API version) - the panel still renders the table either way.
+    """
+    universe_total = safe_get_field(scores, "universe_total")
+    avg_composite = safe_get_field(scores, "avg_composite")
+    grades_field = safe_get_field(scores, "grades")
+    grades = safe_get_dict(grades_field) if grades_field else {}
+
+    if universe_total is None and avg_composite is None and not grades:
+        return None
+
+    parts = []
+    if universe_total is not None:
+        parts.append(f"[bold cyan]{universe_total}[/] candidates ranked [dim](showing top {shown})[/]")
+    avg_v = safe_float(avg_composite)
+    if avg_v is not None:
+        parts.append(f"[dim]avg composite:[/][white]{avg_v:.1f}[/]")
+
+    if grades:
+        ga = safe_get_field(grades, "a")
+        gb = safe_get_field(grades, "b")
+        gc = safe_get_field(grades, "c")
+        gd = safe_get_field(grades, "d")
+        ga_s = f"{ga}" if ga is not None else "--"
+        gb_s = f"{gb}" if gb is not None else "--"
+        gc_s = f"{gc}" if gc is not None else "--"
+        gd_s = f"{gd}" if gd is not None else "--"
+        parts.append(f"[{G}]A:{ga_s}[/] [{CY}]B:{gb_s}[/] [{Y}]C:{gc_s}[/] [{R}]D:{gd_s}[/]")
+
+    return Text.from_markup("  ".join(parts))
 
 
 def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | Table]:
@@ -141,6 +178,9 @@ def panel_scores_compact(scores: Any) -> Panel:
     rows: list[Text | Table] = [
         Text.from_markup(f"[cyan][bold]TOP STOCK SCORES[/][/] [dim]({len(top_scores)} ranked candidates)[/]"),
     ]
+    summary = _build_scores_summary(safe_get_dict(scores), shown=min(len(top_scores), 15))
+    if summary is not None:
+        rows.append(summary)
     rows.extend(_build_scores_table(top_scores, limit=15))
 
     return Panel(
@@ -167,6 +207,9 @@ def panel_scores_expanded(scores: Any) -> Panel:
             "[dim]press [/][bold cyan]c[/][dim] to return[/]"
         ),
     ]
+    summary = _build_scores_summary(safe_get_dict(scores), shown=min(len(top_scores), 50))
+    if summary is not None:
+        rows.append(summary)
     if top_scores:
         rows.extend(_build_scores_table(top_scores, limit=50))
     else:
