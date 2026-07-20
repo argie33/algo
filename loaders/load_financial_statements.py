@@ -96,6 +96,7 @@ _INCOME_FIELD_MAPPING = {
     "operating_income_loss": "operating_income",
     "net_income_loss": "net_income",
     "earnings_per_share_basic": "earnings_per_share",
+    "interest_expense": "interest_expense",
     **_MARKER_FIELDS,
 }
 
@@ -119,6 +120,7 @@ _CASHFLOW_FIELD_MAPPING = {
     # 274). Renamed to match the real column so new/incremental writes actually land;
     # existing NULL rows need a backfill (re-run with BACKFILL_DAYS or per-symbol refetch).
     "payments_to_acquire_property_plant_and_equipment": "capex",
+    "payments_of_dividends": "dividends_paid",
     **_MARKER_FIELDS,
 }
 
@@ -167,6 +169,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "operating_income",
                     "net_income",
                     "earnings_per_share",
+                    "interest_expense",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -189,6 +192,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "operating_income",
                     "net_income",
                     "earnings_per_share",
+                    "interest_expense",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -302,6 +306,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "net_change_cash",
                     "free_cash_flow",
                     "capex",
+                    "dividends_paid",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -324,6 +329,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "net_change_cash",
                     "free_cash_flow",
                     "capex",
+                    "dividends_paid",
                     "created_at",
                     "data_unavailable",
                     "reason",

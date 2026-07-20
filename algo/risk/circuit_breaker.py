@@ -297,10 +297,6 @@ class CircuitBreaker:
         2. Market shows Follow-Through Day signal (optional)
         3. At least N days have passed since halt
         """
-        halt_dd_val = self._get_required_config("halt_drawdown_pct", "in re-engagement check")
-        threshold = float(halt_dd_val)
-
-        # First check: is current drawdown >= threshold? If not, no re-engagement needed
         # Cash-flow-adjusted, same reasoning as _check_drawdown above.
         cur.execute("""
             SELECT MAX(adjusted_equity),
@@ -317,11 +313,50 @@ class CircuitBreaker:
             return {"halted": False, "reason": "Invalid values"}
 
         dd = (peak - cur_val) / peak * 100.0
-        halt_threshold_abs = abs(threshold)
 
-        # If NOT currently halted due to drawdown, no re-engagement check needed
-        if dd < halt_threshold_abs:
+        # Gate on whether a drawdown halt has ever actually fired, not on whether the
+        # CURRENT drawdown is still above halt_threshold_abs. The old gate made this
+        # check redundant with _check_drawdown: the instant dd ticked back under the
+        # halt line (e.g. 20.1% -> 19.9%), this returned "not halted" before ever
+        # evaluating the tighter recovery/day/FTD protocol below - defeating the point
+        # of a separate re-engagement guard.
+        # Match on the actual drawdown check's own halted flag, not a substring search over
+        # the whole details blob - every halt log's JSON always contains the literal key
+        # "drawdown" (and "drawdown_re_engagement") in its `checks` dict regardless of which
+        # check actually fired, so `details::text ILIKE '%drawdown%'` matched EVERY halt log
+        # entry ever written, not just genuine drawdown-triggered ones. That meant an
+        # unrelated halt (e.g. a VIX spike) reset "halt occurred Nd ago" back to 0 on every
+        # occurrence, capable of extending this 5-day recovery lockout indefinitely as long
+        # as anything else kept halting periodically - confirmed live 2026-07-20 (a real
+        # drawdown halt fired at 11:59, recovered by 13:54, but 3 subsequent VIX-only halts
+        # with drawdown.halted=false each re-matched the old query and kept resetting the
+        # clock to "0d ago").
+        # Excludes entries explicitly marked details->>'corrected'=true: a documented,
+        # auditable correction (see algo_audit_log action_type
+        # 'circuit_breaker_halt_correction' for the reasoning/evidence/commit reference)
+        # applied when a halt's own recorded value is later proven to not reflect real
+        # trading risk - e.g. computed by a since-fixed bug. The correction never rewrites
+        # the original checks/value/reason fields, only adds a 'corrected' annotation, so
+        # the halt remains fully visible in history; it's just excluded from gating
+        # re-engagement, since that cooldown exists to protect against a genuine drawdown
+        # recurring, not to penalize a measurement bug that has already been fixed.
+        cur.execute("""
+            SELECT created_at FROM algo_audit_log
+            WHERE action_type = 'circuit_breaker_halt'
+              AND (details->'checks'->'drawdown'->>'halted')::boolean IS TRUE
+              AND NOT COALESCE((details->>'corrected')::boolean, false)
+            ORDER BY created_at DESC LIMIT 1
+            """)
+        halt_row = cur.fetchone()
+        if halt_row is None:
             return {"halted": False, "reason": "Not in drawdown halt"}
+
+        halt_date = halt_row[0]
+        days_elapsed = (
+            (current_date - halt_date.date()).days
+            if isinstance(halt_date, datetime)
+            else (current_date - halt_date).days
+        )
 
         recovery_val = self._get_required_config("re_engage_recovery_pct", "in re-engagement recovery check")
         min_days_val = self._get_required_config("re_engage_min_days", "in re-engagement timing check")
@@ -337,44 +372,24 @@ class CircuitBreaker:
                 "reason": f"Drawdown {dd:.1f}%, need recovery to {recovery_threshold:.1f}% to resume (currently {recovery_pct:.1f}%)",
             }
 
-        # Find the date of the latest drawdown halt event
-        days_elapsed = 0
-        cur.execute("""
-            SELECT created_at FROM algo_audit_log
-            WHERE action_type = 'circuit_breaker_halt' AND details::text ILIKE '%drawdown%'
-            ORDER BY created_at DESC LIMIT 1
-            """)
-        halt_row = cur.fetchone()
-        if halt_row is not None:
-            halt_date = halt_row[0]
-            days_elapsed = (
-                (current_date - halt_date.date()).days
-                if isinstance(halt_date, datetime)
-                else (current_date - halt_date).days
-            )
-            if days_elapsed < min_days_elapsed:
-                return {
-                    "halted": True,
-                    "reason": f"Halt occurred {days_elapsed}d ago, need {min_days_elapsed}d to elapse before resume",
-                }
+        if days_elapsed < min_days_elapsed:
+            return {
+                "halted": True,
+                "reason": f"Halt occurred {days_elapsed}d ago, need {min_days_elapsed}d to elapse before resume",
+            }
 
         if require_ftd:
-            # A Follow-Through Day is when SPY up 1.25%+ on higher volume after a pullback/correction
-            # For now, simplified check: market is in Stage 2
-            cur.execute("SELECT market_stage, data_unavailable, reason FROM market_health_daily ORDER BY date DESC LIMIT 1")
-            market_row = cur.fetchone()
-            if market_row is None:
-                return {
-                    "halted": True,
-                    "reason": "Market health data missing - cannot check for Follow-Through Day conditions. Fail-closed halt.",
-                }
-            # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using market_stage
-            if market_row[1] is True:
-                return {
-                    "halted": True,
-                    "reason": f"Market health data marked unavailable: {market_row[2] or 'no reason provided'}. Cannot determine market stage for FTD check. Fail-closed halt.",
-                }
-            if market_row[0] != 2:
+            # A Follow-Through Day is when SPY up 1.25%+ on higher volume after a pullback/correction;
+            # simplified here to "market is in Stage 2". Uses the same NULL-skipping +
+            # staleness-bounded lookup as CB6 (_resolve_current_market_stage) instead of a bare
+            # "latest row" query - a bare query here previously misread a not-yet-computed
+            # same-day NULL placeholder (e.g. before the day's market-exposure loader ran) as a
+            # confirmed "market not in Stage 2", permanently blocking re-engagement that day even
+            # though yesterday's stage (still valid) may have qualified.
+            stage, _trend, halt_reason = self._resolve_current_market_stage(current_date, cur)
+            if halt_reason is not None:
+                return {"halted": True, "reason": halt_reason}
+            if stage != 2:
                 return {
                     "halted": True,
                     "reason": "Recovery conditions met, but market not in Stage 2 uptrend (waiting for Follow-Through Day)",
@@ -749,8 +764,14 @@ class CircuitBreaker:
             "threshold": threshold,
         }
 
-    def _check_market_stage(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """H7 FIX: Market stage validation with data freshness check.
+    def _resolve_current_market_stage(
+        self, current_date: _date, cur: PsycopgCursor[Any]
+    ) -> tuple[int | None, str, str | None]:
+        """Shared market_stage lookup with data-freshness handling, used by both the
+        Stage-4 circuit breaker (CB6, _check_market_stage) and the drawdown re-engagement
+        Follow-Through-Day check (_check_drawdown_re_engagement) - both need "what is the
+        market stage right now", and duplicating this logic let the FTD check drift out of
+        sync with CB6's NULL/staleness handling (see history for the bug that caused).
 
         On trading days: prefer today's market_stage once computed; the morning loader inserts
         a same-day row before market_stage is available, so we fall back to the most recent
@@ -758,6 +779,9 @@ class CircuitBreaker:
         On non-trading days (weekends/holidays): use most recent trading day's market_stage
         (market regime doesn't change when market is closed).
         CRITICAL: MarketCalendar must succeed to ensure holiday accuracy.
+
+        Returns (stage, trend, halt_reason). halt_reason is None on success; when set, the
+        caller must fail-closed halt with it instead of trusting stage/trend (both None/"unknown").
         """
         from algo.infrastructure import MarketCalendar
 
@@ -788,19 +812,17 @@ class CircuitBreaker:
         )
         row = cur.fetchone()
         if row is None:
-            return {
-                "halted": True,
-                "reason": "Market health data missing - fail-closed",
-            }
+            return None, "unknown", "Market health data missing - fail-closed"
 
         data_date, market_stage_val, market_trend_val, data_unavailable_flag, reason_msg = row[0], row[1], row[2], row[3], row[4]
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using any data from this row
         if data_unavailable_flag is True:
-            return {
-                "halted": True,
-                "reason": f"Market health data marked unavailable: {reason_msg or 'no reason provided'}. Cannot determine market stage without valid data. Fail-closed halt.",
-            }
+            return (
+                None,
+                "unknown",
+                f"Market health data marked unavailable: {reason_msg or 'no reason provided'}. Cannot determine market stage without valid data. Fail-closed halt.",
+            )
 
         if isinstance(data_date, datetime):
             data_date = data_date.date()
@@ -812,16 +834,24 @@ class CircuitBreaker:
         # this check exists to prevent - fail closed instead.
         staleness_days = (expected_data_date - data_date).days
         if staleness_days > 10:
-            return {
-                "halted": True,
-                "reason": (
+            return (
+                None,
+                "unknown",
+                (
                     f"Market stage last computed {data_date} ({staleness_days}d before expected "
                     f"{expected_data_date}) - too stale to trust. Fail-closed halt."
                 ),
-            }
+            )
 
         stage = int(market_stage_val)
         trend = market_trend_val if market_trend_val is not None else "unknown"
+        return stage, trend, None
+
+    def _check_market_stage(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """H7 FIX: Market stage validation with data freshness check (CB6)."""
+        stage, trend, halt_reason = self._resolve_current_market_stage(current_date, cur)
+        if halt_reason is not None:
+            return {"halted": True, "reason": halt_reason}
         # Stage 4 = halt new entries (full downtrend). Stage 3 = caution but allow.
         halted = stage == 4
         return {

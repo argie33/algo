@@ -210,7 +210,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
                            ais.net_income, ais.revenue, ais.operating_income,
-                           abs.current_assets, abs.current_liabilities, abs.fiscal_year
+                           abs.current_assets, abs.current_liabilities, abs.fiscal_year,
+                           abs.inventory, ais.interest_expense
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
                     WHERE abs.symbol = %s
@@ -291,7 +292,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
     def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:
         """Build value_metrics from SEC valuations (yfinance-free, Session 271).
 
-        All metrics from SEC-audited data. Dividend yield not available from SEC.
+        All metrics from SEC-audited data. Dividend yield added 2026-07-20 (migration
+        1144): load_sec_valuations.py now computes it from the SEC "PaymentsOfDividends"
+        cash-flow concept / market_cap - was previously hardcoded None here because SEC
+        had no dividend source wired up at all (dead 8%-weight bucket in value_score).
         """
         if not sec_val_row or sec_val_row[2]:  # data_unavailable flag at index 2
             return self._unavailable_marker("value_metrics", symbol)
@@ -303,6 +307,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         peg = sec_val_row[10]  # peg_ratio
         fcf_yield = sec_val_row[11]  # fcf_yield
         market_cap = sec_val_row[6]  # market_cap
+        dividend_yield = sec_val_row[15]  # dividend_yield (migration 1146)
 
         # Validate: at least one core metric must be non-None
         core_metrics = [pe, pb, ps, fcf_yield]
@@ -315,7 +320,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "pb_ratio": pb,
             "ps_ratio": ps,
             "peg_ratio": peg,
-            "dividend_yield": None,  # Not available from SEC; skipped per governance
+            "dividend_yield": dividend_yield,
             "fcf_yield": fcf_yield,
             "market_cap": market_cap,
             "data_unavailable": False,
@@ -346,6 +351,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             current_liabilities = self._nan_to_none(
                 safe_float(quality_row[7], f"{symbol}.current_liabilities", allow_none=True)
             )
+            inventory = self._nan_to_none(safe_float(quality_row[9], f"{symbol}.inventory", allow_none=True))
+            interest_expense = self._nan_to_none(
+                safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
+            )
 
             metrics: dict[str, Any] = {
                 "symbol": symbol,
@@ -356,6 +365,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "debt_to_equity": None,
                 "debt_to_assets": None,
                 "current_ratio": None,
+                "quick_ratio": None,
+                "interest_coverage": None,
                 "quality_score": None,
                 "data_unavailable": False,
                 "data_source": "sec_audited",
@@ -413,6 +424,29 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 failed_metrics.append("current_ratio")
 
+            # Quick Ratio = (Current Assets - Inventory) / Current Liabilities
+            # `inventory` is NULL for ~66% of rows (service/software companies legitimately
+            # carry none, and some filers simply don't break it out) - treat NULL as 0 rather
+            # than failing the metric, same treatment IBD/most screeners use. Was previously
+            # never computed even though quality_metrics.quick_ratio has existed since
+            # migration 072 and stock_scores/load_stock_scores.py already queries it.
+            if current_assets is not None and current_liabilities is not None and current_liabilities != 0:
+                metrics["quick_ratio"] = float((current_assets - (inventory or 0)) / current_liabilities)
+            else:
+                failed_metrics.append("quick_ratio")
+
+            # Interest Coverage = Operating Income / Interest Expense. Higher is better
+            # (ability to service debt from operating earnings). Column existed on
+            # quality_metrics (migration predates this loader) and is already displayed by
+            # the frontend/API, but no loader ever computed it - annual_income_statement had
+            # no interest_expense column until migration 1145. Only computed when
+            # interest_expense > 0 (zero debt service is a real "not applicable" case, not
+            # an infinite/undefined ratio to fake a max score for).
+            if interest_expense is not None and interest_expense > 0 and operating_income is not None:
+                metrics["interest_coverage"] = float(operating_income / interest_expense)
+            else:
+                failed_metrics.append("interest_coverage")
+
             # Mark unavailable if all metrics are None
             if all(
                 metrics[k] is None
@@ -436,12 +470,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             debt_to_assets_score = (
                 100.0 - metrics["debt_to_assets"] * 100.0 if metrics["debt_to_assets"] is not None else None
             )
+            # Interest coverage: solvency curve, not a raw percentage. <1.5x is going-concern
+            # risk territory, >=10x is effectively debt-service-risk-free.
+            interest_coverage_score = None
+            if metrics["interest_coverage"] is not None:
+                ic = metrics["interest_coverage"]
+                if ic < 0:
+                    interest_coverage_score = 0.0
+                elif ic < 1.5:
+                    interest_coverage_score = (ic / 1.5) * 40
+                elif ic < 3:
+                    interest_coverage_score = 40 + ((ic - 1.5) / 1.5) * 30
+                elif ic < 10:
+                    interest_coverage_score = 70 + ((ic - 3) / 7) * 30
+                else:
+                    interest_coverage_score = 100.0
             quality_components = [
                 metrics["roe"],
                 metrics["roa"],
                 metrics["operating_margin"],
                 metrics["net_margin"],
                 debt_to_assets_score,
+                interest_coverage_score,
             ]
             available_components = [m for m in quality_components if m is not None]
 
@@ -619,8 +669,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO quality_metrics
-            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, current_ratio, quality_score, data_unavailable, reason, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, current_ratio, quick_ratio, interest_coverage, quality_score, data_unavailable, reason, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -629,6 +679,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 debt_to_equity = EXCLUDED.debt_to_equity,
                 debt_to_assets = EXCLUDED.debt_to_assets,
                 current_ratio = EXCLUDED.current_ratio,
+                quick_ratio = EXCLUDED.quick_ratio,
+                interest_coverage = EXCLUDED.interest_coverage,
                 quality_score = EXCLUDED.quality_score,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
@@ -637,7 +689,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             """,
             (row["symbol"], row["roe"], row.get("roa"), row["operating_margin"],
              row["net_margin"], row["debt_to_equity"], row.get("debt_to_assets"), row.get("current_ratio"),
-             row.get("quality_score"), row["data_unavailable"], row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"]),
+             row.get("quick_ratio"), row.get("interest_coverage"), row.get("quality_score"), row["data_unavailable"],
+             row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:

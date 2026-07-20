@@ -826,7 +826,13 @@ def main() -> int:  # noqa: C901
         if args.symbols:
             symbols = args.symbols.split(",")
         else:
-            symbols = get_active_symbols(timeout_secs=300)
+            # exclude_etfs=True matches this class's exclude_etfs_from_symbols=True (consumed
+            # by loaders/runner.py's invocation path via getattr) - main() is the actual
+            # production entrypoint (invoked directly by terraform/modules/loaders/main.tf) and
+            # was previously bypassing this flag entirely, working only "by accident" because
+            # the stock_scores intersection below happens to exclude ETFs too (they lack SEC
+            # filings). Apply it explicitly here so both entrypoints agree by design, not luck.
+            symbols = get_active_symbols(timeout_secs=300, exclude_etfs=True)
             if not symbols:
                 logger.warning("[LOADER] No symbols found in stock_symbols table. Exit code 1 (ERROR).")
                 return 1

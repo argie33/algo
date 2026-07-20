@@ -153,16 +153,13 @@ class VectorizedTechnicalLoader:
             # If trend_template_data not yet available, this gracefully adds NULL (expected on timing mismatches)
             self._populate_minervini_scores()
 
-            # CRITICAL FIX: Disable VCP pattern computation - it was doing 30K+ DB queries per run
-            # (1 query per symbol to fetch from technical_data_daily, plus avg volume queries).
-            # With 10K symbols, this takes 60+ seconds and causes orchestrator timeout.
-            # VCP patterns are optional enrichment; orchestrator must complete on time.
-            # If VCP is needed, implement vectorized computation using in-memory indicators_df.
-            logger.info(
-                "[VCP] VCP pattern computation disabled - was causing 60s+ timeouts. "
-                + "Implement vectorized computation if needed."
-            )
-            # self._compute_and_insert_vcp_patterns(indicators_df)
+            # RE-ENABLED 2026-07-20: was disabled because the per-symbol implementation did
+            # 3 DB round trips/symbol (~30K queries, 60s+ timeout). Rewritten to compute
+            # entirely from the in-memory indicators_df (zero additional DB queries) - see
+            # _compute_and_insert_vcp_patterns/_compute_vcp_for_symbol. vcp_patterns had gone
+            # 23+ days stale with this disabled, and load_signal_quality_scores.py hard-fails
+            # once a symbol's VCP lookback window has zero rows.
+            self._compute_and_insert_vcp_patterns(indicators_df)
 
             # Get the latest date in the computed indicators
             latest_date = None
@@ -543,26 +540,32 @@ class VectorizedTechnicalLoader:
         Consolidation: Previously in separate load_vcp_patterns.py loader.
         VCP patterns depend on ATR which we just computed, so consolidate here for efficiency.
 
+        VECTORIZED (re-enabled): the previous per-symbol implementation issued 3 DB round
+        trips per symbol (ATR history + current volume + average volume) - ~30K queries
+        across the ~10K-symbol universe, 60s+ and the reason this was disabled outright
+        (see git history). `indicators_df` already carries each symbol's full fetched price
+        history (close/high/low/volume) plus the atr_14 this same run just computed from it
+        - there is no need to re-fetch any of that from the DB a second time per symbol.
+
         Args:
             indicators_df: DataFrame with computed technical indicators including atr_14
+                and volume, one row per symbol per date (full fetched history, not just
+                the latest day).
         """
         if indicators_df.empty or "atr_14" not in indicators_df.columns:
             logger.warning("[VCP] No indicators or ATR data available - skipping VCP pattern computation")
             return
 
+        if "volume" not in indicators_df.columns:
+            logger.warning("[VCP] No volume data available - skipping VCP pattern computation")
+            return
+
         try:
-            # Use only the most recent date's data for VCP (no need for full historical scan)
-            vcp_symbols = indicators_df[["symbol", "date", "atr_14"]].dropna(subset=["atr_14"])
-
-            if vcp_symbols.empty:
-                logger.warning("[VCP] No ATR data available after filtering - skipping VCP patterns")
-                return
-
             vcp_patterns: list[dict[str, Any]] = []
 
-            for symbol in vcp_symbols["symbol"].unique():
+            for symbol, symbol_df in indicators_df.groupby("symbol"):
                 try:
-                    self._compute_vcp_for_symbol(symbol, vcp_patterns)
+                    self._compute_vcp_for_symbol(symbol, symbol_df, vcp_patterns)
                 except Exception as e:
                     # GOVERNANCE: Log at WARNING level (not DEBUG) for visibility to operators
                     logger.warning(f"[VCP] Failed to compute VCP for {symbol}: {e}")
@@ -574,76 +577,76 @@ class VectorizedTechnicalLoader:
         except Exception as e:
             logger.warning(f"[VCP] VCP pattern computation failed (non-blocking): {e}")
 
-    def _compute_vcp_for_symbol(self, symbol: str, vcp_patterns: list[dict[str, Any]]) -> None:
-        """Compute VCP pattern for a single symbol using price history.
+    def _compute_vcp_for_symbol(
+        self, symbol: str, symbol_df: pd.DataFrame, vcp_patterns: list[dict[str, Any]]
+    ) -> None:
+        """Compute VCP pattern for a single symbol from its in-memory indicator history.
+
+        No DB queries - `symbol_df` is this symbol's slice of `indicators_df`, already
+        containing the full fetched price/indicator history for the run.
 
         Args:
             symbol: Stock symbol
+            symbol_df: This symbol's rows from indicators_df (date, atr_14, volume, ...)
             vcp_patterns: List to append results to
         """
-        end_date = datetime.now(ZoneInfo("UTC")).astimezone(EASTERN_TZ).date()
+        df = symbol_df.sort_values("date")
+        atr_hist = df[df["atr_14"].notna()]
 
-        try:
-            with DatabaseContext("read") as cur:
-                # Fetch last 30 days of ATR from technical_data_daily
-                cur.execute(
-                    "SELECT date, atr_14 FROM technical_data_daily "
-                    "WHERE symbol = %s AND date >= %s AND date <= %s AND atr_14 IS NOT NULL "
-                    "ORDER BY date DESC LIMIT 30",
-                    (symbol, end_date - timedelta(days=30), end_date),
-                )
-                atr_rows = cur.fetchall()
-                if not atr_rows or len(atr_rows) < 30:
-                    return
+        # NOTE: the original standalone load_vcp_patterns.py (pre-consolidation) only
+        # required *any* ATR history (`if not rows: raise`), not a specific count - the
+        # consolidated version's `len(atr_rows) < 30` guard required 30 rows within a
+        # 30-*calendar*-day window, which a 5-day trading week can basically never satisfy
+        # (~21-22 trading days per 30 calendar days) and made every symbol return early
+        # even before this was fully disabled. Restore the original's "average whatever
+        # history is available" behavior instead of re-introducing that dead guard.
+        if atr_hist.empty:
+            return
 
-                # Current ATR is most recent
-                current_atr = safe_float(atr_rows[0][1], f"{symbol}.atr_current", allow_none=False)
-                atrs = [safe_float(row[1], f"{symbol}.atr[{i}]", allow_none=False) for i, row in enumerate(atr_rows)]
-                atr_30d_avg = sum(atrs) / len(atrs)
+        last_30 = atr_hist.tail(30)
+        current_row = last_30.iloc[-1]
+        current_atr = safe_float(current_row["atr_14"], f"{symbol}.atr_current", allow_none=False)
+        atr_30d_avg = float(last_30["atr_14"].mean())
 
-                if atr_30d_avg == 0:
-                    return
+        if not atr_30d_avg:
+            return
 
-                atr_compression_pct = max(0, (1.0 - (current_atr / atr_30d_avg)) * 100)
-                vcp_strength = min(100, max(0, int(atr_compression_pct)))
+        atr_compression_pct = max(0, (1.0 - (current_atr / atr_30d_avg)) * 100)
+        vcp_strength = min(100, max(0, int(atr_compression_pct)))
 
-                # Calculate volume ratio
-                cur.execute(
-                    "SELECT volume FROM price_daily WHERE symbol = %s AND date = %s",
-                    (symbol, end_date),
-                )
-                vol_row = cur.fetchone()
-                current_vol = safe_float(vol_row[0], f"{symbol}.volume", allow_none=True) if vol_row else 1.0
-                if current_vol is None:
-                    current_vol = 1.0
+        end_date = current_row["date"]
+        # numpy.int64 (volume's dtype) doesn't pass safe_float's `isinstance(value, int)`
+        # check (unlike numpy.float64, which subclasses Python float) - cast explicitly
+        # instead of routing a pandas-native numeric through a validator built for
+        # DB-row/JSON-shaped inputs.
+        current_vol_raw = current_row.get("volume")
+        current_vol = float(current_vol_raw) if current_vol_raw is not None and pd.notna(current_vol_raw) else None
+        if not current_vol:
+            current_vol = 1.0
 
-                cur.execute(
-                    "SELECT AVG(volume) FROM price_daily WHERE symbol = %s AND date >= %s AND date < %s AND volume > 0",
-                    (symbol, end_date - timedelta(days=30), end_date),
-                )
-                avg_vol_row = cur.fetchone()
-                avg_vol = safe_float(avg_vol_row[0], f"{symbol}.avg_volume", allow_none=True) if avg_vol_row else 1.0
-                if avg_vol is None:
-                    avg_vol = 1.0
+        # 30 calendar days strictly before the current row, volume > 0 - matches the
+        # original per-symbol query's window and filter exactly.
+        window_start = end_date - timedelta(days=30)
+        prior = df[(df["date"] < end_date) & (df["date"] >= window_start) & (df["volume"] > 0)]
+        avg_vol = float(prior["volume"].mean()) if not prior.empty else None
+        if not avg_vol or avg_vol != avg_vol:  # None or NaN
+            avg_vol = 1.0
 
-                breakout_volume_ratio = current_vol / avg_vol if avg_vol > 0 else 1.0
+        breakout_volume_ratio = current_vol / avg_vol if avg_vol > 0 else 1.0
 
-                vcp_patterns.append(
-                    {
-                        "symbol": symbol,
-                        "date": end_date,
-                        "atr_30d_avg": atr_30d_avg,
-                        "atr_current": current_atr,
-                        "atr_compression_pct": atr_compression_pct,
-                        "range_30d_avg": 0.0,
-                        "range_current": 0.0,
-                        "vcp_strength": vcp_strength,
-                        "breakout_volume_ratio": breakout_volume_ratio,
-                    }
-                )
-        except Exception as e:
-            # GOVERNANCE: Log at WARNING level (not DEBUG) for visibility to operators
-            logger.warning(f"[VCP] Error computing VCP for {symbol}: {e}")
+        vcp_patterns.append(
+            {
+                "symbol": symbol,
+                "date": end_date.date() if hasattr(end_date, "date") else end_date,
+                "atr_30d_avg": atr_30d_avg,
+                "atr_current": current_atr,
+                "atr_compression_pct": atr_compression_pct,
+                "range_30d_avg": 0.0,
+                "range_current": 0.0,
+                "vcp_strength": vcp_strength,
+                "breakout_volume_ratio": breakout_volume_ratio,
+            }
+        )
 
     def _bulk_insert_vcp_patterns(self, vcp_patterns: list[dict[str, Any]]) -> None:
         """Insert VCP patterns to database using COPY.

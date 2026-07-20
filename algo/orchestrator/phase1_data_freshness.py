@@ -520,10 +520,21 @@ def run(  # noqa: C901
             # Reject phantom rows (NULL prices counted as fresh data)
             # This is the RIGHT thing: require data for the most recent market close, always
 
+            # Both counts are scoped to symbols currently marked active in stock_symbols.
+            # price_daily retains history for ~10.6K symbols total, but only ~5.5K are
+            # still active - the other ~5.1K are delisted/removed tickers whose rows stop
+            # getting new dates entirely. An unscoped COUNT(DISTINCT symbol) against the
+            # full table (as this used to be) compares today's genuinely-active fetch
+            # against that inflated historical figure, permanently capping coverage_pct
+            # around 45-50% no matter how complete today's load is - confirmed live
+            # 2026-07-20 (real coverage 85.5% scoped to active symbols, computed as 42.8%
+            # unscoped, incorrectly halting Phase 1 on every EOD-context run since the
+            # active universe last shrank).
             cur.execute(
-                """SELECT COUNT(DISTINCT symbol)
-                   FROM price_daily
-                   WHERE date = %s AND close IS NOT NULL AND open IS NOT NULL""",
+                """SELECT COUNT(DISTINCT pd.symbol)
+                   FROM price_daily pd
+                   JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
+                   WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
                 (last_trading_day,)
             )
             row = cur.fetchone()
@@ -539,9 +550,10 @@ def run(  # noqa: C901
                 prev_trading_day -= td(days=1)
 
             cur.execute(
-                """SELECT COUNT(DISTINCT symbol)
-                   FROM price_daily
-                   WHERE date = %s AND close IS NOT NULL AND open IS NOT NULL""",
+                """SELECT COUNT(DISTINCT pd.symbol)
+                   FROM price_daily pd
+                   JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
+                   WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
                 (prev_trading_day,)
             )
             row = cur.fetchone()

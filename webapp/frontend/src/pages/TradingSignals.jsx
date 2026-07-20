@@ -93,8 +93,11 @@ const daysSince = (d) => {
   return Math.max(0, Math.floor((Date.now() - ts) / 86400000));
 };
 
-const sqsOf = (r) =>
-  r.entry_quality_score ?? r.signal_strength ?? r.strength ?? null;
+// entry_quality_score is a 0-100 scale; `strength` is a 0-1 breakout-magnitude
+// value from buy_signal_generator, not a quality score — do not fall back to it
+// (a fresh signal with strength=1.0 and no quality score yet would otherwise
+// render as a red "1", implying terrible quality instead of "not yet scored").
+const sqsOf = (r) => r.entry_quality_score ?? null;
 
 // ─── main page ─────────────────────────────────────────────────────────────
 export default function TradingSignals() {

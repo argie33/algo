@@ -113,6 +113,12 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         "EarningsPerShareBasic",
         "EarningsPerShareDiluted",
         "WeightedAverageNumberOfSharesOutstandingBasic",
+        # For interest_coverage (quality_metrics) = OperatingIncomeLoss / InterestExpense.
+        # No IFRS alias: IFRS "FinanceCosts" is a broader concept (includes non-interest
+        # debt costs) and would silently overstate interest expense for foreign filers -
+        # leaving it unmapped means those symbols correctly get interest_coverage=NULL
+        # instead of a wrong number.
+        "InterestExpense",
     ]
     return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES)
 
@@ -135,6 +141,10 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "PaymentsToAcquirePropertyPlantAndEquipment",
         "Depreciation",
         "DepreciationAndAmortization",
+        # For value_metrics.dividend_yield = dividends_paid / market_cap. No IFRS alias,
+        # same reasoning as InterestExpense above - foreign filers get NULL instead of a
+        # guessed value.
+        "PaymentsOfDividends",
     ]
     return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_CASHFLOW_IFRS_ALIASES)
 

@@ -621,6 +621,7 @@ function StockDetailContent() {
           <AlgoTab
             swing={swingScore}
             scoreRow={scoreRow}
+            signals={signalsData}
             error={swingScoreError}
           />
         )}
@@ -1148,7 +1149,7 @@ function ScoreBars({ scores }) {
 }
 
 // â”€â”€â”€ Algo tab â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function AlgoTab({ swing, scoreRow, error }) {
+function AlgoTab({ swing, scoreRow, signals, error }) {
   if (error)
     return (
       <Empty
@@ -1168,18 +1169,31 @@ function AlgoTab({ swing, scoreRow, error }) {
       />
     );
   }
-  const c = swing.components || {};
   const d = swing.details || {};
+  const signalItems = Array.isArray(signals)
+    ? signals
+    : signals?.items || [];
+  const latestSignal = signalItems[0] || {};
 
-  const radarRows = [
-    ["Setup", c.setup, 25],
-    ["Trend", c.trend, 20],
-    ["Momentum", c.momentum, 15],
-    ["Volume", c.volume, 10],
-    ["Fundamentals", c.fundamentals, 15],
-    ["Sector", c.sector, 8],
-    ["Multi-TF", c.multi_tf, 7],
+  // Fixed base weights match loaders/load_stock_scores.py's composite formula exactly
+  // (no weight redistribution per GOVERNANCE) - bar value = score * weight (points earned
+  // toward the 100-point composite), bar max = weight * 100.
+  const FACTOR_WEIGHTS = [
+    ["Quality", "quality_score", 0.25],
+    ["Growth", "growth_score", 0.2],
+    ["Value", "value_score", 0.2],
+    ["Positioning", "positioning_score", 0.15],
+    ["Stability", "stability_score", 0.12],
+    ["Momentum", "momentum_score", 0.08],
   ];
+  const radarRows = FACTOR_WEIGHTS.map(([label, key, weight]) => {
+    const score = scoreRow?.[key];
+    return [
+      label,
+      score != null ? Number(score) * weight : null,
+      weight * 100,
+    ];
+  });
 
   return (
     <div className="grid grid-2">
@@ -1271,7 +1285,7 @@ function AlgoTab({ swing, scoreRow, error }) {
                   ? `${num(d.trend_template_score, 0)} / 8`
                   : "â€”"
               }
-              sub={d.trend_template_status || ""}
+              sub={d.trend_direction || ""}
             />
             <Stile
               label="Market Stage"
@@ -1280,12 +1294,16 @@ function AlgoTab({ swing, scoreRow, error }) {
             />
             <Stile
               label="Relative Strength"
-              value={num(d.mansfield_rs, 2)}
+              value={num(latestSignal.mansfield_rs, 2)}
               sub="vs market"
             />
             <Stile
               label="RS Rating"
-              value={d.rs_rating != null ? `${d.rs_rating}` : "â€”"}
+              value={
+                latestSignal.rs_rating != null
+                  ? `${latestSignal.rs_rating}`
+                  : "â€”"
+              }
               sub="0-99 percentile"
             />
             <Stile

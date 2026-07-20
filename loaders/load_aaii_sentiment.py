@@ -325,7 +325,9 @@ class AAIISentimentLoader(OptimalLoader):
                     return [
                         {
                             "data_unavailable": True,
-                            "reason": f"Network error ({error_type}): {str(e)[:100]}",
+                            # migration 1138 added this column (was silently dropped by
+                            # bulk_insert_manager's schema-filter before that - see its comment)
+                            "reason": f"Network error ({error_type}): {e}"[:255],
                             "created_at": datetime.now(timezone.utc).isoformat(),
                         }
                     ]
@@ -339,7 +341,7 @@ class AAIISentimentLoader(OptimalLoader):
                     return [
                         {
                             "data_unavailable": True,
-                            "reason": f"Data format error ({error_type}): {str(e)[:100]}",
+                            "reason": f"Data format error ({error_type}): {e}"[:255],
                             "created_at": datetime.now(timezone.utc).isoformat(),
                         }
                     ]
@@ -351,7 +353,7 @@ class AAIISentimentLoader(OptimalLoader):
                     return [
                         {
                             "data_unavailable": True,
-                            "reason": f"Unexpected error ({error_type}): {str(e)[:100]}",
+                            "reason": f"Unexpected error ({error_type}): {e}"[:255],
                             "created_at": datetime.now(timezone.utc).isoformat(),
                         }
                     ]

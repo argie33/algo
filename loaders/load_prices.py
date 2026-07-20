@@ -2195,13 +2195,27 @@ def _invalidate_phase1_cache() -> None:
             return
         except ClientError as delete_err:
             error_dict = delete_err.response.get("Error")
+            # Same treatment as AccessDenied: any of these codes mean the credentials in
+            # use fundamentally cannot talk to DynamoDB right now (invalid/expired/unknown
+            # token) - functionally identical to a permission denial from the loader's
+            # perspective. Without this, local dev runs (no working AWS credentials, the
+            # normal state per CLAUDE.md's local mode) hit the generic branch below,
+            # "successfully" fail to poison too for the same credential reason, and hit
+            # the Step 3 hard RuntimeError - discarding an otherwise-successful price load
+            # and orphaning loader_execution_locks (confirmed live 2026-07-20: a full
+            # 10K-symbol fetch completed, then got thrown away here).
             if error_dict and error_dict.get("Code") in (
                 "AccessDenied",
                 "AccessDeniedException",
+                "UnrecognizedClientException",
+                "InvalidClientTokenId",
+                "ExpiredTokenException",
+                "InvalidSignatureException",
             ):
                 logger.warning(
-                    "[CACHE INVALIDATION]  Permission denied (DELETE): No DynamoDB write access. "
-                    "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
+                    "[CACHE INVALIDATION]  DynamoDB unusable (%s): No DynamoDB write access. "
+                    "Loader will proceed without cache invalidation (risk: may use stale data from previous run).",
+                    error_dict.get("Code"),
                 )
                 return
             logger.error(
@@ -2230,13 +2244,19 @@ def _invalidate_phase1_cache() -> None:
             return
         except ClientError as poison_err:
             error_dict = poison_err.response.get("Error")
+            # See matching comment on the delete-path ClientError handler above.
             if error_dict and error_dict.get("Code") in (
                 "AccessDenied",
                 "AccessDeniedException",
+                "UnrecognizedClientException",
+                "InvalidClientTokenId",
+                "ExpiredTokenException",
+                "InvalidSignatureException",
             ):
                 logger.warning(
-                    "[CACHE INVALIDATION]  Permission denied (UPDATE): No DynamoDB write access. "
-                    "Loader will proceed without cache invalidation (risk: may use stale data from previous run)."
+                    "[CACHE INVALIDATION]  DynamoDB unusable (%s): No DynamoDB write access. "
+                    "Loader will proceed without cache invalidation (risk: may use stale data from previous run).",
+                    error_dict.get("Code"),
                 )
                 return
             logger.error(

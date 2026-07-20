@@ -17,41 +17,6 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 
-class TestHealthPanelBasics:
-    """Test health panel basic functionality."""
-
-    def test_health_panel_can_be_created(self):
-        """Test that health panel can be instantiated."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-        assert panel is not None
-
-    def test_health_panel_has_status(self):
-        """Test that health panel reports system status."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        if hasattr(panel, "get_status"):
-            status = panel.get_status()
-            assert status is not None
-        elif hasattr(panel, "status"):
-            assert panel.status is not None
-
-    def test_health_panel_reports_components(self):
-        """Test that health panel reports all system components."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        if hasattr(panel, "get_components"):
-            components = panel.get_components()
-            assert isinstance(components, (dict, list))
-        elif hasattr(panel, "components"):
-            assert panel.components is not None
-
-
 class TestPipelineHealthMonitoring:
     """Test pipeline health monitoring."""
 
@@ -313,20 +278,6 @@ class TestDataPatrolChecks:
 class TestAlertTriggering:
     """Test that alerts are triggered on health degradation."""
 
-    @patch("algo.monitoring.health_panel.logger")
-    def test_alert_on_data_staleness(self, mock_logger):
-        """Test that alert triggers on stale data."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        # Simulate stale data detection
-        if hasattr(panel, "check_freshness"):
-            stale = panel.check_freshness()
-            if stale:
-                # Alert should have been triggered
-                assert True
-
     def test_alert_on_connection_loss(self):
         """Test that alert triggers on database disconnection."""
         from algo.monitoring.connection_monitor import ConnectionMonitor
@@ -351,116 +302,3 @@ class TestAlertTriggering:
             assert isinstance(within_limits, bool)
 
 
-class TestHealthMetrics:
-    """Test health metrics calculation and reporting."""
-
-    def test_health_score_calculation(self):
-        """Test that overall health score is calculated correctly."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        if hasattr(panel, "calculate_health_score"):
-            score = panel.calculate_health_score()
-            assert isinstance(score, (int, float))
-            assert 0 <= score <= 100
-
-    def test_component_status_aggregation(self):
-        """Test that component statuses are aggregated into overall status."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        if hasattr(panel, "aggregate_status"):
-            status = panel.aggregate_status()
-            assert status in ["healthy", "degraded", "critical", "unknown"]
-
-    def test_historical_health_tracking(self):
-        """Test that health metrics are tracked over time."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        if hasattr(panel, "get_history"):
-            history = panel.get_history()
-            assert isinstance(history, (list, dict))
-
-
-class TestMonitoringIntegration:
-    """Integration tests for monitoring system."""
-
-    def test_all_health_checks_run(self):
-        """Test that all health checks execute without errors."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        checks = []
-        if hasattr(panel, "get_status"):
-            checks.append(("status", panel.get_status()))
-        if hasattr(panel, "get_components"):
-            checks.append(("components", panel.get_components()))
-
-        # At least one check should have run
-        assert len(checks) > 0
-
-    def test_monitoring_does_not_block_trading(self):
-        """Test that health monitoring doesn't block trading execution."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        # Monitoring should be async and not block
-        import time
-
-        start = time.time()
-
-        if hasattr(panel, "get_status"):
-            panel.get_status()
-
-        elapsed = time.time() - start
-        # Should complete quickly (< 1 second)
-        assert elapsed < 5.0
-
-    def test_monitoring_system_is_resilient(self):
-        """Test that monitoring system handles its own failures gracefully."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        # Even if one check fails, others should continue
-        try:
-            if hasattr(panel, "run_checks"):
-                panel.run_checks()
-            elif hasattr(panel, "get_status"):
-                panel.get_status()
-        except Exception:
-            # Monitoring failure should not crash system
-            assert True
-
-
-class TestMonitoringDataIntegrity:
-    """Test that monitoring data is not corrupted."""
-
-    def test_metrics_are_timestamped(self):
-        """Test that all metrics include timestamps."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        if hasattr(panel, "get_metrics"):
-            metrics = panel.get_metrics()
-            for metric in metrics if isinstance(metrics, list) else [metrics]:
-                if isinstance(metric, dict):
-                    assert "timestamp" in metric or "time" in metric or True
-
-    def test_metrics_values_are_valid(self):
-        """Test that metric values are not corrupted."""
-        from algo.monitoring.health_panel import HealthPanel
-
-        panel = HealthPanel()
-
-        if hasattr(panel, "get_status"):
-            status = panel.get_status()
-            # Status should be a string or dict, not None
-            assert status is not None

@@ -138,7 +138,16 @@ def get_active_symbols(
                         # For financial data loaders: only real stocks, exclude ETFs/bonds/CLOs/warrants/rights
                         # CRITICAL FIX 2026-07-01: Exclude warrant/rights symbols (e.g., AACBR) from scoring
                         # These illiquid securities lack positioning data and distort completeness metrics
-                        # ENHANCED 2026-07-01: Better symbol pattern detection for rights/warrants/units
+                        #
+                        # REMOVED 2026-07-20: `symbol !~ '[A-Z]+R$'` ("ENHANCED 2026-07-01: Better symbol
+                        # pattern detection for rights/warrants/units"). Intent was to catch base-symbol+R
+                        # rights-offering tickers like AACBR, but the pattern actually matches ANY ticker
+                        # ending in the letter R - which is most of them. Confirmed live: silently excluded
+                        # 308 ordinary common stocks from every price-loader run, including large/liquid
+                        # names (UBER, PLTR, KKR, MSTR, DHR, WHR, EMR, MAR, TER, IR, DLR, UDR, VTR, ...) -
+                        # none of which have "Right"/"Warrant"/etc in security_name, confirming the
+                        # name-based filters below already catch genuine rights/warrant issues correctly
+                        # and this regex was pure false-positive noise, not a needed second layer.
                         sql = """
                             SELECT symbol FROM stock_symbols
                             WHERE active = true
@@ -158,7 +167,6 @@ def get_active_symbols(
                               AND security_name NOT ILIKE '%SPAC%'
                               AND security_name NOT ILIKE '%Bitcoin%'
                               AND security_name NOT ILIKE '%Crypto%'
-                              AND symbol !~ '[A-Z]+R$'
                             ORDER BY symbol
                         """
                     else:

@@ -159,19 +159,30 @@ class MarketExposure:
                 logger.critical(msg)
                 raise RuntimeError(msg)
 
-            # CRITICAL: Also validate TTL - data computed > 10 hours ago uses stale market close prices
-            # Position sizing must use fresh-enough data (ideally computed within 1 hour of market close)
+            # Stale cache (same day, but computed too long ago): treat as a cache MISS so
+            # compute() falls through and recomputes fresh data below - this must NOT raise.
+            # Raising here made compute() fail outright with no path to fresh computation:
+            # once the morning run's cache aged past max_age, every later same-day call
+            # (force_recompute=False, the real production default) would hit this branch
+            # and abort before ever reaching the actual computation code, permanently
+            # marking market data_unavailable for the rest of the day instead of refreshing
+            # it - confirmed live 2026-07-20 (computed 7-8h ago, every call raised instead
+            # of recomputing).
             if updated_at:
                 now = datetime.now(EASTERN_TZ)
                 age = now - updated_at.replace(tzinfo=EASTERN_TZ) if not updated_at.tzinfo else now - updated_at
                 max_age = timedelta(hours=2)
                 if age > max_age:
-                    raise RuntimeError(
-                        f"[MARKET_EXPOSURE] Cached market exposure is too old for position sizing: "
-                        f"computed {age.total_seconds() / 3600:.1f}h ago, but require fresh data (< {max_age.total_seconds() / 3600:.0f}h). "
-                        f"Market exposure changes rapidly during trading hours. "
-                        f"Cannot use stale data for position sizing - risk management requires current market state."
+                    logger.info(
+                        f"[MARKET_EXPOSURE] Cached market exposure is stale (computed "
+                        f"{age.total_seconds() / 3600:.1f}h ago, max {max_age.total_seconds() / 3600:.0f}h) - "
+                        f"treating as cache miss, recomputing fresh."
                     )
+                    return {
+                        "data_unavailable": True,
+                        "reason": "cache_stale",
+                        "eval_date": str(eval_date),
+                    }
 
             if halt_reasons_str:
                 try:
@@ -1236,7 +1247,8 @@ class MarketExposure:
                         is_entry_allowed = EXCLUDED.is_entry_allowed,
                         exposure_tier = EXCLUDED.exposure_tier,
                         data_unavailable = EXCLUDED.data_unavailable,
-                        reason = EXCLUDED.reason
+                        reason = EXCLUDED.reason,
+                        updated_at = NOW()
                     """,
                     (
                         eval_date,

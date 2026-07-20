@@ -157,7 +157,8 @@ class SecValuationsLoader(OptimalLoader):
                     """
                     SELECT
                         operating_cash_flow,
-                        capex
+                        capex,
+                        dividends_paid
                     FROM annual_cash_flow
                     WHERE symbol = %s AND data_unavailable = FALSE
                     ORDER BY fiscal_year DESC LIMIT 1
@@ -165,8 +166,8 @@ class SecValuationsLoader(OptimalLoader):
                     (symbol,),
                 )
                 cash_row = cur.fetchone()
-                ocf, capex = (cash_row[0], cash_row[1]) if cash_row else (None, None)
-                # Note: None values here mean FCF yield will be NULL (not available)
+                ocf, capex, dividends_paid = cash_row if cash_row else (None, None, None)
+                # Note: None values here mean FCF yield/dividend yield will be NULL (not available)
 
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
@@ -181,6 +182,7 @@ class SecValuationsLoader(OptimalLoader):
                 float(ocf) if ocf else 0.0,
                 float(capex) if capex else 0.0,
                 float(prior_year_eps) if prior_year_eps else None,
+                float(dividends_paid) if dividends_paid else None,
             )]
 
         except TimeoutError as e:
@@ -214,6 +216,7 @@ class SecValuationsLoader(OptimalLoader):
         ocf: float,
         capex: float,
         prior_year_eps: float | None,
+        dividends_paid: float | None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data."""
         result: dict[str, Any] = {
@@ -234,6 +237,7 @@ class SecValuationsLoader(OptimalLoader):
             "ps_ratio": None,
             "peg_ratio": None,
             "fcf_yield": None,
+            "dividend_yield": None,
         }
 
         if current_price <= 0:
@@ -312,6 +316,17 @@ class SecValuationsLoader(OptimalLoader):
                 else:
                     logger.debug(f"[{symbol}] FCF yield out of bounds ({fcf_yield_pct:.1f}%), marking as NULL")
 
+        # Dividend Yield = Dividends Paid ÷ Market Cap (stored as a decimal fraction, e.g.
+        # 0.03 = 3% - matches load_stock_scores.py._score_value's existing "decimal ->
+        # percent" conversion for this field; NOT the same convention as fcf_yield above,
+        # which is stored as a percentage already).
+        if dividends_paid and dividends_paid > 0 and result["market_cap"] and result["market_cap"] > 0:
+            div_yield = dividends_paid / result["market_cap"]
+            if 0 < div_yield <= 1.0:  # >100% yield indicates a data error
+                result["dividend_yield"] = round(div_yield, 4)
+            else:
+                logger.debug(f"[{symbol}] Dividend yield out of bounds ({div_yield:.2%}), marking as NULL")
+
         return result
 
     def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any]:
@@ -332,6 +347,7 @@ class SecValuationsLoader(OptimalLoader):
             "ps_ratio": None,
             "peg_ratio": None,
             "fcf_yield": None,
+            "dividend_yield": None,
         }
 
 

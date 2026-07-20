@@ -120,11 +120,44 @@ class BulkInsertManager:
                         all_data_cols.append(k)
             skipped = [c for c in all_data_cols if c not in existing_cols]
             if skipped:
-                logger.warning(
-                    "Loader %s: skipping columns not in DB schema: %s",
-                    self.table_name,
-                    skipped,
-                )
+                # GOVERNANCE MARKER DETECTION: a loader can correctly compute a
+                # data_unavailable/reason-style governance marker and have it silently
+                # vanish right here before ever reaching the DB - found 4 independent times
+                # in one audit session (price_daily, quarterly statement tables,
+                # signal_quality_scores, market_sentiment; see steering/DATA_LOADERS.md).
+                # Each was invisible until someone happened to compare a loader's insert
+                # dict against information_schema.columns by hand. Escalate these specific
+                # names to ERROR (loggers.warning is the routine "missing upstream data"
+                # bar per GOVERNANCE.md #5 - this is categorically worse, it's a bug, not
+                # missing data) so the next instance shows up in log-based alerting instead
+                # of waiting for the next manual audit. Not raised: schema drift is common
+                # enough (renamed/added columns, hand-maintained schema_cols frozensets)
+                # that a hard failure here would risk halting production loaders on a
+                # column mismatch this function can't distinguish from an intentionally
+                # optional/internal field.
+                marker_like = [
+                    c
+                    for c in skipped
+                    if c in ("data_unavailable", "reason", "reason_type", "data_completeness", "unavailable_components")
+                    or c.endswith(("_unavailable", "_data_unavailable", "_unavailable_reason"))
+                ]
+                if marker_like:
+                    logger.error(
+                        "Loader %s: GOVERNANCE MARKER DROPPED - column(s) %s look like data_unavailable/reason "
+                        "markers but don't exist on the target table, so they were silently discarded instead "
+                        "of recording why this row is unavailable. Add the column(s) via migration (see "
+                        "steering/DATA_LOADERS.md for the pattern) - this is very likely a bug, not an "
+                        "intentionally optional field.",
+                        self.table_name,
+                        marker_like,
+                    )
+                non_marker = [c for c in skipped if c not in marker_like]
+                if non_marker:
+                    logger.warning(
+                        "Loader %s: skipping columns not in DB schema: %s",
+                        self.table_name,
+                        non_marker,
+                    )
             columns = [c for c in all_data_cols if c in existing_cols]
             if not columns:
                 raise ValueError(f"No valid columns to write for {self.table_name}")

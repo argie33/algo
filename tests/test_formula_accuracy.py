@@ -234,7 +234,11 @@ class TestFCFYieldScoring:
 
     def test_fcf_yield_five_percent(self) -> None:
         """5% FCF yield should score 100."""
-        fcf_pct = 5.0  # Stored as 0.05, converted to 5
+        # BUGFIX 2026-07-20: load_sec_valuations.py stores fcf_yield already as a
+        # percentage (confirmed live: AAPL=2.27, MSFT=4.69, T=25.83), not a decimal
+        # fraction - load_stock_scores.py._score_value used to re-multiply by 100,
+        # which saturated this component to 100 for virtually every FCF-positive stock.
+        fcf_pct = 5.0  # Already stored as 5.0 (meaning 5%), used as-is
         score = min(100, fcf_pct * 20)
         assert abs(score - 100) < 0.01
 

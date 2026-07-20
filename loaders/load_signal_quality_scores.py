@@ -938,6 +938,26 @@ def _sync_scores_to_buy_sell() -> None:
             rows = cur.rowcount
             if rows > 0:
                 logger.info(f"Synced {rows} new signal quality scores to buy_sell_daily (no COALESCE fallback)")
+
+            # rs_rating: buy_sell_daily has the column but no loader ever wrote to it.
+            # stock_scores.rs_percentile is the real IBD-style relative-strength percentile
+            # (distinct from mansfield_rs, a different RS formula computed directly by
+            # buy_signal_generator.py). Unlike signal_quality_scores, stock_scores is a
+            # single current-snapshot row per symbol (no date history), so this joins on
+            # symbol only - it can't be reconstructed for a specific historical signal date,
+            # only stamped with the best currently-available value. Same no-COALESCE,
+            # only-fill-NULL pattern as above.
+            cur.execute("""
+                UPDATE buy_sell_daily bsd
+                SET rs_rating = ss.rs_percentile
+                FROM stock_scores ss
+                WHERE bsd.symbol = ss.symbol
+                AND bsd.rs_rating IS NULL
+                AND ss.rs_percentile IS NOT NULL
+            """)
+            rs_rows = cur.rowcount
+            if rs_rows > 0:
+                logger.info(f"Synced {rs_rows} new rs_rating values to buy_sell_daily from stock_scores.rs_percentile")
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         logger.error(f"Failed to sync signal quality scores to buy_sell_daily: {e}")
         raise RuntimeError(

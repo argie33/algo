@@ -47,12 +47,27 @@ const scoreClass = (v) => {
   return "badge-danger";
 };
 
+// For composite_score only. Sub-factor scores (quality/growth/value/momentum/
+// positioning/stability) use subScoreColor's looser band instead — matches the
+// CLI dashboard's _composite_score_color 80/60/40 vs _score_cell 70/50/30 split
+// (composite is a weighted aggregate that clusters higher, individual factors
+// vary more; using this same band for both meant the same sub-score value
+// could render a different severity color on the CLI dashboard vs this page).
 const scoreColor = (v) => {
   if (v == null || isNaN(Number(v))) return "var(--text-faint)";
   const n = Number(v);
   if (n >= 80) return "var(--success)";
   if (n >= 60) return "var(--cyan)";
   if (n >= 40) return "var(--amber)";
+  return "var(--danger)";
+};
+
+const subScoreColor = (v) => {
+  if (v == null || isNaN(Number(v))) return "var(--text-faint)";
+  const n = Number(v);
+  if (n >= 70) return "var(--success)";
+  if (n >= 50) return "var(--cyan)";
+  if (n >= 30) return "var(--amber)";
   return "var(--danger)";
 };
 
@@ -618,13 +633,13 @@ function RankingsTab({
                       {num(s.composite_score, 1)}
                     </span>
                   </div>
-                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: scoreColor(s.growth_score) }}>
+                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: subScoreColor(s.growth_score) }}>
                     {num(s.growth_score, 1)}
                   </div>
-                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: scoreColor(s.quality_score) }}>
+                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: subScoreColor(s.quality_score) }}>
                     {num(s.quality_score, 1)}
                   </div>
-                  <div style={{ width: 80, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: scoreColor(s.momentum_score) }}>
+                  <div style={{ width: 80, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: subScoreColor(s.momentum_score) }}>
                     {num(s.momentum_score, 1)}
                   </div>
                 </div>
@@ -1414,37 +1429,37 @@ function LeaderboardTab({ items, sectorFilter, onClick }) {
                     </td>
                     <td
                       className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.quality_score) }}
+                      style={{ color: subScoreColor(s.quality_score) }}
                     >
                       <SafeMetricValue value={s.quality_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.momentum_score) }}
+                      style={{ color: subScoreColor(s.momentum_score) }}
                     >
                       <SafeMetricValue value={s.momentum_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.value_score) }}
+                      style={{ color: subScoreColor(s.value_score) }}
                     >
                       <SafeMetricValue value={s.value_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.growth_score) }}
+                      style={{ color: subScoreColor(s.growth_score) }}
                     >
                       <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.positioning_score) }}
+                      style={{ color: subScoreColor(s.positioning_score) }}
                     >
                       <SafeMetricValue value={s.positioning_score} formatter="number" fallback="—" />
                     </td>
                     <td
                       className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.stability_score) }}
+                      style={{ color: subScoreColor(s.stability_score) }}
                     >
                       <SafeMetricValue value={s.stability_score} formatter="number" fallback="—" />
                     </td>
@@ -1480,15 +1495,17 @@ function HeatmapTab({ items, sectorFilter, onClick }) {
   const heatColor = (v) => {
     if (v == null || isNaN(Number(v))) return "var(--surface-2)";
     const n = Number(v);
-    // Stoplight gradient: red → amber → cyan → green
-    if (n >= 80) return "var(--success-soft)";
-    if (n >= 60) return "var(--cyan-soft)";
-    if (n >= 40) return "var(--amber-soft)";
+    // Stoplight gradient: red → amber → cyan → green. This heatmap plots
+    // per-factor (sub-)scores, so it uses the same 70/50/30 band as
+    // subScoreColor, not composite_score's 80/60/40.
+    if (n >= 70) return "var(--success-soft)";
+    if (n >= 50) return "var(--cyan-soft)";
+    if (n >= 30) return "var(--amber-soft)";
     return "var(--danger-soft)";
   };
   const textColor = (v) => {
     if (v == null) return "var(--text-3)";
-    return scoreColor(v);
+    return subScoreColor(v);
   };
 
   return (

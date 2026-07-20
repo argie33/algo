@@ -166,6 +166,7 @@ def _get_stock_scores(
                     pl.close AS price,
                     (pl.close IS NULL) AS _is_fallback,
                     (qm.symbol IS NULL OR qm.data_unavailable = TRUE OR (qm.roe IS NULL AND qm.operating_margin IS NULL AND qm.net_margin IS NULL)) AS _financial_data_unavailable,
+                    (vm.symbol IS NULL OR vm.data_unavailable = TRUE) AS _value_data_unavailable,
                     (fs.growth_score IS NULL) AS _growth_data_unavailable,
                     (pm.symbol IS NULL OR pm.data_unavailable = TRUE) AS _positioning_data_unavailable,
                     (sm.symbol IS NULL OR sm.data_unavailable = TRUE) AS _stability_data_unavailable,
@@ -302,11 +303,9 @@ def _get_stock_scores(
             if d.get("_stability_data_unavailable"):
                 d["stability_score"] = None
             if d.get("_financial_data_unavailable"):
-                # Ensure quality/value metrics are None if financial data is unavailable
-                if d.get("quality_score") is None:
-                    d["quality_score"] = None
-                if d.get("value_score") is None:
-                    d["value_score"] = None
+                d["quality_score"] = None
+            if d.get("_value_data_unavailable"):
+                d["value_score"] = None
 
             # Note: We include scores even if current prices are missing
             # Scores are computed from other factors; current price is optional for display

@@ -217,7 +217,14 @@ class ExposurePolicy:
                 positions = cur.fetchall()
                 actions = []
                 for row in positions:
-                    action = self._evaluate_position(row, tier)
+                    try:
+                        action = self._evaluate_position(row, tier)
+                    except ValueError as e:
+                        # One position with corrupted/invalid trade data must not block
+                        # stop-tightening, partial-exits, or force-exits for the rest of
+                        # the open book. Log loudly and continue.
+                        logger.error(f"[EXPOSURE_POLICY] Skipping position, evaluation failed: {e}")
+                        continue
                     if action and action["action"] != "hold":
                         actions.append(action)
                 return actions
@@ -280,8 +287,10 @@ class ExposurePolicy:
         # R-multiple
         risk_per_share = entry_price - init_stop
         if risk_per_share <= 0:
-            logger.error(f"CRITICAL: Invalid risk/reward setup for {symbol}: entry={entry_price}, stop={init_stop}")
-            return {"passed": False, "reason": "Invalid stop loss configuration (stop >= entry)"}
+            raise ValueError(
+                f"CRITICAL: {symbol} - invalid risk/reward setup: entry={entry_price}, stop={init_stop} "
+                f"(stop >= entry). Cannot evaluate exposure policy with corrupted stop loss data."
+            )
         r_mult = (cur_price_float - entry_price) / risk_per_share
 
         # 1. CORRECTION TIER + force_exit_negative_r: cut losers

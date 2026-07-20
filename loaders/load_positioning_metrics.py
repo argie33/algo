@@ -71,25 +71,44 @@ class PositioningMetricsLoader(OptimalLoader):
         # TIER 1: Fetch short interest from FINRA (OPTIONAL if table unavailable)
         short_interest_pct = None
         short_interest_source = None
+        shares_short_prior_month = None
+        short_interest_trend = None
 
         try:
             with DatabaseContext("read") as cur:
+                # FIX 2026-07-20: Was LIMIT 1 (latest settlement only). FINRA reports
+                # settle bi-monthly, so the prior settlement's short_shares is already
+                # in this table - fetching 2 rows lets us derive shares_short_prior_month
+                # and short_interest_trend (both existing positioning_metrics columns that
+                # no loader had ever populated) with no new data source needed.
                 cur.execute(
                     """
-                    SELECT short_pct, data_unavailable, reason
+                    SELECT short_pct, short_shares, settlement_date
                     FROM short_interest_finra
                     WHERE symbol = %s AND data_unavailable = FALSE
-                    ORDER BY settlement_date DESC LIMIT 1
+                    ORDER BY settlement_date DESC LIMIT 2
                     """,
                     (symbol,),
                 )
-                short_row = cur.fetchone()
+                short_rows = cur.fetchall()
 
-            if short_row and short_row[0] is not None:
-                short_interest_pct = short_row[0]
+            if short_rows and short_rows[0][0] is not None:
+                short_interest_pct = short_rows[0][0]
                 short_interest_source = "finra"
             else:
                 short_interest_source = "unavailable"
+
+            if len(short_rows) >= 2:
+                shares_short_prior_month = short_rows[1][1]
+                current_pct, prior_pct = short_rows[0][0], short_rows[1][0]
+                if current_pct is not None and prior_pct is not None and prior_pct != 0:
+                    relative_change = (current_pct - prior_pct) / prior_pct
+                    if relative_change > 0.05:
+                        short_interest_trend = "increasing"
+                    elif relative_change < -0.05:
+                        short_interest_trend = "decreasing"
+                    else:
+                        short_interest_trend = "stable"
         except Exception as e:
             # Table may not exist or loader not running yet - treat as optional
             logger.debug(f"[POSITIONING] {symbol}: short_interest_finra unavailable: {e}")
@@ -157,6 +176,8 @@ class PositioningMetricsLoader(OptimalLoader):
                 "institutional_ownership_pct": institutional_pct,
                 "insider_ownership_pct": insider_pct,
                 "short_interest_pct": short_interest_pct,
+                "shares_short_prior_month": shares_short_prior_month,
+                "short_interest_trend": short_interest_trend,
                 "data_unavailable": all_unavailable,
                 "reason": (
                     f"short_interest:{short_interest_source};institutional:{institutional_source};insider:{insider_source}"

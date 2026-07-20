@@ -146,7 +146,30 @@ class RiskMetricsLoader(OptimalLoader):
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
 
+    def _get_debt_to_assets(self, symbol: str) -> float | None:
+        """Fetch pre-computed debt_to_assets from quality_metrics (total_liabilities/total_assets).
+
+        Independent of price history, so this is fetched regardless of whether the
+        price-based volatility/beta computation below succeeds - stock_scores._score_stability
+        has a standing 10%-weight slot for it (docstring: "MINIMUM DATA REQUIREMENT: At least
+        one of volatility_252d/volatility_60d/beta/debt_to_assets must be non-NULL"), but no
+        loader ever populated stability_metrics.debt_to_assets (confirmed 2026-07-20: 0/7155
+        rows filled) even though quality_metrics already computes the identical ratio.
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT debt_to_assets FROM quality_metrics WHERE symbol = %s AND data_unavailable = FALSE",
+                    (symbol,),
+                )
+                row = cur.fetchone()
+            return safe_float(row[0], f"{symbol}.debt_to_assets", allow_none=True) if row else None
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.debug(f"[RISK_METRICS] {symbol}: debt_to_assets lookup failed: {e}")
+            return None
+
     def _compute_stability_row(self, symbol: str) -> dict[str, Any]:
+        debt_to_assets = self._get_debt_to_assets(symbol)
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
@@ -176,10 +199,11 @@ class RiskMetricsLoader(OptimalLoader):
                     "volatility_60d": None,
                     "volatility_252d": None,
                     "beta": None,
+                    "debt_to_assets": debt_to_assets,
                     "created_at": datetime.now(timezone.utc).isoformat(),
-                    "data_unavailable": True,
-                    "reason": reason,
-                    "reason_type": "loader_failed",
+                    "data_unavailable": debt_to_assets is None,
+                    "reason": None if debt_to_assets is not None else reason,
+                    "reason_type": None if debt_to_assets is not None else "loader_failed",
                 }
 
             prices = sorted(
@@ -207,10 +231,11 @@ class RiskMetricsLoader(OptimalLoader):
                     "volatility_60d": None,
                     "volatility_252d": None,
                     "beta": None,
+                    "debt_to_assets": debt_to_assets,
                     "created_at": datetime.now(timezone.utc).isoformat(),
-                    "data_unavailable": True,
-                    "reason": reason,
-                    "reason_type": "loader_failed",
+                    "data_unavailable": debt_to_assets is None,
+                    "reason": None if debt_to_assets is not None else reason,
+                    "reason_type": None if debt_to_assets is not None else "loader_failed",
                 }
 
             # Calculate volatilities
@@ -241,7 +266,7 @@ class RiskMetricsLoader(OptimalLoader):
             # volatility_252d/volatility_60d/beta/debt_to_assets must be non-NULL"), so
             # requiring all four upstream silently dropped real data the scorer was
             # designed to consume. Mark unavailable only if every component failed.
-            has_any_metric = any(v is not None for v in [vol_30d, vol_60d, vol_252d, beta])
+            has_any_metric = any(v is not None for v in [vol_30d, vol_60d, vol_252d, beta, debt_to_assets])
             data_unavailable = not has_any_metric
             unavailability_reason: str | None = "; ".join(unavailability_reasons) if unavailability_reasons else None
 
@@ -254,6 +279,7 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_60d": round(vol_60d, 4) if vol_60d else None,
                 "volatility_252d": round(vol_252d, 4) if vol_252d else None,
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
+                "debt_to_assets": debt_to_assets,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": data_unavailable,
                 "reason": unavailability_reason,
@@ -268,10 +294,11 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_60d": None,
                 "volatility_252d": None,
                 "beta": None,
+                "debt_to_assets": debt_to_assets,
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "data_unavailable": True,
-                "reason": reason,
-                "reason_type": "loader_failed",
+                "data_unavailable": debt_to_assets is None,
+                "reason": None if debt_to_assets is not None else reason,
+                "reason_type": None if debt_to_assets is not None else "loader_failed",
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
             logger.warning(f"[RISK_METRICS] Stability error for {symbol}: {type(e).__name__}: {e}")
@@ -281,9 +308,10 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_60d": None,
                 "volatility_252d": None,
                 "beta": None,
+                "debt_to_assets": debt_to_assets,
                 "created_at": datetime.now(timezone.utc).isoformat(),
-                "data_unavailable": True,
-                "reason": f"unexpected_error: {type(e).__name__}",
+                "data_unavailable": debt_to_assets is None,
+                "reason": f"unexpected_error: {type(e).__name__}" if debt_to_assets is None else None,
             }
 
     def _persist_stability_metrics(self, row: dict[str, Any]) -> None:
@@ -298,17 +326,19 @@ class RiskMetricsLoader(OptimalLoader):
                 cur.execute(
                     """
                     INSERT INTO stability_metrics
-                    (symbol, volatility_30d, volatility_60d, volatility_252d, beta,
-                     created_at, data_unavailable, reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    (symbol, volatility_30d, volatility_60d, volatility_252d, beta, debt_to_assets,
+                     created_at, data_unavailable, reason, reason_type)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol) DO UPDATE SET
                       volatility_30d = EXCLUDED.volatility_30d,
                       volatility_60d = EXCLUDED.volatility_60d,
                       volatility_252d = EXCLUDED.volatility_252d,
                       beta = EXCLUDED.beta,
+                      debt_to_assets = EXCLUDED.debt_to_assets,
                       created_at = EXCLUDED.created_at,
                       data_unavailable = EXCLUDED.data_unavailable,
                       reason = EXCLUDED.reason,
+                      reason_type = EXCLUDED.reason_type,
                       updated_at = CURRENT_TIMESTAMP
                     """,
                     (
@@ -317,9 +347,11 @@ class RiskMetricsLoader(OptimalLoader):
                         row.get("volatility_60d"),
                         row.get("volatility_252d"),
                         row.get("beta"),
+                        row.get("debt_to_assets"),
                         row.get("created_at"),
                         row["data_unavailable"],
                         row.get("reason"),
+                        row.get("reason_type"),
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

@@ -122,6 +122,13 @@ class ShortInterestFinraLoader(OptimalLoader):
                     outstanding = shares_outstanding.get(symbol)
                     record_date = settlement_date or existing_marker_dates.get(symbol, run_date)
 
+                    # days_to_cover/avg_daily_volume are fetched from FINRA alongside
+                    # short_shares regardless of whether shares_outstanding is available -
+                    # they don't depend on it (unlike short_pct), so extract them whenever
+                    # finra_row exists.
+                    days_to_cover = finra_row.get("days_to_cover") if finra_row else None
+                    avg_daily_volume = finra_row.get("avg_daily_volume") if finra_row else None
+
                     if finra_row is None:
                         short_pct = None
                         short_shares = None
@@ -148,20 +155,22 @@ class ShortInterestFinraLoader(OptimalLoader):
                         """
                         INSERT INTO short_interest_finra
                         (symbol, settlement_date, short_shares, short_pct, finra_report_date,
-                         data_unavailable, reason, data_source, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         days_to_cover, avg_daily_volume, data_unavailable, reason, data_source, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (symbol, settlement_date) DO UPDATE SET
                             short_shares = EXCLUDED.short_shares,
                             short_pct = EXCLUDED.short_pct,
                             finra_report_date = EXCLUDED.finra_report_date,
+                            days_to_cover = EXCLUDED.days_to_cover,
+                            avg_daily_volume = EXCLUDED.avg_daily_volume,
                             data_unavailable = EXCLUDED.data_unavailable,
                             reason = EXCLUDED.reason,
                             data_source = EXCLUDED.data_source,
                             updated_at = EXCLUDED.updated_at
                         """,
                         (symbol, record_date, short_shares, short_pct,
-                         run_date if finra_row else None, data_unavailable, reason,
-                         "finra_query_api", now_et),
+                         run_date if finra_row else None, days_to_cover, avg_daily_volume,
+                         data_unavailable, reason, "finra_query_api", now_et),
                     )
 
                     if data_unavailable:

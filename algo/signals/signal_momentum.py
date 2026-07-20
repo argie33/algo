@@ -185,7 +185,7 @@ class SignalMomentumMixin:
     def pivot_breakout(self, symbol: str, eval_date: Any) -> dict[str, Any]:
         """
         Livermore-style pivot point: price closing decisively above the highest
-        high of the prior 20 trading days, on volume > 50d avg.
+        high of the prior 21 trading days, on volume > 50d avg.
         """
 
         def _check_pivot(cur: Any) -> dict[str, Any]:

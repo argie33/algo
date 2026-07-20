@@ -20,12 +20,16 @@ const scoreClass = (v) => {
   return "badge-danger";
 };
 
+// Sub-factor scores use a looser band than composite scores (matches the CLI
+// dashboard's _score_cell 70/50/30 vs _composite_score_color 80/60/40 split —
+// composite is a weighted aggregate that clusters higher, individual factors
+// vary more).
 const scoreColor = (v) => {
   if (v == null || isNaN(Number(v))) return "var(--text-faint)";
   const n = Number(v);
-  if (n >= 80) return "var(--success)";
-  if (n >= 60) return "var(--cyan)";
-  if (n >= 40) return "var(--amber)";
+  if (n >= 70) return "var(--success)";
+  if (n >= 50) return "var(--cyan)";
+  if (n >= 30) return "var(--amber)";
   return "var(--danger)";
 };
 
@@ -465,9 +469,10 @@ const QUALITY_SCHEMA = [
     key: "interest_coverage_val",
     label: "Interest Coverage",
     fmt: (v) => num(v, 2),
-    used: false,
+    used: true,
+    weight: "avg",
     collected: false,
-    note: "Display-only; the scoring loader never fetches this column.",
+    note: "Added 2026-07-20: the column has existed since before this schema was written, but no loader had ever computed it - annual_income_statement/quarterly_income_statement never fetched SEC InterestExpense (migration 1145 added the column; the loader now fetches the InterestExpense XBRL concept and computes operating_income / interest_expense). Needs a fresh loader run to backfill.",
   },
 ];
 
@@ -554,7 +559,15 @@ const VALUE_SCHEMA = [
     collected: true,
     note: "Added 2026-07-20: was previously fetched and displayed but never weighted.",
   },
-  { key: "fcf_yield_val", label: "FCF Yield", fmt: (v) => pct(v, 2), used: true, weight: "12%", collected: true },
+  {
+    key: "fcf_yield_val",
+    label: "FCF Yield",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "12%",
+    collected: true,
+    note: "Bugfix 2026-07-20: this column is stored as a percentage already (e.g. 2.27 = 2.27%), but the formula re-multiplied by 100 assuming a decimal fraction, so the score saturated to 100 for virtually every FCF-positive stock regardless of actual yield magnitude. Fixed to use the value as-is.",
+  },
   {
     key: "dividend_yield",
     label: "Dividend Yield",
@@ -562,9 +575,17 @@ const VALUE_SCHEMA = [
     used: true,
     weight: "8%",
     collected: false,
-    note: "Formula weight is 8%, but live DB shows 0% of stocks have this populated — this weight is currently dead for the whole universe.",
+    note: "Added 2026-07-20 (migration 1146): was hardcoded None since the Session 271 SEC-only migration removed the old yfinance dividend source with no replacement. Now computed from the SEC \"PaymentsOfDividends\" cash-flow concept ÷ market cap in load_sec_valuations.py. Needs a fresh loader run to backfill.",
   },
-  { key: "peg_ratio_val", label: "PEG", fmt: (v) => num(v, 2), used: false, collected: false },
+  {
+    key: "peg_ratio_val",
+    label: "PEG",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "15%",
+    collected: false,
+    note: "Added 2026-07-20: was fetched/displayed but carried 0% weight. Live DB was 0% populated because the upstream growth-rate computation always came out to exactly 0 (comparing TTM EPS to itself) — that bug is fixed in load_sec_valuations.py but needs a fresh loader run to backfill.",
+  },
   { key: "market_cap", label: "Market Cap", fmt: money, used: false, collected: true },
 ];
 
@@ -628,7 +649,7 @@ const POSITIONING_SCHEMA = [
     used: true,
     weight: "55%",
     collected: false,
-    note: "Highest-weighted positioning input, but live DB shows only 2 of 4,826 stocks have this populated — effectively dead for the whole universe right now.",
+    note: "Highest-weighted positioning input, but live DB shows only 2 of 4,826 stocks have this populated — effectively dead for the whole universe right now. Root cause (confirmed 2026-07-20): load_institutional_holdings_13f.py's own docstring says it is NOT FUNCTIONAL — a real Form 13F implementation needs SEC's bulk quarterly INFOTABLE.tsv datasets aggregated by CUSIP, and SEC does not publish a free CUSIP→ticker crosswalk (CUSIP is licensed by CUSIP Global Services). Blocked on sourcing a free crosswalk or an alternative institutional-ownership data source — not a quick wiring fix like the others on this page.",
   },
   {
     key: "insider_own_val",
@@ -649,9 +670,11 @@ const POSITIONING_SCHEMA = [
   {
     key: "short_interest_trend_val",
     label: "Short Interest Trend",
-    fmt: (v) => String(v),
-    used: false,
-    collected: true,
+    fmt: (v) => (v ? String(v) : "—"),
+    used: true,
+    weight: "modifier",
+    collected: false,
+    note: "Added 2026-07-20: column existed but no loader populated it. Now derived from short_interest_finra's last 2 settlement periods (±10 point nudge on the short-interest component: decreasing=bullish, increasing=bearish). Needs a fresh loader run to backfill.",
   },
   {
     key: "shares_short_prior_month_val",
@@ -659,6 +682,7 @@ const POSITIONING_SCHEMA = [
     fmt: (v) => (v ? Number(v).toLocaleString() : "—"),
     used: false,
     collected: false,
+    note: "Added 2026-07-20: display-only, not a scoring input. Now derived from short_interest_finra's second-most-recent settlement period. Needs a fresh loader run to backfill.",
   },
 ];
 
@@ -696,6 +720,6 @@ const STABILITY_SCHEMA = [
     used: true,
     weight: "10%",
     collected: true,
-    note: "Fixed 2026-07-20: was computed nowhere (0% populated), so this weight was dead. Now sourced from quality_metrics.debt_to_assets and merged into the stability formula.",
+    note: "Fixed 2026-07-20: was computed nowhere (0% populated) at either the stability_metrics table or the scoring formula. load_risk_metrics_daily.py now copies it from quality_metrics.debt_to_assets at write time (in addition to load_stock_scores.py's existing in-memory merge), so it's populated for direct API/display reads too, not just the composite score.",
   },
 ];

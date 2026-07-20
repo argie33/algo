@@ -145,6 +145,9 @@ class MarketStatusDailyLoader(OptimalLoader):
             # Compute sentiment (fear/greed from VIX + AAII sentiment)
             sentiment_data = self._compute_market_sentiment(end_date, health_data)
 
+            # Market stage/trend (CB6 + Follow-Through-Day re-engagement gate on these)
+            stage_data = self._compute_market_stage_trend(end_date)
+
             # Return consolidated data (caller will write to all 3 tables)
             # GOVERNANCE: data_unavailable must reflect whether exposure computation
             # actually succeeded, not be hardcoded False. Regime/exposure_pct/factors feed
@@ -156,7 +159,14 @@ class MarketStatusDailyLoader(OptimalLoader):
             return [{
                 "date": end_date,
                 "data_unavailable": exposure_unavailable,
-                **({"reason": exposure_data["reason"]} if exposure_unavailable and exposure_data.get("reason") else {}),
+                # Always include "reason" explicitly (None on success) - bulk_insert_manager
+                # derives each row's UPSERT column list from its own dict keys, so omitting
+                # the key entirely (as the previous conditional-unpack did) meant a successful
+                # run's UPDATE never touched the reason column, leaving a stale failure message
+                # in place even though data_unavailable correctly flipped back to False
+                # (confirmed live 2026-07-20: market_health_daily showed data_unavailable=False
+                # with reason still reading a 7h-old "exposure_computation_failed" message).
+                "reason": exposure_data.get("reason") if exposure_unavailable else None,
 
                 # market_health_daily fields (column names per market_health_daily schema -
                 # health_data uses different internal key names, see _fetch_market_health)
@@ -166,6 +176,8 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "new_lows_count": health_data.get("new_lows"),
                 "yield_curve_slope": health_data.get("yield_10y_2y_spread"),
                 "put_call_ratio": health_data.get("put_call_ratio"),
+                "market_stage": stage_data.get("market_stage"),
+                "market_trend": stage_data.get("market_trend"),
 
                 # market_exposure_daily fields
                 "regime": exposure_data.get("regime"),
@@ -188,7 +200,10 @@ class MarketStatusDailyLoader(OptimalLoader):
             return [{
                 "date": date.today(),
                 "data_unavailable": True,
-                "reason": f"market_status_error: {str(e)[:100]}",
+                # Truncate the full formatted string (not just str(e)) to the reason column's
+                # actual VARCHAR(255) limit - see _compute_market_exposure's identical fix for
+                # why a 100-char cap silently destroys these diagnostic messages.
+                "reason": f"market_status_error: {e}"[:255],
             }]
 
     def _fetch_market_health(self, eval_date: date) -> dict[str, Any]:
@@ -280,7 +295,7 @@ class MarketStatusDailyLoader(OptimalLoader):
 
         except Exception as e:
             logger.error(f"[MARKET_STATUS] Health fetch failed: {e}")
-            return {"data_unavailable": True, "reason": f"health_fetch_failed: {str(e)[:100]}"}
+            return {"data_unavailable": True, "reason": f"health_fetch_failed: {e}"[:255]}
 
     def _compute_market_exposure(self, eval_date: date, health_data: dict[str, Any]) -> dict[str, Any]:
         """Compute market regime and exposure % from health metrics."""
@@ -322,21 +337,88 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "distribution_days": None,
                 "factors": None,
                 "data_unavailable": True,
-                "reason": f"exposure_computation_failed: {str(e)[:100]}",
+                # Truncate the FULL formatted string (not just the exception text) to the
+                # market_health_daily.reason column's actual VARCHAR(255) limit - the previous
+                # str(e)[:100] cut most error messages down to a bare, useless "computed " with
+                # no age/threshold, exactly the operator-visibility failure GOVERNANCE.md's
+                # "Explicit logging" rule exists to prevent (confirmed live: a real 2h-staleness
+                # halt reason was reduced to "...computed " with the actual age silently lost).
+                "reason": f"exposure_computation_failed: {e}"[:255],
             }
 
-    def _compute_market_sentiment(self, eval_date: date, health_data: dict[str, Any]) -> dict[str, Any]:
-        """Compute fear/greed index and sentiment from VIX + AAII sentiment."""
+    def _compute_market_stage_trend(self, eval_date: date) -> dict[str, Any]:
+        """Market stage (Weinstein 1-4) + trend for SPY, derived from `trend_template_data`.
+
+        `market_health_daily.market_stage` had no writer since the Session 275 consolidation
+        dropped the standalone `load_market_health_daily.py`'s own SMA-50/SMA-200
+        classification logic without replacing it - the column silently stopped being
+        populated (last real value: 2026-07-17). Both `circuit_breaker.py`'s CB6 (halts new
+        entries when market_stage=4) and its Follow-Through-Day re-engagement check read this
+        column with only a 10-day staleness grace window before fail-closed halting, so this
+        was a live ticking time bomb for a safety-critical gate, not a cosmetic gap.
+
+        `loaders/load_trend_analysis.py` already computes the identical Weinstein 1-4
+        classification for every symbol (including SPY) earlier in the same EOD pipeline run
+        and persists it to `trend_template_data` - reuse that instead of recomputing SMA
+        classification from price_daily a second time (the "derive, don't re-fetch"
+        principle in steering/DATA_LOADERS.md).
+        """
         try:
-            vix = health_data.get("vix_level")
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT weinstein_stage, trend_direction, data_unavailable
+                    FROM trend_template_data
+                    WHERE symbol = 'SPY' AND date <= %s
+                    ORDER BY date DESC LIMIT 1
+                    """,
+                    (eval_date,),
+                )
+                row = cur.fetchone()
+
+            if row is None:
+                logger.warning(f"[MARKET_STATUS] No trend_template_data row for SPY on/before {eval_date}")
+                return {"market_stage": None, "market_trend": None}
+
+            weinstein_stage, trend_direction, unavailable = row[0], row[1], row[2]
+            if unavailable or weinstein_stage is None:
+                logger.warning(
+                    f"[MARKET_STATUS] SPY weinstein_stage unavailable in trend_template_data for {eval_date}"
+                )
+                return {"market_stage": None, "market_trend": None}
+
+            return {"market_stage": int(weinstein_stage), "market_trend": trend_direction}
+
+        except Exception as e:
+            logger.error(f"[MARKET_STATUS] Market stage lookup failed: {e}")
+            return {"market_stage": None, "market_trend": None}
+
+    def _compute_market_sentiment(self, eval_date: date, health_data: dict[str, Any]) -> dict[str, Any]:
+        """Compute fear/greed index and sentiment from VIX + AAII sentiment.
+
+        Persists directly to `market_sentiment` as a side effect (same pattern as
+        `MarketExposure.compute()` persisting to `market_exposure_daily`), because
+        `market_health_daily` - the only table this loader's return dict is bulk-inserted
+        into - has no fear_greed_index/sentiment_score/bullish_pct/bearish_pct/neutral_pct
+        columns; those keys were being silently dropped by bulk_insert_manager's
+        column-filter behavior with no error, leaving `market_sentiment` unwritten since
+        the yfinance-era standalone loader was deprecated.
+        """
+        vix = health_data.get("vix_level")
+        put_call_ratio = health_data.get("put_call_ratio")
+        try:
             if not vix:
-                return {
+                result: dict[str, Any] = {
                     "fear_greed_index": None,
                     "sentiment_score": None,
                     "bullish_pct": None,
                     "bearish_pct": None,
                     "neutral_pct": None,
+                    "data_unavailable": True,
+                    "reason": "vix_unavailable",
                 }
+                self._persist_market_sentiment(eval_date, vix, put_call_ratio, result)
+                return result
 
             # Map VIX to fear/greed index: VIX 10-50 → fear/greed 80-20
             fear_greed = max(10, min(90, 100 - (vix * 2)))
@@ -363,7 +445,7 @@ class MarketStatusDailyLoader(OptimalLoader):
             else:
                 logger.debug(f"[MARKET_STATUS] AAII sentiment not available for {eval_date}")
 
-            return {
+            result = {
                 "fear_greed_index": round(fear_greed, 2),
                 "sentiment_score": None,  # Computed from bull/bear/neutral if available
                 # `is not None`, not truthiness: a genuine 0.0% reading (all bearish,
@@ -371,19 +453,64 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "bullish_pct": round(bullish_pct, 2) if bullish_pct is not None else None,
                 "bearish_pct": round(bearish_pct, 2) if bearish_pct is not None else None,
                 "neutral_pct": round(neutral_pct, 2) if neutral_pct is not None else None,
+                "data_unavailable": False,
             }
+            self._persist_market_sentiment(eval_date, vix, put_call_ratio, result)
+            return result
 
         except Exception as e:
             logger.error(f"[MARKET_STATUS] Sentiment computation failed: {e}")
-            return {
+            result = {
                 "fear_greed_index": None,
                 "sentiment_score": None,
                 "bullish_pct": None,
                 "bearish_pct": None,
                 "neutral_pct": None,
                 "data_unavailable": True,
-                "reason": f"sentiment_computation_failed: {str(e)[:100]}",
+                "reason": f"sentiment_computation_failed: {e}"[:255],
             }
+            try:
+                self._persist_market_sentiment(eval_date, vix, put_call_ratio, result)
+            except Exception as persist_err:
+                logger.error(f"[MARKET_STATUS] market_sentiment persist also failed: {persist_err}")
+            return result
+
+    def _persist_market_sentiment(
+        self, eval_date: date, vix: float | None, put_call_ratio: float | None, sentiment: dict[str, Any]
+    ) -> None:
+        """Write the computed sentiment row directly to `market_sentiment` (upsert by date)."""
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                INSERT INTO market_sentiment
+                    (date, fear_greed_index, put_call_ratio, vix, sentiment_score,
+                     bullish_pct, bearish_pct, neutral_pct, data_unavailable, reason)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (date) DO UPDATE SET
+                    fear_greed_index = EXCLUDED.fear_greed_index,
+                    put_call_ratio = EXCLUDED.put_call_ratio,
+                    vix = EXCLUDED.vix,
+                    sentiment_score = EXCLUDED.sentiment_score,
+                    bullish_pct = EXCLUDED.bullish_pct,
+                    bearish_pct = EXCLUDED.bearish_pct,
+                    neutral_pct = EXCLUDED.neutral_pct,
+                    data_unavailable = EXCLUDED.data_unavailable,
+                    reason = EXCLUDED.reason,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    eval_date,
+                    sentiment.get("fear_greed_index"),
+                    put_call_ratio,
+                    vix,
+                    sentiment.get("sentiment_score"),
+                    sentiment.get("bullish_pct"),
+                    sentiment.get("bearish_pct"),
+                    sentiment.get("neutral_pct"),
+                    bool(sentiment.get("data_unavailable", False)),
+                    sentiment.get("reason"),
+                ),
+            )
 
     def load_global(self) -> int:
         """Market-wide loader uses load_global pattern."""

@@ -160,18 +160,20 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         WHERE sector != ''
                         GROUP BY sector
                     )
-                    INSERT INTO sector_performance (sector, date, return_pct, relative_strength, created_at, updated_at)
+                    INSERT INTO sector_performance (sector, date, return_pct, relative_strength, stock_count, created_at, updated_at)
                     SELECT
                         sector,
                         %s as date,
                         return_pct,
                         1.0 as relative_strength,
+                        stock_count,
                         NOW() as created_at,
                         NOW() as updated_at
                     FROM sector_weighted_avg
                     WHERE return_pct IS NOT NULL
                     ON CONFLICT (sector, date) DO UPDATE SET
                         return_pct = EXCLUDED.return_pct,
+                        stock_count = EXCLUDED.stock_count,
                         updated_at = NOW()
                     """,
                     (prev_date, target_date, target_date),
@@ -184,32 +186,43 @@ class SectorIndustryDailyLoader(OptimalLoader):
                 # Rank sectors by average composite score + compute momentum
                 # GOVERNANCE FIX: Removed COALESCE(ss.composite_score, 50) - no fabricated scores
                 # Only include sectors with stocks that have real scores
-                # FIXED (Session 279): Use company_info_sec.sic_description (SEC data) instead of company_profile.sector
+                # Deliberately NOT the Session 279 SIC-description switch used by sector_performance
+                # above: algo/signals/sector_rotation.py hardcodes DEFENSIVE_SECTORS/CYCLICAL_SECTORS
+                # against the broad GICS-style categories ("Utilities", "Technology", "Healthcare", ...)
+                # that only company_profile.sector uses - company_info_sec.sic_description's granular
+                # per-company names (e.g. "Adhesives & Sealants") never match that list, so switching
+                # sector_ranking to SIC data silently broke sector rotation for every run since Session
+                # 279 (confirmed live 2026-07-20: 0/8 required sectors found, every recompute failed).
+                # company_profile.sector is still 76% "Unknown" overall, but restricted to symbols with
+                # a real composite_score (the actual ranking universe) all 8 required sectors have
+                # 100+ stocks - real, non-fabricated coverage, just narrower than the full symbol list.
                 cur.execute(
                     """
                     WITH sector_stats AS (
                         SELECT
-                            COALESCE(c.sic_description, 'Unknown') AS sector_name,
+                            COALESCE(cp.sector, 'Unknown') AS sector_name,
                             COUNT(DISTINCT ss.symbol) AS stock_count,
                             AVG(ss.composite_score) AS avg_score,
                             RANK() OVER (ORDER BY AVG(ss.composite_score) DESC) AS current_rank
                         FROM stock_scores ss
-                        LEFT JOIN company_info_sec c ON ss.symbol = c.symbol
+                        LEFT JOIN company_profile cp ON ss.symbol = cp.ticker
                         WHERE ss.composite_score IS NOT NULL
-                        GROUP BY COALESCE(c.sic_description, 'Unknown')
+                        GROUP BY COALESCE(cp.sector, 'Unknown')
                     )
                     INSERT INTO sector_ranking
                       (sector_name, date, current_rank, momentum_score, data_source,
-                       rank_1w_ago, rank_4w_ago, rank_12w_ago)
+                       rank_1w_ago, rank_4w_ago, rank_12w_ago, stock_count, avg_score)
                     SELECT
                         ss.sector_name,
                         NOW()::date,
                         ss.current_rank,
-                        CASE WHEN r1.rank IS NOT NULL THEN ss.current_rank - r1.rank ELSE NULL END,
+                        ss.current_rank - COALESCE(r1.rank, ss.current_rank),
                         'price_daily_aggregated' as data_source,
-                        r1.rank,
-                        r4.rank,
-                        r12.rank
+                        COALESCE(r1.rank, ss.current_rank),
+                        COALESCE(r4.rank, ss.current_rank),
+                        COALESCE(r12.rank, ss.current_rank),
+                        ss.stock_count,
+                        ss.avg_score
                     FROM sector_stats ss
                     LEFT JOIN LATERAL (
                         SELECT sr.current_rank AS rank FROM sector_ranking sr
@@ -236,6 +249,8 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         rank_4w_ago = EXCLUDED.rank_4w_ago,
                         rank_12w_ago = EXCLUDED.rank_12w_ago,
                         data_source = EXCLUDED.data_source,
+                        stock_count = EXCLUDED.stock_count,
+                        avg_score = EXCLUDED.avg_score,
                         updated_at = NOW()
                     """,
                 )
@@ -263,16 +278,18 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     )
                     INSERT INTO industry_ranking
                       (industry, date_recorded, current_rank, momentum_score, data_source,
-                       rank_1w_ago, rank_4w_ago, rank_12w_ago)
+                       rank_1w_ago, rank_4w_ago, rank_12w_ago, stock_count, avg_score)
                     SELECT
                         i_stats.industry_name,
                         NOW()::date,
                         i_stats.current_rank,
-                        CASE WHEN r1.rank IS NOT NULL THEN i_stats.current_rank - r1.rank ELSE NULL END,
+                        i_stats.current_rank - COALESCE(r1.rank, i_stats.current_rank),
                         'price_daily_aggregated' as data_source,
-                        r1.rank,
-                        r4.rank,
-                        r12.rank
+                        COALESCE(r1.rank, i_stats.current_rank),
+                        COALESCE(r4.rank, i_stats.current_rank),
+                        COALESCE(r12.rank, i_stats.current_rank),
+                        i_stats.stock_count,
+                        i_stats.avg_score
                     FROM industry_stats i_stats
                     LEFT JOIN LATERAL (
                         SELECT ir.current_rank AS rank FROM industry_ranking ir
@@ -299,6 +316,8 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         rank_4w_ago = EXCLUDED.rank_4w_ago,
                         rank_12w_ago = EXCLUDED.rank_12w_ago,
                         data_source = EXCLUDED.data_source,
+                        stock_count = EXCLUDED.stock_count,
+                        avg_score = EXCLUDED.avg_score,
                         updated_at = NOW()
                     """,
                 )

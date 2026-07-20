@@ -239,12 +239,12 @@ class StockScoresLoader(OptimalLoader):
 
             cur.execute(
                 "SELECT symbol, institutional_ownership_pct, insider_ownership_pct, short_interest_pct, "
-                "data_unavailable FROM positioning_metrics"
+                "short_interest_trend, data_unavailable FROM positioning_metrics"
             )
             self._positioning_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
             cur.execute(
-                "SELECT symbol, volatility_252d, volatility_60d, volatility_30d, beta, data_unavailable "
+                "SELECT symbol, volatility_252d, volatility_60d, volatility_30d, beta, debt_to_assets, data_unavailable "
                 "FROM stability_metrics"
             )
             self._stability_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
@@ -834,9 +834,9 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 4 columns (institutional_ownership, insider_ownership,
-          short_interest_percent, data_unavailable)
-        - Schema mismatch (len(row) < 4) → raises ValueError immediately
+        - Row length validation: Must have 5 columns (institutional_ownership, insider_ownership,
+          short_interest_percent, short_interest_trend, data_unavailable)
+        - Schema mismatch (len(row) < 5) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_positioning_metrics_found"
@@ -845,18 +845,23 @@ class StockScoresLoader(OptimalLoader):
         preferreds, depositary shares) have rows marked data_unavailable=True with NULL values.
         Previously returned NULLs instead of marker; now properly returns marker dict.
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 4 columns. Missing columns causes immediate
+        CRITICAL FIX 2026-07-20: short_interest_trend added. Column existed on
+        positioning_metrics but no loader ever wrote it and stock_scores never read it -
+        load_positioning_metrics.py now derives it from short_interest_finra's two most
+        recent settlement periods.
+
+        MINIMUM DATA REQUIREMENT: Row must have exactly 5 columns. Missing columns causes immediate
         fail-fast ValueError. Not available for REITs/special securities (expected, handled gracefully).
         """
         row = self._positioning_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 4 columns before accessing indices
-            if len(row) < 4:
+            # CRITICAL: Validate row has expected 5 columns before accessing indices
+            if len(row) < 5:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 4. "
+                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 5. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[3]
+            data_unavailable = row[4]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -869,6 +874,7 @@ class StockScoresLoader(OptimalLoader):
                 "institutional_ownership": safe_float(row[0], f"{symbol}.institutional_ownership"),
                 "insider_ownership": safe_float(row[1], f"{symbol}.insider_ownership"),
                 "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
+                "short_interest_trend": row[3],
             }
         # No row exists at all
         logger.debug(
@@ -883,9 +889,9 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 5 columns (volatility_252d, volatility_60d,
-          volatility_30d, beta, data_unavailable)
-        - Schema mismatch (len(row) < 5) → raises ValueError immediately
+        - Row length validation: Must have 6 columns (volatility_252d, volatility_60d,
+          volatility_30d, beta, debt_to_assets, data_unavailable)
+        - Schema mismatch (len(row) < 6) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_stability_metrics_found"
@@ -897,18 +903,23 @@ class StockScoresLoader(OptimalLoader):
         CRITICAL FIX 2026-07-03: Now uses safe_float() for all numeric fields to detect
         data corruption. Previous inline float() bypassed error handling.
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 5 columns. Missing columns causes immediate
+        CRITICAL FIX 2026-07-20: debt_to_assets added. _score_stability has always had a
+        10%-weight slot for it, but no loader wrote stability_metrics.debt_to_assets (0/7155
+        rows) and this SELECT never even fetched it - the weight bucket was permanently dead.
+        load_risk_metrics_daily.py now populates it from quality_metrics.debt_to_assets.
+
+        MINIMUM DATA REQUIREMENT: Row must have exactly 6 columns. Missing columns causes immediate
         fail-fast ValueError. Required metric for stock scoring (critical upstream loader).
         """
         row = self._stability_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 5 columns before accessing indices
-            if len(row) < 5:
+            # CRITICAL: Validate row has expected 6 columns before accessing indices
+            if len(row) < 6:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 5. "
+                    f"[STOCK_SCORES] {symbol}: stability_metrics row has {len(row)} columns, expected 6. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[4]
+            data_unavailable = row[5]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -922,6 +933,7 @@ class StockScoresLoader(OptimalLoader):
                 "volatility_60d": safe_float(row[1], f"{symbol}.volatility_60d"),
                 "volatility_30d": safe_float(row[2], f"{symbol}.volatility_30d"),
                 "beta": safe_float(row[3], f"{symbol}.beta"),
+                "debt_to_assets": safe_float(row[4], f"{symbol}.debt_to_assets", allow_none=True),
             }
         # No row exists at all
         logger.warning(
@@ -1207,8 +1219,9 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (45%) + P/B (20%) + P/S (15%) + FCF yield (12%) + Dividend
-        yield (8%). Peak zone for growth stocks: P/E 15-30, P/B < 5, positive FCF yield.
+        Uses weighted scoring: P/E (45%) + P/B (20%) + P/S (15%) + PEG (15%) + FCF yield (12%)
+        + Dividend yield (8%). Peak zone for growth stocks: P/E 15-30, P/B < 5, PEG < 1-2,
+        positive FCF yield.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
@@ -1279,16 +1292,35 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += ps_score * 0.15
             total_weight += 0.15
 
+        # PEG ratio: PE adjusted for earnings growth - <1 is classically "undervalued
+        # relative to growth" (Peter Lynch heuristic), >2-3 signals growth already priced
+        # in. Distinct signal from P/E (which says nothing about growth) and P/S (no
+        # earnings context at all). Was fetched and displayed but carried zero weight -
+        # this loader's own PEG computation (load_sec_valuations.py) previously always
+        # computed a growth rate of exactly 0 (comparing TTM EPS to itself), which was
+        # fixed 2026-07-20 to use a genuine prior-fiscal-year EPS; backfills on next run.
+        if metrics.get("peg_ratio") is not None and metrics["peg_ratio"] > 0:
+            weighted_sum += self._peg_to_score(metrics["peg_ratio"]) * 0.15
+            total_weight += 0.15
+
         # FCF yield: positive FCF yield is healthy; > 3% is good
+        # BUGFIX 2026-07-20: load_sec_valuations.py stores fcf_yield already as a percentage
+        # (e.g. 2.27 = 2.27%, confirmed live: AAPL=2.27, MSFT=4.69, T=25.83) - this used to
+        # re-multiply by 100 assuming a decimal fraction, so fcf_pct came out ~100x too high
+        # (e.g. 227 for AAPL) and saturated fcf_score to 100 for virtually every FCF-positive
+        # stock regardless of actual yield. This component was effectively a dead constant.
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
-            fcf_pct = metrics["fcf_yield"] * 100  # stored as decimal fraction
+            fcf_pct = metrics["fcf_yield"]  # already a percentage
             fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
             weighted_sum += fcf_score * 0.12
             total_weight += 0.12
 
-        # Dividend yield: bonus signal for income/quality (optional)
+        # Dividend yield: bonus signal for income/quality (optional). Unlike fcf_yield,
+        # sec_valuations.dividend_yield (added 2026-07-20, migration 1146) is computed and
+        # stored as a decimal fraction (0.03 = 3%), so the *100 conversion below is correct
+        # for this field - do not "fix" it to match fcf_yield's convention.
         if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
-            div = min(metrics["dividend_yield"] * 100, 6)  # decimal ? percent, cap 6%
+            div = min(metrics["dividend_yield"] * 100, 6)  # decimal -> percent, cap 6%
             div_score = min(100, div * 16.7)
             weighted_sum += div_score * 0.08
             total_weight += 0.08
@@ -1353,7 +1385,11 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += min(100, ins_score) * 0.20
             total_weight += 0.20
 
-        # Short interest: lower is better (target <5%)
+        # Short interest: lower is better (target <5%). Trend is a directional qualifier
+        # of the same signal (shares covering vs. building), not an independent metric, so
+        # it nudges this component's score rather than getting its own weight bucket.
+        # Column existed on positioning_metrics since inception but no loader populated it
+        # until 2026-07-20 (derived from short_interest_finra's last 2 settlement periods).
         if metrics.get("short_interest") is not None:
             si = metrics["short_interest"]
             if si < 5:
@@ -1362,6 +1398,11 @@ class StockScoresLoader(OptimalLoader):
                 score = 50 - ((si - 5) * 2)
             else:
                 score = 30
+            trend = metrics.get("short_interest_trend")
+            if trend == "decreasing":
+                score += 10  # shares covering: bullish
+            elif trend == "increasing":
+                score -= 10  # shares building: bearish
             weighted_sum += max(0, min(100, score)) * 0.25
             total_weight += 0.25
 
@@ -1572,6 +1613,19 @@ class StockScoresLoader(OptimalLoader):
         if rsi <= 85:
             return 85 + ((rsi - 70) / 15) * 15
         return max(60.0, 100 - (rsi - 85) * 3)
+
+    @staticmethod
+    def _peg_to_score(peg: float) -> float:
+        """Map PEG ratio to a 0-100 score. <=1 is the classic "undervalued relative to
+        growth" zone (Peter Lynch heuristic); >4 signals growth already richly priced in.
+        """
+        if peg <= 1.0:
+            return 100.0
+        if peg <= 2.0:
+            return 100 - (peg - 1.0) * 40  # 100->60 in [1,2]
+        if peg <= 4.0:
+            return 60 - (peg - 2.0) * 20  # 60->20 in [2,4]
+        return max(0.0, 20 - (peg - 4.0) * 5)
 
     def audit_upstream_coverage(self) -> None:
         """Audit upstream metric loader coverage after stock_scores completes.

@@ -112,15 +112,24 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         cur.execute(
             """
             SELECT
-                industry,
-                current_rank,
-                momentum_score,
-                rank_1w_ago,
-                rank_4w_ago,
-                rank_12w_ago
-            FROM industry_ranking
-            WHERE date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
-            ORDER BY current_rank
+                ir.industry,
+                ir.current_rank,
+                ir.momentum_score,
+                ir.rank_1w_ago,
+                ir.rank_4w_ago,
+                ir.rank_12w_ago,
+                ir.stock_count,
+                ir.avg_score,
+                cp_sector.sector
+            FROM industry_ranking ir
+            LEFT JOIN (
+                SELECT DISTINCT ON (industry) industry, sector
+                FROM company_profile
+                WHERE sector IS NOT NULL AND sector != ''
+                ORDER BY industry, (sector = 'Unknown'), sector
+            ) cp_sector ON cp_sector.industry = ir.industry
+            WHERE ir.date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
+            ORDER BY ir.current_rank
             LIMIT %s OFFSET %s
         """,
             (limit, offset),
@@ -159,6 +168,9 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         rank_1w = DatabaseResultValidator.safe_get_int(row, "rank_1w_ago")  # Optional
         rank_4w = DatabaseResultValidator.safe_get_int(row, "rank_4w_ago")  # Optional
         rank_12w = DatabaseResultValidator.safe_get_int(row, "rank_12w_ago")  # Optional
+        stock_count = DatabaseResultValidator.safe_get_int(row, "stock_count")  # Optional
+        avg_score = DatabaseResultValidator.safe_get_float(row, "avg_score")  # Optional
+        sector = DatabaseResultValidator.safe_get_str(row, "sector", default=None)  # Optional
 
         momentum_label = (
             "Strong"
@@ -171,14 +183,14 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         industries.append(
             {
                 "industry": industry,
-                "sector": "",
+                "sector": sector or "",
                 "current_rank": current_rank,
                 "overall_rank": current_rank,
                 "rank_1w_ago": rank_1w if rank_1w else None,
                 "rank_4w_ago": rank_4w if rank_4w else None,
                 "rank_12w_ago": rank_12w if rank_12w else None,
-                "stock_count": None,
-                "composite_score": momentum,
+                "stock_count": stock_count,
+                "composite_score": avg_score if avg_score is not None else momentum,
                 "momentum_score": momentum,
                 "value_score": None,
                 "quality_score": None,

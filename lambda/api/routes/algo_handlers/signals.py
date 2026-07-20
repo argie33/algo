@@ -596,7 +596,12 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         # NOTE: stock_scores table has no 'etf' column, so only check etf_symbols table
         interval_14d = get_interval_sql("14d")
         filters = [
-            psycopg2.sql.SQL(f"s.created_at::date >= CURRENT_DATE - {interval_14d}"),
+            # stock_scores is one row per symbol (refreshed via UPDATE), so created_at is a
+            # static one-time insert stamp, not a freshness signal - updated_at is. Filtering/
+            # ordering on created_at let long-lived symbols look "stale" regardless of how
+            # recently their score actually refreshed, and (see JOIN below) broke the
+            # trend_template_data join for the same reason.
+            psycopg2.sql.SQL(f"s.updated_at::date >= CURRENT_DATE - {interval_14d}"),
             psycopg2.sql.SQL("s.symbol NOT IN (SELECT symbol FROM etf_symbols)"),
             psycopg2.sql.SQL("(s.data_unavailable = FALSE OR s.data_unavailable IS NULL)"),
         ]
@@ -611,7 +616,7 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
         query_params.append(limit)
         query = psycopg2.sql.SQL("""
                 SELECT
-                    s.symbol, s.created_at::date AS date, s.composite_score,
+                    s.symbol, s.updated_at::date AS date, s.composite_score,
                     CASE
                         WHEN s.composite_score >= 85 THEN 'A+'
                         WHEN s.composite_score >= 75 THEN 'A'
@@ -629,12 +634,13 @@ def _get_swing_scores(cur: cursor, limit: int = 100, min_score: float | None = N
                     ) AS components,
                     cp.sector, cp.industry,
                     t.weinstein_stage AS stage, t.minervini_trend_score AS trend_template_score,
-                    jsonb_build_object('weinstein_stage', t.weinstein_stage, 'trend_template_score', t.minervini_trend_score, 'stage_substage', 'Stage ' || COALESCE(t.weinstein_stage::text, '')) AS details
+                    jsonb_build_object('weinstein_stage', t.weinstein_stage, 'trend_template_score', t.minervini_trend_score, 'stage_substage', 'Stage ' || COALESCE(t.weinstein_stage::text, ''), 'trend_direction', t.trend_direction) AS details
                 FROM stock_scores s
                 LEFT JOIN company_profile cp ON s.symbol = cp.ticker
-                LEFT JOIN trend_template_data t ON s.symbol = t.symbol AND s.created_at::date = t.date
+                LEFT JOIN trend_template_data t ON t.symbol = s.symbol
+                    AND t.date = (SELECT MAX(tt.date) FROM trend_template_data tt WHERE tt.symbol = s.symbol)
                 WHERE {where_clause}
-                ORDER BY s.created_at DESC, s.composite_score DESC
+                ORDER BY s.updated_at DESC, s.composite_score DESC
                 LIMIT %s
             """).format(where_clause=where_clause)
         cur.execute(query, query_params)

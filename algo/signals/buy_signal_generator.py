@@ -222,8 +222,15 @@ class BuySignalGenerator:
 
             # Collect nearby bars (may have gaps)
             lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high") is not None]
+            # Bounded at i+1 (not len(rows)): rows extends through "today" even when
+            # scoring a pivot for an earlier bar j, since the whole lookback window is
+            # regenerated every run. Without this bound, confirming bar j as a pivot
+            # could use bars after evaluation bar i - data that did not exist yet as of
+            # the date this signal is for.
             lookforward_bars = [
-                rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("high") is not None
+                rows[k].get("high")
+                for k in range(j + 1, min(len(rows), i + 1, j + 4))
+                if rows[k].get("high") is not None
             ]
 
             if len(lookback_bars) < 2 or len(lookforward_bars) < 2:
@@ -245,8 +252,15 @@ class BuySignalGenerator:
                 continue
 
             lookback_bars = [rows[k].get("high") for k in range(max(0, j - 3), j) if rows[k].get("high") is not None]
+            # Bounded at i+1 (not len(rows)): rows extends through "today" even when
+            # scoring a pivot for an earlier bar j, since the whole lookback window is
+            # regenerated every run. Without this bound, confirming bar j as a pivot
+            # could use bars after evaluation bar i - data that did not exist yet as of
+            # the date this signal is for.
             lookforward_bars = [
-                rows[k].get("high") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("high") is not None
+                rows[k].get("high")
+                for k in range(j + 1, min(len(rows), i + 1, j + 4))
+                if rows[k].get("high") is not None
             ]
 
             if len(lookback_bars) < 1 or len(lookforward_bars) < 1:
@@ -296,8 +310,11 @@ class BuySignalGenerator:
 
             # Collect nearby bars (may have gaps)
             lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
+            # Bounded at i+1, not len(rows) - see matching comment in _find_swing_high.
             lookforward_bars = [
-                rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low") is not None
+                rows[k].get("low")
+                for k in range(j + 1, min(len(rows), i + 1, j + 4))
+                if rows[k].get("low") is not None
             ]
 
             # Lenient requirement: need at least 2 lookback and 2 lookforward bars
@@ -320,8 +337,11 @@ class BuySignalGenerator:
                 continue
 
             lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
+            # Bounded at i+1, not len(rows) - see matching comment in _find_swing_high.
             lookforward_bars = [
-                rows[k].get("low") for k in range(j + 1, min(len(rows), j + 4)) if rows[k].get("low") is not None
+                rows[k].get("low")
+                for k in range(j + 1, min(len(rows), i + 1, j + 4))
+                if rows[k].get("low") is not None
             ]
 
             if len(lookback_bars) < 1 or len(lookforward_bars) < 1:

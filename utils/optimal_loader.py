@@ -677,6 +677,21 @@ class OptimalLoader:
                 )
                 return 0
 
+            # Some subclasses (e.g. load_naaim.py) list-wrap the marker dict instead of
+            # returning it bare - recognize that shape too, or it falls through to a real
+            # insert attempt and silently drops the reason text on a phantom NULL-keyed row.
+            if (
+                isinstance(rows_result, list)
+                and len(rows_result) == 1
+                and isinstance(rows_result[0], dict)
+                and rows_result[0].get("data_unavailable")
+            ):
+                logger.debug(
+                    f"[{self.table_name}] fetch_global returned list-wrapped data_unavailable marker "
+                    f"(reason: {rows_result[0].get('reason', 'unknown')}). Skipping global load step."
+                )
+                return 0
+
             # rows_result is now guaranteed to be a list[dict] after marker dict check
             rows: list[dict[str, Any]] = cast(list[dict[str, Any]], rows_result)
 

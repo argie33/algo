@@ -81,7 +81,7 @@ def handle(  # noqa: C901
                 aaii_rows = execute_with_timeout(
                     cur,
                     """
-                        SELECT bullish, neutral, bearish, date
+                        SELECT bullish, neutral, bearish, date, data_unavailable, reason
                         FROM aaii_sentiment
                         ORDER BY date DESC
                         LIMIT 1

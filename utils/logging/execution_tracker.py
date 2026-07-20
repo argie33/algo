@@ -111,7 +111,17 @@ class OrchestratorExecutionTracker:
             elif overall_status == "success":
                 summary = f"All {len(self.phase_results)} phases completed successfully"
             elif overall_status == "halted":
-                summary = f"Halted at phase {phases_completed + phases_halted}: {halt_reason or 'unknown'}"
+                # "phases_completed + phases_halted" is NOT the halted phase number - always-run
+                # phases (3, 6, 9) execute AFTER a halt too, so e.g. phase 2 halting plus phases
+                # 1/3/6/9 completing (4 completed + 1 halted) previously mislabeled this "Halted
+                # at phase 5" when phase 2 is what actually halted. Report the phase(s) whose
+                # own status is actually halted/halt instead of deriving a number from counts.
+                halted_phase_nums = sorted(
+                    (str(n) for n, r in self.phase_results.items() if r["status"] in ("halted", "halt")),
+                    key=str,
+                )
+                phase_label = "/".join(halted_phase_nums) if halted_phase_nums else "unknown"
+                summary = f"Halted at phase {phase_label}: {halt_reason or 'unknown'}"
             else:
                 summary = f"Error during execution: {halt_reason or 'unknown error'}"
 

@@ -76,8 +76,10 @@ class EarningsBlackout:
                     if MarketCalendar.is_trading_day(current):
                         trading_days_away += 1
 
-                # Check if within blackout window (in trading days, not calendar days)
-                if trading_days_away <= (self.days_after if direction > 0 else self.days_before):
+                # Check if within blackout window (in trading days, not calendar days).
+                # direction > 0 means earnings is still upcoming (pre-earnings window, days_before);
+                # direction < 0 means earnings already happened (post-earnings window, days_after).
+                if trading_days_away <= (self.days_before if direction > 0 else self.days_after):
                     return {
                         "pass": False,
                         "reason": f"Earnings on {earnings_date} ({trading_days_away} trading days away)",

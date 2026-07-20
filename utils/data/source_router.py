@@ -470,6 +470,18 @@ class DataSourceRouter:
         logger.debug(f"[yfinance] Fetching {symbol} from {start} to {end} interval={interval}")
         yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
         try:
+            from datetime import timedelta
+
+            # yfinance's `end` is EXCLUSIVE (unlike every caller's assumption that `end`
+            # is the last date they want included). Every caller here passes `end` meaning
+            # "through and including this date" - e.g. price_fetcher.py's `end = today`
+            # meant to fetch through today, but without this +1 the request silently never
+            # returns today's row at all, no matter how long you wait or retry. Confirmed
+            # live 2026-07-20: check_market_close_data_available_fast() (below in this file)
+            # already applies this exact +1 and correctly reports today's data as available,
+            # while this function - the one actually used to fetch and persist it - did not,
+            # so price_daily silently never advanced past the prior trading day.
+            yf_end = end + timedelta(days=1)
 
             def do_download() -> Any:
                 # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
@@ -477,7 +489,7 @@ class DataSourceRouter:
                 return yf.download(
                     yf_symbol,
                     start=start,
-                    end=end,
+                    end=yf_end,
                     interval=interval,
                     auto_adjust=False,
                     progress=False,
@@ -567,6 +579,12 @@ class DataSourceRouter:
         yf_symbols = [sym.replace(".", "-") if "." in sym else sym for sym in symbols]
 
         try:
+            from datetime import timedelta
+
+            # See matching comment in _fetch_yfinance_ohlcv above: yfinance's `end` is
+            # EXCLUSIVE, so callers passing "through and including today" (the normal,
+            # expected meaning) silently never get today's row without this +1.
+            yf_end = end + timedelta(days=1)
 
             def do_download() -> Any:
                 # yfinance 0.2.40+ requires curl_cffi and doesn't accept requests.Session
@@ -574,7 +592,7 @@ class DataSourceRouter:
                 return yf.download(
                     yf_symbols,
                     start=start,
-                    end=end,
+                    end=yf_end,
                     interval=interval,
                     auto_adjust=False,
                     progress=False,
