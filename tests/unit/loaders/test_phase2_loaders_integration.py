@@ -22,60 +22,64 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
     """Test that Phase 2 loaders follow governance rules."""
 
     def test_insider_loader_returns_data_unavailable_on_no_filings(self):
-        """Loader should return explicit data_unavailable when no filings found."""
+        """Loader should return explicit data_unavailable when no filings found.
+
+        See test_insider_loader_explicit_failure_reason: fetch_incremental() sources from
+        Form345BulkAggregator, not sec_client.
+        """
         loader = InsiderHoldingsSECLoader()
-
-        # Mock SEC client to return empty submissions
-        mock_sec_client = MagicMock()
-        mock_sec_client.symbol_to_cik.return_value = "0000320193"
-        mock_sec_client.get_submissions.return_value = {
-            "filings": {"recent": {"form": [], "accessionNumber": [], "filingDate": []}}
-        }
-
-        loader.sec_client = mock_sec_client
+        loader._aggregator = MagicMock()
+        loader._aggregator.get_symbol_summary.return_value = None
 
         result = loader.fetch_incremental("AAPL", None)
 
         # Should return data_unavailable record
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0]["data_unavailable"])
-        self.assertIn("no_form4_filings", result[0]["reason"])
+        self.assertIn("no_form345_filings", result[0]["reason"])
 
     def test_institutional_loader_returns_data_unavailable_on_no_filings(self):
         """Loader should return explicit data_unavailable when no institutional ownership data found."""
         loader = InstitutionalHoldings13FLoader()
 
-        # Mock SEC client to return companyfacts with other metrics but no institutional ownership
+        # fetch_incremental() sources institutional ownership from self.form13f_aggregator
+        # (Session 298's Form 13F aggregation), not sec_client.get_company_facts - mock both
+        # dependencies it actually calls (symbol_to_cik, then form13f_aggregator).
         mock_sec_client = MagicMock()
         mock_sec_client.symbol_to_cik.return_value = "0000320193"
-        # Return facts dict with some content but no institutional ownership metric
-        mock_sec_client.get_company_facts.return_value = {"some_other_metric": "value"}
-
         loader.sec_client = mock_sec_client
+
+        loader.form13f_aggregator = MagicMock()
+        loader.form13f_aggregator.get_institutional_ownership_pct.return_value = {
+            "data_unavailable": True,
+            "coverage_reason": "no_13f_filings",
+        }
 
         result = loader.fetch_incremental("AAPL", None)
 
         # Should return data_unavailable record
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0]["data_unavailable"])
-        self.assertIn("no_institutional_ownership_metric", result[0]["reason"])
+        self.assertIn("no_13f_filings", result[0]["reason"])
 
     def test_insider_loader_explicit_failure_reason(self):
-        """Loader should provide explicit failure reasons for debugging."""
+        """Loader should provide explicit failure reasons for debugging.
+
+        InsiderHoldingsSECLoader.fetch_incremental() sources data from the bulk Form
+        3/4/5 aggregate (Form345BulkAggregator), not a per-symbol SEC client lookup - it
+        never calls symbol_to_cik(), so mocking that (as this test did previously) had no
+        effect on the code path actually exercised. Mock the aggregator it really uses.
+        """
         loader = InsiderHoldingsSECLoader()
-
-        # Mock SEC client to fail with specific error
-        mock_sec_client = MagicMock()
-        mock_sec_client.symbol_to_cik.side_effect = ValueError("CIK not found")
-
-        loader.sec_client = mock_sec_client
+        loader._aggregator = MagicMock()
+        loader._aggregator.get_symbol_summary.return_value = None
 
         result = loader.fetch_incremental("INVALIDTICKER", None)
 
         # Should return data_unavailable with reason
         self.assertEqual(len(result), 1)
         self.assertTrue(result[0]["data_unavailable"])
-        self.assertEqual(result[0]["reason"], "cik_not_found")
+        self.assertEqual(result[0]["reason"], "no_form345_filings_in_lookback_window")
 
     def test_institutional_loader_explicit_failure_reason(self):
         """Loader should provide explicit failure reasons for debugging."""
@@ -122,20 +126,22 @@ class TestPhase2LoadersGovernance(unittest.TestCase):
 
     def test_loaders_never_silent_fail(self):
         """Loaders should never silently degrade or skip without marking data_unavailable."""
+        # InsiderHoldingsSECLoader sources from Form345BulkAggregator (not sec_client - see
+        # test_insider_loader_explicit_failure_reason), so it needs its own mock; only
+        # InstitutionalHoldings13FLoader still uses sec_client/symbol_to_cik.
         insider_loader = InsiderHoldingsSECLoader()
+        insider_loader._aggregator = MagicMock()
+        insider_loader._aggregator.get_symbol_summary.return_value = None
+
         institutional_loader = InstitutionalHoldings13FLoader()
+        mock_client = MagicMock()
+        mock_client.symbol_to_cik.return_value = "0000320193"
+        mock_client.get_submissions.return_value = {
+            "filings": {"recent": {"form": [], "accessionNumber": [], "filingDate": []}}
+        }
+        institutional_loader.sec_client = mock_client  # type: ignore
 
-        # For each loader, when ANY error occurs, data_unavailable should be set to True
-        # (We test this via mock rather than real SEC calls)
         for loader in [insider_loader, institutional_loader]:
-            mock_client = MagicMock()
-            mock_client.symbol_to_cik.return_value = "0000320193"
-            mock_client.get_submissions.return_value = {
-                "filings": {"recent": {"form": [], "accessionNumber": [], "filingDate": []}}
-            }
-
-            loader.sec_client = mock_client  # type: ignore
-
             result = loader.fetch_incremental("AAPL", None)
 
             # Verify: if data is unavailable, flag must be True and reason must be set
@@ -177,30 +183,31 @@ class TestPhase2DataQuality(unittest.TestCase):
 
     def test_insider_loader_field_validation(self):
         """Loader should validate critical fields before returning data."""
-        # Test that loader validates ownership % is in valid range
+        # Test that loader validates ownership % is in valid range.
+        # _parse_form4_filings no longer exists - fetch_incremental() sources from
+        # Form345BulkAggregator (see test_insider_loader_explicit_failure_reason), which
+        # computes shares_outstanding via _get_shares_outstanding() and clamps the
+        # resulting percentage inline (min(..., 100.0)) rather than through a separate
+        # per-filing parse step.
         loader = InsiderHoldingsSECLoader()
 
-        # We'd need to mock the entire parse flow to test this properly
-        # For now, verify the validation logic is present in the code
         self.assertTrue(hasattr(loader, "fetch_incremental"))
-        self.assertTrue(hasattr(loader, "_parse_form4_filings"))
+        self.assertTrue(hasattr(loader, "_get_shares_outstanding"))
 
     def test_loaders_include_data_source_field(self):
         """Loaders should include data_source field for audit trail."""
+        # See test_insider_loader_explicit_failure_reason: fetch_incremental() sources
+        # from Form345BulkAggregator, not sec_client.
         loader = InsiderHoldingsSECLoader()
-        mock_client = MagicMock()
-        mock_client.symbol_to_cik.return_value = "0000320193"
-        mock_client.get_submissions.return_value = {
-            "filings": {"recent": {"form": [], "accessionNumber": [], "filingDate": []}}
-        }
+        loader._aggregator = MagicMock()
+        loader._aggregator.get_symbol_summary.return_value = None
 
-        loader.sec_client = mock_client  # type: ignore
         result = loader.fetch_incremental("AAPL", None)
 
         # Should have data_source field for audit trail
         self.assertIn("data_source", result[0])
         # When unavailable, source should reflect that
-        self.assertIn(result[0]["data_source"], ["none", "sec_form4"])
+        self.assertIn(result[0]["data_source"], ["none", "sec_form345_bulk"])
 
 
 if __name__ == "__main__":
