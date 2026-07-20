@@ -442,7 +442,7 @@ class HaltFlagManager:
             return True
         except Exception as e:
             logger.error(f"[HALT_FLAG] Failed to set halt flag in RDS: {e}")
-            raise
+            return False
 
     def proactive_clear_stale_halt(self) -> bool:
         """Proactively clear halt flag at orchestrator startup if halt is from prior trading day.
@@ -614,7 +614,7 @@ class HaltFlagManager:
 
         except Exception as e:
             logger.warning(f"[PROACTIVE_CLEAR] RDS proactive clear failed: {e}")
-            raise
+            return False
 
     def clear_halt_flag(self, reason: str = "") -> bool:
         """Clear halt flag in DynamoDB or RDS. Returns True if successfully cleared.
@@ -707,4 +707,4 @@ class HaltFlagManager:
             return True
         except Exception as e:
             logger.error(f"[HALT_FLAG] Failed to clear halt flag in RDS: {e}")
-            raise
+            return False

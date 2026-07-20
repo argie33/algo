@@ -692,55 +692,74 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
         key=sort_key,
     )
 
-    all_tbl = Table(
-        box=box.SIMPLE_HEAD,
-        show_header=True,
-        header_style="dim",
-        padding=(0, 1),
-        expand=True,
-        row_styles=["", "dim"],
-    )
-    all_tbl.add_column("Table", no_wrap=True, min_width=26)
-    all_tbl.add_column("Age", no_wrap=True, min_width=5, justify="right")
-    all_tbl.add_column("Updated", no_wrap=True, min_width=5)
-    all_tbl.add_column("Rows", no_wrap=True, min_width=8, justify="right")
-    all_tbl.add_column("Status", no_wrap=True, min_width=6)
+    # Build two-column table layout for better use of horizontal space
+    mid = (len(sorted_items) + 1) // 2
+    left_items = sorted_items[:mid]
+    right_items = sorted_items[mid:]
 
-    for r in sorted_items:
-        tbl_val = r.get("tbl")
-        nm = str(tbl_val if tbl_val is not None else "--")
-        # CRITICAL: Explicit None check - missing status indicates data quality issue
-        st_raw = r.get("st")
-        if st_raw is None:
-            logger.warning(
-                f"[HEALTH] Health item missing 'st' (status) field - data corrupted. Table: {tbl_val}, Keys: {list(r.keys())}"
-            )
-            # Log as warning but use default for display (don't silently assume "ok")
-            st = "unknown"
-        elif not isinstance(st_raw, str):
-            logger.warning(
-                f"[HEALTH] Status field has invalid type {type(st_raw).__name__} (expected str). Table: {tbl_val}."
-            )
-            st = "error"
-        else:
-            st = st_raw
-        ok = st == "ok"
-        ic = G if ok else (Y if st == "empty" else R)
-        if st not in ("ok", "empty"):
-            logger.debug(f"[HEALTH] Health item {nm} status '{st}' mapped to RED color indicator")
-        ii = "✓" if ok else ("-" if st == "empty" else "✗")
-        row_count = safe_int(r.get("row_count"), default=None)
-        rc_s = f"{row_count:,}" if row_count is not None else "--"
-        st_label = "ok" if ok else st.upper()
-        all_tbl.add_row(
-            Text.from_markup(f"[{ic}]{ii}[/] {nm}"),
-            Text(_fmt_age(r), style=DIM if ok else Y),
-            Text(_fmt_updated(r), style="dim"),
-            Text(rc_s, style="dim"),
-            Text(st_label, style=G if ok else (Y if st == "empty" else R)),
+    def build_column_table(items: list[Any]) -> Table:
+        tbl = Table(
+            box=box.SIMPLE_HEAD,
+            show_header=True,
+            header_style="dim",
+            padding=(0, 1),
+            expand=True,
+            row_styles=["", "dim"],
         )
+        tbl.add_column("Table", no_wrap=True, min_width=18)
+        tbl.add_column("Age", no_wrap=True, min_width=5, justify="right")
+        tbl.add_column("Rows", no_wrap=True, min_width=7, justify="right")
+        tbl.add_column("Status", no_wrap=True, min_width=5)
 
-    left_rows.append(all_tbl)
+        for r in items:
+            tbl_val = r.get("tbl")
+            nm = str(tbl_val if tbl_val is not None else "--")
+            # CRITICAL: Explicit None check - missing status indicates data quality issue
+            st_raw = r.get("st")
+            if st_raw is None:
+                logger.warning(
+                    f"[HEALTH] Health item missing 'st' (status) field - data corrupted. Table: {tbl_val}, Keys: {list(r.keys())}"
+                )
+                # Log as warning but use default for display (don't silently assume "ok")
+                st = "unknown"
+            elif not isinstance(st_raw, str):
+                logger.warning(
+                    f"[HEALTH] Status field has invalid type {type(st_raw).__name__} (expected str). Table: {tbl_val}."
+                )
+                st = "error"
+            else:
+                st = st_raw
+            ok = st == "ok"
+            ic = G if ok else (Y if st == "empty" else R)
+            if st not in ("ok", "empty"):
+                logger.debug(f"[HEALTH] Health item {nm} status '{st}' mapped to RED color indicator")
+            ii = "✓" if ok else ("-" if st == "empty" else "✗")
+            row_count = safe_int(r.get("row_count"), default=None)
+            rc_s = f"{row_count:,}" if row_count is not None else "--"
+            st_label = "ok" if ok else st.upper()[:3]
+            tbl.add_row(
+                Text.from_markup(f"[{ic}]{ii}[/] {nm}"),
+                Text(_fmt_age(r), style=DIM if ok else Y),
+                Text(rc_s, style="dim"),
+                Text(st_label, style=G if ok else (Y if st == "empty" else R)),
+            )
+        return tbl
+
+    left_tbl = build_column_table(left_items)
+    right_tbl = build_column_table(right_items) if right_items else None
+
+    # Create a two-column layout if there are enough items, otherwise use single column
+    if right_tbl is not None and len(right_items) > 0:
+        # Two-column layout
+        two_col = Layout()
+        two_col.split_row(
+            Layout(left_tbl, ratio=1, name="left_col"),
+            Layout(right_tbl, ratio=1, name="right_col"),
+        )
+        left_rows.append(two_col)
+    else:
+        # Single column layout
+        left_rows.append(left_tbl)
 
     return Panel(
         Group(*left_rows),
@@ -2943,8 +2962,8 @@ def panel_algo_health_expanded(
 
     dual = Layout()
     dual.split_row(
-        Layout(left_panel, ratio=2, name="freshness"),
-        Layout(right_panel, ratio=3, name="runs"),
+        Layout(left_panel, ratio=3, name="freshness"),
+        Layout(right_panel, ratio=2, name="runs"),
     )
     return dual
 

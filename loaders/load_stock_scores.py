@@ -449,18 +449,24 @@ class StockScoresLoader(OptimalLoader):
                     f"Failing fast to prevent single-metric-biased trading positions."
                 )
 
-            # CHANGED 2026-07-01: Removed hard rejection for missing positioning data.
-            # REITs, some international stocks, and other real securities legitimately lack institutional/insider
-            # ownership metrics in yfinance but ARE valid trading candidates. They should NOT be rejected outright.
-            # Instead, scoring uses available metrics (value, growth, quality, stability, momentum) with weight
-            # redistribution below. This allows OPI (REIT), international stocks, and other legitimate securities
-            # to be scored based on real data rather than being silently excluded.
-            # Users can see composite scores and available factors even if positioning is missing.
+            # Session 290 FIX: Enforce consistent minimum completeness (4/6 metrics)
+            # Previous: Allowed weight redistribution for missing positioning (bypassed minimum threshold)
+            # Now: Strictly enforce 4/6 minimum at per-symbol level, matching pre-flight validation
+            # This prevents partial-data scores that don't meet GOVERNANCE entry gates anyway
+            # (70% completeness minimum for trading per GOVERNANCE.md)
             if not is_real_score(positioning_score):
-                logger.warning(
-                    f"[STOCK_SCORES] {symbol}: positioning data unavailable (yfinance limitation for REITs/certain sectors). "
-                    f"Proceeding with score using available metrics; weight redistribution compensates for missing positioning."
-                )
+                # Check if we can still meet minimum 4/6 threshold without positioning
+                available_without_positioning = sum(1 for s in [quality_score, growth_score, value_score, stability_score, momentum_score] if is_real_score(s))
+                if available_without_positioning < 4:
+                    # Can't meet minimum threshold even without positioning - mark unavailable
+                    logger.warning(
+                        f"[STOCK_SCORES] {symbol}: positioning unavailable + only {available_without_positioning} other metrics. "
+                        f"Falls below minimum 4/6 threshold even with redistribution. Marking data unavailable."
+                    )
+                    raise ValueError(
+                        f"{symbol}: insufficient metrics for scoring (can only compute {available_without_positioning + 1}/6). "
+                        f"Minimum 4 metrics required per GOVERNANCE."
+                    )
 
             # Compute weighted composite score with NORMALIZED weights
             # When metrics are missing, redistribute their weight to available metrics
