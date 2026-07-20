@@ -1,19 +1,32 @@
 #!/usr/bin/env python3
-"""Insider Holdings Loader - yfinance (Pragmatic fallback).
+"""Insider Holdings Loader - SEC Form 4/5 NOT YET IMPLEMENTED (No yfinance).
 
-PRIMARY: SEC Form 4/5 filings (insider transactions)
-FALLBACK: yfinance.Ticker.info['heldPercentInsiders']
+GOVERNANCE: No yfinance fallback exists in this file (despite an earlier
+docstring here that claimed one) - all symbols are marked data_unavailable.
 
-Data source: yfinance.Ticker.info['heldPercentInsiders']
-Update frequency: Regular (sufficient for stock scoring)
-Quality: yfinance aggregates insider ownership data
+FEASIBILITY (investigated Session 298, this session): unlike Form 13F
+(institutional holdings), Form 4/5 filings ARE cross-indexed under the
+issuer's own CIK - confirmed via data.sec.gov/submissions/CIK{issuer}.json,
+which lists hundreds of "4" entries for a large-cap issuer (e.g. 589 for
+AAPL) alongside its 10-K/10-Q/8-K filings. So there's no CUSIP-crosswalk
+problem here (unlike 13F).
 
-NOTE: SEC Form 4/5 parsing was failing (0% coverage) due to:
-- Form 4s distributed as plain text, not XBRL
-- XML parsing requires complex HTML extraction
-- Minimal data value for scoring (yfinance sufficient)
-
-Switched to yfinance for pragmatic data availability.
+What a real implementation needs:
+- Per symbol: pull the issuer's submissions, filter form == "4"/"5", fetch
+  each filing's ownership XML (not plain text - EDGAR's XML ownership
+  documents replaced plain-text Form 4 filings years ago), and read
+  <postTransactionAmounts><sharesOwnedFollowingTransaction> from the
+  non-derivative table for the latest filing per unique reporting-owner CIK.
+- Sum the latest per-insider holdings, divide by shares_outstanding
+  (company_info_sec) for insider_ownership_pct.
+- Rate-limit cost is the real blocker: large-caps can have 500+ Form 4
+  filings; even fetching only the last ~2 years per symbol across ~4,700
+  symbols is tens of thousands of requests at the project's SEC-loader
+  parallelism cap (1-2 req/s). Realistic effort: 8-16h (parser + insider
+  dedup logic + a multi-hour-runtime loader design), matching the Session
+  298 estimate. Not attempted this session - lower priority now that
+  positioning_metrics reaches ~93% from short_interest_finra alone
+  (FINRA Query API fix, Session 298).
 
 Run:
     python3 loaders/load_insider_holdings_sec.py [--symbols AAPL,MSFT]

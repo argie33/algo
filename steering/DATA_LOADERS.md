@@ -79,6 +79,32 @@ clamped to parallelism 1-2 to protect rate limits.
 - **Economic series:** FRED (4 series: T10Y2Y, FEDFUNDS, BAMLH0A0HYM2, ICSA) + DXY (currency index).
 - **Snapshot metrics (PE/holdings/analyst/etc.):** SEC EDGAR for fundamentals, FINRA for short interest.
   (Session 275: yfinance_snapshot fully deprecated; was quoteSummary fetches per symbol per day)
+- **Short interest:** FINRA Query API "Consolidated Short Interest" dataset (Session 298;
+  `POST https://api.finra.org/data/group/otcMarket/name/ConsolidatedShortInterest`, no API
+  key). The old CSV endpoint (`finra.org/sites/default/files/shortinterest/...`) was 404
+  for years - `utils/finra_short_interest.py` now paginates this API for the latest
+  bi-weekly settlement cycle (15th/EOM, ~2-3 week publish lag) covering NYSE/Nasdaq/OTC
+  (~22k symbols/cycle). FINRA reports raw share counts, not a percent; `short_pct` is
+  computed against `company_info_sec.shares_outstanding` (SEC DEI), so symbols without an
+  SEC shares-outstanding figure are marked `data_unavailable` even when FINRA has data.
+  Lifted `positioning_metrics` availability from 58.9% -> ~93% and `stock_scores`
+  tradeable coverage (>=70% completeness) from 53.4% -> ~64%.
+- **Institutional holdings (13F):** still unavailable (`institutional_holdings_13f`).
+  Form 13F is filed by the institutional manager under their OWN CIK with CUSIP-level
+  holdings, not cross-indexed under the issuer's CIK - there's no per-issuer 13F lookup.
+  A real implementation needs the SEC's bulk quarterly structured datasets
+  (sec.gov/files/structureddata/data/form-13f-data-sets/*.zip, INFOTABLE.tsv) aggregated
+  by CUSIP, which requires a CUSIP->ticker crosswalk SEC does not publish for free (CUSIP
+  is licensed by CUSIP Global Services). `utils/sec_form13f_aggregator.py` currently only
+  checks whether the ISSUER'S OWN CIK filed a `13F-HR` (which it never will for an
+  operating company) - that check is a dead end and needs to be replaced with the bulk
+  INFOTABLE approach, which is blocked on the crosswalk.
+- **Insider holdings (Form 4/5):** still unavailable (`insider_holdings_sec`). Unlike 13F,
+  Form 4/5 filings ARE cross-indexed under the issuer's CIK
+  (`data.sec.gov/submissions/CIK{issuer}.json` lists them alongside 10-K/10-Q), so no
+  CUSIP problem - feasible but not implemented (~8-16h: XML ownership-document parsing,
+  per-insider dedup, and a rate-limit-aware loader design for large per-symbol filing
+  counts). See `loaders/load_insider_holdings_sec.py` docstring for the detailed plan.
 
 ---
 
