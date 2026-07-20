@@ -302,6 +302,10 @@ class HaltFlagManager:
         Session 289 FIX: Try DynamoDB first, fall back to RDS if unavailable.
         RDS serves as fallback so system doesn't crash when AWS credentials missing.
 
+        Session 290 FIX: Add retry logic + graceful degradation when BOTH fail.
+        If both DynamoDB and RDS unavailable, log warning but don't crash.
+        This prevents orchestrator crashes during transient connectivity issues.
+
         ISSUE #8 FIX: When Phase 1 detects stale data, set halt flag to stop
         Phase 5 from generating full-intensity signals during degradation.
 
@@ -310,87 +314,108 @@ class HaltFlagManager:
         halt_count = 1
         now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
+        max_retries = 2
+        last_error = None
 
-        try:
-            import boto3
-
-            dynamodb = boto3.resource("dynamodb")
-            table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
-            table = dynamodb.Table(table_name)
-
-            # CRITICAL FIX: Use atomic UpdateExpression to increment halt_count
-            # Prevents race: two concurrent halts both reading count=1 and writing count=2
-            # Instead: use DynamoDB ADD operation which is atomic
+        for attempt in range(max_retries):
             try:
-                # First, set up the halt with initial values if not exists
-                table.update_item(
-                    Key={"key": self.HALT_FLAG_DYNAMODB_KEY},
-                    UpdateExpression=(
-                        "SET halt_flag = :flag, "
-                        "triggered_at = if_not_exists(triggered_at, :now), "
-                        "reason = if_not_exists(reason, :reason), "
-                        "last_halt_at = :now "
-                        "ADD halt_count :inc"
-                    ),
-                    ExpressionAttributeValues={
-                        ":flag": True,
-                        ":now": now_utc.isoformat(),
-                        ":reason": reason or "Phase 1 degraded: stale data detected",
-                        ":inc": 1,
-                    }
-                )
+                import boto3
 
-                # Now fetch to get the updated count and log escalation if needed
-                response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
-                if "Item" in response:
-                    item = response["Item"]
-                    halt_count = item.get("halt_count", 1)
-                    first_trigger = item.get("triggered_at")
+                dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
+                table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
+                table = dynamodb.Table(table_name)
 
-                    if first_trigger:
-                        try:
-                            first_dt = datetime.fromisoformat(first_trigger.replace("Z", "+00:00"))
-                            first_et = first_dt.astimezone(EASTERN_TZ)
-                            if first_et.date() == now_et.date():
-                                logger.critical(
-                                    f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
-                                    f"Halt #{halt_count} in same day. "
-                                    f"First at {first_et.strftime('%H:%M ET')}, now at {now_et.strftime('%H:%M ET')}. "
-                                    f"Reason: {reason[:100]}"
-                                )
-                                if halt_count >= 2:
-                                    try:
-                                        self.alerts.send_position_alert(
-                                            "HALT_ESCALATION",
-                                            f"HALT_REPEAT_{halt_count}",
-                                            f"Halt flag triggered {halt_count} times on {now_et.date()}. "
-                                            "Repeated data quality issues. Manual investigation required.",
-                                            {
-                                                "halt_count": halt_count,
-                                                "first_at": first_trigger,
-                                                "latest_reason": reason[:100],
-                                            },
-                                        )
-                                    except (ValueError, ZeroDivisionError, TypeError) as alert_err:
-                                        logger.warning(f"Could not send escalation alert: {alert_err}")
-                        except (ValueError, KeyError) as escalation_err:
-                            logger.warning(f"Could not parse halt escalation: {escalation_err}")
-            except Exception as update_err:
-                logger.debug(f"Failed to set DynamoDB halt flag: {update_err}. Trying RDS fallback.")
-                raise
+                # CRITICAL FIX: Use atomic UpdateExpression to increment halt_count
+                # Prevents race: two concurrent halts both reading count=1 and writing count=2
+                # Instead: use DynamoDB ADD operation which is atomic
+                try:
+                    # First, set up the halt with initial values if not exists
+                    table.update_item(
+                        Key={"key": self.HALT_FLAG_DYNAMODB_KEY},
+                        UpdateExpression=(
+                            "SET halt_flag = :flag, "
+                            "triggered_at = if_not_exists(triggered_at, :now), "
+                            "reason = if_not_exists(reason, :reason), "
+                            "last_halt_at = :now "
+                            "ADD halt_count :inc"
+                        ),
+                        ExpressionAttributeValues={
+                            ":flag": True,
+                            ":now": now_utc.isoformat(),
+                            ":reason": reason or "Phase 1 degraded: stale data detected",
+                            ":inc": 1,
+                        },
+                        RetryPolicy={'MaxAttempts': 1}  # Don't retry at boto3 level
+                    )
 
-            if halt_count >= 2:
-                logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
-            else:
-                logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
-            return True
-        except Exception as e:
-            # Fall back to RDS
-            logger.debug(f"[HALT_FLAG] DynamoDB set failed: {e}. Using RDS fallback.")
-            try:
-                return self._set_halt_flag_rds(reason, now_utc, now_et)
-            except Exception as rds_err:
-                raise RuntimeError(f"Both DynamoDB and RDS halt flag set failed: {e} / {rds_err}") from rds_err
+                    # Now fetch to get the updated count and log escalation if needed
+                    response = table.get_item(Key={"key": self.HALT_FLAG_DYNAMODB_KEY})
+                    if "Item" in response:
+                        item = response["Item"]
+                        halt_count = item.get("halt_count", 1)
+                        first_trigger = item.get("triggered_at")
+
+                        if first_trigger:
+                            try:
+                                first_dt = datetime.fromisoformat(first_trigger.replace("Z", "+00:00"))
+                                first_et = first_dt.astimezone(EASTERN_TZ)
+                                if first_et.date() == now_et.date():
+                                    logger.critical(
+                                        f"[HALT_FLAG_ESCALATION] REPEATED HALT on {now_et.date()}: "
+                                        f"Halt #{halt_count} in same day. "
+                                        f"First at {first_et.strftime('%H:%M ET')}, now at {now_et.strftime('%H:%M ET')}. "
+                                        f"Reason: {reason[:100]}"
+                                    )
+                                    if halt_count >= 2:
+                                        try:
+                                            self.alerts.send_position_alert(
+                                                "HALT_ESCALATION",
+                                                f"HALT_REPEAT_{halt_count}",
+                                                f"Halt flag triggered {halt_count} times on {now_et.date()}. "
+                                                "Repeated data quality issues. Manual investigation required.",
+                                                {
+                                                    "halt_count": halt_count,
+                                                    "first_at": first_trigger,
+                                                    "latest_reason": reason[:100],
+                                                },
+                                            )
+                                        except (ValueError, ZeroDivisionError, TypeError) as alert_err:
+                                            logger.warning(f"Could not send escalation alert: {alert_err}")
+                            except (ValueError, KeyError) as escalation_err:
+                                logger.warning(f"Could not parse halt escalation: {escalation_err}")
+                except Exception as update_err:
+                    logger.debug(f"Failed to set DynamoDB halt flag (attempt {attempt+1}): {update_err}. Trying RDS fallback.")
+                    raise
+
+                if halt_count >= 2:
+                    logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
+                else:
+                    logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
+                return True
+            except Exception as e:
+                last_error = e
+                # Fall back to RDS
+                logger.debug(f"[HALT_FLAG] DynamoDB set attempt {attempt+1}/{max_retries} failed: {e}. Using RDS fallback.")
+                try:
+                    return self._set_halt_flag_rds(reason, now_utc, now_et)
+                except Exception as rds_err:
+                    logger.warning(f"[HALT_FLAG] RDS fallback also failed (attempt {attempt+1}): {rds_err}")
+                    last_error = rds_err
+                    if attempt < max_retries - 1:
+                        import time
+                        time.sleep(0.5)  # Brief backoff before retry
+                        continue
+                    else:
+                        break
+
+        # Both DynamoDB and RDS failed: log warning but don't crash
+        logger.critical(
+            f"[HALT_FLAG] WARNING: Could not set halt flag (DynamoDB + RDS both failed). "
+            f"Last error: {last_error}. Orchestrator will continue but halt flag may not persist. "
+            f"Check database connectivity and AWS credentials."
+        )
+        # Don't re-raise - allow orchestrator to continue despite halt flag management failure
+        return False
 
     def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
         """Set halt flag in RDS. Returns True if successfully set."""
@@ -600,42 +625,70 @@ class HaltFlagManager:
         Session 289 FIX: Try DynamoDB first, fall back to RDS if unavailable.
         Prevents crashes when AWS credentials missing or DynamoDB unavailable.
 
+        Session 290 FIX: Add retry logic + graceful degradation when BOTH fail.
+        If both DynamoDB and RDS unavailable, log warning but don't crash.
+        This prevents trading halt during transient connectivity issues.
+
         Args:
             reason: Optional explanation for why halt was cleared
 
-        Returns: True if successfully cleared, False on error
+        Returns: True if successfully cleared, False on error (non-fatal)
 
         CRITICAL FIX (Session 282): ALWAYS clear halt flag, including LOCAL_MODE.
         LOCAL_MODE connects to the same shared production DB, so halt flag updates
         must persist. If you want to skip safety checks, use dry_run=True instead.
         """
+        max_retries = 2
+        last_error = None
 
-        try:
-            import boto3
-
-            dynamodb = boto3.resource("dynamodb")
-            table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
-            table = dynamodb.Table(table_name)
-
-            now_utc = datetime.now(timezone.utc)
-            table.put_item(
-                Item={
-                    "key": self.HALT_FLAG_DYNAMODB_KEY,
-                    "halt_flag": False,
-                    "cleared_at": now_utc.isoformat(),
-                    "reason": reason or "Phase 1 verified: data is fresh",
-                    "reset_at": now_utc.isoformat(),
-                }
-            )
-            logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
-            return True
-        except Exception as e:
-            # Fall back to RDS if DynamoDB unavailable
-            logger.debug(f"[HALT_FLAG] DynamoDB clear failed: {e}. Using RDS fallback.")
+        for attempt in range(max_retries):
             try:
-                return self._clear_halt_flag_rds(reason)
-            except Exception as rds_err:
-                raise RuntimeError(f"Both DynamoDB and RDS halt flag clear failed: {e} / {rds_err}") from rds_err
+                import boto3
+
+                dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
+                table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
+                table = dynamodb.Table(table_name)
+
+                now_utc = datetime.now(timezone.utc)
+                table.put_item(
+                    Item={
+                        "key": self.HALT_FLAG_DYNAMODB_KEY,
+                        "halt_flag": False,
+                        "cleared_at": now_utc.isoformat(),
+                        "reason": reason or "Phase 1 verified: data is fresh",
+                        "reset_at": now_utc.isoformat(),
+                    },
+                    RetryPolicy={'MaxAttempts': 1}  # Don't retry at boto3 level, we'll do it here
+                )
+                logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
+                return True
+            except Exception as e:
+                last_error = e
+                logger.debug(f"[HALT_FLAG] DynamoDB clear attempt {attempt+1}/{max_retries} failed: {e}. Will try RDS fallback.")
+
+                # Try RDS fallback
+                try:
+                    return self._clear_halt_flag_rds(reason)
+                except Exception as rds_err:
+                    logger.warning(f"[HALT_FLAG] RDS fallback also failed (attempt {attempt+1}): {rds_err}")
+                    last_error = rds_err
+                    if attempt < max_retries - 1:
+                        import time
+                        time.sleep(0.5)  # Brief backoff before retry
+                        continue
+                    else:
+                        break
+
+        # Both DynamoDB and RDS failed: log warning but don't crash
+        # Trading will continue with stale halt flag status, but this beats crashing the orchestrator
+        logger.critical(
+            f"[HALT_FLAG] WARNING: Could not clear halt flag (DynamoDB + RDS both failed). "
+            f"Last error: {last_error}. Orchestrator will continue but halt status may be stale. "
+            f"Check database connectivity and AWS credentials."
+        )
+        # Don't re-raise - allow orchestrator to continue despite halt flag management failure
+        # This is a circuit breaker: prefer trading with stale halt status over not trading at all
+        return False
 
     def _clear_halt_flag_rds(self, reason: str) -> bool:
         """Clear halt flag in RDS. Returns True if successfully cleared."""

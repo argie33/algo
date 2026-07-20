@@ -284,11 +284,11 @@ def run(  # noqa: C901
     # Better to catch this early with clear error message
     try:
         with DatabaseContext("read") as pre_check_cur:
-            pre_check_cur.execute("SELECT COUNT(*) FROM market_symbols")
+            pre_check_cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
             symbol_count = pre_check_cur.fetchone()[0]
             if not symbol_count or symbol_count == 0:
                 error_msg = (
-                    "[PHASE 1 CRITICAL] market_symbols table is empty. "
+                    "[PHASE 1 CRITICAL] stock_symbols table has no active symbols. "
                     "The symbol loader failed or never ran. "
                     "Without trading symbols, all downstream phases will fail. "
                     "Check: (1) symbol loader status in data_loader_status, "
@@ -297,7 +297,7 @@ def run(  # noqa: C901
                 logger.critical(error_msg)
                 log_phase_result_fn(1, "data_freshness", "halt", error_msg)
                 return PhaseResult(1, "data_freshness", "halted", {}, True, error_msg)
-            logger.info(f"[PHASE 1] Pre-flight: market_symbols table OK ({symbol_count:,} symbols)")
+            logger.info(f"[PHASE 1] Pre-flight: stock_symbols table OK ({symbol_count:,} active symbols)")
     except Exception as pre_check_err:
         logger.warning(f"[PHASE 1] Could not pre-validate market_symbols table: {pre_check_err}. Proceeding anyway.")
 
@@ -328,9 +328,28 @@ def run(  # noqa: C901
                 max_date = max_date.date()
 
             # CRITICAL: Verify stock_symbols table is pre-loaded (required for ALL loaders)
-            cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
-            symbol_count_row = cur.fetchone()
-            if symbol_count_row is None or symbol_count_row[0] is None or symbol_count_row[0] == 0:
+            # Session 290 FIX: Add retry logic for false positives from connection timeouts/race conditions
+            symbol_count = None
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
+                    symbol_count_row = cur.fetchone()
+                    if symbol_count_row is not None and symbol_count_row[0] is not None:
+                        symbol_count = symbol_count_row[0]
+                        break
+                    elif attempt < max_retries - 1:
+                        logger.warning(f"[PHASE 1] stock_symbols query returned empty (attempt {attempt+1}), retrying...")
+                        time.sleep(0.3)
+                        continue
+                except Exception as query_err:
+                    logger.warning(f"[PHASE 1] stock_symbols query failed (attempt {attempt+1}): {query_err}")
+                    if attempt < max_retries - 1:
+                        time.sleep(0.3)
+                        continue
+                    raise
+
+            if symbol_count is None or symbol_count == 0:
                 logger.critical(
                     "[PHASE 1] CRITICAL: stock_symbols table is empty or has no active symbols. "
                     "All loaders depend on symbol list being pre-loaded. "
@@ -347,7 +366,6 @@ def run(  # noqa: C901
                     True,
                     "stock_symbols table is empty - symbols must be loaded before trading",
                 )
-            symbol_count = symbol_count_row[0]
             logger.info(f"[PHASE 1] Symbol list verified: {symbol_count} active symbols")
 
             # CRITICAL FIX: Detect phantom rows in price_daily (NULL prices counted as fresh data)
