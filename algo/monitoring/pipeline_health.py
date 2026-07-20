@@ -358,10 +358,23 @@ class PipelineHealth:
         return None
 
     def log_health_check(self, status: PipelineStatus) -> None:
-        """Log pipeline health to database for historical tracking."""
+        """Log pipeline health to database for historical tracking.
+
+        Session 299 FIX: Preserve original loader error_message instead of overwriting.
+        When a loader fails, its error message should be kept, not replaced with
+        a generic "no data found" message from the health check.
+        """
         try:
             with DatabaseContext("write") as cur:
                 if status.tables:
+                    # Session 299 FIX: Fetch existing error_message for each table
+                    # Only overwrite if health check found a NEW problem
+                    cur.execute("""
+                        SELECT table_name, error_message FROM data_loader_status
+                        WHERE table_name = ANY(%s)
+                    """, (list(status.tables.keys()),))
+                    existing_errors = {row[0]: row[1] for row in cur.fetchall()}
+
                     insert_values = [
                         (
                             table_health.table_name,
@@ -369,20 +382,25 @@ class PipelineHealth:
                             table_health.row_count,
                             table_health.latest_date,
                             table_health.age_days,
+                            # Preserve original error_message if health check status is not ERROR
+                            # If health check found ERROR, use its error_message
+                            table_health.error_message if table_health.status == HealthStatus.ERROR
+                                else existing_errors.get(table_health.table_name),
                         )
                         for table_health in status.tables.values()
                     ]
                     cur.executemany(
                         """
                         INSERT INTO data_loader_status
-                        (table_name, status, row_count, latest_date, age_days, last_updated)
-                        VALUES (%s, %s, %s, %s, %s, NOW())
+                        (table_name, status, row_count, latest_date, age_days, error_message, last_updated)
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
                         ON CONFLICT (table_name)
                         DO UPDATE SET
                             status = EXCLUDED.status,
                             row_count = EXCLUDED.row_count,
                             latest_date = EXCLUDED.latest_date,
                             age_days = EXCLUDED.age_days,
+                            error_message = EXCLUDED.error_message,
                             last_updated = NOW()
                         """,
                         insert_values,

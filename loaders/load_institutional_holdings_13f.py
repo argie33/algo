@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""Institutional Holdings Loader - SEC Form 13F AGGREGATION (Session 298).
+"""Institutional Holdings Loader - SEC Form 13F NOT FUNCTIONAL (see below).
 
-Calculates institutional ownership % by aggregating Form 13F-HR filings
-(quarterly reports from institutional investors with >$100M holdings).
+NOT ACTUALLY IMPLEMENTED, despite prior docstrings here claiming otherwise:
+`utils/sec_form13f_aggregator.py` looks for a `13F-HR` filing under the
+ISSUER'S OWN CIK, which is a dead end - Form 13F is filed by the
+institutional MANAGER under the manager's CIK with CUSIP-level holdings,
+not cross-indexed under the issuer. An operating company never files
+13F-HR under its own CIK, so this always returns data_unavailable=True.
+There is no yfinance fallback in this file (also despite an earlier
+docstring claim) - every symbol is marked data_unavailable.
 
-DATA SOURCES (Session 298):
-- PRIMARY: SEC Form 13F-HR filings (aggregated) - IMPLEMENTED in Session 298
-- FALLBACK: yfinance (deprecated, for backward compatibility with legacy data)
-- NO FALLBACK: Marks data_unavailable when neither source has data
-
-Session 298 Implementation:
-- Added sec_form13f_aggregator.py (locates 13F filings)
-- Added sec_form13f_parser.py (extracts holdings from XML)
-- Integrated into loader to calculate real institutional ownership %
-- Expected coverage improvement: +5-10% from official SEC data
+A real implementation needs SEC's bulk quarterly structured datasets
+(sec.gov/files/structureddata/data/form-13f-data-sets/*.zip,
+INFOTABLE.tsv) aggregated by CUSIP, which requires a CUSIP->ticker
+crosswalk SEC does not publish for free (CUSIP is licensed by CUSIP
+Global Services). Blocked until a free crosswalk source is found.
 
 Run:
     python3 loaders/load_institutional_holdings_13f.py [--symbols AAPL,MSFT]
@@ -36,21 +37,12 @@ configure_socket_timeout(30)
 
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
-    """Load institutional ownership % from SEC Form 13F filings (Session 298).
+    """Load institutional ownership % from SEC Form 13F filings.
 
     GOVERNANCE: Only official SEC sources. No silent fallbacks.
-    - PRIMARY: SEC Form 13F-HR filings aggregation (IMPLEMENTED Session 298)
-    - NO FALLBACK: If SEC data unavailable, mark data_unavailable=TRUE (fail-fast)
-
-    Session 298 Implementation:
-    - Uses SEC Form 13F filings to calculate institutional ownership
-    - Aggregates investor holdings to get % held by institutions
-    - Coverage expected: +5-10% improvement from real SEC data
-    - Fallback: None (was yfinance, now removed per governance)
-
-    Note: Institutional ownership % calculated from 13F filings (investor holdings),
-    not company-reported data. Coverage expected for mid-cap and above.
-    Small-caps, IPOs, micro-caps may lack sufficient 13F holders.
+    Currently always marks data_unavailable=True - see module docstring for
+    why the underlying aggregator is a dead end (issuer CIK has no 13F-HR)
+    and what a real fix requires (CUSIP crosswalk, currently unavailable free).
     """
 
     table_name = "institutional_holdings_13f"

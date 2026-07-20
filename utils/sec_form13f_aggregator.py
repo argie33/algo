@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
-"""SEC Form 13F Aggregator - Calculate institutional ownership from investor filings.
+"""SEC Form 13F Aggregator - NOT FUNCTIONAL, always returns data_unavailable.
 
-Aggregates Form 13F filings (institutional investor holdings >$100M) to calculate
-what percentage of a company's shares are held by institutional investors.
+This looks up 13F-HR filings under the ISSUER's own CIK (`get_submissions(cik)`
+where cik is the company being scored). That is a dead end: Form 13F is filed
+by the institutional MANAGER under the manager's own CIK, listing CUSIP-level
+holdings across many issuers - it is never filed by the operating company
+itself. So `for form_type in recent_filings['form']: if form_type == '13F-HR'`
+never matches for a real company, and every call falls through to
+`_unavailable_result`. Even the "found a filing" branch below never parses
+holdings (returns data_unavailable=True with a TODO) - there is no code path
+in this file that produces a real percentage.
 
-Data source: SEC EDGAR Form 13F-HR filings (quarterly, investor-reported)
-Coverage: ~70-80% of public companies (primarily mid-cap and above)
-Quality: Official SEC regulatory filings
-
-Session 298: Implements Form 13F aggregation to replace yfinance institutional data.
-Real SEC source providing honest coverage where available.
-
-Usage:
-    aggregator = Form13FAggregator()
-    inst_pct = aggregator.get_institutional_ownership_pct('AAPL', '0000320193')
+A real implementation requires SEC's bulk quarterly structured datasets
+(sec.gov/files/structureddata/data/form-13f-data-sets/*.zip, INFOTABLE.tsv)
+aggregated by CUSIP, which needs a CUSIP->ticker crosswalk SEC does not
+publish for free. Blocked until a free crosswalk source is found.
 """
 
 import logging
@@ -93,17 +94,12 @@ class Form13FAggregator:
                     "no_13f_filings"
                 )
 
-            # Parse 13F filing to get institutional holdings
-            # This is a simplified approach - full implementation would parse XML
-            # For now, mark as available but with placeholder (ready for full parser)
-
+            # Unreachable in practice (see module docstring) - kept for the day a
+            # real INFOTABLE-based lookup replaces the issuer-CIK check above.
             logger.debug(
                 f"[{symbol}] Found Form 13F filing: {most_recent_13f_date}, "
                 f"accession: {most_recent_13f_accession}"
             )
-
-            # TODO: Implement actual 13F XML parsing to extract holdings
-            # For now, indicate data availability for future implementation
 
             return {
                 "institutional_ownership_pct": None,  # Placeholder - needs full parser
