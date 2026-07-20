@@ -408,14 +408,14 @@ class HaltFlagManager:
                     else:
                         break
 
-        # Both DynamoDB and RDS failed: log warning but don't crash
-        logger.critical(
-            f"[HALT_FLAG] WARNING: Could not set halt flag (DynamoDB + RDS both failed). "
-            f"Last error: {last_error}. Orchestrator will continue but halt flag may not persist. "
-            f"Check database connectivity and AWS credentials."
+        # Both DynamoDB and RDS failed: MUST raise exception
+        # Halt flag is safety-critical. If we can't set it, the orchestrator must fail.
+        raise RuntimeError(
+            f"[GOVERNANCE VIOLATION] Halt flag could not be set. Both DynamoDB and RDS failed. "
+            f"Last error: {last_error}. "
+            f"This is a critical safety failure - cannot proceed with trading when halt flag unavailable. "
+            f"Check: (1) RDS database connectivity (localhost:5432), (2) AWS credentials/DynamoDB access, (3) network issues."
         )
-        # Don't re-raise - allow orchestrator to continue despite halt flag management failure
-        return False
 
     def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
         """Set halt flag in RDS. Returns True if successfully set."""

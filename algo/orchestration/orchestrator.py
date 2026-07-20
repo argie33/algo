@@ -989,45 +989,29 @@ class Orchestrator:
         else:
             logger.debug("[LOCAL_MODE] Skipping DynamoDB write for phase1_degraded_mode")
 
-        # Halt flag lifecycle: always run regardless of informational write success above.
-        try:
-            degraded_status = result.status == "degraded"
-            if degraded_status:
-                logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.error}")
-                halt_set_result = self.halt_manager.set_halt_flag(f"Phase 1 degraded: {result.error}")
-                if not halt_set_result:
-                    # Halt flag couldn't be set (both DynamoDB + RDS failed), but don't crash
-                    logger.warning(
-                        "[DEGRADED_MODE] Halt flag could not be persisted (database connectivity issue), "
-                        "but proceeding with trading disabled per phase logic."
-                    )
-            elif result.status == "ok":
-                halt_clear_result = self.halt_manager.clear_halt_flag(
-                    f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
+        # Halt flag lifecycle: MUST succeed or orchestrator fails
+        # Halt flag is the safety mechanism that prevents trading during data issues.
+        # If we can't manage halt flags, we have no safety guarantees - must fail-fast.
+        degraded_status = result.status == "degraded"
+        if degraded_status:
+            logger.info(f"[DEGRADED_MODE] Phase 1 returned degraded status: {result.error}")
+            halt_set_result = self.halt_manager.set_halt_flag(f"Phase 1 degraded: {result.error}")
+            if not halt_set_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be set despite degraded data status. "
+                    "This is a critical safety failure - data may be stale but we can't stop trading. "
+                    "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) and AWS credentials."
                 )
-                if not halt_clear_result:
-                    # Halt flag couldn't be cleared (both DynamoDB + RDS failed), but don't crash
-                    logger.warning(
-                        "[NORMAL] Halt flag could not be cleared (database connectivity issue), "
-                        "but data is fresh so proceeding with normal trading mode."
-                    )
-        except (ValueError, KeyError, AttributeError) as e:
-            # Unexpected error type - this is a code bug, not a transient failure
-            logger.error(
-                f"[CRITICAL] Halt flag management encountered unexpected error: {e}. "
-                f"This may indicate a code bug. Proceeding but monitor carefully."
+        elif result.status == "ok":
+            halt_clear_result = self.halt_manager.clear_halt_flag(
+                f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
             )
-            # Don't crash - allow orchestrator to continue
-        except Exception as e:
-            # Session 290 FIX: Allow graceful degradation when halt flag management fails
-            # Previously would crash, now continues with stale halt flag status.
-            # This is better than not trading at all during transient failures.
-            logger.warning(
-                f"[WARNING] Halt flag management failed: {e}. "
-                f"Continuing with potentially stale halt flag status. "
-                f"This is a graceful degradation - orchestrator will proceed but halt flag status may be incorrect. "
-                f"Check database connectivity and AWS credentials."
-            )
+            if not halt_clear_result:
+                raise RuntimeError(
+                    "[GOVERNANCE VIOLATION] Halt flag could not be cleared despite fresh data. "
+                    "This is a critical safety failure - we may be stuck in halted mode or the flag is stale. "
+                    "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) and AWS credentials."
+                )
 
         return not result.halted
 

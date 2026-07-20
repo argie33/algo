@@ -106,257 +106,55 @@ class VIXFetcher:
 
 
 class PutCallRatioFetcher:
-    """Fetches SPY put/call ratio from yfinance options chains.
+    """Put/call ratio data unavailable - no official free source.
 
-    Computes put/call ratio from open interest in SPY options chain:
-    - Fetches SPY options chain from yfinance for most recent trading date
-    - Calculates: sum(put open interest) / sum(call open interest)
-    - Caches per trading day (fetch once morning/evening, reuse)
-    - Categorizes errors as TRANSIENT vs PERMANENT for retry logic
-    - Retries TRANSIENT errors up to 3 times with exponential backoff (1s, 2s, 4s)
-    - Only marks data_unavailable if all retries fail
+    GOVERNANCE (Session 291+): Put/call data removed from yfinance dependency.
+    Marked as OPTIONAL (DataImportance.OPTIONAL) because:
+    - No official government source publishes put/call ratios
+    - yfinance (proprietary, now deprecated) was sole source
+    - Risk factors using put_call_ratio gracefully degrade when unavailable
+    - Trading logic does not depend on this enrichment
+
+    Returns explicit data_unavailable marker instead of attempting yfinance.
     """
-
-    MAX_RETRIES = 3
-    BACKOFF_SECONDS = [1, 2, 4]  # Exponential backoff: 1s, 2s, 4s
 
     def __init__(self) -> None:
         self.breaker = CircuitBreaker(
-            name="yfinance_put_call",
-            failure_threshold=3,
+            name="put_call_ratio",
+            failure_threshold=1,
             recovery_timeout_sec=300,
             importance=DataImportance.OPTIONAL,
         )
-        self._cache: dict[str, float] = {}  # Cache put/call per trading day
-        self._cache_date: dict[str, date] = {}  # Track cached date
+        self._cache: dict[str, dict[str, Any]] = {}
 
-    def _is_transient_error(self, exc: Exception) -> bool:
-        """Categorize exception as transient (retriable) or permanent.
+    def fetch(self, eval_date: date) -> dict[str, Any]:
+        """Return explicit data_unavailable marker.
 
-        TRANSIENT errors (should retry):
-        - HTTP 503 (Service Unavailable)
-        - ConnectionError, TimeoutError
-        - HTTPError with status 502, 503, 504
-
-        PERMANENT errors (should not retry):
-        - HTTP 404 (Not Found), 401 (Unauthorized), 403 (Forbidden)
-        - ValueError (malformed data)
-        - RuntimeError from validation
-        """
-        error_str = str(exc).lower()
-        error_type = type(exc).__name__
-
-        # Check for HTTP error codes in exception message
-        if "503" in error_str or "502" in error_str or "504" in error_str:
-            return True
-
-        # Network/connection errors are transient
-        if error_type in ("ConnectionError", "TimeoutError", "Timeout"):
-            return True
-
-        if "timeout" in error_str or "connection" in error_str or "reset" in error_str:
-            return True
-
-        # Check for permanent errors (don't retry)
-        if "404" in error_str or "401" in error_str or "403" in error_str:
-            return False
-
-        # Validation/structural errors are permanent
-        if error_type in ("ValueError", "KeyError", "AttributeError"):
-            return False
-
-        if "no options" in error_str or "empty" in error_str or "invalid" in error_str:
-            return False
-
-        # Default to transient for unknown errors (better to retry than silently fail)
-        return True
-
-    def fetch(self, eval_date: date) -> dict[str, Any] | float:
-        """Fetch put/call ratio with trading-day caching to reduce API costs.
-
-        Cache strategy: Fetch once per trading day, reuse for both morning and evening runs.
-        Morning run (2:15 AM): fetches fresh data
-        Evening run (4:05 PM): reuses same day's cached value (~50% API reduction)
+        Put/call ratio data is not available from official sources.
+        This is OPTIONAL enrichment; trading proceeds without it.
 
         Returns:
-            float: Put/call ratio if successful
-            dict: With data_unavailable marker if fetch fails or data is invalid
+            dict: Data unavailable marker
                 {"data_unavailable": True, "reason": str, "eval_date": str}
-
-        Per CLAUDE.md governance: Optional enrichment must return explicit data_unavailable
-        markers instead of raising exceptions, enabling graceful degradation.
         """
         eval_date_iso = eval_date.isoformat()
 
-        # Check cache - valid if same trading day
-        if eval_date_iso in self._cache and self._cache_date.get(eval_date_iso) == eval_date:
-            logger.debug(f"[PUT_CALL_RATIO] Using cached value for {eval_date}")
+        if eval_date_iso in self._cache:
             return self._cache[eval_date_iso]
 
-        # Cache miss - attempt direct fetch with retries first (before circuit breaker check)
-        result = self._fetch_with_retries(eval_date)
+        unavailable_marker = {
+            "data_unavailable": True,
+            "reason": "put_call_ratio removed - no official free source available. Use market health indicators instead.",
+            "eval_date": eval_date_iso,
+        }
 
-        if result is None:
-            return {
-                "data_unavailable": True,
-                "reason": "unable to fetch after retries",
-                "eval_date": eval_date_iso,
-            }
-
-        # Validate result type
-        if not isinstance(result, float):
-            return {
-                "data_unavailable": True,
-                "reason": "invalid response type",
-                "eval_date": eval_date_iso,
-            }
-
-        # Cache successful result for rest of trading day
-        self._cache[eval_date_iso] = result
-        self._cache_date[eval_date_iso] = eval_date
-        logger.info(f"[PUT_CALL_RATIO] Cached {result:.3f} for {eval_date}")
-        return result
-
-    def _fetch_with_retries(self, eval_date: date) -> float | None:
-        """Attempt put/call ratio fetch with exponential backoff retry logic.
-
-        Returns:
-            float: Put/call ratio if successful
-            None: If all retries exhausted (MUST be converted to explicit marker by caller)
-
-        CRITICAL: All None returns must be handled by fetch() which converts to data_unavailable markers.
-        Internal method returns None for backoff retry logic; public API must be explicit.
-        """
-        last_error_reason = "unknown error"
-
-        for attempt in range(1, self.MAX_RETRIES + 1):
-            try:
-                return self._fetch_put_call_ratio(eval_date)
-            except Exception as e:
-                is_transient = self._is_transient_error(e)
-
-                if not is_transient:
-                    # Permanent error - don't retry
-                    last_error_reason = f"permanent {type(e).__name__}: {str(e)[:100]}"
-                    logger.error(
-                        f"[PUT_CALL_RATIO] Permanent error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
-                        f"{last_error_reason}. Will not retry."
-                    )
-                    logger.info(
-                        f"[PUT_CALL_RATIO] Data unavailable after permanent error for {eval_date}: {last_error_reason}"
-                    )
-                    return None
-
-                # Transient error - log and retry if attempts remain
-                if attempt < self.MAX_RETRIES:
-                    backoff = self.BACKOFF_SECONDS[attempt - 1]
-                    logger.warning(
-                        f"[PUT_CALL_RATIO] Transient error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
-                        f"{type(e).__name__}: {str(e)[:100]}. "
-                        f"Retrying in {backoff}s..."
-                    )
-                    time.sleep(backoff)
-                else:
-                    last_error_reason = f"transient {type(e).__name__} after {self.MAX_RETRIES} retries"
-                    logger.error(
-                        f"[PUT_CALL_RATIO] Transient error on attempt {attempt}/{self.MAX_RETRIES} for {eval_date}: "
-                        f"{type(e).__name__}: {str(e)[:100]}. No retries remaining."
-                    )
-
-        # All retries exhausted - data unavailable
-        logger.error(
-            f"[PUT_CALL_RATIO] All {self.MAX_RETRIES} retries failed for {eval_date}. Reason: {last_error_reason}"
+        self._cache[eval_date_iso] = unavailable_marker
+        logger.info(
+            f"[PUT_CALL_RATIO] Explicitly unavailable for {eval_date}. "
+            f"No official source (yfinance dependency removed per governance). "
+            f"Risk factors handle gracefully."
         )
-        logger.info(f"[PUT_CALL_RATIO] Data unavailable for {eval_date}: {last_error_reason}")
-        return None
-
-    def _fetch_put_call_ratio(self, eval_date: date) -> float | None:
-        """Fetch put/call ratio from yfinance SPY options chain.
-
-        CRITICAL: yfinance only provides options chains for the CURRENT trading date.
-        We always fetch for TODAY (in market timezone), never for eval_date.
-        eval_date parameter is kept for API compatibility but ignored in implementation.
-
-        For current trading date:
-        - Fetches SPY options chain from yfinance (current date only)
-        - Sums open interest for all puts and calls across ALL expirations
-        - Returns ratio: total_puts_oi / total_calls_oi
-        """
-        try:
-            import yfinance as yf
-
-            # Get current date in market timezone
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
-            today = now_et.date()
-
-            # CRITICAL: Always fetch for TODAY in market timezone (when market is open).
-            # yfinance provides current trading day's options chains only.
-            # We don't fetch for eval_date because yfinance has no historical options data.
-            # This means put_call_ratio represents TODAY's market sentiment.
-            logger.debug(
-                f"[PUT_CALL_RATIO] Fetching for today's market ({today}). "
-                f"Requested eval_date={eval_date} is not used (yfinance only has current date options)."
-            )
-
-            # Fetch SPY options chain for current trading date
-            spy = yf.Ticker("SPY")
-
-            # Get available expiration dates (only current date's expirations available)
-            expirations = spy.options
-            if not expirations:
-                logger.warning(f"[PUT_CALL_RATIO] No option expirations available today ({today})")
-                return None
-
-            total_puts_oi = 0.0
-            total_calls_oi = 0.0
-
-            # Sum open interest across all expiration dates
-            for expiration_str in expirations:
-                try:
-                    chain = spy.option_chain(expiration_str)
-
-                    # Calls: sum open interest for all calls
-                    calls_df = chain.calls
-                    if calls_df is not None and not calls_df.empty:
-                        calls_oi = calls_df["openInterest"].sum()
-                        if calls_oi > 0:
-                            total_calls_oi += calls_oi
-
-                    # Puts: sum open interest for all puts
-                    puts_df = chain.puts
-                    if puts_df is not None and not puts_df.empty:
-                        puts_oi = puts_df["openInterest"].sum()
-                        if puts_oi > 0:
-                            total_puts_oi += puts_oi
-
-                except Exception as chain_err:
-                    logger.debug(f"[PUT_CALL_RATIO] Could not fetch chain for {expiration_str}: {chain_err}")
-                    continue
-
-            if total_calls_oi == 0:
-                logger.warning(
-                    f"[PUT_CALL_RATIO] No call open interest for {today}. Market may be closed or no options trading."
-                )
-                return None
-
-            if total_puts_oi == 0:
-                logger.warning(
-                    f"[PUT_CALL_RATIO] No put open interest for {today}. Market may be closed or skewed to calls."
-                )
-                return None
-
-            pcr = total_puts_oi / total_calls_oi
-            logger.info(
-                f"[PUT_CALL_RATIO] Computed {pcr:.4f} from {today}'s SPY options "
-                f"(puts_oi: {total_puts_oi:.0f}, calls_oi: {total_calls_oi:.0f}). "
-                f"This is TODAY's market sentiment, applied to all historical dates in the health calculation."
-            )
-            return pcr
-
-        except Exception as e:
-            logger.error(f"[PUT_CALL_RATIO] Failed to compute from yfinance options chain: {e}")
-            return None
+        return unavailable_marker
 
 
 class YieldCurveFetcher:
