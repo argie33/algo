@@ -422,20 +422,26 @@ class MarketExposure:
             vix_value_display = vix.get("value") if vix.get("value") is not None else "N/A"
             logger.debug(f"  VIX regime: {vix_value_display} (score {vix_pts:.1f} pts)")
 
-            # --- 7. Put/call ratio (options sentiment - contrarian, daily) ---
-            pc = self.calculator.put_call_ratio(eval_date, cur)
-            pc_pts, pc_avail = self.calculator._wt_pts(pc, self.W_PUT_CALL)
-            avail_max += pc_avail
-            factors["put_call_ratio"] = {
-                **pc,
-                "pts": round(pc_pts, 1),
-                "max": self.W_PUT_CALL,
-            }
-            score += pc_pts
-            logger.info(
-                f"[PUT_CALL_RATIO] Value: {pc.get('value')}, Score: {pc.get('score'):.1f}, Points: {pc_pts:.1f}/{self.W_PUT_CALL}"
-            )
-            logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
+            # --- 7. Put/call ratio (options sentiment - contrarian, 8pt optional) ---
+            # OPTIONAL enrichment (Session 291+): No official source for put/call data.
+            # Yfinance removed. Factor gracefully skipped if unavailable (don't fail, just skip).
+            try:
+                pc = self.calculator.put_call_ratio(eval_date, cur)
+                pc_pts, pc_avail = self.calculator._wt_pts(pc, self.W_PUT_CALL)
+                avail_max += pc_avail
+                factors["put_call_ratio"] = {
+                    **pc,
+                    "pts": round(pc_pts, 1),
+                    "max": self.W_PUT_CALL,
+                }
+                score += pc_pts
+                logger.info(
+                    f"[PUT_CALL_RATIO] Value: {pc.get('value')}, Score: {pc.get('score'):.1f}, Points: {pc_pts:.1f}/{self.W_PUT_CALL}"
+                )
+                logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
+            except RuntimeError as e:
+                logger.info(f"[PUT_CALL_RATIO] Unavailable (optional factor skipped): {e}")
+                factors["put_call_ratio"] = {"data_unavailable": True, "reason": str(e), "pts": 0.0, "max": self.W_PUT_CALL}
 
             # --- 8. New highs vs new lows ---
             nhnl = self.calculator.new_highs_lows(eval_date, cur)
