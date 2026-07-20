@@ -557,3 +557,52 @@ class BreadthFetcher:
 
             logger.info(f"[BREADTH_FETCHER] Fetched valid breadth for {len(result)}/{len(rows)} dates")
             return result
+
+    def fetch_up_volume_percent(self, eval_date: date) -> dict[str, Any]:
+        """Compute market-wide up-volume percentage for the most recent trading day.
+
+        Real breadth indicator: % of total traded volume (across active symbols)
+        that occurred in issues that closed up vs. the prior trading day. Not a
+        single-symbol proxy - aggregates volume across the whole active universe.
+        """
+        from utils.db import DatabaseContext
+
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                "SELECT DISTINCT date FROM price_daily WHERE date <= %s ORDER BY date DESC LIMIT 2",
+                (eval_date,),
+            )
+            day_rows = cur.fetchall()
+            if len(day_rows) < 2:
+                logger.warning(
+                    f"[BREADTH_FETCHER] Up-volume percent unavailable for {eval_date}: "
+                    f"fewer than 2 trading days in price_daily on or before {eval_date}."
+                )
+                return {"data_unavailable": True, "reason": "insufficient_trading_days"}
+            latest_day, prev_day = day_rows[0][0], day_rows[1][0]
+
+            cur.execute(
+                """
+                SELECT
+                    SUM(t.volume) FILTER (WHERE t.close > y.close) AS up_volume,
+                    SUM(t.volume) AS total_volume
+                FROM price_daily t
+                JOIN stock_symbols s ON s.symbol = t.symbol AND s.active = true
+                JOIN price_daily y ON y.symbol = t.symbol AND y.date = %s
+                WHERE t.date = %s
+                  AND t.volume IS NOT NULL AND t.close IS NOT NULL
+                  AND y.close IS NOT NULL AND y.volume IS NOT NULL
+                """,
+                (prev_day, latest_day),
+            )
+            row = cur.fetchone()
+            if row is None or row[1] is None or row[1] == 0:
+                logger.warning(
+                    f"[BREADTH_FETCHER] Up-volume percent unavailable for {eval_date}: "
+                    f"no valid active-symbol volume data for {prev_day} -> {latest_day}."
+                )
+                return {"data_unavailable": True, "reason": "no_volume_data"}
+
+            up_volume, total_volume = row
+            up_volume_percent = round(float(up_volume or 0) / float(total_volume) * 100, 2)
+            return {"data_unavailable": False, "up_volume_percent": up_volume_percent}

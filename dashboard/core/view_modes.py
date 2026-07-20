@@ -12,6 +12,7 @@ class ViewMode(str, Enum):
     MARKET = "market"
     POSITIONS = "positions"
     SIGNALS = "signals"
+    SCORES = "scores"
     HEALTH = "health"
     SECTORS = "sectors"
     TRADES = "trades"
@@ -27,6 +28,11 @@ class ViewMode(str, Enum):
             return True
         except ValueError:
             return False
+
+    @classmethod
+    def valid_modes(cls) -> list[str]:
+        """Return all valid view mode values."""
+        return [mode.value for mode in cls]
 
     @classmethod
     def toggle(cls, current: str, target: str) -> str:

@@ -174,6 +174,8 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "advance_decline_ratio": health_data.get("advance_decline_ratio"),
                 "new_highs_count": health_data.get("new_highs"),
                 "new_lows_count": health_data.get("new_lows"),
+                "breadth_momentum_10d": health_data.get("breadth_momentum_10d"),
+                "up_volume_percent": health_data.get("up_volume_percent"),
                 "yield_curve_slope": health_data.get("yield_10y_2y_spread"),
                 "put_call_ratio": health_data.get("put_call_ratio"),
                 "market_stage": stage_data.get("market_stage"),
@@ -254,6 +256,32 @@ class MarketStatusDailyLoader(OptimalLoader):
             new_highs = latest_breadth.get("new_highs_count")
             new_lows = latest_breadth.get("new_lows_count")
 
+            # Breadth momentum: % of the last 10 trading days (from the same real
+            # advance/decline data already fetched above) with more advancers than
+            # decliners. Optional enrichment - insufficient history just leaves it
+            # unavailable rather than computing a partial/misleading window.
+            last_10_dates = sorted(breadth_data.keys())[-10:]
+            if len(last_10_dates) < 10:
+                breadth_momentum_10d = None
+                logger.debug(
+                    f"[MARKET_STATUS] breadth_momentum_10d unavailable: only "
+                    f"{len(last_10_dates)}/10 days of breadth history available."
+                )
+            else:
+                up_days = sum(
+                    1 for d in last_10_dates if (breadth_data[d].get("advance_decline_ratio") or 0) > 1.0
+                )
+                breadth_momentum_10d = round(up_days / 10 * 100, 2)
+
+            # Up-volume percent: real market-wide volume breadth (see BreadthFetcher.
+            # fetch_up_volume_percent) - optional enrichment, unavailable is non-fatal.
+            up_volume_result = self._breadth_fetcher.fetch_up_volume_percent(eval_date)
+            up_volume_percent = (
+                up_volume_result.get("up_volume_percent")
+                if not up_volume_result.get("data_unavailable")
+                else None
+            )
+
             # Fetch yield curve (10Y-2Y spread) - use same date range as VIX
             yield_data = self._yield_curve_fetcher.fetch(fetch_start, last_trading_day)
             if not yield_data or yield_data.get("data_unavailable"):
@@ -291,6 +319,8 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "new_lows": new_lows,
                 "yield_10y_2y_spread": yield_spread,
                 "put_call_ratio": put_call,
+                "breadth_momentum_10d": breadth_momentum_10d,
+                "up_volume_percent": up_volume_percent,
             }
 
         except Exception as e:

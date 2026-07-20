@@ -19,7 +19,6 @@ import logging
 import os
 import threading
 import time
-from collections import deque
 from typing import Any, Literal
 
 import psycopg2
@@ -29,10 +28,20 @@ logger = logging.getLogger(__name__)
 
 
 class IdleConnectionPool:
-    """Wraps psycopg2.pool.SimpleConnectionPool to track and clean up idle connections.
+    """Thin wrapper around psycopg2.pool.SimpleConnectionPool.
 
-    Prevents connection pool exhaustion when loaders die or abandon connections.
-    Periodically closes connections that have been idle > max_idle_sec.
+    NOTE: This previously ran a background thread that tracked "idle" connections
+    in a local deque and closed any older than max_idle_sec. That tracking was
+    removed by a prior fix (putconn() now always returns connections straight to
+    the underlying pool - see git history "CRITICAL FIX" below) because keeping
+    them in a side list caused the underlying pool to appear permanently exhausted
+    (hangs on the 3rd+ concurrent request). Nothing was ever added back to feed the
+    tracking deque, so the cleanup thread ran every 60s against a permanently-empty
+    list and never closed anything - dead code kept alive only by a docstring that
+    no longer matched what the class did. Removed the thread entirely rather than
+    re-introduce idle-side-list tracking, since that's the exact mechanism that
+    caused the earlier hang. Actual idle-connection lifecycle is left to
+    psycopg2.pool.SimpleConnectionPool itself.
     """
 
     def __init__(
@@ -41,22 +50,16 @@ class IdleConnectionPool:
         max_idle_sec: int = 300,
         cleanup_interval_sec: int = 60,
     ):
-        """Initialize idle connection pool wrapper.
+        """Initialize pool wrapper.
 
         Args:
             pool: Underlying psycopg2.pool.SimpleConnectionPool
-            max_idle_sec: Max seconds a connection can be idle before closing (default 5 min)
-            cleanup_interval_sec: How often to run idle cleanup (default 1 min)
+            max_idle_sec: Retained for status()/callers - see class docstring, no longer enforced here
+            cleanup_interval_sec: Retained for status()/callers - see class docstring, no longer enforced here
         """
         self._pool = pool
         self._max_idle_sec = max_idle_sec
         self._cleanup_interval_sec = cleanup_interval_sec
-        self._idle_connections: deque[dict[str, Any]] = deque()
-        self._lock = threading.Lock()
-        self._cleanup_thread: threading.Thread | None = None
-        self._stop_cleanup = threading.Event()
-
-        self._start_cleanup_thread()
 
     def getconn(self) -> Any:
         return self._pool.getconn()
@@ -69,7 +72,7 @@ class IdleConnectionPool:
             close: If True, close instead of returning to pool
 
         CRITICAL FIX: Always return connections to the underlying pool immediately.
-        Storing them locally in _idle_connections was causing the underlying pool
+        Storing them locally in a side list was causing the underlying pool
         to remain exhausted (all connections "checked out" but stored locally).
         This manifested as hangs on the 3rd+ concurrent request.
         """
@@ -86,89 +89,23 @@ class IdleConnectionPool:
                 except Exception as close_err:
                     logger.debug(f"[IDLE_POOL] Could not close connection: {close_err}")
 
-    def _cleanup_stale_connections(self) -> None:
-        """Close connections idle > max_idle_sec."""
-        with self._lock:
-            now = time.time()
-            active_connections: list[dict[str, Any]] = []
-            closed_count = 0
-
-            for conn_info in self._idle_connections:
-                idle_time = now - conn_info["idle_since"]
-
-                if idle_time > self._max_idle_sec:
-                    try:
-                        self._pool.putconn(conn_info["conn"], close=True)
-                        closed_count += 1
-                        logger.info(
-                            f"[IDLE_POOL] Closed idle connection (idle for {idle_time:.1f}s > {self._max_idle_sec}s)"
-                        )
-                    except Exception as e:
-                        logger.warning(f"[IDLE_POOL] Failed to close idle connection: {e}")
-                else:
-                    active_connections.append(conn_info)
-
-            self._idle_connections = deque(active_connections)
-
-            if closed_count > 0:
-                logger.debug(
-                    f"[IDLE_POOL] Cleanup: closed {closed_count} idle connections, "
-                    f"{len(self._idle_connections)} remaining idle"
-                )
-
-    def _cleanup_thread_run(self) -> None:
-        """Background thread that periodically cleans up idle connections."""
-        logger.debug(
-            f"[IDLE_POOL] Cleanup thread started "
-            f"(max_idle={self._max_idle_sec}s, check every {self._cleanup_interval_sec}s)"
-        )
-
-        while not self._stop_cleanup.wait(timeout=self._cleanup_interval_sec):
-            try:
-                self._cleanup_stale_connections()
-            except Exception as e:
-                logger.error(f"[IDLE_POOL] Cleanup thread error: {e}", exc_info=True)
-
-        logger.debug("[IDLE_POOL] Cleanup thread stopped")
-
-    def _start_cleanup_thread(self) -> None:
-        """Start the background cleanup thread."""
-        self._cleanup_thread = threading.Thread(
-            target=self._cleanup_thread_run, daemon=True, name="IdleConnectionCleanup"
-        )
-        self._cleanup_thread.start()
-
     def stop_cleanup(self) -> None:
-        """Stop the cleanup thread (call on shutdown)."""
-        logger.debug("[IDLE_POOL] Stopping cleanup thread...")
-        self._stop_cleanup.set()
-        if self._cleanup_thread:
-            self._cleanup_thread.join(timeout=10)
+        """No-op - retained so callers (e.g. shutdown paths) don't need a conditional call."""
 
     def closeall(self) -> None:
-        """Close all idle connections and the underlying pool."""
-        self.stop_cleanup()
-
-        with self._lock:
-            for conn_info in self._idle_connections:
-                try:
-                    self._pool.putconn(conn_info["conn"], close=True)
-                except Exception as e:
-                    logger.debug(f"[IDLE_POOL] Error closing connection during closeall: {e}")
-
-            self._idle_connections.clear()
-
+        """Close the underlying pool."""
         try:
             self._pool.closeall()
         except Exception as e:
             logger.warning(f"[IDLE_POOL] Error closing underlying pool: {e}")
 
     def status(self) -> dict[str, Any]:
-        with self._lock:
-            return {
-                "idle_connections": len(self._idle_connections),
-                "max_idle_sec": self._max_idle_sec,
-            }
+        # idle_connections is always 0: idle-connection tracking was removed (see class
+        # docstring) - kept in the return shape because other code validates these keys.
+        return {
+            "idle_connections": 0,
+            "max_idle_sec": self._max_idle_sec,
+        }
 
 
 class PoolSemaphore:

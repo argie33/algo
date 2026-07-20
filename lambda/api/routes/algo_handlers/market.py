@@ -1243,7 +1243,8 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         factors = {}
         if row.get("factors"):
             try:
-                factors = json.loads(row["factors"]) if isinstance(row["factors"], str) else row["factors"]
+                factors_val = json.loads(row["factors"]) if isinstance(row["factors"], str) else row["factors"]
+                factors = factors_val if isinstance(factors_val, dict) else {}
             except (json.JSONDecodeError, TypeError):
                 factors = {}
 
