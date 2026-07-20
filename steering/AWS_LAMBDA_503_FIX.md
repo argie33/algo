@@ -52,7 +52,7 @@ If Lambda has no VPC configuration and database is in a VPC:
 
 ```bash
 # Run the automated fix script
-bash scripts/fix-lambda-vpc.sh
+python3 scripts/fix-lambda-vpc-config.py
 
 # OR manually configure:
 aws lambda update-function-configuration \

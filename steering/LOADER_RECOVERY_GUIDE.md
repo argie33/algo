@@ -33,17 +33,25 @@ python scripts/monitor_data_staleness.py
 ### Option A: Local Dev (Recommended)
 
 ```bash
-# Refresh prices + technical data (morning pipeline)
-python scripts/run_local_orchestrator.py --morning
+# Refresh prices + technical data (actual data-refresh loaders)
+python scripts/local_loader_scheduler.py --now morning
 
-# Expected output:
-# ✅ Phase 1: Symbols... OK (0.1s)
-# ✅ Phase 2: Prices... OK (5.2s)
-# ✅ Phase 3: Technical... OK (3.1s)
-# ...
-# ✅ Phase 9: Signals... OK (1.2s)
-# Total: 12.6s, 10 signals generated
+# Refresh quality/growth/value/scores/signals (EOD loaders)
+python scripts/local_loader_scheduler.py --now metrics
 ```
+
+**IMPORTANT (found + fixed 2026-07-20):** `scripts/run_local_orchestrator.py` does NOT
+fetch fresh price/technical/fundamental data - it's the *trading* orchestrator (Phases
+1-9: signal generation, risk gates, reconciliation) and only reads whatever is already
+in the DB. Running it against stale data will not move `price_daily`/`technical_data_daily`
+off their stale date - confirmed live (ran it, watched the max date stay unchanged).
+`scripts/local_loader_scheduler.py` is the actual loader entry point (wraps
+`loaders/load_prices.py`, `load_technical_indicators.py`, etc. - see
+`steering/DATA_LOADERS.md`). This same confusion had been baked into the Windows Task
+Scheduler config (`scripts/setup_windows_schedule.ps1` called the orchestrator, not the
+loader scheduler) - both are now fixed. Run `run_local_orchestrator.py --morning`
+afterward if you also want to exercise the trading/signal logic against the now-fresh
+data.
 
 ### Option B: AWS Lambda (Production)
 
@@ -94,7 +102,7 @@ aws logs get-log-events \
 |-------|-----------|-----|
 | `price_loader: timeout (300s)` | yfinance rate-limited | Reduce batch_size in algo_config (default 1000 → 500) |
 | `quality_metrics: 70% coverage` | SEC filings unavailable | Expected for ~13% of stocks (micro-caps) - acceptable |
-| `Connection refused (RDS)` | Lambda not in VPC or SG misconfigured | Run: `bash scripts/fix-lambda-vpc.sh` |
+| `Connection refused (RDS)` | Lambda not in VPC or SG misconfigured | Run: `python3 scripts/fix-lambda-vpc-config.py` |
 | `Step Functions: NO_STATE_MACHINE` | EventBridge not triggering | Verify EventBridge rule exists and is ENABLED |
 
 ### Fix Low Coverage (if < 70%)
@@ -172,36 +180,49 @@ LIMIT 15;
 
 ```sql
 -- Some loaders may be stuck in RUNNING state
+-- NOTE: the real table is loader_execution_history (loader_execution_status does not
+-- exist - confirmed 2026-07-20, this doc previously referenced a nonexistent table).
 SELECT 
   loader_name,
   status,
-  started_at,
-  EXTRACT(EPOCH FROM (NOW() - started_at)) / 60 as running_mins
-FROM loader_execution_status
-WHERE status = 'RUNNING' AND started_at < NOW() - INTERVAL '30 minutes'
-ORDER BY started_at;
+  execution_start,
+  EXTRACT(EPOCH FROM (NOW() - execution_start)) / 60 as running_mins
+FROM loader_execution_history
+WHERE status = 'RUNNING' AND execution_start < NOW() - INTERVAL '30 minutes'
+ORDER BY execution_start;
 
 -- Force reset (careful - only if truly stuck)
-UPDATE loader_execution_status
-SET status = 'FAILED', reason = 'Force reset - stuck >30min'
+UPDATE loader_execution_history
+SET status = 'FAILED', error_message = 'Force reset - stuck >30min'
 WHERE loader_name = 'quality_metrics' AND status = 'RUNNING';
+```
+
+Also check `loader_execution_locks` (advisory locks, separate from the history log above) -
+a lock surviving past its `expires_at` with no corresponding running process is the other
+common "stuck loader" symptom:
+
+```sql
+SELECT loader_name, locked_by, locked_at, expires_at
+FROM loader_execution_locks
+WHERE expires_at < NOW();
 ```
 
 ### Restart From Scratch
 
 ```bash
-# This forces a full reload from source APIs (slow, expensive)
-# Use only if data is corrupted
-
-# Backfill last 5 days of prices
-python scripts/run_local_orchestrator.py --backfill-days 5
-
-# Or manually via AWS:
-aws stepfunctions start-execution \
-  --state-machine-arn "arn:aws:states:us-east-1:xxx:stateMachine:algo-backfill-pipeline" \
-  --input '{"backfill_days": 5}' \
-  --region us-east-1
+# Simplest full reload: re-run the actual loaders (watermark-based, so this is an
+# incremental catch-up, not a hard reset - see steering/DATA_LOADERS.md #4).
+python scripts/local_loader_scheduler.py --now morning
 ```
+
+**Known gap (found 2026-07-20):** `loaders/load_prices.py`'s internal `run()` method
+accepts a `backfill_days` parameter that forces re-fetching N days back regardless of the
+per-symbol watermark, but nothing external wires it up - no CLI flag, no env var, and
+`run_local_orchestrator.py` has no `--backfill-days` option (confirmed via its argparse
+definitions). There's also no `algo-backfill-pipeline` state machine in Terraform. If you
+need a true backfill (not just watermark catch-up), it currently requires calling
+`PriceLoader.run(symbols, backfill_days=N)` directly from a Python shell, or deleting the
+affected `loader_watermarks` rows so the next incremental run re-fetches from scratch.
 
 ---
 
@@ -226,10 +247,18 @@ aws cloudwatch put-metric-alarm \
 
 ### 2. Data Patrol Task (Every 5 min)
 
-The system runs `scripts/data_patrol.py` every 5 minutes to check freshness.
+**Correction (2026-07-20):** `scripts/data_patrol.py` does not exist - the real module is
+`algo/algo_data_patrol.py`. The "every 5 min ECS service" claim below could not be
+confirmed live: `/ecs/algo-data-patrol` only appears as a CloudWatch log-group retention
+entry in `terraform/modules/lifecycle/main.tf`, plus a reference in
+`terraform/errored.tfstate` (an errored/abandoned state file) - no evidence of an actual
+running `algo-data-patrol` ECS service was found. The `algo_data_patrol` / `data_patrol_log`
+DB tables are both empty locally, consistent with this never having run rather than having
+run cleanly with nothing to report. Treat this section as aspirational until verified
+against the real AWS account.
 
 ```bash
-# Verify it's running
+# Verify it's running (if it exists)
 aws ecs list-tasks \
   --cluster algo-cluster \
   --service-name algo-data-patrol \
@@ -263,8 +292,11 @@ Dashboard shows data freshness on the main panel:
 ## Emergency: Force All Loaders NOW
 
 ```bash
-# Local (quickest)
-python scripts/run_local_orchestrator.py --run-all  # morning + afternoon + evening
+# Local (quickest) - `--run-all` on run_local_orchestrator.py runs the trading
+# orchestrator's morning+afternoon+evening PHASES, it does not fetch data (same
+# distinction as Fix #1 above). Use the loader scheduler to actually force loaders:
+python scripts/local_loader_scheduler.py --now morning
+python scripts/local_loader_scheduler.py --now metrics
 
 # AWS (full pipeline)
 for pipeline in morning eod; do

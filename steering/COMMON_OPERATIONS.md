@@ -66,7 +66,7 @@ python3 -m dashboard --local -w 30
 
 **If using AWS (not local):**
 - See [AWS_LAMBDA_503_FIX.md](AWS_LAMBDA_503_FIX.md) for Lambda 503 troubleshooting
-- Run: `bash scripts/fix-lambda-vpc.sh`
+- Run: `python3 scripts/fix-lambda-vpc-config.py`
 - Redeploy: `gh workflow run deploy-api-lambda.yml`
 
 ---
@@ -93,7 +93,10 @@ EOF
 ```
 
 2. If LOCAL, changes don't affect users. Connect to AWS:
-   - See [DATABASE_AND_ENVIRONMENTS.md](DATABASE_AND_ENVIRONMENTS.md) for AWS endpoint
+   - `steering/DATABASE_AND_ENVIRONMENTS.md` does not exist (dead link, found 2026-07-20 -
+     referenced from here and OPERATIONS.md but was removed at some point). See
+     `QUICKSTART_LOCAL.md` for local DB setup and `steering/GOVERNANCE.md`'s
+     "Credentials & Deployment" section for AWS endpoint/credential info instead.
 
 3. If AWS, clear dashboard cache:
 ```bash
@@ -147,7 +150,8 @@ EOF
 
 **If too many missing:**
 - Check metric loaders ran: `SELECT last_updated FROM data_loader_status`
-- Rerun loader: `python3 loaders/load_quality_metrics.py`
+- Rerun loader: `python3 loaders/load_value_quality_growth_metrics.py` (corrected
+  2026-07-20 - `load_quality_metrics.py` no longer exists, consolidated into this file)
 - See [DATA_LOADERS.md](DATA_LOADERS.md) for troubleshooting
 
 ---
@@ -342,7 +346,7 @@ EOF
 
 2. If metrics missing, rerun metric loaders for that symbol:
 ```bash
-python3 loaders/load_quality_metrics.py --symbols AAPL
+python3 loaders/load_value_quality_growth_metrics.py --symbols AAPL  # corrected 2026-07-20
 python3 loaders/load_positioning_metrics.py --symbols AAPL
 ```
 

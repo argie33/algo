@@ -3,6 +3,17 @@
 
 **Goal:** Ensure you receive AWS bill notifications at `argeropolos@gmail.com` and prevent runaway costs with automated circuit breaker suspension.
 
+**Corrections (2026-07-20):** Every `stocks-cost-circuit-breaker-dev` reference below was
+wrong - `terraform/modules/monitoring/cost-circuit-breaker.tf` names the function
+`${var.project_name}-cost-circuit-breaker-${var.environment}`, which resolves to
+`algo-cost-circuit-breaker-dev` (`project_name="algo"` in `terraform/dev.tfvars`), not
+`stocks-*`. Also fixed a real (not just doc) bug found in the process:
+`scripts/build-cost-circuit-breaker.sh` pointed at the nonexistent
+`lambda/cost-circuit-breaker/` (hyphenated) instead of the real `lambda/cost_circuit_breaker/`
+(underscore) - the script would have failed at the `cp` step. The Python equivalent
+(`scripts/build-cost-circuit-breaker.py`) and the GitHub Actions deploy workflow both
+already used the correct underscored path, so the real CI/CD deploy path was unaffected.
+
 ---
 
 ## Quick Start (5 minutes)
@@ -204,11 +215,11 @@ Check logs:
 
 ```bash
 # View recent errors
-aws logs tail /aws/lambda/stocks-cost-circuit-breaker-dev --follow
+aws logs tail /aws/lambda/algo-cost-circuit-breaker-dev --follow
 
 # Check Lambda execution
 aws lambda get-function-concurrency \
-  --function-name stocks-cost-circuit-breaker-dev
+  --function-name algo-cost-circuit-breaker-dev
 ```
 
 **Common issues:**
@@ -253,14 +264,14 @@ To send alerts to Slack instead of email:
 
 To alert only on specific service costs (e.g., RDS spike):
 
-Edit `lambda/cost-circuit-breaker/index.py`, modify `send_cost_alert()` to check `service_breakdown` dictionary.
+Edit `lambda/cost_circuit_breaker/index.py`, modify `send_cost_alert()` to check `service_breakdown` dictionary.
 
 ### Disable Circuit Breaker (Not Recommended)
 
 ```bash
 # Temporarily disable (cost checks still run, but won't suspend)
 aws lambda update-function-configuration \
-  --function-name stocks-cost-circuit-breaker-dev \
+  --function-name algo-cost-circuit-breaker-dev \
   --environment Variables="{ENABLE_SUSPENSION=false}"
 ```
 
@@ -272,9 +283,9 @@ aws lambda update-function-configuration \
 - [ ] AWS Billing Console: Email set to argeropolos@gmail.com
 - [ ] Confirm SNS email subscription (check spam folder)
 - [ ] Run `terraform apply` to deploy Cost Circuit Breaker
-- [ ] Verify Lambda deployed: `aws lambda get-function --function-name stocks-cost-circuit-breaker-dev`
-- [ ] Test manually: `aws lambda invoke --function-name stocks-cost-circuit-breaker-dev /tmp/result.json && cat /tmp/result.json`
-- [ ] Check CloudWatch: `/aws/lambda/stocks-cost-circuit-breaker-dev`
+- [ ] Verify Lambda deployed: `aws lambda get-function --function-name algo-cost-circuit-breaker-dev`
+- [ ] Test manually: `aws lambda invoke --function-name algo-cost-circuit-breaker-dev /tmp/result.json && cat /tmp/result.json`
+- [ ] Check CloudWatch: `/aws/lambda/algo-cost-circuit-breaker-dev`
 - [ ] Monitor SNS alerts for 24 hours to ensure emails arrive
 
 ---

@@ -89,7 +89,9 @@ This checks:
 **If you see "Data not available" on all panels:**
 1. Run: `python check_system_health.py` (diagnose issues)
 2. Verify dev_server is running: `curl http://localhost:3001/api/health`
-3. Refresh data: `python3 scripts/run_local_orchestrator.py --morning`
+3. Refresh data: `python3 scripts/local_loader_scheduler.py --now morning` (NOT
+   `run_local_orchestrator.py` - that's the trading orchestrator, it reads existing DB
+   data and does not fetch fresh prices/technicals/fundamentals; confirmed 2026-07-20)
 4. Restart dashboard
 
 ## System Status
@@ -104,7 +106,12 @@ This checks:
 
 ## Running Orchestrator
 
-**Local/dev:** Use the local runner for development (no AWS Lambda/EventBridge needed)
+**Local/dev:** Use the local runner for development (no AWS Lambda/EventBridge needed).
+This is the *trading* orchestrator (signal generation, risk gates, reconciliation) - it
+reads whatever prices/technicals/fundamentals are already in the DB, it does not fetch
+them. For stale data, run `scripts/local_loader_scheduler.py` instead (see "Data Loading
+System" below / `steering/DATA_LOADERS.md`); run the orchestrator afterward if you also
+want to exercise signal generation against the now-fresh data.
 ```bash
 python3 scripts/run_local_orchestrator.py              # morning run (default)
 python3 scripts/run_local_orchestrator.py --afternoon  # afternoon run
@@ -165,7 +172,7 @@ python scripts/verify_eventbridge_scheduler.py --fix  # Auto-enable if disabled
 **If data is stale during trading hours:**
 1. Run: `python scripts/monitor_data_staleness.py` (diagnose)
 2. Check: `python scripts/verify_eventbridge_scheduler.py` (verify schedules enabled)
-3. Fix: `python scripts/run_local_orchestrator.py --morning` (manual refresh)
+3. Fix: `python scripts/local_loader_scheduler.py --now morning` (manual refresh - see note above, `run_local_orchestrator.py` does not fetch data)
 4. See: `steering/LOADER_RECOVERY_GUIDE.md` (detailed recovery steps)
 
 ## Non-Negotiable Rules

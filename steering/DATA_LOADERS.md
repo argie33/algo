@@ -99,12 +99,16 @@ clamped to parallelism 1-2 to protect rate limits.
   checks whether the ISSUER'S OWN CIK filed a `13F-HR` (which it never will for an
   operating company) - that check is a dead end and needs to be replaced with the bulk
   INFOTABLE approach, which is blocked on the crosswalk.
-- **Insider holdings (Form 4/5):** still unavailable (`insider_holdings_sec`). Unlike 13F,
-  Form 4/5 filings ARE cross-indexed under the issuer's CIK
-  (`data.sec.gov/submissions/CIK{issuer}.json` lists them alongside 10-K/10-Q), so no
-  CUSIP problem - feasible but not implemented (~8-16h: XML ownership-document parsing,
-  per-insider dedup, and a rate-limit-aware loader design for large per-symbol filing
-  counts). See `loaders/load_insider_holdings_sec.py` docstring for the detailed plan.
+- **Insider holdings (Form 4/5):** implemented (Session 304) via SEC's official bulk
+  "Insider Transactions Data Sets" (sec.gov/data-research/sec-markets-data/
+  insider-transactions-data-sets - quarterly ZIPs of SUBMISSION/REPORTINGOWNER/
+  NONDERIV_HOLDING/NONDERIV_TRANS TSVs, pre-joined by issuer ticker). This sidesteps the
+  per-filing XML crawl the ~8-16h estimate above was based on: a dozen quarterly ZIP
+  downloads instead of one HTTP request per Form 4. See
+  `utils/external/sec_form345_bulk.py` for the aggregation methodology (latest
+  SHRS_OWND_FOLWNG_TRANS per issuer/reporting-owner pair, ~3yr lookback) and
+  `loaders/load_insider_holdings_sec.py`. Foreign private issuers commonly exempt from
+  Section 16 correctly report `data_unavailable` (no Form 3/4/5 filings exist for them).
 
 ---
 

@@ -6,7 +6,7 @@ set -e
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJECT_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
-SOURCE_LAMBDA="$PROJECT_ROOT/lambda/cost-circuit-breaker"
+SOURCE_LAMBDA="$PROJECT_ROOT/lambda/cost_circuit_breaker"
 TERRAFORM_LAMBDA="$PROJECT_ROOT/terraform/lambda"
 PKG_DIR="/tmp/cost-circuit-breaker-pkg"
 

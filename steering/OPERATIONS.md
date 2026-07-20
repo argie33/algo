@@ -126,13 +126,15 @@ aws logs describe-log-streams \
 
 ## Dashboard Diagnostics
 
-Run: `python -m dashboard.diagnose_dashboard`
+**Correction 2026-07-20:** `dashboard.diagnose_dashboard` does not exist as a module -
+this section described aspirational tooling, not something you can actually run. Use one
+of the real diagnostic scripts instead:
 
-Shows:
-- ✓ SUCCESS: Data loaded (field count)
-- ⚠ STALE: Data too old (loader hasn't run recently)
-- ✗ ERRORS: API failed or validation failed
-- ⚡ MISSING FIELDS: Data partial (some fields None)
+```bash
+python check_system_health.py           # DB connectivity + freshness, orchestrator status, dev_server, dashboard import
+python scripts/dashboard_health_monitor.py
+python scripts/diagnose_system.py
+```
 
 **Key data freshness thresholds:**
 | Data | Max Age | Why |
@@ -166,7 +168,7 @@ Required:
 
 Run this script (requires AWS credentials with Lambda + EC2 + RDS permissions):
 ```bash
-bash scripts/fix-lambda-vpc.sh
+python3 scripts/fix-lambda-vpc-config.py
 ```
 
 This script:
@@ -255,17 +257,27 @@ For full loader details, see `steering/DATA_LOADERS.md`.
 
 **Hot-Reloadable Parameters:**
 
-| Parameter | Type | Default | Effect | Example |
-|-----------|------|---------|--------|---------|
-| `signal_score_threshold` | int | 60 | Min score to enter trade | Change to 75 during volatility |
-| `swing_score_threshold` | int | 55 | Min swing score filter | Change to 45 if too restrictive |
-| `data_completeness_threshold` | float | 0.70 | Min % data available | Change to 0.60 if missing data |
-| `enable_earnings_blackout` | bool | true | Block near-earnings trades | Change to false to trade through earnings |
-| `entry_volume_threshold` | int | 300000 | Min daily volume | Change to 500k for large-cap only |
-| `entry_dollar_volume` | int | 500000 | Min $ volume | Change to 1M for liquidity |
-| `orchestrator_halt_enabled` | bool | true | Circuit breaker active | Change to false only for testing |
-| `price_loader_batch_size` | int | 1000 | Symbols per parallel task | Change to 500 if rate limit hit |
-| `metric_loader_parallelism` | int | 5 | Parallel AWS tasks | Change to 10 for faster loads |
+**Corrected 2026-07-20:** every key below was verified live against `algo_config`.
+6 of the original 10 keys in this table did not exist at all (`cb_drawdown_threshold`,
+`enable_earnings_blackout`, `entry_volume_threshold`, `entry_dollar_volume`,
+`price_loader_batch_size`, `metric_loader_parallelism`) - the `UPDATE ... WHERE key=...`
+examples below them would have silently matched zero rows (Postgres doesn't error on a
+no-op UPDATE), giving a false impression that a safety threshold had changed.
+
+| Parameter | Type | Live value | Effect |
+|-----------|------|---------|--------|
+| `signal_score_threshold` | int | 60 | Min score to enter trade |
+| `swing_score_threshold` | int | 55 | Min swing score filter |
+| `data_completeness_threshold` | float | 0.70 | Min % data available |
+| `earnings_blackout_days_before` / `_after` | int | 7 / 3 | Block entries N days before / after earnings (replaces the nonexistent `enable_earnings_blackout` bool - this gate can't be disabled with a single flag, only widened/narrowed) |
+| `min_daily_volume_shares` | int | 500000 | Min daily volume (replaces nonexistent `entry_volume_threshold`) |
+| `min_avg_daily_dollar_volume` | int | 500000 | Min $ volume (replaces nonexistent `entry_dollar_volume`) |
+| `orchestrator_halt_enabled` | bool | true | Circuit breaker active - change to false only for testing |
+| `halt_drawdown_pct` | float | -20.0 | Max drawdown before halt (replaces nonexistent `cb_drawdown_threshold` - note the value is negative) |
+
+`price_loader_batch_size` and `metric_loader_parallelism` have no equivalent live config
+key - loader concurrency is governed by `LoaderConfigManager` (DynamoDB
+`algo-loader-config` → env → constraint max), see `steering/DATA_LOADERS.md`.
 
 **Update Config (live change, no restart):**
 ```sql
@@ -304,7 +316,7 @@ UPDATE algo_config SET value = '0.85' WHERE key = 'data_completeness_threshold';
 
 ## Circuit Breaker Monitoring & Alerts
 
-**Circuit Breakers** (`algo/circuit_breaker.py`): 8 automatic halts to prevent catastrophic loss.
+**Circuit Breakers** (`algo/risk/circuit_breaker.py` - corrected path, 2026-07-20): 8 automatic halts to prevent catastrophic loss.
 
 **Active Circuit Breakers:**
 
@@ -321,7 +333,10 @@ UPDATE algo_config SET value = '0.85' WHERE key = 'data_completeness_threshold';
 
 **Monitoring Halts (Live Dashboard):**
 
-Run: `python -m dashboard.circuit_breaker_monitor`
+**Correction 2026-07-20:** `dashboard.circuit_breaker_monitor` does not exist as a module.
+The dashboard's circuit-breaker panel (`dashboard/panels/`) shows this live when running
+`python -m dashboard --local`; for a one-shot check query `circuit_breaker_status`
+directly: `SELECT * FROM circuit_breaker_status ORDER BY updated_at DESC LIMIT 10;`
 
 If any circuit breaker triggers:
 ```
@@ -379,14 +394,15 @@ WHERE key = 'orchestrator_halt_enabled';
 **Testing Circuit Breakers (Paper Trading):**
 
 ```sql
--- Set drawdown threshold to 5% temporarily
-UPDATE algo_config SET value = '5' WHERE key = 'cb_drawdown_threshold';
+-- Set drawdown threshold to 5% temporarily (real key is halt_drawdown_pct, and it's
+-- negative - 'cb_drawdown_threshold' from a previous version of this doc does not exist)
+UPDATE algo_config SET value = '-5' WHERE key = 'halt_drawdown_pct';
 
 -- Make a losing trade → Drawdown > 5% → CB triggers
 -- Observe in dashboard: CB status = HALTED, reason = Drawdown
 
 -- Restore to 20%
-UPDATE algo_config SET value = '20' WHERE key = 'cb_drawdown_threshold';
+UPDATE algo_config SET value = '-20' WHERE key = 'halt_drawdown_pct';
 ```
 
 ---
@@ -397,4 +413,4 @@ See:
 - `steering/GOVERNANCE.md` — Architecture, safety rules, system map, fail-fast principles
 - `steering/LINT_POLICY.md` — Code quality, pre-commit enforcement
 - `steering/DATA_LOADERS.md` — Loader orchestration, batch sizing, freshness thresholds
-- `steering/DATABASE_AND_ENVIRONMENTS.md` — Database setup, AWS credentials, production infrastructure
+- `steering/DATABASE_AND_ENVIRONMENTS.md` does not exist (dead link, found 2026-07-20). For database setup see `QUICKSTART_LOCAL.md`; for AWS credentials see `steering/GOVERNANCE.md`'s "Credentials & Deployment" section
