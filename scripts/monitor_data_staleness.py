@@ -214,7 +214,22 @@ def check_all_tables() -> dict:
             # the size of that gap for tables tied to the trading calendar. Otherwise data
             # that's legitimately fresh-as-of-Friday still gets compared against the
             # 4h/24h intraday stale/critical cutoffs on Monday morning and reads as DEAD.
-            if table in ("price_daily", "technical_data_daily") and spans_gap:
+            # Applies to every table keyed on a plain `date` column (one row per trading
+            # day) - price_daily/technical_data_daily aren't the only ones; market_exposure_daily,
+            # sector_rotation_signal and trend_template_data share the identical shape and were
+            # missed when this gap adjustment was first added, so they misreported as
+            # CRITICAL/DEAD every Monday despite being exactly as fresh as expected.
+            if (
+                table
+                in (
+                    "price_daily",
+                    "technical_data_daily",
+                    "market_exposure_daily",
+                    "sector_rotation_signal",
+                    "trend_template_data",
+                )
+                and spans_gap
+            ):
                 gap_minutes = (today - prev_trading_day).days * 1440
                 fresh_threshold = thresholds.get("fresh_non_trading", thresholds["fresh"])
                 stale_threshold = thresholds["stale"] + gap_minutes
