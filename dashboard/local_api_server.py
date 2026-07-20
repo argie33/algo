@@ -948,13 +948,13 @@ def run_server(port: int = 8000) -> None:
     """Start the local API server."""
     server_address = ("localhost", port)
     httpd = HTTPServer(server_address, APIHandler)
-    print(f"Local API server running on http://localhost:{port}")
-    print(f"Set: export DASHBOARD_API_URL=http://localhost:{port}")
-    print("Press Ctrl+C to stop")
+    logger.info(f"Local API server running on http://localhost:{port}")
+    logger.info(f"Set: export DASHBOARD_API_URL=http://localhost:{port}")
+    logger.info("Press Ctrl+C to stop")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
-        print("\nServer stopped")
+        logger.info("\nServer stopped")
 
 
 if __name__ == "__main__":

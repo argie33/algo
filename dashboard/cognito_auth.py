@@ -377,10 +377,10 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
     # 4. Try interactive authentication
     if interactive and sys.stdin.isatty():
         try:
-            print("\n" + "=" * 60)
-            print("Cognito Authentication Required")
-            print("=" * 60)
-            print("Set COGNITO_USERNAME + COGNITO_PASSWORD env vars to skip this prompt.")
+            logger.info("\n" + "=" * 60)
+            logger.info("Cognito Authentication Required")
+            logger.info("=" * 60)
+            logger.info("Set COGNITO_USERNAME + COGNITO_PASSWORD env vars to skip this prompt.")
             username = input("Email: ").strip()
             password = input("Password: ").strip()
             # Type guard: ensure username and password are strings before authenticating
@@ -391,10 +391,8 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
                 else:
                     if require_auth:
                         msg = f"[CRITICAL] Interactive authentication failed for {username}"
-                        print(f"[ERROR] {msg}")
                         logger.error(msg)
                         raise RuntimeError(msg)
-                    print("[ERROR] Authentication failed")
                     logger.warning("[Cognito] Interactive authentication failed, returning unavailability marker")
                     return {
                         "auth_unavailable": True,
@@ -403,10 +401,8 @@ def get_cognito_auth(require_auth: bool = True, interactive: bool = True) -> Cog
             else:
                 if require_auth:
                     msg = "[CRITICAL] Username or password missing but authentication is required"
-                    print(f"[ERROR] {msg}")
                     logger.error(msg)
                     raise RuntimeError(msg)
-                print("[ERROR] Username or password missing")
                 logger.warning("[Cognito] Username or password empty, returning unavailability marker")
                 return {
                     "auth_unavailable": True,
