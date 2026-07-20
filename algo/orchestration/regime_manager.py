@@ -9,8 +9,10 @@ Maps regime to config multipliers that flow into PositionSizer and ExposurePolic
 
 import logging
 from datetime import date as _date
+from datetime import datetime as _datetime
 from datetime import timedelta
 from typing import Any, ClassVar, cast
+from zoneinfo import ZoneInfo
 
 import psycopg2
 
@@ -32,9 +34,12 @@ from algo.infrastructure.constants import (
     REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION,
     REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
 )
+from algo.infrastructure import MarketCalendar
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
+
+_ET = ZoneInfo("America/New_York")
 
 
 class RegimeManager:
@@ -88,6 +93,27 @@ class RegimeManager:
         },
     }
 
+    @staticmethod
+    def _expected_regime_date(as_of_date: _date) -> _date:
+        """Most recent trading day whose market_exposure_daily row should already exist.
+
+        market_exposure_daily is written once per trading day by the EOD loader (~4:05 PM ET).
+        A naive "must be <=1 calendar day old" check false-halts every Monday (Friday's data is
+        3 calendar days old) and after any holiday - mirrors the trading-day-aware fix already
+        applied to price_daily freshness checks in phase1_data_freshness.py (Session 239/288).
+        """
+        now_et = _datetime.now(_ET)
+        if as_of_date == now_et.date() and MarketCalendar.is_trading_day(as_of_date) and now_et.hour < 16:
+            # Same trading day, before EOD close: today's row isn't published yet - the most
+            # recent COMPLETE row is the prior trading day's.
+            candidate = as_of_date - timedelta(days=1)
+        else:
+            candidate = as_of_date
+
+        while not MarketCalendar.is_trading_day(candidate):
+            candidate -= timedelta(days=1)
+        return candidate
+
     def get_current_regime(self, as_of_date: _date | None = None) -> str:
         """
         Get current market regime.
@@ -129,12 +155,13 @@ class RegimeManager:
                 )
 
             regime = str(regime_str)
-            age_days = (as_of_date - data_date).days
-            if age_days > 1:
+            expected_date = self._expected_regime_date(as_of_date)
+            if data_date < expected_date:
+                age_days = (as_of_date - data_date).days
                 raise RuntimeError(
-                    f"Market regime data too stale: {age_days} days old (max 1 day). "
-                    f"Current market regime cannot be determined from stale data. "
-                    f"Phase 4 must run daily to provide fresh market exposure analysis."
+                    f"Market regime data too stale: latest is {data_date} ({age_days} calendar day(s) old), "
+                    f"expected data for {expected_date} or later (trading-day aware). "
+                    f"EOD loader must run to provide fresh market exposure analysis."
                 )
 
             if regime not in self.REGIMES:

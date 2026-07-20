@@ -307,14 +307,20 @@ class HaltFlagManager:
         Session 289 FIX: Try DynamoDB first, fall back to RDS if unavailable.
         RDS serves as fallback so system doesn't crash when AWS credentials missing.
 
-        Session 290 FIX: Add retry logic + graceful degradation when BOTH fail.
-        If both DynamoDB and RDS unavailable, log warning but don't crash.
-        This prevents orchestrator crashes during transient connectivity issues.
+        Session 290 FIX: Add retry logic with RDS fallback when DynamoDB fails.
+
+        Session 292 FIX: Session 290's "graceful degradation, don't crash" behavior
+        contradicted the orchestrator's fail-fast expectation and produced a false
+        sense of safety (halt flag silently unmanaged during trading). Both storage
+        backends are now retried, but if BOTH fail this method RAISES - trading must
+        not proceed with an unmanageable halt flag.
 
         ISSUE #8 FIX: When Phase 1 detects stale data, set halt flag to stop
         Phase 5 from generating full-intensity signals during degradation.
 
         ISSUE #10 FIX: Track multiple halt events in a day for escalation.
+
+        Raises: RuntimeError if both DynamoDB and RDS fail (safety-critical, no fallback left).
         """
         halt_count = 1
         now_utc = datetime.now(timezone.utc)
@@ -654,14 +660,20 @@ class HaltFlagManager:
         Session 289 FIX: Try DynamoDB first, fall back to RDS if unavailable.
         Prevents crashes when AWS credentials missing or DynamoDB unavailable.
 
-        Session 290 FIX: Add retry logic + graceful degradation when BOTH fail.
-        If both DynamoDB and RDS unavailable, log warning but don't crash.
-        This prevents trading halt during transient connectivity issues.
+        Session 290 FIX: Add retry logic with RDS fallback when DynamoDB fails.
+
+        Session 292 FIX: Session 290's "graceful degradation, don't crash" behavior
+        contradicted the orchestrator's fail-fast expectation and produced a false
+        sense of safety (halt flag silently unmanaged during trading). Both storage
+        backends are now retried, but if BOTH fail this method RAISES - trading must
+        not proceed with unknown/unmanageable halt status.
 
         Args:
             reason: Optional explanation for why halt was cleared
 
-        Returns: True if successfully cleared, False on error (non-fatal)
+        Returns: True if successfully cleared via DynamoDB or RDS.
+
+        Raises: RuntimeError if both DynamoDB and RDS fail (safety-critical, no fallback left).
 
         CRITICAL FIX (Session 282): ALWAYS clear halt flag, including LOCAL_MODE.
         LOCAL_MODE connects to the same shared production DB, so halt flag updates
