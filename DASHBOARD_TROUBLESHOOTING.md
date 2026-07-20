@@ -168,7 +168,7 @@ FROM algo_portfolio_snapshots;
 
 -- Price data age
 SELECT EXTRACT(EPOCH FROM (NOW() - MAX(date)))/3600 as hours_old
-FROM stock_prices_daily;
+FROM price_daily;
 
 -- Technical indicators age
 SELECT EXTRACT(EPOCH FROM (NOW() - MAX(date)))/3600 as hours_old
@@ -184,7 +184,7 @@ FROM technical_data_daily;
 ### Step 1: Check Lambda VPC Configuration
 ```bash
 # Verify Lambda has VPC access to database
-bash scripts/fix-lambda-vpc.sh
+python scripts/fix-lambda-vpc-config.py
 ```
 
 This ensures Lambda can reach RDS. See `steering/AWS_LAMBDA_503_FIX.md` for manual fix.
@@ -197,7 +197,7 @@ aws rds describe-db-instances --db-instance-identifier algo-db --region us-east-
 
 ### Step 3: Verify Circuit Breaker Table Data
 ```sql
-SELECT * FROM algo_circuit_breaker_status LIMIT 1;
+SELECT * FROM circuit_breaker_status LIMIT 1;
 -- Should have recent timestamp
 ```
 

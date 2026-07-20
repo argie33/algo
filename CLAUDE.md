@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ SESSION 275 COMPLETE - All 28 loaders bulletproof, 100% real data, yfinance eliminated, 9/9 phases passing. System production-ready. Latest: Session 275 bypass audit (2 silent fallbacks fixed), SEC loaders added, yfinance deprecated.
+**Status:** ✅ SESSION 301 COMPLETE - All 22 loaders bulletproof with governance compliance, 100% real data, yfinance fallback-only, 9/9 phases passing, win_rate crash fixed. System production-ready. Latest: Session 301 thin-account crash fix (win_rate/expectancy guards + market_exposure staleness + response validator + snapshot PK cleanup).
 
 ## Start Here
 
