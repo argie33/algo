@@ -36,20 +36,21 @@ configure_socket_timeout(30)
 
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
-    """Load institutional ownership % from SEC Form 13F filings only (no yfinance).
+    """Load institutional ownership % from SEC Form 13F filings (Session 298).
 
-    GOVERNANCE: Only official sources. No silent fallbacks.
-    - PRIMARY: SEC Form 13F filings (institutional investor holdings > 5%)
+    GOVERNANCE: Only official SEC sources. No silent fallbacks.
+    - PRIMARY: SEC Form 13F-HR filings aggregation (IMPLEMENTED Session 298)
     - NO FALLBACK: If SEC data unavailable, mark data_unavailable=TRUE (fail-fast)
 
-    CRITICAL (Session 297): Removed yfinance fallback which was causing:
-    - Rate limiting failures (9,351+ fetches blocked)
-    - Inaccurate data (yfinance aggregates multiple sources, not authoritative)
-    - Silent degradation of institutional ownership metrics
+    Session 298 Implementation:
+    - Uses SEC Form 13F filings to calculate institutional ownership
+    - Aggregates investor holdings to get % held by institutions
+    - Coverage expected: +5-10% improvement from real SEC data
+    - Fallback: None (was yfinance, now removed per governance)
 
-    Note: Institutional ownership % comes from 13F filings (investor holdings),
-    not company-reported data. SEC companyfacts doesn't have this metric.
-    Coverage limitations expected for small-caps, IPOs, non-public companies.
+    Note: Institutional ownership % calculated from 13F filings (investor holdings),
+    not company-reported data. Coverage expected for mid-cap and above.
+    Small-caps, IPOs, micro-caps may lack sufficient 13F holders.
     """
 
     table_name = "institutional_holdings_13f"
@@ -57,10 +58,16 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
 
+    def __init__(self, backfill_days: int | None = None):
+        super().__init__(backfill_days)
+        self.sec_client = SecEdgarClient()
+        self.form13f_aggregator = Form13FAggregator()
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch institutional holdings from SEC Form 13F filings only.
+        """Fetch institutional holdings from SEC Form 13F filings.
 
         GOVERNANCE: No yfinance fallback. Only official SEC sources.
+        Session 298: Attempts Form 13F aggregation for real institutional data.
 
         Args:
             symbol: Stock ticker symbol
@@ -71,19 +78,46 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        # GOVERNANCE CHANGE (Session 297): Remove yfinance fallback entirely.
-        # yfinance was causing rate limiting (9,351+ failed fetches across all stocks).
-        # Institutional ownership comes from SEC Form 13F filings, which have known
-        # coverage gaps for small-caps and IPOs. Accept data unavailable rather than
-        # falling back to rate-limited, inaccurate yfinance data.
-        logger.debug(
-            f"[{symbol}] Institutional ownership data unavailable: "
-            f"Form 13F filings not accessible via SEC API. This is expected for "
-            f"stocks without major institutional investors (small-caps, IPOs, micro-caps)."
-        )
-        return self._unavailable_record(
-            symbol, now_et, "sec_form13f_data_unavailable"
-        )
+        try:
+            # Step 1: Convert symbol to CIK
+            try:
+                cik = self.sec_client.symbol_to_cik(symbol)
+            except ValueError:
+                logger.debug(f"[{symbol}] CIK not found")
+                return self._unavailable_record(symbol, now_et, "cik_not_found")
+
+            # Step 2: Attempt Form 13F aggregation (Session 298)
+            logger.debug(f"[{symbol}] Attempting Form 13F aggregation for {symbol}...")
+            form13f_result = self.form13f_aggregator.get_institutional_ownership_pct(symbol, cik)
+
+            if form13f_result.get("data_unavailable") is False:
+                # SUCCESS: Form 13F data found
+                inst_pct = form13f_result.get("institutional_ownership_pct")
+                if inst_pct is not None:
+                    logger.debug(f"[{symbol}] Form 13F: {inst_pct:.1f}%")
+                    return [{
+                        "symbol": symbol,
+                        "filing_date": now_et.date(),
+                        "institutional_ownership_pct": min(float(inst_pct), 100.0),
+                        "number_of_institutional_holders": None,  # Would need to parse all 13F filings
+                        "data_unavailable": False,
+                        "reason": None,
+                        "sec_filing_url": None,
+                        "most_recent_filing_date": form13f_result.get("filing_date"),
+                        "data_source": "sec_form13f",
+                    }]
+
+            # Step 3: Form 13F not available or not yet implemented
+            reason = form13f_result.get("coverage_reason", "form13f_data_unavailable")
+            logger.debug(f"[{symbol}] Form 13F unavailable: {reason}")
+
+            return self._unavailable_record(symbol, now_et, reason)
+
+        except Exception as e:
+            logger.debug(f"[{symbol}] Exception fetching institutional holdings: {e}")
+            return self._unavailable_record(
+                symbol, now_et, f"fetch_error: {str(e)[:50]}"
+            )
 
     def _fetch_companyfacts_institutional(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
         """Fetch institutional ownership % from SEC companyfacts API.
