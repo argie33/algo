@@ -1001,10 +1001,15 @@ def run(
                             )
                             stop_loss = min_stop_above_support
             except Exception as e:
-                logger.warning(
-                    f"[PHASE 8] {symbol}: Could not validate stop against support (DB error): {e}. "
-                    f"Proceeding with formula-based stop ${stop_loss:.2f}."
+                logger.error(
+                    f"[PHASE 8 CRITICAL] {symbol}: Could not validate stop loss against support: {type(e).__name__}: {e}"
                 )
+                _log_signal_rejection(
+                    symbol,
+                    "stop_loss_validation_failed",
+                    f"Cannot verify stop loss against support levels - {type(e).__name__}"
+                )
+                continue
 
             # EDGE CASE FIX: Stop loss can become negative when ATR is very large
             # (extreme volatility). This is invalid - cannot short at negative price.
