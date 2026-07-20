@@ -4,12 +4,60 @@
 High-level helpers for extracting balance sheet, income statement, and cash flow data.
 These methods leverage the SecEdgarClient for company facts and aggregate multiple
 GAAP concepts into structured financial statements.
+
+Foreign private issuers (20-F/40-F filers - ADRs like ABEV, E, AEG, ACB, IBN) report
+under the IFRS taxonomy (facts["ifrs-full"]) instead of, or in addition to, us-gaap.
+Many report ZERO us-gaap concepts (e.g. ABEV: 0 us-gaap, 298 ifrs-full), so extracting
+only us-gaap silently drops fundamental data SEC EDGAR actually has for these filers.
+Each concept list below is followed by an IFRS_ALIASES list: (ifrs_concept, target_key)
+pairs where target_key is the SAME snake_cased key the equivalent GAAP concept would
+produce, so downstream field_mapping in load_financial_statements.py needs no changes -
+an IFRS-sourced row looks identical to a GAAP-sourced one once aggregated.
 """
 
 import logging
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+_BALANCE_IFRS_ALIASES = [
+    # (IFRS concept name, target key = _to_snake() of the equivalent GAAP concept)
+    ("Assets", "assets"),
+    ("CurrentAssets", "assets_current"),
+    ("Liabilities", "liabilities"),
+    ("CurrentLiabilities", "liabilities_current"),
+    ("Equity", "stockholders_equity"),
+    ("EquityAttributableToOwnersOfParent", "stockholders_equity"),
+    ("CashAndCashEquivalents", "cash_and_cash_equivalents_at_carrying_value"),
+    ("TradeAndOtherCurrentReceivables", "accounts_receivable_net_current"),
+    ("Inventories", "inventory_net"),
+    ("PropertyPlantAndEquipment", "property_plant_and_equipment_net"),
+    ("Goodwill", "goodwill"),
+    ("NoncurrentLiabilities", "long_term_debt"),
+]
+
+_INCOME_IFRS_ALIASES = [
+    ("Revenue", "revenues"),
+    ("RevenueFromContractsWithCustomers", "revenue_from_contract_with_customer_excluding_assessed_tax"),
+    ("RevenueFromSaleOfGoods", "sales_revenue_net"),
+    ("CostOfSales", "cost_of_revenue"),
+    ("GrossProfit", "gross_profit"),
+    ("ProfitLossFromOperatingActivities", "operating_income_loss"),
+    ("ProfitLoss", "net_income_loss"),
+    ("BasicEarningsLossPerShare", "earnings_per_share_basic"),
+    ("DilutedEarningsLossPerShare", "earnings_per_share_diluted"),
+]
+
+_CASHFLOW_IFRS_ALIASES = [
+    ("CashFlowsFromUsedInOperatingActivities", "net_cash_provided_by_used_in_operating_activities"),
+    ("CashFlowsFromUsedInInvestingActivities", "net_cash_provided_by_used_in_investing_activities"),
+    ("CashFlowsFromUsedInFinancingActivities", "net_cash_provided_by_used_in_financing_activities"),
+    (
+        "PurchaseOfPropertyPlantAndEquipmentIntangibleAssetsOtherThanGoodwillInvestmentPropertyAndOtherNoncurrentAssets",
+        "payments_to_acquire_property_plant_and_equipment",
+    ),
+    ("DepreciationExpense", "depreciation"),
+]
 
 
 def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
@@ -36,7 +84,7 @@ def get_balance_sheet(client: Any, symbol: str, period: str = "annual") -> list[
         "Goodwill",
         "LongTermDebt",
     ]
-    return _aggregate_concepts(client, symbol, concepts, period)
+    return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_BALANCE_IFRS_ALIASES)
 
 
 def get_income_statement(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
@@ -66,7 +114,7 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         "EarningsPerShareDiluted",
         "WeightedAverageNumberOfSharesOutstandingBasic",
     ]
-    return _aggregate_concepts(client, symbol, concepts, period)
+    return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES)
 
 
 def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict[str, Any]]:
@@ -88,7 +136,7 @@ def get_cash_flow(client: Any, symbol: str, period: str = "annual") -> list[dict
         "Depreciation",
         "DepreciationAndAmortization",
     ]
-    return _aggregate_concepts(client, symbol, concepts, period)
+    return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_CASHFLOW_IFRS_ALIASES)
 
 
 def _aggregate_concepts(
@@ -96,6 +144,7 @@ def _aggregate_concepts(
     symbol: str,
     concepts: list[str],
     period: str,
+    ifrs_aliases: list[tuple[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
     """Pivot multiple concepts into rows keyed by (fiscal_year, fiscal_period).
 
@@ -106,8 +155,13 @@ def _aggregate_concepts(
     Args:
         client: SecEdgarClient instance
         symbol: Stock ticker
-        concepts: List of XBRL concept names (will skip those not reported by this company)
+        concepts: List of us-gaap XBRL concept names (skipped if not reported by this company)
         period: "annual" or "quarterly"
+        ifrs_aliases: Optional (ifrs_concept, target_key) pairs checked against the
+            ifrs-full taxonomy for foreign private issuers (20-F/40-F filers) that
+            report no us-gaap concepts at all. target_key is the snake_cased key the
+            equivalent us-gaap concept would have produced, so callers/field_mapping
+            downstream don't need to know which taxonomy a row actually came from.
 
     Returns:
         List of dicts with aggregated concept data
@@ -131,11 +185,11 @@ def _aggregate_concepts(
             f"Downstream loaders must mark data_unavailable with this reason."
         ) from e
 
-    # Extract concepts from all_facts (us-gaap taxonomy).
-    # Some entities (ETFs, foreign filers, REITs) have CIKs but report under IFRS,
-    # alternative taxonomies, or specialized formats without traditional US-GAAP.
+    # Extract concepts from all_facts. Most US domestic filers report under
+    # us-gaap; foreign private issuers (20-F/40-F - ADRs like ABEV, E, AEG, ACB)
+    # report under ifrs-full instead, often with ZERO us-gaap concepts present.
     # REITs and investment trusts in particular may use real-estate-focused reporting
-    # that doesn't map to standard income statement concepts.
+    # that doesn't map to standard income statement concepts under either taxonomy.
     facts = all_facts.get("facts")
     if facts is None:
         raise ValueError(
@@ -144,19 +198,28 @@ def _aggregate_concepts(
             f"Downstream loaders must mark data_unavailable with this reason."
         )
 
-    us_gaap_facts = facts.get("us-gaap")
-    if not us_gaap_facts:
+    us_gaap_facts = facts.get("us-gaap") or {}
+    ifrs_facts = facts.get("ifrs-full") or {}
+    if not us_gaap_facts and not ifrs_facts:
         raise ValueError(
-            f"[SEC_EDGAR] SEC API has no US-GAAP facts for {symbol} (CIK {cik}). "
-            f"Company may be REIT, investment trust, or IFRS filer without US-GAAP taxonomy. "
-            f"Cannot extract traditional income statement concepts. "
+            f"[SEC_EDGAR] SEC API has no US-GAAP or IFRS facts for {symbol} (CIK {cik}). "
+            f"Company may be a REIT, investment trust, or special entity without traditional "
+            f"SEC filing data under either taxonomy. "
             f"Downstream loaders must mark data_unavailable with this reason."
         )
     rows: dict[Any, dict[str, Any]] = {}
     fp_filter = "FY" if period == "annual" else ("Q1", "Q2", "Q3", "Q4")
 
-    for concept in concepts:
+    # (xbrl_concept_name, target_key) pairs to look up, us-gaap first (preserves
+    # exact prior behavior/column names), then IFRS aliases for foreign filers.
+    concept_specs: list[tuple[str, str]] = [(c, _to_snake(c)) for c in concepts]
+    if ifrs_aliases:
+        concept_specs.extend(ifrs_aliases)
+
+    for concept, target_key in concept_specs:
         concept_data = us_gaap_facts.get(concept)
+        if concept_data is None:
+            concept_data = ifrs_facts.get(concept)
         if concept_data is None:
             continue
 
@@ -195,8 +258,7 @@ def _aggregate_concepts(
                         "form": entry.get("form"),
                     },
                 )
-                # Snake-case the concept for column compatibility
-                col = _to_snake(concept)
+                col = target_key
                 # Keep latest filing if multiple for same period
                 entry_filed = entry.get("filed")
                 if not entry_filed:
