@@ -75,14 +75,34 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 if open_symbols:
                     cur.execute(
                         """
-                        SELECT symbol, close FROM price_daily
+                        SELECT symbol, close, data_unavailable, reason FROM price_daily
                         WHERE symbol = ANY(%s)
                         AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = ANY(%s))
                         """,
                         (open_symbols, open_symbols),
                     )
                     price_rows = cur.fetchall()
-                    prices = {row[0]: float(row[1]) for row in price_rows}
+
+                    # GOVERNANCE COMPLIANCE: Check data_unavailable flag for each price
+                    for row in price_rows:
+                        symbol = row[0]
+                        close_price = row[1]
+                        data_unavailable_flag = row[2] if len(row) > 2 else False
+                        reason_msg = row[3] if len(row) > 3 else None
+
+                        # FAIL-FAST: Cannot use prices marked unavailable for position monitoring
+                        if data_unavailable_flag is True:
+                            logger.critical(
+                                f"[PHASE 3] {symbol}: Price data marked unavailable: {reason_msg or 'no reason provided'}. "
+                                f"Cannot monitor position without valid price data. Fail-closed."
+                            )
+                            raise RuntimeError(
+                                f"[PHASE 3] {symbol}: Price data marked unavailable. "
+                                f"Position monitoring requires valid price data for all open positions. "
+                                f"Check price_daily loader status."
+                            )
+
+                        prices[symbol] = float(close_price) if close_price is not None else None
 
                 for position_id, symbol, quantity, old_price, entry_date, stop_loss, avg_entry in positions:
                     try:
