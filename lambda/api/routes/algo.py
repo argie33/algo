@@ -359,10 +359,7 @@ def _dispatch(  # noqa: C901
         limit = safe_limit(extract_param(params, "limit"), max_val=10000, default=100)
         offset_str = extract_param(params, "offset")
         if offset_str is None:
-            raise ValueError(
-                "CRITICAL: offset parameter required for patrol log pagination. "
-                "Cannot paginate without explicit offset (no safe defaults allowed)."
-            )
+            offset_str = "0"
         offset = safe_offset(offset_str)
         return _get_patrol_log(cur, limit, offset)
     elif path == "/api/algo/sector-rotation":

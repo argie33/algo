@@ -669,7 +669,7 @@ def _get_swing_scores_history(cur: cursor, days: int = 30) -> Any:
                     ROUND(AVG(composite_score)::NUMERIC, 1) AS avg_score
                 FROM stock_scores
                 WHERE created_at::date >= %s AND data_unavailable = FALSE
-                AND (symbol NOT IN (SELECT symbol FROM etf_symbols) AND (etf IS NULL OR etf = 'N'))
+                AND symbol NOT IN (SELECT symbol FROM etf_symbols)
                 GROUP BY created_at::date
                 ORDER BY created_at::date ASC
             """,

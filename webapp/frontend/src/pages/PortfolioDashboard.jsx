@@ -2788,9 +2788,9 @@ DrawdownChart.propTypes = {
 
 DailyReturnHistogram.propTypes = {
   histogram_data: PropTypes.shape({
-    bins: PropTypes.array,
-    values: PropTypes.array,
-  }).isRequired,
+    buckets: PropTypes.array,
+    stats: PropTypes.object,
+  }),
   loading: PropTypes.bool.isRequired,
   error: PropTypes.shape({
     message: PropTypes.string,
@@ -2800,9 +2800,8 @@ DailyReturnHistogram.propTypes = {
 
 TradeDistribution.propTypes = {
   distribution_data: PropTypes.shape({
-    wins: PropTypes.number,
-    losses: PropTypes.number,
-  }).isRequired,
+    buckets: PropTypes.array,
+  }),
   loading: PropTypes.bool.isRequired,
   error: PropTypes.shape({
     message: PropTypes.string,
@@ -2812,9 +2811,8 @@ TradeDistribution.propTypes = {
 
 HoldingPeriodHistogram.propTypes = {
   holding_data: PropTypes.shape({
-    bins: PropTypes.array,
-    values: PropTypes.array,
-  }).isRequired,
+    buckets: PropTypes.array,
+  }),
   error: PropTypes.shape({
     message: PropTypes.string,
     code: PropTypes.string,
@@ -2845,7 +2843,7 @@ StagePhaseDonut.propTypes = {
   distribution: PropTypes.shape({
     labels: PropTypes.array,
     values: PropTypes.array,
-  }).isRequired,
+  }),
   loading: PropTypes.bool.isRequired,
   error: PropTypes.shape({
     message: PropTypes.string,

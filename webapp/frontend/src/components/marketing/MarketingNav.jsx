@@ -38,7 +38,7 @@ const MarketingNav = () => {
   const [activeDesktopMenu, setActiveDesktopMenu] = useState(null);
 
   const navItems = [
-    { label: "Home", path: "/" },
+    { label: "Home", path: "/home" },
     {
       label: "Firm",
       path: "/firm",
@@ -193,7 +193,7 @@ const MarketingNav = () => {
           >
             {/* Logo / Brand */}
             <Box
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/home")}
               sx={{
                 display: "flex",
                 alignItems: "center",

@@ -68,18 +68,14 @@ def handle(
                 return error_response(400, "bad_request", "timeframe parameter must be a list")
             timeframe = timeframe_list[0] if timeframe_list else "daily"
 
-            # Extract symbol filter parameter (required)
-            if "symbol" not in params:
-                logger.warning("Required parameter 'symbol' missing from request")
-                return error_response(
-                    400,
-                    "bad_request",
-                    "Required parameter 'symbol' missing from request. Valid values: any valid stock ticker symbol (e.g., AAPL, MSFT)",
-                )
-            symbol_list = params["symbol"]
-            if not isinstance(symbol_list, list):
+            # Extract symbol filter parameter (optional - omitted means "all symbols")
+            symbol_list = params.get("symbol")
+            if symbol_list is None:
+                symbol_filter = None
+            elif not isinstance(symbol_list, list):
                 return error_response(400, "bad_request", "symbol parameter must be a list")
-            symbol_filter = symbol_list[0] if symbol_list else None
+            else:
+                symbol_filter = symbol_list[0] if symbol_list else None
 
             return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
         elif path == "/api/signals/etf":

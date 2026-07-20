@@ -37,6 +37,12 @@ import {
   Bell,
   FileText,
   Map,
+  Users,
+  Info,
+  Mail,
+  Newspaper,
+  Calculator,
+  PiggyBank,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../services/api";
@@ -94,7 +100,15 @@ const NAV_SECTIONS = [
   {
     title: "Company",
     items: [
-      { text: "About Bullseye", icon: Globe, path: "/home" },
+      { text: "Home", icon: Globe, path: "/home" },
+      { text: "Firm", icon: Briefcase, path: "/firm" },
+      { text: "About", icon: Info, path: "/about" },
+      { text: "Our Team", icon: Users, path: "/our-team" },
+      { text: "Mission & Values", icon: Award, path: "/mission-values" },
+      { text: "Research & Insights", icon: Newspaper, path: "/research-insights" },
+      { text: "Investment Tools", icon: Calculator, path: "/investment-tools" },
+      { text: "Wealth Management", icon: PiggyBank, path: "/wealth-management" },
+      { text: "Contact", icon: Mail, path: "/contact" },
     ],
   },
 ];
