@@ -743,6 +743,21 @@ class ConsolidatedFinancialStatementsLoader(SecEdgarStatementLoader):
         )
         self.backfill_days = backfill_days
 
+        # FIX 2026-07-20: OptimalLoader.__init__ keys self._watermark by
+        # self.__class__.__module__ alone (WatermarkManager.table_name is stored but
+        # never actually used in get_current_watermark/advance_watermark - verified in
+        # utils/data/watermark.py). All 6 statement_type x period combos share this one
+        # class, so they all resolved to the SAME watermark row per symbol. Whichever
+        # combo ran first for a symbol set the shared watermark to today; the other 5
+        # combos then saw "already loaded today", filtered every real fetched row out
+        # (fiscal_year <= today's year is always true), and silently wrote nothing -
+        # forever, since the watermark never moves back. Verified live: OTLK's SEC
+        # income statement fetch returned 11 real rows that were discarded this way.
+        # Give each combo its own watermark key so they stop colliding.
+        from utils.data.watermark import WatermarkManager
+
+        self._watermark = WatermarkManager(f"financial_statements_{statement_type}_{period}", self.table_name)
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         return super().fetch_incremental(symbol, since)
 

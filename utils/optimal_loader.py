@@ -944,6 +944,14 @@ class OptimalLoader:
             return None
         if isinstance(value, datetime):
             return value.date()
+        if isinstance(value, int):
+            # FIX 2026-07-20: watermark_field can be an integer fiscal_year column
+            # (e.g. SecEdgarStatementLoader), not just DATE/TIMESTAMP. Passing the raw
+            # int into a DATE column raised psycopg2.errors.DatatypeMismatch, which
+            # aborted the data_loader_status write (though not the actual data write -
+            # this only breaks the status/completeness bookkeeping row). Map it onto
+            # Dec 31 of that year, matching watermark_from_rows in loaders/helpers/sec_base.py.
+            return date(value, 12, 31)
         return value
 
     def _update_final_status(self, expected_symbols: int) -> None:
