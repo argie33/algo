@@ -1511,8 +1511,7 @@ class Orchestrator:
 
         # Wire up pipeline health monitoring (Session 286 fix)
         # Computes row_count and age_days for ALL 94 tables in data_loader_status
-        logger.info("
-[PIPELINE MONITORING] Computing health for all 94 data tables...")
+        logger.info("\n[PIPELINE MONITORING] Computing health for all 94 data tables...")
         try:
             from algo.monitoring import PipelineHealth
             health_monitor = PipelineHealth()
