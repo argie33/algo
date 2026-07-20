@@ -64,15 +64,38 @@ def check_table_exists(cur: Any, table: str) -> bool:
                 WHERE table_name = '{table}'
             )
         """)
-        return cur.fetchone()[0]
-    except Exception:
-        return False
+        result = cur.fetchone()
+        if result is None:
+            raise RuntimeError(f"SELECT EXISTS query for table '{table}' returned no result")
+        return result[0]
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        raise RuntimeError(f"Database error checking table '{table}': {e}")
+    except RuntimeError:
+        raise
 
 
 def get_table_stats(cur: Any, table: str) -> dict[str, Any]:
     try:
+        # Check if table exists first
+        cur.execute(f"""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables
+                WHERE table_name = '{table}'
+            )
+        """)
+        exists_result = cur.fetchone()
+        if exists_result is None or not exists_result[0]:
+            return {
+                "exists": False,
+                "row_count": 0,
+                "latest_date": None,
+            }
+
         cur.execute(f"SELECT COUNT(*) FROM {table}")
-        count = cur.fetchone()[0]
+        count_result = cur.fetchone()
+        if count_result is None:
+            raise RuntimeError(f"COUNT query for table '{table}' returned no result")
+        count = count_result[0]
 
         # Get most recent data
         cur.execute(f"""
@@ -86,19 +109,19 @@ def get_table_stats(cur: Any, table: str) -> dict[str, Any]:
         latest_date = None
         if date_col:
             cur.execute(f"SELECT MAX({date_col}) FROM {table}")
-            latest_date = cur.fetchone()[0]
+            date_result = cur.fetchone()
+            if date_result and date_result[0] is not None:
+                latest_date = date_result[0]
 
         return {
             "exists": True,
             "row_count": count,
             "latest_date": latest_date,
         }
-    except Exception:
-        return {
-            "exists": False,
-            "row_count": 0,
-            "latest_date": None,
-        }
+    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        raise RuntimeError(f"Database error getting stats for table '{table}': {e}")
+    except RuntimeError:
+        raise
 
 
 def verify_pipeline():

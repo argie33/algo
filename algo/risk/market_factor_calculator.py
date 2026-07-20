@@ -353,7 +353,8 @@ class MarketFactorCalculator:
             # No data available: fail-fast with diagnostic info
             if not row:
                 cur.execute("SELECT MAX(date) FROM market_health_daily")
-                latest_date = cur.fetchone()[0]
+                latest_row = cur.fetchone()
+                latest_date = latest_row[0] if latest_row and latest_row[0] is not None else "EMPTY"
                 raise RuntimeError(
                     f"[VIX CRITICAL] No market_health_daily data found on or before {eval_date}. "
                     f"Latest available date: {latest_date}. "

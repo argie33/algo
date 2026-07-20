@@ -246,13 +246,14 @@ class PipelineHealth:
                 # CRITICAL FIX: Previously only 8 tables were monitored, leaving 86 tables
                 # with NULL row_count and age_days. Now ALL tables are monitored.
                 try:
+                    # Use = ANY(...) instead of NOT IN for proper PostgreSQL array comparison
                     cur.execute(
                         """
                         SELECT DISTINCT table_name FROM data_loader_status
-                        WHERE table_name NOT IN (%s)
+                        WHERE table_name != ALL(%s)
                         ORDER BY table_name
                         """,
-                        (tuple(self.CRITICAL_TABLES.keys()),),
+                        (list(self.CRITICAL_TABLES.keys()),),
                     )
                     other_tables = [row[0] for row in cur.fetchall()]
 

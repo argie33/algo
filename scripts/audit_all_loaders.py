@@ -83,11 +83,13 @@ def check_table_exists(table_name):
     cur = conn.cursor()
     try:
         cur.execute(f"SELECT EXISTS(SELECT 1 FROM information_schema.tables WHERE table_name='{table_name}')")
-        exists = cur.fetchone()[0]
-        return exists
+        result = cur.fetchone()
+        if result is None:
+            raise RuntimeError(f"SELECT EXISTS query for table '{table_name}' returned no result")
+        return result[0]
     except psycopg2.Error as e:
         logger.error(f"[DB_ERROR] Failed to check table existence for {table_name}: {type(e).__name__}: {e}")
-        return False
+        raise RuntimeError(f"Cannot verify table existence for {table_name}: {e}")
     finally:
         cur.close()
         conn.close()

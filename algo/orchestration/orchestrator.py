@@ -1509,6 +1509,30 @@ class Orchestrator:
                 f"If loaders remain stale, Phase 1 will halt."
             )
 
+        # Wire up pipeline health monitoring (Session 286 fix)
+        # Computes row_count and age_days for ALL 94 tables in data_loader_status
+        logger.info("\n[PIPELINE MONITORING] Computing health for all 94 data tables...")
+        try:
+            from algo.monitoring import PipelineHealth
+            health_monitor = PipelineHealth()
+            pipeline_status = health_monitor.get_pipeline_status()
+            health_monitor.log_health_check(pipeline_status)
+            logger.info(
+                f"[PIPELINE MONITORING] Health check complete: {pipeline_status.healthy_count}/{pipeline_status.total_count} tables healthy"
+            )
+            if pipeline_status.critical_alerts:
+                logger.warning(f"[PIPELINE MONITORING] Critical alerts: {pipeline_status.critical_alerts}")
+        except RuntimeError as e:
+            logger.error(
+                f"[PIPELINE MONITORING] Failed to log pipeline health: {e}. "
+                f"Data quality visibility degraded - age_days may be NULL for some tables."
+            )
+        except Exception as e:
+            logger.error(
+                f"[PIPELINE MONITORING] Unexpected error during health check: {e}. "
+                f"Proceeding anyway - monitoring is non-blocking."
+            )
+
         return None
 
     def _wait_for_loaders_before_execution(self) -> None:
