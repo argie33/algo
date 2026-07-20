@@ -174,9 +174,18 @@ def compute_circuit_breaker_metrics(cur: Any, today: date | None = None) -> dict
 
 
 def _compute_drawdown(cur: Any) -> float:
+    """Cash-flow-adjusted drawdown (migration 1134): raw total_portfolio_value conflates
+    trading performance with external deposits/withdrawals (see algo_capital_flows and
+    algo/risk/circuit_breaker.py::_check_drawdown for the full incident). This value feeds
+    circuit_breaker_status, which the dashboard health panel reads directly - computing it
+    from raw total_portfolio_value here would show a false "triggered" drawdown on the
+    dashboard even after the actual trading circuit breaker (which already uses
+    adjusted_equity) correctly clears, exactly the halted-vs-completed inconsistency this
+    must not reintroduce.
+    """
     cur.execute("""
-        SELECT MAX(total_portfolio_value) AS peak,
-               (SELECT total_portfolio_value FROM algo_portfolio_snapshots
+        SELECT MAX(adjusted_equity) AS peak,
+               (SELECT adjusted_equity FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date DESC LIMIT 1) AS current
         FROM algo_portfolio_snapshots
     """)

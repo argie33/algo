@@ -415,7 +415,13 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
     try:
         perf = LivePerformance(config)
         perf_report = perf.generate_daily_report(run_date)
-        if perf_report and perf_report.get("status") == "ok":
+        # generate_daily_report() returns status "ok" (clean) or "warning" (report succeeded
+        # and was persisted, but live Sharpe fell below 70% of backtest - see
+        # performance.py::generate_daily_report). Both are a successful report generation;
+        # only "error" means generation actually failed. Treating "warning" as failure here
+        # previously logged "generation failed" for a report that succeeded and was already
+        # written to algo_performance_daily - a misleading status with no bearing on reality.
+        if perf_report and perf_report.get("status") in ("ok", "warning"):
             perf_status = "success"
             sharpe = perf_report.get("rolling_sharpe_252d")
             win_rate = perf_report.get("win_rate_50t")
@@ -427,6 +433,8 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
                 logger.warning(f"Performance metrics unavailable: {missing}. Portfolio history may be too short.")
                 perf_status = "warn"
                 perf_summary = f"incomplete: {', '.join(missing)}"
+            elif perf_report.get("status") == "warning":
+                perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy} - {perf_report.get('warning', 'see logs')}"
             else:
                 perf_summary = f"Sharpe {sharpe}, Win rate {win_rate}%, Expectancy {expectancy}"
         elif perf_report:
