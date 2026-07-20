@@ -1434,10 +1434,18 @@ class Orchestrator:
                 f"Orchestrator cannot execute trading logic on weekends/holidays. "
                 f"GOVERNANCE: Trading must occur during market hours only."
             )
-            report = self._final_report()
-            report["skipped"] = True
-            report["reason"] = f"non_trading_day: {self.run_date.strftime('%A')}"
-            return report
+            # CRITICAL FIX: Do NOT call _final_report() for preflight early returns
+            # _final_report() inserts to database, which we must NOT do for skipped runs
+            # Build response dict directly without phases or database insertion
+            return {
+                "run_id": self.run_id,
+                "run_date": self.run_date.isoformat(),
+                "phases": [],
+                "success": False,
+                "halted": False,
+                "skipped": True,
+                "reason": f"non_trading_day: {self.run_date.strftime('%A')}",
+            }
         logger.info(f"[OK] {self.run_date.strftime('%A')} is a trading day - proceeding with orchestration")
 
         logger.info("[CRITICAL] Running critical data checks...")

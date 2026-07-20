@@ -1084,6 +1084,13 @@ def main() -> int:
             final_status = "no_data"
             exit_code = 2
             logger.info("[LOADER] Technical data unavailable (market closed?). Exit code 2 (NO_DATA).")
+        elif result["rows_inserted"] == 0 and result["data_available"] and result["error"] is None:
+            # No new rows but data available (non-trading day, or already cached)
+            # This is normal and expected - market data isn't changing when market is closed
+            _update_tech_loader_status("COMPLETED", latest_date=result["latest_date"])
+            final_status = "completed"
+            exit_code = 0
+            logger.info("[LOADER] No new technical data to load (market closed or data already cached). Exit code 0.")
         else:
             _update_tech_loader_status("FAILED", result["error"])
             final_status = "failed"

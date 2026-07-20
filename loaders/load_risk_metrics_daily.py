@@ -68,13 +68,13 @@ class RiskMetricsLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT date, close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 252",
+                    "SELECT date, close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 253",
                     (symbol,),
                 )
                 rows = cur.fetchall()
 
                 if len(rows) < 252:
-                    raise RuntimeError(f"Insufficient price history: {len(rows)} days (need 252)")
+                    raise RuntimeError(f"Insufficient price history: {len(rows)} days (need 252 for 12m momentum)")
 
                 prices = {row[0]: safe_float(row[1], f"{symbol}.close[{row[0]}]", allow_none=False) for row in rows}
                 sorted_dates = sorted(prices.keys())
@@ -85,14 +85,10 @@ class RiskMetricsLoader(OptimalLoader):
                 today = sorted_dates[-1]
 
                 momentum: dict[str, float | None] = {}
-                unavailable_reasons: dict[str, str | None] = {}
                 for period_name, days_back in [("1m", 21), ("3m", 63), ("6m", 126), ("12m", 252)]:
                     target_idx = len(sorted_dates) - days_back - 1
                     if target_idx < 0:
                         momentum[f"momentum_{period_name}"] = None
-                        unavailable_reasons[f"momentum_{period_name}_unavailable_reason"] = (
-                            f"insufficient_history: {len(sorted_dates)} dates (need {days_back})"
-                        )
                         continue
 
                     price_old = prices[sorted_dates[target_idx]]
@@ -100,26 +96,19 @@ class RiskMetricsLoader(OptimalLoader):
 
                     if price_old is None or price_old == 0:
                         momentum[f"momentum_{period_name}"] = None
-                        unavailable_reasons[f"momentum_{period_name}_unavailable_reason"] = (
-                            "invalid_price: zero or None at lookback point"
-                        )
                         continue
 
                     ret_pct = ((price_new - price_old) / price_old) * 100
                     momentum[f"momentum_{period_name}"] = round(ret_pct, 4)
-                    unavailable_reasons[f"momentum_{period_name}_unavailable_reason"] = None
 
                 return {
                     "symbol": symbol,
                     "momentum_1m": momentum.get("momentum_1m"),
-                    "momentum_1m_unavailable_reason": unavailable_reasons.get("momentum_1m_unavailable_reason"),
                     "momentum_3m": momentum.get("momentum_3m"),
-                    "momentum_3m_unavailable_reason": unavailable_reasons.get("momentum_3m_unavailable_reason"),
                     "momentum_6m": momentum.get("momentum_6m"),
-                    "momentum_6m_unavailable_reason": unavailable_reasons.get("momentum_6m_unavailable_reason"),
                     "momentum_12m": momentum.get("momentum_12m"),
-                    "momentum_12m_unavailable_reason": unavailable_reasons.get("momentum_12m_unavailable_reason"),
                     "data_unavailable": False,
+                    "reason": None,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                 }
 
@@ -128,16 +117,11 @@ class RiskMetricsLoader(OptimalLoader):
             return {
                 "symbol": symbol,
                 "momentum_1m": None,
-                "momentum_1m_unavailable_reason": str(e)[:150],
                 "momentum_3m": None,
-                "momentum_3m_unavailable_reason": str(e)[:150],
                 "momentum_6m": None,
-                "momentum_6m_unavailable_reason": str(e)[:150],
                 "momentum_12m": None,
-                "momentum_12m_unavailable_reason": str(e)[:150],
                 "data_unavailable": True,
                 "reason": str(e)[:150],
-                "reason_type": "loader_failed",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
@@ -145,16 +129,11 @@ class RiskMetricsLoader(OptimalLoader):
             return {
                 "symbol": symbol,
                 "momentum_1m": None,
-                "momentum_1m_unavailable_reason": None,
                 "momentum_3m": None,
-                "momentum_3m_unavailable_reason": None,
                 "momentum_6m": None,
-                "momentum_6m_unavailable_reason": None,
                 "momentum_12m": None,
-                "momentum_12m_unavailable_reason": None,
                 "data_unavailable": True,
                 "reason": f"unexpected_error: {type(e).__name__}",
-                "reason_type": "loader_failed",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
 
