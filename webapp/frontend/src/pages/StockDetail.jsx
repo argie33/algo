@@ -156,7 +156,9 @@ function StockDetailContent() {
     () => api.get(`/api/scores/stockscores?symbol=${symbol}&limit=1`),
     { enabled: !!symbol }
   );
-  const scoreRow = !scoreError ? (scoreData?.items?.[0] || null) : null;
+  const scoreRow = !scoreError
+    ? (scoreData?.top?.[0] || scoreData?.items?.[0] || null)
+    : null;
 
   // Key metrics (sector/industry + market cap + ownership %)
   const {

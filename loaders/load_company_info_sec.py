@@ -133,6 +133,18 @@ class CompanyInfoSECLoader(SecLoaderBase):
                                         # Get most recent (most recent has latest end date)
                                         latest = sorted(pure_values, key=lambda x: x.get("end", ""), reverse=True)[0]
                                         shares_outstanding = latest.get("val")
+            except FileNotFoundError:
+                # 404 on companyfacts specifically (not submissions, which already
+                # succeeded above) - some entities have valid submissions but no XBRL
+                # companyfacts endpoint (e.g. recently registered, or filing types that
+                # don't produce XBRL). shares_outstanding is explicitly best-effort
+                # here; the entity_name/sic data already fetched is still real and
+                # usable, so leave shares_outstanding=None and proceed rather than
+                # discarding the whole symbol. Previously fell through to the
+                # catch-all "unexpected errors fail-fast" branch below and re-raised,
+                # turning an optional-field miss into a hard failure for every symbol
+                # with valid submissions but no companyfacts (was ~71/901 in one run).
+                logger.debug(f"[{symbol}] No companyfacts data (404) - shares_outstanding unavailable")
             except TimeoutError as e:
                 # Transient timeout - mark record unavailable with explicit reason
                 marker = handle_exception(symbol, e, "fetching company facts")

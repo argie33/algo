@@ -848,44 +848,32 @@ def _get_performance_analytics(cur: cursor) -> Any:
         avg_loss_r: Any = data.get("avg_loss_r")
         expectancy_val: Any = data.get("expectancy")
 
-        # FAIL-FAST: Any missing performance metric indicates data pipeline failure. No silent 0.0 fallback.
+        # FAIL-FAST only for metrics generate_daily_report guarantees are non-null whenever
+        # a row exists at all (it raises before insert if either is unavailable - see
+        # algo/reporting/performance.py). Everything else below is honestly nullable by
+        # documented design (sortino/calmar need enough snapshot history; avg_win_r/
+        # avg_loss_r/expectancy need both a winning AND a losing trade in the lookback
+        # window - an expected early-sample state, not a pipeline failure) and must be
+        # passed through as None rather than treated as missing data.
         missing_metrics = []
         if sharpe is None:
             missing_metrics.append("sharpe_ratio")
-        if sortino is None:
-            missing_metrics.append("sortino_ratio")
-        if calmar is None:
-            missing_metrics.append("calmar_ratio")
         if wr_pct is None:
             missing_metrics.append("win_rate_pct")
-        if max_dd is None:
-            missing_metrics.append("max_drawdown_pct")
-        # avg_win_r/avg_loss_r/expectancy are unconditionally float()'d below - must be
-        # validated here too, or a None slips through to an uncaught TypeError instead
-        # of this endpoint's normal 503 "incomplete" path (e.g. expectancy needs both a
-        # winning and losing trade in the lookback window; on a day with only one side,
-        # LivePerformance leaves it NULL rather than fabricate a value - see
-        # algo/reporting/performance.py generate_daily_report).
-        if avg_win_r is None:
-            missing_metrics.append("avg_win_r")
-        if avg_loss_r is None:
-            missing_metrics.append("avg_loss_r")
-        if expectancy_val is None:
-            missing_metrics.append("expectancy")
 
         if missing_metrics:
             logger.error(f"Performance metrics missing from database: {missing_metrics}")
             raise RuntimeError(f"Performance data incomplete: {', '.join(missing_metrics)} are missing")
 
-        response_dict_final: dict[str, float] = {
+        response_dict_final: dict[str, float | None] = {
             "rolling_sharpe_252d": float(sharpe),
-            "rolling_sortino_252d": float(sortino),
-            "calmar_ratio": float(calmar),
+            "rolling_sortino_252d": float(sortino) if sortino is not None else None,
+            "calmar_ratio": float(calmar) if calmar is not None else None,
             "win_rate_50t": float(wr_pct),
-            "avg_win_r_50t": float(avg_win_r),
-            "avg_loss_r_50t": float(avg_loss_r),
-            "expectancy": float(expectancy_val),
-            "max_drawdown_pct": float(max_dd),
+            "avg_win_r_50t": float(avg_win_r) if avg_win_r is not None else None,
+            "avg_loss_r_50t": float(avg_loss_r) if avg_loss_r is not None else None,
+            "expectancy": float(expectancy_val) if expectancy_val is not None else None,
+            "max_drawdown_pct": float(max_dd) if max_dd is not None else None,
         }
 
         # Validate perf_anl response matches contract schema

@@ -1071,7 +1071,7 @@ function TopCompanies({ industry }) {
 
   const data = error
     ? []
-    : (Array.isArray(rawData) ? rawData : rawData?.items) || [];
+    : (Array.isArray(rawData) ? rawData : rawData?.top || rawData?.items) || [];
 
   const filtered = useMemo(() => {
     if (!data || data.length === 0) return [];

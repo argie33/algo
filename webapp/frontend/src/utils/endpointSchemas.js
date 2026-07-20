@@ -108,7 +108,10 @@ export const ENDPOINT_SCHEMAS = {
   },
   "/api/algo/performance": {
     type: "object",
-    requiredFields: ["total_return_pct", "win_rate_pct"],
+    // total_return_pct/win_rate_pct are legitimately null when there's no closed-trade
+    // history yet to compute them from (honest fail-fast per GOVERNANCE.md, not a
+    // malformed response) - do not require them to be non-null.
+    requiredFields: [],
     requireNonEmpty: true,
     decimalFields: [
       "total_return_pct",

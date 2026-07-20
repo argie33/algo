@@ -77,7 +77,19 @@ def handle(
             else:
                 symbol_filter = symbol_list[0] if symbol_list else None
 
-            return _get_signals_stocks(cur, limit, timeframe, symbol_filter)
+            # Extract signal filter parameter (optional - omitted means "BUY and SELL")
+            signal_list = params.get("signal")
+            if signal_list is None:
+                signal_filter = None
+            elif not isinstance(signal_list, list):
+                return error_response(400, "bad_request", "signal parameter must be a list")
+            else:
+                raw_signal = signal_list[0] if signal_list else None
+                if raw_signal and raw_signal.upper() not in ("BUY", "SELL"):
+                    return error_response(400, "bad_request", f"Invalid signal value: {raw_signal}. Must be BUY or SELL.")
+                signal_filter = raw_signal.upper() if raw_signal else None
+
+            return _get_signals_stocks(cur, limit, timeframe, symbol_filter, signal_filter)
         elif path == "/api/signals/etf":
             # Extract and validate limit parameter (optional, default 500)
             # CRITICAL FIX: Don't mask missing parameters with empty list - explicit None check
@@ -109,13 +121,17 @@ def handle(
 
 @db_route_handler("fetch stock signals")  # type: ignore[untyped-decorator]
 def _get_signals_stocks(
-    cur: cursor, limit: int = 500, timeframe: str = "daily", symbol_filter: str | None = None
+    cur: cursor,
+    limit: int = 500,
+    timeframe: str = "daily",
+    symbol_filter: str | None = None,
+    signal_filter: str | None = None,
 ) -> Any:
-    """DEPRECATED: Get stock trading signals (legacy endpoint - not used by dashboard).
+    """Get stock trading signals from buy_sell_daily, backing the Trading Signals page.
 
-    NOTE: buy_sell_daily table is no longer populated by orchestrator.
-    Dashboard signals now from algo_signals (via /api/algo/dashboard-signals).
-    This endpoint maintained for backward compatibility with external systems.
+    NOTE: algo_signals (via /api/algo/dashboard-signals) is a separate, orchestrator-
+    curated feed used for entry execution; this endpoint serves the broader
+    buy_sell_daily universe the frontend's Trading Signals workbench browses/filters.
     Returns empty result when buy_sell_daily table is not populated.
     """
     try:
@@ -130,12 +146,17 @@ def _get_signals_stocks(
         cur.execute("SET LOCAL statement_timeout = '25000ms'")
         params: list[Any] = []
         symbol_clause = ""
+        signal_clause = ""
 
         if symbol_filter:
             if not re.match(r"^[A-Z0-9\-\^]{1,10}$", symbol_filter.upper()):
                 return error_response(400, "bad_request", "Invalid symbol format")
             symbol_clause = "AND b.symbol = %s"
             params.append(symbol_filter.upper())
+
+        if signal_filter:
+            signal_clause = "AND b.signal = %s"
+            params.append(signal_filter)
 
         params.append(limit)
 
@@ -203,7 +224,8 @@ def _get_signals_stocks(
             WHERE b.date >= CURRENT_DATE - {interval_90d}
             {buy_sell_filter}
             {symbol_clause}
-            ORDER BY b.date DESC, b.signal DESC, b.entry_quality_score DESC
+            {signal_clause}
+            ORDER BY b.date DESC, b.entry_quality_score DESC
             LIMIT %s
             """,
             tuple(params),

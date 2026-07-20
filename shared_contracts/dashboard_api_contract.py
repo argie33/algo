@@ -689,15 +689,15 @@ DASHBOARD_ENDPOINTS = {
             description="Advanced performance metrics (Sharpe, Sortino, Calmar, Win Rate, Avg Win R, Avg Loss R, Expectancy, Max Drawdown)",
         ),
         "freshness_max_age_seconds": 3600,
+        # Only these two are guaranteed non-null whenever a row exists at all - generate_daily_report
+        # (algo/reporting/performance.py) raises before insert if either is unavailable. The rest are
+        # honestly nullable by documented design: sortino/calmar need enough snapshot history to compute,
+        # and avg_win_r_50t/avg_loss_r_50t/expectancy need both a winning AND a losing trade in the
+        # lookback window - an expected early-sample state, not a pipeline failure. Do not add them back
+        # to strict_fields; required_fields + field_types (which already allow type(None)) is correct.
         "strict_fields": [
             "rolling_sharpe_252d",
-            "rolling_sortino_252d",
-            "calmar_ratio",
             "win_rate_50t",
-            "avg_win_r_50t",
-            "avg_loss_r_50t",
-            "expectancy",
-            "max_drawdown_pct",
         ],
         "critical": False,
     },

@@ -814,7 +814,7 @@ function PortfolioDashboardPage() {
                     marginTop: "var(--space-1)",
                   }}
                 >
-                  {perfError}
+                  {perfError?.message || String(perfError)}
                 </div>
               </div>
             </div>
@@ -1034,7 +1034,7 @@ function PortfolioDashboardPage() {
                     marginTop: "var(--space-1)",
                   }}
                 >
-                  {perfError}
+                  {perfError?.message || String(perfError)}
                 </div>
               </div>
             </div>
@@ -1487,7 +1487,7 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
                   marginTop: "var(--space-1)",
                 }}
               >
-                {error}
+                {error?.message || String(error)}
               </div>
             </div>
           </div>
