@@ -78,11 +78,20 @@ def _run_reconciliation_step(
             )
             raise ValueError(f"Reconciliation succeeded but missing critical data: {missing_keys}")
 
-        summary = (
-            f"Portfolio ${result['portfolio_value']:,.2f}, "
-            f"{result['positions']} positions, "
-            f"unrealized P&L ${result['unrealized_pnl']:+,.2f}"
-        )
+        # Defensive formatting for reconciliation summary - handle None values gracefully
+        try:
+            pf_val = result['portfolio_value']
+            pos_count = result['positions']
+            pnl = result['unrealized_pnl']
+
+            pf_str = f"{float(pf_val):,.2f}" if pf_val is not None else "N/A"
+            pos_str = f"{int(pos_count)}" if pos_count is not None else "N/A"
+            pnl_str = f"{float(pnl):+,.2f}" if pnl is not None else "N/A"
+
+            summary = f"Portfolio ${pf_str}, {pos_str} positions, unrealized P&L ${pnl_str}"
+        except (ValueError, TypeError) as fmt_err:
+            logger.error(f"[PHASE 9] Failed to format reconciliation summary: {fmt_err}")
+            summary = f"Portfolio: data formatting error"
     else:
         error_msg = result.get("error")
         if not error_msg:
