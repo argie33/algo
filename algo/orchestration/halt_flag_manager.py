@@ -397,9 +397,19 @@ class HaltFlagManager:
                 # Fall back to RDS
                 logger.debug(f"[HALT_FLAG] DynamoDB set attempt {attempt+1}/{max_retries} failed: {e}. Using RDS fallback.")
                 try:
-                    return self._set_halt_flag_rds(reason, now_utc, now_et)
+                    rds_result = self._set_halt_flag_rds(reason, now_utc, now_et)
+                    if not rds_result:
+                        last_error = "RDS returned False (write failed)"
+                        logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt+1})")
+                        if attempt < max_retries - 1:
+                            import time
+                            time.sleep(0.5)  # Brief backoff before retry
+                            continue
+                        else:
+                            break
+                    return rds_result  # Return True on success
                 except Exception as rds_err:
-                    logger.warning(f"[HALT_FLAG] RDS fallback also failed (attempt {attempt+1}): {rds_err}")
+                    logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt+1}): {rds_err}")
                     last_error = rds_err
                     if attempt < max_retries - 1:
                         import time
@@ -668,9 +678,19 @@ class HaltFlagManager:
 
                 # Try RDS fallback
                 try:
-                    return self._clear_halt_flag_rds(reason)
+                    rds_result = self._clear_halt_flag_rds(reason)
+                    if not rds_result:
+                        last_error = "RDS returned False (write failed)"
+                        logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt+1})")
+                        if attempt < max_retries - 1:
+                            import time
+                            time.sleep(0.5)  # Brief backoff before retry
+                            continue
+                        else:
+                            break
+                    return rds_result  # Return True on success
                 except Exception as rds_err:
-                    logger.warning(f"[HALT_FLAG] RDS fallback also failed (attempt {attempt+1}): {rds_err}")
+                    logger.warning(f"[HALT_FLAG] RDS fallback exception (attempt {attempt+1}): {rds_err}")
                     last_error = rds_err
                     if attempt < max_retries - 1:
                         import time
