@@ -34,7 +34,6 @@ from utils.validation import (
     APIResponseValidator,
     format_decimal_string,
     get_optional_field,
-    get_required_field,
 )
 
 logger = logging.getLogger(__name__)
@@ -138,11 +137,23 @@ def _get_algo_metrics(cur: cursor) -> Any:
 @db_route_handler("calculate performance")  # type: ignore[untyped-decorator]
 @validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
-    """Get comprehensive algo performance metrics from pre-computed daily snapshot.
+    """Get comprehensive algo performance metrics.
 
-    Queries latest row from algo_performance_metrics table (computed daily by
-    compute_performance_metrics.py at 4:45 PM ET). Returns in ~20ms instead
-    of 8+ seconds of on-the-fly calculation.
+    Risk ratios (Sharpe/Sortino/Calmar/max drawdown) come from algo_performance_daily,
+    written every orchestrator run by Phase 9 (algo.reporting.LivePerformance -
+    see algo/orchestrator/phase9_reconciliation.py::_compute_performance_metrics).
+    Trade counts and win rate are computed live from algo_trades.
+
+    NOTE: algo_performance_metrics (the table this endpoint used to read) has had no
+    writer since 2026-06-30 - the compute_performance_metrics.py loader referenced in
+    older comments/migrations no longer exists in this repo. Reading it served
+    increasingly stale Sharpe/Sortino/Calmar/max-drawdown numbers (e.g. a 2.9% max
+    drawdown next to a real, circuit-breaker-confirmed 28.75% drawdown) without any
+    explicit staleness flag - a silent-fallback violation of this project's own
+    data-integrity rule. algo_performance_daily is the table actually kept current;
+    it lacks some columns (total_pnl_dollars, avg_holding_days, cagr_pct, streaks)
+    that algo_performance_metrics used to carry, so those are returned as None
+    (all optional per the "perf" response contract) rather than served stale.
 
     FAIL-FAST: Raises error if metrics unavailable. No silent defaults or graceful degradation.
     Dashboard must handle 503 explicitly.
@@ -150,12 +161,10 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
     try:
         cur.execute("""
                 SELECT
-                    metric_date, total_trades, winning_trades, losing_trades, breakeven_trades,
-                    win_rate_pct, profit_factor, total_pnl_dollars, total_pnl_pct, avg_trade_pct,
-                    best_trade_pct, worst_trade_pct, avg_holding_days, sharpe_ratio, sortino_ratio,
-                    max_drawdown_pct, calmar_ratio, cagr_pct, best_win_streak, worst_loss_streak
-                FROM algo_performance_metrics
-                ORDER BY metric_date DESC
+                    report_date AS metric_date, rolling_sharpe_252d AS sharpe_ratio,
+                    rolling_sortino_252d AS sortino_ratio, max_drawdown_pct, calmar_ratio
+                FROM algo_performance_daily
+                ORDER BY report_date DESC
                 LIMIT 1
             """)
         row = cur.fetchone()
@@ -165,40 +174,46 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
 
     if not row:
         logger.error(
-            "Performance metrics unavailable: algo_performance_metrics table empty. "
-            "Pre-computed metrics should be generated daily at 4:45 PM ET by compute_performance_metrics.py."
+            "Performance metrics unavailable: algo_performance_daily table empty. "
+            "Phase 9 (LivePerformance.generate_daily_report) should populate it every orchestrator run."
         )
         raise RuntimeError("Performance metrics data unavailable - table is empty")
 
     try:
         metrics = safe_dict_convert(row)
 
-        # Extract and validate critical trade count fields (required, must be non-None)
+        # Trade counts computed live from algo_trades - algo_performance_daily does not
+        # populate its own total_trades/num_wins/num_losses columns (always NULL as of
+        # this writing; nothing in the current pipeline writes them), and the old
+        # algo_performance_metrics source for these counts is a dead table (see above).
         try:
-            total_trades_raw = get_required_field(metrics, "total_trades")
-            winning_raw = get_required_field(metrics, "winning_trades")
-            losing_raw = get_required_field(metrics, "losing_trades")
-            breakeven_raw = get_optional_field(metrics, "breakeven_trades", default=0)
-        except RuntimeError as e:
-            logger.error(f"Performance metrics validation failed: {e}")
-            return error_response(503, "incomplete_data", str(e))
+            cur.execute("""
+                    SELECT
+                        COUNT(*) FILTER (WHERE profit_loss_pct > 0) AS winning_trades,
+                        COUNT(*) FILTER (WHERE profit_loss_pct < 0) AS losing_trades,
+                        COUNT(*) FILTER (WHERE profit_loss_pct = 0) AS breakeven_trades,
+                        COUNT(*) AS total_trades
+                    FROM algo_trades
+                    WHERE status = 'closed' AND exit_date IS NOT NULL
+                """)
+            count_row = cur.fetchone()
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as ce:
+            logger.error(f"CRITICAL: Could not compute live trade counts: {ce}")
+            return error_response(503, "data_unavailable", f"Trade count computation failed: {type(ce).__name__}")
 
-        total_trades = int(total_trades_raw)
-        winning = int(winning_raw)
-        losing = int(losing_raw)
-        if breakeven_raw is None:
-            logger.error("Performance metrics incomplete: breakeven_trades count missing")
-            return error_response(
-                503,
-                "incomplete_data",
-                "Performance metrics missing breakeven_trades count. "
-                "Cannot compute accurate win rate without complete trade classification. "
-                "Check algo_performance_metrics table.",
-            )
-        breakeven = int(breakeven_raw)
+        if not count_row:
+            logger.error("Trade count query returned no row (COUNT(*) should always return one row)")
+            return error_response(503, "incomplete_data", "Trade count computation returned no data.")
+
+        count_row = safe_dict_convert(count_row)
+        total_trades = int(count_row["total_trades"])
+        winning = int(count_row["winning_trades"])
+        losing = int(count_row["losing_trades"])
+        breakeven = int(count_row["breakeven_trades"])
         win_loss_total = winning + losing
+        win_rate_pct_live = round(winning / win_loss_total * 100, 2) if win_loss_total > 0 else None
 
-        # Compute trade-level metrics missing from algo_performance_metrics (CRITICAL for performance panel)
+        # Compute trade-level metrics missing from algo_performance_daily (CRITICAL for performance panel)
         try:
             # Use centralized data query (single source of truth)
             trade_stats = get_trade_performance_stats(cur)
@@ -292,8 +307,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                         total_open_losses_dollars = 0.0
                 else:
                     total_open_losses_dollars = float(total_losses_raw)
-                win_rate_val = metrics.get("win_rate_pct")
-                wr = float(win_rate_val) if win_rate_val is not None else None
+                wr = win_rate_pct_live
                 if open_losses_count > 0 and wr is not None:
                     win_count = winning if winning is not None else 0
                     lose_count = losing if losing is not None else 0
@@ -308,8 +322,7 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         # Compute expectancy_r from win_rate and average R multiples
         expectancy_r = None
         try:
-            win_rate_val = metrics.get("win_rate_pct")
-            wr = float(win_rate_val) if win_rate_val is not None else None
+            wr = win_rate_pct_live
             avg_wr_val = trade_stats.get("avg_win_r")
             avg_wr = float(avg_wr_val) if avg_wr_val is not None else None
             avg_lr_val = trade_stats.get("avg_loss_r")
@@ -425,23 +438,25 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
 
         fds = format_decimal_string  # Shorthand for readability
 
-        # Extract all optional enrichment fields upfront with explicit validation
-        # Required fields validated above; these are optional performance enhancements
-        win_rate_pct = get_optional_field(metrics, "win_rate_pct")
-        profit_factor = get_optional_field(metrics, "profit_factor")
-        total_pnl_dollars = get_optional_field(metrics, "total_pnl_dollars")
-        total_pnl_pct = get_optional_field(metrics, "total_pnl_pct")
-        cagr_pct = get_optional_field(metrics, "cagr_pct")
-        avg_trade_pct = get_optional_field(metrics, "avg_trade_pct")
-        best_trade_pct = get_optional_field(metrics, "best_trade_pct")
-        worst_trade_pct = get_optional_field(metrics, "worst_trade_pct")
+        # Risk ratios come from algo_performance_daily (live, see query above).
+        win_rate_pct = win_rate_pct_live
         sharpe_ratio = get_optional_field(metrics, "sharpe_ratio")
         sortino_ratio = get_optional_field(metrics, "sortino_ratio")
         max_drawdown_pct = get_optional_field(metrics, "max_drawdown_pct")
         calmar_ratio = get_optional_field(metrics, "calmar_ratio")
-        avg_holding_days = get_optional_field(metrics, "avg_holding_days")
-        best_win_streak = get_optional_field(metrics, "best_win_streak")
-        worst_loss_streak = get_optional_field(metrics, "worst_loss_streak")
+
+        # No live source for these (algo_performance_metrics, which used to carry them,
+        # has had no writer since 2026-06-30 - see docstring above). All optional per
+        # the "perf" response contract; None is honest, a 3-week-stale number is not.
+        total_pnl_dollars = None
+        total_pnl_pct = None
+        cagr_pct = None
+        avg_trade_pct = None
+        best_trade_pct = None
+        worst_trade_pct = None
+        avg_holding_days = None
+        best_win_streak = None
+        worst_loss_streak = None
 
         # Extract optional trade stats fields
         avg_win_pct = get_optional_field(trade_stats, "avg_win_pct") if isinstance(trade_stats, dict) else None
@@ -453,6 +468,14 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
         )
         gross_loss_dollars = (
             get_optional_field(trade_stats, "gross_loss_dollars") if isinstance(trade_stats, dict) else None
+        )
+        # Profit factor = gross wins / gross losses, computed live from the same
+        # closed-trade dollar sums (gross_loss_dollars is already NULLIF(...,0)-guarded
+        # by get_trade_performance_stats, so it's None rather than 0 when there are no losses).
+        profit_factor = (
+            round(float(gross_win_dollars) / float(gross_loss_dollars), 2)
+            if gross_win_dollars is not None and gross_loss_dollars is not None
+            else None
         )
 
         response_data = {
@@ -790,22 +813,29 @@ def _get_holding_period_distribution(cur: cursor) -> Any:
 @db_route_handler("get performance analytics")  # type: ignore[untyped-decorator]
 @validate_api_response("perf_anl")  # type: ignore[untyped-decorator]
 def _get_performance_analytics(cur: cursor) -> Any:
+    """Rolling performance analytics (Sharpe/Sortino/Calmar/expectancy).
+
+    Reads algo_performance_daily, not algo_performance_metrics - the latter has had no
+    writer since 2026-06-30 (see _get_algo_performance's docstring above for the full
+    story) and was silently serving 3-week-stale numbers here too.
+    """
     try:
         cur.execute("SAVEPOINT perf_analytics")
         cur.execute("""
-            SELECT metric_date, sharpe_ratio, sortino_ratio, calmar_ratio,
-                   win_rate_pct, max_drawdown_pct,
-                   avg_win_r, avg_loss_r, expectancy
-            FROM algo_performance_metrics
-            ORDER BY metric_date DESC
+            SELECT report_date AS metric_date, rolling_sharpe_252d AS sharpe_ratio,
+                   rolling_sortino_252d AS sortino_ratio, calmar_ratio,
+                   win_rate_50t AS win_rate_pct, max_drawdown_pct,
+                   avg_win_r_50t AS avg_win_r, avg_loss_r_50t AS avg_loss_r, expectancy
+            FROM algo_performance_daily
+            ORDER BY report_date DESC
             LIMIT 1
         """)
         row = cur.fetchone()
         cur.execute("RELEASE SAVEPOINT perf_analytics")
         if row is None:
             logger.error(
-                "Performance analytics unavailable: algo_performance_metrics table empty. "
-                "Data is missing - check data loader health."
+                "Performance analytics unavailable: algo_performance_daily table empty. "
+                "Phase 9 (LivePerformance.generate_daily_report) should populate it every orchestrator run."
             )
             raise RuntimeError("Performance metrics data unavailable - table is empty")
         data = safe_dict_convert(row)
@@ -830,6 +860,18 @@ def _get_performance_analytics(cur: cursor) -> Any:
             missing_metrics.append("win_rate_pct")
         if max_dd is None:
             missing_metrics.append("max_drawdown_pct")
+        # avg_win_r/avg_loss_r/expectancy are unconditionally float()'d below - must be
+        # validated here too, or a None slips through to an uncaught TypeError instead
+        # of this endpoint's normal 503 "incomplete" path (e.g. expectancy needs both a
+        # winning and losing trade in the lookback window; on a day with only one side,
+        # LivePerformance leaves it NULL rather than fabricate a value - see
+        # algo/reporting/performance.py generate_daily_report).
+        if avg_win_r is None:
+            missing_metrics.append("avg_win_r")
+        if avg_loss_r is None:
+            missing_metrics.append("avg_loss_r")
+        if expectancy_val is None:
+            missing_metrics.append("expectancy")
 
         if missing_metrics:
             logger.error(f"Performance metrics missing from database: {missing_metrics}")
@@ -884,17 +926,23 @@ def _get_performance_analytics(cur: cursor) -> Any:
 @db_route_handler("get performance metrics endpoint")  # type: ignore[untyped-decorator]
 @validate_api_response("perf")  # type: ignore[untyped-decorator]
 def _get_performance_metrics_endpoint(cur: cursor) -> Any:
+    """Reads algo_performance_daily - see _get_algo_performance's docstring above:
+    algo_performance_metrics (the previous source) has had no writer since 2026-06-30.
+    profit_factor isn't populated in algo_performance_daily either (nothing in the
+    current pipeline writes it there); returned as None rather than a stale number.
+    """
     try:
         cur.execute("""
-            SELECT win_rate_pct, profit_factor, avg_trade_pct, sharpe_ratio, max_drawdown_pct
-            FROM algo_performance_metrics
-            ORDER BY metric_date DESC
+            SELECT win_rate_50t AS win_rate_pct, profit_factor, expectancy,
+                   rolling_sharpe_252d AS sharpe_ratio, max_drawdown_pct
+            FROM algo_performance_daily
+            ORDER BY report_date DESC
             LIMIT 1
         """)
         row = cur.fetchone()
 
         if not row:
-            logger.error("Performance metrics unavailable: algo_performance_metrics table empty.")
+            logger.error("Performance metrics unavailable: algo_performance_daily table empty.")
             raise RuntimeError("Performance metrics not yet available - table is empty")
 
         row = safe_dict_convert(row)
@@ -904,7 +952,7 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
             {
                 "win_rate": (float(row["win_rate_pct"]) / 100 if row["win_rate_pct"] else None),
                 "profit_factor": float(row["profit_factor"]) if row["profit_factor"] is not None else None,
-                "expectancy": float(row["avg_trade_pct"]) if row["avg_trade_pct"] is not None else None,
+                "expectancy": float(row["expectancy"]) if row["expectancy"] is not None else None,
                 "sharpe_ratio": float(row["sharpe_ratio"]) if row["sharpe_ratio"] is not None else None,
                 "max_drawdown": (float(row["max_drawdown_pct"]) / 100 if row["max_drawdown_pct"] else None),
             },

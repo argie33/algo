@@ -106,13 +106,23 @@ class DailyFinanceReport:
             raise RuntimeError(f"Portfolio data conversion failed for {report_date}: {e}") from e
 
     def _fetch_risk(self, cur: Any, report_date: _date) -> dict[str, Any]:
-        """Risk metrics: Sharpe, Sortino, max drawdown, Calmar ratio from pre-computed metrics."""
+        """Risk metrics: Sharpe, Sortino, max drawdown, Calmar ratio from pre-computed metrics.
+
+        Reads algo_performance_daily (written every orchestrator run by Phase 9's
+        LivePerformance.generate_daily_report), not algo_performance_metrics - the
+        latter has had no writer since 2026-06-30 and was silently serving weeks-stale
+        numbers here (e.g. a 2.9% max drawdown next to a real, circuit-breaker-confirmed
+        28.75% drawdown - see algo/reporting/performance.py LivePerformance for the
+        live computation and lambda/api/routes/algo_handlers/metrics.py for the same
+        fix applied to the dashboard API).
+        """
         try:
             cur.execute(
-                """SELECT sharpe_ratio, sortino_ratio, max_drawdown_pct, calmar_ratio
-                   FROM algo_performance_metrics
-                   WHERE metric_date <= %s
-                   ORDER BY metric_date DESC LIMIT 1""",
+                """SELECT rolling_sharpe_252d AS sharpe_ratio, rolling_sortino_252d AS sortino_ratio,
+                          max_drawdown_pct, calmar_ratio
+                   FROM algo_performance_daily
+                   WHERE report_date <= %s
+                   ORDER BY report_date DESC LIMIT 1""",
                 (report_date,),
             )
             row = cur.fetchone()
@@ -130,13 +140,18 @@ class DailyFinanceReport:
             raise RuntimeError(f"Database error fetching risk metrics for {report_date}: {e}") from e
 
     def _fetch_strategy(self, cur: Any, report_date: _date) -> dict[str, Any]:
-        """Win rate, profit factor, performance metrics from pre-computed daily metrics."""
+        """Win rate, profit factor, performance metrics from pre-computed daily metrics.
+
+        Reads algo_performance_daily (see _fetch_risk above for why). profit_factor,
+        avg_trade_pct and best_trade_pct aren't populated there (nothing in the current
+        pipeline writes them) - reported as None rather than a weeks-stale number.
+        """
         try:
             cur.execute(
-                """SELECT win_rate_pct, profit_factor, avg_trade_pct, best_trade_pct
-                   FROM algo_performance_metrics
-                   WHERE metric_date <= %s
-                   ORDER BY metric_date DESC LIMIT 1""",
+                """SELECT win_rate_50t, profit_factor
+                   FROM algo_performance_daily
+                   WHERE report_date <= %s
+                   ORDER BY report_date DESC LIMIT 1""",
                 (report_date,),
             )
             row = cur.fetchone()
@@ -147,8 +162,8 @@ class DailyFinanceReport:
             return {
                 "win_rate_pct": round(float(row[0]), 2) if row[0] is not None else None,
                 "profit_factor": round(float(row[1]), 2) if row[1] is not None else None,
-                "avg_trade_pct": round(float(row[2]), 2) if row[2] is not None else None,
-                "best_trade_pct": round(float(row[3]), 2) if row[3] is not None else None,
+                "avg_trade_pct": None,
+                "best_trade_pct": None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Database error fetching strategy metrics for {report_date}: {e}") from e
