@@ -33,6 +33,17 @@ def run(
         PhaseResult with status 'ok', data containing exposure constraints and actions
     """
     try:
+        # CRITICAL FIX: Re-validate halt flag before proceeding
+        # Phase 1 may have detected stale data and set halt flag
+        # But if Phase 5 runs before halt flag is checked, we generate signals with stale data
+        from algo.orchestration.halt_flag_manager import HaltFlagManager
+        halt_mgr = HaltFlagManager(alerts, log_phase_result_fn)
+        if halt_mgr.check_halt_flag():
+            error_msg = "[PHASE 5] Halt flag detected at phase start - aborting signal generation"
+            logger.critical(error_msg)
+            log_phase_result_fn(5, "exposure_policy", "halt", error_msg)
+            return PhaseResult(5, "exposure_policy", "halted", {}, True, error_msg)
+
         # Read market exposure from market_exposure_daily (4:05 PM EOD pipeline is sole source of truth)
         # Uses shared read_market_regime() to ensure Phase 3b and Phase 5 read same snapshot
         # with consistent JSON deserialization error handling.

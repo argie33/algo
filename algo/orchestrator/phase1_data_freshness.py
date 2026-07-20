@@ -279,6 +279,28 @@ def run(  # noqa: C901
     if failsafe_halt:
         return failsafe_halt
 
+    # CRITICAL FIX: Pre-validate stock_symbols table is populated
+    # If symbols loader failed, all downstream phases will fail
+    # Better to catch this early with clear error message
+    try:
+        with DatabaseContext("read") as pre_check_cur:
+            pre_check_cur.execute("SELECT COUNT(*) FROM market_symbols")
+            symbol_count = pre_check_cur.fetchone()[0]
+            if not symbol_count or symbol_count == 0:
+                error_msg = (
+                    "[PHASE 1 CRITICAL] market_symbols table is empty. "
+                    "The symbol loader failed or never ran. "
+                    "Without trading symbols, all downstream phases will fail. "
+                    "Check: (1) symbol loader status in data_loader_status, "
+                    "(2) Lambda logs for loader errors, (3) Re-run: python3 scripts/run_local_orchestrator.py --morning"
+                )
+                logger.critical(error_msg)
+                log_phase_result_fn(1, "data_freshness", "halt", error_msg)
+                return PhaseResult(1, "data_freshness", "halted", {}, True, error_msg)
+            logger.info(f"[PHASE 1] Pre-flight: market_symbols table OK ({symbol_count:,} symbols)")
+    except Exception as pre_check_err:
+        logger.warning(f"[PHASE 1] Could not pre-validate market_symbols table: {pre_check_err}. Proceeding anyway.")
+
     try:
         with DatabaseContext("read") as cur:
             cur.execute("SET statement_timeout = 15000")  # 15s timeout for multi-table checks

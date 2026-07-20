@@ -725,16 +725,41 @@ def run(
         from config.credential_manager import get_credential_manager
 
         creds = get_credential_manager().get_alpaca_credentials()
-        if creds and creds.get("key") and creds.get("secret"):
-            alpaca_key = creds["key"]
-            alpaca_secret = creds["secret"]
-            logger.info("[PHASE 8] Alpaca credentials loaded successfully")
-        else:
-            # Credentials returned but missing key/secret fields
+
+        # CRITICAL FIX: Explicit field-by-field validation with clear error messages
+        # Previously: generic "credentials not available" message didn't say which field failed
+        # Now: explicit validation shows operator exactly which field is missing
+        if not creds:
             raise ValueError(
-                "[PHASE 8 CRITICAL] Alpaca credentials object is missing key/secret fields. "
-                "Credential manager returned invalid data."
+                "[PHASE 8 CRITICAL] Credential manager returned None. "
+                "Alpaca credentials not available in Secrets Manager or environment."
             )
+
+        if not isinstance(creds, dict):
+            raise ValueError(
+                f"[PHASE 8 CRITICAL] Credential manager returned invalid type {type(creds).__name__}. "
+                f"Expected dict with 'key' and 'secret' fields."
+            )
+
+        # Validate each field explicitly
+        alpaca_key = creds.get("key")
+        alpaca_secret = creds.get("secret")
+
+        if not alpaca_key or not isinstance(alpaca_key, str):
+            raise ValueError(
+                f"[PHASE 8 CRITICAL] Missing or invalid 'key' field in Alpaca credentials. "
+                f"Got: {type(alpaca_key).__name__}. Expected: string. "
+                f"Check ALPACA_API_KEY_ID in Secrets Manager or environment variable."
+            )
+
+        if not alpaca_secret or not isinstance(alpaca_secret, str):
+            raise ValueError(
+                f"[PHASE 8 CRITICAL] Missing or invalid 'secret' field in Alpaca credentials. "
+                f"Got: {type(alpaca_secret).__name__}. Expected: string. "
+                f"Check ALPACA_API_SECRET_KEY in Secrets Manager or environment variable."
+            )
+
+        logger.info("[PHASE 8] Alpaca credentials loaded successfully")
     except (RuntimeError, ValueError, KeyError, ImportError) as e:
         # FAIL-FAST: Credentials are required for trade execution
         # No graceful degradation for local/paper mode - if we have trades to execute,
