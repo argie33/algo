@@ -1550,9 +1550,14 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
 def _get_dashboard_signals(cur: cursor) -> Any:
     """Get dashboard-specific signal data from algo_signals table.
 
-    Queries algo_signals (populated by orchestrator Phase 8) instead of
-    buy_sell_daily (legacy table that's no longer populated). Returns active signals
-    ranked by signal_quality_score, grade distribution, near-miss signals, and 7-day trend.
+    Queries algo_signals (the orchestrator Phase 8 qualified/active signal list - source of
+    truth for which signals are "active") for the active-signal roster, grade distribution,
+    near-miss signals, and 7-day trend, then enriches each buy_sig with entry/target/exit and
+    technical fields from buy_sell_daily (populated daily by Phase 7 / algo/signals/
+    buy_signal_generator.py - this is NOT legacy, Phase 7 halts if it's empty or stale) and
+    market stage from trend_template_data. This mirrors what lambda/api/routes/signals.py
+    (`/api/signals/stocks`, used by the web Trading Signals page) already returns, so the CLI
+    dashboard's signals panel can show the same entry-zone/targets/technicals data.
     """
     try:
         cur.execute("SET LOCAL statement_timeout = '20000ms'")
@@ -1585,13 +1590,41 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         else:
             total_n = int(sig["n"])
 
-            # Top active signals with quality scores - cast date to text at source
+            # Top active signals with quality scores - cast date to text at source.
+            # LATERAL-join the latest buy_sell_daily row per symbol for entry/target/exit and
+            # technical fields (algo_signals itself only tracks symbol/price/quality-score).
             cur.execute("""
                 SELECT s.symbol, s.signal_quality_score,
-                       cp.sector, s.entry_price,
-                       s.signal_date::text as signal_date
+                       cp.sector, cp.industry, s.entry_price,
+                       s.signal_date::text as signal_date,
+                       b.close, b.buylevel, b.stoplevel,
+                       b.buy_zone_start, b.buy_zone_end, b.pivot_price,
+                       b.initial_stop, b.trailing_stop,
+                       b.profit_target_8pct, b.profit_target_20pct, b.profit_target_25pct,
+                       b.exit_trigger_1_price, b.exit_trigger_2_price,
+                       b.rsi, b.adx, b.atr, b.volume_surge_pct, b.risk_reward_ratio,
+                       b.base_type, b.base_length_days,
+                       CASE t.weinstein_stage
+                           WHEN 1 THEN 'Stage 1'
+                           WHEN 2 THEN 'Stage 2 - Markup'
+                           WHEN 3 THEN 'Stage 3 - Topping'
+                           WHEN 4 THEN 'Stage 4'
+                       END AS market_stage,
+                       t.weinstein_stage AS stage_number
                 FROM algo_signals s
                 LEFT JOIN company_profile cp ON cp.ticker = s.symbol
+                LEFT JOIN LATERAL (
+                    SELECT close, buylevel, stoplevel, buy_zone_start, buy_zone_end, pivot_price,
+                           initial_stop, trailing_stop, profit_target_8pct, profit_target_20pct,
+                           profit_target_25pct, exit_trigger_1_price, exit_trigger_2_price,
+                           rsi, adx, atr, volume_surge_pct, risk_reward_ratio,
+                           base_type, base_length_days, date
+                    FROM buy_sell_daily
+                    WHERE symbol = s.symbol
+                    ORDER BY date DESC
+                    LIMIT 1
+                ) b ON TRUE
+                LEFT JOIN trend_template_data t ON t.symbol = s.symbol AND t.date = b.date
                 WHERE s.signal_active = true AND s.signal_date >= CURRENT_DATE - 7
                 ORDER BY s.signal_quality_score DESC NULLS LAST
                 LIMIT 30
