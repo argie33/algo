@@ -449,46 +449,12 @@ class StockScoresLoader(OptimalLoader):
                     f"Failing fast to prevent single-metric-biased trading positions."
                 )
 
-            # Session 290 FIX: Enforce consistent minimum completeness (4/6 metrics)
-            # Previous: Allowed weight redistribution for missing positioning (bypassed minimum threshold)
-            # Now: Strictly enforce 4/6 minimum at per-symbol level, matching pre-flight validation
-            # This prevents partial-data scores that don't meet GOVERNANCE entry gates anyway
-            # (70% completeness minimum for trading per GOVERNANCE.md)
-            if not is_real_score(positioning_score):
-                # Check if we can still meet minimum 4/6 threshold without positioning
-                available_without_positioning = sum(1 for s in [quality_score, growth_score, value_score, stability_score, momentum_score] if is_real_score(s))
-                if available_without_positioning < 4:
-                    # Can't meet minimum threshold even without positioning - mark unavailable
-                    logger.warning(
-                        f"[STOCK_SCORES] {symbol}: positioning unavailable + only {available_without_positioning} other metrics. "
-                        f"Falls below minimum 4/6 threshold even with redistribution. Marking data unavailable."
-                    )
-                    raise ValueError(
-                        f"{symbol}: insufficient metrics for scoring (can only compute {available_without_positioning + 1}/6). "
-                        f"Minimum 4 metrics required per GOVERNANCE."
-                    )
-
-            # Compute weighted composite score with NORMALIZED weights
-            # When metrics are missing, redistribute their weight to available metrics
-            # instead of filling with mean (which would double-count missing factors)
-            base_weights = {
-                "quality": 0.25,
-                "growth": 0.20,
-                "value": 0.20,
-                "positioning": 0.15,
-                "stability": 0.12,
-                "momentum": 0.08,
-            }
-
-            if not real_scores:
-                logger.error(
-                    f"[STOCK_SCORES] {symbol}: no real score data available. "
-                    f"All metric calculations failed or returned None."
-                )
-                raise ValueError(
-                    f"{symbol}: no real score data available. Cannot compute composite score without any real metrics. "
-                    f"Upstream metrics (quality, growth, value, positioning, stability, momentum) not computed."
-                )
+            # GOVERNANCE COMPLIANCE: Require ALL 6 metrics. No weight redistribution fallbacks.
+            # Previous behavior (Session 290+): Allowed weight redistribution for missing metrics
+            # This was a silent fallback pattern that violated GOVERNANCE fail-fast principle.
+            # Fixed (Session 294+): Strictly require all 6 metrics or mark data_unavailable.
+            # Reason: Upweighting available metrics when others missing creates single-metric bias
+            # Example: If quality/growth missing, value becomes 50%+ of score (vs intended 20%)
 
             score_availability = {
                 "quality": is_real_score(quality_score),
@@ -499,28 +465,31 @@ class StockScoresLoader(OptimalLoader):
                 "momentum": is_real_score(momentum_score),
             }
 
-            # STRICT: Minimum 3 metrics required for composite scoring (GOVERNANCE.md)
-            # Prevents single-metric bias (100% weight on one factor)
-            # Allows degradation but NOT to dangerous low-completeness levels
             real_metric_count = sum(1 for v in score_availability.values() if v)
-            if real_metric_count < 3:
+
+            # CRITICAL: Enforce minimum 6/6 metrics (all required, no exceptions)
+            if real_metric_count < 6:
                 missing_metrics = [k for k, v in score_availability.items() if not v]
+                logger.warning(
+                    f"[STOCK_SCORES] {symbol}: Incomplete metrics - marking unavailable. "
+                    f"Available {real_metric_count}/6 (missing: {', '.join(missing_metrics)}). "
+                    f"Per GOVERNANCE: No weight redistribution fallbacks. Requires all 6 metrics."
+                )
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: Insufficient metrics for composite score. "
-                    f"Available {real_metric_count}/6 metrics (missing: {', '.join(missing_metrics)}). "
-                    f"Minimum 3 metrics required to prevent single-factor bias. "
-                    f"Check upstream loaders (quality, growth, value, positioning, stability, momentum)."
+                    f"{symbol}: insufficient metrics ({real_metric_count}/6). "
+                    f"All 6 metrics required: quality, growth, value, positioning, stability, momentum. "
+                    f"Missing: {', '.join(missing_metrics)}. No weight redistribution allowed per GOVERNANCE."
                 )
 
-            # Normalize weights: keep weights of available metrics, redistribute missing weights
-            available_weight_sum = sum(w for k, w in base_weights.items() if score_availability[k])
-            normalized_weights = {}
-            for key, weight in base_weights.items():
-                if score_availability[key]:
-                    # Scale up available weights to sum to 1.0
-                    normalized_weights[key] = weight / available_weight_sum
-                else:
-                    normalized_weights[key] = 0
+            # Use original fixed weights (all 6 metrics guaranteed available)
+            normalized_weights = {
+                "quality": 0.25,
+                "growth": 0.20,
+                "value": 0.20,
+                "positioning": 0.15,
+                "stability": 0.12,
+                "momentum": 0.08,
+            }
 
             # Clamp scores to 0-100, keep markers for missing data
             def clamp_score(score: float | dict[str, Any] | None) -> float | dict[str, Any] | None:
