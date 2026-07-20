@@ -315,6 +315,7 @@ class DailyFinanceReport:
         win_rate = strategy["win_rate_pct"]
         profit_factor = strategy["profit_factor"]
 
+        pv_str = f"${pv:,.0f}" if pv is not None else "N/A"
         dpnl_str = f"{dpnl:+.2f}%" if dpnl is not None else "N/A"
         ytd_str = f"{ytd:+.2f}%" if ytd is not None else "N/A"
         var95_str = f"{var95:.1f}%" if var95 is not None else "N/A"
@@ -332,7 +333,7 @@ class DailyFinanceReport:
             f"{'=' * 70}",
             f"DAILY FINANCE REPORT - {report['date']} | Regime: {regime['current']}",
             f"{'=' * 70}",
-            f"Portfolio: ${pv:,.0f} | Daily P&L: {dpnl_str} | YTD: {ytd_str}",
+            f"Portfolio: {pv_str} | Daily P&L: {dpnl_str} | YTD: {ytd_str}",
             f"Risk: VaR {var95_str} | Beta {beta_str} | Sharpe {sharpe_str}",
             "",
             "Strategy (last 50 trades):",
