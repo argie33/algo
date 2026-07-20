@@ -354,11 +354,11 @@ class ValueAtRisk:
                 snapshot_date = portfolio_row[1] if len(portfolio_row) > 1 else None
 
                 # CRITICAL: Sanity check on portfolio value - suspiciously small values indicate data issues
-                _MIN_PORTFOLIO_VALUE = Decimal("1000")
-                if portfolio_value < _MIN_PORTFOLIO_VALUE:
+                min_portfolio_value = Decimal("1000")
+                if portfolio_value < min_portfolio_value:
                     raise RuntimeError(
                         f"[VAR CALCULATION CRITICAL] Portfolio value ${portfolio_value} is suspiciously small "
-                        f"(below ${_MIN_PORTFOLIO_VALUE} threshold). "
+                        f"(below ${min_portfolio_value} threshold). "
                         f"This likely indicates a data loading error or initialization problem. "
                         f"Portfolio must have been properly reconciled with real trading capital. "
                         f"Check: (1) algo_portfolio_snapshots has been populated, (2) positions have valid quantities/prices."

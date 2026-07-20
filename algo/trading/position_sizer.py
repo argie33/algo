@@ -17,8 +17,9 @@ import logging
 import os
 import time
 from collections.abc import Callable
-from datetime import date as _date, datetime as _datetime, timedelta
-from decimal import ROUND_HALF_UP, Decimal
+from datetime import date as _date
+from datetime import timedelta
+from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
 import psycopg2
@@ -781,7 +782,11 @@ class PositionSizer:
         max_position_value = portfolio_value * max_position_pct
 
         if position_value > max_position_value:
-            shares = int((max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+            # ROUND_DOWN, not ROUND_HALF_UP: this caps position_value to a hard ceiling
+            # (max_position_size_pct), so rounding the share count up can let the capped
+            # position_value exceed max_position_value by up to half a share's value,
+            # silently breaching the limit this branch exists to enforce.
+            shares = int((max_position_value / Decimal(str(entry_price))).quantize(Decimal(1), rounding=ROUND_DOWN))
             position_value = Decimal(shares) * Decimal(str(entry_price))
             risk_dollars = risk_per_share * Decimal(shares)
 

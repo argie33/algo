@@ -387,16 +387,34 @@ class CircuitBreaker:
         }
 
     def _check_daily_loss(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        # Cash-flow-adjusted, same reasoning as _check_drawdown above (migration 1134):
+        # the precomputed daily_return_pct column is derived from raw total_portfolio_value
+        # deltas, so a same-day capital withdrawal reads as an equivalent trading loss and
+        # can false-trip this breaker exactly like the pre-1134 drawdown bug. Compute the
+        # daily return from adjusted_equity deltas instead, mirroring _check_drawdown.
         cur.execute(
-            "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
+            "SELECT adjusted_equity FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
             (current_date,),
         )
-        row = cur.fetchone()
-        if row is None or row[0] is None:
+        today_row = cur.fetchone()
+        if today_row is None or today_row[0] is None:
             return {"halted": False, "reason": "No today snapshot yet"}
-        daily = _float(row[0], None, context="daily_loss")
-        if daily is None:
-            return {"halted": True, "reason": "Daily return data invalid - fail-closed"}
+        cur.execute(
+            """
+            SELECT adjusted_equity FROM algo_portfolio_snapshots
+            WHERE snapshot_date < %s AND adjusted_equity IS NOT NULL
+            ORDER BY snapshot_date DESC LIMIT 1
+            """,
+            (current_date,),
+        )
+        prev_row = cur.fetchone()
+        if prev_row is None or prev_row[0] is None:
+            return {"halted": False, "reason": "Insufficient history"}
+        cur_val = _float(today_row[0], None, context="daily_loss current")
+        prev_val = _float(prev_row[0], None, context="daily_loss previous")
+        if cur_val is None or prev_val is None or prev_val <= 0:
+            return {"halted": True, "reason": "Adjusted equity data invalid - fail-closed"}
+        daily = (cur_val - prev_val) / prev_val * 100.0
         max_daily_val = self._get_required_config("max_daily_loss_pct", "in daily loss check")
         threshold = -_float(
             max_daily_val,
@@ -813,13 +831,13 @@ class CircuitBreaker:
         }
 
     def _check_weekly_loss(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """7-day return on portfolio."""
+        """7-day return on portfolio (cash-flow-adjusted, see _check_daily_loss/_check_drawdown - migration 1134)."""
         week_ago = current_date - timedelta(days=7)
         cur.execute(
             """
             SELECT
-                (SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 1),
-                (SELECT total_portfolio_value FROM algo_portfolio_snapshots WHERE snapshot_date <= %s ORDER BY snapshot_date DESC LIMIT 1)
+                (SELECT adjusted_equity FROM algo_portfolio_snapshots WHERE snapshot_date <= %s AND adjusted_equity IS NOT NULL ORDER BY snapshot_date DESC LIMIT 1),
+                (SELECT adjusted_equity FROM algo_portfolio_snapshots WHERE snapshot_date <= %s AND adjusted_equity IS NOT NULL ORDER BY snapshot_date DESC LIMIT 1)
             """,
             (current_date, week_ago),
         )
@@ -1049,15 +1067,34 @@ class CircuitBreaker:
             raise RuntimeError(f"Sector concentration check failed: {e}") from e
 
     def _check_daily_profit_cap(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries."""
+        """Warn (don't halt) if daily P&L exceeds profit target; can skip new entries.
+
+        Cash-flow-adjusted (migration 1134): raw daily_return_pct would read a same-day
+        deposit as a false "profit cap exceeded" (spuriously skipping new entries) or a
+        withdrawal as masking a real profit cap breach.
+        """
         cur.execute(
-            "SELECT daily_return_pct FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
+            "SELECT adjusted_equity FROM algo_portfolio_snapshots WHERE snapshot_date = %s",
             (current_date,),
         )
-        row = cur.fetchone()
-        if not row or row[0] is None:
+        today_row = cur.fetchone()
+        if not today_row or today_row[0] is None:
             return {"halted": False, "reason": "No today snapshot yet"}
-        daily = float(row[0])
+        cur.execute(
+            """
+            SELECT adjusted_equity FROM algo_portfolio_snapshots
+            WHERE snapshot_date < %s AND adjusted_equity IS NOT NULL
+            ORDER BY snapshot_date DESC LIMIT 1
+            """,
+            (current_date,),
+        )
+        prev_row = cur.fetchone()
+        if not prev_row or prev_row[0] is None:
+            return {"halted": False, "reason": "Insufficient history"}
+        prev_val = float(prev_row[0])
+        if prev_val <= 0:
+            return {"halted": False, "reason": "Insufficient history"}
+        daily = (float(today_row[0]) - prev_val) / prev_val * 100.0
         daily_profit_val = self._get_required_config("daily_profit_cap_pct", "in daily profit cap check")
         threshold = float(daily_profit_val)
         # This check is a SOFT warning, not a halt - it's logged but doesn't block trading

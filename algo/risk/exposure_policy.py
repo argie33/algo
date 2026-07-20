@@ -102,9 +102,17 @@ def tier_for_exposure(exposure_pct: float | None) -> dict[str, Any]:
         logger.critical(msg)
         raise RuntimeError(msg)
 
-    for i, tier in enumerate(EXPOSURE_TIERS):
-        is_last = i == len(EXPOSURE_TIERS) - 1
-        upper_ok = exposure_pct <= tier["max_pct"] if is_last else exposure_pct < tier["max_pct"]
+    # The inclusive upper bound must belong to whichever tier holds the true ceiling
+    # (max_pct == 100, confirmed_uptrend) - not whichever tier happens to be LAST in this
+    # list. EXPOSURE_TIERS is ordered highest-to-lowest, so "last iterated" was actually
+    # `correction` (max_pct=25), leaving confirmed_uptrend's max_pct=100 exclusive. Since
+    # exposure_pct=100.0 is reachable (all factors maxed, no vetoes), that crashed tier
+    # lookup - and therefore position sizing/entry checks - on exactly the most bullish,
+    # fully-valid reading instead of the intended out-of-range/corrupted-data case.
+    ceiling = max(tier["max_pct"] for tier in EXPOSURE_TIERS)
+    for tier in EXPOSURE_TIERS:
+        is_ceiling_tier = tier["max_pct"] == ceiling
+        upper_ok = exposure_pct <= tier["max_pct"] if is_ceiling_tier else exposure_pct < tier["max_pct"]
         if tier["min_pct"] <= exposure_pct and upper_ok:
             return tier
 

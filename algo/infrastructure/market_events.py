@@ -73,10 +73,20 @@ class MarketEventHandler:
         self.alpaca_secret = creds["secret"]
 
     def check_single_stock_halt(self, symbol: str) -> dict[str, Any] | None:
-        # In paper mode, if credentials unavailable, skip halt check and assume tradable
+        # GOVERNANCE: Without credentials we cannot call Alpaca and genuinely do not know
+        # whether the stock is halted - reporting {"halted": False} here previously claimed
+        # a verified "not halted" answer that was actually just "never checked", letting
+        # phase3_position_monitor.py and position_monitor.py's stale-order filter both treat
+        # an unverifiable position as safe. Surface it as an error so their existing
+        # fail-fast handling (both already branch on "error" in the result / raise) applies,
+        # instead of assuming safety we can't confirm.
         if self.alpaca_key is None or self.alpaca_secret is None:
-            logger.debug(f"[HALT_CHECK] Paper mode: credentials unavailable, assuming {symbol} is tradable")
-            return {"halted": False, "symbol": symbol, "paper_mode": True}
+            logger.warning(f"[HALT_CHECK] {symbol}: credentials unavailable - cannot verify halt status")
+            return {
+                "error": "credentials_unavailable",
+                "reason": "Alpaca credentials not configured - cannot verify halt status",
+                "symbol": symbol,
+            }
 
         try:
             url = f"{self.alpaca_base_url}/v2/assets/{symbol}"

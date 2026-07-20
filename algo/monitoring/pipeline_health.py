@@ -213,8 +213,8 @@ class PipelineHealth:
             else:
                 estimated_cnt = int(result[0])
 
-            EXACT_COUNT_THRESHOLD = 100_000
-            if estimated_cnt < EXACT_COUNT_THRESHOLD:
+            exact_count_threshold = 100_000
+            if estimated_cnt < exact_count_threshold:
                 cur.execute(f"SELECT COUNT(*) FROM {safe_table}")
                 exact_result = cur.fetchone()
                 exact_cnt = (
@@ -284,37 +284,10 @@ class PipelineHealth:
 
         return health
 
-    def update_loader_status_age_days(self) -> int:
-        """Update age_days for all tables in data_loader_status.
-
-        CRITICAL FIX (Session 289): age_days was NULL for 95% of tables.
-        This calculates age in days from last_updated and persists to data_loader_status.
-
-        Returns: count of rows updated
-        """
-        try:
-            with DatabaseContext("write") as cur:
-                # Calculate age_days for all rows where last_updated exists
-                cur.execute("""
-                    UPDATE data_loader_status
-                    SET age_days = EXTRACT(DAY FROM NOW() - last_updated)::INTEGER
-                    WHERE last_updated IS NOT NULL
-                      AND (age_days IS NULL OR age_days != EXTRACT(DAY FROM NOW() - last_updated)::INTEGER)
-                """)
-                rows_updated = cur.rowcount
-                logger.info(f"[LOADER_STATUS] Updated age_days for {rows_updated} tables")
-                return rows_updated
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.error(f"[LOADER_STATUS] Failed to update age_days: {e}")
-            return 0
-
     def get_pipeline_status(self) -> PipelineStatus:
         status = PipelineStatus()
 
         try:
-            # CRITICAL: Update age_days BEFORE checking status so monitoring is current
-            self.update_loader_status_age_days()
-
             with DatabaseContext("read") as cur:
                 # Set statement timeout for health checks (fail fast)
                 stmt_timeout_ms = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", 30000))
@@ -367,8 +340,7 @@ class PipelineHealth:
                     other_tables = [row[0] for row in cur.fetchall()]
 
                     # Default SLA for non-critical tables (7 days)
-                    DEFAULT_SLA_DAYS = 7
-                    DEFAULT_DATE_COLUMN = "updated_at"  # Most tables use updated_at
+                    default_sla_days = 7
 
                     for table_name in other_tables:
                         try:
@@ -382,7 +354,7 @@ class PipelineHealth:
                                 cur,
                                 table_name,
                                 date_column,
-                                DEFAULT_SLA_DAYS,
+                                default_sla_days,
                             )
                             status.tables[table_name] = health
                         except (ValueError, ZeroDivisionError, TypeError) as e:
@@ -409,21 +381,32 @@ class PipelineHealth:
         return status
 
     def _infer_date_column(self, cur: Any, table_name: str) -> str | None:
-        """Infer the date column for a table by checking column existence.
+        """Infer the date column for a table by checking column existence AND content.
 
-        Tries in order: date, updated_at, created_at, date_added.
-        Returns None if no date column found.
+        Tries in order: date, updated_at, created_at, date_added. A column that exists
+        but is NULL for every row (e.g. value_metrics.date, analyst_upgrade_downgrade.date -
+        dead/unused columns left over from an old schema, with the real timestamp actually
+        in updated_at/action_date) used to be picked anyway since only existence was checked,
+        making check_table_health()'s "SELECT col ORDER BY col DESC LIMIT 1" return NULL and
+        report a table with fresh, real data as HealthStatus.MISSING. Requiring at least one
+        non-null value before accepting a candidate column fixes that false positive and falls
+        through to the next candidate instead.
+        Returns None if no populated date-like column is found.
         """
         try:
             safe_table = assert_safe_table(table_name)
             for col in ["date", "updated_at", "created_at", "date_added"]:
                 safe_col = assert_safe_column(col)
                 cur.execute(
-                    f"SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s LIMIT 1",
+                    "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s LIMIT 1",
                     (table_name, col),
                 )
+                if not cur.fetchone():
+                    continue
+                cur.execute(f"SELECT 1 FROM {safe_table} WHERE {safe_col} IS NOT NULL LIMIT 1")
                 if cur.fetchone():
                     return col
+                logger.debug(f"{table_name}.{col} exists but is NULL for every row - trying next candidate")
         except Exception as e:
             logger.debug(f"Error inferring date column for {table_name}: {e}")
         return None

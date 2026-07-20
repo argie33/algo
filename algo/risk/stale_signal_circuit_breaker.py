@@ -63,18 +63,24 @@ class StaleSignalCircuitBreaker:
                 from algo.infrastructure import MarketCalendar
 
                 now_et = datetime.now(timezone.utc).astimezone(EASTERN_TZ).date()
-                price_age_hours = (now_et - latest_price_date).days * 24
+                days_old = (now_et - latest_price_date).days
 
                 # Determine threshold based on whether today is a trading day
                 is_trading_today = MarketCalendar.is_trading_day(now_et)
-                threshold = (
+                # WEEKDAY/WEEKEND_STALE_THRESHOLD_HOURS (24 / 72) express calendar-day
+                # granularity, not literal hours - price_daily only has one row per date. This
+                # used to multiply the day-diff back out to "hours" (days_old * 24) and compare
+                # with >=, so exactly 1-day-old data (yesterday's close - the normal state for
+                # most of every trading day before the 4:05 PM EOD load) computed 24 >= 24 =
+                # True and incorrectly opened the circuit breaker. Compare in whole days instead.
+                max_days_old = (
                     StaleSignalCircuitBreaker.WEEKDAY_STALE_THRESHOLD_HOURS
                     if is_trading_today
                     else StaleSignalCircuitBreaker.WEEKEND_STALE_THRESHOLD_HOURS
-                )
+                ) // 24
 
-                if price_age_hours >= threshold:
-                    msg = f"Price data {price_age_hours}h old (exceeds {threshold}h threshold)"
+                if days_old > max_days_old:
+                    msg = f"Price data {days_old}d old (exceeds {max_days_old}d threshold)"
                     logger.warning(f"CIRCUIT BREAKER OPEN: {msg}")
                     return False, msg
 

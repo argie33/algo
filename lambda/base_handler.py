@@ -170,10 +170,10 @@ class LambdaHandler(ABC):
                 if db_timeout_env:
                     try:
                         db_timeout = int(db_timeout_env)
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError) as e:
                         raise ValueError(
                             f"DB_CONNECTION_TIMEOUT must be numeric (seconds), got: {db_timeout_env}"
-                        )
+                        ) from e
                 else:
                     db_timeout = 30  # Safe default for Lambda cold-start (can take 15-40s)
 

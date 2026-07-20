@@ -66,17 +66,41 @@ class HaltFlagManager:
         # Try DynamoDB first (preferred)
         dynamodb_result = self._check_halt_flag_dynamodb()
         if dynamodb_result is not None:
+            if dynamodb_result:
+                self._alert_halt_detected("DynamoDB")
             return dynamodb_result
 
         # Fall back to RDS if DynamoDB unavailable
         logger.warning("[HALT_FLAG] DynamoDB unavailable, falling back to RDS")
         rds_result = self._check_halt_flag_rds()
         if rds_result is not None:
+            if rds_result:
+                self._alert_halt_detected("RDS fallback")
             return rds_result
 
         # Both unavailable: fail-closed (assume halt)
         logger.critical("[HALT_FLAG] Both DynamoDB and RDS unavailable - failing closed for safety")
+        self._alert_halt_detected("both DynamoDB and RDS unavailable - failing closed")
         return True
+
+    def _alert_halt_detected(self, source: str) -> None:
+        """Notify operators that trading is halted.
+
+        Every OTHER halt-triggering path in this codebase alerts (see
+        phase2_circuit_breakers.py, phase3_position_monitor.py) - this check-existing-halt
+        path previously only logged CRITICAL to the application log, which nobody may ever
+        read, so a halt detected here (e.g. set by a prior Phase 1 run, or a DynamoDB/RDS
+        outage forcing fail-closed) could go unnoticed indefinitely. Best-effort: must never
+        block or fail the halt check itself.
+        """
+        try:
+            self.alerts.send_position_alert(
+                "PORTFOLIO",
+                "HALT_FLAG_ACTIVE",
+                f"Orchestrator halt flag is active (detected via {source}). Trading is halted.",
+            )
+        except Exception as e:
+            logger.error(f"[HALT_FLAG] Failed to send halt-detected alert (non-blocking): {e}")
 
     def _check_halt_flag_dynamodb(self) -> bool | None:
         """Check halt flag in DynamoDB. Returns True/False if successful, None if unavailable."""
@@ -168,7 +192,16 @@ class HaltFlagManager:
                                 "Check orchestrator_halt_flag.reason in database."
                             )
                             logger.critical(msg)
-                            raise ValueError(msg)
+                            # Fail closed directly (return True) rather than raise: a raised
+                            # exception here is caught by this same try's `except (ValueError,
+                            # KeyError)` clause below (meant for genuine timestamp-parse errors),
+                            # then re-raised via the duplicate check below and swallowed AGAIN by
+                            # the outer `except Exception` as if DynamoDB were merely unavailable
+                            # - which silently falls through to an unrelated RDS check that has no
+                            # idea DynamoDB found an ACTIVE-but-corrupted halt flag, and could
+                            # override it with a stale "not halted" answer. This is a genuine data
+                            # integrity failure, not an infra outage - fail closed immediately.
+                            return True
                         logger.critical(
                             f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED on {now_date_et}. "
                             f"Triggered {hours_halted:.1f}h ago at {trigger_et.strftime('%H:%M ET')}. "
@@ -194,7 +227,10 @@ class HaltFlagManager:
                         "Check orchestrator_halt_flag.reason in database."
                     )
                     logger.critical(msg)
-                    raise ValueError(msg)
+                    # Fail closed directly - see the comment on the identical check above;
+                    # raising here would be swallowed by the outer `except Exception` and
+                    # silently deferred to an unrelated RDS fallback instead of failing closed.
+                    return True
                 logger.critical(
                     f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (could not parse timestamp). Reason: {reason[:150]}"
                 )
@@ -576,7 +612,7 @@ class HaltFlagManager:
 
         except Exception as e:
             if "UnrecognizedClientException" in str(e) or "InvalidCredentials" in str(e):
-                logger.info(f"[PROACTIVE_CLEAR] DynamoDB unavailable, attempting RDS fallback")
+                logger.info("[PROACTIVE_CLEAR] DynamoDB unavailable, attempting RDS fallback")
                 try:
                     return self._proactive_clear_stale_halt_rds()
                 except Exception as rds_err:

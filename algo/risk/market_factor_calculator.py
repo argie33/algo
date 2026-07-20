@@ -283,8 +283,9 @@ class MarketFactorCalculator:
             # own close - the orchestrator runs this pre-market (2 AM ET), hours before
             # today's close exists. Walk back from the trading day before eval_date to
             # find the latest close we can reasonably expect to already be loaded.
-            from algo.infrastructure import MarketCalendar
             from datetime import timedelta
+
+            from algo.infrastructure import MarketCalendar
 
             expected_date = eval_date - timedelta(days=1)
             for _ in range(10):

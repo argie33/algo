@@ -53,11 +53,9 @@ def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
             try:
                 cur.execute(
                     """
-                    SELECT status, last_execution_time
+                    SELECT status, last_updated
                     FROM data_loader_status
-                    WHERE loader_name = %s
-                    ORDER BY last_execution_time DESC
-                    LIMIT 1
+                    WHERE table_name = %s
                 """,
                     (loader,),
                 )

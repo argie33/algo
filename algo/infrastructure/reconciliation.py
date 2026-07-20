@@ -1800,9 +1800,9 @@ class DailyReconciliation:
             error_str = str(e).lower()
             if "401" in str(e) or "unauthorized" in error_str or "alpaca" in error_str:
                 logger.warning(
-                    f"[PARTIAL_FILL_CHECK] Alpaca broker authentication failed (401). "
-                    f"Gracefully skipping partial fill validation in local test mode. "
-                    f"In production, this requires valid Alpaca credentials."
+                    "[PARTIAL_FILL_CHECK] Alpaca broker authentication failed (401). "
+                    "Gracefully skipping partial fill validation in local test mode. "
+                    "In production, this requires valid Alpaca credentials."
                 )
                 return {"mismatches": 0, "message": "Broker auth unavailable (test mode)", "auth_unavailable": True}
             # CRITICAL: Partial fill detection failure - cannot reconcile fill status

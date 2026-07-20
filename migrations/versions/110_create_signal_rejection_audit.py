@@ -6,8 +6,8 @@ Create Date: 2026-07-19
 
 Track every signal rejection with full details for analysis and debugging.
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 # Revision identifiers, used by Alembic.
 revision = '110'

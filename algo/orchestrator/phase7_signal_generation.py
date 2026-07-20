@@ -66,7 +66,6 @@ import psycopg2
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from utils.db.context import DatabaseContext
-from utils.market_symbols_config import MarketSymbolsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -455,6 +454,21 @@ def _get_candidates_from_buysell(
                     f"Position sizing should account for reduced signal quality."
                 )
 
+            # _compute_risk_score() intentionally raises ValueError for a single candidate
+            # that fails the extreme-volatility gate (ATR > 18% of close) or lacks ATR(14)
+            # history (e.g. a recent IPO) - it's a per-symbol tradability filter, not a
+            # data-integrity guarantee. Letting that exception escape this loop previously
+            # aborted the ENTIRE candidate fetch (caught by the function's outer except and
+            # re-raised as a RuntimeError that halts all of Phase 7), so on any day where one
+            # candidate happened to be unusually volatile, ZERO signals were generated instead
+            # of just excluding that one stock - the exact "some days halt for no clear system
+            # reason" pattern this was meant to prevent. Skip just this candidate instead.
+            try:
+                risk_score = _compute_risk_score(float(r[10]) if r[10] is not None else None, close)
+            except ValueError as e:
+                logger.info(f"[PHASE 7] {symbol}: excluded from candidates - {e}")
+                continue
+
             candidates.append(
                 {
                     "symbol": symbol,
@@ -477,7 +491,7 @@ def _get_candidates_from_buysell(
                     "volume_surge_pct": float(r[16]) if r[16] is not None else None,
                     "market_stage": r[17],
                     "signal_date": str(r[18]) if r[18] is not None else None,
-                    "risk_score": _compute_risk_score(float(r[10]) if r[10] is not None else None, close),
+                    "risk_score": risk_score,
                 }
             )
 
@@ -558,7 +572,7 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                 log_phase_result_fn(7, "signal_generation", "halt", msg)
                 return False, msg
 
-            exposure_pct, exposure_data_date, data_unavailable, reason = (
+            _exposure_pct, exposure_data_date, data_unavailable, reason = (
                 exposure_row[0],
                 exposure_row[1],
                 exposure_row[2],

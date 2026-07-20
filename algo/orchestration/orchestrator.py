@@ -15,6 +15,7 @@ import psycopg2
 # CRITICAL: Load environment variables from .env.local BEFORE any boto3/AWS calls
 # This must happen before any other imports that might trigger AWS operations
 from utils.dotenv_loader import load_env_local
+
 load_env_local()
 
 from algo.config.environment_validation import EnvironmentValidator
@@ -177,7 +178,7 @@ class Orchestrator:
     def cleanup(self) -> None:
         """No-op: RDS Proxy handles connection cleanup."""
 
-    def _validate_startup_configuration(self) -> None:  # noqa: C901
+    def _validate_startup_configuration(self) -> None:
         """CRITICAL: Validate all required configuration at startup.
 
         Checks:
@@ -198,64 +199,73 @@ class Orchestrator:
             )
         logger.info(f"[OK] execution_mode validated: {execution_mode}")
 
-        # 2. Validate Alpaca credentials only for live trading
+        # 2. Validate Alpaca credentials whenever orders are actually sent to Alpaca.
+        # execution_mode == "auto" sends real orders to Alpaca's PAPER endpoint when
+        # alpaca_paper_trading=True, and to the LIVE endpoint when False - both need valid
+        # credentials to authenticate. Only "paper"/"dry"/"review" execution_mode never talks
+        # to Alpaca at all (see executor.py's _submit_and_validate_order). Previously this
+        # skipped validation entirely whenever alpaca_paper_trading=True, regardless of
+        # execution_mode - so an "auto" + paper-trading config (a normal, common combination)
+        # passed startup validation with no credentials, then failed later and confusingly
+        # when Phase 8 Entry Execution actually tried to place an order and got a 401. That's
+        # exactly the fail-fast violation this validator exists to prevent.
         if execution_mode in ("live", "auto"):
             try:
                 from config.credential_manager import CredentialManager
 
-                # Check if paper trading is enabled - if so, skip credential validation
                 is_paper_trading = self.config.get("alpaca_paper_trading")
                 if is_paper_trading is None:
                     raise RuntimeError(
                         "[STARTUP] CRITICAL: alpaca_paper_trading key must be explicitly set in algo_config. "
                         "Never assume defaults for trading mode. Set to True for paper trading, False for live."
                     )
-                if is_paper_trading:
-                    logger.info("[OK] Paper trading mode enabled - Alpaca credentials not required")
-                else:
-                    # Live trading requires credentials. Alpaca creds are stored as
-                    # fields inside the algo/alpaca secret, not as their own top-level
-                    # Secrets Manager entries -- get_alpaca_credentials() is the
-                    # accessor that knows this (get_password("APCA_API_KEY_ID") would
-                    # look for a secret literally named that, which never exists).
-                    api_key = None
-                    api_secret = None
+                # Credentials are required regardless of is_paper_trading: it only selects
+                # which Alpaca endpoint "auto" mode sends orders to (paper vs live), not
+                # whether an authenticated request happens at all. Alpaca creds are stored as
+                # fields inside the algo/alpaca secret, not as their own top-level
+                # Secrets Manager entries -- get_alpaca_credentials() is the
+                # accessor that knows this (get_password("APCA_API_KEY_ID") would
+                # look for a secret literally named that, which never exists).
+                api_key = None
+                api_secret = None
+                try:
+                    alpaca_creds = CredentialManager().get_alpaca_credentials()
+                    api_key = alpaca_creds.get("key")
+                    api_secret = alpaca_creds.get("secret")
+                except ValueError as e:
+                    logger.debug(f"[STARTUP] get_alpaca_credentials() failed: {e}")
+
+                # For LOCAL_MODE (development), also check algo_config table
+                if (not api_key or not api_secret) and os.getenv("LOCAL_MODE") == "true":
+                    logger.info("[LOCAL_MODE] Checking algo_config for Alpaca credentials...")
                     try:
-                        alpaca_creds = CredentialManager().get_alpaca_credentials()
-                        api_key = alpaca_creds.get("key")
-                        api_secret = alpaca_creds.get("secret")
-                    except ValueError as e:
-                        logger.debug(f"[STARTUP] get_alpaca_credentials() failed: {e}")
+                        with DatabaseContext("read") as cur:
+                            cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_key"])
+                            result = cur.fetchone()
+                            if result and result[0]:
+                                api_key = result[0]
 
-                    # For LOCAL_MODE (development), also check algo_config table
-                    if (not api_key or not api_secret) and os.getenv("LOCAL_MODE") == "true":
-                        logger.info("[LOCAL_MODE] Checking algo_config for Alpaca credentials...")
-                        try:
-                            with DatabaseContext("read") as cur:
-                                cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_key"])
-                                result = cur.fetchone()
-                                if result and result[0]:
-                                    api_key = result[0]
+                            cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_secret"])
+                            result = cur.fetchone()
+                            if result and result[0]:
+                                api_secret = result[0]
 
-                                cur.execute("SELECT value FROM algo_config WHERE key = %s", ["alpaca_api_secret"])
-                                result = cur.fetchone()
-                                if result and result[0]:
-                                    api_secret = result[0]
+                        if api_key and api_secret:
+                            logger.info("[LOCAL_MODE] Loaded Alpaca credentials from algo_config")
+                            # Set env vars so rest of code sees them
+                            os.environ["APCA_API_KEY_ID"] = api_key
+                            os.environ["APCA_API_SECRET_KEY"] = api_secret
+                    except Exception as e:
+                        logger.debug(f"[LOCAL_MODE] Could not load from algo_config: {e}")
 
-                            if api_key and api_secret:
-                                logger.info("[LOCAL_MODE] Loaded Alpaca credentials from algo_config")
-                                # Set env vars so rest of code sees them
-                                os.environ["APCA_API_KEY_ID"] = api_key
-                                os.environ["APCA_API_SECRET_KEY"] = api_secret
-                        except Exception as e:
-                            logger.debug(f"[LOCAL_MODE] Could not load from algo_config: {e}")
-
-                    if not api_key or not api_secret:
-                        raise RuntimeError(
-                            "[STARTUP] CRITICAL: Alpaca credentials missing for live trading. "
-                            "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
-                        )
-                    logger.info("[OK] Alpaca credentials validated for live trading")
+                if not api_key or not api_secret:
+                    raise RuntimeError(
+                        f"[STARTUP] CRITICAL: Alpaca credentials missing for execution_mode={execution_mode!r} "
+                        f"(alpaca_paper_trading={is_paper_trading}). Both 'auto' and 'live' send orders to "
+                        "Alpaca and require valid credentials, whether targeting the paper or live endpoint. "
+                        "Configure APCA_API_KEY_ID and APCA_API_SECRET_KEY via AWS Secrets Manager or environment."
+                    )
+                logger.info(f"[OK] Alpaca credentials validated for execution_mode={execution_mode!r}")
             except ValueError as e:
                 raise RuntimeError(f"[STARTUP] Credential validation failed: {e}") from e
             except RuntimeError as e:
@@ -341,7 +351,7 @@ class Orchestrator:
                 f"(2) Migrations have run, (3) Required views exist."
             ) from e
 
-    def _kill_long_running_loaders(self) -> None:  # noqa: C901
+    def _kill_long_running_loaders(self) -> None:
         """CRITICAL: Kill hung loaders (analytics + critical-path) if approaching next orchestrator run.
 
         Analytics loaders (company_profile, analyst_sentiment, stability_metrics, value_metrics)
@@ -980,7 +990,7 @@ class Orchestrator:
                     if error_code in ("UnrecognizedClientException", "AccessDenied", "AccessDeniedException"):
                         logger.info(f"[PHASE1_DYNAMODB] Write skipped (invalid credentials): {error_code}. This is non-blocking.")
                     else:
-                        logger.warning(f"[PHASE1_DYNAMODB] Write failed ({error_code}): {str(e)}")
+                        logger.warning(f"[PHASE1_DYNAMODB] Write failed ({error_code}): {e!s}")
                 except Exception as validation_error:
                     logger.warning(f"[PHASE1_DYNAMODB] Error parsing AWS response: {validation_error}. Original error: {e}")
             except Exception as e:
@@ -1416,7 +1426,7 @@ class Orchestrator:
                     "This should never happen - distributed lock is ALWAYS required for non-dry-run executions. "
                     "Check for SKIP_ORCHESTRATOR_LOCK bypass in orchestrator initialization."
                 )
-            logger.info(f"[LOCK-SKIP] Skipping distributed lock check (dry-run mode - no database writes)")
+            logger.info("[LOCK-SKIP] Skipping distributed lock check (dry-run mode - no database writes)")
         return None
 
     # ---------- Main entrypoint ----------
@@ -1566,8 +1576,23 @@ class Orchestrator:
                 "Cannot proceed without phase execution details. Check orchestrator logs for phase failures."
             )
         for phase_num, phase_result in executor_phases.items():
-            summary = phase_result.data.get("summary", "") if phase_result.data else ""
-            if phase_result.status in ("error", "halted", "degraded") and phase_result.error and not summary:
+            # Each phase already called self.log_phase_result() with its real human-readable
+            # summary during execution (every _executor_phase_N wires log_phase_result_fn to
+            # self.log_phase_result), which populated self.phase_results[phase_num] correctly
+            # and forwarded it to the execution tracker / event hub / audit log. No phase ever
+            # puts that text into PhaseResult.data["summary"] (phases use "reason" in .data, or
+            # pass the summary straight to the callback) - .data["summary"] is always empty.
+            # Re-deriving summary from it here, then calling log_phase_result() a SECOND time
+            # with that empty string, overwrote the good value already recorded above with a
+            # blank one - the actual cause of every phase showing an empty summary in the health
+            # panel and orchestrator_execution_log despite phases computing real ones. Just keep
+            # what was already logged; only fall back if a phase somehow never called the
+            # callback (defensive, not the expected path).
+            already_logged = self.phase_results.get(phase_num)
+            summary = already_logged.get("summary", "") if already_logged else ""
+            if not summary:
+                summary = phase_result.data.get("summary", "") if phase_result.data else ""
+            if not summary and phase_result.status in ("error", "halted", "degraded") and phase_result.error:
                 summary = phase_result.error
             self.phase_results[phase_num] = {
                 "phase": phase_num,
@@ -1575,12 +1600,6 @@ class Orchestrator:
                 "status": phase_result.status,
                 "summary": summary,
             }
-            self.execution_tracker.log_phase_result(
-                phase_num,
-                phase_result.phase_name,
-                phase_result.status,
-                phase_result.data.get("summary", ""),
-            )
 
         return executor_result
 
@@ -1665,7 +1684,7 @@ class Orchestrator:
         """
         try:
             reason = exit_result.get("reason", "early_exit")
-            status = exit_result.get("skipped") and "skipped" or "halted"
+            status = (exit_result.get("skipped") and "skipped") or "halted"
 
             self.execution_tracker.save_execution_log(status, reason)
             logger.debug(f"[EXECUTION_LOG] Saved early exit log: {reason}")

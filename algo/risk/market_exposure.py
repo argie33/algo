@@ -670,8 +670,14 @@ class MarketExposure:
             cs_value = cs.get("value")
             if cs_value is not None:
                 cs_value = float(cs_value)
-                if cs_value > 850:  # OAS in basis points, 850 bps = 8.5%
-                    halt_reasons.append(f"HY credit spread {cs_value:.0f} bps > 850 (systemic stress)")
+                # _credit_spread() returns "value" as raw percent (e.g. 3.5 for 3.5%,
+                # matching its own scoring bands hy < 3.5/4.5/5.5/7.0 and the docstring
+                # "Scale: <3.5% = tight/healthy... >7% = severe stress"). This veto used to
+                # compare against 850 as if the value were in basis points - since real-world
+                # HY OAS has never exceeded ~20% even in 2008/March-2020, cs_value > 850 could
+                # never be true, permanently disabling this hard veto. Compare in percent.
+                if cs_value > 8.5:  # 8.5% OAS = systemic stress threshold
+                    halt_reasons.append(f"HY credit spread {cs_value:.2f}% > 8.5% (systemic stress)")
                     cap = min(cap, 30.0)
             else:
                 msg = (

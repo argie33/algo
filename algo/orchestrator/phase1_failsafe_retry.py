@@ -308,9 +308,15 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
 
     try:
         with DatabaseContext("read") as cur:
-            # Find loaders with <95% completion or error/failed status in the last 1 hour
-            # Status values: "ok" (good), "error" (no data), "failed" (< 50% complete),
-            # "loading" (in progress), "stale" (data is old)
+            # Find loaders with <95% completion or error/failed status in the last 1 hour.
+            # data_loader_status.status is written by multiple sources that don't share one
+            # casing convention - utils/loader_infrastructure.py's update_loader_status()
+            # writes canonical uppercase (RUNNING/COMPLETED/FAILED per utils/loaders/
+            # status_enum.py), while other writers still use lowercase ("error"/"failed").
+            # A plain `status IN ('error', 'failed')` only matches the lowercase writers -
+            # any loader reporting canonical "FAILED" would be invisible to this OR clause
+            # and only caught via the completion_pct threshold, silently narrowing failsafe
+            # retry coverage. Compare case-insensitively so both vocabularies are caught.
             cur.execute("""
                 SELECT
                     table_name,
@@ -322,7 +328,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                     execution_started,
                     last_updated
                 FROM data_loader_status
-                WHERE (completion_pct < 95.0 OR status IN ('error', 'failed'))
+                WHERE (completion_pct < 95.0 OR UPPER(status) IN ('ERROR', 'FAILED'))
                     AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
                 ORDER BY completion_pct ASC, table_name
             """)

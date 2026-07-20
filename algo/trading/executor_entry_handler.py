@@ -722,9 +722,38 @@ class EntryHandler:
 
         position_id = str(uuid.uuid4())
 
+        # Resolve the FINAL order_status and actual filled share count BEFORE building the
+        # trade record, so algo_trades and algo_positions can never disagree. Previously this
+        # verification/correction ran AFTER _insert_trade_record() below, which had two
+        # consequences: (1) a partial fill (e.g. 100 shares requested, 60 filled) wrote
+        # algo_trades.quantity/entry_quantity = 100 (the request) while algo_positions.quantity
+        # = 60 (the actual fill) - the trade ledger permanently overstated the position by the
+        # unfilled portion, and everything downstream that reads algo_trades quantities
+        # (reconciliation, performance reporting) inherited the drift; (2) in execution_mode
+        # "auto", if Alpaca's verified status disagreed with the caller's optimistic
+        # order_status (e.g. the order was actually canceled after being optimistically passed
+        # in as "filled"), the trade record was already committed with the wrong status before
+        # verification ran.
+        actual_shares = shares
+        if self.context.execution_mode == "auto" and alpaca_order_id:
+            verified_status = self.context._verify_order_status(alpaca_order_id)
+            if verified_status is None:
+                raise OrderExecutionError(
+                    f"Order {alpaca_order_id}: verification failed (status is None). "
+                    f"Cannot record position without verified fill status. "
+                    f"This indicates Alpaca API communication error or order data corruption."
+                )
+            order_status = str(verified_status)
+
+        if order_status == "partially_filled" and alpaca_order_id:
+            filled_qty = self.context._get_order_filled_quantity(alpaca_order_id)
+            if filled_qty is not None and filled_qty > 0:
+                actual_shares = filled_qty
+                logger.info(_redact_for_logs(f"Partial fill: {actual_shares} of {shares} shares"))
+
         # Calculate position size percentage
         pv_for_pct = self.context._get_portfolio_value()
-        position_size_pct = self._calculate_position_size_pct(shares, executed_price, pv_for_pct)
+        position_size_pct = self._calculate_position_size_pct(actual_shares, executed_price, pv_for_pct)
 
         entry_reason = self._build_entry_reason(
             context.signals.base_type,
@@ -739,7 +768,7 @@ class EntryHandler:
             signal_date=context.signal_date,
             entry_date=context.entry_date,
             executed_price=executed_price,
-            shares=shares,
+            shares=actual_shares,
             entry_reason=entry_reason,
             stop_loss_price=stop_loss_price,
             stop_method=context.execution.stop_method,
@@ -784,25 +813,9 @@ class EntryHandler:
             position_id = trade_request.position_id or str(uuid.uuid4())
             entry_date = context.entry_date
 
-            if self.context.execution_mode == "auto" and alpaca_order_id:
-                verified_status = self.context._verify_order_status(alpaca_order_id)
-                if verified_status is None:
-                    raise OrderExecutionError(
-                        f"Order {alpaca_order_id}: verification failed (status is None). "
-                        f"Cannot record position without verified fill status. "
-                        f"This indicates Alpaca API communication error or order data corruption."
-                    )
-                elif verified_status not in ("filled", "partially_filled"):
-                    return str(verified_status)
-                else:
-                    order_status = verified_status
-
-            actual_shares = shares
-            if order_status == "partially_filled" and alpaca_order_id:
-                filled_qty = self.context._get_order_filled_quantity(alpaca_order_id)
-                if filled_qty is not None and filled_qty > 0:
-                    actual_shares = filled_qty
-                    logger.info(_redact_for_logs(f"Partial fill: {actual_shares} of {shares} shares"))
+            # order_status/actual_shares were already verified/corrected above, before the
+            # trade record was inserted, so both algo_trades and algo_positions use the same
+            # final values here.
 
             # Validate position value
             position_value = Decimal(str(actual_shares)) * Decimal(str(executed_price))

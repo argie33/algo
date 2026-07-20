@@ -328,6 +328,20 @@ class AlpacaSyncManager:
             # Inserting with asset_id as position_id creates duplicate NULL-stop records
             # that trip the circuit breaker. Only update price/qty for existing positions.
             try:
+                # GOVERNANCE: this is the twice-daily Phase 9 path and previously
+                # overwrote quantity from Alpaca unconditionally with zero comparison to
+                # the prior DB value - unlike reconciliation.py::check_partial_fills, which
+                # runs less often but does alert on a quantity mismatch. A silent quantity
+                # drift here (partial fill, missed fill, manual Alpaca-side change) would
+                # never surface. Compare first and notify on real drift, same as
+                # check_partial_fills.
+                cur.execute(
+                    "SELECT quantity FROM algo_positions WHERE symbol = %s AND status = 'open'",
+                    (symbol,),
+                )
+                existing_row = cur.fetchone()
+                prior_qty = float(existing_row[0]) if existing_row and existing_row[0] is not None else None
+
                 cur.execute(
                     """
                     UPDATE algo_positions
@@ -346,6 +360,23 @@ class AlpacaSyncManager:
                 )
                 if cur.rowcount > 0:
                     synced_count += 1
+                    if prior_qty is not None and int(prior_qty) != int(qty_float):
+                        logger.warning(
+                            f"[POSITION_SYNC] Quantity drift for {symbol}: DB had {prior_qty}, "
+                            f"Alpaca reports {qty_float} - overwriting DB to match broker (source of truth)."
+                        )
+                        try:
+                            from algo.reporting import notify
+
+                            notify(
+                                severity="warning",
+                                title="Phase 9 Position Quantity Drift",
+                                message=f"{symbol}: quantity corrected from {prior_qty} to {qty_float} to match Alpaca.",
+                                symbol=symbol,
+                                details={"symbol": symbol, "db_quantity": prior_qty, "alpaca_quantity": qty_float},
+                            )
+                        except (ValueError, TypeError, RuntimeError) as notify_err:
+                            logger.error(f"Failed to send position drift notification for {symbol}: {notify_err}")
                 else:
                     logger.warning(
                         f"[POSITION_SYNC] No existing open position for {symbol} - skipping (not algo-tracked)"

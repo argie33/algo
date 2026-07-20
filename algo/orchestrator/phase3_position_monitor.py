@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import logging
-import os
 import traceback
 from collections.abc import Callable
 from datetime import date as _date
@@ -105,7 +104,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         prices[symbol] = float(close_price) if close_price is not None else None
 
                 update_errors = []
-                for position_id, symbol, quantity, old_price, entry_date, stop_loss, avg_entry in positions:
+                for position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry in positions:
                     try:
                         # GOVERNANCE: Require fresh price data for position monitoring
                         # Falling back to stale old_price masks data gaps in price_daily

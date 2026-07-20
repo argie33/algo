@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 import psycopg2
 
+from algo.infrastructure import MarketCalendar
 from algo.infrastructure.constants import (
     REGIME_HOLD_DAYS_CAUTION,
     REGIME_HOLD_DAYS_CONFIRMED_UPTREND,
@@ -34,7 +35,6 @@ from algo.infrastructure.constants import (
     REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION,
     REGIME_WEIGHT_UPDATE_ALPHA_UPTREND_UNDER_PRESSURE,
 )
-from algo.infrastructure import MarketCalendar
 from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)

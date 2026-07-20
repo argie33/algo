@@ -66,11 +66,15 @@ class LivePerformance:
             ValueError: If insufficient data (< 5 snapshots during ramp-up).
         """
         try:
+            # Cash-flow-adjusted (migration 1134): adjusted_equity backs out capital
+            # deposits/withdrawals so a return series built from it reflects trading
+            # performance only - raw total_portfolio_value would inject one artificial
+            # extreme daily return on any day with an external cash flow.
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
-                    SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
+                    SELECT snapshot_date, adjusted_equity FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days' AND adjusted_equity IS NOT NULL
                     ORDER BY snapshot_date ASC
                     """,
                     (lookback_days,),
@@ -236,9 +240,13 @@ class LivePerformance:
 
     def max_drawdown(self) -> float | None:
         try:
+            # Cash-flow-adjusted (migration 1134): see algo/risk/circuit_breaker.py's
+            # _check_drawdown comment - raw total_portfolio_value conflates capital
+            # deposits/withdrawals with trading losses.
             with DatabaseContext("read") as cur:
                 cur.execute("""
-                    SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
+                    SELECT snapshot_date, adjusted_equity FROM algo_portfolio_snapshots
+                    WHERE adjusted_equity IS NOT NULL
                     ORDER BY snapshot_date ASC
                     """)
                 rows = cur.fetchall()
@@ -274,11 +282,12 @@ class LivePerformance:
             ValueError: If insufficient data (< 5 snapshots during ramp-up).
         """
         try:
+            # Cash-flow-adjusted (migration 1134) - see max_drawdown() above.
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
-                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
+                    SELECT adjusted_equity FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days' AND adjusted_equity IS NOT NULL
                     ORDER BY snapshot_date ASC
                     """,
                     (lookback_days,),
@@ -320,11 +329,12 @@ class LivePerformance:
             ValueError: If insufficient data (< 5 snapshots during ramp-up).
         """
         try:
+            # Cash-flow-adjusted (migration 1134) - see max_drawdown() above.
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
-                    SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days'
+                    SELECT adjusted_equity FROM algo_portfolio_snapshots
+                    WHERE snapshot_date >= CURRENT_DATE - INTERVAL '%s days' AND adjusted_equity IS NOT NULL
                     ORDER BY snapshot_date ASC
                     """,
                     (lookback_days,),

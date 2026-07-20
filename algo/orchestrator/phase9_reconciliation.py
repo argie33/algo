@@ -91,7 +91,7 @@ def _run_reconciliation_step(
             summary = f"Portfolio ${pf_str}, {pos_str} positions, unrealized P&L ${pnl_str}"
         except (ValueError, TypeError) as fmt_err:
             logger.error(f"[PHASE 9] Failed to format reconciliation summary: {fmt_err}")
-            summary = f"Portfolio: data formatting error"
+            summary = "Portfolio: data formatting error"
     else:
         error_msg = result.get("error")
         if not error_msg:
@@ -154,6 +154,22 @@ def _validate_pnl_step(
                 logger.warning(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
             else:  # critical
                 logger.critical(f"[PHASE 9 P&L VALIDATION] {pnl_check['message']}")
+                # GOVERNANCE: a critical P&L divergence is, per validate_pnl()'s own
+                # docstring, real data corruption between broker and local state. Every
+                # other critical branch in this file surfaces via notify(); this one only
+                # logged, so a >1% divergence could go unnoticed unless someone was
+                # watching logs at the moment it happened.
+                try:
+                    from algo.reporting import notify
+
+                    notify(
+                        severity="critical",
+                        title="Phase 9 P&L Divergence",
+                        message=pnl_check["message"],
+                        details={"broker_equity": broker_equity, "local_equity": local_equity},
+                    )
+                except (ValueError, TypeError, RuntimeError) as notify_err:
+                    logger.error(f"Failed to send P&L divergence notification: {notify_err}")
         else:
             pnl_validation_summary = "Skipped (reconciliation failed or no Broker data)"
     except (ValueError, RuntimeError, KeyError) as e:
@@ -389,7 +405,7 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
             report_summary = f"Portfolio ${current_val_str}, P&L {pnl_pct_str}"
         except (ValueError, TypeError) as fmt_err:
             logger.error(f"[PHASE 9 REPORT] Failed to format portfolio metrics: {fmt_err}. Using defaults.")
-            report_summary = f"Portfolio $? P&L ?"
+            report_summary = "Portfolio $? P&L ?"
 
         log_phase_result_fn(
             9,
@@ -450,7 +466,7 @@ def _compute_performance_metrics(config: Any, run_date: _date, log_phase_result_
             logger.warning("Performance report generation returned None. Portfolio history may be insufficient.")
             perf_status = "warn"
             perf_summary = "insufficient history"
-    except (RuntimeError, ValueError) as e:
+    except (RuntimeError, ValueError):
         # CRITICAL: RuntimeError/ValueError indicate data quality issues (insufficient history, etc).
         # These MUST propagate to halt Phase 9 per GOVERNANCE (fail-fast).
         # Never silently degrade on data quality failures.
@@ -802,7 +818,7 @@ def _record_closed_positions_exits(
         ) from e
 
 
-def run(  # noqa: C901
+def run(
     config: Any,
     run_date: _date,
     log_phase_result_fn: Callable[..., Any],
@@ -816,7 +832,10 @@ def run(  # noqa: C901
         log_phase_result_fn: Function to log phase results
 
     Returns:
-        PhaseResult with status 'ok' (fail-open), data containing reconciliation results
+        PhaseResult with status 'ok' if all reconciliation steps succeed. Raises RuntimeError
+        (fail-closed, per GOVERNANCE) on any critical step failure rather than returning a
+        degraded PhaseResult - this stale docstring previously said "fail-open", which does
+        not match the raise-heavy implementation below.
     """
     try:
         from algo.infrastructure.reconciliation import DailyReconciliation
@@ -883,7 +902,7 @@ def run(  # noqa: C901
                 f"Install: pip install scipy numpy"
             )
             logger.error(error_msg)
-            log_phase_result_fn(9, "weight_optimization", "warn", f"dependency missing: scipy/numpy")
+            log_phase_result_fn(9, "weight_optimization", "warn", "dependency missing: scipy/numpy")
             # Don't raise - scipy is optional for setup, but if weight optimization fails
             # for data reasons, that WILL be caught and raised above
 
@@ -903,7 +922,7 @@ def run(  # noqa: C901
                 f"Install: pip install scipy numpy"
             )
             logger.error(error_msg)
-            log_phase_result_fn(9, "performance", "warn", f"dependency missing: scipy/numpy")
+            log_phase_result_fn(9, "performance", "warn", "dependency missing: scipy/numpy")
             # Don't raise - scipy is optional for setup, but if perf metrics fails
             # for data reasons, that WILL be caught and raised above
 
