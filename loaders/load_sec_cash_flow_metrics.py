@@ -31,6 +31,27 @@ from utils.type_conversion import safe_float
 logger = logging.getLogger(__name__)
 
 
+def _unavailable_marker(symbol: str, reason: str) -> dict[str, Any]:
+    """Build a data_unavailable row for a symbol missing a required upstream statement.
+
+    Was previously called as self._unavailable_marker(...), a method that was never
+    defined on this class or OptimalLoader - every symbol missing annual_cash_flow or
+    annual_balance_sheet data hit an AttributeError instead of getting a clean marker
+    row, which is what pushed the loader's failure rate over its 5% abort threshold.
+    """
+    return {
+        "symbol": symbol,
+        "working_capital": None,
+        "capex": None,
+        "free_cash_flow": None,
+        "operating_cash_flow": None,
+        "cash_conversion_rate": None,
+        "data_unavailable": True,
+        "reason": reason,
+        "computed_at": date.today(),
+    }
+
+
 class SecCashFlowMetricsLoader(OptimalLoader):
     """Compute cash flow health metrics from SEC audited financial statements.
 
@@ -95,10 +116,10 @@ class SecCashFlowMetricsLoader(OptimalLoader):
 
             # Validate data availability
             if not cash_flow_row or cash_flow_row[2]:  # data_unavailable flag
-                return [self._unavailable_marker(symbol, "no_annual_cash_flow")]
+                return [_unavailable_marker(symbol, "no_annual_cash_flow")]
 
             if not balance_row or balance_row[2]:
-                return [self._unavailable_marker(symbol, "no_annual_balance_sheet")]
+                return [_unavailable_marker(symbol, "no_annual_balance_sheet")]
 
             operating_cf = safe_float(cash_flow_row[0], f"{symbol}.operating_cash_flow")
             capex = safe_float(cash_flow_row[1], f"{symbol}.capex")

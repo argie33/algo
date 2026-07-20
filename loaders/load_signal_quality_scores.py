@@ -587,7 +587,7 @@ class SignalQualityScoresLoader(OptimalLoader):
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SELECT institutional_ownership FROM positioning_metrics WHERE symbol = %s",
+                    "SELECT institutional_ownership_pct FROM positioning_metrics WHERE symbol = %s",
                     (symbol,),
                 )
                 row = cur.fetchone()
