@@ -13,7 +13,7 @@ Usage:
 import os
 import sys
 import time
-from datetime import datetime, timezone, date
+from datetime import datetime, timezone, date, timedelta
 
 # Windows encoding fix
 if sys.platform.startswith("win"):
@@ -174,20 +174,6 @@ def get_table_age_minutes(table_name: str) -> float | None:
         return None
 
 
-def get_status_emoji(age_minutes: float, thresholds: dict, is_trading_day: bool = True) -> str:
-    # For market data tables on non-trading days, use relaxed thresholds
-    fresh_threshold = thresholds.get("fresh_non_trading", thresholds["fresh"]) if not is_trading_day else thresholds["fresh"]
-
-    if age_minutes < fresh_threshold:
-        return "✅"
-    elif age_minutes < thresholds["stale"]:
-        return "⚠️ "
-    elif age_minutes < thresholds["critical"]:
-        return "🔴"
-    else:
-        return "💀"
-
-
 def format_age(minutes: float) -> str:
     if minutes < 60:
         return f"{minutes:.0f}m"
@@ -200,7 +186,20 @@ def format_age(minutes: float) -> str:
 
 def check_all_tables() -> dict:
     results = {}
-    is_trading_day = MarketCalendar.is_trading_day(date.today())
+    today = date.today()
+
+    # Whether today is itself a trading day is the wrong question for freshness: on a
+    # Monday morning before the loader has run, the most recent data is Friday's close,
+    # 3 calendar days back, even though today trades. What matters is whether there is a
+    # weekend/holiday gap since the last completed trading day - if so, that gap's data
+    # is legitimately fresh and should get the relaxed threshold regardless of whether
+    # today happens to be a trading day.
+    prev_trading_day = today - timedelta(days=1)
+    for _ in range(10):
+        if MarketCalendar.is_trading_day(prev_trading_day):
+            break
+        prev_trading_day -= timedelta(days=1)
+    spans_gap = (today - prev_trading_day).days > 1
 
     for table, thresholds in THRESHOLDS.items():
         age = get_table_age_minutes(table)
@@ -209,22 +208,31 @@ def check_all_tables() -> dict:
             status = "❓ NO DATA"
             level = "unknown"
         else:
-            emoji = get_status_emoji(age, thresholds, is_trading_day)
             formatted = format_age(age)
 
-            # Use relaxed thresholds on non-trading days for market data tables
-            if table in ("price_daily", "technical_data_daily") and not is_trading_day:
+            # When there's a weekend/holiday gap, shift ALL tiers (not just "fresh") by
+            # the size of that gap for tables tied to the trading calendar. Otherwise data
+            # that's legitimately fresh-as-of-Friday still gets compared against the
+            # 4h/24h intraday stale/critical cutoffs on Monday morning and reads as DEAD.
+            if table in ("price_daily", "technical_data_daily") and spans_gap:
+                gap_minutes = (today - prev_trading_day).days * 1440
                 fresh_threshold = thresholds.get("fresh_non_trading", thresholds["fresh"])
+                stale_threshold = thresholds["stale"] + gap_minutes
+                critical_threshold = thresholds["critical"] + gap_minutes
             else:
                 fresh_threshold = thresholds["fresh"]
+                stale_threshold = thresholds["stale"]
+                critical_threshold = thresholds["critical"]
+
+            emoji = "✅" if age < fresh_threshold else "⚠️ " if age < stale_threshold else "🔴" if age < critical_threshold else "💀"
 
             if age < fresh_threshold:
                 status = f"{emoji} FRESH ({formatted})"
                 level = "ok"
-            elif age < thresholds["stale"]:
+            elif age < stale_threshold:
                 status = f"{emoji} STALE ({formatted})"
                 level = "warning"
-            elif age < thresholds["critical"]:
+            elif age < critical_threshold:
                 status = f"{emoji} CRITICAL ({formatted})"
                 level = "critical"
             else:
