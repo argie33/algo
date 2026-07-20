@@ -8,7 +8,7 @@ Used in LOCAL_MODE to avoid AWS DynamoDB permissions issues.
 import logging
 import tempfile
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -53,7 +53,7 @@ class FileLockManager:
     def _cleanup_expired_locks(self) -> None:
         """Remove expired lock files."""
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             for lock_file in self.lock_dir.glob("*.lock"):
                 try:
                     # Read expiry time from file
@@ -103,7 +103,7 @@ class FileLockManager:
                     if len(parts) >= 2:
                         expiry_str = parts[1]
                         expiry = datetime.fromisoformat(expiry_str)
-                        if datetime.utcnow() < expiry:
+                        if datetime.now(timezone.utc) < expiry:
                             lock_is_valid = True
                             logger.debug(f"[FILE_LOCK] Lock held by another instance: {lock_file.name}")
                             if attempt == 1:
@@ -122,7 +122,7 @@ class FileLockManager:
 
             # Try to acquire lock with ATOMIC file creation (O_EXCL)
             try:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc)
                 expiry = now + timedelta(seconds=self.lock_duration_seconds)
                 lock_content = f"local-dev|{expiry.isoformat()}"
 

@@ -115,7 +115,7 @@ class LoaderConfigManager:
             return self._rds_connection_cache
 
         try:
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, timezone
 
             import boto3
 
@@ -124,8 +124,8 @@ class LoaderConfigManager:
                 Namespace="AWS/RDS",
                 MetricName="DatabaseConnections",
                 Dimensions=[{"Name": "DBInstanceIdentifier", "Value": "algo-db"}],
-                StartTime=datetime.utcnow() - timedelta(minutes=5),
-                EndTime=datetime.utcnow(),
+                StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
+                EndTime=datetime.now(timezone.utc),
                 Period=60,
                 Statistics=["Average"],
             )

@@ -34,7 +34,7 @@ import json
 import logging
 import uuid
 from datetime import date as _date
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
@@ -86,7 +86,7 @@ class DataProvenanceTracker:
             run_id: UUID for this loader execution
         """
         self.run_id = str(uuid.uuid4())
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
 
         if not self.in_memory:
             self._insert_loader_run(source_api, parameters)
@@ -122,7 +122,7 @@ class DataProvenanceTracker:
             raise RuntimeError("Must call start_run() before recording ticks")
 
         provenance_id = str(uuid.uuid4())
-        load_timestamp = datetime.utcnow()
+        load_timestamp = datetime.now(timezone.utc)
 
         # Compute checksum for integrity verification
         checksum = self._compute_checksum(data)
@@ -175,7 +175,7 @@ class DataProvenanceTracker:
             "error_type": error_type,
             "error_message": error_message,
             "resolution": resolution,
-            "recorded_at": datetime.utcnow(),
+            "recorded_at": datetime.now(timezone.utc),
         }
 
         if not self.in_memory:
@@ -200,7 +200,7 @@ class DataProvenanceTracker:
         if not self.run_id or not self.start_time:
             return
 
-        duration_seconds = (datetime.utcnow() - self.start_time).total_seconds()
+        duration_seconds = (datetime.now(timezone.utc) - self.start_time).total_seconds()
 
         if not self.in_memory:
             self._finalize_loader_run(success, duration_seconds, summary)

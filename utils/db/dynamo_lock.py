@@ -15,7 +15,7 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import boto3
 
@@ -95,8 +95,8 @@ class DynamoDBLockManager:
         while time.time() - start_time < timeout_seconds:
             attempt += 1
             try:
-                now = datetime.utcnow().isoformat()
-                expiry = (datetime.utcnow() + timedelta(seconds=self.lock_duration_seconds)).isoformat()
+                now = datetime.now(timezone.utc).isoformat()
+                expiry = (datetime.now(timezone.utc) + timedelta(seconds=self.lock_duration_seconds)).isoformat()
 
                 # Conditional write: only succeed if item doesn't exist OR is expired
                 self.table.update_item(
@@ -207,7 +207,7 @@ class DynamoDBLockManager:
 
         try:
             cleaned = 0
-            cutoff_time = (datetime.utcnow() - timedelta(seconds=max_age_seconds)).isoformat()
+            cutoff_time = (datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)).isoformat()
 
             if lock_key:
                 # Clean specific lock
@@ -264,7 +264,7 @@ class DynamoDBLockManager:
             expires_at = item.get("expires_at", "unknown")
             acquired_at = item.get("acquired_at", "unknown")
 
-            is_expired = expires_at < datetime.utcnow().isoformat() if isinstance(expires_at, str) else False
+            is_expired = expires_at < datetime.now(timezone.utc).isoformat() if isinstance(expires_at, str) else False
 
             return {
                 "status": "expired" if is_expired else "held",

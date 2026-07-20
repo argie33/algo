@@ -204,7 +204,7 @@ class LoaderInfrastructure:
 
     def get_rds_connection_count(self) -> int | None:
         try:
-            from datetime import datetime, timedelta
+            from datetime import datetime, timedelta, timezone
 
             import boto3
 
@@ -214,8 +214,8 @@ class LoaderInfrastructure:
                 Namespace="AWS/RDS",
                 MetricName="DatabaseConnections",
                 Dimensions=[{"Name": "DBInstanceIdentifier", "Value": "algo-db"}],
-                StartTime=datetime.utcnow() - timedelta(minutes=5),
-                EndTime=datetime.utcnow(),
+                StartTime=datetime.now(timezone.utc) - timedelta(minutes=5),
+                EndTime=datetime.now(timezone.utc),
                 Period=60,
                 Statistics=["Average"],
             )
