@@ -418,7 +418,7 @@ class HaltFlagManager:
         )
 
     def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
-        """Set halt flag in RDS. Returns True if successfully set."""
+        """Set halt flag in RDS. Raises exception if it fails."""
         import json
         try:
             with DatabaseContext("write") as cur:
@@ -441,8 +441,10 @@ class HaltFlagManager:
             logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
             return True
         except Exception as e:
-            logger.error(f"[HALT_FLAG] Failed to set halt flag in RDS: {e}")
-            return False
+            raise RuntimeError(
+                f"[GOVERNANCE VIOLATION] Failed to set halt flag in RDS fallback: {e}. "
+                f"Both DynamoDB and RDS unavailable. Cannot proceed."
+            ) from e
 
     def proactive_clear_stale_halt(self) -> bool:
         """Proactively clear halt flag at orchestrator startup if halt is from prior trading day.
@@ -679,19 +681,18 @@ class HaltFlagManager:
                     else:
                         break
 
-        # Both DynamoDB and RDS failed: log warning but don't crash
-        # Trading will continue with stale halt flag status, but this beats crashing the orchestrator
-        logger.critical(
-            f"[HALT_FLAG] WARNING: Could not clear halt flag (DynamoDB + RDS both failed). "
-            f"Last error: {last_error}. Orchestrator will continue but halt status may be stale. "
-            f"Check database connectivity and AWS credentials."
+        # Both DynamoDB and RDS failed: MUST raise exception
+        # Halt flag is safety-critical. If we can't clear it, the orchestrator must fail.
+        # We cannot proceed with unknown halt status - it might be stale or incorrect.
+        raise RuntimeError(
+            f"[GOVERNANCE VIOLATION] Halt flag could not be cleared. Both DynamoDB and RDS failed. "
+            f"Last error: {last_error}. "
+            f"This is a critical safety failure - cannot proceed with trading when halt flag unavailable. "
+            f"Check: (1) RDS database connectivity (localhost:5432), (2) AWS credentials/DynamoDB access, (3) network issues."
         )
-        # Don't re-raise - allow orchestrator to continue despite halt flag management failure
-        # This is a circuit breaker: prefer trading with stale halt status over not trading at all
-        return False
 
     def _clear_halt_flag_rds(self, reason: str) -> bool:
-        """Clear halt flag in RDS. Returns True if successfully cleared."""
+        """Clear halt flag in RDS. Raises exception if it fails."""
         try:
             with DatabaseContext("write") as cur:
                 now_utc = datetime.now(timezone.utc)
@@ -706,5 +707,7 @@ class HaltFlagManager:
             logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'} (via RDS fallback)")
             return True
         except Exception as e:
-            logger.error(f"[HALT_FLAG] Failed to clear halt flag in RDS: {e}")
-            return False
+            raise RuntimeError(
+                f"[GOVERNANCE VIOLATION] Failed to clear halt flag in RDS fallback: {e}. "
+                f"Both DynamoDB and RDS unavailable. Cannot proceed."
+            ) from e
