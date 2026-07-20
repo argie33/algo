@@ -18,7 +18,15 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
     try:
         loader_name = event.get("loader_name", "unknown")
         started_at = event.get("started_at")
-        execution_time = event.get("execution_time_seconds", 0)
+
+        # FAIL-FAST: execution_time_seconds is REQUIRED, not optional
+        execution_time = event.get("execution_time_seconds")
+        if execution_time is None:
+            raise ValueError(
+                "execution_time_seconds missing from event - cannot log loader execution "
+                "with unknown duration (safety: silent 0 would corrupt performance metrics)"
+            )
+        execution_time = float(execution_time)
 
         # Connect to database
         db_host = os.getenv("DB_HOST", "localhost")
