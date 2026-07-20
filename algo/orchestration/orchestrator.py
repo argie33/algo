@@ -1642,6 +1642,8 @@ class Orchestrator:
         try:
             preflight_result = self._run_preflight_checks()
             if preflight_result is not None:
+                # Save audit log even on early exit (non-trading day, preflight failures)
+                self._save_early_exit_log(preflight_result)
                 return preflight_result
 
             self._wait_for_loaders_before_execution()
@@ -1655,6 +1657,20 @@ class Orchestrator:
             return self._final_report()
         finally:
             self._release_run_lock()
+
+    def _save_early_exit_log(self, exit_result: dict[str, Any]) -> None:
+        """Save execution log for early exits (non-trading days, preflight failures).
+
+        CRITICAL: Even when orchestrator exits early, we must record it for audit trail.
+        """
+        try:
+            reason = exit_result.get("reason", "early_exit")
+            status = exit_result.get("skipped") and "skipped" or "halted"
+
+            self.execution_tracker.save_execution_log(status, reason)
+            logger.debug(f"[EXECUTION_LOG] Saved early exit log: {reason}")
+        except Exception as e:
+            logger.warning(f"[EXECUTION_LOG] Could not save early exit log: {e}")
 
     def _final_report(self) -> dict[str, Any]:
         logger.info(f"\n{'#' * 70}")
