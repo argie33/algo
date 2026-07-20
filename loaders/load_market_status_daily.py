@@ -186,8 +186,27 @@ class MarketStatusDailyLoader(OptimalLoader):
     def _fetch_market_health(self, eval_date: date) -> dict[str, Any]:
         """Fetch all health metrics (VIX, breadth, yields, put/call)."""
         try:
-            # Fetch VIX
-            vix_data = self._vix_fetcher.fetch(eval_date - timedelta(days=1), eval_date)
+            from algo.infrastructure import MarketCalendar
+
+            # Session 299 FIX: Don't fetch from non-trading days
+            # Find the most recent trading day (eval_date or earlier)
+            last_trading_day = eval_date
+            search_date = eval_date
+            while search_date >= eval_date - timedelta(days=10):
+                if MarketCalendar.is_trading_day(search_date):
+                    last_trading_day = search_date
+                    break
+                search_date -= timedelta(days=1)
+
+            # Fetch VIX (from previous trading day to most recent trading day)
+            # This ensures we don't try to fetch non-trading day data
+            fetch_start = last_trading_day - timedelta(days=1)
+            while fetch_start >= last_trading_day - timedelta(days=5):
+                if MarketCalendar.is_trading_day(fetch_start):
+                    break
+                fetch_start -= timedelta(days=1)
+
+            vix_data = self._vix_fetcher.fetch(fetch_start, last_trading_day)
             if not vix_data or vix_data.get("data_unavailable"):
                 return {"data_unavailable": True, "reason": "vix_unavailable"}
 
@@ -203,8 +222,8 @@ class MarketStatusDailyLoader(OptimalLoader):
             new_highs = breadth_data.get("new_52wk_highs")
             new_lows = breadth_data.get("new_52wk_lows")
 
-            # Fetch yield curve (10Y-2Y spread)
-            yield_data = self._yield_curve_fetcher.fetch(eval_date - timedelta(days=1), eval_date)
+            # Fetch yield curve (10Y-2Y spread) - use same date range as VIX
+            yield_data = self._yield_curve_fetcher.fetch(fetch_start, last_trading_day)
             if not yield_data or yield_data.get("data_unavailable"):
                 return {"data_unavailable": True, "reason": "yield_curve_unavailable"}
 
