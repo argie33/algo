@@ -418,7 +418,7 @@ class HaltFlagManager:
         )
 
     def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
-        """Set halt flag in RDS. Raises exception if it fails."""
+        """Set halt flag in RDS. Returns True if successfully set."""
         import json
         try:
             with DatabaseContext("write") as cur:
@@ -441,10 +441,8 @@ class HaltFlagManager:
             logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
             return True
         except Exception as e:
-            raise RuntimeError(
-                f"[GOVERNANCE VIOLATION] Failed to set halt flag in RDS fallback: {e}. "
-                f"Both DynamoDB and RDS unavailable. Cannot proceed."
-            ) from e
+            logger.error(f"[HALT_FLAG] Failed to set halt flag in RDS: {e}")
+            return False
 
     def proactive_clear_stale_halt(self) -> bool:
         """Proactively clear halt flag at orchestrator startup if halt is from prior trading day.
@@ -692,22 +690,20 @@ class HaltFlagManager:
         )
 
     def _clear_halt_flag_rds(self, reason: str) -> bool:
-        """Clear halt flag in RDS. Raises exception if it fails."""
+        """Clear halt flag in RDS. Returns True if successfully cleared."""
         try:
             with DatabaseContext("write") as cur:
                 now_utc = datetime.now(timezone.utc)
                 cur.execute(
                     """
                     UPDATE algo_runtime_state
-                    SET halt_flag = FALSE, halt_count = 0, halt_cleared_at = %s, halt_reason = %s
+                    SET halt_flag = FALSE, halt_count = 0, halt_reason = %s, last_updated_at = %s
                     WHERE state_key = %s
                     """,
-                    (now_utc.isoformat(), reason or "Phase 1 verified: data is fresh", self.HALT_FLAG_DYNAMODB_KEY),
+                    (reason or "Phase 1 verified: data is fresh", now_utc, self.HALT_FLAG_DYNAMODB_KEY),
                 )
             logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'} (via RDS fallback)")
             return True
         except Exception as e:
-            raise RuntimeError(
-                f"[GOVERNANCE VIOLATION] Failed to clear halt flag in RDS fallback: {e}. "
-                f"Both DynamoDB and RDS unavailable. Cannot proceed."
-            ) from e
+            logger.error(f"[HALT_FLAG] Failed to clear halt flag in RDS: {e}")
+            return False
