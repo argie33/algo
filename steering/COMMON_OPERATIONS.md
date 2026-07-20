@@ -478,6 +478,43 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 
 ---
 
+## Concurrent Session Hazards (Local Development)
+
+**Problem:** Multiple Claude Code sessions or scheduled tasks can touch the same local PostgreSQL database, causing non-deterministic outcomes.
+
+**Known Scenarios:**
+
+### Scenario 1: Orchestrator Race During Concurrent Writes
+**What happens:** Two orchestrator runs attempt to write portfolio snapshots simultaneously; non-deterministic winner means halt flags may not apply consistently.
+**Root cause:** Operational, not a code bug. PostgreSQL transaction isolation doesn't prevent concurrent-session races on business logic (halt flag writes).
+**Mitigation:** 
+- Run orchestrator serially (one session at a time)
+- Monitor logs for concurrent activity: `git log --oneline -10` to see if another session is working
+- Check for competing processes: `Get-CimInstance Win32_Process -Filter "Name LIKE 'python%"` (Windows)
+
+### Scenario 2: Loader Rate Limiting Under Concurrent Load
+**What happens:** Multiple loader runs competing for SEC API quota (rate-limited to 10 req/sec). Single run is fast (~5 min), but two concurrent runs slow dramatically.
+**Root cause:** SEC API rate limit is shared. Multiple loaders hit it simultaneously, causing retries/backoffs.
+**Mitigation:**
+- Avoid running loaders concurrently (e.g., don't start `scripts/local_loader_scheduler.py` while orchestrator is running)
+- If you must: check CloudWatch/logs for timeout errors
+- Sequential runs are always faster than concurrent for external-API-bound work
+
+### Scenario 3: Data Staleness False Alarms
+**What happens:** One session's halt flag (circuit breaker breach) influences another session's data freshness assessment.
+**Root cause:** `algo_portfolio_snapshots` and other shared tables are written by orchestrator; concurrent readers may see partial states.
+**Mitigation:** 
+- Don't rely on dashboard halt flags across concurrent sessions
+- If testing circuit breaker behavior: run orchestrator alone, then check state
+- Dashboard's "health" panel is for UI feedback, not a reliable inter-session signal
+
+**Best Practice:** When developing locally, serialize long-running operations:
+1. **Morning:** Run loaders → check data freshness → stop loaders
+2. **Later:** Run orchestrator → check positions/trades
+3. **Don't:** Run loaders AND orchestrator simultaneously unless explicitly testing concurrency
+
+---
+
 ## Getting Help
 
 | Issue | Guide |

@@ -317,6 +317,24 @@ python dashboard.py --aws
 ### Tests fail with "pytest teardown error"
 → Already fixed in Session 203. Run `git pull origin main` to get latest.
 
+### Loader "cannot acquire lock" after hard exit (Ctrl+C)
+**Problem:** Hard-killing a running loader leaves the lock active for 3 hours  
+**Root Cause:** `loader_execution_locks` table (RDS) enforces single-writer-at-a-time via TTL. Process death doesn't trigger cleanup.
+
+**Quick fix (if you're sure no Python loaders are running):**
+```bash
+# Verify no loader processes running:
+Get-CimInstance Win32_Process -Filter "Name LIKE 'python%'"
+
+# Then clear the lock:
+psql -d stocks -U stocks -h localhost << 'SQL'
+DELETE FROM loader_execution_locks 
+WHERE loader_name = 'load_financial_statements';  -- Replace with your loader name
+SQL
+```
+
+Automatic expiry happens after 3 hours, but manual cleanup is faster for development.
+
 ### Need more help?
 → See `DASHBOARD_TROUBLESHOOTING.md` (full troubleshooting guide)
 → See `steering/COMMON_OPERATIONS.md` (broader operations reference)
