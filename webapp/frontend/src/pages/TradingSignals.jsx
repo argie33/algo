@@ -1634,7 +1634,6 @@ function SignalDetail({ row, kind, onSymbolClick }) {
             ["Pivot", fmtMoney(row.pivot_price)],
             ["Initial stop", fmtMoney(row.initial_stop)],
             ["Trailing stop", fmtMoney(row.trailing_stop)],
-            ["Position size", row.position_size_recommendation || "—"],
             [
               "Entry quality",
               row.entry_quality_score ? `${row.entry_quality_score}/100` : "—",

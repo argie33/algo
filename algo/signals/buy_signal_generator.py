@@ -17,10 +17,23 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Internal classify_base_type() pattern names -> display strings used by the frontend
+# (webapp/frontend/src/pages/TradingSignals.jsx BASE_TYPE_VARIANT / badges).
+_BASE_TYPE_DISPLAY = {
+    "cup_with_handle": "Cup w/ Handle",
+    "flat_base": "Flat Base",
+    "double_bottom": "Double Bottom",
+    "ascending_base": "Ascending Base",
+    "vcp": "VCP",
+    "saucer": "Saucer",
+    "consolidation": "Consolidation",
+    "wide_and_loose": "Wide & Loose",
+}
+
 
 class BuySignalGenerator:
     def __init__(self) -> None:
-        pass
+        self._pattern_classifier: Any = None
 
     def run(self, symbol: str, rows: list[dict[str, Any]], tech_data_age: int | None = None) -> list[dict[str, Any]]:
         """Generate buy/sell signals from technical indicator data.
@@ -129,6 +142,11 @@ class BuySignalGenerator:
                 # Phase 4: Calculate entry/exit levels
                 entry_exit = self._calculate_entry_exit_levels(signal_type, close, buylevel, stoplevel, atr)
 
+                # Phase 5: Classify chart base pattern (BUY only - best-effort, never blocks signal generation)
+                base_type_display, base_length_days = (
+                    self._classify_base_type_safe(symbol, row["date"]) if signal_type == "BUY" else (None, None)
+                )
+
                 # Build signal record
                 signal = {
                     "symbol": symbol,
@@ -156,6 +174,8 @@ class BuySignalGenerator:
                     "macd_signal": (float(macd_signal) if macd_signal is not None else None),
                     "stage_number": None,
                     "market_stage": market_stage,
+                    "base_type": base_type_display,
+                    "base_length_days": base_length_days,
                     "open": float(open_price) if open_price is not None else None,
                     "high": float(high) if high is not None else None,
                     "low": float(low) if low is not None else None,
@@ -476,6 +496,36 @@ class BuySignalGenerator:
             reason = f"missing_fields: {', '.join(missing)}"
             logger.debug(f"[SIGNAL_METRICS] Cannot determine market stage - {reason}")
             return {"data_unavailable": True, "reason": reason}
+
+    def _classify_base_type_safe(self, symbol: str, eval_date: Any) -> tuple[str | None, int | None]:
+        """Classify the chart base pattern for a BUY candidate (best-effort).
+
+        Uses algo/signals/signal_patterns.py::classify_base_type via SignalComputer. This
+        analysis has no bearing on whether a signal fires (pivot-breakout logic already decided
+        that) and must never block or fail signal generation - any error here is caught and
+        logged, returning (None, None) so the candidate is still emitted without pattern data.
+        """
+        try:
+            if self._pattern_classifier is None:
+                from algo.signals.signal_computer import SignalComputer
+
+                self._pattern_classifier = SignalComputer(config={})
+
+            classification = self._pattern_classifier.classify_base_type(symbol, eval_date)
+            if not classification or classification.get("data_unavailable"):
+                return None, None
+
+            pattern_type = classification.get("type")
+            if pattern_type is None or pattern_type in ("no_base",):
+                return None, None
+
+            display_name = _BASE_TYPE_DISPLAY.get(pattern_type, pattern_type.replace("_", " ").title())
+            duration_weeks = classification.get("duration_weeks")
+            base_length_days = int(duration_weeks * 5) if duration_weeks is not None else None
+            return display_name, base_length_days
+        except Exception as e:  # best-effort enrichment, must never break signal generation
+            logger.warning(f"[SIGNAL_GENERATION] {symbol}: base pattern classification failed - {type(e).__name__}: {e}")
+            return None, None
 
     def _calculate_entry_exit_levels(
         self,

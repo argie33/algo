@@ -911,6 +911,11 @@ def main() -> int:
 def _sync_scores_to_buy_sell() -> None:
     """Sync composite_sqs from signal_quality_scores to buy_sell_daily.signal_quality_score.
 
+    Also copies the same value into entry_quality_score: there is no distinct "entry quality"
+    formula anywhere in the codebase (buy_signal_generator.py always emits it as None), so rather
+    than leave it permanently NULL, it's aliased to signal_quality_score - the only quality score
+    that actually gets computed for the pre-trade candidate universe.
+
     CRITICAL: Only update if BOTH signal_quality_scores has data AND buy_sell_daily is missing it.
     NEVER use COALESCE to fall back to old values — stale data is worse than no data.
     """
@@ -922,7 +927,8 @@ def _sync_scores_to_buy_sell() -> None:
             # No COALESCE fallback — if SQS computed a score, use it; otherwise leave NULL
             cur.execute("""
                 UPDATE buy_sell_daily bsd
-                SET signal_quality_score = sqs.composite_sqs
+                SET signal_quality_score = sqs.composite_sqs,
+                    entry_quality_score = sqs.composite_sqs
                 FROM signal_quality_scores sqs
                 WHERE bsd.symbol = sqs.symbol
                 AND bsd.date = sqs.date
