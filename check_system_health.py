@@ -146,7 +146,7 @@ def check_database() -> dict:
                     # holiday gap since the last completed trading day - shift the threshold by that
                     # gap's size, mirroring monitor_data_staleness.py's check_all_tables().
                     from algo.infrastructure.market_calendar import MarketCalendar
-                    from datetime import datetime, timezone, date
+                    from datetime import datetime, timezone, date, timedelta
 
                     now = datetime.now(timezone.utc)
                     is_trading_day = MarketCalendar.is_trading_day(now.date())
@@ -155,7 +155,6 @@ def check_database() -> dict:
                     prev_trading_day = MarketCalendar.get_previous_trading_day(today - timedelta(days=1))
                     if prev_trading_day is None:
                         # Fallback if trading day lookup fails (shouldn't happen)
-                        from datetime import timedelta
                         prev_trading_day = today - timedelta(days=1)
                     gap_days = (today - prev_trading_day).days
 
