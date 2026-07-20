@@ -190,6 +190,7 @@ def _get_stock_scores(
                     qm.operating_margin AS operating_margin_val,
                     qm.net_margin AS net_margin_val,
                     qm.interest_coverage AS interest_coverage_val,
+                    qm.debt_to_assets AS debt_to_assets_val,
                     gm.revenue_growth_1y AS rev_growth_1y_val,
                     gm.eps_growth_1y AS eps_growth_1y_val,
                     gm.revenue_growth_3y AS rev_growth_3y_val,
@@ -200,7 +201,6 @@ def _get_stock_scores(
                     sm.volatility_252d AS volatility_12m_val,
                     sm.volatility_30d AS volatility_30d_val,
                     sm.volatility_60d AS volatility_60d_val,
-                    sm.debt_to_assets AS debt_to_assets_val,
                     pm.institutional_ownership_pct AS inst_own_val,
                     pm.insider_ownership_pct AS insider_own_val,
                     pm.short_interest_pct AS short_pct_val,
@@ -215,7 +215,12 @@ def _get_stock_scores(
                     ROUND(CASE WHEN tl.sma_50 IS NOT NULL AND tl.sma_50 > 0 THEN ((pl.close - tl.sma_50) / tl.sma_50 * 100) ELSE NULL END, 2) AS price_vs_sma_50,
                     ROUND(CASE WHEN tl.sma_200 IS NOT NULL AND tl.sma_200 > 0 THEN ((pl.close - tl.sma_200) / tl.sma_200 * 100) ELSE NULL END, 2) AS price_vs_sma_200,
                     p52.high_52w AS high_52w_val,
-                    ROUND(CASE WHEN p52.high_52w > 0 THEN ((pl.close - p52.high_52w) / p52.high_52w * 100) END, 2) AS price_vs_52w_high_val
+                    ROUND(CASE WHEN p52.high_52w > 0 THEN ((pl.close - p52.high_52w) / p52.high_52w * 100) END, 2) AS price_vs_52w_high_val,
+                    mm.momentum_1m AS momentum_1m_val,
+                    mm.momentum_3m AS momentum_3m_val,
+                    mm.momentum_6m AS momentum_6m_val,
+                    mm.momentum_12m AS momentum_12m_val,
+                    (mm.symbol IS NULL OR mm.data_unavailable = TRUE) AS _momentum_data_unavailable
                 FROM filtered_scores fs
                 LEFT JOIN company_profile cp ON cp.ticker = fs.symbol
                 LEFT JOIN value_metrics vm ON vm.symbol = fs.symbol
@@ -223,6 +228,7 @@ def _get_stock_scores(
                 LEFT JOIN growth_metrics gm ON gm.symbol = fs.symbol
                 LEFT JOIN stability_metrics sm ON sm.symbol = fs.symbol
                 LEFT JOIN positioning_metrics pm ON pm.symbol = fs.symbol
+                LEFT JOIN momentum_metrics mm ON mm.symbol = fs.symbol
                 LEFT JOIN LATERAL (
                     SELECT close, date
                     FROM price_daily

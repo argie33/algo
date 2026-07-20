@@ -222,7 +222,7 @@ class StockScoresLoader(OptimalLoader):
         with DatabaseContext("read") as cur:
             cur.execute(
                 "SELECT symbol, roe, roa, operating_margin, net_margin, debt_to_equity, "
-                "current_ratio, quick_ratio, quality_score, data_unavailable FROM quality_metrics"
+                "current_ratio, quick_ratio, debt_to_assets, quality_score, data_unavailable FROM quality_metrics"
             )
             self._quality_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -257,6 +257,18 @@ class StockScoresLoader(OptimalLoader):
                 "FROM momentum_metrics"
             )
             self._momentum_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
+
+            # Latest RSI/MACD per symbol, for momentum scoring (added: these were previously
+            # only surfaced for display and had zero influence on momentum_score, which was
+            # 100% price-return based). ROC is deliberately NOT pulled in here - it measures
+            # the same thing as momentum_1m/3m/6m/12m (windowed % price return) and would just
+            # double-weight that signal; RSI/MACD are qualitatively different (oscillator /
+            # trend-confirmation) so they add real incremental information.
+            cur.execute(
+                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd "
+                "FROM technical_data_daily ORDER BY symbol, date DESC"
+            )
+            self._technical_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Compute stock scores for this symbol. Returns data_unavailable dict if unable to compute.
@@ -659,9 +671,9 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 9 columns (roe, roa, operating_margin, net_margin,
-          debt_to_equity, current_ratio, quick_ratio, quality_score, data_unavailable)
-        - Schema mismatch (len(row) < 9) → raises ValueError immediately
+        - Row length validation: Must have 10 columns (roe, roa, operating_margin, net_margin,
+          debt_to_equity, current_ratio, quick_ratio, debt_to_assets, quality_score, data_unavailable)
+        - Schema mismatch (len(row) < 10) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_quality_metrics_found"
@@ -674,19 +686,19 @@ class StockScoresLoader(OptimalLoader):
         table instead of re-computing from individual metrics. This ensures consistency between
         load_quality_metrics.py (which computes the score) and load_stock_scores.py (which uses it).
 
-        MINIMUM DATA REQUIREMENT: Row must have exactly 9 columns. Missing columns causes immediate
+        MINIMUM DATA REQUIREMENT: Row must have exactly 10 columns. Missing columns causes immediate
         fail-fast ValueError to prevent silent data corruption.
         """
         row = self._quality_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 9 columns before accessing indices
-            if len(row) < 9:
+            # CRITICAL: Validate row has expected 10 columns before accessing indices
+            if len(row) < 10:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 9. "
+                    f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 10. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[8]
-            quality_score = safe_float(row[7], f"{symbol}.quality_score")
+            data_unavailable = row[9]
+            quality_score = safe_float(row[8], f"{symbol}.quality_score")
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -703,6 +715,7 @@ class StockScoresLoader(OptimalLoader):
                 "debt_to_equity": safe_float(row[4], f"{symbol}.debt_to_equity"),
                 "current_ratio": safe_float(row[5], f"{symbol}.current_ratio"),
                 "quick_ratio": safe_float(row[6], f"{symbol}.quick_ratio"),
+                "debt_to_assets": safe_float(row[7], f"{symbol}.debt_to_assets", allow_none=True),
                 "quality_score": quality_score,  # Pre-computed by load_quality_metrics.py
             }
         # No row exists at all
@@ -929,10 +942,19 @@ class StockScoresLoader(OptimalLoader):
         - momentum_1m, momentum_3m, momentum_6m, momentum_12m (already calculated)
         - data_unavailable flag (True if loader failed)
 
+        Also merges in the latest RSI(14)/MACD from technical_data_daily (via
+        self._technical_cache). These are a separate, independently-available source, so a
+        symbol missing from momentum_metrics can still contribute an RSI/MACD-only momentum
+        score, and vice versa.
+
         Returns dict with momentum values (which may be None for individual timeframes if
         upstream loader failed to calculate them).
         """
         try:
+            tech_row = self._technical_cache.get(symbol, None)
+            rsi_14 = safe_float(tech_row[0], f"{symbol}.rsi_14", allow_none=True) if tech_row else None
+            macd = safe_float(tech_row[1], f"{symbol}.macd", allow_none=True) if tech_row else None
+
             row = self._momentum_cache.get(symbol, None)
 
             if row is not None:
@@ -949,18 +971,41 @@ class StockScoresLoader(OptimalLoader):
                 momentum_12m = safe_float(row[3], f"{symbol}.momentum_12m", allow_none=True)
                 data_unavailable = row[4]
 
-                # If momentum_metrics marked this symbol as unavailable, return marker
+                # If momentum_metrics marked this symbol as unavailable, price-return momentum
+                # is unusable, but RSI/MACD came from an independent source and may still score.
                 if data_unavailable:
-                    return {"data_unavailable": True, "reason": "momentum_metrics_loader_failed"}
+                    if rsi_14 is None and macd is None:
+                        return {"data_unavailable": True, "reason": "momentum_metrics_loader_failed"}
+                    return {
+                        "momentum_1m": None,
+                        "momentum_3m": None,
+                        "momentum_6m": None,
+                        "momentum_12m": None,
+                        "rsi_14": rsi_14,
+                        "macd": macd,
+                    }
 
                 return {
                     "momentum_1m": momentum_1m,
                     "momentum_3m": momentum_3m,
                     "momentum_6m": momentum_6m,
                     "momentum_12m": momentum_12m,
+                    "rsi_14": rsi_14,
+                    "macd": macd,
                 }
 
-            # Symbol not in momentum_metrics cache (loader hasn't run for this symbol yet)
+            # Symbol not in momentum_metrics cache; RSI/MACD alone can still score
+            if rsi_14 is not None or macd is not None:
+                logger.debug(f"[LOAD_STOCK_SCORES] {symbol}: momentum_metrics missing, scoring from RSI/MACD only")
+                return {
+                    "momentum_1m": None,
+                    "momentum_3m": None,
+                    "momentum_6m": None,
+                    "momentum_12m": None,
+                    "rsi_14": rsi_14,
+                    "macd": macd,
+                }
+
             logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - momentum_metrics not populated")
             logger.warning(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_data_available"}
@@ -1059,8 +1104,8 @@ class StockScoresLoader(OptimalLoader):
     def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted blend: EPS 1Y (35%) + Revenue 1Y (25%) + EPS 3Y (20%) + Revenue 3Y (15%) + EPS 5Y (5%).
-        Longer-term growth signals more durable earnings quality.
+        Uses weighted blend: EPS 1Y (33%) + Revenue 1Y (24%) + EPS 3Y (19%) + Revenue 3Y (14%)
+        + EPS 5Y (5%) + Revenue 5Y (5%). Longer-term growth signals more durable earnings quality.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 growth field → returns float (0-100)
@@ -1103,31 +1148,39 @@ class StockScoresLoader(OptimalLoader):
         # 1-year EPS growth: target 25%+ for growth stocks (highest weight)
         eps_1y = _score_single_growth(metrics.get("eps_growth_1y"), 50)
         if eps_1y is not None:
-            weighted_sum += eps_1y * 0.35
-            total_weight += 0.35
+            weighted_sum += eps_1y * 0.33
+            total_weight += 0.33
 
         # 1-year revenue growth: target 15%+
         rev_1y = _score_single_growth(metrics.get("revenue_growth_1y"), 30)
         if rev_1y is not None:
-            weighted_sum += rev_1y * 0.25
-            total_weight += 0.25
+            weighted_sum += rev_1y * 0.24
+            total_weight += 0.24
 
         # 3-year EPS CAGR: sustained growth signal
         eps_3y = _score_single_growth(metrics.get("eps_growth_3y"), 35)
         if eps_3y is not None:
-            weighted_sum += eps_3y * 0.20
-            total_weight += 0.20
+            weighted_sum += eps_3y * 0.19
+            total_weight += 0.19
 
         # 3-year revenue CAGR: sustained top-line growth
         rev_3y = _score_single_growth(metrics.get("revenue_growth_3y"), 20)
         if rev_3y is not None:
-            weighted_sum += rev_3y * 0.15
-            total_weight += 0.15
+            weighted_sum += rev_3y * 0.14
+            total_weight += 0.14
 
         # 5-year EPS CAGR: long-term compounding quality (lower weight)
         eps_5y = _score_single_growth(metrics.get("eps_growth_5y"), 30)
         if eps_5y is not None:
             weighted_sum += eps_5y * 0.05
+            total_weight += 0.05
+
+        # 5-year revenue CAGR: long-term top-line durability. Previously fetched
+        # and displayed but never weighted (dead field); cap set lower than the
+        # 1y/3y revenue caps since CAGR compounds and is harder to sustain longer.
+        rev_5y = _score_single_growth(metrics.get("revenue_growth_5y"), 15)
+        if rev_5y is not None:
+            weighted_sum += rev_5y * 0.05
             total_weight += 0.05
 
         if total_weight > 0:
@@ -1145,8 +1198,8 @@ class StockScoresLoader(OptimalLoader):
     def _score_value(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score value metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: P/E (50%) + P/B (25%) + FCF yield (15%) + Dividend yield (10%).
-        Peak zone for growth stocks: P/E 15-30, P/B < 5, positive FCF yield.
+        Uses weighted scoring: P/E (45%) + P/B (20%) + P/S (15%) + FCF yield (12%) + Dividend
+        yield (8%). Peak zone for growth stocks: P/E 15-30, P/B < 5, positive FCF yield.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 value field → returns float (0-100)
@@ -1184,8 +1237,8 @@ class StockScoresLoader(OptimalLoader):
                 pe_score = 100 - (pe - 20) * 2  # growth premium zone ? 70 at pe=35
             else:
                 pe_score = max(0, 70 - (pe - 35) * 1.4)  # expensive ? 0 at pe~85
-            weighted_sum += pe_score * 0.50
-            total_weight += 0.50
+            weighted_sum += pe_score * 0.45
+            total_weight += 0.45
 
         # P/B ratio: lower is better for value; < 3 is reasonable for most sectors
         if metrics.get("pb_ratio") is not None and metrics["pb_ratio"] > 0:
@@ -1198,22 +1251,38 @@ class StockScoresLoader(OptimalLoader):
                 pb_score = 70 - ((pb - 3.0) / 4.0) * 40  # 70?30 in [3,7]
             else:
                 pb_score = max(0, 30 - (pb - 7.0) * 3)
-            weighted_sum += pb_score * 0.25
-            total_weight += 0.25
+            weighted_sum += pb_score * 0.20
+            total_weight += 0.20
+
+        # P/S ratio: lower is better; thresholds sit higher than P/B since revenue
+        # multiples run richer than book multiples (especially for growth/SaaS names).
+        # Previously fetched and displayed but never weighted (dead field).
+        if metrics.get("ps_ratio") is not None and metrics["ps_ratio"] > 0:
+            ps = metrics["ps_ratio"]
+            if ps <= 2.0:
+                ps_score = 100
+            elif ps <= 6.0:
+                ps_score = 100 - ((ps - 2.0) / 4.0) * 30  # 100?70 in [2,6]
+            elif ps <= 15.0:
+                ps_score = 70 - ((ps - 6.0) / 9.0) * 40  # 70?30 in [6,15]
+            else:
+                ps_score = max(0, 30 - (ps - 15.0) * 1.5)
+            weighted_sum += ps_score * 0.15
+            total_weight += 0.15
 
         # FCF yield: positive FCF yield is healthy; > 3% is good
         if metrics.get("fcf_yield") is not None and metrics["fcf_yield"] > 0:
             fcf_pct = metrics["fcf_yield"] * 100  # stored as decimal fraction
             fcf_score = min(100, fcf_pct * 20)  # 5% FCF yield = 100 score
-            weighted_sum += fcf_score * 0.15
-            total_weight += 0.15
+            weighted_sum += fcf_score * 0.12
+            total_weight += 0.12
 
         # Dividend yield: bonus signal for income/quality (optional)
         if metrics.get("dividend_yield") is not None and metrics["dividend_yield"] > 0:
             div = min(metrics["dividend_yield"] * 100, 6)  # decimal ? percent, cap 6%
             div_score = min(100, div * 16.7)
-            weighted_sum += div_score * 0.10
-            total_weight += 0.10
+            weighted_sum += div_score * 0.08
+            total_weight += 0.08
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -1297,9 +1366,10 @@ class StockScoresLoader(OptimalLoader):
     def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score stability metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Volatility 252d (50%) + Volatility 60d (25%) + Beta (15%) + Debt-to-assets (10%).
-        Lower volatility and beta closer to 1.0 indicate stable, market-correlated stocks.
-        Lower debt-to-assets indicates stronger financial stability.
+        Uses weighted scoring: Volatility 252d (40%) + Volatility 60d (20%) + Volatility 30d (15%)
+        + Beta (15%) + Debt-to-assets (10%). Lower volatility and beta closer to 1.0 indicate
+        stable, market-correlated stocks. Lower debt-to-assets indicates stronger financial
+        stability.
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 stability field → returns float (0-100)
@@ -1334,8 +1404,8 @@ class StockScoresLoader(OptimalLoader):
                 vol_score = 50 - ((vol - 0.30) / 0.30) * 40  # 50?10 in [30%,60%]
             else:
                 vol_score = max(0, 10 - (vol - 0.60) * 20)
-            weighted_sum += vol_score * 0.50
-            total_weight += 0.50
+            weighted_sum += vol_score * 0.40
+            total_weight += 0.40
 
         # 60-day volatility: recent stability proxy (higher weight than 12m for swing traders)
         if metrics.get("volatility_60d") is not None:
@@ -1348,8 +1418,23 @@ class StockScoresLoader(OptimalLoader):
                 v60_score = 50 - ((vol60 - 0.30) / 0.30) * 40
             else:
                 v60_score = max(0, 10 - (vol60 - 0.60) * 20)
-            weighted_sum += v60_score * 0.25
-            total_weight += 0.25
+            weighted_sum += v60_score * 0.20
+            total_weight += 0.20
+
+        # 30-day volatility: most-recent stability read; best-populated volatility
+        # column in the DB (98%+) but previously fetched and never scored.
+        if metrics.get("volatility_30d") is not None:
+            vol30 = max(0, metrics["volatility_30d"])
+            if vol30 <= 0.15:
+                v30_score = 100
+            elif vol30 <= 0.30:
+                v30_score = 100 - ((vol30 - 0.15) / 0.15) * 50
+            elif vol30 <= 0.60:
+                v30_score = 50 - ((vol30 - 0.30) / 0.30) * 40
+            else:
+                v30_score = max(0, 10 - (vol30 - 0.60) * 20)
+            weighted_sum += v30_score * 0.15
+            total_weight += 0.15
 
         # Beta: close to 1.0 is best, target 0.8-1.2 for market-correlated swing trading
         if metrics.get("beta") is not None:
@@ -1376,34 +1461,39 @@ class StockScoresLoader(OptimalLoader):
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Momentum 1m (30%) + Momentum 3m (30%) + Momentum 6m (25%) + Momentum 12m (15%).
-        Weights favor recent momentum (1m/3m) over longer-term (12m) for swing trading.
-        Normalizes by total weight of available timeframes so partial data doesn't deflate the score.
+        Uses weighted scoring: Momentum 1m (22%) + 3m (22%) + 6m (19%) + 12m (12%)
+        + RSI(14) (15%) + MACD sign (10%).
+        Weights favor recent price-return momentum (1m/3m) over longer-term (12m) for swing
+        trading. RSI/MACD were added because they were previously fetched and displayed but
+        had zero influence on momentum_score, which was 100% price-return based; ROC is
+        deliberately excluded since it measures the same thing as the price-return windows
+        already used here and would just double-weight that signal.
+        Normalizes by total weight of available components so partial data doesn't deflate
+        the score.
 
         RETURN TYPES (STRICT):
-        - metrics available with ≥1 momentum field → returns float (0-100)
+        - metrics available with ≥1 scoreable field → returns float (0-100)
         - metrics marked data_unavailable=True → returns marker dict (never None)
         - metrics is None or missing → returns marker dict (never None)
-        - all momentum fields None → returns marker dict with reason="no_momentum_scores_computed"
+        - all fields None → returns marker dict with reason="no_momentum_scores_computed"
 
         ERROR HANDLING:
-        - Weak momentum (±3%) → returns None for that timeframe (insufficient signal)
+        - Weak price-return momentum (±3%) → returns None for that timeframe (insufficient signal)
         - Missing historical prices → timeframe momentum is None (not guessed)
 
-        MINIMUM DATA REQUIREMENT: At least one of 1m/3m/6m/12m momentum values must be
-        available (not None). If all momentum values are None/missing, returns data_unavailable marker.
-        Requires minimum 30/60/120/252 days of price history per timeframe (no short-term fallback).
+        MINIMUM DATA REQUIREMENT: At least one of 1m/3m/6m/12m momentum, RSI, or MACD must be
+        available (not None). If everything is None/missing, returns data_unavailable marker.
         """
         if not metrics or metrics.get("data_unavailable") is True:
             logger.warning(f"[STOCK_SCORES] Returning data_unavailable marker for momentum_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_metrics_data"}
 
-        # Named weights â€" recent timeframes matter more for swing trading
+        # Named weights - recent timeframes matter more for swing trading
         weights = {
-            "momentum_1m": 0.30,
-            "momentum_3m": 0.30,
-            "momentum_6m": 0.25,
-            "momentum_12m": 0.15,
+            "momentum_1m": 0.22,
+            "momentum_3m": 0.22,
+            "momentum_6m": 0.19,
+            "momentum_12m": 0.12,
         }
 
         weighted_sum = 0.0
@@ -1414,6 +1504,23 @@ class StockScoresLoader(OptimalLoader):
                 if score is not None:  # Skip weak momentum (score=None)
                     weighted_sum += score * w
                     total_weight += w
+
+        # RSI(14): momentum-following curve (not mean-reversion) - higher RSI is more
+        # bullish, with only a slight pullback at extreme overbought (>85) for reversal risk.
+        if metrics.get("rsi_14") is not None:
+            rsi_score = self._rsi_to_score(metrics["rsi_14"])
+            weighted_sum += rsi_score * 0.15
+            total_weight += 0.15
+
+        # MACD: sign only, not magnitude. MACD's raw value scales with the stock's price
+        # level (a MACD of 2 means something different for a $10 stock vs a $500 stock), so
+        # magnitude isn't comparable across symbols - use it purely as a bull/bear trend
+        # confirmation signal.
+        if metrics.get("macd") is not None:
+            macd = metrics["macd"]
+            macd_score = 70.0 if macd > 0 else 30.0 if macd < 0 else 50.0
+            weighted_sum += macd_score * 0.10
+            total_weight += 0.10
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -1437,6 +1544,25 @@ class StockScoresLoader(OptimalLoader):
         # Map momentum: -20% = 0, +20% = 100
         score = 50 + (pct_return / 0.4)
         return max(0, min(100, score))
+
+    @staticmethod
+    def _rsi_to_score(rsi: float) -> float:
+        """Map RSI(14) to a momentum-following 0-100 score (higher RSI = more bullish).
+
+        This is deliberately NOT a mean-reversion mapping (which would penalize high RSI as
+        "overbought"). For a momentum factor, sustained strength (RSI 50-85) should score
+        well; only extreme overbought (>85) gets a mild pullback for reversal risk.
+        """
+        rsi = max(0.0, min(100.0, rsi))
+        if rsi <= 30:
+            return (rsi / 30) * 30
+        if rsi <= 50:
+            return 30 + ((rsi - 30) / 20) * 20
+        if rsi <= 70:
+            return 50 + ((rsi - 50) / 20) * 35
+        if rsi <= 85:
+            return 85 + ((rsi - 70) / 15) * 15
+        return max(60.0, 100 - (rsi - 85) * 3)
 
     def audit_upstream_coverage(self) -> None:
         """Audit upstream metric loader coverage after stock_scores completes.

@@ -198,11 +198,47 @@ function FactorCard({ factor, stock, sectorAvg, marketAvg }) {
   );
 }
 
-// ─── factor inputs card ─────────────────────────────────────────────────────
+// ─── one row of a factor-inputs table ──────────────────────────────────────
+// tier: "used" (feeds the score formula), "tracked" (collected, not scored)
+// weight: display string for "used" rows, e.g. "35%", "avg", "fallback"
+// collected: false means this column is essentially never populated system-wide
+//   (verified against live DB, not just this stock) — rendered as "Not yet available"
+//   rather than the ambiguous "No data" used for a per-stock null.
+function InputRow({ row }) {
+  const hasValue = row.value != null;
+  return (
+    <tr>
+      <td className="t-xs" title={row.note || undefined}>
+        {row.label}
+        {row.weight && (
+          <span
+            className="badge badge-cyan"
+            style={{ marginLeft: 6, fontSize: "0.62rem", padding: "1px 5px" }}
+          >
+            {row.weight}
+          </span>
+        )}
+      </td>
+      <td className="num mono tnum t-xs">
+        {hasValue ? (
+          row.fmt(row.value)
+        ) : row.collected === false ? (
+          <span className="badge badge-amber" style={{ fontSize: "0.65rem" }}>
+            Not yet available
+          </span>
+        ) : (
+          <span className="muted">No data</span>
+        )}
+      </td>
+    </tr>
+  );
+}
+
+// ─── factor inputs card — always shows every field, grouped by tier ───────
 function InputsCard({ title, stock, schema }) {
-  const rows = schema
-    .map((s) => ({ ...s, value: stock[s.key] }))
-    .filter((r) => r.value != null && typeof r.fmt === "function");
+  const rows = schema.map((s) => ({ ...s, value: stock[s.key] }));
+  const used = rows.filter((r) => r.used);
+  const tracked = rows.filter((r) => !r.used);
 
   return (
     <div className="card">
@@ -215,22 +251,38 @@ function InputsCard({ title, stock, schema }) {
         </div>
       </div>
       <div className="card-body" style={{ padding: 0 }}>
-        {rows.length === 0 ? (
-          <div className="t-xs muted" style={{ padding: "var(--space-3)" }}>
-            No detailed metrics available
-          </div>
-        ) : (
-          <table className="data-table">
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.key}>
-                  <td className="t-xs">{r.label}</td>
-                  <td className="num mono tnum t-xs">{r.fmt(r.value)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        <table className="data-table">
+          <tbody>
+            {used.length > 0 && (
+              <tr>
+                <td
+                  colSpan={2}
+                  className="t-2xs muted"
+                  style={{ background: "var(--surface-2)", fontWeight: "var(--w-semibold)" }}
+                >
+                  Used in Score
+                </td>
+              </tr>
+            )}
+            {used.map((r) => (
+              <InputRow key={r.key} row={r} />
+            ))}
+            {tracked.length > 0 && (
+              <tr>
+                <td
+                  colSpan={2}
+                  className="t-2xs muted"
+                  style={{ background: "var(--surface-2)", fontWeight: "var(--w-semibold)" }}
+                >
+                  Tracked (Not Scored)
+                </td>
+              </tr>
+            )}
+            {tracked.map((r) => (
+              <InputRow key={r.key} row={r} />
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -281,8 +333,13 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
       </div>
 
       {/* Detailed factor inputs */}
-      <div className="eyebrow" style={{ marginBottom: "var(--space-2)" }}>
+      <div className="eyebrow" style={{ marginBottom: "var(--space-1)" }}>
         Detailed Factor Inputs
+      </div>
+      <div className="t-2xs muted" style={{ marginBottom: "var(--space-2)" }}>
+        Cyan tag = weight in the live scoring formula · amber &quot;Not yet available&quot; = this
+        metric is not populated for any stock yet (system-wide data gap, not just this one) ·
+        plain &quot;No data&quot; = tracked but missing for this stock only.
       </div>
       <div className="grid grid-3 gap-3" style={{ marginBottom: "var(--space-5)" }}>
         <InputsCard title="Quality & Fundamentals" stock={stock} schema={QUALITY_SCHEMA} />
@@ -323,68 +380,322 @@ const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) 
 
 export default StockScoreAccordion;
 
-// ─── Input Schemas — every factor input the API returns ───────────────────
+// ─── Input Schemas ──────────────────────────────────────────────────────────
+// Ground-truthed against loaders/load_stock_scores.py and
+// loaders/load_value_quality_growth_metrics.py (the actual scoring formulas),
+// plus a live-DB column-population audit (2026-07-20) to flag fields that are
+// queried/displayed but essentially never populated for any stock ("not yet
+// available" rather than an ordinary per-stock null).
+//
+// used: true  -> this field is a genuine input to the score formula
+// weight: display string for the "Used in Score" badge
+// collected: false -> live-DB audit found ~0% population across the whole
+//   universe (i.e. this isn't a per-stock gap, the pipeline doesn't produce it)
+
 const QUALITY_SCHEMA = [
-  { key: "roe_pct", label: "ROE", fmt: (v) => pct(v, 1) },
-  { key: "roa_val", label: "ROA", fmt: (v) => pct(v, 1) },
-  { key: "debt_to_equity", label: "Debt / Equity", fmt: (v) => num(v, 2) },
-  { key: "current_ratio_val", label: "Current Ratio", fmt: (v) => num(v, 2) },
-  { key: "quick_ratio_val", label: "Quick Ratio", fmt: (v) => num(v, 2) },
-  { key: "interest_coverage_val", label: "Interest Coverage", fmt: (v) => num(v, 2) },
-  { key: "operating_margin_val", label: "Operating Margin", fmt: (v) => pct(v, 1) },
-  { key: "net_margin_val", label: "Profit Margin", fmt: (v) => pct(v, 1) },
+  {
+    key: "roe_pct",
+    label: "ROE",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "avg",
+    collected: true,
+    note: "Equal-weight average with ROA, Operating Margin, Net Margin (quality_score formula).",
+  },
+  {
+    key: "roa_val",
+    label: "ROA",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "avg",
+    collected: true,
+  },
+  {
+    key: "operating_margin_val",
+    label: "Operating Margin",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "avg",
+    collected: true,
+  },
+  {
+    key: "net_margin_val",
+    label: "Profit Margin",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "avg",
+    collected: true,
+  },
+  {
+    key: "debt_to_assets_val",
+    label: "Debt / Assets",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "avg",
+    collected: true,
+    note: "Added 2026-07-20: was previously computed nowhere despite stability_score having a standing 10% slot for it. Now feeds both this average and (via merge) the stability formula.",
+  },
+  {
+    key: "debt_to_equity",
+    label: "Debt / Equity",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "fallback",
+    collected: true,
+    note: "Only used when the precomputed quality_score is unavailable (~18% of stocks).",
+  },
+  {
+    key: "current_ratio_val",
+    label: "Current Ratio",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "fallback",
+    collected: false,
+    note: "Fallback-only input; live DB shows 0% of stocks currently have this populated.",
+  },
+  {
+    key: "quick_ratio_val",
+    label: "Quick Ratio",
+    fmt: (v) => num(v, 2),
+    used: false,
+    collected: false,
+    note: "Column exists and is fetched, but no scoring path (primary or fallback) uses it.",
+  },
+  {
+    key: "interest_coverage_val",
+    label: "Interest Coverage",
+    fmt: (v) => num(v, 2),
+    used: false,
+    collected: false,
+    note: "Display-only; the scoring loader never fetches this column.",
+  },
 ];
 
 const MOMENTUM_SCHEMA = [
-  { key: "current_price", label: "Current Price", fmt: (v) => `$${num(v, 2)}` },
-  { key: "change_percent", label: "1-Day Change", fmt: (v) => pct(v, 2) },
-  { key: "high_52w_val", label: "52-Week High", fmt: (v) => `$${num(v, 2)}` },
-  { key: "price_vs_52w_high_val", label: "vs 52w High", fmt: (v) => pct(v, 2) },
-  { key: "price_vs_sma_50", label: "vs 50-SMA", fmt: (v) => pct(v, 2) },
-  { key: "price_vs_sma_200", label: "vs 200-SMA", fmt: (v) => pct(v, 2) },
-  { key: "tdd_roc_20d", label: "20-Day ROC", fmt: (v) => pct(v, 2) },
-  { key: "tdd_roc_60d", label: "60-Day ROC", fmt: (v) => pct(v, 2) },
-  { key: "tdd_roc_120d", label: "120-Day ROC", fmt: (v) => pct(v, 2) },
-  { key: "tdd_roc_252d", label: "252-Day ROC", fmt: (v) => pct(v, 2) },
-  { key: "tdd_rsi", label: "RSI (14)", fmt: (v) => num(v, 1) },
-  { key: "tdd_macd", label: "MACD", fmt: (v) => num(v, 3) },
+  {
+    key: "momentum_1m_val",
+    label: "Momentum (1M)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "22%",
+    collected: true,
+  },
+  {
+    key: "momentum_3m_val",
+    label: "Momentum (3M)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "22%",
+    collected: true,
+  },
+  {
+    key: "momentum_6m_val",
+    label: "Momentum (6M)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "19%",
+    collected: true,
+  },
+  {
+    key: "momentum_12m_val",
+    label: "Momentum (12M)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "12%",
+    collected: true,
+    note: "Only ~30% of stocks have 12M history populated; frequently shows \"No data\".",
+  },
+  {
+    key: "tdd_rsi",
+    label: "RSI (14)",
+    fmt: (v) => num(v, 1),
+    used: true,
+    weight: "15%",
+    collected: true,
+    note: "Added 2026-07-20: momentum-following curve (not mean-reversion) — sustained strength scores well, only extreme overbought (>85) pulls back slightly.",
+  },
+  {
+    key: "tdd_macd",
+    label: "MACD",
+    fmt: (v) => num(v, 3),
+    used: true,
+    weight: "10%",
+    collected: true,
+    note: "Added 2026-07-20: sign only, not magnitude (MACD's raw value scales with a stock's price level so isn't comparable across symbols) — used as a bull/bear trend-confirmation signal.",
+  },
+  { key: "current_price", label: "Current Price", fmt: (v) => `$${num(v, 2)}`, used: false, collected: true },
+  { key: "change_percent", label: "1-Day Change", fmt: (v) => pct(v, 2), used: false, collected: true },
+  { key: "high_52w_val", label: "52-Week High", fmt: (v) => `$${num(v, 2)}`, used: false, collected: true },
+  { key: "price_vs_52w_high_val", label: "vs 52w High", fmt: (v) => pct(v, 2), used: false, collected: true },
+  { key: "price_vs_sma_50", label: "vs 50-SMA", fmt: (v) => pct(v, 2), used: false, collected: true },
+  { key: "price_vs_sma_200", label: "vs 200-SMA", fmt: (v) => pct(v, 2), used: false, collected: true },
+  {
+    key: "tdd_roc_20d",
+    label: "20-Day ROC",
+    fmt: (v) => pct(v, 2),
+    used: false,
+    collected: true,
+    note: "Deliberately not scored — measures the same thing as Momentum 1M/3M/6M/12M (windowed % price return) and would double-weight that signal.",
+  },
+  { key: "tdd_roc_60d", label: "60-Day ROC", fmt: (v) => pct(v, 2), used: false, collected: true },
+  { key: "tdd_roc_120d", label: "120-Day ROC", fmt: (v) => pct(v, 2), used: false, collected: true },
+  { key: "tdd_roc_252d", label: "252-Day ROC", fmt: (v) => pct(v, 2), used: false, collected: true },
 ];
 
 const VALUE_SCHEMA = [
-  { key: "market_cap", label: "Market Cap", fmt: money },
-  { key: "trailing_pe", label: "P/E", fmt: (v) => num(v, 2) },
-  { key: "price_to_book", label: "P/B", fmt: (v) => num(v, 2) },
-  { key: "ps_ratio_val", label: "P/S", fmt: (v) => num(v, 2) },
-  { key: "peg_ratio_val", label: "PEG", fmt: (v) => num(v, 2) },
-  { key: "fcf_yield_val", label: "FCF Yield", fmt: (v) => pct(v, 2) },
-  { key: "dividend_yield", label: "Dividend Yield", fmt: (v) => pct(v, 2) },
+  { key: "trailing_pe", label: "P/E", fmt: (v) => num(v, 2), used: true, weight: "45%", collected: true },
+  { key: "price_to_book", label: "P/B", fmt: (v) => num(v, 2), used: true, weight: "20%", collected: true },
+  {
+    key: "ps_ratio_val",
+    label: "P/S",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "15%",
+    collected: true,
+    note: "Added 2026-07-20: was previously fetched and displayed but never weighted.",
+  },
+  { key: "fcf_yield_val", label: "FCF Yield", fmt: (v) => pct(v, 2), used: true, weight: "12%", collected: true },
+  {
+    key: "dividend_yield",
+    label: "Dividend Yield",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "8%",
+    collected: false,
+    note: "Formula weight is 8%, but live DB shows 0% of stocks have this populated — this weight is currently dead for the whole universe.",
+  },
+  { key: "peg_ratio_val", label: "PEG", fmt: (v) => num(v, 2), used: false, collected: false },
+  { key: "market_cap", label: "Market Cap", fmt: money, used: false, collected: true },
 ];
 
 const GROWTH_SCHEMA = [
-  { key: "rev_growth_1y_val", label: "Revenue Growth (1Y)", fmt: (v) => pct(v, 2) },
-  { key: "eps_growth_1y_val", label: "EPS Growth (1Y)", fmt: (v) => pct(v, 2) },
-  { key: "rev_growth_3y_val", label: "Revenue Growth (3Y)", fmt: (v) => pct(v, 2) },
-  { key: "eps_growth_3y_val", label: "EPS Growth (3Y)", fmt: (v) => pct(v, 2) },
-  { key: "rev_growth_5y_val", label: "Revenue Growth (5Y)", fmt: (v) => pct(v, 2) },
-  { key: "eps_growth_5y_val", label: "EPS Growth (5Y)", fmt: (v) => pct(v, 2) },
+  {
+    key: "eps_growth_1y_val",
+    label: "EPS Growth (1Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "33%",
+    collected: true,
+  },
+  {
+    key: "rev_growth_1y_val",
+    label: "Revenue Growth (1Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "24%",
+    collected: true,
+  },
+  {
+    key: "eps_growth_3y_val",
+    label: "EPS Growth (3Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "19%",
+    collected: true,
+  },
+  {
+    key: "rev_growth_3y_val",
+    label: "Revenue Growth (3Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "14%",
+    collected: true,
+  },
+  {
+    key: "eps_growth_5y_val",
+    label: "EPS Growth (5Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "5%",
+    collected: true,
+  },
+  {
+    key: "rev_growth_5y_val",
+    label: "Revenue Growth (5Y)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "5%",
+    collected: true,
+    note: "Added 2026-07-20: was previously fetched and displayed but the formula gave it 0% weight.",
+  },
 ];
 
 const POSITIONING_SCHEMA = [
-  { key: "inst_own_val", label: "Institutional Own %", fmt: (v) => pct(v, 1) },
-  { key: "insider_own_val", label: "Insider Own %", fmt: (v) => pct(v, 1) },
-  { key: "short_pct_val", label: "Short Interest %", fmt: (v) => pct(v, 2) },
-  { key: "short_interest_trend_val", label: "Short Interest Trend", fmt: (v) => String(v) },
+  {
+    key: "inst_own_val",
+    label: "Institutional Own %",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "55%",
+    collected: false,
+    note: "Highest-weighted positioning input, but live DB shows only 2 of 4,826 stocks have this populated — effectively dead for the whole universe right now.",
+  },
+  {
+    key: "insider_own_val",
+    label: "Insider Own %",
+    fmt: (v) => pct(v, 1),
+    used: true,
+    weight: "20%",
+    collected: true,
+  },
+  {
+    key: "short_pct_val",
+    label: "Short Interest %",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "25%",
+    collected: true,
+  },
+  {
+    key: "short_interest_trend_val",
+    label: "Short Interest Trend",
+    fmt: (v) => String(v),
+    used: false,
+    collected: true,
+  },
   {
     key: "shares_short_prior_month_val",
     label: "Shares Short (Prior Mo)",
     fmt: (v) => (v ? Number(v).toLocaleString() : "—"),
+    used: false,
+    collected: false,
   },
 ];
 
 const STABILITY_SCHEMA = [
-  { key: "volatility_12m_val", label: "Volatility (12M)", fmt: (v) => pct(v, 2) },
-  { key: "volatility_60d_val", label: "Volatility (60D)", fmt: (v) => pct(v, 2) },
-  { key: "volatility_30d_val", label: "Volatility (30D)", fmt: (v) => pct(v, 2) },
-  { key: "beta_val", label: "Beta vs Market", fmt: (v) => num(v, 2) },
-  { key: "debt_to_assets_val", label: "Debt / Assets", fmt: (v) => num(v, 2) },
+  {
+    key: "volatility_12m_val",
+    label: "Volatility (12M)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "40%",
+    collected: true,
+  },
+  {
+    key: "volatility_60d_val",
+    label: "Volatility (60D)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "20%",
+    collected: true,
+  },
+  {
+    key: "volatility_30d_val",
+    label: "Volatility (30D)",
+    fmt: (v) => pct(v, 2),
+    used: true,
+    weight: "15%",
+    collected: true,
+    note: "Added 2026-07-20: best-populated volatility column (98%+) but was previously fetched and never scored.",
+  },
+  { key: "beta_val", label: "Beta vs Market", fmt: (v) => num(v, 2), used: true, weight: "15%", collected: true },
+  {
+    key: "debt_to_assets_val",
+    label: "Debt / Assets",
+    fmt: (v) => num(v, 2),
+    used: true,
+    weight: "10%",
+    collected: true,
+    note: "Fixed 2026-07-20: was computed nowhere (0% populated), so this weight was dead. Now sourced from quality_metrics.debt_to_assets and merged into the stability formula.",
+  },
 ];

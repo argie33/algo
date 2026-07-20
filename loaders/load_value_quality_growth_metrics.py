@@ -298,6 +298,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "operating_margin": None,
                 "net_margin": None,
                 "debt_to_equity": None,
+                "debt_to_assets": None,
                 "quality_score": None,
                 "data_unavailable": False,
                 "data_source": "sec_audited",
@@ -336,17 +337,36 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 failed_metrics.append("debt_to_equity")
 
+            # Debt to Assets = Total Liabilities / Total Assets
+            # Both inputs are already fetched above for ROA; this was previously never
+            # computed even though stock_scores._score_stability has a standing 10%-weight
+            # slot for it (merged in from quality_metrics.debt_to_assets).
+            if total_liabilities is not None and total_assets is not None and total_assets != 0:
+                metrics["debt_to_assets"] = float(total_liabilities / total_assets)
+            else:
+                failed_metrics.append("debt_to_assets")
+
             # Mark unavailable if all metrics are None
-            if all(metrics[k] is None for k in ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity"]):
+            if all(
+                metrics[k] is None
+                for k in ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity", "debt_to_assets"]
+            ):
                 return self._unavailable_marker("quality_metrics", symbol)
 
             # Compute composite quality_score from available metrics
             # Score is average of available metrics (0-100 scale)
+            # debt_to_assets is "lower is better" so it's converted to a comparable
+            # higher-is-better score before joining the same clamp-and-average as the
+            # raw percentage metrics below (100 - debt_to_assets%, e.g. 30% debt -> 70).
+            debt_to_assets_score = (
+                100.0 - metrics["debt_to_assets"] * 100.0 if metrics["debt_to_assets"] is not None else None
+            )
             quality_components = [
                 metrics["roe"],
                 metrics["roa"],
                 metrics["operating_margin"],
                 metrics["net_margin"],
+                debt_to_assets_score,
             ]
             available_components = [m for m in quality_components if m is not None]
 
@@ -497,14 +517,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO quality_metrics
-            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, quality_score, data_unavailable, reason, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, quality_score, data_unavailable, reason, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
                 operating_margin = EXCLUDED.operating_margin,
                 net_margin = EXCLUDED.net_margin,
                 debt_to_equity = EXCLUDED.debt_to_equity,
+                debt_to_assets = EXCLUDED.debt_to_assets,
                 quality_score = EXCLUDED.quality_score,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
@@ -512,7 +533,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 updated_at = EXCLUDED.updated_at
             """,
             (row["symbol"], row["roe"], row.get("roa"), row["operating_margin"],
-             row["net_margin"], row["debt_to_equity"], row.get("quality_score"), row["data_unavailable"], row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"]),
+             row["net_margin"], row["debt_to_equity"], row.get("debt_to_assets"), row.get("quality_score"), row["data_unavailable"], row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -576,6 +597,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "operating_margin": None,
                 "net_margin": None,
                 "debt_to_equity": None,
+                "debt_to_assets": None,
                 "quality_score": None,
                 "data_unavailable": True,
                 "data_source": "none",

@@ -294,10 +294,11 @@ class TestStockScoreWeights:
     def test_value_component_weights(self) -> None:
         """Value metric sub-component weights."""
         weights = {
-            "pe_ratio": 0.50,
-            "pb_ratio": 0.25,
-            "fcf_yield": 0.15,
-            "dividend_yield": 0.10,
+            "pe_ratio": 0.45,
+            "pb_ratio": 0.20,
+            "ps_ratio": 0.15,
+            "fcf_yield": 0.12,
+            "dividend_yield": 0.08,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
 
@@ -313,10 +314,35 @@ class TestStockScoreWeights:
     def test_stability_component_weights(self) -> None:
         """Stability metric sub-component weights."""
         weights = {
-            "volatility_252": 0.50,
-            "volatility_60": 0.25,
+            "volatility_252": 0.40,
+            "volatility_60": 0.20,
+            "volatility_30": 0.15,
             "beta": 0.15,
             "debt_to_assets": 0.10,
+        }
+        assert abs(sum(weights.values()) - 1.0) < 0.001
+
+    def test_growth_component_weights(self) -> None:
+        """Growth metric sub-component weights."""
+        weights = {
+            "eps_growth_1y": 0.33,
+            "revenue_growth_1y": 0.24,
+            "eps_growth_3y": 0.19,
+            "revenue_growth_3y": 0.14,
+            "eps_growth_5y": 0.05,
+            "revenue_growth_5y": 0.05,
+        }
+        assert abs(sum(weights.values()) - 1.0) < 0.001
+
+    def test_momentum_component_weights(self) -> None:
+        """Momentum metric sub-component weights."""
+        weights = {
+            "momentum_1m": 0.22,
+            "momentum_3m": 0.22,
+            "momentum_6m": 0.19,
+            "momentum_12m": 0.12,
+            "rsi_14": 0.15,
+            "macd": 0.10,
         }
         assert abs(sum(weights.values()) - 1.0) < 0.001
 
