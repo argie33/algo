@@ -8,7 +8,7 @@ AWS RDS database.
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 import psycopg2
 
@@ -92,7 +92,7 @@ def lambda_handler(event, context):
                     "status": "success",
                     "message": "Migration 0044 applied successfully",
                     "columns_created": columns,
-                    "timestamp": datetime.utcnow().isoformat(),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             ),
         }

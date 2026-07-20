@@ -2,7 +2,7 @@
 """Signal Base - Common interface for all signal types."""
 
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
@@ -25,7 +25,7 @@ class SignalBase(ABC):
             "signal_type": self.signal_type,
             "strength": max(0, min(100, strength)),
             "reason": reason,
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
     def _period_return(self, cur: Any, symbol: str, end_date: Any, lookback_days: int) -> float:

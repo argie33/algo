@@ -2,7 +2,7 @@
 """Diagnose and clear stale DynamoDB orchestrator lock."""
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def check_and_clear_lock():
@@ -45,12 +45,12 @@ def check_and_clear_lock():
         # Check if lock is expired
         try:
             expiry_time = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-            now = datetime.utcnow().replace(tzinfo=expiry_time.tzinfo) if expiry_time.tzinfo else datetime.utcnow()
+            now = datetime.now(timezone.utc).replace(tzinfo=expiry_time.tzinfo) if expiry_time.tzinfo else datetime.now(timezone.utc)
 
             # Remove timezone for comparison if needed
             if expiry_time.tzinfo:
                 expiry_time = expiry_time.replace(tzinfo=None)
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             seconds_until_expiry = (expiry_time - now).total_seconds()
 

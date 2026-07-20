@@ -11,7 +11,7 @@ Response format must have statusCode + body (JSON-encoded) for compatibility wit
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import boto3
@@ -74,7 +74,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "statusCode": 200,
                 "message": f"Loader {loader_name} started on ECS ({len(task_arns)} task(s))",
                 "tasks": task_arns,
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             return {
                 "statusCode": 200,

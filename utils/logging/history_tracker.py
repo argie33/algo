@@ -15,7 +15,7 @@ Usage:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 import psycopg2
 
@@ -34,16 +34,16 @@ class LoaderHistoryTracker:
 
     def start(self) -> None:
         """Mark execution start."""
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
 
     def complete(self, symbols_processed: int = 0, errors: int = 0) -> None:
         """Log successful completion."""
-        self.end_time = datetime.utcnow()
+        self.end_time = datetime.now(timezone.utc)
         self._log(status="success", symbols_processed=symbols_processed, error_count=errors)
 
     def failed(self, error_message: str | None = None) -> None:
         """Log failed execution."""
-        self.end_time = datetime.utcnow()
+        self.end_time = datetime.now(timezone.utc)
         self._log(status="failed", error_message=error_message)
 
     def _log(

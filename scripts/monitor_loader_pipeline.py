@@ -5,7 +5,7 @@ Tracks morning and EOD pipeline runs, checks data freshness after completion.
 """
 
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 import boto3
 
@@ -77,7 +77,7 @@ def main():
     print(f"\nTracking execution: {execution_arn.split(':')[-1]}")
     print("Started: 2026-07-12 20:09:35 UTC")
     print("Expected completion: 45-60 minutes (20:54:35 - 21:09:35 UTC)")
-    print(f"Current time: {datetime.utcnow().isoformat()}Z\n")
+    print(f"Current time: {datetime.now(timezone.utc).isoformat()}Z\n")
 
     # Poll execution status
     max_wait_minutes = 90

@@ -14,7 +14,7 @@ Usage:
 
 import io
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import boto3
 
@@ -46,7 +46,7 @@ def check_cloudwatch_logs() -> dict:
             "/ecs/algo-algo-orchestrator",
         ]
 
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         for log_group in critical_logs:
             try:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check AWS orchestrator and data status"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
 import psycopg2
 
@@ -20,7 +20,7 @@ try:
     cur.execute("SELECT MAX(started_at) as latest FROM algo_orchestrator_runs")
     result = cur.fetchone()
     if result and result[0]:
-        age = datetime.utcnow() - result[0].replace(tzinfo=None)
+        age = datetime.now(timezone.utc).replace(tzinfo=None) - result[0].replace(tzinfo=None)
         print(f"Latest orchestrator run: {result[0]}")
         print(f"Age: {age.total_seconds() / 3600:.1f} hours")
 

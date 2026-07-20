@@ -12,7 +12,7 @@ Usage: python scripts/verify_session_155_deployment.py
 
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import boto3
 import psycopg2
@@ -80,7 +80,7 @@ def check_lambda_orchestrator_logs() -> bool:
         logger.info(f"Checking: {log_group}")
 
         # Get recent log streams (last hour)
-        int((datetime.utcnow() - timedelta(hours=1)).timestamp() * 1000)
+        int((datetime.now(timezone.utc) - timedelta(hours=1)).timestamp() * 1000)
 
         streams = logs.describe_log_streams(
             logGroupName=log_group,

@@ -10,7 +10,7 @@ import os
 import platform
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, cast
 
 import boto3
@@ -450,7 +450,7 @@ def save_tokens(auth: CognitoAuth) -> None:
         "id_token": auth.id_token,
         "username": auth.username,
         "expires_at": auth.token_expires_at,
-        "saved_at": datetime.utcnow().isoformat(),
+        "saved_at": datetime.now(timezone.utc).isoformat(),
     }
     with open(token_file, "w") as f:
         json.dump(tokens, f)
