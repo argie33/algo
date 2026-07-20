@@ -18,6 +18,7 @@ import os
 from datetime import datetime, timezone
 from typing import Any
 
+from utils.db import DatabaseContext
 from utils.infrastructure import EASTERN_TZ, MARKET_OPEN_HOUR, MARKET_OPEN_MINUTE
 
 logger = logging.getLogger(__name__)
@@ -512,16 +513,24 @@ class HaltFlagManager:
 
         except Exception as e:
             if "UnrecognizedClientException" in str(e) or "InvalidCredentials" in str(e):
-                logger.info(f"[PROACTIVE_CLEAR] DynamoDB unavailable (local dev mode?). Skipping halt flag check. {e}")
+                logger.info(f"[PROACTIVE_CLEAR] DynamoDB unavailable, attempting RDS fallback")
+                try:
+                    return self._proactive_clear_stale_halt_rds()
+                except Exception as rds_err:
+                    logger.warning(f"[PROACTIVE_CLEAR] RDS fallback also failed: {rds_err}. Continuing anyway.")
+                    return False
             else:
                 logger.warning(f"[PROACTIVE_CLEAR] Could not proactively clear halt: {e}. Continuing anyway.")
             return False
 
     def clear_halt_flag(self, reason: str = "") -> bool:
-        """Clear halt flag in DynamoDB. Returns True if successfully cleared.
+        """Clear halt flag in DynamoDB or RDS. Returns True if successfully cleared.
 
         ISSUE #8 FIX: When Phase 1 verifies data is fresh, explicitly clear the
         halt flag to allow Phase 5 to generate signals normally.
+
+        Session 289 FIX: Try DynamoDB first, fall back to RDS if unavailable.
+        Prevents crashes when AWS credentials missing or DynamoDB unavailable.
 
         Args:
             reason: Optional explanation for why halt was cleared
@@ -552,5 +561,29 @@ class HaltFlagManager:
             )
             logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'}")
             return True
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        except Exception as e:
+            # Fall back to RDS if DynamoDB unavailable
+            logger.debug(f"[HALT_FLAG] DynamoDB clear failed: {e}. Using RDS fallback.")
+            try:
+                return self._clear_halt_flag_rds(reason)
+            except Exception as rds_err:
+                raise RuntimeError(f"Both DynamoDB and RDS halt flag clear failed: {e} / {rds_err}") from rds_err
+
+    def _clear_halt_flag_rds(self, reason: str) -> bool:
+        """Clear halt flag in RDS. Returns True if successfully cleared."""
+        try:
+            with DatabaseContext("write") as cur:
+                now_utc = datetime.now(timezone.utc)
+                cur.execute(
+                    """
+                    UPDATE algo_runtime_state
+                    SET halt_flag = FALSE, halt_count = 0, halt_cleared_at = %s, halt_reason = %s
+                    WHERE state_key = %s
+                    """,
+                    (now_utc.isoformat(), reason or "Phase 1 verified: data is fresh", self.HALT_FLAG_DYNAMODB_KEY),
+                )
+            logger.info(f"[HALT_FLAG_CLEARED] {reason or 'Phase 1 verified: data is fresh, resuming normal trading'} (via RDS fallback)")
+            return True
+        except Exception as e:
+            logger.error(f"[HALT_FLAG] Failed to clear halt flag in RDS: {e}")
+            raise
