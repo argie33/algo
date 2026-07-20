@@ -193,7 +193,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 cur.execute(
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
-                           ais.net_income, ais.revenue, ais.operating_income
+                           ais.net_income, ais.revenue, ais.operating_income,
+                           abs.current_assets, abs.current_liabilities
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
                     WHERE abs.symbol = %s
@@ -290,6 +291,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             net_income = self._nan_to_none(safe_float(quality_row[3], f"{symbol}.net_income", allow_none=True))
             revenue = self._nan_to_none(safe_float(quality_row[4], f"{symbol}.revenue", allow_none=True))
             operating_income = self._nan_to_none(safe_float(quality_row[5], f"{symbol}.operating_income", allow_none=True))
+            current_assets = self._nan_to_none(safe_float(quality_row[6], f"{symbol}.current_assets", allow_none=True))
+            current_liabilities = self._nan_to_none(
+                safe_float(quality_row[7], f"{symbol}.current_liabilities", allow_none=True)
+            )
 
             metrics: dict[str, Any] = {
                 "symbol": symbol,
@@ -299,6 +304,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "net_margin": None,
                 "debt_to_equity": None,
                 "debt_to_assets": None,
+                "current_ratio": None,
                 "quality_score": None,
                 "data_unavailable": False,
                 "data_source": "sec_audited",
@@ -346,10 +352,28 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             else:
                 failed_metrics.append("debt_to_assets")
 
+            # Current Ratio = Current Assets / Current Liabilities
+            # Both inputs come from the same annual_balance_sheet row already fetched above;
+            # this was previously never computed even though stock_scores._score_quality's
+            # fallback formula (used when quality_score itself is unavailable) has a standing
+            # slot for it.
+            if current_assets is not None and current_liabilities is not None and current_liabilities != 0:
+                metrics["current_ratio"] = float(current_assets / current_liabilities)
+            else:
+                failed_metrics.append("current_ratio")
+
             # Mark unavailable if all metrics are None
             if all(
                 metrics[k] is None
-                for k in ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity", "debt_to_assets"]
+                for k in [
+                    "roe",
+                    "roa",
+                    "operating_margin",
+                    "net_margin",
+                    "debt_to_equity",
+                    "debt_to_assets",
+                    "current_ratio",
+                ]
             ):
                 return self._unavailable_marker("quality_metrics", symbol)
 
@@ -517,8 +541,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO quality_metrics
-            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, quality_score, data_unavailable, reason, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, current_ratio, quality_score, data_unavailable, reason, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -526,6 +550,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 net_margin = EXCLUDED.net_margin,
                 debt_to_equity = EXCLUDED.debt_to_equity,
                 debt_to_assets = EXCLUDED.debt_to_assets,
+                current_ratio = EXCLUDED.current_ratio,
                 quality_score = EXCLUDED.quality_score,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
@@ -533,7 +558,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 updated_at = EXCLUDED.updated_at
             """,
             (row["symbol"], row["roe"], row.get("roa"), row["operating_margin"],
-             row["net_margin"], row["debt_to_equity"], row.get("debt_to_assets"), row.get("quality_score"), row["data_unavailable"], row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"]),
+             row["net_margin"], row["debt_to_equity"], row.get("debt_to_assets"), row.get("current_ratio"),
+             row.get("quality_score"), row["data_unavailable"], row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -598,6 +624,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "net_margin": None,
                 "debt_to_equity": None,
                 "debt_to_assets": None,
+                "current_ratio": None,
                 "quality_score": None,
                 "data_unavailable": True,
                 "data_source": "none",

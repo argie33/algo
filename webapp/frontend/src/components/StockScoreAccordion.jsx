@@ -450,8 +450,8 @@ const QUALITY_SCHEMA = [
     fmt: (v) => num(v, 2),
     used: true,
     weight: "fallback",
-    collected: false,
-    note: "Fallback-only input; live DB shows 0% of stocks currently have this populated.",
+    collected: true,
+    note: "Fallback-only input (only used when the precomputed quality_score is unavailable). Added 2026-07-20: was computed nowhere despite this standing formula slot; now sourced from annual_balance_sheet current_assets/current_liabilities.",
   },
   {
     key: "quick_ratio_val",
