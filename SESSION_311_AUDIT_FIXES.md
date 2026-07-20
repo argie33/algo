@@ -15,7 +15,47 @@ Both issues fixed, tested, and committed.
 
 ---
 
-## Issues Found & Fixed
+## CRITICAL BUG DISCOVERED (Post-Audit)
+
+### 3. Incomplete Portfolio Snapshot Backfill - Running Peak Calculation
+
+**Severity:** CRITICAL (Data integrity issue affecting circuit breaker logic)  
+**Location:** Database: `algo_portfolio_snapshots` table  
+**Status:** ✅ FIXED
+
+**Problem:**
+- Only 2 of 559 portfolio snapshots had `running_peak` and `drawdown_pct` columns populated
+- Migration 042 (2026-06-11) was supposed to backfill all historical data but failed/incomplete
+- Sign inconsistency: Migration 042 used NEGATIVE drawdown, reconciliation code uses POSITIVE
+- Circuit breaker was using incorrect/incomplete peak values for drawdown calculations
+
+**Evidence:**
+- Query showed: 2 snapshots with values, 557 without
+- Max peak value was $106,914.68 but only in most recent snapshot
+- 2026-06-30 snapshot had peak=$85,000 (wrong - outdated)
+- 2026-07-20 snapshot had peak=$106,914.68 (correct but only for that day)
+
+**Impact:**
+- Drawdown calculations based on incomplete data
+- Circuit breaker halt decision based on potentially wrong peak values
+- Historical portfolio analysis completely inaccurate
+
+**Fix Applied:**
+- Created migration 1133 to properly backfill ALL 559 snapshots
+- Recalculated running_peak as cumulative max of total_portfolio_value
+- Standardized drawdown_pct to positive values (consistent with circuit breaker code)
+- Result: 559/559 snapshots now have correct running_peak and drawdown_pct
+
+**Verification:**
+- Before: 2/559 snapshots, inconsistent signs, wrong peak values
+- After: 559/559 snapshots, all positive, verified peak=$106,914.68
+- Current drawdown: 32.6294% (verified correct)
+
+**Commit:** `386189d67`
+
+---
+
+## Issues Found & Fixed (Session 311)
 
 ### 1. Phase 9 Reconciliation Summary Format String Vulnerability
 
