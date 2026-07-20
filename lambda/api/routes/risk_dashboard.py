@@ -129,7 +129,7 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
             rows = execute_with_timeout(
                 cur,
                 """
-                SELECT vix_level FROM market_health_daily
+                SELECT vix_level, data_unavailable, reason FROM market_health_daily
                 WHERE vix_level IS NOT NULL
                 ORDER BY date DESC LIMIT 1
             """,
@@ -138,6 +138,16 @@ def _get_comprehensive_risk_dashboard(cur: cursor) -> Any:
             row = rows[0] if rows else None
             if row:
                 vix = float(row["vix_level"]) if row["vix_level"] is not None else None
+                data_unavailable_flag = row.get("data_unavailable", False)
+                reason_msg = row.get("reason")
+
+                # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using VIX
+                if data_unavailable_flag is True:
+                    raise RuntimeError(
+                        f"VIX data marked unavailable: {reason_msg or 'no reason provided'}. "
+                        "Cannot compute risk-adjusted drawdown multiplier without valid VIX data."
+                    )
+
                 if vix is None or vix <= 0:
                     raise RuntimeError(
                         f"Market health data invalid: VIX level missing or invalid ({vix}). "
@@ -297,7 +307,7 @@ def _fetch_exposure_tier_info(cur: cursor) -> Any:
     rows = execute_with_timeout(
         cur,
         """
-        SELECT exposure_pct, regime, halt_reasons
+        SELECT exposure_pct, regime, halt_reasons, data_unavailable, reason
         FROM market_exposure_daily
         ORDER BY date DESC LIMIT 1
     """,
@@ -309,6 +319,15 @@ def _fetch_exposure_tier_info(cur: cursor) -> Any:
     row = rows[0]
     if not row:
         raise ValueError("Market exposure data invalid (null row)")
+
+    # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using exposure data
+    data_unavailable_flag = row.get("data_unavailable", False)
+    reason_msg = row.get("reason")
+    if data_unavailable_flag is True:
+        raise ValueError(
+            f"Market exposure data marked unavailable: {reason_msg or 'no reason provided'}. "
+            f"Cannot compute exposure tier without valid market analysis."
+        )
 
     try:
         exposure_pct_raw = row["exposure_pct"]

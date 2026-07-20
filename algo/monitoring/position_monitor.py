@@ -949,8 +949,10 @@ class PositionMonitor:
 
         cur.execute(
             """
-            SELECT MAX(close) FROM price_daily
+            SELECT MAX(close), data_unavailable, reason FROM price_daily
             WHERE symbol = %s AND date >= %s AND date <= %s
+            GROUP BY data_unavailable, reason
+            ORDER BY data_unavailable ASC LIMIT 1
             """,
             (symbol, trade_date, current_date),
         )
@@ -958,6 +960,15 @@ class PositionMonitor:
         if row is None or len(row) < 1 or row[0] is None:
             raise PositionValidationError(
                 f"No price data available for {symbol} from {trade_date} to {current_date}. Cannot calculate peak unrealized gain."
+            )
+
+        # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using prices
+        data_unavailable_flag = row[1] if len(row) > 1 else False
+        reason_msg = row[2] if len(row) > 2 else None
+        if data_unavailable_flag is True:
+            raise PositionValidationError(
+                f"Price data marked unavailable for {symbol}: {reason_msg or 'no reason provided'}. "
+                f"Cannot calculate position metrics with invalid prices."
             )
 
         max_close = float(row[0])
@@ -1026,7 +1037,7 @@ class PositionMonitor:
             ValueError: If market health data is unavailable for the date
         """
         cur.execute(
-            "SELECT distribution_days_4w FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+            "SELECT distribution_days_4w, data_unavailable, reason FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
         row = cur.fetchone()
@@ -1034,6 +1045,16 @@ class PositionMonitor:
             raise ValueError(
                 f"Market distribution days not available for {current_date} - market_health_daily table missing or empty"
             )
+
+        # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using distribution days
+        data_unavailable_flag = row[1] if len(row) > 1 else False
+        reason_msg = row[2] if len(row) > 2 else None
+        if data_unavailable_flag is True:
+            raise ValueError(
+                f"Market health data marked unavailable for {current_date}: {reason_msg or 'no reason provided'}. "
+                f"Cannot assess market distribution days with invalid data."
+            )
+
         return int(row[0])
 
     def _period_return(self, symbol: str, end_date: _date, lookback_days: int, cur: PsycopgCursor[Any]) -> float:

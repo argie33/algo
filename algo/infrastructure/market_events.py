@@ -332,7 +332,7 @@ class MarketEventHandler:
             with DatabaseContext("read") as cur:
                 cur.execute(
                     """
-                    SELECT early_close FROM market_health_daily
+                    SELECT early_close, data_unavailable, reason FROM market_health_daily
                     WHERE date = %s
                     """,
                     (check_date,),
@@ -343,6 +343,15 @@ class MarketEventHandler:
                 raise RuntimeError(
                     f"Cannot verify early close status for {check_date}: "
                     f"missing market_health_daily record. Cannot trade without verified market hours."
+                )
+
+            # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using market hours data
+            data_unavailable_flag = row[1] if len(row) > 1 else False
+            reason_msg = row[2] if len(row) > 2 else None
+            if data_unavailable_flag is True:
+                raise RuntimeError(
+                    f"Market hours data marked unavailable for {check_date}: {reason_msg or 'no reason provided'}. "
+                    f"Cannot verify early close status without valid market calendar data."
                 )
 
             return bool(row[0])

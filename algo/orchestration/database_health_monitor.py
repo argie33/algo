@@ -67,7 +67,7 @@ class DatabaseHealthMonitor:
                 logger.warning(f"[RDS_POOL] Found {status['stuck_connections_count']} stuck connections")
                 check_stuck_connections()
         except (KeyError, ValueError, AttributeError) as e:
-            logger.debug(f"Could not check connection pool health: {e}")
+            logger.warning(f"[RDS_POOL] Could not check connection pool health: {e}")
 
     def health_check_diagnostics(self) -> None:
         """Log system health status: what's working, what's not, what's stale."""
@@ -149,10 +149,10 @@ class DatabaseHealthMonitor:
                     psycopg2.DatabaseError,
                     psycopg2.OperationalError,
                 ) as loader_err:
-                    logger.debug(f"    Could not check loader status: {loader_err}")
+                    logger.warning(f"    Could not check loader status: {loader_err}")
 
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.debug(f"  Health check failed: {e}")
+            logger.warning(f"  Health check failed: {e}")
 
     def verify_task_stopped(
         self,
