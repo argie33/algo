@@ -568,6 +568,16 @@ class StockScoresLoader(OptimalLoader):
                     return round(score_result, 2)
                 return None  # Markers and None return as None
 
+            # CRITICAL FIX: Enforce >= 70% completeness per GOVERNANCE.md
+            # Session 297 assumed "trading gates will filter", but no downstream filters exist.
+            # Database audit found 851 scores with 50-70% completeness marked available=FALSE.
+            # This violates fail-fast governance: incomplete data must be marked unavailable.
+            score_available = data_completeness >= 70.0
+            if not score_available:
+                reason_text = f"Completeness {data_completeness}% < 70% threshold (missing metrics: {', '.join(unavailable_metrics.keys())})"
+            else:
+                reason_text = None
+
             result = {
                 "symbol": symbol,
                 "composite_score": composite_score,
@@ -580,8 +590,8 @@ class StockScoresLoader(OptimalLoader):
                 "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
                 "unavailable_metrics": json.dumps(unavailable_metrics) if unavailable_metrics else None,
-                "data_unavailable": False,  # Score computed from 4+/6 metrics. Trading gates filter on completeness >= 70%.
-                "reason": None,
+                "data_unavailable": not score_available,  # CRITICAL: Mark unavailable if completeness < 70%
+                "reason": reason_text,
                 "updated_at": datetime.now(timezone.utc),
             }
             if unavailable_metrics:

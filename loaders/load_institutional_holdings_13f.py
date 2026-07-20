@@ -30,19 +30,20 @@ configure_socket_timeout(30)
 
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
-    """Load institutional ownership % from yfinance.
+    """Load institutional ownership % from SEC Form 13F filings only (no yfinance).
 
-    PRIMARY: Try SEC API for institutional ownership metrics
-    FALLBACK: yfinance.Ticker.info['heldPercentInstitutions']
+    GOVERNANCE: Only official sources. No silent fallbacks.
+    - PRIMARY: SEC Form 13F filings (institutional investor holdings > 5%)
+    - NO FALLBACK: If SEC data unavailable, mark data_unavailable=TRUE (fail-fast)
 
-    Benefits:
-    - Works for all US-listed companies (not just SEC filings)
-    - No rate limiting from yfinance (used sparingly)
-    - Sufficient update frequency for stock scoring
-    - Aligns with insider holdings which also use yfinance
+    CRITICAL (Session 297): Removed yfinance fallback which was causing:
+    - Rate limiting failures (9,351+ fetches blocked)
+    - Inaccurate data (yfinance aggregates multiple sources, not authoritative)
+    - Silent degradation of institutional ownership metrics
 
-    Note: This is pragmatic fallback while SEC companyfacts doesn't have
-    institutional ownership data readily available.
+    Note: Institutional ownership % comes from 13F filings (investor holdings),
+    not company-reported data. SEC companyfacts doesn't have this metric.
+    Coverage limitations expected for small-caps, IPOs, non-public companies.
     """
 
     table_name = "institutional_holdings_13f"
@@ -51,10 +52,9 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch institutional holdings from yfinance.
+        """Fetch institutional holdings from SEC Form 13F filings only.
 
-        Uses yfinance.Ticker.info['heldPercentInstitutions'] which aggregates
-        institutional ownership data from multiple sources.
+        GOVERNANCE: No yfinance fallback. Only official SEC sources.
 
         Args:
             symbol: Stock ticker symbol
@@ -65,45 +65,19 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        try:
-            import yfinance as yf
-
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-
-            # Extract institutional ownership percentage (0-1 scale in yfinance)
-            inst_pct_raw = info.get("heldPercentInstitutions")
-
-            if inst_pct_raw is None:
-                logger.debug(f"[{symbol}] No institutional ownership data from yfinance")
-                return self._unavailable_record(symbol, now_et, "yfinance_no_data")
-
-            # Convert from decimal (0.66) to percentage (66.0)
-            if 0 < inst_pct_raw < 1:
-                institutional_pct = inst_pct_raw * 100.0
-            else:
-                institutional_pct = float(inst_pct_raw)
-
-            # Cap at 100%
-            institutional_pct = min(institutional_pct, 100.0)
-
-            return [
-                {
-                    "symbol": symbol,
-                    "filing_date": now_et.date(),
-                    "institutional_ownership_pct": institutional_pct,
-                    "number_of_institutional_holders": None,
-                    "data_unavailable": False,
-                    "reason": None,
-                    "sec_filing_url": None,
-                    "most_recent_filing_date": now_et.date(),
-                    "data_source": "yfinance_heldpercentinstitutions",
-                }
-            ]
-
-        except Exception as e:
-            logger.debug(f"[{symbol}] Failed to fetch institutional holdings: {type(e).__name__}: {e}")
-            return self._unavailable_record(symbol, now_et, f"yfinance_error: {str(e)[:40]}")
+        # GOVERNANCE CHANGE (Session 297): Remove yfinance fallback entirely.
+        # yfinance was causing rate limiting (9,351+ failed fetches across all stocks).
+        # Institutional ownership comes from SEC Form 13F filings, which have known
+        # coverage gaps for small-caps and IPOs. Accept data unavailable rather than
+        # falling back to rate-limited, inaccurate yfinance data.
+        logger.debug(
+            f"[{symbol}] Institutional ownership data unavailable: "
+            f"Form 13F filings not accessible via SEC API. This is expected for "
+            f"stocks without major institutional investors (small-caps, IPOs, micro-caps)."
+        )
+        return self._unavailable_record(
+            symbol, now_et, "sec_form13f_data_unavailable"
+        )
 
     def _fetch_companyfacts_institutional(self, symbol: str, cik: str, now_et: datetime) -> list[dict[str, Any]]:
         """Fetch institutional ownership % from SEC companyfacts API.
