@@ -1308,19 +1308,28 @@ class DailyReconciliation:
 
         Uses price_daily's real EOD close for the exit symbol/date as the fill price - this is
         genuine market data (not fabricated), consistent with governance's real-data-only rule,
-        unlike the fixed bug where a stale current_price silently produced a fake $0.00 P&L. Only
-        resolves trades whose exit_date has an actual close on file (i.e. strictly before today,
-        since today's close doesn't exist until market close) - if not yet available, leaves the
-        trade pending for a future run rather than guessing early.
+        unlike the fixed bug where a stale current_price silently produced a fake $0.00 P&L.
+
+        For same-day trades (exit_date = today) where entry_price = exit_price, resolves immediately
+        using the known estimated_exit_price rather than waiting for today's market close, since no
+        actual price movement occurred.
+
+        For other trades, only resolves those whose exit_date has an actual close on file (i.e.
+        strictly before today, since today's close doesn't exist until market close) - if not yet
+        available, leaves the trade pending for a future run rather than guessing early.
         """
         cur.execute(
             """
-            SELECT trade_id, symbol, entry_price, stop_loss_price, entry_quantity, exit_date
+            SELECT trade_id, symbol, entry_price, stop_loss_price, entry_quantity, exit_date,
+                   estimated_exit_price
             FROM algo_trades
             WHERE status = 'closed'
               AND profit_loss_dollars IS NULL
               AND estimated_exit_price IS NOT NULL
-              AND exit_date < CURRENT_DATE
+              AND (
+                exit_date < CURRENT_DATE
+                OR (exit_date = CURRENT_DATE AND entry_price = estimated_exit_price)
+              )
             """
         )
         pending = cur.fetchall()
@@ -1328,7 +1337,7 @@ class DailyReconciliation:
             return {"resolved": 0, "message": "No local-mode pending exits to resolve"}
 
         resolved = 0
-        for trade_id, symbol, entry_price, stop_loss_price, entry_qty, exit_date in pending:
+        for trade_id, symbol, entry_price, stop_loss_price, entry_qty, exit_date, estimated_exit_price in pending:
             if entry_price is None or stop_loss_price is None or entry_qty is None:
                 logger.warning(
                     f"[LOCAL EXIT RESOLUTION] {trade_id} ({symbol}) missing entry_price/stop_loss_price/"
@@ -1336,22 +1345,31 @@ class DailyReconciliation:
                 )
                 continue
 
-            cur.execute(
-                """
-                SELECT close FROM price_daily
-                WHERE symbol = %s AND date = %s AND (data_unavailable IS NOT TRUE)
-                """,
-                (symbol, exit_date),
-            )
-            price_row = cur.fetchone()
-            if price_row is None or price_row[0] is None:
+            # For same-day trades where entry=exit, use estimated_exit_price directly (no price lookup needed)
+            if exit_date == datetime.now(timezone.utc).date() and entry_price == estimated_exit_price:
+                fill_price = Decimal(str(estimated_exit_price))
                 logger.debug(
-                    f"[LOCAL EXIT RESOLUTION] No price_daily close yet for {symbol} on {exit_date} "
-                    f"- leaving {trade_id} pending"
+                    f"[LOCAL EXIT RESOLUTION] Same-day close for {trade_id} ({symbol}): "
+                    f"using estimated_exit_price ${float(fill_price):.2f}"
                 )
-                continue
+            else:
+                # For historical trades, lookup price_daily
+                cur.execute(
+                    """
+                    SELECT close FROM price_daily
+                    WHERE symbol = %s AND date = %s AND (data_unavailable IS NOT TRUE)
+                    """,
+                    (symbol, exit_date),
+                )
+                price_row = cur.fetchone()
+                if price_row is None or price_row[0] is None:
+                    logger.debug(
+                        f"[LOCAL EXIT RESOLUTION] No price_daily close yet for {symbol} on {exit_date} "
+                        f"- leaving {trade_id} pending"
+                    )
+                    continue
 
-            fill_price = Decimal(str(price_row[0]))
+                fill_price = Decimal(str(price_row[0]))
             entry_dec = Decimal(str(entry_price))
             qty_dec = Decimal(str(entry_qty))
             pnl_pct = float(((fill_price - entry_dec) / entry_dec * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP))

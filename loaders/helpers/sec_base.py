@@ -227,46 +227,90 @@ class SecEdgarStatementLoader(SecLoaderBase):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         try:
             cik = self._sec_client.symbol_to_cik(symbol)
-        except ValueError as e:
-            raise RuntimeError(f"[{self.statement_type.upper()}] {symbol}: CIK not found in SEC ticker cache.") from e
+        except ValueError:
+            # Legitimate, permanent condition (e.g. preferred-share tickers like WRB$E
+            # trade under the same CIK as their common stock but aren't separately
+            # listed in SEC's company_tickers.json) - not a fetch bug. Previously raised
+            # as a hard failure here, which at scale (dozens of preferred-share symbols
+            # in one run) pushed the loader's failure rate past its 15% abort threshold.
+            logger.debug(f"[{self.statement_type.upper()}] {symbol}: CIK not found in SEC ticker cache.")
+            return [
+                {
+                    "symbol": symbol,
+                    "fiscal_year": 0,
+                    "data_unavailable": True,
+                    "reason": "cik_not_found",
+                }
+            ]
 
         if not cik:
-            raise RuntimeError(f"[{self.statement_type.upper()}] CIK resolution failed for {symbol}.")
+            return [
+                {
+                    "symbol": symbol,
+                    "fiscal_year": 0,
+                    "data_unavailable": True,
+                    "reason": "cik_not_found",
+                }
+            ]
 
         logger.debug("Symbol %s resolved to CIK %s", symbol, cik)
 
-        try:
-            method_name = self._STATEMENT_TYPE_TO_METHOD.get(self.statement_type)
-            if method_name is None:
-                raise RuntimeError(
-                    f"[{self.statement_type.upper()}] Unknown statement_type {self.statement_type!r}. "
-                    f"Must be one of {sorted(self._STATEMENT_TYPE_TO_METHOD)}."
-                )
-            getter_method = getattr(self._sec_client, method_name)
-            rows = getter_method(symbol, period=self.period)
-
-            if not rows:
-                logger.debug(
-                    f"[{self.statement_type.upper()}] {symbol}: No {self.period} data in SEC EDGAR. "
-                    f"Stock may be REIT, investment trust, or lack SEC filings."
-                )
-                return [
-                    {
-                        "symbol": symbol,
-                        "fiscal_year": 0,
-                        "data_unavailable": True,
-                        "reason": f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity",
-                    }
-                ]
-
-            logger.info(
-                "%s: Fetched %d %s %s row(s)",
-                symbol,
-                len(rows),
-                self.period,
-                self.statement_type,
+        method_name = self._STATEMENT_TYPE_TO_METHOD.get(self.statement_type)
+        if method_name is None:
+            raise RuntimeError(
+                f"[{self.statement_type.upper()}] Unknown statement_type {self.statement_type!r}. "
+                f"Must be one of {sorted(self._STATEMENT_TYPE_TO_METHOD)}."
             )
+        getter_method = getattr(self._sec_client, method_name)
 
+        try:
+            rows = getter_method(symbol, period=self.period)
+        except ValueError as e:
+            # utils/external/sec_statements.py raises ValueError (prefixed "[SEC_EDGAR]")
+            # for the legitimate "no facts under any taxonomy" case, with an explicit
+            # contract in its own comments that "downstream loaders must mark
+            # data_unavailable with this reason". That contract was never actually
+            # honored here - this except previously fell through to the blanket
+            # (ValueError, ZeroDivisionError, TypeError) handler below, which just
+            # re-raised as RuntimeError, counting a genuinely-no-data REIT/shell/
+            # special-entity symbol as a hard FAILURE. At scale (526 never-processed
+            # symbols, mostly newly added NYSE preferred-share/SPAC/REIT tickers) that
+            # inflated the failure rate past the loader's 15% abort threshold and killed
+            # the entire run. Convert to the same clean marker the `not rows` branch
+            # below already produces for the equivalent case.
+            logger.debug(f"[{self.statement_type.upper()}] {symbol}: No SEC facts available: {e}")
+            return [
+                {
+                    "symbol": symbol,
+                    "fiscal_year": 0,
+                    "data_unavailable": True,
+                    "reason": f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity",
+                }
+            ]
+
+        if not rows:
+            logger.debug(
+                f"[{self.statement_type.upper()}] {symbol}: No {self.period} data in SEC EDGAR. "
+                f"Stock may be REIT, investment trust, or lack SEC filings."
+            )
+            return [
+                {
+                    "symbol": symbol,
+                    "fiscal_year": 0,
+                    "data_unavailable": True,
+                    "reason": f"no_{self.period}_{self.statement_type}_data_in_sec_edgar_reit_or_special_entity",
+                }
+            ]
+
+        logger.info(
+            "%s: Fetched %d %s %s row(s)",
+            symbol,
+            len(rows),
+            self.period,
+            self.statement_type,
+        )
+
+        try:
             since_year = int(since.year) if since else 2000
             filtered = []
             for r in rows:
@@ -274,14 +318,15 @@ class SecEdgarStatementLoader(SecLoaderBase):
                     raise ValueError(f"Row missing required 'fiscal_year' field: {r}.")
                 if r["fiscal_year"] > since_year:
                     filtered.append(r)
-
-            if len(filtered) < len(rows):
-                logger.debug(f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year}")
-
-            return filtered
-
         except (ValueError, ZeroDivisionError, TypeError) as e:
+            # Genuine data-integrity problem (e.g. malformed row), not the "no facts
+            # at all" case handled above - keep failing loudly on this one.
             raise RuntimeError(f"[{self.statement_type.upper()}] Failed to fetch data for {symbol}: {e}.") from e
+
+        if len(filtered) < len(rows):
+            logger.debug(f"{symbol}: Filtered {len(rows) - len(filtered)} row(s) with fiscal_year <= {since_year}")
+
+        return filtered
 
     def transform(self, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Transform SEC EDGAR data to schema format."""

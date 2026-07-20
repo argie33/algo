@@ -392,12 +392,16 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
         # Comprehensive validation using FetcherValidator
         # No freshness check: data is pre-computed daily (no "timestamp" field in response)
+        # win_rate_pct/total_pnl_dollars deliberately excluded: win_rate_pct is honestly null
+        # until at least one closed trade exists, and total_pnl_dollars is unconditionally None
+        # in the API response right now (its source table has had no writer since 2026-06-30 -
+        # see lambda/api/routes/algo_handlers/metrics.py::_get_algo_performance's docstring).
+        # Requiring either here would make this fetcher fail-fast permanently, not just when
+        # data is genuinely missing.
         required_fields = [
             "total_trades",
             "winning_trades",
             "losing_trades",
-            "win_rate_pct",
-            "total_pnl_dollars",
             "sharpe_annualized",
             "max_drawdown_pct",
         ]
@@ -483,13 +487,15 @@ def fetch_perf(c: None) -> dict[str, Any]:
             return FetcherValidator.build_error_response(error_msg)
         open_count = open_positions_count
 
-        # Validate core performance metrics (streak, expectancy, and avg win/loss are optional enrichment)
+        # Validate core performance metrics that are guaranteed non-null once any report row
+        # exists (generate_daily_report raises before writing a row if either is unavailable -
+        # see algo/reporting/performance.py). win_rate_pct/total_pnl_dollars/profit_factor are
+        # NOT core: win_rate_pct needs a closed trade, profit_factor needs both a win and a loss
+        # to divide, and total_pnl_dollars is unconditionally None right now (see required_fields
+        # comment above) - all honestly nullable, not pipeline failures.
         core_metrics = {
-            "win_rate_pct": "wr",
-            "total_pnl_dollars": "pnl",
             "sharpe_annualized": "sharpe",
             "max_drawdown_pct": "maxdd",
-            "profit_factor": "profit_factor",
         }
         missing_core_metrics = [
             name for field, name in core_metrics.items() if field not in perf or perf.get(field) is None
@@ -502,7 +508,15 @@ def fetch_perf(c: None) -> dict[str, Any]:
 
         # Optional enrichment metrics: legitimately null until enough closed trades exist
         # (e.g. avg_win_pct/avg_loss_pct require at least one win/loss to average over)
-        optional_metrics = ["current_streak", "expectancy_r", "avg_win_pct", "avg_loss_pct"]
+        optional_metrics = [
+            "current_streak",
+            "expectancy_r",
+            "avg_win_pct",
+            "avg_loss_pct",
+            "win_rate_pct",
+            "total_pnl_dollars",
+            "profit_factor",
+        ]
         for field in optional_metrics:
             if field not in perf or perf.get(field) is None:
                 logger.debug(f"Performance data missing optional field '{field}' - using None")

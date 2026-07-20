@@ -61,10 +61,18 @@ LOADERS = {
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): positioning metrics + SEC valuations + value/quality/growth, risk, stock scores + EOD signals",
+        "description": "Metrics pipeline (7:00 PM ET): stock universe + positioning metrics + SEC valuations + value/quality/growth, risk, stock scores + EOD signals",
         "loaders": [
+            # Found+fixed 2026-07-20 (data-loading audit): market_constituents, algo_metrics_daily,
+            # and economic_data are all wired into the AWS EOD Step Functions pipeline
+            # (terraform/modules/pipeline/main.tf) but were missing from this local scheduler and
+            # from scripts/setup_windows_schedule.ps1's --now metrics call - so local dev silently
+            # never auto-refreshed the stock/ETF universe, algo daily metrics, or FRED/DXY economic
+            # data unless someone ran the loader by hand. Re-added to match prod's actual loader set.
+            "load_market_constituents.py",  # Universe (stock_symbols/etf_symbols) - must run first; see algo/orchestrator/phase1_data_freshness.py
             "load_financial_statements.py",
             "load_sec_valuations.py",
+            "load_sec_cash_flow_metrics.py",  # Working capital/CapEx/FCF computed from Phase 2 SEC statement tables (needs load_financial_statements.py first)
             "load_institutional_holdings_13f.py",  # Phase 2: SEC 13F institutional ownership (replaces ~20% yfinance)
             "load_insider_holdings_sec.py",  # Phase 2: SEC Form 4/5 insider holdings (replaces ~15% yfinance)
             "load_positioning_metrics.py",  # Reads from Phase 2 SEC tables + FINRA short interest
@@ -72,7 +80,9 @@ LOADERS = {
             "load_risk_metrics_daily.py",
             "load_stock_scores.py",
             "load_buy_sell_daily.py",  # EOD signals: depends on stock_scores (must be after load_stock_scores.py)
+            "load_algo_metrics_daily.py",  # Portfolio stats/execution summary from algo_audit_log
             "load_sector_industry_daily.py",
+            "load_economic_data.py",  # FRED (T10Y2Y/FEDFUNDS/BAMLH0A0HYM2/ICSA) + DXY
         ],
         "interval_hours": 24,
         "target_hour": 19,
