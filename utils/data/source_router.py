@@ -6,7 +6,7 @@ with health-check based fallback. Tracks per-source success rate so
 unhealthy sources are temporarily skipped.
 
 Sources by data type (in priority order):
-    OHLCV:        yfinance (sole source - Alpaca data subscription required for alternative)
+    OHLCV:        Alpaca (daily bars, PRICE_DATA_SOURCE=alpaca) → yfinance (fallback, other intervals)
     Fundamentals: SEC EDGAR → yfinance
     Economic:     FRED (only)
 

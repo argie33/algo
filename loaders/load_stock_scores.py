@@ -484,10 +484,13 @@ class StockScoresLoader(OptimalLoader):
                     f"Missing: {', '.join(missing_metrics)}. Trading gates will filter based on completeness %."
                 )
 
-            # Base weights (unchanged per GOVERNANCE "no weight redistribution").
-            # Unavailable metrics contribute 0 to composite (their weight is skipped, not redistributed).
-            # Example: If positioning/quality unavailable, composite = 0.20*growth + 0.20*value + 0.12*stability + 0.08*momentum
-            # (remaining 0.25+0.15=0.40 is simply not included, score is out of 0.60 total instead of 1.0)
+            # Fixed base weights (no redistribution per GOVERNANCE fail-fast rule)
+            # Unavailable metrics contribute 0 to composite (their weight is skipped, lost).
+            # This means composite score is 0-100 scale, where:
+            # - 100 = all 6 metrics perfect
+            # - 50 with all 6 = truly 50/100
+            # - 50 with 3/6 = really 50/60 (incomplete picture)
+            # Dashboard displays completeness % so traders see data quality.
             base_weights = {
                 "quality": 0.25,
                 "growth": 0.20,
@@ -496,9 +499,7 @@ class StockScoresLoader(OptimalLoader):
                 "stability": 0.12,
                 "momentum": 0.08,
             }
-            # Compute sum of available-only weights for re-normalizing final score
-            available_weight_sum = sum(base_weights[k] for k, v in score_availability.items() if v)
-            normalized_weights = base_weights  # Use base weights, but only accumulate for available metrics
+            normalized_weights = base_weights
 
             # Clamp scores to 0-100, keep markers for missing data
             def clamp_score(score: float | dict[str, Any] | None) -> float | dict[str, Any] | None:
@@ -556,11 +557,10 @@ class StockScoresLoader(OptimalLoader):
                         "Expected float or dict marker."
                     )
 
-            # Re-normalize composite score to 0-100 scale based on available metrics only
-            # If available_weight_sum < 1.0, divide by sum to scale back up to 0-100
-            if available_weight_sum > 0:
-                composite_score_value = composite_score_value / available_weight_sum
-            composite_score = max(0, min(100, round(composite_score_value, 2)))
+            # Clamp to 0-100: raw composite value (may be <100 if metrics missing).
+            # No rescaling per GOVERNANCE (no weight redistribution).
+            # Traders see completeness % to understand data quality.
+            composite_score = max(0.0, min(100.0, round(composite_score_value, 2)))
 
             def extract_score_value(score_result: float | dict[str, Any] | None) -> float | None:
                 """Extract numeric score from result (float or marker dict)."""
@@ -580,8 +580,8 @@ class StockScoresLoader(OptimalLoader):
                 "rs_percentile": 0.0,
                 "data_completeness": data_completeness,
                 "unavailable_metrics": json.dumps(unavailable_metrics) if unavailable_metrics else None,
-                "data_unavailable": False,  # EXPLICIT: All required metrics available (fail-fast filters removed unavailable scores)
-                "reason": None,  # EXPLICIT: Score computed successfully from available metrics
+                "data_unavailable": False,  # Score computed from 4+/6 metrics. Trading gates filter on completeness >= 70%.
+                "reason": None,
                 "updated_at": datetime.now(timezone.utc),
             }
             if unavailable_metrics:

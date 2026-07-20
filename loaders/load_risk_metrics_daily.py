@@ -86,7 +86,7 @@ class RiskMetricsLoader(OptimalLoader):
 
                 momentum: dict[str, float | None] = {}
                 for period_name, days_back in [("1m", 21), ("3m", 63), ("6m", 126), ("12m", 252)]:
-                    target_idx = len(sorted_dates) - days_back
+                    target_idx = len(sorted_dates) - days_back - 1
                     if target_idx < 0:
                         momentum[f"momentum_{period_name}"] = None
                         continue

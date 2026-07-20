@@ -34,20 +34,18 @@ configure_socket_timeout(30)
 
 
 class InsiderHoldingsSECLoader(OptimalLoader):
-    """Load insider holdings from yfinance (pragmatic fallback).
+    """Load insider holdings from SEC Form 4/5 filings (GOVERNANCE COMPLIANT).
 
-    NOTE: SEC Form 4/5 parsing was failing (0% coverage) due to:
-    - Form 4s distributed as plain text, not XBRL
-    - XML parsing requires complex HTML extraction
-    - Minimal data value for scoring (yfinance sufficient)
+    NOTE: Removed yfinance fallback per GOVERNANCE "no silent fallbacks" rule.
 
-    Switched to yfinance for pragmatic data availability.
+    SEC Form 4/5 parsing is complex (plain text filings, HTML extraction needed).
+    Until proper SEC API integration is implemented, insider data will be marked unavailable.
 
-    Benefits:
-    - Works for all US-listed companies
-    - No parsing complexity (just field access)
-    - Sufficient update frequency for scoring
-    - Consistent with institutional holdings (also yfinance)
+    This is CORRECT per GOVERNANCE: better to have honest unavailability than
+    rate-limited yfinance data mislabeled as "SEC" insider holdings.
+
+    TODO: Implement SEC Form 4/5 parsing using SEC EDGAR API or
+          integrate with official SEC insider filing database.
     """
 
     table_name = "insider_holdings_sec"
@@ -56,62 +54,32 @@ class InsiderHoldingsSECLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch insider holdings from yfinance.
+        """Fetch insider holdings from SEC Form 4/5 filings (GOVERNANCE COMPLIANT).
 
-        Uses yfinance.Ticker.info['heldPercentInsiders'] which aggregates
-        insider ownership data from regulatory filings.
+        GOVERNANCE: No yfinance fallback. Only official sources or explicit unavailability.
+
+        SEC Form 4/5 parsing requires complex XBRL/HTML extraction from EDGAR.
+        Until implemented, all data marked unavailable with clear reason.
 
         Args:
             symbol: Stock ticker symbol
             since: Minimum filing date to fetch (for incremental updates)
 
         Returns:
-            List with insider holdings record or data_unavailable marker
+            List with data_unavailable marker (sec_form4_parsing_not_implemented)
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        try:
-            import yfinance as yf
+        logger.debug(
+            f"[{symbol}] SEC Form 4/5 parsing not yet implemented. "
+            f"Marking as unavailable per GOVERNANCE (no yfinance fallback)."
+        )
 
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-
-            # Extract insider ownership percentage (0-1 scale in yfinance)
-            insider_pct_raw = info.get("heldPercentInsiders")
-
-            if insider_pct_raw is None:
-                logger.debug(f"[{symbol}] No insider ownership data from yfinance")
-                return self._unavailable_record(symbol, now_et, "yfinance_no_data")
-
-            # Convert from decimal (0.01 for 1%) to percentage (1.0)
-            if 0 < insider_pct_raw < 1:
-                insider_pct = insider_pct_raw * 100.0
-            else:
-                insider_pct = float(insider_pct_raw)
-
-            # Cap at 100%
-            insider_pct = min(insider_pct, 100.0)
-
-            return [
-                {
-                    "symbol": symbol,
-                    "filing_date": now_et.date(),
-                    "insider_ownership_pct": insider_pct,
-                    "number_of_insiders": None,
-                    "recent_buys": None,
-                    "recent_sells": None,
-                    "net_insider_transactions": None,
-                    "data_unavailable": False,
-                    "reason": None,
-                    "latest_insider_filing_date": now_et.date(),
-                    "sec_filing_url": None,
-                    "data_source": "yfinance_heldpercentinsiders",
-                }
-            ]
-
-        except Exception as e:
-            logger.debug(f"[{symbol}] Failed to fetch insider holdings: {type(e).__name__}: {e}")
-            return self._unavailable_record(symbol, now_et, f"yfinance_error: {str(e)[:40]}")
+        return self._unavailable_record(
+            symbol,
+            now_et,
+            "sec_form4_parsing_not_implemented_use_official_sources_only"
+        )
 
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:

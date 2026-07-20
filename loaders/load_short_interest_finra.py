@@ -35,16 +35,17 @@ logger = logging.getLogger(__name__)
 
 
 class ShortInterestFinraLoader(OptimalLoader):
-    """Load short interest data from FINRA CSV (or yfinance fallback).
+    """Load short interest data from FINRA CSV only (no yfinance fallback).
 
-    PRIORITY 1: FINRA CSV (authoritative regulatory source)
-    FALLBACK: yfinance per-symbol fetch (deprecated, TEMPORARY)
+    GOVERNANCE: Only official sources. No silent fallbacks.
+    - PRIORITY 1: FINRA CSV (authoritative regulatory source)
+    - NO FALLBACK: If FINRA unavailable, mark data_unavailable=TRUE (fail-fast)
 
     Performance:
-    - FINRA: ~30 seconds for 4700+ symbols (single CSV fetch)
-    - yfinance fallback: ~8 minutes (rate limited per-symbol)
+    - FINRA available: ~30 seconds for 4700+ symbols (single CSV fetch)
+    - FINRA unavailable: All symbols marked unavailable (no rate-limited yfinance calls)
 
-    TODO: Fix FINRA CSV URLs or find working FINRA API endpoint
+    TODO: Fix FINRA CSV URLs or implement working FINRA API endpoint
     """
 
     table_name = "short_interest_finra"
@@ -110,20 +111,18 @@ class ShortInterestFinraLoader(OptimalLoader):
         start_time = time.time()
 
         try:
-            # Try FINRA CSV first
+            # Try FINRA CSV first (ONLY source - no yfinance fallback per GOVERNANCE)
             logger.info("[SHORT_INTEREST] Attempting FINRA CSV fetch...")
             fetcher = FINRAShortInterestFetcher()
             try:
                 finra_data = fetcher.fetch_latest()  # {symbol: short_interest_pct, ...}
                 logger.info(f"[SHORT_INTEREST] FINRA data: {len(finra_data)} symbols from CSV")
-                use_yfinance_fallback = False
             except Exception as e_finra:
                 logger.warning(
                     f"[SHORT_INTEREST] FINRA CSV fetch failed: {e_finra}. "
-                    f"Using yfinance fallback (DEPRECATED - TODO: Fix FINRA)"
+                    f"Will mark all data unavailable (no yfinance fallback per GOVERNANCE)"
                 )
                 finra_data = {}
-                use_yfinance_fallback = True
 
             # Process symbols
             rows_inserted = 0
@@ -133,28 +132,16 @@ class ShortInterestFinraLoader(OptimalLoader):
                 for symbol in symbols:
                     short_pct = None
 
-                    # Check FINRA data first
+                    # Check FINRA data only (NO yfinance fallback - GOVERNANCE: no silent fallbacks)
                     if symbol in finra_data:
                         short_pct = finra_data[symbol]
                         data_unavailable = False
                         reason = None
-                    # Fallback to yfinance if needed
-                    elif use_yfinance_fallback:
-                        try:
-                            short_pct = self._fetch_yfinance_short_interest(symbol)
-                            if short_pct is not None:
-                                data_unavailable = False
-                                reason = None
-                            else:
-                                data_unavailable = True
-                                reason = "yfinance_no_data"
-                        except Exception as e:
-                            data_unavailable = True
-                            reason = f"yfinance_error: {str(e)[:40]}"
                     else:
-                        # FINRA has data but symbol not found
+                        # FINRA data unavailable for this symbol
+                        # NO fallback to yfinance (GOVERNANCE: only official sources, fail-fast on missing data)
                         data_unavailable = True
-                        reason = "symbol_not_in_finra_data"
+                        reason = "finra_data_unavailable" if finra_data else "finra_csv_not_accessible"
 
                     # Insert record
                     cur.execute(
@@ -187,13 +174,13 @@ class ShortInterestFinraLoader(OptimalLoader):
                 "status": "ok" if rows_inserted > 0 else "partial",
                 "duration_sec": round(duration, 2),
                 "latest_date": run_date.isoformat(),
-                "finra_source": "csv" if not use_yfinance_fallback else "yfinance_fallback",
+                "finra_source": "finra_csv" if finra_data else "finra_unavailable",
             }
 
             logger.info(
                 f"[SHORT_INTEREST] Load complete: {rows_inserted} succeeded, "
                 f"{rows_unavailable} unavailable in {duration:.1f}s "
-                f"(source: {'FINRA CSV' if not use_yfinance_fallback else 'yfinance fallback'})"
+                f"(source: {'FINRA CSV' if finra_data else 'FINRA unavailable (no fallback)'})"
             )
             return result
 
