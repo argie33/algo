@@ -726,7 +726,9 @@ class CircuitBreaker:
     def _check_market_stage(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """H7 FIX: Market stage validation with data freshness check.
 
-        On trading days: require today's market_stage (market just closed).
+        On trading days: prefer today's market_stage once computed; the morning loader inserts
+        a same-day row before market_stage is available, so we fall back to the most recent
+        NON-NULL stage (bounded to 10 days) rather than fail-closed halting on that placeholder.
         On non-trading days (weekends/holidays): use most recent trading day's market_stage
         (market regime doesn't change when market is closed).
         CRITICAL: MarketCalendar must succeed to ensure holiday accuracy.
@@ -747,8 +749,15 @@ class CircuitBreaker:
                     break
                 expected_data_date -= timedelta(days=1)
 
+        # market_health_daily gets a same-day row from the morning loader (VIX, breadth) before
+        # market_stage is computed later in the day - a bare "latest row <= expected_data_date"
+        # picks up that not-yet-computed NULL and fail-closed halts even though yesterday's stage
+        # is still valid. compute_circuit_breakers.py's own _compute_market_stage() already skips
+        # NULL rows for this exact reason (WHERE market_stage IS NOT NULL); mirror that here so a
+        # same-day placeholder row doesn't halt trading before the day's stage is even available.
         cur.execute(
-            "SELECT date, market_stage, market_trend, data_unavailable, reason FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+            """SELECT date, market_stage, market_trend, data_unavailable, reason FROM market_health_daily
+               WHERE date <= %s AND market_stage IS NOT NULL ORDER BY date DESC LIMIT 1""",
             (expected_data_date,),
         )
         row = cur.fetchone()
@@ -770,12 +779,19 @@ class CircuitBreaker:
         if isinstance(data_date, datetime):
             data_date = data_date.date()
 
-        if market_stage_val is None:
-            # Market stage data exists for expected date but value is NULL
-            # This means the loader ran but couldn't compute the stage
+        # Bound how far back the NULL-skipping fallback above may reach: a legitimately
+        # not-yet-computed same-day value is expected (small gap), but if the most recent
+        # non-NULL stage is more than 10 calendar days old, market_stage computation itself
+        # is broken and trusting it further would be exactly the silent stale-data bypass
+        # this check exists to prevent - fail closed instead.
+        staleness_days = (expected_data_date - data_date).days
+        if staleness_days > 10:
             return {
                 "halted": True,
-                "reason": f"Market stage NULL for {expected_data_date} - cannot determine regime. Fail-closed halt.",
+                "reason": (
+                    f"Market stage last computed {data_date} ({staleness_days}d before expected "
+                    f"{expected_data_date}) - too stale to trust. Fail-closed halt."
+                ),
             }
 
         stage = int(market_stage_val)
