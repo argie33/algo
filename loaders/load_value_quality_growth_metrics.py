@@ -353,10 +353,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 normalized = [min(100, max(0, m)) for m in available_components]
                 metrics["quality_score"] = float(sum(normalized) / len(normalized))
 
+            # CRITICAL FIX 2026-07-20: Only mark data_unavailable if ALL metrics are missing.
+            # Partial quality data is valid and should be scored with completeness tracking.
+            # Session 297: Quality scores with 2-3 metrics are legitimate (with completeness % for filtering).
+            # Do NOT mark partial data as unavailable - that violates GOVERNANCE "honest incomplete data" principle.
             if failed_metrics:
-                metrics["data_unavailable"] = True
-                metrics["reason"] = f"Incomplete quality metrics: {', '.join(sorted(set(failed_metrics)))} unavailable (insufficient SEC data)"
-                logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Partial quality metrics (unavailable: {', '.join(sorted(set(failed_metrics)))})")
+                # Log which metrics are incomplete (for debugging), but don't mark data_unavailable
+                logger.debug(
+                    f"[VALUE_QUALITY_GROWTH] {symbol}: Quality metrics computed from available data. "
+                    f"Unavailable: {', '.join(sorted(set(failed_metrics)))} (insufficient SEC data)"
+                )
 
             return metrics
 

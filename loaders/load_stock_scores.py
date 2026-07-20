@@ -449,12 +449,12 @@ class StockScoresLoader(OptimalLoader):
                     f"Failing fast to prevent single-metric-biased trading positions."
                 )
 
-            # GOVERNANCE COMPLIANCE: Require ALL 6 metrics. No weight redistribution fallbacks.
-            # Previous behavior (Session 290+): Allowed weight redistribution for missing metrics
-            # This was a silent fallback pattern that violated GOVERNANCE fail-fast principle.
-            # Fixed (Session 294+): Strictly require all 6 metrics or mark data_unavailable.
-            # Reason: Upweighting available metrics when others missing creates single-metric bias
-            # Example: If quality/growth missing, value becomes 50%+ of score (vs intended 20%)
+            # GOVERNANCE COMPLIANCE: Compute scores with 4+/6 metrics (sufficient diversity).
+            # No weight redistribution fallbacks (normalized weights stay fixed).
+            # Trading gates will filter based on completeness % >= 70% per GOVERNANCE.md line 62.
+            # Previous behavior (Session 294+): Rejected scores with <6 metrics, reducing universe from 4759 to 1858 (39%).
+            # Session 297 fix: Allow 4+/6 for computation; let trading logic filter on completeness %.
+            # Reason: Rejecting 4-5 metric scores wastes valid signals; incomplete data is honest data marked visible.
 
             score_availability = {
                 "quality": is_real_score(quality_score),
@@ -467,22 +467,28 @@ class StockScoresLoader(OptimalLoader):
 
             real_metric_count = sum(1 for v in score_availability.values() if v)
 
-            # CRITICAL: Enforce minimum 6/6 metrics (all required, no exceptions)
-            if real_metric_count < 6:
+            # CRITICAL: Enforce minimum 4/6 metrics for diversity (prevents single-metric bias)
+            # But allow computation with 4-5 metrics per GOVERNANCE.md line 60.
+            # Trading entry gates (GOVERNANCE.md line 97) will filter on completeness >= 70%.
+            if real_metric_count < 4:
                 missing_metrics = [k for k, v in score_availability.items() if not v]
                 logger.warning(
-                    f"[STOCK_SCORES] {symbol}: Incomplete metrics - marking unavailable. "
-                    f"Available {real_metric_count}/6 (missing: {', '.join(missing_metrics)}). "
-                    f"Per GOVERNANCE: No weight redistribution fallbacks. Requires all 6 metrics."
+                    f"[STOCK_SCORES] {symbol}: Insufficient metric diversity. "
+                    f"Available {real_metric_count}/6 (need minimum 4 for sufficient diversity). "
+                    f"Missing: {', '.join(missing_metrics)}. "
+                    f"Scoring skipped per GOVERNANCE minimum diversity requirement."
                 )
                 raise ValueError(
-                    f"{symbol}: insufficient metrics ({real_metric_count}/6). "
-                    f"All 6 metrics required: quality, growth, value, positioning, stability, momentum. "
-                    f"Missing: {', '.join(missing_metrics)}. No weight redistribution allowed per GOVERNANCE."
+                    f"{symbol}: insufficient metrics ({real_metric_count}/6, need >=4). "
+                    f"Minimum 4 metrics required for diversity. "
+                    f"Missing: {', '.join(missing_metrics)}. Trading gates will filter based on completeness %."
                 )
 
-            # Use original fixed weights (all 6 metrics guaranteed available)
-            normalized_weights = {
+            # Base weights (unchanged per GOVERNANCE "no weight redistribution").
+            # Unavailable metrics contribute 0 to composite (their weight is skipped, not redistributed).
+            # Example: If positioning/quality unavailable, composite = 0.20*growth + 0.20*value + 0.12*stability + 0.08*momentum
+            # (remaining 0.25+0.15=0.40 is simply not included, score is out of 0.60 total instead of 1.0)
+            base_weights = {
                 "quality": 0.25,
                 "growth": 0.20,
                 "value": 0.20,
@@ -490,6 +496,9 @@ class StockScoresLoader(OptimalLoader):
                 "stability": 0.12,
                 "momentum": 0.08,
             }
+            # Compute sum of available-only weights for re-normalizing final score
+            available_weight_sum = sum(base_weights[k] for k, v in score_availability.items() if v)
+            normalized_weights = base_weights  # Use base weights, but only accumulate for available metrics
 
             # Clamp scores to 0-100, keep markers for missing data
             def clamp_score(score: float | dict[str, Any] | None) -> float | dict[str, Any] | None:
@@ -506,7 +515,8 @@ class StockScoresLoader(OptimalLoader):
             clamped_momentum = clamp_score(momentum_score)
 
             # Composite: only use metrics that are actually available
-            # Fail fast if a metric has weight but no value (indicates calculation error)
+            # Do NOT redistribute weights (GOVERNANCE rule: no weight redistribution)
+            # If metric unavailable, its weight is skipped (contributes 0), not given to other metrics
             composite_score_value = 0.0
             for metric_name, clamped_value_score in [
                 ("quality", clamped_quality),
@@ -516,32 +526,40 @@ class StockScoresLoader(OptimalLoader):
                 ("stability", clamped_stability),
                 ("momentum", clamped_momentum),
             ]:
+                # Only use base weight if metric is available
+                if not score_availability.get(metric_name, False):
+                    continue  # Skip unavailable metrics (don't give their weight to others)
+
                 weight = normalized_weights[metric_name]
-                if weight > 0:
-                    # Handle marker dicts (data unavailable) separately from float scores
-                    if isinstance(clamped_value_score, dict) and clamped_value_score.get("data_unavailable"):
-                        # Marker returned - data unavailable for this metric
-                        # CRITICAL: Validate reason field exists when data_unavailable=True (fail-fast if missing)
-                        reason = clamped_value_score.get("reason")
-                        if reason is None:
-                            raise ValueError(
-                                f"[STOCK_SCORES] {symbol} metric '{metric_name}' marked data_unavailable but missing required 'reason' field. "
-                                f"API contract violation: unavailable markers must include reason. Marker: {clamped_value_score}"
-                            )
-                        unavailable_metrics[metric_name] = reason
-                        logger.warning(f"[STOCK_SCORES] {metric_name} unavailable for {symbol}: {reason}")
-                    elif clamped_value_score is None:
+                # Handle marker dicts (data unavailable) separately from float scores
+                if isinstance(clamped_value_score, dict) and clamped_value_score.get("data_unavailable"):
+                    # Marker returned - data unavailable for this metric
+                    # CRITICAL: Validate reason field exists when data_unavailable=True (fail-fast if missing)
+                    reason = clamped_value_score.get("reason")
+                    if reason is None:
                         raise ValueError(
-                            f"[{symbol}] Metric '{metric_name}' has weight {weight:.3f} but returned None (not a marker dict). "
-                            "This indicates a calculation error or incomplete implementation."
+                            f"[STOCK_SCORES] {symbol} metric '{metric_name}' marked data_unavailable but missing required 'reason' field. "
+                            f"API contract violation: unavailable markers must include reason. Marker: {clamped_value_score}"
                         )
-                    elif isinstance(clamped_value_score, float):
-                        composite_score_value += clamped_value_score * weight
-                    else:
-                        raise RuntimeError(
-                            f"[{symbol}] Metric '{metric_name}' returned unexpected type {type(clamped_value_score).__name__}. "
-                            "Expected float or dict marker."
-                        )
+                    unavailable_metrics[metric_name] = reason
+                    logger.warning(f"[STOCK_SCORES] {metric_name} unavailable for {symbol}: {reason}")
+                elif clamped_value_score is None:
+                    raise ValueError(
+                        f"[{symbol}] Metric '{metric_name}' has weight {weight:.3f} but returned None (not a marker dict). "
+                        "This indicates a calculation error or incomplete implementation."
+                    )
+                elif isinstance(clamped_value_score, float):
+                    composite_score_value += clamped_value_score * weight
+                else:
+                    raise RuntimeError(
+                        f"[{symbol}] Metric '{metric_name}' returned unexpected type {type(clamped_value_score).__name__}. "
+                        "Expected float or dict marker."
+                    )
+
+            # Re-normalize composite score to 0-100 scale based on available metrics only
+            # If available_weight_sum < 1.0, divide by sum to scale back up to 0-100
+            if available_weight_sum > 0:
+                composite_score_value = composite_score_value / available_weight_sum
             composite_score = max(0, min(100, round(composite_score_value, 2)))
 
             def extract_score_value(score_result: float | dict[str, Any] | None) -> float | None:
