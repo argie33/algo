@@ -168,7 +168,7 @@ Orchestrator executes all 9 phases in sequence per `algo/orchestrator/phase_regi
 
 ## Credentials & Deployment
 
-**Local:** PostgreSQL setup + `python scripts/apply-database-schema.py` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
+**Local:** PostgreSQL setup + `python scripts/apply_local_migrations.py` (one-time), then `scripts/refresh-aws-credentials.ps1` if expired.
 
 **Production:** `git push main` → deploy-all-infrastructure.yml (auto)
 

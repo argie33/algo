@@ -44,7 +44,7 @@ docker run --rm -d -p 5432:5432 \
 
 ### 4. Initialize Database (One-Time)
 ```bash
-python scripts/apply-database-schema.py
+python scripts/apply_local_migrations.py
 ```
 
 This creates all tables and indices. Safe to run multiple times (uses CREATE TABLE IF NOT EXISTS).
@@ -346,7 +346,7 @@ algo/
 ├── scripts/
 │   ├── run_local_orchestrator.py   # Local trading engine
 │   ├── monitor_data_staleness.py   # Check data freshness
-│   └── apply-database-schema.py    # Database init
+│   └── apply_local_migrations.py   # Database init
 ├── algo/
 │   ├── algo_orchestrator.py        # Trading logic
 │   └── circuit_breaker.py          # Risk gates

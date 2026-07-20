@@ -149,6 +149,11 @@ class VectorizedTechnicalLoader:
 
             inserted = self._bulk_insert(write_df, since_date)
 
+            # CRITICAL: Populate minervini_trend_score from trend_template_data (computed by load_trend_analysis.py)
+            # Stock scores need momentum (minervini_trend_score) to compute composite scores
+            # If trend_template_data not yet available, this gracefully adds NULL (expected on timing mismatches)
+            self._populate_minervini_scores()
+
             # CRITICAL FIX: Disable VCP pattern computation - it was doing 30K+ DB queries per run
             # (1 query per symbol to fetch from technical_data_daily, plus avg volume queries).
             # With 10K symbols, this takes 60+ seconds and causes orchestrator timeout.
@@ -885,6 +890,41 @@ class VectorizedTechnicalLoader:
             raise RuntimeError(
                 f"[BULK_INSERT] Invalid data format for bulk insert: {e}. Data structure mismatch with schema."
             ) from e
+
+    def _populate_minervini_scores(self) -> None:
+        """Populate minervini_trend_score in technical_data_daily from trend_template_data.
+
+        CRITICAL: Stock scores need minervini_trend_score (momentum) to compute composite scores.
+        trend_template_data is computed by load_trend_analysis.py and contains minervini_trend_score.
+        This method JOINs the values and updates technical_data_daily.
+
+        If trend_template_data doesn't have data yet (timing mismatch), this is non-fatal
+        (stocks will be marked unavailable in stock_scores due to insufficient metrics).
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                # Update technical_data_daily with minervini_trend_score from trend_template_data
+                # This JOIN will only populate rows where both tables have matching symbol/date
+                cur.execute(
+                    """
+                    UPDATE technical_data_daily
+                    SET minervini_trend_score = t.minervini_trend_score
+                    FROM trend_template_data t
+                    WHERE technical_data_daily.symbol = t.symbol
+                    AND technical_data_daily.date = t.date
+                    AND technical_data_daily.minervini_trend_score IS NULL
+                    """
+                )
+                updated = cur.rowcount
+                if updated > 0:
+                    logger.info(f"[MINERVINI] Populated {updated} rows with minervini_trend_score from trend_template_data")
+                else:
+                    logger.debug("[MINERVINI] No minervini scores to populate (trend_template_data may not be ready yet)")
+        except psycopg2.Error as e:
+            logger.warning(
+                f"[MINERVINI] Failed to populate minervini_trend_score (non-fatal): {e}. "
+                f"Stock scores will mark affected symbols unavailable due to insufficient metrics."
+            )
 
 
 def _update_tech_loader_status(status: str, error_message: str | None = None, latest_date: date | None = None) -> None:
