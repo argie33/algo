@@ -299,7 +299,7 @@ def run(  # noqa: C901
                 return PhaseResult(1, "data_freshness", "halted", {}, True, error_msg)
             logger.info(f"[PHASE 1] Pre-flight: stock_symbols table OK ({symbol_count:,} active symbols)")
     except Exception as pre_check_err:
-        logger.warning(f"[PHASE 1] Could not pre-validate market_symbols table: {pre_check_err}. Proceeding anyway.")
+        logger.warning(f"[PHASE 1] Could not pre-validate stock_symbols table: {pre_check_err}. Proceeding anyway.")
 
     try:
         with DatabaseContext("read") as cur:
