@@ -704,7 +704,19 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 phase5_dict = safe_dict_convert(phase5_row)
                 regime = phase5_dict.get("regime")
                 is_entry_allowed = phase5_dict.get("is_entry_allowed")
-                halt_reasons = phase5_dict.get("halt_reasons")
+                # halt_reasons is stored as JSON text (e.g. "[]" or '["reason"]'), same as
+                # every other reader of this column in this file (see _normalize_exposure
+                # and the ExposureHistory handler below) - must be parsed before checking
+                # for content. bool("[]") is True (non-empty string), so the previous raw
+                # truthiness check reported halt_active=True on every row with zero actual
+                # halt reasons, contradicting entry_allowed=True in the same response.
+                halt_reasons_raw = phase5_dict.get("halt_reasons")
+                try:
+                    halt_reasons = (
+                        json.loads(halt_reasons_raw) if isinstance(halt_reasons_raw, str) else halt_reasons_raw
+                    )
+                except (json.JSONDecodeError, TypeError):
+                    halt_reasons = []
 
                 execution_health["phase_5_exposure_policy"] = {
                     "market_regime": regime,
@@ -712,7 +724,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "entry_allowed": is_entry_allowed,
                     "max_new_entries": None,
                     "capital_deployment_pct": None,
-                    "halt_active": bool(halt_reasons) if halt_reasons else False,
+                    "halt_active": bool(halt_reasons),
                     "checked_at": phase5_dict.get("date").isoformat() if phase5_dict.get("date") else None,
                 }
             else:
