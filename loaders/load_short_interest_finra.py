@@ -124,18 +124,20 @@ class ShortInterestFinraLoader(OptimalLoader):
                         """
                         INSERT INTO short_interest_finra
                         (symbol, settlement_date, short_shares, short_pct, finra_report_date,
-                         data_unavailable, reason, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                         data_unavailable, reason, data_source, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (symbol, settlement_date) DO UPDATE SET
                             short_shares = EXCLUDED.short_shares,
                             short_pct = EXCLUDED.short_pct,
                             finra_report_date = EXCLUDED.finra_report_date,
                             data_unavailable = EXCLUDED.data_unavailable,
                             reason = EXCLUDED.reason,
+                            data_source = EXCLUDED.data_source,
                             updated_at = EXCLUDED.updated_at
                         """,
                         (symbol, record_date, short_shares, short_pct,
-                         run_date if finra_row else None, data_unavailable, reason, now_et),
+                         run_date if finra_row else None, data_unavailable, reason,
+                         "finra_query_api", now_et),
                     )
 
                     if data_unavailable:
