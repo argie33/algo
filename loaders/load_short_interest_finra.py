@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Short Interest Loader - FINRA Reg SHO Direct API (No yfinance).
+"""Short Interest Loader - FINRA Consolidated Short Interest Query API (No yfinance).
 
 Provides short interest % for stock scoring from FINRA's authoritative
-Regulation SHO short interest reports (bi-weekly CSV publication).
+Regulation SHO short interest data (bi-weekly, settlement dates the 15th and
+last day of each month; published ~2-3 weeks after settlement).
 
-Performance Improvement: Eliminates yfinance rate limit (2000 req/hr).
-- OLD: ~8 minutes for 4,711 symbols (sequential, 0.1s per symbol)
-- NEW: <30 seconds for all symbols (single CSV fetch + parse)
-
-Data source: FINRA Reg SHO CSV (https://www.finra.org/filing-and/)
-Update frequency: Bi-weekly (published Sundays at 9 AM ET)
-Data delay: 2 business days (settlement)
-Quality: FINRA is authoritative regulatory source
+Data source: FINRA Query API "Consolidated Short Interest" dataset
+  (https://api.finra.org/data/group/otcMarket/name/ConsolidatedShortInterest)
+Coverage: NYSE, Nasdaq, and OTC (verified against live data, not OTC-only
+  despite the "otcMarket" API namespace).
+FINRA reports raw share counts, not a percentage. short_pct is computed here
+as short_shares / shares_outstanding (from company_info_sec, SEC EDGAR DEI
+facts) * 100. Symbols without a shares_outstanding figure are marked
+data_unavailable rather than guessing.
 
 Run:
     python3 loaders/load_short_interest_finra.py [--symbols AAPL,MSFT]
@@ -19,14 +20,17 @@ Run:
 
 import logging
 import sys
-from datetime import date, datetime
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 project_root = str(Path(__file__).parent.parent)
 sys.path.insert(0, project_root)
 
+from algo.infrastructure import MarketCalendar  # noqa: E402
 from loaders.runner import run_loader  # noqa: E402
+from utils.db.context import DatabaseContext  # noqa: E402
 from utils.finra_short_interest import FINRAShortInterestFetcher  # noqa: E402
 from utils.infrastructure.timezone import EASTERN_TZ  # noqa: E402
 from utils.optimal_loader import OptimalLoader  # noqa: E402
@@ -35,17 +39,15 @@ logger = logging.getLogger(__name__)
 
 
 class ShortInterestFinraLoader(OptimalLoader):
-    """Load short interest data from FINRA CSV only (no yfinance fallback).
+    """Load short interest data from FINRA's Consolidated Short Interest API only.
 
     GOVERNANCE: Only official sources. No silent fallbacks.
-    - PRIORITY 1: FINRA CSV (authoritative regulatory source)
+    - PRIORITY 1: FINRA Query API (authoritative regulatory source, NYSE/Nasdaq/OTC)
     - NO FALLBACK: If FINRA unavailable, mark data_unavailable=TRUE (fail-fast)
 
-    Performance:
-    - FINRA available: ~30 seconds for 4700+ symbols (single CSV fetch)
-    - FINRA unavailable: All symbols marked unavailable (no rate-limited yfinance calls)
-
-    TODO: Fix FINRA CSV URLs or implement working FINRA API endpoint
+    short_pct requires an independent shares_outstanding figure (company_info_sec,
+    SEC EDGAR). Symbols FINRA reports but company_info_sec doesn't cover are marked
+    data_unavailable rather than reporting a raw share count as if it were a percent.
     """
 
     table_name = "short_interest_finra"
@@ -54,22 +56,13 @@ class ShortInterestFinraLoader(OptimalLoader):
     exclude_etfs_from_symbols = True
 
     def run(self, symbols: list[str], parallelism: int = 8, backfill_days: int | None = None) -> dict[str, Any]:
-        """Load short interest from FINRA or yfinance fallback.
+        """Load short interest from FINRA, computing short_pct via shares_outstanding.
 
-        PRIORITY 1: FINRA CSV (preferred - authoritative)
-        FALLBACK: yfinance per-symbol fetch (deprecated, temporary)
-
-        Performance:
-        - If FINRA available: O(1) CSV fetch + O(n) symbol matching
-        - If FINRA unavailable: O(n) yfinance API calls with rate limiting
+        Performance: O(1) FINRA fetch (paginated bulk pull, ~5 requests) + O(1)
+        shares_outstanding bulk query, then O(n) in-memory symbol matching.
         """
-        import time
-        from utils.db.context import DatabaseContext
-
         now_et = datetime.now(EASTERN_TZ)
         run_date = now_et.date()
-
-        from algo.infrastructure import MarketCalendar
 
         # Skip on non-trading days (short interest data not updated)
         if not MarketCalendar.is_trading_day(run_date):
@@ -84,53 +77,65 @@ class ShortInterestFinraLoader(OptimalLoader):
         start_time = time.time()
 
         try:
-            # Try FINRA CSV first (ONLY source - no yfinance fallback per GOVERNANCE)
-            logger.info("[SHORT_INTEREST] Attempting FINRA CSV fetch...")
+            logger.info("[SHORT_INTEREST] Fetching FINRA Consolidated Short Interest...")
             fetcher = FINRAShortInterestFetcher()
             try:
-                finra_data = fetcher.fetch_latest()  # {symbol: short_interest_pct, ...}
-                logger.info(f"[SHORT_INTEREST] FINRA data: {len(finra_data)} symbols from CSV")
+                finra_data, settlement_date = fetcher.fetch_latest()
+                logger.info(
+                    f"[SHORT_INTEREST] FINRA data: {len(finra_data)} symbols "
+                    f"for settlement date {settlement_date}"
+                )
             except Exception as e_finra:
                 logger.warning(
-                    f"[SHORT_INTEREST] FINRA CSV fetch failed: {e_finra}. "
-                    f"Will mark all data unavailable (no yfinance fallback per GOVERNANCE)"
+                    f"[SHORT_INTEREST] FINRA fetch failed: {e_finra}. "
+                    f"Will mark all data unavailable (no fallback per GOVERNANCE)"
                 )
-                finra_data = {}
+                finra_data, settlement_date = {}, None
 
-            # Process symbols
+            shares_outstanding = self._load_shares_outstanding()
+            logger.info(f"[SHORT_INTEREST] shares_outstanding available for {len(shares_outstanding)} symbols")
+
             rows_inserted = 0
             rows_unavailable = 0
+            record_date = settlement_date or run_date
 
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
-                    short_pct = None
+                    finra_row = finra_data.get(symbol)
+                    outstanding = shares_outstanding.get(symbol)
 
-                    # Check FINRA data only (NO yfinance fallback - GOVERNANCE: no silent fallbacks)
-                    if symbol in finra_data:
-                        short_pct = finra_data[symbol]
+                    if finra_row is None:
+                        short_pct = None
+                        short_shares = None
+                        data_unavailable = True
+                        reason = "finra_data_unavailable" if finra_data else "finra_api_unreachable"
+                    elif not outstanding:
+                        short_pct = None
+                        short_shares = finra_row["short_shares"]
+                        data_unavailable = True
+                        reason = "shares_outstanding_unavailable"
+                    else:
+                        short_shares = finra_row["short_shares"]
+                        short_pct = min(round((short_shares / outstanding) * 100, 2), 100.0)
                         data_unavailable = False
                         reason = None
-                    else:
-                        # FINRA data unavailable for this symbol
-                        # NO fallback to yfinance (GOVERNANCE: only official sources, fail-fast on missing data)
-                        data_unavailable = True
-                        reason = "finra_data_unavailable" if finra_data else "finra_csv_not_accessible"
 
-                    # Insert record
                     cur.execute(
                         """
                         INSERT INTO short_interest_finra
-                        (symbol, settlement_date, short_pct, finra_report_date, data_unavailable, reason, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        (symbol, settlement_date, short_shares, short_pct, finra_report_date,
+                         data_unavailable, reason, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                         ON CONFLICT (symbol, settlement_date) DO UPDATE SET
+                            short_shares = EXCLUDED.short_shares,
                             short_pct = EXCLUDED.short_pct,
                             finra_report_date = EXCLUDED.finra_report_date,
                             data_unavailable = EXCLUDED.data_unavailable,
                             reason = EXCLUDED.reason,
                             updated_at = EXCLUDED.updated_at
                         """,
-                        (symbol, run_date, short_pct, run_date if short_pct else None,
-                         data_unavailable, reason, now_et),
+                        (symbol, record_date, short_shares, short_pct,
+                         run_date if finra_row else None, data_unavailable, reason, now_et),
                     )
 
                     if data_unavailable:
@@ -146,14 +151,14 @@ class ShortInterestFinraLoader(OptimalLoader):
                 "rows_inserted": rows_inserted,
                 "status": "ok" if rows_inserted > 0 else "partial",
                 "duration_sec": round(duration, 2),
-                "latest_date": run_date.isoformat(),
-                "finra_source": "finra_csv" if finra_data else "finra_unavailable",
+                "settlement_date": settlement_date.isoformat() if settlement_date else None,
+                "finra_source": "finra_query_api" if finra_data else "finra_unavailable",
             }
 
             logger.info(
                 f"[SHORT_INTEREST] Load complete: {rows_inserted} succeeded, "
                 f"{rows_unavailable} unavailable in {duration:.1f}s "
-                f"(source: {'FINRA CSV' if finra_data else 'FINRA unavailable (no fallback)'})"
+                f"(settlement_date={settlement_date})"
             )
             return result
 
@@ -165,6 +170,20 @@ class ShortInterestFinraLoader(OptimalLoader):
             raise RuntimeError(
                 f"[SHORT_INTEREST] Fatal loader error: {type(e).__name__}: {str(e)[:200]}"
             ) from e
+
+    @staticmethod
+    def _load_shares_outstanding() -> dict[str, int]:
+        """Bulk-load the latest shares_outstanding per symbol from company_info_sec."""
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT DISTINCT ON (symbol) symbol, shares_outstanding
+                FROM company_info_sec
+                WHERE shares_outstanding IS NOT NULL AND shares_outstanding > 0
+                ORDER BY symbol, filing_date DESC
+                """
+            )
+            return {row[0]: row[1] for row in cur.fetchall()}
 
 
 def main() -> int:

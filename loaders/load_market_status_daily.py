@@ -76,6 +76,12 @@ class MarketStatusDailyLoader(OptimalLoader):
                 f"[{self.table_name}] Skipping load: today ({run_date}) is not a trading day. "
                 f"Market data will use last available trading day's data."
             )
+            # Refresh data_loader_status from the real table state even when skipping the
+            # fetch. Without this, the status row (latest_date, last_updated) freezes at
+            # whatever it was on the last trading day this loader ran, and monitoring
+            # reads that as "no/stale data" even though market_health_daily itself has
+            # current data through the last trading day.
+            self._update_final_status(1)
             return {
                 "symbols_processed": 0,
                 "symbols_failed": 0,

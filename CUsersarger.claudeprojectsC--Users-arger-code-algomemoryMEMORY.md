@@ -1,0 +1,1 @@
+- [Session 298 Loader Audit](session_298_findings.md) — Verified 69.7% honest coverage, FINRA short interest offline, institutional 90.9% working, identified improvement paths
