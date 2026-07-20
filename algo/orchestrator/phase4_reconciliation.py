@@ -53,11 +53,38 @@ def run(
         # Check for partial fills that need immediate reconciliation
         with DatabaseContext("write") as cur:
             partial_fill_result = recon.check_partial_fills(cur)
+
+            # CRITICAL FIX: Validate partial fill result structure completely
+            # Previously: only checked 'mismatches' field existed
+            # Now: validate result is dict, has all required fields, has no error status
+            if not isinstance(partial_fill_result, dict):
+                raise RuntimeError(
+                    f"[PHASE 4] Partial fill check returned invalid type {type(partial_fill_result).__name__}. "
+                    f"Expected dict. API response may be corrupted."
+                )
+
             if "mismatches" not in partial_fill_result:
                 raise RuntimeError(
-                    f"Partial fill check returned incomplete data: missing 'mismatches' field. "
-                    f"Got keys: {list(partial_fill_result.keys())}"
+                    f"[PHASE 4] Partial fill check returned incomplete data: missing 'mismatches' field. "
+                    f"Got keys: {list(partial_fill_result.keys())}. "
+                    f"API response structure unexpected."
                 )
+
+            # Validate mismatches is numeric
+            if not isinstance(partial_fill_result["mismatches"], (int, float)):
+                raise RuntimeError(
+                    f"[PHASE 4] 'mismatches' field is invalid type {type(partial_fill_result['mismatches']).__name__}. "
+                    f"Expected int. API returned malformed data."
+                )
+
+            # Check for error status in result (API may return error status instead of exception)
+            if partial_fill_result.get("error") or partial_fill_result.get("error_status"):
+                error_detail = partial_fill_result.get("error") or partial_fill_result.get("error_status")
+                raise RuntimeError(
+                    f"[PHASE 4] Partial fill check returned error status: {error_detail}. "
+                    f"Broker API may be unavailable or order state corrupted. Cannot proceed with reconciliation."
+                )
+
             if partial_fill_result["mismatches"] > 0:
                 logger.warning(
                     f"[PHASE_3A] Detected {partial_fill_result['mismatches']} "
