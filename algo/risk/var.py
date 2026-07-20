@@ -400,19 +400,28 @@ class ValueAtRisk:
                             f"Check that daily orchestration is running."
                         )
 
-                # Fetch SPY returns for the last 60 trading days (beta denominator)
+                # Fetch SPY returns for the last 60 trading days (beta denominator).
+                # Keyed by date (not just position-ordered), so that per-symbol covariance
+                # below can be computed against the SAME calendar dates as the stock's own
+                # returns - see matching comment below for why this matters.
                 cur.execute("""
                     SELECT date, close FROM price_daily
                     WHERE symbol = 'SPY'
                     ORDER BY date DESC LIMIT 61
                     """)
                 spy_rows = cur.fetchall()
-                spy_returns = []
+                spy_returns_by_date: dict[Any, Decimal] = {}
                 if len(spy_rows) >= 2:
-                    spy_prices = list(reversed([Decimal(str(float(r[1]))) for i, r in enumerate(spy_rows)]))
-                    spy_returns = [
-                        (spy_prices[i] - spy_prices[i - 1]) / spy_prices[i - 1] for i in range(1, len(spy_prices))
-                    ]
+                    spy_by_date = {r[0]: Decimal(str(float(r[1]))) for r in spy_rows if r[1] is not None}
+                    spy_dates_sorted = sorted(spy_by_date.keys())
+                    spy_returns_by_date = {
+                        spy_dates_sorted[i]: (
+                            (spy_by_date[spy_dates_sorted[i]] - spy_by_date[spy_dates_sorted[i - 1]])
+                            / spy_by_date[spy_dates_sorted[i - 1]]
+                        )
+                        for i in range(1, len(spy_dates_sorted))
+                    }
+                spy_returns = list(spy_returns_by_date.values())
 
                 spy_var = Decimal(0)
                 if spy_returns:
@@ -462,7 +471,7 @@ class ValueAtRisk:
                     try:
                         cur.execute(
                             """
-                            SELECT close FROM price_daily
+                            SELECT date, close FROM price_daily
                             WHERE symbol = %s
                             ORDER BY date DESC LIMIT 61
                             """,
@@ -474,38 +483,49 @@ class ValueAtRisk:
                                 f"[VAR CALCULATION] {symbol}: insufficient historical price data (need 2+ prices, got {len(stock_rows)}). "
                                 f"Cannot calculate beta for portfolio VAR. Ensure price_daily has at least 60 days of data."
                             )
-                        stock_prices = []
-                        for _i, r in enumerate(stock_rows):
-                            if r[0] is None:
+                        stock_by_date: dict[Any, Decimal] = {}
+                        for r in stock_rows:
+                            if r[1] is None:
                                 raise ValueError(
                                     f"[VAR CALCULATION FAILED] {symbol}: NULL historical price in price_daily. "
                                     f"Cannot calculate beta without complete price history."
                                 )
-                            price = float(r[0])
+                            price = float(r[1])
                             if price <= 0:
                                 raise ValueError(
                                     f"[VAR CALCULATION FAILED] {symbol}: invalid historical price ({price}). "
                                     f"All prices must be positive for beta calculation."
                                 )
-                            stock_prices.append(Decimal(str(price)))
-                        stock_prices = list(reversed(stock_prices))
-                        if len(stock_prices) < 2:
+                            stock_by_date[r[0]] = Decimal(str(price))
+                        if len(stock_by_date) < 2:
                             raise ValueError(
-                                f"[VAR CALCULATION] {symbol}: insufficient valid prices ({len(stock_prices)}). "
+                                f"[VAR CALCULATION] {symbol}: insufficient valid prices ({len(stock_by_date)}). "
                                 f"Cannot compute beta."
                             )
-                        stock_returns = [
-                            (stock_prices[i] - stock_prices[i - 1]) / stock_prices[i - 1]
-                            for i in range(1, len(stock_prices))
-                        ]
-                        n = min(len(stock_returns), len(spy_returns))
+                        # Align on common PRICE dates (not independently-computed return
+                        # dates) before differencing: a data gap in either series (e.g. one
+                        # missing loader day for this symbol) must not silently pair a
+                        # multi-day stock return against a single-day SPY return just
+                        # because they happen to land on the same end-date - that would
+                        # still corrupt the covariance this beta is built from, even though
+                        # both "returns" are nominally keyed under the same date.
+                        common_price_dates = sorted(set(stock_by_date.keys()) & set(spy_by_date.keys()))
+                        n = len(common_price_dates) - 1
                         if n < 20:
                             raise ValueError(
-                                f"[VAR CALCULATION] {symbol}: insufficient return periods ({n} < 20 required). "
-                                f"Cannot calculate statistically significant beta."
+                                f"[VAR CALCULATION] {symbol}: insufficient overlapping trading days with SPY "
+                                f"({n} return periods < 20 required). Cannot calculate statistically significant beta."
                             )
-                        s_rets = stock_returns[-n:]
-                        m_rets = spy_returns[-n:]
+                        s_rets = [
+                            (stock_by_date[common_price_dates[i]] - stock_by_date[common_price_dates[i - 1]])
+                            / stock_by_date[common_price_dates[i - 1]]
+                            for i in range(1, len(common_price_dates))
+                        ]
+                        m_rets = [
+                            (spy_by_date[common_price_dates[i]] - spy_by_date[common_price_dates[i - 1]])
+                            / spy_by_date[common_price_dates[i - 1]]
+                            for i in range(1, len(common_price_dates))
+                        ]
                         s_mean = Decimal(str(sum(s_rets) / n))
                         m_mean = Decimal(str(sum(m_rets) / n))
                         cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n))
