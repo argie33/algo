@@ -737,32 +737,32 @@ const StockScoreAccordion = ({
                 <Grid container spacing={3}>
                   <InputsGrid
                     title="Quality & Fundamentals"
-                    inputs={stock.quality_inputs}
+                    inputs={stock}
                     schema={QUALITY_SCHEMA}
                   />
                   <InputsGrid
                     title="Momentum"
-                    inputs={stock.momentum_inputs}
+                    inputs={stock}
                     schema={MOMENTUM_SCHEMA}
                   />
                   <InputsGrid
                     title="Value"
-                    inputs={stock.value_inputs}
+                    inputs={stock}
                     schema={VALUE_SCHEMA}
                   />
                   <InputsGrid
                     title="Growth"
-                    inputs={stock.growth_inputs}
+                    inputs={stock}
                     schema={GROWTH_SCHEMA}
                   />
                   <InputsGrid
                     title="Positioning"
-                    inputs={stock.positioning_inputs}
+                    inputs={stock}
                     schema={POSITIONING_SCHEMA}
                   />
                   <InputsGrid
                     title="Stability"
-                    inputs={stock.stability_inputs}
+                    inputs={stock}
                     schema={STABILITY_SCHEMA}
                   />
                 </Grid>
@@ -909,279 +909,101 @@ export default StockScoreAccordion;
 
 // ─── Input Schemas ────────────────────────────────────────────────────────────
 const QUALITY_SCHEMA = [
-  { key: "return_on_equity_pct", label: "ROE", fmt: (v) => pct(v, 1) },
-  { key: "return_on_assets_pct", label: "ROA", fmt: (v) => pct(v, 1) },
-  {
-    key: "return_on_invested_capital_pct",
-    label: "ROIC",
-    fmt: (v) => pct(v, 1),
-  },
-  { key: "gross_margin_pct", label: "Gross Margin", fmt: (v) => pct(v, 1) },
-  {
-    key: "operating_margin_pct",
-    label: "Operating Margin",
-    fmt: (v) => pct(v, 1),
-  },
-  { key: "profit_margin_pct", label: "Profit Margin", fmt: (v) => pct(v, 1) },
-  { key: "ebitda_margin_pct", label: "EBITDA Margin", fmt: (v) => pct(v, 1) },
-  {
-    key: "fcf_to_net_income",
-    label: "FCF / Net Income",
-    fmt: (v) => num(v, 2),
-  },
-  {
-    key: "operating_cf_to_net_income",
-    label: "OCF / Net Income",
-    fmt: (v) => num(v, 2),
-  },
+  { key: "roe_pct", label: "ROE", fmt: (v) => pct(v, 1) },
+  { key: "roa_val", label: "ROA", fmt: (v) => pct(v, 1) },
   { key: "debt_to_equity", label: "Debt / Equity", fmt: (v) => num(v, 2) },
-  { key: "current_ratio", label: "Current Ratio", fmt: (v) => num(v, 2) },
-  { key: "quick_ratio", label: "Quick Ratio", fmt: (v) => num(v, 2) },
+  { key: "current_ratio_val", label: "Current Ratio", fmt: (v) => num(v, 2) },
+  { key: "quick_ratio_val", label: "Quick Ratio", fmt: (v) => num(v, 2) },
   {
-    key: "interest_coverage",
+    key: "interest_coverage_val",
     label: "Interest Coverage",
     fmt: (v) => num(v, 2),
   },
-  {
-    key: "earnings_surprise_avg",
-    label: "Earnings Surprise (4Q)",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "eps_growth_stability",
-    label: "EPS Growth Stability",
-    fmt: (v) => num(v, 2),
-  },
-  {
-    key: "earnings_beat_rate",
-    label: "Earnings Beat Rate",
-    fmt: (v) => pct(v, 1),
-  },
-  {
-    key: "consecutive_positive_quarters",
-    label: "Consecutive +Q",
-    fmt: (v) => num(v, 0),
-  },
-  {
-    key: "estimate_revision_direction",
-    label: "Revision Direction",
-    fmt: (v) => num(v, 1),
-  },
-  {
-    key: "revision_activity_30d",
-    label: "Revision Activity 30d",
-    fmt: (v) => num(v, 1),
-  },
-  {
-    key: "estimate_momentum_60d",
-    label: "Estimate Momentum 60d",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "estimate_momentum_90d",
-    label: "Estimate Momentum 90d",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "revision_trend_score",
-    label: "Revision Trend",
-    fmt: (v) => num(v, 1),
-  },
-  { key: "payout_ratio", label: "Payout Ratio", fmt: (v) => pct(v, 1) },
-  { key: "free_cashflow", label: "Free Cash Flow", fmt: money },
-  { key: "operating_cashflow", label: "Operating Cash Flow", fmt: money },
-  { key: "total_debt", label: "Total Debt", fmt: money },
-  { key: "total_cash", label: "Total Cash", fmt: money },
-  { key: "cash_per_share", label: "Cash / Share", fmt: (v) => `$${num(v, 2)}` },
-  {
-    key: "earnings_growth_pct",
-    label: "Earnings Growth",
-    fmt: (v) => pct(v, 2),
-  },
-  { key: "revenue_growth_pct", label: "Revenue Growth", fmt: (v) => pct(v, 2) },
-  {
-    key: "earnings_growth_4q_avg",
-    label: "Earnings Growth 4Q Avg",
-    fmt: (v) => pct(v, 2),
-  },
+  { key: "operating_margin_val", label: "Operating Margin", fmt: (v) => pct(v, 1) },
+  { key: "net_margin_val", label: "Profit Margin", fmt: (v) => pct(v, 1) },
 ];
 
 const MOMENTUM_SCHEMA = [
   { key: "current_price", label: "Current Price", fmt: (v) => `$${num(v, 2)}` },
-  { key: "price_vs_52w_high", label: "vs 52w High", fmt: (v) => pct(v, 2) },
+  { key: "price_vs_52w_high_val", label: "vs 52w High", fmt: (v) => pct(v, 2) },
   { key: "price_vs_sma_50", label: "vs 50-SMA", fmt: (v) => pct(v, 2) },
   { key: "price_vs_sma_200", label: "vs 200-SMA", fmt: (v) => pct(v, 2) },
-  { key: "momentum_3m", label: "3-Month Return", fmt: (v) => pct(v, 2) },
-  { key: "momentum_6m", label: "6-Month Return", fmt: (v) => pct(v, 2) },
-  { key: "momentum_12_3", label: "12-3 Momentum", fmt: (v) => pct(v, 2) },
-  { key: "rsi", label: "RSI (14)", fmt: (v) => num(v, 1) },
-  { key: "macd", label: "MACD", fmt: (v) => num(v, 3) },
+  { key: "tdd_roc_60d", label: "60-Day ROC", fmt: (v) => pct(v, 2) },
+  { key: "tdd_roc_120d", label: "120-Day ROC", fmt: (v) => pct(v, 2) },
+  { key: "tdd_rsi", label: "RSI (14)", fmt: (v) => num(v, 1) },
+  { key: "tdd_macd", label: "MACD", fmt: (v) => num(v, 3) },
 ];
 
 const VALUE_SCHEMA = [
-  { key: "stock_pe", label: "P/E", fmt: (v) => num(v, 2) },
-  { key: "stock_forward_pe", label: "Forward P/E", fmt: (v) => num(v, 2) },
-  { key: "stock_pb", label: "P/B", fmt: (v) => num(v, 2) },
-  { key: "stock_ps", label: "P/S", fmt: (v) => num(v, 2) },
-  { key: "peg_ratio", label: "PEG", fmt: (v) => num(v, 2) },
-  { key: "stock_ev_ebitda", label: "EV / EBITDA", fmt: (v) => num(v, 2) },
-  { key: "stock_ev_revenue", label: "EV / Revenue", fmt: (v) => num(v, 2) },
+  { key: "trailing_pe", label: "P/E", fmt: (v) => num(v, 2) },
+  { key: "price_to_book", label: "P/B", fmt: (v) => num(v, 2) },
+  { key: "ps_ratio_val", label: "P/S", fmt: (v) => num(v, 2) },
+  { key: "peg_ratio_val", label: "PEG", fmt: (v) => num(v, 2) },
   {
-    key: "fcf_yield",
+    key: "fcf_yield_val",
     label: "FCF Yield",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
+    fmt: (v) => pct(v, 2),
   },
   {
-    key: "stock_dividend_yield",
+    key: "dividend_yield",
     label: "Dividend Yield",
-    fmt: (v) => pct(v == null ? null : v * 100, 2),
+    fmt: (v) => pct(v, 2),
   },
 ];
 
 const GROWTH_SCHEMA = [
   {
-    key: "revenue_growth_1y_pct",
+    key: "rev_growth_1y_val",
     label: "Revenue Growth (1Y)",
     fmt: (v) => pct(v, 2),
   },
-  { key: "eps_growth_1y_pct", label: "EPS Growth (1Y)", fmt: (v) => pct(v, 2) },
+  { key: "eps_growth_1y_val", label: "EPS Growth (1Y)", fmt: (v) => pct(v, 2) },
   {
-    key: "revenue_growth_3y_cagr",
-    label: "Revenue CAGR (3Y)",
+    key: "rev_growth_3y_val",
+    label: "Revenue Growth (3Y)",
     fmt: (v) => pct(v, 2),
   },
-  { key: "eps_growth_3y_cagr", label: "EPS CAGR (3Y)", fmt: (v) => pct(v, 2) },
+  { key: "eps_growth_3y_val", label: "EPS Growth (3Y)", fmt: (v) => pct(v, 2) },
   {
-    key: "revenue_growth_5y_cagr",
-    label: "Revenue CAGR (5Y)",
+    key: "rev_growth_5y_val",
+    label: "Revenue Growth (5Y)",
     fmt: (v) => pct(v, 2),
   },
-  { key: "eps_growth_5y_cagr", label: "EPS CAGR (5Y)", fmt: (v) => pct(v, 2) },
-  {
-    key: "net_income_growth_yoy",
-    label: "Net Income Growth YoY",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "operating_income_growth_yoy",
-    label: "Op Income Growth YoY",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "gross_margin_trend",
-    label: "Gross Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-  },
-  {
-    key: "operating_margin_trend",
-    label: "Op Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-  },
-  {
-    key: "net_margin_trend",
-    label: "Net Margin Trend",
-    fmt: (v) => `${num(v, 2)} pp`,
-  },
-  { key: "roe_trend", label: "ROE Trend", fmt: (v) => num(v, 2) },
-  {
-    key: "sustainable_growth_rate",
-    label: "Sustainable Growth Rate",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "quarterly_growth_momentum",
-    label: "Quarterly Growth Mom",
-    fmt: (v) => `${num(v, 2)} pp`,
-  },
-  { key: "fcf_growth_yoy", label: "FCF Growth YoY", fmt: (v) => pct(v, 2) },
-  { key: "ocf_growth_yoy", label: "OCF Growth YoY", fmt: (v) => pct(v, 2) },
-  { key: "asset_growth_yoy", label: "Asset Growth YoY", fmt: (v) => pct(v, 2) },
+  { key: "eps_growth_5y_val", label: "EPS Growth (5Y)", fmt: (v) => pct(v, 2) },
 ];
 
 const POSITIONING_SCHEMA = [
   {
-    key: "institutional_ownership_pct",
+    key: "inst_own_val",
     label: "Institutional Own %",
     fmt: (v) => pct(v, 1),
   },
   {
-    key: "top_10_institutions_pct",
-    label: "Institutions % (held)",
-    fmt: (v) => pct(v == null ? null : v * 100, 1),
-  },
-  {
-    key: "institutional_holders_count",
-    label: "Institutional Holders",
-    fmt: (v) => num(v, 0),
-  },
-  {
-    key: "insider_ownership_pct",
+    key: "insider_own_val",
     label: "Insider Own %",
     fmt: (v) => pct(v, 1),
   },
   {
-    key: "short_interest_pct",
+    key: "short_pct_val",
     label: "Short Interest %",
     fmt: (v) => pct(v, 2),
   },
   {
-    key: "short_percent_of_float",
-    label: "Short % of Float",
-    fmt: (v) => pct(v, 1),
-  },
-  {
-    key: "short_interest_trend",
+    key: "short_interest_trend_val",
     label: "Short Interest Trend",
     fmt: (v) => String(v),
   },
   {
-    key: "shares_short_prior_month",
+    key: "shares_short_prior_month_val",
     label: "Shares Short (Prior Mo)",
-    fmt: (v) => Number(v).toLocaleString(),
+    fmt: (v) => (v ? Number(v).toLocaleString() : "—"),
   },
-  {
-    key: "short_ratio",
-    label: "Days to Cover",
-    fmt: (v) => (Number(v) < 99999 ? num(v, 2) : "—"),
-  },
-  { key: "ad_rating", label: "A/D Rating", fmt: (v) => num(v, 1) },
 ];
 
 const STABILITY_SCHEMA = [
-  { key: "volatility_12m", label: "Volatility (12M)", fmt: (v) => pct(v, 2) },
-  { key: "volatility_60d", label: "Volatility (60D)", fmt: (v) => pct(v, 2) },
-  { key: "volatility_30d", label: "Volatility (30D)", fmt: (v) => pct(v, 2) },
-  {
-    key: "downside_volatility",
-    label: "Downside Volatility",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "max_drawdown_52w",
-    label: "Max Drawdown (52W)",
-    fmt: (v) => pct(v, 2),
-  },
-  { key: "beta", label: "Beta vs Market", fmt: (v) => num(v, 2) },
-  { key: "debt_to_assets", label: "Debt / Assets", fmt: (v) => num(v, 2) },
-  {
-    key: "volatility_risk_component",
-    label: "Volatility Risk Score",
-    fmt: (v) => num(v, 1),
-  },
-  {
-    key: "volume_consistency",
-    label: "Volume Consistency",
-    fmt: (v) => num(v, 1),
-  },
-  {
-    key: "turnover_velocity",
-    label: "Turnover Velocity",
-    fmt: (v) => num(v, 1),
-  },
-  {
-    key: "volatility_volume_ratio",
-    label: "Volatility / Volume",
-    fmt: (v) => num(v, 1),
-  },
-  { key: "daily_spread", label: "Daily Spread", fmt: (v) => num(v, 1) },
+  { key: "volatility_12m_val", label: "Volatility (12M)", fmt: (v) => pct(v, 2) },
+  { key: "volatility_60d_val", label: "Volatility (60D)", fmt: (v) => pct(v, 2) },
+  { key: "volatility_30d_val", label: "Volatility (30D)", fmt: (v) => pct(v, 2) },
+  { key: "beta_val", label: "Beta vs Market", fmt: (v) => num(v, 2) },
+  { key: "debt_to_assets_val", label: "Debt / Assets", fmt: (v) => num(v, 2) },
 ];
