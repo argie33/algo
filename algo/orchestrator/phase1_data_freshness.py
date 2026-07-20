@@ -335,9 +335,13 @@ def run(  # noqa: C901
                 max_date = max_date.date()
 
             # CRITICAL: Verify stock_symbols table is pre-loaded (required for ALL loaders)
-            # Session 290 FIX: Add retry logic for false positives from connection timeouts/race conditions
+            # Session 299 FIX: More robust symbol check with better error diagnostics
+            # Only retry on transient errors (lock timeouts, connection issues), not structural issues
             symbol_count = None
+            last_error = None
             max_retries = 2
+            transient_error_keywords = ("timeout", "connection", "pool", "concurrent", "deadlock")
+
             for attempt in range(max_retries):
                 try:
                     cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
@@ -345,25 +349,39 @@ def run(  # noqa: C901
                     if symbol_count_row is not None and symbol_count_row[0] is not None:
                         symbol_count = symbol_count_row[0]
                         break
-                    elif attempt < max_retries - 1:
-                        logger.warning(f"[PHASE 1] stock_symbols query returned empty (attempt {attempt+1}), retrying...")
-                        time.sleep(0.3)
-                        continue
+                    else:
+                        # COUNT(*) should never return NULL; if it does, something is wrong
+                        error_msg = f"stock_symbols query returned unexpected result: {symbol_count_row}"
+                        logger.error(f"[PHASE 1] {error_msg}")
+                        if attempt < max_retries - 1:
+                            time.sleep(0.3)
+                            continue
+                        last_error = error_msg
+                        break
                 except Exception as query_err:
-                    logger.warning(f"[PHASE 1] stock_symbols query failed (attempt {attempt+1}): {query_err}")
-                    if attempt < max_retries - 1:
+                    error_str = str(query_err).lower()
+                    is_transient = any(kw in error_str for kw in transient_error_keywords)
+
+                    if is_transient and attempt < max_retries - 1:
+                        logger.warning(f"[PHASE 1] Transient stock_symbols check error (attempt {attempt+1}): {query_err}")
                         time.sleep(0.3)
                         continue
-                    raise
+                    else:
+                        # Permanent error or last attempt
+                        logger.error(f"[PHASE 1] stock_symbols check failed (attempt {attempt+1}): {query_err}")
+                        last_error = f"{type(query_err).__name__}: {str(query_err)[:100]}"
+                        break
 
             if symbol_count is None or symbol_count == 0:
+                error_detail = last_error or "(query returned 0 or NULL)"
                 logger.critical(
-                    "[PHASE 1] CRITICAL: stock_symbols table is empty or has no active symbols. "
+                    "[PHASE 1] CRITICAL: stock_symbols table has no active symbols. "
+                    f"Details: {error_detail}. "
                     "All loaders depend on symbol list being pre-loaded. "
                     "Run load_market_constituents.py first to populate NASDAQ/NYSE symbols."
                 )
                 log_phase_result_fn(
-                    1, "symbol_list_missing", "halt", "stock_symbols table empty - run market_constituents loader first"
+                    1, "symbol_list_missing", "halt", f"stock_symbols table empty or inaccessible: {error_detail}"
                 )
                 return PhaseResult(
                     1,
@@ -371,7 +389,7 @@ def run(  # noqa: C901
                     "halted",
                     {},
                     True,
-                    "stock_symbols table is empty - symbols must be loaded before trading",
+                    f"stock_symbols table is empty - symbols must be loaded before trading. Error: {error_detail}",
                 )
             logger.info(f"[PHASE 1] Symbol list verified: {symbol_count} active symbols")
 

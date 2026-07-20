@@ -75,7 +75,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 if open_symbols:
                     cur.execute(
                         """
-                        SELECT symbol, close, data_unavailable, reason FROM price_daily
+                        SELECT symbol, close, data_unavailable, data_unavailable_reason FROM price_daily
                         WHERE symbol = ANY(%s)
                         AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = ANY(%s))
                         """,

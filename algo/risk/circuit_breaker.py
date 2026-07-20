@@ -841,7 +841,9 @@ class CircuitBreaker:
         Coordinated via get_freshness_rule("price_daily") for consistency with other components.
         CRITICAL: MarketCalendar must succeed; cannot fall back to weekday logic (misses holidays).
         """
-        cur.execute("SELECT date, data_unavailable, reason FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1")
+        cur.execute(
+            "SELECT date, data_unavailable, data_unavailable_reason FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1"
+        )
         row = cur.fetchone()
         if row is None or len(row) < 1 or row[0] is None:
             return {"halted": True, "reason": "No SPY data at all"}
@@ -912,7 +914,7 @@ class CircuitBreaker:
         try:
             cur.execute(
                 """
-                SELECT close, data_unavailable, reason FROM price_daily
+                SELECT close, data_unavailable, data_unavailable_reason FROM price_daily
                 WHERE symbol = 'SPY'
                   AND date <= %s
                 ORDER BY date DESC LIMIT 2

@@ -130,12 +130,11 @@ class PipelineHealth:
         "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
     }
 
-    def check_table_health(self, cur: Any, table_name: str, date_column: str, sla_days: int) -> TableHealth:
+    def check_table_health(self, cur: Any, table_name: str, date_column: str | None, sla_days: int) -> TableHealth:
         health = TableHealth(table_name=table_name, status=HealthStatus.ERROR, sla_days=sla_days)
 
         try:
             safe_table = assert_safe_table(table_name)
-            safe_date_col = assert_safe_column(date_column)
 
             # Use pg_class.reltuples for O(1) approximate row count instead of
             # COUNT(*) full scan. reltuples is updated by ANALYZE and is accurate
@@ -162,6 +161,18 @@ class PipelineHealth:
                 health.status = HealthStatus.MISSING
                 health.error_message = "Table is empty"
                 return health
+
+            if date_column is None:
+                # No usable date column was found for this table (see _infer_date_column) -
+                # age cannot be determined. Report HEALTHY based on row count alone rather
+                # than guessing a column name and risking an UndefinedColumn error, which
+                # would abort the shared transaction and poison every subsequent table check
+                # in this batch (see get_pipeline_status).
+                health.status = HealthStatus.HEALTHY
+                health.error_message = "No date column available - age not checked"
+                return health
+
+            safe_date_col = assert_safe_column(date_column)
 
             # Use ORDER BY + LIMIT 1 instead of MAX() - forces an index scan and
             # avoids sequential scans when PostgreSQL statistics are stale (reltuples=0
@@ -295,8 +306,6 @@ class PipelineHealth:
                             date_column = self._infer_date_column(cur, table_name)
                             if date_column is None:
                                 logger.warning(f"Could not infer date column for {table_name}, skipping age check")
-                                # Still check row count though
-                                date_column = "created_at"  # Fallback, won't check age
 
                             health = self.check_table_health(
                                 cur,

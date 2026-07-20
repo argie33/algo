@@ -949,9 +949,9 @@ class PositionMonitor:
 
         cur.execute(
             """
-            SELECT MAX(close), data_unavailable, reason FROM price_daily
+            SELECT MAX(close), data_unavailable, data_unavailable_reason FROM price_daily
             WHERE symbol = %s AND date >= %s AND date <= %s
-            GROUP BY data_unavailable, reason
+            GROUP BY data_unavailable, data_unavailable_reason
             ORDER BY data_unavailable ASC LIMIT 1
             """,
             (symbol, trade_date, current_date),
