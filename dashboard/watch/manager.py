@@ -68,6 +68,7 @@ class WatchModeController:
         self.key_map = {
             "p": "positions",
             "s": "signals",
+            "c": "scores",
             "h": "health",
             "r": "sectors",
             "t": "trades",

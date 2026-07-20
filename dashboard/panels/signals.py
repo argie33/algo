@@ -58,7 +58,7 @@ from rich.rule import Rule
 from rich.table import Table
 from rich.text import Text
 
-from dashboard.data_validation import StrictValidationError, safe_float
+from dashboard.data_validation import safe_float
 
 from ..error_boundary import has_error
 from ..formatters import (
@@ -75,7 +75,6 @@ from ..utilities import (
 from ._helpers import (
     _composite_score_color,
     _error_panel,
-    _score_cell,
 )
 from .data_extractors import (
     extract_eval_funnel,
@@ -126,7 +125,7 @@ def _shorten_type(t: str) -> str:
     return t[:12]
 
 
-def _build_signal_header(sig_data: dict[str, Any], scores_data: dict[str, Any] | None) -> tuple[list[Text], int, int]:
+def _build_signal_header(sig_data: dict[str, Any]) -> tuple[list[Text], int, int]:
     """Build signal header row (count, sparkline, grades, date).
 
     Returns empty rows if input validation fails (missing required structure).
@@ -351,31 +350,25 @@ def _build_funnel_row(sig_eval_data: dict[str, Any] | None) -> list[Text]:
     return rows
 
 
-def _build_buy_signals_table(
-    scored_with_signals: list[Any], buy_sig_details: dict[str, Any]
-) -> list[Text | Table | Rule]:
-    """Build active buy signals table section.
+def _build_buy_signals_table(buy_sigs: list[Any]) -> list[Text | Table | Rule]:
+    """Build active buy signals table: entry/target/exit + technicals/strength per candidate.
 
-    Validates input is list and dict before accessing fields.
-    Logs all validation failures.
+    buy_sigs items come from /api/algo/dashboard-signals, enriched (LEFT JOIN buy_sell_daily +
+    trend_template_data) with the same entry-zone/target/technical fields the web Trading
+    Signals page shows - see lambda/api/routes/algo_handlers/dashboard.py::_get_dashboard_signals.
+
+    Validates input is list before accessing fields. Logs all validation failures.
     """
     rows: list[Text | Table | Rule] = []
-    if not isinstance(scored_with_signals, list):
-        logger.error(
-            f"_build_buy_signals_table: scored_with_signals is not list, got {type(scored_with_signals).__name__}"
-        )
+    if not isinstance(buy_sigs, list):
+        logger.error(f"_build_buy_signals_table: buy_sigs is not list, got {type(buy_sigs).__name__}")
         return rows
-    if not scored_with_signals:
-        logger.debug("_build_buy_signals_table: scored_with_signals is empty (no active signals)")
-        return rows
-    if not isinstance(buy_sig_details, dict):
-        logger.error(f"_build_buy_signals_table: buy_sig_details is not dict, got {type(buy_sig_details).__name__}")
+    if not buy_sigs:
+        logger.debug("_build_buy_signals_table: buy_sigs is empty (no active signals)")
         return rows
 
     rows.append(
-        Text.from_markup(
-            f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(scored_with_signals)} trades with price targets)[/]"
-        )
+        Text.from_markup(f"[{G}][bold]ACTIVE BUY SIGNALS ★[/][/] [dim]({len(buy_sigs)} with price targets)[/]")
     )
     sig_table: Table = Table(
         box=box.SIMPLE_HEAD,
@@ -386,161 +379,79 @@ def _build_buy_signals_table(
         row_styles=["", "dim"],
     )
     sig_table.add_column("Symbol", style="bold white", no_wrap=True, min_width=6)
-    sig_table.add_column("Comp Score", justify="right", no_wrap=True, min_width=7)
+    sig_table.add_column("Quality", justify="right", no_wrap=True, min_width=7)
     sig_table.add_column("Price", justify="right", no_wrap=True, min_width=7)
-    sig_table.add_column("Buy Level", justify="right", no_wrap=True, min_width=9)
-    sig_table.add_column("Stop Level", justify="right", no_wrap=True, min_width=9)
-    sig_table.add_column("R/R", justify="right", no_wrap=True, min_width=6)
-    sig_table.add_column("Entry Q", justify="right", no_wrap=True, min_width=7)
+    sig_table.add_column("Buy Lvl", justify="right", no_wrap=True, min_width=8)
+    sig_table.add_column("Stop", justify="right", no_wrap=True, min_width=7)
+    sig_table.add_column("Target", justify="right", no_wrap=True, min_width=8)
+    sig_table.add_column("RSI", justify="right", no_wrap=True, min_width=5)
+    sig_table.add_column("Setup", no_wrap=True, max_width=18)
+    sig_table.add_column("R/R", justify="right", no_wrap=True, min_width=5)
 
-    for score_item in scored_with_signals:
-        sym = safe_get_field(score_item, "symbol", "--")
-        comp_score = safe_get_field(score_item, "composite_score")
-        sym_norm = str(sym).upper().strip()
-        sig_obj = buy_sig_details.get(sym_norm)
-
-        if sig_obj:
-            entry_qual = safe_get_field(sig_obj, "entry_quality_score")
-            buy_lvl = safe_get_field(sig_obj, "buylevel")
+    for sig_obj in buy_sigs:
+        sym = safe_get_field(sig_obj, "symbol", "--")
+        quality = safe_get_field(sig_obj, "signal_quality_score")
+        price = safe_get_field(sig_obj, "close")
+        if price is None:
+            price = safe_get_field(sig_obj, "entry_price")
+        buy_lvl = safe_get_field(sig_obj, "buylevel")
+        if buy_lvl is None:
+            buy_lvl = safe_get_field(sig_obj, "pivot_price")
+        stop_lvl = safe_get_field(sig_obj, "initial_stop")
+        if stop_lvl is None:
             stop_lvl = safe_get_field(sig_obj, "stoplevel")
-            price = safe_get_field(sig_obj, "close")
-            if price is None:
-                price = safe_get_field(score_item, "current_price")
-        else:
-            entry_qual = None
-            buy_lvl = None
-            stop_lvl = None
-            price = safe_get_field(score_item, "current_price")
+        target = safe_get_field(sig_obj, "profit_target_20pct")
+        rsi = safe_get_field(sig_obj, "rsi")
+        rr_ratio = safe_get_field(sig_obj, "risk_reward_ratio")
+        base_type = safe_get_field(sig_obj, "base_type")
+        market_stage = safe_get_field(sig_obj, "market_stage")
 
-        rr_ratio: float | None = None
-        if buy_lvl is not None and stop_lvl is not None:
-            try:
-                buy_lvl_ratio = safe_float(buy_lvl, field_name="buylevel")
-                stop_lvl_ratio = safe_float(stop_lvl, field_name="stoplevel")
-                if stop_lvl_ratio is not None and stop_lvl_ratio > 0 and buy_lvl_ratio is not None:
-                    rr_ratio = (buy_lvl_ratio - stop_lvl_ratio) / stop_lvl_ratio
-            except (StrictValidationError, ValueError, TypeError, ZeroDivisionError) as e:
-                logger.warning(f"[SIGNAL_PANEL] R/R ratio calculation failed (buy={buy_lvl}, stop={stop_lvl}): {e}")
-
-        comp_v: float | None = None
-        try:
-            comp_v = safe_float(comp_score, field_name="composite_score")
-        except (StrictValidationError, ValueError, TypeError) as e:
-            logger.warning(f"[SIGNAL_PANEL] Composite score conversion failed (comp_score={comp_score}): {e}")
-        comp_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
+        quality_v: float | None = safe_float(quality)
+        quality_c: str = _composite_score_color(quality_v) if quality_v is not None else "dim"
+        rr_v: float | None = safe_float(rr_ratio)
         rr_c: str = (
-            G
-            if rr_ratio is not None and rr_ratio > 1.5
-            else (Y if rr_ratio is not None and rr_ratio > 1 else (CY if rr_ratio is not None else DIM))
+            G if rr_v is not None and rr_v > 1.5 else (Y if rr_v is not None and rr_v > 1 else (CY if rr_v is not None else DIM))
         )
 
         price_f: float | None = safe_float(price)
         buy_lvl_f: float | None = safe_float(buy_lvl)
         stop_lvl_f: float | None = safe_float(stop_lvl)
+        target_f: float | None = safe_float(target)
+        rsi_f: float | None = safe_float(rsi)
+
+        setup_parts = [p for p in (base_type, market_stage.replace("Stage ", "S") if market_stage else None) if p]
+        setup_s = " · ".join(setup_parts) if setup_parts else "--"
+
         sig_table.add_row(
-            Text(sym, style=f"bold {G}"),
-            Text(f"{comp_v:.0f}" if comp_v is not None else "⚠", style=comp_c),
+            Text(str(sym), style=f"bold {G}"),
+            Text(f"{quality_v:.0f}" if quality_v is not None else "⚠", style=quality_c),
             Text(f"${price_f:.2f}" if price_f is not None else "--", style="dim"),
             Text(f"${buy_lvl_f:.2f}" if buy_lvl_f is not None else "--", style=CY),
             Text(f"${stop_lvl_f:.2f}" if stop_lvl_f is not None else "--", style=R),
-            Text(f"{rr_ratio:.2f}" if rr_ratio else "--", style=rr_c),
-            Text(f"{entry_qual:.0f}" if entry_qual is not None else "--", style=CY),
+            Text(f"${target_f:.2f}" if target_f is not None else "--", style=G),
+            Text(
+                f"{rsi_f:.0f}" if rsi_f is not None else "--",
+                style=R if rsi_f is not None and rsi_f > 70 else (G if rsi_f is not None and rsi_f < 30 else "white"),
+            ),
+            Text(setup_s, style=DIM if setup_s == "--" else "white"),
+            Text(f"{rr_v:.2f}" if rr_v is not None else "--", style=rr_c),
         )
     rows.append(sig_table)
     rows.append(Rule(style="dim"))
     return rows
 
 
-def _build_scores_table(top_scores: list[Any]) -> list[Text | Table]:
-    """Build stock quality scores table.
-
-    Validates input is list before accessing items.
-    Logs all validation failures.
-    """
-    rows: list[Text | Table] = []
-    if not isinstance(top_scores, list):
-        logger.error(f"_build_scores_table: top_scores is not list, got {type(top_scores).__name__}")
-        rows.append(Text.from_markup(f"[{Y}]Invalid score data structure - check Data Health[/]"))
-        return rows
-    if not top_scores:
-        logger.debug("_build_scores_table: top_scores is empty (no score data available)")
-        rows.append(Text.from_markup(f"[{Y}]No score data - check Data Health[/]"))
-        return rows
-
-    rows.append(
-        Text.from_markup(f"[{Y}][bold]TOP STOCK SCORES[/][/] [dim](additional candidates without active signals)[/]")
-    )
-    t: Table = Table(
-        box=box.SIMPLE_HEAD,
-        show_header=True,
-        header_style="dim",
-        padding=(0, 1),
-        expand=True,
-        row_styles=["", "dim"],
-    )
-    t.add_column("Symbol", style="bold white", no_wrap=True, min_width=6)
-    t.add_column("Composite", justify="right", no_wrap=True, min_width=7)
-    t.add_column("Momentum", justify="right", no_wrap=True, min_width=8)
-    t.add_column("Quality", justify="right", no_wrap=True, min_width=7)
-    t.add_column("Value", justify="right", no_wrap=True, min_width=5)
-    t.add_column("Growth", justify="right", no_wrap=True, min_width=7)
-    t.add_column("Stability", justify="right", no_wrap=True, min_width=8)
-    t.add_column("Positioning", justify="right", no_wrap=True, min_width=8)
-    t.add_column("RS%", justify="right", no_wrap=True, min_width=5)
-    t.add_column("Change%", justify="right", no_wrap=True, min_width=7)
-    t.add_column("Sector", no_wrap=True, max_width=12)
-
-    for sc in top_scores[:15]:
-        sym = safe_get_field(sc, "symbol", "--")
-        comp = safe_get_field(sc, "composite_score")
-        mom = safe_get_field(sc, "momentum_score")
-        qual = safe_get_field(sc, "quality_score")
-        val = safe_get_field(sc, "value_score")
-        grwth = safe_get_field(sc, "growth_score")
-        stab = safe_get_field(sc, "stability_score")
-        pos = safe_get_field(sc, "positioning_score")
-        rs_pct = safe_get_field(sc, "rs_percentile")
-        chg = safe_get_field(sc, "change_percent")
-        sector = (safe_get_field(sc, "sector", ""))[:12]
-        comp_v: float | None = safe_float(comp)
-        sc_c: str = _composite_score_color(comp_v) if comp_v is not None else DIM
-        chg_v: float | None = safe_float(chg)
-        chg_c: str = G if chg_v is not None and chg_v > 0 else (R if chg_v is not None and chg_v < 0 else DIM)
-        rs_v: float | None = safe_float(rs_pct)
-
-        t.add_row(
-            sym,
-            Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
-            _score_cell(mom),
-            _score_cell(qual),
-            _score_cell(val),
-            _score_cell(grwth),
-            _score_cell(stab),
-            _score_cell(pos),
-            Text(
-                f"{rs_v:.0f}" if rs_v is not None else "--",
-                style=G if rs_v is not None and rs_v >= 70 else DIM,
-            ),
-            Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
-            Text(sector, style=DIM),
-        )
-    rows.append(t)
-    return rows
-
-
 @register_panel(
     "signals",
-    endpoint_deps=["sig", "scores"],
+    endpoint_deps=["sig"],
     optional=True,
     description="Signals",
 )
-def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) -> Panel | None:
-    """Signals & screening - composite score top candidates with pipeline funnel context."""
+def panel_signals_compact(sig: Any, sig_eval: Any = None) -> Panel | None:
+    """Signals - pipeline funnel context + active buy signals with entry/target/exit/technicals."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
-    if scores and has_error(scores):
-        return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
     overview = extract_signal_overview(sig)
     if has_error(overview):
@@ -551,44 +462,19 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) ->
             border="magenta",
         )
 
-    top_scores = None
-    if scores and isinstance(scores, dict) and not has_error(scores):
-        top_scores = safe_get_field(scores, "top")
-    if not isinstance(top_scores, list):
-        top_scores = []
-
     buy_sigs = safe_get_field(overview, "buy_sigs")
     if not isinstance(buy_sigs, list):
         buy_sigs = []
 
-    rows_text, _, _ = _build_signal_header(sig, scores)
+    rows_text, _, _ = _build_signal_header(sig)
     rows: list[Text | Table | Rule] = cast(list[Text | Table | Rule], rows_text)
     rows.extend(_build_grade_radar(sig))
     rows.append(Rule(style="dim"))
     rows.extend(_build_funnel_row(sig_eval))
     rows.append(Rule(style="dim"))
 
-    buy_sig_details = {}
-    for bs in buy_sigs:
-        if not isinstance(bs, dict):
-            logger.warning(f"panel_signals_compact: buy_sig item is not dict, got {type(bs).__name__} - skipping")
-            continue
-        sym = bs.get("symbol")
-        if not sym:
-            logger.debug("panel_signals_compact: buy_sig item missing 'symbol' field - skipping")
-            continue
-        sym_norm = str(sym).upper().strip()
-        buy_sig_details[sym_norm] = bs
-
-    scored_with_signals = [
-        s for s in top_scores if str(safe_get_field(s, "symbol", "")).upper().strip() in buy_sig_details
-    ][:10]
-
-    rows.extend(_build_buy_signals_table(scored_with_signals, buy_sig_details))
-
-    if scored_with_signals:
-        rows.append(Text.from_markup(f"[{Y}][bold]TOP STOCK SCORES[/][/] [dim](all candidates)[/]"))
-    rows.extend(_build_scores_table(top_scores))
+    valid_buy_sigs = [bs for bs in buy_sigs if isinstance(bs, dict) and bs.get("symbol")]
+    rows.extend(_build_buy_signals_table(valid_buy_sigs[:15]))
 
     # MEDIUM FIX: Eliminate redundant safe_get_field calls - call once and check result
     near_val = safe_get_field(overview, "near")
@@ -609,7 +495,7 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) ->
     # MEDIUM FIX: Eliminate redundant safe_get_field calls for timestamp
     timestamp_val = safe_get_field(overview, "timestamp")
     age_s = f"  [dim]{fmt_age(timestamp_val)}[/]" if timestamp_val is not None else ""
-    title = "[bold magenta]TOP SCORES & SIGNALS[/]"
+    title = "[bold magenta]SIGNALS[/]"
     return Panel(
         Group(*rows),
         title=f"{title}{age_s}  [dim][s] expand[/]",
@@ -618,13 +504,12 @@ def panel_signals_compact(sig: Any, sig_eval: Any = None, scores: Any = None) ->
     )
 
 
-def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -> Panel | None:
-    """Full-screen signals & scores - pipeline funnel context, detailed score breakdowns, and all top candidates."""
+def panel_signals_expanded(sig: Any, sig_eval: Any = None) -> Panel | None:
+    """Full-screen signals - pipeline funnel context + full entry/target/exit/technicals detail
+    for every active buy signal (component scores live in the separate Scores panel/'c' view)."""
     err_panel = _error_panel("signals", sig, "SIGNALS", border="magenta")
     if err_panel:
         return err_panel
-    if scores and has_error(scores):
-        return _error_panel("scores", scores, "SIGNALS", border="magenta")
 
     overview = extract_signal_overview(sig)
     if has_error(overview):
@@ -640,12 +525,6 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
 
     if raw is None or total is None:
         return _error_panel("signals", {"_error": "Missing signal counts"}, "SIGNALS", border="magenta")
-
-    top_scores = None
-    if scores and isinstance(scores, dict) and not has_error(scores):
-        top_scores = safe_get_field(scores, "top")
-    if not isinstance(top_scores, list):
-        top_scores = []
 
     buy_sigs = safe_get_field(overview, "buy_sigs")
     if not isinstance(buy_sigs, list):
@@ -696,17 +575,11 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
 
     rows.extend(_build_funnel_row(sig_eval))
     rows.append(Rule(style="dim"))
-    rows.append(Text.from_markup(f"[{Y}][bold]DETAILED SCORE BREAKDOWN[/][/]"))
+    rows.append(Text.from_markup(f"[{Y}][bold]ENTRY / TARGETS & EXITS / TECHNICALS[/][/]"))
+    rows.append(Text.from_markup(f"[dim]{len(buy_sigs)} active buy signals[/]"))
 
-    # GOVERNANCE: Log explicitly when optional data is missing (fail-fast visibility).
-    if top_scores is None:
-        logger.warning("Signals panel: top_scores is None, showing 0 candidates")
-        display_count = 0
-    else:
-        display_count = len(top_scores)
-    rows.append(Text.from_markup(f"[dim]Top {display_count} candidates with component scores[/]"))
-
-    if top_scores:
+    valid_buy_sigs = [bs for bs in buy_sigs if isinstance(bs, dict) and bs.get("symbol")]
+    if valid_buy_sigs:
         sig_tbl = Table(
             box=box.SIMPLE_HEAD,
             show_header=True,
@@ -716,91 +589,75 @@ def panel_signals_expanded(sig: Any, sig_eval: Any = None, scores: Any = None) -
             row_styles=["", "dim"],
         )
         sig_tbl.add_column("Sym", style="bold white", no_wrap=True, min_width=5)
-        sig_tbl.add_column("Company", no_wrap=True, max_width=18, overflow="fold")
-        sig_tbl.add_column("Score", justify="right", no_wrap=True, min_width=5)
-        sig_tbl.add_column("Mom", justify="right", no_wrap=True, min_width=4)
-        sig_tbl.add_column("Qual", justify="right", no_wrap=True, min_width=4)
-        sig_tbl.add_column("Val", justify="right", no_wrap=True, min_width=4)
-        sig_tbl.add_column("Grwth", justify="right", no_wrap=True, min_width=5)
-        sig_tbl.add_column("Stab", justify="right", no_wrap=True, min_width=4)
-        sig_tbl.add_column("Pos", justify="right", no_wrap=True, min_width=4)
-        sig_tbl.add_column("RS%", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("Quality", justify="right", no_wrap=True, min_width=6)
         sig_tbl.add_column("Price", justify="right", no_wrap=True, min_width=7)
-        sig_tbl.add_column("Chg%", justify="right", no_wrap=True, min_width=6)
-        sig_tbl.add_column("vs50%", justify="right", no_wrap=True, min_width=6)
-        sig_tbl.add_column("vs200%", justify="right", no_wrap=True, min_width=7)
-        sig_tbl.add_column("Sector", no_wrap=True, max_width=14)
+        sig_tbl.add_column("Buy Zone", justify="right", no_wrap=True, min_width=15)
+        sig_tbl.add_column("Init Stop", justify="right", no_wrap=True, min_width=8)
+        sig_tbl.add_column("Trail Stop", justify="right", no_wrap=True, min_width=8)
+        sig_tbl.add_column("T +8%", justify="right", no_wrap=True, min_width=7)
+        sig_tbl.add_column("T +20%", justify="right", no_wrap=True, min_width=7)
+        sig_tbl.add_column("T +25%", justify="right", no_wrap=True, min_width=7)
+        sig_tbl.add_column("RSI", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("ADX", justify="right", no_wrap=True, min_width=4)
+        sig_tbl.add_column("Vol Surge", justify="right", no_wrap=True, min_width=8)
+        sig_tbl.add_column("R/R", justify="right", no_wrap=True, min_width=5)
+        sig_tbl.add_column("Base/Stage", no_wrap=True, max_width=18)
+        sig_tbl.add_column("Sector", no_wrap=True, max_width=16)
 
-        for sc in top_scores:
-            sym = str(safe_get_field(sc, "symbol", "--"))
-            sym_norm = sym.upper().strip()
-            company = (safe_get_field(sc, "company_name", ""))[:18]
-            comp = safe_get_field(sc, "composite_score")
-            mom = safe_get_field(sc, "momentum_score")
-            qual = safe_get_field(sc, "quality_score")
-            val = safe_get_field(sc, "value_score")
-            grwth = safe_get_field(sc, "growth_score")
-            stab = safe_get_field(sc, "stability_score")
-            pos = safe_get_field(sc, "positioning_score")
-            rs_pct = safe_get_field(sc, "rs_percentile")
-            chg = safe_get_field(sc, "change_percent")
-            price = safe_get_field(sc, "current_price")
-            price_f = safe_float(price)
-            mom_inputs = safe_get_field(sc, "momentum_inputs")
-            vs50 = safe_get_field(sc, "price_vs_sma_50")
-            if vs50 is None and mom_inputs and isinstance(mom_inputs, dict):
-                vs50 = safe_get_field(mom_inputs, "price_vs_sma_50")
-            vs200 = safe_get_field(sc, "price_vs_sma_200")
-            if vs200 is None and mom_inputs and isinstance(mom_inputs, dict):
-                vs200 = safe_get_field(mom_inputs, "price_vs_sma_200")
-            sector = (safe_get_field(sc, "sector", ""))[:22]
-            # CRITICAL: Fail-fast on missing composite_score. Never silently fallback to 0.
-            if comp is None:
-                logger.warning(f"Signal composite_score missing for {sym_norm} - data unavailable")
-                comp_v = None
-                sc_c = "dim"
-            else:
-                comp_v = safe_float(comp)
-                sc_c = _composite_score_color(comp_v) if comp_v is not None else DIM
+        for bs in valid_buy_sigs:
+            sym = str(safe_get_field(bs, "symbol", "--"))
+            quality = safe_float(safe_get_field(bs, "signal_quality_score"))
+            price = safe_float(safe_get_field(bs, "close") or safe_get_field(bs, "entry_price"))
+            zone_start = safe_float(safe_get_field(bs, "buy_zone_start"))
+            zone_end = safe_float(safe_get_field(bs, "buy_zone_end"))
+            init_stop = safe_float(safe_get_field(bs, "initial_stop"))
+            trail_stop = safe_float(safe_get_field(bs, "trailing_stop"))
+            t8 = safe_float(safe_get_field(bs, "profit_target_8pct"))
+            t20 = safe_float(safe_get_field(bs, "profit_target_20pct"))
+            t25 = safe_float(safe_get_field(bs, "profit_target_25pct"))
+            rsi_v = safe_float(safe_get_field(bs, "rsi"))
+            adx_v = safe_float(safe_get_field(bs, "adx"))
+            vol_surge = safe_float(safe_get_field(bs, "volume_surge_pct"))
+            rr_v = safe_float(safe_get_field(bs, "risk_reward_ratio"))
+            base_type = safe_get_field(bs, "base_type")
+            market_stage = safe_get_field(bs, "market_stage")
+            sector = (safe_get_field(bs, "sector", "") or "")[:16]
 
-            chg_v = safe_float(chg)
-            vs50_v = safe_float(vs50)
-            vs200_v = safe_float(vs200)
-            rs_v = safe_float(rs_pct)
-            chg_c = G if chg_v is not None and chg_v > 0 else (R if chg_v is not None and chg_v < 0 else DIM)
+            quality_c = _composite_score_color(quality) if quality is not None else DIM
+            zone_s = (
+                f"${zone_start:.2f}-{zone_end:.2f}" if zone_start is not None and zone_end is not None else "--"
+            )
+            setup_parts = [p for p in (base_type, market_stage.replace("Stage ", "S") if market_stage else None) if p]
+            setup_s = " · ".join(setup_parts) if setup_parts else "--"
 
-            comp_display = f"{comp_v:.0f}" if comp_v is not None else "N/A"
             sig_tbl.add_row(
                 sym,
-                Text(company, style=DIM),
-                Text(comp_display, style=sc_c),
-                _score_cell(mom),
-                _score_cell(qual),
-                _score_cell(val),
-                _score_cell(grwth),
-                _score_cell(stab),
-                _score_cell(pos),
+                Text(f"{quality:.0f}" if quality is not None else "--", style=quality_c),
+                Text(f"${price:.2f}" if price is not None else "--", style=DIM),
+                Text(zone_s, style=CY),
+                Text(f"${init_stop:.2f}" if init_stop is not None else "--", style=R),
+                Text(f"${trail_stop:.2f}" if trail_stop is not None else "--", style=R),
+                Text(f"${t8:.2f}" if t8 is not None else "--", style=G),
+                Text(f"${t20:.2f}" if t20 is not None else "--", style=G),
+                Text(f"${t25:.2f}" if t25 is not None else "--", style=G),
                 Text(
-                    f"{rs_v:.0f}" if rs_v is not None else "--",
-                    style=G if rs_v is not None and rs_v >= 70 else DIM,
+                    f"{rsi_v:.0f}" if rsi_v is not None else "--",
+                    style=R if rsi_v is not None and rsi_v > 70 else (G if rsi_v is not None and rsi_v < 30 else "white"),
                 ),
-                Text(f"${price_f:.2f}" if price_f is not None else "--", style=DIM),
-                Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
+                Text(f"{adx_v:.0f}" if adx_v is not None else "--", style=DIM),
                 Text(
-                    f"{vs50_v:+.1f}%" if vs50_v is not None else "--",
-                    style=G if vs50_v is not None and vs50_v > 0 else R,
+                    f"{vol_surge:+.0f}%" if vol_surge is not None else "--",
+                    style=G if vol_surge is not None and vol_surge > 0 else DIM,
                 ),
-                Text(
-                    f"{vs200_v:+.1f}%" if vs200_v is not None else "--",
-                    style=G if vs200_v is not None and vs200_v > 0 else R,
-                ),
+                Text(f"{rr_v:.2f}" if rr_v is not None else "--", style=CY),
+                Text(setup_s, style=DIM if setup_s == "--" else "white"),
                 Text(sector, style=DIM),
             )
         rows.append(sig_tbl)
     else:
-        rows.append(Text.from_markup(f"[{Y}]No composite score data - check Data Health[/]"))
+        rows.append(Text.from_markup(f"[{Y}]No active buy signals[/]"))
 
-    title = "[bold magenta]SIGNALS & SCORES - EXPANDED[/]"
+    title = "[bold magenta]SIGNALS - EXPANDED[/]"
     return Panel(
         Group(*rows),
         title=title,

@@ -52,7 +52,8 @@ from .positions import (
     panel_positions,
 )
 from .scores import (
-    render_scores,
+    panel_scores_compact,
+    panel_scores_expanded,
 )
 from .sectors import (
     panel_sector_compact,
@@ -107,6 +108,9 @@ __all__ = [
     "panel_positions",
     # Trade panels
     "panel_recent_trades",
+    # Score panels
+    "panel_scores_compact",
+    "panel_scores_expanded",
     # Sector panels
     "panel_sector_compact",
     "panel_sectors_expanded",
@@ -115,5 +119,4 @@ __all__ = [
     "panel_signals_expanded",
     "panel_status",
     "panel_trades_expanded",
-    "render_scores",
 ]

@@ -35,6 +35,8 @@ from dashboard.panels import (
     panel_portfolio_perf_expanded,
     panel_positions,
     panel_recent_trades,
+    panel_scores_compact,
+    panel_scores_expanded,
     panel_sector_compact,
     panel_sectors_expanded,
     panel_signals_compact,
@@ -204,8 +206,13 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         Layout(eco_panel, name="eco"),
     )
 
+    scores_panel = (
+        safe_render(panel_scores_compact, ctx.scores)
+        if not has_error(ctx.scores)
+        else Panel("[red]Scores unavailable[/]", border_style="red")
+    )
     sig_panel = (
-        safe_render(panel_signals_compact, ctx.sig, ctx.sig_eval, scores=ctx.scores)
+        safe_render(panel_signals_compact, ctx.sig, ctx.sig_eval)
         if not has_error(ctx.sig)
         else Panel("[red]Signals unavailable[/]", border_style="red")
     )
@@ -216,6 +223,7 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
     )
 
     outer["r3"].split_row(
+        Layout(scores_panel, ratio=2, name="scores"),
         Layout(sig_panel, ratio=3, name="signals"),
         Layout(sector_panel, ratio=2, name="sectors"),
     )
@@ -291,10 +299,14 @@ def render_expanded_view(  # noqa: C901
                 ),
             )
         case "signals":
-            sig_panel = panel_signals_expanded(ctx.sig, ctx.sig_eval, scores=ctx.scores)
+            sig_panel = panel_signals_expanded(ctx.sig, ctx.sig_eval)
             if sig_panel is None:
                 return _expanded_layout(*_exp_top, Panel("[red]Signals panel unavailable[/]", border_style="red"))
             return _expanded_layout(*_exp_top, sig_panel)
+        case "scores":
+            if has_error(ctx.scores):
+                return _expanded_layout(*_exp_top, Panel("[red]Scores data unavailable[/]", border_style="red"))
+            return _expanded_layout(*_exp_top, panel_scores_expanded(ctx.scores))
         case "health":
             if has_error(ctx.run) or has_error(ctx.health):
                 return _expanded_layout(*_exp_top, Panel("[red]Health data unavailable[/]", border_style="red"))

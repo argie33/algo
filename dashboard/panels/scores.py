@@ -1,4 +1,4 @@
-"""Growth Scores panel for dashboard."""
+"""Stock composite/factor scores panel for dashboard (compact + expanded)."""
 
 import logging
 from typing import TYPE_CHECKING, Any
@@ -32,8 +32,11 @@ else:
             return passthrough_decorator
 
 
+from rich import box
+from rich.console import Group
 from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 from dashboard.data_validation import safe_float
 
@@ -41,76 +44,143 @@ from ._helpers import _composite_score_color, _error_panel, _score_cell
 from .data_extractors import safe_get_dict, safe_get_field, safe_get_list
 
 
+def _build_scores_table(top_scores: list[Any], limit: int = 15) -> list[Text | Table]:
+    """Build stock quality scores table.
+
+    Validates input is list before accessing items.
+    Logs all validation failures.
+    """
+    rows: list[Text | Table] = []
+    if not isinstance(top_scores, list):
+        logger.error(f"_build_scores_table: top_scores is not list, got {type(top_scores).__name__}")
+        rows.append(Text.from_markup("[yellow]Invalid score data structure - check Data Health[/]"))
+        return rows
+    if not top_scores:
+        logger.debug("_build_scores_table: top_scores is empty (no score data available)")
+        rows.append(Text.from_markup("[yellow]No score data - check Data Health[/]"))
+        return rows
+
+    t: Table = Table(
+        box=box.SIMPLE_HEAD,
+        show_header=True,
+        header_style="dim",
+        padding=(0, 1),
+        expand=True,
+        row_styles=["", "dim"],
+    )
+    t.add_column("Symbol", style="bold white", no_wrap=True, min_width=6)
+    t.add_column("Composite", justify="right", no_wrap=True, min_width=7)
+    t.add_column("Momentum", justify="right", no_wrap=True, min_width=8)
+    t.add_column("Quality", justify="right", no_wrap=True, min_width=7)
+    t.add_column("Value", justify="right", no_wrap=True, min_width=5)
+    t.add_column("Growth", justify="right", no_wrap=True, min_width=7)
+    t.add_column("Stability", justify="right", no_wrap=True, min_width=8)
+    t.add_column("Positioning", justify="right", no_wrap=True, min_width=8)
+    t.add_column("RS%", justify="right", no_wrap=True, min_width=5)
+    t.add_column("Change%", justify="right", no_wrap=True, min_width=7)
+    t.add_column("Sector", no_wrap=True, max_width=12)
+
+    for sc in top_scores[:limit]:
+        sym = safe_get_field(sc, "symbol", "--")
+        comp = safe_get_field(sc, "composite_score")
+        mom = safe_get_field(sc, "momentum_score")
+        qual = safe_get_field(sc, "quality_score")
+        val = safe_get_field(sc, "value_score")
+        grwth = safe_get_field(sc, "growth_score")
+        stab = safe_get_field(sc, "stability_score")
+        pos = safe_get_field(sc, "positioning_score")
+        rs_pct = safe_get_field(sc, "rs_percentile")
+        chg = safe_get_field(sc, "change_percent")
+        sector = (safe_get_field(sc, "sector", ""))[:12]
+        comp_v: float | None = safe_float(comp)
+        sc_c: str = _composite_score_color(comp_v) if comp_v is not None else "dim"
+        chg_v: float | None = safe_float(chg)
+        chg_c: str = "green" if chg_v is not None and chg_v > 0 else ("red" if chg_v is not None and chg_v < 0 else "dim")
+        rs_v: float | None = safe_float(rs_pct)
+
+        t.add_row(
+            sym,
+            Text(f"{comp_v:.0f}" if comp_v is not None else "--", style=sc_c),
+            _score_cell(mom),
+            _score_cell(qual),
+            _score_cell(val),
+            _score_cell(grwth),
+            _score_cell(stab),
+            _score_cell(pos),
+            Text(
+                f"{rs_v:.0f}" if rs_v is not None else "--",
+                style="green" if rs_v is not None and rs_v >= 70 else "dim",
+            ),
+            Text(f"{chg_v:+.1f}%" if chg_v is not None else "--", style=chg_c),
+            Text(sector, style="dim"),
+        )
+    rows.append(t)
+    return rows
+
+
 @register_panel(
-    name="top_growth_scores",
+    "scores",
     endpoint_deps=["scores"],
-    description="Top stocks by composite growth score",
+    optional=True,
+    description="Top composite/factor stock scores",
 )
-def render_scores(data: dict[str, Any]) -> Panel | None:
-    """Render top growth scores panel."""
-    try:
-        scores_data = safe_get_dict(data.get("scores"))
-        if not scores_data:
-            return _error_panel("scores", scores_data, "TOP GROWTH SCORES", border="cyan")
+def panel_scores_compact(scores: Any) -> Panel:
+    """Compact scores panel - composite + 6-factor breakdown for top-ranked stocks."""
+    err_panel = _error_panel("scores", scores, "SCORES", border="cyan")
+    if err_panel:
+        return err_panel
 
-        # API returns "top" not "items"
-        top_scores_raw = safe_get_list(scores_data.get("top", []))
-        top_scores: list[Any] = top_scores_raw if isinstance(top_scores_raw, list) else []
-        if not top_scores:
-            return _error_panel("scores", {"_error": "No top scores available"}, "TOP GROWTH SCORES", border="cyan")
+    top_scores_raw = safe_get_list(safe_get_dict(scores).get("top", []))
+    top_scores: list[Any] = top_scores_raw if isinstance(top_scores_raw, list) else []
+    if not top_scores:
+        no_data_panel = _error_panel("scores", {"_error": "No top scores available"}, "SCORES", border="cyan")
+        if no_data_panel is not None:
+            return no_data_panel
+        return Panel(Text("No score data", style="dim"), title="[bold cyan]SCORES[/]", border_style="cyan")
 
-        table = Table(
-            title="Top Growth Scores",
-            box=None,
-            show_header=True,
-            header_style="bold cyan",
-            padding=(0, 1),
-        )
+    rows: list[Text | Table] = [
+        Text.from_markup(f"[cyan][bold]TOP STOCK SCORES[/][/] [dim]({len(top_scores)} ranked candidates)[/]"),
+    ]
+    rows.extend(_build_scores_table(top_scores, limit=15))
 
-        table.add_column("Symbol", width=8, style="bold white")
-        table.add_column("Company", width=25, style="dim white")
-        table.add_column("Score", width=8, justify="right", style="bold cyan")
-        table.add_column("Growth", width=8, justify="right")
-        table.add_column("Quality", width=8, justify="right")
-        table.add_column("Momentum", width=8, justify="right")
-        table.add_column("RS%", width=6, justify="right", style="dim white")
+    return Panel(
+        Group(*rows),
+        title="[bold cyan]SCORES[/]  [dim][c] expand[/]",
+        border_style="cyan",
+        padding=(0, 1),
+    )
 
-        for score_row in top_scores[:20]:  # Show top 20
-            score_dict = safe_get_dict(score_row)
-            if not score_dict:
-                continue
 
-            symbol = safe_get_field(score_dict, "symbol", "--")
-            company = safe_get_field(score_dict, "company_name", "--")
-            if isinstance(company, str):
-                company = company[:25]
-            else:
-                company = "--"
-            composite = safe_float(safe_get_field(score_dict, "composite_score"))
-            growth = safe_float(safe_get_field(score_dict, "growth_score"))
-            quality = safe_float(safe_get_field(score_dict, "quality_score"))
-            momentum = safe_float(safe_get_field(score_dict, "momentum_score"))
-            rs_percentile = safe_float(safe_get_field(score_dict, "rs_percentile"))
+def panel_scores_expanded(scores: Any) -> Panel:
+    """Full-screen scores view - composite + 6-factor breakdown for a larger candidate set."""
+    err_panel = _error_panel("scores", scores, "SCORES", border="cyan")
+    if err_panel:
+        return err_panel
 
-            comp_color = _composite_score_color(composite)
+    top_scores_raw = safe_get_list(safe_get_dict(scores).get("top", []))
+    top_scores: list[Any] = top_scores_raw if isinstance(top_scores_raw, list) else []
 
-            table.add_row(
-                str(symbol),
-                str(company),
-                f"[{comp_color}]{_score_cell(composite)}[/]",
-                f"[{_composite_score_color(growth)}]{_score_cell(growth)}[/]",
-                f"[{_composite_score_color(quality)}]{_score_cell(quality)}[/]",
-                f"[{_composite_score_color(momentum)}]{_score_cell(momentum)}[/]",
-                f"[dim]{_score_cell(rs_percentile)}[/]",
-            )
+    rows: list[Text | Table] = [
+        Text.from_markup("[cyan][bold]SCORES - EXPANDED[/][/]"),
+        Text.from_markup(
+            f"[dim]{len(top_scores)} ranked candidates by composite score[/]  "
+            "[dim]press [/][bold cyan]c[/][dim] to return[/]"
+        ),
+    ]
+    if top_scores:
+        rows.extend(_build_scores_table(top_scores, limit=50))
+    else:
+        rows.append(Text.from_markup("[yellow]No score data - check Data Health[/]"))
 
-        return Panel(
-            table,
-            title="[bold cyan]Growth Scores[/]",
-            border_style="cyan",
-            padding=(0, 1),
-        )
+    return Panel(
+        Group(*rows),
+        title="[bold cyan]SCORES - EXPANDED[/]",
+        border_style="cyan",
+        padding=(0, 1),
+    )
 
-    except (TypeError, ValueError, KeyError) as e:
-        logger.error(f"Error rendering scores panel: {e}")
-        return _error_panel("scores", {"_error": str(e)}, "GROWTH SCORES ERROR", border="cyan")
+
+__all__ = [
+    "panel_scores_compact",
+    "panel_scores_expanded",
+]
