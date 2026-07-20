@@ -930,6 +930,22 @@ class OptimalLoader:
         except Exception as e:
             logger.error(f"[{self.table_name}] Failed to log execution: {e}")
 
+    @staticmethod
+    def _to_date(value: date | datetime | None) -> date | None:
+        """Normalize a MAX(watermark) query result to a plain date.
+
+        psycopg2 returns a datetime.date for DATE columns and a datetime.datetime
+        for TIMESTAMP columns. datetime.date has no .date() method, so calling
+        .date() unconditionally (or gating on hasattr(value, "date"), which is
+        False for a bare date) silently produced None for every DATE-typed
+        watermark column, freezing data_loader_status.latest_date at NULL.
+        """
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        return value
+
     def _update_final_status(self, expected_symbols: int) -> None:
         # CRITICAL FIX: Never allow None for expected_symbols - this causes data integrity failures
         # When symbol_count is NULL, Phase 1 failsafe halts orchestrator
@@ -958,7 +974,7 @@ class OptimalLoader:
                         if result[0] is None:
                             raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
                         total_rows = result[0]
-                        latest_date = result[1].date() if result[1] is not None and hasattr(result[1], "date") else None
+                        latest_date = self._to_date(result[1])
                         actual_symbols_loaded = result[2] if result[2] is not None else 0
                     else:
                         # Market-wide loader (not symbol-based): count rows only
@@ -971,7 +987,7 @@ class OptimalLoader:
                         if result[0] is None:
                             raise RuntimeError(f"COUNT query returned NULL for table '{self.table_name}'")
                         total_rows = result[0]
-                        latest_date = result[1].date() if result[1] is not None and hasattr(result[1], "date") else None
+                        latest_date = self._to_date(result[1])
                         actual_symbols_loaded = total_rows
                 else:
                     # No watermark_field: just count rows (can't count distinct symbols for non-symbol tables)
