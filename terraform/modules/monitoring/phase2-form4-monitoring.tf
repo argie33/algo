@@ -48,7 +48,7 @@ resource "aws_cloudwatch_log_group" "form4_parsing_logs" {
 resource "aws_cloudwatch_log_metric_filter" "form4_name_extraction_failures" {
   name           = "${var.project_name}-form4-name-extraction-failures"
   log_group_name = aws_cloudwatch_log_group.form4_parsing_logs.name
-  filter_pattern = "[timestamp, level, ...] *insider_name_extraction_failed*"
+  pattern        = "[timestamp, level, ...] *insider_name_extraction_failed*"
 
   metric_transformation {
     name      = "NameExtractionFailure"
@@ -64,7 +64,7 @@ resource "aws_cloudwatch_log_metric_filter" "form4_name_extraction_failures" {
 resource "aws_cloudwatch_log_metric_filter" "form4_shares_extraction_failures" {
   name           = "${var.project_name}-form4-shares-extraction-failures"
   log_group_name = aws_cloudwatch_log_group.form4_parsing_logs.name
-  filter_pattern = "[timestamp, level, ...] *shares_owned_extraction_failed*"
+  pattern        = "[timestamp, level, ...] *shares_owned_extraction_failed*"
 
   metric_transformation {
     name      = "SharesExtractionFailure"
@@ -80,7 +80,7 @@ resource "aws_cloudwatch_log_metric_filter" "form4_shares_extraction_failures" {
 resource "aws_cloudwatch_log_metric_filter" "form4_ownership_extraction_failures" {
   name           = "${var.project_name}-form4-ownership-extraction-failures"
   log_group_name = aws_cloudwatch_log_group.form4_parsing_logs.name
-  filter_pattern = "[timestamp, level, ...] *ownership_pct_extraction_failed*"
+  pattern        = "[timestamp, level, ...] *ownership_pct_extraction_failed*"
 
   metric_transformation {
     name      = "OwnershipExtractionFailure"
