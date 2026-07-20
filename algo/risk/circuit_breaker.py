@@ -242,9 +242,16 @@ class CircuitBreaker:
     # ---------- Individual checks ----------
 
     def _check_drawdown(self, current_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        # Uses adjusted_equity/adjusted_running_peak (cash-flow-adjusted), NOT raw
+        # total_portfolio_value/running_peak. Raw equity moves for two different reasons:
+        # trading performance AND external capital flows (deposits/withdrawals). A withdrawal
+        # looks identical to a trading loss in the raw series, which is exactly the bug fixed
+        # by migration 1134 (see algo_capital_flows) - this circuit breaker must measure
+        # trading performance, not account size. Every capital flow must be recorded in
+        # algo_capital_flows (see scripts/record_capital_flow.py) or it will misreport here.
         cur.execute("""
-            SELECT MAX(total_portfolio_value),
-                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
+            SELECT MAX(adjusted_equity),
+                   (SELECT adjusted_equity FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
             FROM algo_portfolio_snapshots
             """)
         row = cur.fetchone()
@@ -294,9 +301,10 @@ class CircuitBreaker:
         threshold = float(halt_dd_val)
 
         # First check: is current drawdown >= threshold? If not, no re-engagement needed
+        # Cash-flow-adjusted, same reasoning as _check_drawdown above.
         cur.execute("""
-            SELECT MAX(total_portfolio_value),
-                   (SELECT total_portfolio_value FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
+            SELECT MAX(adjusted_equity),
+                   (SELECT adjusted_equity FROM algo_portfolio_snapshots ORDER BY snapshot_date DESC LIMIT 1)
             FROM algo_portfolio_snapshots
             """)
         row = cur.fetchone()

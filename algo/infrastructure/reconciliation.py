@@ -25,6 +25,46 @@ logger = logging.getLogger(__name__)
 PORTFOLIO_SNAPSHOT_LOCK_ID = 2147483647
 
 
+def _compute_adjusted_drawdown(
+    cur: Any, reconcile_date: Any, portfolio_value: float
+) -> tuple[float, float, float]:
+    """Cash-flow-adjusted peak/drawdown inputs (migration 1134).
+
+    Raw total_portfolio_value moves for two different reasons: trading performance AND
+    external capital flows (deposits/withdrawals). A withdrawal looks identical to a trading
+    loss in the raw series - conflating the two produced a false 32.6% "drawdown" that halted
+    every orchestrator run for 8+ months (see algo_capital_flows for the incident). Every
+    capital flow must be recorded there (scripts/record_capital_flow.py) or it will
+    misreport here exactly the same way.
+
+    Returns (net_capital_flow_cum, adjusted_running_peak, adjusted_drawdown_pct).
+    """
+    cur.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM algo_capital_flows WHERE flow_date <= %s",
+        (reconcile_date,),
+    )
+    flow_row = cur.fetchone()
+    net_capital_flow_cum = float(flow_row[0])
+
+    adjusted_equity = portfolio_value - net_capital_flow_cum
+
+    cur.execute(
+        """
+        SELECT MAX(adjusted_equity) FROM algo_portfolio_snapshots WHERE snapshot_date <= %s
+        """,
+        (reconcile_date,),
+    )
+    peak_row = cur.fetchone()
+    prior_peak_val = peak_row[0]
+    adjusted_running_peak = max(float(prior_peak_val), adjusted_equity) if prior_peak_val is not None else adjusted_equity
+
+    adjusted_drawdown_pct = 0.0
+    if adjusted_running_peak > 0:
+        adjusted_drawdown_pct = ((adjusted_running_peak - adjusted_equity) / adjusted_running_peak) * 100
+
+    return net_capital_flow_cum, adjusted_running_peak, adjusted_drawdown_pct
+
+
 class DailyReconciliation:
     """Daily reconciliation and portfolio snapshot creation.
 
@@ -38,6 +78,35 @@ class DailyReconciliation:
 
         # Initialize broker adapter (abstracted from Alpaca-specific implementation)
         import os
+
+        # CRITICAL: execution_mode governs whether entry execution actually sends orders to
+        # Alpaca. executor.py's _submit_and_validate_order() only calls the Alpaca order API
+        # for execution_mode == "auto" - "paper"/"dry"/"review" all create LOCAL-only fake
+        # fills (alpaca_order_id="LOCAL-{trade_id}") that Alpaca never sees. Reconciliation
+        # previously decided whether to trust the broker purely on whether credentials were
+        # present/valid at that moment, so whenever Alpaca happened to be reachable it treated
+        # the REAL Alpaca account - a completely different, unrelated position/equity history -
+        # as ground truth for these LOCAL-only positions, and sync_positions() closed them out
+        # (they're correctly "not found" at the broker, since they were never sent there),
+        # fabricating near-zero P&L that corrupted portfolio_value/drawdown. Whether Alpaca is
+        # reachable must not change reconciliation's source of truth for a mode that never
+        # talks to it - gate on execution_mode, not on credential/API availability.
+        execution_mode = config.get("execution_mode")
+        if execution_mode is None:
+            raise ValueError(
+                "[RECONCILIATION INIT] Config missing required 'execution_mode' key. "
+                "Trading mode must be explicitly set. Check algo_config table has execution_mode row."
+            )
+        if execution_mode != "auto":
+            logger.warning(
+                f"[RECONCILIATION] execution_mode={execution_mode!r} does not submit orders to Alpaca "
+                "(only 'auto' does). Reconciliation will use database-only state regardless of "
+                "Alpaca credential/API availability, so it never treats the unrelated real broker "
+                "account as ground truth for locally-simulated positions."
+            )
+            self.broker = None
+            self.trading_client = False
+            return
 
         try:
             self.broker = AlpacaBrokerAdapter(config)
@@ -330,6 +399,16 @@ class DailyReconciliation:
                     )
                     cumulative_return_pct = (portfolio_value - float(initial_capital)) / float(initial_capital) * 100
 
+                    # Cash-flow-adjusted equity/peak/drawdown (migration 1134): this LOCAL_MODE/paper
+                    # branch computed its own raw running_peak/drawdown_pct above but never called this
+                    # helper, so the four params below were referenced undefined (NameError on every
+                    # LOCAL_MODE reconciliation write). The non-LOCAL_MODE path further down (~line 1052)
+                    # already does this correctly - mirror it here.
+                    net_capital_flow_cum, adjusted_running_peak, adjusted_drawdown_pct = _compute_adjusted_drawdown(
+                        cur, reconcile_date, portfolio_value
+                    )
+                    adjusted_equity = portfolio_value - net_capital_flow_cum
+
                     snapshot_params = (
                         reconcile_date,
                         portfolio_value,
@@ -355,6 +434,10 @@ class DailyReconciliation:
                         "paper_mode",
                         drawdown_pct,
                         running_peak,
+                        net_capital_flow_cum,
+                        adjusted_equity,
+                        adjusted_running_peak,
+                        adjusted_drawdown_pct,
                     )
                     logger.info(
                         f"[RECONCILIATION] Paper mode: INSERT params - date={reconcile_date}, positions={open_position_count}, portfolio_value={portfolio_value}, cash={cash_remaining}"
@@ -371,9 +454,11 @@ class DailyReconciliation:
                             unrealized_pnl_source,
                             win_count_today, loss_count_today,
                             daily_return_pct, cumulative_return_pct, max_drawdown_pct,
-                            sharpe_ratio, market_health_status, drawdown_pct, running_peak, created_at
+                            sharpe_ratio, market_health_status, drawdown_pct, running_peak,
+                            net_capital_flow_cum, adjusted_equity, adjusted_running_peak, adjusted_drawdown_pct,
+                            created_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (snapshot_date) DO UPDATE SET
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
@@ -392,6 +477,10 @@ class DailyReconciliation:
                         max_drawdown_pct = EXCLUDED.max_drawdown_pct,
                         drawdown_pct = EXCLUDED.drawdown_pct,
                         running_peak = EXCLUDED.running_peak,
+                        net_capital_flow_cum = EXCLUDED.net_capital_flow_cum,
+                        adjusted_equity = EXCLUDED.adjusted_equity,
+                        adjusted_running_peak = EXCLUDED.adjusted_running_peak,
+                        adjusted_drawdown_pct = EXCLUDED.adjusted_drawdown_pct,
                         updated_at = NOW()
                         """,
                         snapshot_params,
@@ -995,6 +1084,15 @@ class DailyReconciliation:
                 if running_peak_dec > 0:
                     drawdown_pct_dec = ((running_peak_dec - total_equity_dec) / running_peak_dec) * Decimal(100)
 
+                # Cash-flow-adjusted equity/peak/drawdown (migration 1134): raw total_equity moves
+                # for both trading performance AND external capital flows (deposits/withdrawals),
+                # which the circuit breaker must not conflate. See algo_capital_flows and
+                # algo/risk/circuit_breaker.py::_check_drawdown for the full rationale.
+                net_capital_flow_cum, adjusted_running_peak, adjusted_drawdown_pct = _compute_adjusted_drawdown(
+                    cur, reconcile_date, float(total_equity_dec)
+                )
+                adjusted_equity = float(total_equity_dec) - net_capital_flow_cum
+
                 # Calculate Sharpe ratio: mean_return / std_dev * sqrt(252)
                 sharpe_ratio = None
                 try:
@@ -1042,9 +1140,11 @@ class DailyReconciliation:
                             unrealized_pnl_source,
                             win_count_today, loss_count_today,
                             daily_return_pct, cumulative_return_pct, max_drawdown_pct,
-                            sharpe_ratio, market_health_status, drawdown_pct, running_peak, created_at
+                            sharpe_ratio, market_health_status, drawdown_pct, running_peak,
+                            net_capital_flow_cum, adjusted_equity, adjusted_running_peak, adjusted_drawdown_pct,
+                            created_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (snapshot_date) DO UPDATE SET
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
@@ -1070,6 +1170,10 @@ class DailyReconciliation:
                         market_health_status = EXCLUDED.market_health_status,
                         drawdown_pct = EXCLUDED.drawdown_pct,
                         running_peak = EXCLUDED.running_peak,
+                        net_capital_flow_cum = EXCLUDED.net_capital_flow_cum,
+                        adjusted_equity = EXCLUDED.adjusted_equity,
+                        adjusted_running_peak = EXCLUDED.adjusted_running_peak,
+                        adjusted_drawdown_pct = EXCLUDED.adjusted_drawdown_pct,
                         updated_at = NOW()
                 """,
                         (
@@ -1101,6 +1205,10 @@ class DailyReconciliation:
                             market_trend,
                             float(drawdown_pct_dec),
                             float(running_peak_dec),
+                            net_capital_flow_cum,
+                            adjusted_equity,
+                            adjusted_running_peak,
+                            adjusted_drawdown_pct,
                         ),
                     )
                 finally:

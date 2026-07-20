@@ -244,12 +244,19 @@ def _fetch_drawdown_info(cur: cursor) -> Any:
     CAVEAT: Intraday drawdowns are invisible. Only EOD snapshots are tracked, so if the algo
     experiences a -15% intraday crash that recovers by close, max_drawdown_pct will show the
     recovery only. This is a known limitation of the current architecture.
+
+    Uses adjusted_equity/adjusted peak (cash-flow-adjusted, migration 1134), NOT raw
+    total_portfolio_value - raw equity moves for both trading performance AND external
+    capital flows (deposits/withdrawals), and this must match what
+    algo/risk/circuit_breaker.py::_check_drawdown actually halts on. Showing the raw number
+    here previously made the dashboard report a drawdown the circuit breaker itself no longer
+    agreed with once a capital flow was recorded.
     """
     rows = execute_with_timeout(
         cur,
         """
-        SELECT MAX(total_portfolio_value) AS peak,
-               (SELECT total_portfolio_value FROM algo_portfolio_snapshots
+        SELECT MAX(adjusted_equity) AS peak,
+               (SELECT adjusted_equity FROM algo_portfolio_snapshots
                 ORDER BY snapshot_date DESC LIMIT 1) AS current
         FROM algo_portfolio_snapshots
     """,
