@@ -53,6 +53,36 @@ class ShortInterestFinraLoader(OptimalLoader):
     watermark_field = "settlement_date"
     exclude_etfs_from_symbols = True
 
+    @staticmethod
+    def _fetch_yfinance_short_interest(symbol: str) -> float | None:
+        """Fetch short interest for one symbol via yfinance (fallback only).
+
+        DEPRECATED: yfinance is temporary fallback. Use only when FINRA unavailable.
+
+        Args:
+            symbol: Stock ticker symbol
+
+        Returns:
+            Short interest as percentage (0-100), or None if unavailable
+        """
+        try:
+            import yfinance as yf
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            # GOVERNANCE FIX: Use explicit key checking instead of .get() on financial data
+            if "shortPercentOfFloat" not in info:
+                return None
+            short_pct = info["shortPercentOfFloat"]
+
+            # yfinance returns decimal (0.01 for 1%), convert to percentage
+            if short_pct is not None and 0 < short_pct < 1:
+                return short_pct * 100
+            elif isinstance(short_pct, (int, float)):
+                return float(short_pct)
+            return None
+        except Exception:
+            return None
+
     def run(self, symbols: list[str], parallelism: int = 8, backfill_days: int | None = None) -> dict[str, Any]:
         """Load short interest from FINRA or yfinance fallback.
 
