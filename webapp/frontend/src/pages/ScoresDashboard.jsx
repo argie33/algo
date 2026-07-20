@@ -558,6 +558,8 @@ function RankingsTab({
   marketAvgs,
   sectorAvgs,
 }) {
+  const [expandedKey, setExpandedKey] = useState(null);
+
   if (isLoading) {
     return (
       <div className="card" style={{ marginTop: "var(--space-4)" }}>
@@ -584,56 +586,51 @@ function RankingsTab({
     <>
       <div className="card" style={{ marginTop: "var(--space-4)" }}>
         <div className="card-body" style={{ padding: 0 }}>
-          <div style={{ overflow: "auto" }}>
-            {rows.map((s, i) => (
+          {rows.map((s, i) => {
+            const isExpanded = expandedKey === s.symbol;
+            return (
               <div key={`${s.symbol}-${i}`}>
+                {/* ─── Row Header (always visible) ─── */}
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
-                    padding: "var(--space-2) var(--space-3)",
+                    padding: "var(--space-3)",
                     borderBottom: "1px solid var(--border)",
                     cursor: "pointer",
-                    background: selectedSymbol === s.symbol ? "var(--surface-2)" : "transparent",
+                    background: isExpanded ? "var(--surface-2)" : "transparent",
                     transition: "background 0.2s",
                   }}
-                  onClick={() => onExpand(s.symbol)}
+                  onClick={() => setExpandedKey(isExpanded ? null : s.symbol)}
                 >
-                  <div style={{ width: 32, textAlign: "center", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
-                    {selectedSymbol === s.symbol ? "▼" : "▶"}
+                  <div style={{ width: 28, fontWeight: "600", fontSize: "0.9rem", color: "var(--text-secondary)" }}>
+                    {isExpanded ? "▼" : "▶"}
                   </div>
-                  <div style={{ width: 70, fontWeight: "600", fontFamily: "monospace" }}>
-                    <span
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onNavigate(s.symbol);
-                      }}
-                      style={{ cursor: "pointer", color: "var(--brand)" }}
-                    >
-                      {s.symbol}
-                    </span>
+                  <div style={{ width: 80, fontWeight: "700", fontFamily: "monospace", color: "var(--brand)" }}>
+                    {s.symbol}
                   </div>
-                  <div style={{ flex: 1, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                  <div style={{ flex: 1, fontSize: "0.85rem", color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {s.company_name || "—"}
                   </div>
-                  <div style={{ width: 80, textAlign: "right", fontWeight: "600", fontFamily: "monospace" }}>
+                  <div style={{ width: 100, textAlign: "right", fontWeight: "700", fontFamily: "monospace" }}>
                     <span className={`badge ${scoreClass(s.composite_score)}`}>
                       {num(s.composite_score, 1)}
                     </span>
                   </div>
-                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", color: scoreColor(s.growth_score), fontSize: "0.85rem" }}>
-                    <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
+                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: scoreColor(s.growth_score) }}>
+                    {num(s.growth_score, 1)}
                   </div>
-                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", color: scoreColor(s.quality_score), fontSize: "0.85rem" }}>
-                    <SafeMetricValue value={s.quality_score} formatter="number" fallback="—" />
+                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: scoreColor(s.quality_score) }}>
+                    {num(s.quality_score, 1)}
                   </div>
-                  <div style={{ width: 80, textAlign: "right", fontFamily: "monospace", color: scoreColor(s.momentum_score), fontSize: "0.85rem" }}>
-                    <SafeMetricValue value={s.momentum_score} formatter="number" fallback="—" />
+                  <div style={{ width: 80, textAlign: "right", fontFamily: "monospace", fontSize: "0.85rem", fontWeight: "600", color: scoreColor(s.momentum_score) }}>
+                    {num(s.momentum_score, 1)}
                   </div>
                 </div>
 
-                {selectedSymbol === s.symbol && (
-                  <div style={{ padding: "var(--space-4)", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
+                {/* ─── Expanded Detail Row ─── */}
+                {isExpanded && (
+                  <div style={{ padding: "var(--space-4)", borderBottom: "2px solid var(--brand)", background: "var(--surface-1)" }}>
                     <StockScoreAccordion
                       stocks={[s]}
                       marketAvgs={marketAvgs}
@@ -642,8 +639,8 @@ function RankingsTab({
                   </div>
                 )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       </div>
 
