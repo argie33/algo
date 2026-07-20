@@ -886,23 +886,38 @@ def main() -> int:  # noqa: C901
     try:
         with DatabaseContext("read") as cur:
             # Verify price_daily is not stuck RUNNING/PENDING
-            cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'price_daily'")
+            cur.execute(
+                "SELECT status, completion_pct FROM data_loader_status WHERE table_name = 'price_daily'"
+            )
             result = cur.fetchone()
             if result is None:
                 raise RuntimeError(
                     "CRITICAL: data_loader_status has no record for price_daily. "
                     "Loader tracking broken or upstream hasn't run. Cannot proceed."
                 )
-            if len(result) < 1:
+            if len(result) < 2:
                 raise RuntimeError(
                     f"CRITICAL: data_loader_status query returned invalid row structure. "
-                    f"Expected at least 1 column, got {len(result)}. Query may be malformed."
+                    f"Expected 2 columns, got {len(result)}. Query may be malformed."
                 )
-            prices_status = result[0]
-            if prices_status not in ("COMPLETED", "success", "OK", "ok"):
+            prices_status, prices_completion_pct = result
+            # data_loader_status.status is written by two independent subsystems with
+            # different vocabularies: the loader's own execution result (COMPLETED/ok, see
+            # utils/loaders/status_enum.py) and algo/monitoring/pipeline_health.py's periodic
+            # freshness sweep (HEALTHY/STALE/VERY_STALE/MISSING), which overwrites this same
+            # column on every sweep. A status-string whitelist is racy - it blocks this loader
+            # whenever the freshness sweep's value (price_daily sits at "HEALTHY" far more often
+            # than "COMPLETED" in practice) is the most recent write. completion_pct is written
+            # only by the loader itself and is a reliable execution signal - see
+            # phase1_failsafe_retry.py for the same completion_pct-primary pattern.
+            prices_ready = (
+                prices_completion_pct is not None and prices_completion_pct >= 95.0
+            ) or prices_status in ("COMPLETED", "success", "OK", "ok", "HEALTHY")
+            if not prices_ready:
                 logger.error(
-                    f"[DEPENDENCY] Aborting buy_sell_daily: price_daily status is {prices_status}. "
-                    f"Expected COMPLETED/success/OK/ok. Cannot generate signals without complete price data."
+                    f"[DEPENDENCY] Aborting buy_sell_daily: price_daily status is {prices_status}, "
+                    f"completion_pct is {prices_completion_pct}. "
+                    f"Cannot generate signals without complete price data."
                 )
                 return 1  # Return error code (1), will retry on next pipeline run
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as status_err:

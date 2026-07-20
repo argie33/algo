@@ -63,25 +63,45 @@ class SignalQualityScoresLoader(OptimalLoader):
                 self._ensure_vcp_patterns_populated(cur)
 
                 # Check if buy_sell_daily is ready (ISSUE #27 FIX)
-                cur.execute("SELECT status FROM data_loader_status WHERE table_name = 'buy_sell_daily'")
+                cur.execute(
+                    "SELECT status, completion_pct FROM data_loader_status WHERE table_name = 'buy_sell_daily'"
+                )
                 result = cur.fetchone()
                 if result is None:
                     raise RuntimeError(
                         "CRITICAL: data_loader_status has no record for buy_sell_daily. "
                         "Upstream loader not found. Cannot verify dependency readiness."
                     )
-                if len(result) < 1:
+                if len(result) < 2:
                     raise RuntimeError(
                         f"CRITICAL: Upstream status query returned invalid row structure. "
-                        f"Expected 1 column, got {len(result)}."
+                        f"Expected 2 columns, got {len(result)}."
                     )
-                bs_status = result[0]
+                bs_status, bs_completion_pct = result
 
-                # CRITICAL: Validate upstream loader is actually COMPLETED
-                if bs_status not in ("COMPLETED", "success", "OK"):
+                # CRITICAL: Validate upstream loader is actually ready.
+                # data_loader_status.status is written by two independent subsystems with
+                # different vocabularies: the loader's own execution result (COMPLETED/ok, see
+                # utils/loaders/status_enum.py) and algo/monitoring/pipeline_health.py's
+                # periodic freshness sweep (HEALTHY/STALE/VERY_STALE/MISSING), which overwrites
+                # this same column on every sweep regardless of which vocabulary was there
+                # before. A status-string whitelist is therefore racy - it blocks this loader
+                # whenever the freshness sweep's value happens to be the most recent write
+                # (buy_sell_daily sits at "HEALTHY" far more often than "COMPLETED" in
+                # practice). completion_pct is written only by the loader itself and is a
+                # reliable execution signal - see phase1_failsafe_retry.py for the same
+                # completion_pct-primary pattern.
+                bs_ready = (bs_completion_pct is not None and bs_completion_pct >= 95.0) or bs_status in (
+                    "COMPLETED",
+                    "success",
+                    "OK",
+                    "ok",
+                    "HEALTHY",
+                )
+                if not bs_ready:
                     raise RuntimeError(
                         f"CRITICAL: buy_sell_daily upstream loader not ready. "
-                        f"Status: {bs_status}. Expected COMPLETED/success/OK. "
+                        f"Status: {bs_status}, completion_pct: {bs_completion_pct}. "
                         f"Cannot compute signal quality scores without complete upstream signals."
                     )
 
@@ -412,10 +432,32 @@ class SignalQualityScoresLoader(OptimalLoader):
 
         try:
             with DatabaseContext("read") as cur:
+                # trend_template_data has no 52w-high field (dropped from that table by a
+                # schema migration while this loader was deleted/out-of-tree - see git history
+                # of load_signal_quality_scores.py). Compute it directly from price_daily
+                # instead of referencing the dead column: rolling 252-trading-day high vs.
+                # that day's close, same definition stock_fundamentals.drop_from_52w_high_pct
+                # uses for its own (latest-only) snapshot.
                 cur.execute(
-                    "SELECT date, minervini_trend_score, weinstein_stage, percent_from_52w_high FROM trend_template_data "
-                    "WHERE symbol = %s AND date >= %s AND date <= %s ORDER BY date ASC",
-                    (symbol, start, end),
+                    """
+                    WITH price_window AS (
+                        SELECT date, close,
+                               MAX(high) OVER (
+                                   ORDER BY date ROWS BETWEEN 251 PRECEDING AND CURRENT ROW
+                               ) AS high_52w
+                        FROM price_daily
+                        WHERE symbol = %s AND date <= %s
+                    )
+                    SELECT t.date, t.minervini_trend_score, t.weinstein_stage,
+                           CASE WHEN pw.high_52w > 0
+                                THEN (pw.close - pw.high_52w) / pw.high_52w * 100
+                                ELSE NULL END AS percent_from_52w_high
+                    FROM trend_template_data t
+                    LEFT JOIN price_window pw ON pw.date = t.date
+                    WHERE t.symbol = %s AND t.date >= %s AND t.date <= %s
+                    ORDER BY t.date ASC
+                    """,
+                    (symbol, end, symbol, start, end),
                 )
                 return [
                     {
