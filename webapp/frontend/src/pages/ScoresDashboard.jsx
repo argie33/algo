@@ -584,91 +584,65 @@ function RankingsTab({
     <>
       <div className="card" style={{ marginTop: "var(--space-4)" }}>
         <div className="card-body" style={{ padding: 0 }}>
-          <div style={{ overflow: "auto", maxHeight: "70vh" }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th style={{ width: 32 }} className="num">
-                    #
-                  </th>
-                  <th style={{ width: 70 }}>Symbol</th>
-                  <th style={{ width: 180 }}>Company</th>
-                  <th className="num" style={{ width: 60 }}>Score</th>
-                  <th className="num" style={{ width: 60 }}>Growth</th>
-                  <th className="num" style={{ width: 60 }}>Quality</th>
-                  <th className="num" style={{ width: 70 }}>Momentum</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((s, i) => (
-                  <tr
-                    key={`${s.symbol}-${i}`}
-                    onClick={() => onExpand(s.symbol)}
-                    style={{
-                      cursor: "pointer",
-                      background:
-                        selectedSymbol === s.symbol
-                          ? "var(--surface-2)"
-                          : undefined,
-                    }}
-                  >
-                    <td className="num mono tnum muted">{pageStart + i + 1}</td>
-                    <td className="mono">
-                      <span
-                        style={{
-                          fontWeight: "var(--w-semibold)",
-                          cursor: "pointer",
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onNavigate(s.symbol);
-                        }}
-                      >
-                        {s.symbol}
-                      </span>
-                    </td>
-                    <td
-                      className="t-xs muted"
-                      style={{
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+          <div style={{ overflow: "auto" }}>
+            {rows.map((s, i) => (
+              <div key={`${s.symbol}-${i}`}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "var(--space-2) var(--space-3)",
+                    borderBottom: "1px solid var(--border)",
+                    cursor: "pointer",
+                    background: selectedSymbol === s.symbol ? "var(--surface-2)" : "transparent",
+                    transition: "background 0.2s",
+                  }}
+                  onClick={() => onExpand(s.symbol)}
+                >
+                  <div style={{ width: 32, textAlign: "center", color: "var(--text-secondary)", fontSize: "0.85rem" }}>
+                    {selectedSymbol === s.symbol ? "▼" : "▶"}
+                  </div>
+                  <div style={{ width: 70, fontWeight: "600", fontFamily: "monospace" }}>
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigate(s.symbol);
                       }}
+                      style={{ cursor: "pointer", color: "var(--brand)" }}
                     >
-                      {s.company_name || "—"}
-                    </td>
-                    <td
-                      className="num mono tnum"
-                      style={{ fontWeight: "var(--w-semibold)" }}
-                    >
-                      <span
-                        className={`badge ${scoreClass(s.composite_score)}`}
-                      >
-                        {num(s.composite_score, 1)}
-                      </span>
-                    </td>
-                    <td
-                      className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.growth_score) }}
-                    >
-                      <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
-                    </td>
-                    <td
-                      className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.quality_score) }}
-                    >
-                      <SafeMetricValue value={s.quality_score} formatter="number" fallback="—" />
-                    </td>
-                    <td
-                      className="num mono tnum t-xs"
-                      style={{ color: scoreColor(s.momentum_score) }}
-                    >
-                      <SafeMetricValue value={s.momentum_score} formatter="number" fallback="—" />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      {s.symbol}
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, fontSize: "0.85rem", color: "var(--text-secondary)" }}>
+                    {s.company_name || "—"}
+                  </div>
+                  <div style={{ width: 80, textAlign: "right", fontWeight: "600", fontFamily: "monospace" }}>
+                    <span className={`badge ${scoreClass(s.composite_score)}`}>
+                      {num(s.composite_score, 1)}
+                    </span>
+                  </div>
+                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", color: scoreColor(s.growth_score), fontSize: "0.85rem" }}>
+                    <SafeMetricValue value={s.growth_score} formatter="number" fallback="—" />
+                  </div>
+                  <div style={{ width: 70, textAlign: "right", fontFamily: "monospace", color: scoreColor(s.quality_score), fontSize: "0.85rem" }}>
+                    <SafeMetricValue value={s.quality_score} formatter="number" fallback="—" />
+                  </div>
+                  <div style={{ width: 80, textAlign: "right", fontFamily: "monospace", color: scoreColor(s.momentum_score), fontSize: "0.85rem" }}>
+                    <SafeMetricValue value={s.momentum_score} formatter="number" fallback="—" />
+                  </div>
+                </div>
+
+                {selectedSymbol === s.symbol && (
+                  <div style={{ padding: "var(--space-4)", borderBottom: "1px solid var(--border)", background: "var(--surface-2)" }}>
+                    <StockScoreAccordion
+                      stocks={[s]}
+                      marketAvgs={marketAvgs}
+                      sectorAvgs={sectorAvgs}
+                    />
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -717,15 +691,6 @@ function RankingsTab({
         </button>
       </div>
 
-      {detail && (
-        <div style={{ marginTop: "var(--space-4)" }}>
-          <StockScoreAccordion
-            stocks={[detail]}
-            marketAvgs={marketAvgs}
-            sectorAvgs={sectorAvgs}
-          />
-        </div>
-      )}
     </>
   );
 }
