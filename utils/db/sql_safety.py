@@ -136,6 +136,7 @@ SAFE_TABLES = {
     "earnings_calendar_sec",  # Phase 3: SEC earnings dates (replaces yfinance earnings_date)
     # Phase 1-4 Consolidation (Session 204+)
     "sec_valuations",  # Phase 1: SEC-derived PE/PB/PS/PEG/FCF (replaces yfinance quoteSummary)
+    "sec_cash_flow_metrics",  # Working capital/CapEx/FCF from SEC statement tables (migration 1129, 2026-07-20)
     # Market snapshots
     "yfinance_snapshot",
     "yfinance_derived_metrics",

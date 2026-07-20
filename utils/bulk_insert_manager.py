@@ -104,7 +104,20 @@ class BulkInsertManager:
             existing_cols = self._schema_cols_cache
             if not rows:
                 raise ValueError(f"No data rows provided to insert into {self.table_name}")
-            all_data_cols = list(rows[0].keys())
+            # Union of keys across ALL rows, not just rows[0] - a batch mixing rows with
+            # different key sets (e.g. a symbol's oldest fiscal year lacking a field that
+            # its later years have, common with historical XBRL data where tagging
+            # completeness improved over time) previously took its column list from
+            # rows[0] alone, silently dropping any column absent from that one row for
+            # the WHOLE batch - including rows that had real data for it. Order is
+            # preserved (first-seen order across rows) for a deterministic column list.
+            all_data_cols: list[str] = []
+            seen_cols: set[str] = set()
+            for row in rows:
+                for k in row.keys():
+                    if k not in seen_cols:
+                        seen_cols.add(k)
+                        all_data_cols.append(k)
             skipped = [c for c in all_data_cols if c not in existing_cols]
             if skipped:
                 logger.warning(

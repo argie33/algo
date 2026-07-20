@@ -56,7 +56,7 @@ class SecCashFlowMetricsLoader(OptimalLoader):
                     """
                     SELECT
                         operating_cash_flow,
-                        capital_expenditures,
+                        capex,
                         data_unavailable
                     FROM annual_cash_flow
                     WHERE symbol = %s AND data_unavailable = FALSE
@@ -100,11 +100,11 @@ class SecCashFlowMetricsLoader(OptimalLoader):
             if not balance_row or balance_row[2]:
                 return [self._unavailable_marker(symbol, "no_annual_balance_sheet")]
 
-            operating_cf = safe_float(cash_flow_row[0])
-            capex = safe_float(cash_flow_row[1])
-            current_assets = safe_float(balance_row[0])
-            current_liabilities = safe_float(balance_row[1])
-            net_income = safe_float(income_row[0]) if income_row else None
+            operating_cf = safe_float(cash_flow_row[0], f"{symbol}.operating_cash_flow")
+            capex = safe_float(cash_flow_row[1], f"{symbol}.capex")
+            current_assets = safe_float(balance_row[0], f"{symbol}.current_assets")
+            current_liabilities = safe_float(balance_row[1], f"{symbol}.current_liabilities")
+            net_income = safe_float(income_row[0], f"{symbol}.net_income") if income_row else None
 
             # Compute metrics
             working_capital = None

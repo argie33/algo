@@ -88,10 +88,6 @@ exclude = [
     "^lambda/rds-password-reset/",
     "^lambda/sync-data-to-rds/",
     "^lambda/trigger-loaders/",
-    # Legacy/deprecated Lambda API modules (response_validator.py, response_schema_validator.py)
-    "^lambda/api/response_schema_validator\\.py",
-    "^lambda/api/utils/response_validator\\.py",
-    "^lambda/api/shared_contracts/response_validator\\.py",
     # Lambda helper modules (deployment automation, not core application)
     "^lambda/auto_kill_stuck_tasks/",
     "^lambda/cost_control/",
