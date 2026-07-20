@@ -1970,10 +1970,24 @@ class PriceLoader(OptimalLoader):
             symbol_watermarks = wm_store.get_watermarks_bulk(symbols)
             if symbol_watermarks:
                 previous_date = min(symbol_watermarks.values())
-                logger.info(
-                    f"[{self.table_name}] Batch watermark: min={previous_date} from "
-                    f"{len(symbol_watermarks)}/{len(symbols)} symbols"
-                )
+
+                # SESSION 297 FIX: Check if watermarks are stale (>2 days old)
+                # If so, force a fresh fetch from 7 days ago to break deadlock
+                today = datetime.now(EASTERN_TZ).date()
+                days_stale = (today - previous_date).days
+                if days_stale > 2:
+                    logger.warning(
+                        f"[{self.table_name}] CRITICAL: Watermarks are {days_stale} days stale "
+                        f"(min={previous_date}, today={today}). Forcing fresh fetch from 7 days ago "
+                        f"to break staleness deadlock."
+                    )
+                    # Force fresh fetch from 7 days ago - ensures we get all recent data
+                    previous_date = today - timedelta(days=7)
+                else:
+                    logger.info(
+                        f"[{self.table_name}] Batch watermark: min={previous_date} from "
+                        f"{len(symbol_watermarks)}/{len(symbols)} symbols"
+                    )
             else:
                 # CRITICAL: If no watermarks available for any symbol, this indicates first load
                 # or watermark tracking failure. Log explicitly.
@@ -2022,6 +2036,25 @@ class PriceLoader(OptimalLoader):
                     self._stats["symbols_failed"] += 1
                     self._stats["symbols_processed"] += 1
                     continue
+
+                # SESSION 297 FIX: Validate watermark is actually current before skipping
+                # When watermark is stale (>2 days old), 0 rows might indicate API failure
+                current_watermark = symbol_watermarks.get(symbol) if symbol_watermarks else None
+                today = datetime.now(EASTERN_TZ).date()
+                watermark_age_days = (today - current_watermark).days if current_watermark else 0
+
+                if current_watermark and watermark_age_days > 2:
+                    # CRITICAL: Watermark is stale but we got 0 rows - this is an error
+                    # Don't skip, mark as failed and force retry next run
+                    logger.error(
+                        f"[{self.table_name}] {symbol}: Watermark {current_watermark} is {watermark_age_days}d old "
+                        f"but fetch returned 0 rows. This indicates a data loading issue, not current data. "
+                        f"Marking as failed to trigger retry."
+                    )
+                    self._stats["symbols_failed"] += 1
+                    self._stats["symbols_processed"] += 1
+                    continue
+
                 logger.debug(
                     f"[{self.table_name}] {symbol}: No rows fetched (watermark current), skipping",
                 )
