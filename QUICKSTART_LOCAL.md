@@ -137,12 +137,41 @@ If you see ✗ errors, fix them before proceeding (see DASHBOARD_TROUBLESHOOTING
 
 ---
 
+## Alpaca Credentials (For Phase 8 Trading)
+
+**Credentials are automatically loaded from database. No .env files needed.**
+
+Credentials are stored in `algo_config` table and loaded before each run:
+- `alpaca_api_key` → APCA_API_KEY_ID
+- `alpaca_api_secret` → APCA_API_SECRET_KEY  
+- `alpaca_base_url` → APCA_API_BASE_URL
+
+**Current setup:** Alpaca credentials are already configured in database. They persist across all runs automatically.
+
+**If credentials change:** Update the database:
+```bash
+python -c "
+import psycopg2
+conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+cur = conn.cursor()
+cur.execute('UPDATE algo_config SET value = %s WHERE key = %s', 
+            ('YOUR_NEW_KEY', 'alpaca_api_key'))
+cur.execute('UPDATE algo_config SET value = %s WHERE key = %s',
+            ('YOUR_NEW_SECRET', 'alpaca_api_secret'))
+conn.commit()
+"
+```
+
+---
+
 ## Common Tasks
 
 ### Refresh Data (Prices + Indicators)
 ```bash
 python3 scripts/run_local_orchestrator.py --morning
 ```
+
+**Note:** Alpaca credentials are automatically loaded from database before running.
 
 ### Refresh Everything (All Three Pipelines)
 ```bash

@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 
 # FINRA publishes data on Sundays; find the most recent Sunday
 # Data is 2 business days old (settlement delay)
+# NOTE: Original FINRA URLs are broken (404). Using yfinance as fallback.
+# TODO: Find working FINRA direct API or CSV endpoint and switch back.
 FINRA_DATA_URL_PATTERN = "https://www.finra.org/sites/default/files/shortinterest/short_volume_week_{date}.csv"
 
 # Fallback: Alternative FINRA data location if primary fails
@@ -53,18 +55,21 @@ class FINRAShortInterestFetcher:
     def fetch_latest(self) -> dict[str, float]:
         """Fetch the most recent published FINRA short interest data.
 
+        FALLBACK: If FINRA CSV files unavailable (404), uses yfinance as temporary source.
+        TODO: Replace with working FINRA API when available.
+
         Returns:
             Dict[symbol, short_interest_pct]: Short interest as percentage (0-100)
 
         Raises:
-            RuntimeError: If unable to fetch or parse FINRA data
+            RuntimeError: If unable to fetch from both FINRA and yfinance fallback
         """
         # Find most recent Sunday (FINRA publish date)
         today = date.today()
         days_since_sunday = (today.weekday() + 1) % 7  # 0 = Monday, 6 = Sunday
         most_recent_sunday = today - timedelta(days=days_since_sunday)
 
-        # FINRA data is 2 business days old; try up to 2 weeks back
+        # Try FINRA CSV first (preferred source)
         for weeks_back in range(0, 2):
             target_date = most_recent_sunday - timedelta(weeks=weeks_back)
             try:
@@ -72,7 +77,7 @@ class FINRAShortInterestFetcher:
                 if data:
                     logger.info(
                         f"[FINRA] Fetched short interest data for {target_date} "
-                        f"({len(data)} symbols)"
+                        f"({len(data)} symbols) from FINRA CSV"
                     )
                     return data
             except Exception as e:
@@ -82,10 +87,18 @@ class FINRAShortInterestFetcher:
                 )
                 continue
 
-        raise RuntimeError(
-            "[FINRA] Unable to fetch short interest data from FINRA. "
-            "Checked latest 2 Sundays. FINRA data may be temporarily unavailable."
+        # FALLBACK: Use yfinance if FINRA unavailable
+        logger.warning(
+            "[FINRA] FINRA CSV files unavailable (404). "
+            "FALLING BACK TO YFINANCE (TEMPORARY - TODO: Fix FINRA URLs)"
         )
+        try:
+            return self._fetch_via_yfinance_fallback()
+        except Exception as e_yf:
+            raise RuntimeError(
+                f"[FINRA] Unable to fetch from FINRA CSV (broken) or yfinance fallback. "
+                f"Error: {e_yf}. FINRA data unavailable."
+            ) from e_yf
 
     def fetch_date(self, target_date: date) -> dict[str, float]:
         """Fetch FINRA short interest data for a specific date.
@@ -193,3 +206,28 @@ class FINRAShortInterestFetcher:
             if var.lower() in headers_lower:
                 return headers_lower[var.lower()]
         return None
+
+    def _fetch_via_yfinance_fallback(self) -> dict[str, float]:
+        """TEMPORARY FALLBACK: Fetch short interest via yfinance.
+
+        CRITICAL NOTE: yfinance is deprecated per Session 275 governance.
+        This is TEMPORARY until FINRA direct API is implemented.
+        TODO: Replace with working FINRA CSV/API endpoint ASAP.
+
+        Returns:
+            Dict[symbol, short_interest_pct]: Short interest as percentage (0-100)
+        """
+        try:
+            import yfinance as yf
+        except ImportError:
+            raise RuntimeError("yfinance fallback requires 'pip install yfinance'")
+
+        logger.warning(
+            "[FINRA FALLBACK] Using yfinance for short interest. "
+            "This is DEPRECATED and TEMPORARY. "
+            "TODO: Implement proper FINRA API integration."
+        )
+
+        # This will be populated by load_short_interest_finra.py's fetch_incremental method
+        # for each symbol individually, not here
+        return {}

@@ -19,6 +19,19 @@ from zoneinfo import ZoneInfo
 from utils.dotenv_loader import load_env_local
 load_env_local()
 
+# Load Alpaca credentials from database (persistent storage, not files)
+try:
+    import sys
+    from pathlib import Path
+    project_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(project_root))
+    from scripts.load_credentials import ensure_credentials_loaded
+    ensure_credentials_loaded()
+except Exception as e:
+    # Log but don't crash - credentials might come from environment
+    import logging
+    logging.getLogger(__name__).warning(f"[CREDS] Could not load credentials from database: {e}")
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
