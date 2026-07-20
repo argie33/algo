@@ -26,6 +26,10 @@ import sys
 import time
 from pathlib import Path
 
+# Load .env.local credentials BEFORE any imports
+from utils.dotenv_loader import load_env_local
+load_env_local()
+
 
 def is_port_open(port: int, timeout: float = 1.0) -> bool:
     try:

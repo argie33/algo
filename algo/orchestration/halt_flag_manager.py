@@ -394,21 +394,24 @@ class HaltFlagManager:
 
     def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
         """Set halt flag in RDS. Returns True if successfully set."""
+        import json
         try:
             with DatabaseContext("write") as cur:
+                state_value = json.dumps({"halt_triggered_by": "orchestrator", "reason": reason or "Phase 1 degraded"})
                 cur.execute(
                     """
                     INSERT INTO algo_runtime_state (
-                        state_key, halt_flag, halt_triggered_at, halt_reason, halt_count, updated_by
-                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                        state_key, state_value, halt_flag, halt_triggered_at, halt_reason, halt_count, updated_by
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (state_key) DO UPDATE SET
+                        state_value = EXCLUDED.state_value,
                         halt_flag = EXCLUDED.halt_flag,
                         halt_triggered_at = EXCLUDED.halt_triggered_at,
                         halt_reason = EXCLUDED.halt_reason,
                         halt_count = COALESCE(algo_runtime_state.halt_count, 0) + 1,
                         last_updated_at = CURRENT_TIMESTAMP
                     """,
-                    (self.HALT_FLAG_DYNAMODB_KEY, True, now_utc.isoformat(), reason or "Phase 1 degraded: stale data detected", 1, "orchestrator"),
+                    (self.HALT_FLAG_DYNAMODB_KEY, state_value, True, now_utc.isoformat(), reason or "Phase 1 degraded: stale data detected", 1, "orchestrator"),
                 )
             logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
             return True
