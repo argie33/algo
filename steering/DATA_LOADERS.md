@@ -48,13 +48,35 @@ not a redesign.
 plan serves full SIP consolidated-tape historical bars for anything older than 15
 minutes (200 calls/min; ~200 symbols per request → the whole universe in ~43 calls /
 ~20s). `PRICE_DATA_SOURCE` (terraform `price_data_source`, prod default `alpaca`)
-routes daily-bar batches through `utils/external/alpaca_market_data.py`. Symbols Alpaca
-doesn't serve (index symbols, delisted stragglers) are marked explicitly `data_unavailable`
-rather than falling back to deprecated yfinance API. Compare historical sources anytime 
-with `python scripts/compare_price_sources.py` (prior result: 99.4% coverage, close diff
+routes daily-bar batches through `utils/external/alpaca_market_data.py`.
+
+**Correction (2026-07-20, migration 1135):** this doc previously claimed symbols Alpaca
+doesn't serve are marked `data_unavailable` "rather than falling back to deprecated
+yfinance API" - that was never true of the actual code. `utils/data/source_router.py`'s
+`fetch_ohlcv_batch` still falls back to yfinance in two cases: (1) per-symbol, for any
+symbol Alpaca's response didn't include (`_fill_alpaca_residual_from_yfinance` -
+index/caret symbols, OTC/delisted stragglers, ~0.6% of the universe per the 99.4%
+coverage figure below), and (2) wholesale, for the entire batch if the Alpaca call itself
+raises. This is a deliberate resilience tradeoff (never silently produce zero price data
+for a symbol just because Alpaca doesn't cover it), not a bug to remove - but it WAS a
+governance violation as originally built: which rows actually came from yfinance was
+computed in memory (`row["_source_name"]`) and then discarded before the DB write, so the
+fallback was invisible at the only layer anyone actually queries. Migration 1135 added a
+`data_source` column to `price_daily`/`etf_price_daily` and `loaders/load_prices.py` now
+persists the real per-row source instead of dropping it - `SELECT data_source, COUNT(*)
+FROM price_daily WHERE date = CURRENT_DATE GROUP BY data_source` shows the true source mix
+for any day going forward (NULL = written before this migration, source unknown).
+Fundamentals fallback to yfinance already had the right instinct: `require_sec=True`
+(used for Phase 7 signal generation) refuses the yfinance fallback entirely and returns
+`data_unavailable` instead - the price path had no equivalent strict mode before this,
+though this doc doesn't add one, since dropping price data outright for 0.6% of the
+universe would trade "we can't tell the source" for "we don't have the data at all",
+without an ask for that tradeoff. Compare historical sources anytime with
+`python scripts/compare_price_sources.py` (prior result: 99.4% coverage, close diff
 median 0.0000%, volume ratio median 1.000 = true SIP). **Session 275+:** yfinance_snapshot
-fully deprecated from all loaders (removed from terraform pipeline and trigger-loaders).
-The $99/mo plan is only needed for intraday/real-time (recent-SIP + websocket + 10k/min).
+(the metrics/fundamentals table, unrelated to the OHLCV fallback above) fully deprecated
+from all loaders (removed from terraform pipeline and trigger-loaders). The $99/mo plan
+is only needed for intraday/real-time (recent-SIP + websocket + 10k/min).
 
 ---
 

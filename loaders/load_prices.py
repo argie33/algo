@@ -2065,11 +2065,21 @@ class PriceLoader(OptimalLoader):
             logger.debug("[{self.table_name}] {symbol}: Fetched %s rows from batch", len(rows))
             self._stats["rows_fetched"] += len(rows)
 
-            if self.router and self.router.last_source:
-                src = self.router.last_source
-                if src not in self._stats["source_distribution"]:
-                    self._stats["source_distribution"][src] = 0
-                self._stats["source_distribution"][src] += 1
+            # Persist which upstream API actually served each row (migration 1135).
+            # Per-row `_source_name` is only set by the Alpaca-primary path (both the
+            # Alpaca rows themselves and any yfinance residual fill for symbols Alpaca
+            # doesn't serve - see utils/data/source_router.py::_fill_alpaca_residual_from_yfinance);
+            # a wholesale Alpaca outage falls through to a plain yfinance batch whose rows
+            # aren't individually tagged, so those fall back to the batch-level last_source.
+            # Previously this block used self.router.last_source for EVERY row in the batch,
+            # which meant a batch with a handful of yfinance-residual symbols still logged
+            # 100% "alpaca" in source_distribution - the exact silent-fallback blind spot
+            # migration 1135 fixes.
+            for r in rows:
+                src = r.pop("_source_name", None) or (self.router.last_source if self.router else None) or "unknown"
+                r["data_source"] = src
+                r.pop("_primary_source_failed", None)
+                self._stats["source_distribution"][src] = self._stats["source_distribution"].get(src, 0) + 1
 
             rows = self.transform(rows)
             before_quality = len(rows)
