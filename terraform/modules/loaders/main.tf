@@ -392,6 +392,7 @@ locals {
 
     # Trading signals
     "buy_sell_daily" = "load_buy_sell_daily.py"
+    "signal_quality_scores" = "load_signal_quality_scores.py"  # Session 307 restoration: SQS feature
     "algo_metrics_daily" = "load_algo_metrics_daily.py"
 
     # Reference data

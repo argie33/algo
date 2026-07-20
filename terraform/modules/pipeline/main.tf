@@ -485,6 +485,58 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "AlgoMetricsAfterSignals"
           ResultPath  = "$.logError"
         }]
+        Next = "SignalQualityScores"
+      }
+
+      # ── NEW: Signal Quality Scores (Session 307 restoration) ──────────────────────────
+      # Computes signal quality scores from buy_sell_daily and technical data
+      # Non-critical: fails gracefully; NULL values show in dashboard
+      # Timeout: 7200s (120 min)
+      SignalQualityScores = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 7200
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["signal_quality_scores"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogSQSFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "AlgoMetricsAfterSignals"
+      }
+
+      LogSQSFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "signal_quality_scores"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "AlgoMetricsAfterSignals"
+          ResultPath  = "$.logError"
+        }]
         Next = "AlgoMetricsAfterSignals"
       }
 

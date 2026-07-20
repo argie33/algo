@@ -80,6 +80,7 @@ LOADERS = {
             "load_risk_metrics_daily.py",
             "load_stock_scores.py",
             "load_buy_sell_daily.py",  # EOD signals: depends on stock_scores (must be after load_stock_scores.py)
+            "load_signal_quality_scores.py",  # Depends on buy_sell_daily (Session 307 restoration)
             "load_algo_metrics_daily.py",  # Portfolio stats/execution summary from algo_audit_log
             "load_sector_industry_daily.py",
             "load_economic_data.py",  # FRED (T10Y2Y/FEDFUNDS/BAMLH0A0HYM2/ICSA) + DXY
