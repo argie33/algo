@@ -89,7 +89,7 @@ class _RenderCache:
             f"\n\n[bold white]  Fetching market data{dots}[/]\n\n"
             "  [dim]Connecting to database...[/]\n\n"
             "  [dim]Keys: [/][cyan]p[/][dim] positions  [/][cyan]s[/][dim] signals  "
-            "[/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]t[/][dim] trades  "
+            "[/][cyan]c[/][dim] scores  [/][cyan]h[/][dim] health  [/][cyan]r[/][dim] sectors  [/][cyan]t[/][dim] trades  "
             "[/][cyan]e[/][dim] economic  [/][cyan]f[/][dim] portfolio  [/][cyan]b[/][dim] circuit  "
             "[/][cyan]x[/][dim] exposure  [/][cyan]m[/][dim] market  [/][cyan]d[/][dim] data issues  "
             "[/][cyan]q[/][dim] quit[/]"
