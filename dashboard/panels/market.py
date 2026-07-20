@@ -352,7 +352,10 @@ def panel_market_expanded(mkt: Any, sentiment: Any = None) -> Panel:
     spy_chg_s = f"{sign(spy_chg)}{spy_chg:.2f}%" if spy_chg is not None else "--"
     dist_c = R if (dist is not None and dist >= 5) else (Y if (dist is not None and dist >= 3) else G)
     dist_s = f"{dist} days" if dist is not None else "--"
-    yc_c = G if (ycs is not None and ycs >= 0.5) else (Y if (ycs is not None and ycs >= 0) else G)
+    # Negative slope (inverted yield curve) is a bearish signal - must be R, not G. This
+    # branch previously fell back to G, disagreeing with the compact panel and header
+    # elsewhere in this file, which both correctly use R for the same condition.
+    yc_c = G if (ycs is not None and ycs >= 0.5) else (Y if (ycs is not None and ycs >= 0) else R)
     yc_s = f"{ycs:+.3f}" if ycs is not None else "--"
     uvc = DIM if upvol is None else (G if upvol >= 60 else (Y if upvol >= 50 else R))
     upvol_s = f"{upvol:.1f}%" if upvol is not None else "--"

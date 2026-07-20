@@ -757,7 +757,7 @@ def panel_portfolio_perf_expanded(
             "Total P&L:",
             Text(pnl_display, style=pnl_color),
             "Profit Factor:",
-            Text(f"{pf:.2f}" if pf else "--", style=pf_c),
+            Text(f"{pf:.2f}" if pf is not None else "--", style=pf_c),
         )
         perfblk.add_row(
             "Unrealized P&L:",
@@ -780,9 +780,9 @@ def panel_portfolio_perf_expanded(
         )
         perfblk.add_row(
             "Avg Win:",
-            Text(f"{avg_win:.1f}%" if avg_win else "--", style=G),
+            Text(f"{avg_win:.1f}%" if avg_win is not None else "--", style=G),
             "Avg Loss:",
-            Text(f"{avg_loss:.1f}%" if avg_loss else "--", style=R),
+            Text(f"{avg_loss:.1f}%" if avg_loss is not None else "--", style=R),
         )
         rows.append(perfblk)
 

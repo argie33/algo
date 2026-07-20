@@ -541,25 +541,31 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
     # Phase 2: Circuit Breakers
     cb = execution_health.get("phase_2_circuit_breakers")
     if cb:
-        # CRITICAL: Explicit None check - circuit breaker trigger state is critical
+        # CRITICAL: Explicit None check - circuit breaker trigger state is critical.
+        # A missing any_triggered must render as an alarming/unknown state, not a silent
+        # "all clear" - dashboard/panels/circuit.py's primary panel already fails safe (red
+        # error panel) when this same field is missing; this compact view used to default
+        # to False/green instead, showing a safe-looking "✓ P2" for a breaker status that
+        # was never actually confirmed clear.
         any_triggered = cb.get("any_triggered")
         if any_triggered is None:
-            logger.debug("[HEALTH COMPACT] Phase 2: any_triggered missing, defaulting to False for display")
-            any_triggered = False
-        cb_color = R if any_triggered else G
-        cb_icon = "⚠" if any_triggered else "✓"
-        dd = cb.get("drawdown_pct")
-        dl = cb.get("daily_loss_pct")
-        vix = cb.get("vix_level")
-        metrics = []
-        if dd is not None:
-            metrics.append(f"DD {dd:.1f}%")
-        if dl is not None:
-            metrics.append(f"DL {dl:.1f}%")
-        if vix is not None:
-            metrics.append(f"VIX {vix:.1f}")
-        metric_str = " ".join(metrics) if metrics else "none"
-        rows.append(Text.from_markup(f"  [{cb_color}]{cb_icon} P2:[/] {metric_str}"))
+            logger.error("[HEALTH COMPACT] Phase 2: any_triggered missing - rendering as unknown, not clear")
+            rows.append(Text.from_markup(f"  [{R}]? P2:[/] status unknown (data_unavailable)"))
+        else:
+            cb_color = R if any_triggered else G
+            cb_icon = "⚠" if any_triggered else "✓"
+            dd = cb.get("drawdown_pct")
+            dl = cb.get("daily_loss_pct")
+            vix = cb.get("vix_level")
+            metrics = []
+            if dd is not None:
+                metrics.append(f"DD {dd:.1f}%")
+            if dl is not None:
+                metrics.append(f"DL {dl:.1f}%")
+            if vix is not None:
+                metrics.append(f"VIX {vix:.1f}")
+            metric_str = " ".join(metrics) if metrics else "none"
+            rows.append(Text.from_markup(f"  [{cb_color}]{cb_icon} P2:[/] {metric_str}"))
 
     # Phase 3: Positions
     pos = execution_health.get("phase_3_position_monitor")
@@ -811,12 +817,16 @@ def _format_orch_config_string(cfg_params: dict[str, Any]) -> str:
         # max_n=0 is falsy but valid (unlimited positions), don't silently hide
         logger.warning(f"[HEALTH] max_pos_n is 0 or invalid: {max_n} - position limit configuration corrupted?")
         slots_s = ""
+    # `is not None and X` looks like a None-guard but still hides a legitimate 0 (X is
+    # not None and X == X and bool(X), which is False when X == 0) - the exact anti-pattern
+    # this file's max_pos_n handling above (line 814) explicitly guards against. Use
+    # `is not None` alone so a real 0 value still renders.
     max_sec_n = cfg_params.get("max_sec_n")
-    sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n is not None and max_sec_n else ""
+    sec_s = f"[dim]sector ≤[/][white]{max_sec_n}[/]" if max_sec_n is not None else ""
     base_risk = cfg_params.get("base_risk")
-    risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk is not None and base_risk else ""
+    risk_s = f"[dim]base risk [/][white]{base_risk}%[/]" if base_risk is not None else ""
     t1r = cfg_params.get("t1_r")
-    t1r_s = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r is not None and t1r else ""
+    t1r_s = f"[dim]T1 target [/][white]{t1r}R[/]" if t1r is not None else ""
     return "  ".join(x for x in [score_s, slots_s, sec_s, risk_s, t1r_s] if x)
 
 
@@ -2137,13 +2147,15 @@ def panel_status(
     max_sec_n = cfg_params.get("max_sec_n")
     base_risk = cfg_params.get("base_risk")
     t1_r = cfg_params.get("t1_r")
-    if max_pos_n:
+    # `is not None`, not truthiness - a real 0 (e.g. base_risk=0 during a halt, or
+    # max_sec_n=0) is a meaningful configured value and must not disappear as if unset.
+    if max_pos_n is not None:
         cfg_parts.append(f"[dim]slots:[/][white]{max_pos_n}[/]")
-    if max_sec_n:
+    if max_sec_n is not None:
         cfg_parts.append(f"[dim]sector≤4:[/][white]{max_sec_n}[/]")
-    if base_risk:
+    if base_risk is not None:
         cfg_parts.append(f"[dim]risk:[/][white]{base_risk}%[/]")
-    if t1_r:
+    if t1_r is not None:
         cfg_parts.append(f"[dim]T1:[/][white]{t1_r}R[/]")
     if cfg_parts:
         rows.append(Text.from_markup("  ".join(cfg_parts)))
