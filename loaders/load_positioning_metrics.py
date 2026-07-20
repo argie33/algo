@@ -69,26 +69,31 @@ class PositioningMetricsLoader(OptimalLoader):
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        # TIER 1: Fetch short interest from FINRA
+        # TIER 1: Fetch short interest from FINRA (OPTIONAL if table unavailable)
         short_interest_pct = None
         short_interest_source = None
 
-        with DatabaseContext("read") as cur:
-            cur.execute(
-                """
-                SELECT short_pct, data_unavailable, reason
-                FROM short_interest_finra
-                WHERE symbol = %s AND data_unavailable = FALSE
-                ORDER BY settlement_date DESC LIMIT 1
-                """,
-                (symbol,),
-            )
-            short_row = cur.fetchone()
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT short_pct, data_unavailable, reason
+                    FROM short_interest_finra
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                    ORDER BY settlement_date DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                short_row = cur.fetchone()
 
-        if short_row and short_row[0] is not None:
-            short_interest_pct = short_row[0]
-            short_interest_source = "finra"
-        else:
+            if short_row and short_row[0] is not None:
+                short_interest_pct = short_row[0]
+                short_interest_source = "finra"
+            else:
+                short_interest_source = "unavailable"
+        except Exception as e:
+            # Table may not exist or loader not running yet - treat as optional
+            logger.debug(f"[POSITIONING] {symbol}: short_interest_finra unavailable: {e}")
             short_interest_source = "unavailable"
 
         # TIER 1: Fetch institutional ownership from SEC 13F

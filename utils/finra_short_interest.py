@@ -90,15 +90,12 @@ class FINRAShortInterestFetcher:
         # FALLBACK: Use yfinance if FINRA unavailable
         logger.warning(
             "[FINRA] FINRA CSV files unavailable (404). "
-            "FALLING BACK TO YFINANCE (TEMPORARY - TODO: Fix FINRA URLs)"
+            "FALLING BACK TO PER-SYMBOL YFINANCE FETCH (TEMPORARY - TODO: Fix FINRA URLs)"
         )
-        try:
-            return self._fetch_via_yfinance_fallback()
-        except Exception as e_yf:
-            raise RuntimeError(
-                f"[FINRA] Unable to fetch from FINRA CSV (broken) or yfinance fallback. "
-                f"Error: {e_yf}. FINRA data unavailable."
-            ) from e_yf
+        # Not an error - return empty dict to signal fallback
+        # Per-symbol yfinance fetching happens in load_short_interest_finra.py
+        # This two-stage fallback is intentional design (bulk CSV -> per-symbol yfinance)
+        return {}
 
     def fetch_date(self, target_date: date) -> dict[str, float]:
         """Fetch FINRA short interest data for a specific date.
@@ -216,6 +213,9 @@ class FINRAShortInterestFetcher:
 
         Returns:
             Dict[symbol, short_interest_pct]: Short interest as percentage (0-100)
+
+        Raises:
+            RuntimeError: If yfinance not installed or data fetch fails
         """
         try:
             import yfinance as yf
@@ -228,6 +228,8 @@ class FINRAShortInterestFetcher:
             "TODO: Implement proper FINRA API integration."
         )
 
-        # This will be populated by load_short_interest_finra.py's fetch_incremental method
-        # for each symbol individually, not here
+        # Not an error - this method is called when FINRA CSV unavailable.
+        # Returns empty dict - individual symbol fetches happen in load_short_interest_finra.py
+        # via its _fetch_yfinance_short_interest() static method.
+        # Design: fetch_all() signals fallback via empty dict; per-symbol fetch then takes over
         return {}

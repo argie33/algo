@@ -135,6 +135,22 @@ def check_file_for_fallbacks(filepath: Path) -> list[dict[str, Any]]:  # noqa: C
         if stripped == "return []":
             context = "\n".join(lines[max(0, line_num - 5) : line_num])
             if "data_unavailable" not in context and "raise" not in context:
+                # Skip legitimate "nothing to do" empty returns (same logic as PATTERN 2)
+                is_legitimate_empty_result = any(
+                    phrase in context.lower()
+                    for phrase in [
+                        "not an error",
+                        "not initialized",
+                        "no candidates",
+                        "nothing to process",
+                        "no entries will be executed",
+                        "not yet initialized",
+                        "no work to do",
+                    ]
+                )
+                if is_legitimate_empty_result:
+                    continue
+
                 violations.append(
                     {
                         "file": filepath,

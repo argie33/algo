@@ -1446,10 +1446,110 @@ resource "aws_sfn_state_machine" "computed_metrics_pipeline" {
         Next = "PositioningMetrics"
       }
 
+      # ── PHASE 3b: Institutional Holdings (SEC 13F) ──
+      # CRITICAL DEPENDENCY: load_positioning_metrics.py reads from institutional_holdings_13f table
+      # Must run BEFORE PositioningMetrics to ensure data available (fail-open if delayed)
+      InstitutionalHoldings13F = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["institutional_holdings_13f"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogInstitutionalHoldingsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "InsiderHoldingsSec"
+      }
+
+      LogInstitutionalHoldingsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "institutional_holdings_13f"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "InsiderHoldingsSec"
+          ResultPath  = "$.logError"
+        }]
+        Next = "InsiderHoldingsSec"
+      }
+
+      # ── PHASE 3c: Insider Holdings (SEC Form 4/5) ──
+      # CRITICAL DEPENDENCY: load_positioning_metrics.py reads from insider_holdings_sec table
+      # Must run BEFORE PositioningMetrics to ensure data available (fail-open if delayed)
+      InsiderHoldingsSec = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 1800
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["insider_holdings_sec"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 30
+          MaxAttempts     = 0
+          BackoffRate     = 1.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogInsiderHoldingsFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "PositioningMetrics"
+      }
+
+      LogInsiderHoldingsFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name       = "insider_holdings_sec"
+          "error.$"         = "$.loaderError.Error"
+          "error_message.$" = "$.loaderError.Cause"
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "PositioningMetrics"
+          ResultPath  = "$.logError"
+        }]
+        Next = "PositioningMetrics"
+      }
+
       # ── Positioning Metrics (writes institutional ownership, insider ownership, short interest) ──
-      # FIXED 2026-07-15: Added explicit state (Issue #2 from Session 166 audit).
-      # load_yfinance_derived_metrics.py writes to 6 tables; PositioningMetrics explicitly validates
-      # positioning_metrics table before moving to StabilityMetrics.
+      # FIXED Session 294: Added upstream dependencies InstitutionalHoldings13F + InsiderHoldingsSec.
+      # Short interest is now optional (FINRA source broken). Positioning metrics will populate
+      # with institutional + insider data when available, mark data_unavailable only if ALL sources missing.
       PositioningMetrics = {
         Type           = "Task"
         Resource       = "arn:aws:states:::ecs:runTask.sync"
