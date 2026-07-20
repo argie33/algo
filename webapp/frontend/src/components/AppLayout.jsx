@@ -43,6 +43,9 @@ import {
   Newspaper,
   Calculator,
   PiggyBank,
+  AlertCircle,
+  Shield,
+  Calendar,
 } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import { api } from "../services/api";
@@ -71,6 +74,7 @@ const NAV_SECTIONS = [
       { text: "Trading Signals", icon: Zap, path: "/app/trading-signals" },
       { text: "Swing Candidates", icon: Target, path: "/app/swing" },
       { text: "Deep Value Picks", icon: Layers, path: "/app/deep-value" },
+      { text: "Earnings Calendar", icon: Calendar, path: "/app/earnings" },
     ],
   },
   {
@@ -78,6 +82,8 @@ const NAV_SECTIONS = [
     items: [
       { text: "Portfolio", icon: Wallet, path: "/app/portfolio" },
       { text: "Trade Tracker", icon: History, path: "/app/trades" },
+      { text: "Pre-Trade Impact", icon: AlertCircle, path: "/app/pre-trade-impact" },
+      { text: "Risk Analytics", icon: Shield, path: "/app/risk-analytics" },
     ],
   },
   {

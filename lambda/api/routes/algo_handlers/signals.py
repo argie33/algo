@@ -166,6 +166,15 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
         # Determine position size - CRITICAL: both position_dollars and position_pct are optional,
         # but at least one must be provided. Do NOT default to implicit 0.75% - caller must specify intent.
         entry_price = req.entry_price
+        if not entry_price or entry_price <= 0:
+            cur.execute(
+                "SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
+                (symbol,),
+            )
+            price_row = cur.fetchone()
+            if price_row and price_row[0]:
+                entry_price = float(price_row[0])
+
         if req.position_dollars:
             position_dollars = req.position_dollars
         elif req.position_pct:
@@ -205,27 +214,16 @@ def _calculate_pre_trade_impact(cur: cursor, body: dict[str, Any]) -> Any:
             return error_response(
                 400, "sector_unknown", f"Cannot size position for {symbol}: sector not found in company_profile"
             )
-        if sector not in sector_exposure:
-            # 'Unknown' sector should exist from COALESCE in query, but validate it
-            return error_response(
-                503, "sector_exposure_incomplete", f"Sector exposure missing for '{sector}'. Database query incomplete."
-            )
-
-        current_sector_dollars = sector_exposure[sector]  # Explicit access, no fallback to 0.0
+        # A sector absent from sector_exposure means zero open positions currently hold
+        # that sector (a normal GROUP BY result) - not a data quality issue. Only sectors
+        # that *are* returned are validated above (non-null, numeric, non-negative).
+        current_sector_dollars = sector_exposure.get(sector, 0.0)
         projected_sector_dollars = current_sector_dollars + actual_dollars
         projected_sector_pct = projected_sector_dollars / portfolio_value * 100
 
-        # CRITICAL: Unknown sector exposure MUST be present (query should COALESCE it).
-        # Fail fast if missing to prevent silent data quality issues.
-        if "Unknown" not in sector_exposure:
-            logger.error("[SECTOR_RISK] Unknown sector exposure missing from query result")
-            return error_response(
-                503,
-                "sector_exposure_incomplete",
-                "Unknown sector exposure missing. Database query incomplete (check COALESCE in SQL).",
-            )
-
-        unknown_sector_exposure = sector_exposure["Unknown"]  # Explicit access, no fallback
+        # 'Unknown' bucket only appears when some open position lacks sector enrichment;
+        # a fully-enriched portfolio legitimately has no 'Unknown' entry.
+        unknown_sector_exposure = sector_exposure.get("Unknown", 0.0)
         if not isinstance(unknown_sector_exposure, (int, float)) or unknown_sector_exposure < 0:
             return error_response(
                 503,

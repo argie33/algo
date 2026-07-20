@@ -223,9 +223,14 @@ class MarketStatusDailyLoader(OptimalLoader):
             if not breadth_data or breadth_data.get("data_unavailable"):
                 return {"data_unavailable": True, "reason": "breadth_unavailable"}
 
-            advance_decline = breadth_data.get("advance_decline_ratio")
-            new_highs = breadth_data.get("new_52wk_highs")
-            new_lows = breadth_data.get("new_52wk_lows")
+            # breadth_data is keyed by ISO date string (see BreadthFetcher.fetch),
+            # e.g. {"2026-07-17": {"advance_decline_ratio": ..., "new_highs_count": ...,
+            # "new_lows_count": ...}} - not a flat dict. Take the most recent date's values.
+            latest_breadth_date = max(breadth_data.keys())
+            latest_breadth = breadth_data[latest_breadth_date]
+            advance_decline = latest_breadth.get("advance_decline_ratio")
+            new_highs = latest_breadth.get("new_highs_count")
+            new_lows = latest_breadth.get("new_lows_count")
 
             # Fetch yield curve (10Y-2Y spread) - use same date range as VIX
             yield_data = self._yield_curve_fetcher.fetch(fetch_start, last_trading_day)

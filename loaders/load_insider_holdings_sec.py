@@ -1,32 +1,20 @@
 #!/usr/bin/env python3
-"""Insider Holdings Loader - SEC Form 4/5 NOT YET IMPLEMENTED (No yfinance).
+"""Insider Holdings Loader - SEC Form 3/4/5 via official bulk data sets.
 
-GOVERNANCE: No yfinance fallback exists in this file (despite an earlier
-docstring here that claimed one) - all symbols are marked data_unavailable.
+GOVERNANCE: No yfinance fallback. Only official SEC sources or explicit
+data_unavailable.
 
-FEASIBILITY (investigated Session 298, this session): unlike Form 13F
-(institutional holdings), Form 4/5 filings ARE cross-indexed under the
-issuer's own CIK - confirmed via data.sec.gov/submissions/CIK{issuer}.json,
-which lists hundreds of "4" entries for a large-cap issuer (e.g. 589 for
-AAPL) alongside its 10-K/10-Q/8-K filings. So there's no CUSIP-crosswalk
-problem here (unlike 13F).
-
-What a real implementation needs:
-- Per symbol: pull the issuer's submissions, filter form == "4"/"5", fetch
-  each filing's ownership XML (not plain text - EDGAR's XML ownership
-  documents replaced plain-text Form 4 filings years ago), and read
-  <postTransactionAmounts><sharesOwnedFollowingTransaction> from the
-  non-derivative table for the latest filing per unique reporting-owner CIK.
-- Sum the latest per-insider holdings, divide by shares_outstanding
-  (company_info_sec) for insider_ownership_pct.
-- Rate-limit cost is the real blocker: large-caps can have 500+ Form 4
-  filings; even fetching only the last ~2 years per symbol across ~4,700
-  symbols is tens of thousands of requests at the project's SEC-loader
-  parallelism cap (1-2 req/s). Realistic effort: 8-16h (parser + insider
-  dedup logic + a multi-hour-runtime loader design), matching the Session
-  298 estimate. Not attempted this session - lower priority now that
-  positioning_metrics reaches ~93% from short_interest_finra alone
-  (FINRA Query API fix, Session 298).
+Uses utils.external.sec_form345_bulk.Form345BulkAggregator, which downloads
+SEC's own pre-flattened quarterly "Insider Transactions Data Sets"
+(sec.gov/data-research/sec-markets-data/insider-transactions-data-sets)
+instead of crawling each insider's Form 4 XML individually. That per-filing
+approach was investigated in Session 298 and estimated at 8-16h / tens of
+thousands of requests against EDGAR's 2 req/s rate limit - infeasible. The
+bulk data sets contain the identical SEC-sourced facts (same
+SHRS_OWND_FOLWNG_TRANS field used by the per-filing XML), pre-joined by
+issuer ticker, with no rate-limit wall: a handful of quarterly ZIP downloads
+instead of one HTTP request per filing. See sec_form345_bulk.py's docstring
+for the full aggregation methodology.
 
 Run:
     python3 loaders/load_insider_holdings_sec.py [--symbols AAPL,MSFT]
@@ -39,6 +27,8 @@ from typing import Any
 
 from loaders.runner import run_loader
 from loaders.timeout_config import configure_socket_timeout
+from utils.db.context import DatabaseContext
+from utils.external.sec_form345_bulk import Form345BulkAggregator
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
 
@@ -47,18 +37,10 @@ configure_socket_timeout(30)
 
 
 class InsiderHoldingsSECLoader(OptimalLoader):
-    """Load insider holdings from SEC Form 4/5 filings (GOVERNANCE COMPLIANT).
+    """Load insider ownership % from SEC's official Form 3/4/5 bulk data sets.
 
-    NOTE: Removed yfinance fallback per GOVERNANCE "no silent fallbacks" rule.
-
-    SEC Form 4/5 parsing is complex (plain text filings, HTML extraction needed).
-    Until proper SEC API integration is implemented, insider data will be marked unavailable.
-
-    This is CORRECT per GOVERNANCE: better to have honest unavailability than
-    rate-limited yfinance data mislabeled as "SEC" insider holdings.
-
-    TODO: Implement SEC Form 4/5 parsing using SEC EDGAR API or
-          integrate with official SEC insider filing database.
+    GOVERNANCE: No yfinance fallback. Only official SEC sources or explicit
+    data_unavailable.
     """
 
     table_name = "insider_holdings_sec"
@@ -70,34 +52,71 @@ class InsiderHoldingsSECLoader(OptimalLoader):
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
 
+    def __init__(self, backfill_days: int | None = None):
+        super().__init__(backfill_days)
+        # Built lazily on first fetch_incremental() call, shared across all worker
+        # threads in this run (thread-safe, builds exactly once - see
+        # Form345BulkAggregator docstring).
+        self._aggregator = Form345BulkAggregator()
+
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Fetch insider holdings from SEC Form 4/5 filings (GOVERNANCE COMPLIANT).
-
-        GOVERNANCE: No yfinance fallback. Only official sources or explicit unavailability.
-
-        SEC Form 4/5 parsing requires complex XBRL/HTML extraction from EDGAR.
-        Until implemented, all data marked unavailable with clear reason.
+        """Fetch insider ownership from SEC's bulk Form 3/4/5 data sets.
 
         Args:
             symbol: Stock ticker symbol
-            since: Minimum filing date to fetch (for incremental updates)
+            since: Unused - the bulk aggregate is a point-in-time snapshot rebuilt
+                fresh each run from SEC's latest published quarters, not an
+                incremental feed.
 
         Returns:
-            List with data_unavailable marker (sec_form4_parsing_not_implemented)
+            List with insider holdings record, or a data_unavailable marker if the
+            symbol had no Form 3/4/5 filings in the lookback window or its
+            shares_outstanding is unknown (can't compute a percentage).
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        logger.debug(
-            f"[{symbol}] SEC Form 4/5 parsing not yet implemented. "
-            f"Marking as unavailable per GOVERNANCE (no yfinance fallback)."
-        )
+        summary = self._aggregator.get_symbol_summary(symbol)
+        if summary is None:
+            return self._unavailable_record(symbol, now_et, "no_form345_filings_in_lookback_window")
 
-        return self._unavailable_record(
-            symbol,
-            now_et,
-            "sec_form4_parsing_not_implemented_use_official_sources_only"
-        )
+        shares_outstanding = self._get_shares_outstanding(symbol)
+        if not shares_outstanding:
+            return self._unavailable_record(symbol, now_et, "shares_outstanding_unavailable_for_pct_calc")
 
+        insider_pct = min((summary.total_shares / shares_outstanding) * 100.0, 100.0)
+
+        return [
+            {
+                "symbol": symbol,
+                "filing_date": now_et.date(),
+                "insider_ownership_pct": round(insider_pct, 4),
+                "number_of_insiders": summary.number_of_insiders,
+                "recent_buys": summary.recent_buys,
+                "recent_sells": summary.recent_sells,
+                "net_insider_transactions": summary.recent_buys - summary.recent_sells,
+                "data_unavailable": False,
+                "reason": None,
+                "latest_insider_filing_date": summary.latest_filing_date,
+                "sec_filing_url": summary.sec_filing_url,
+                "data_source": "sec_form345_bulk",
+                "updated_at": now_et,
+            }
+        ]
+
+    @staticmethod
+    def _get_shares_outstanding(symbol: str) -> int | None:
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT shares_outstanding
+                FROM company_info_sec
+                WHERE symbol = %s AND data_unavailable = FALSE AND shares_outstanding IS NOT NULL
+                ORDER BY filing_date DESC LIMIT 1
+                """,
+                (symbol,),
+            )
+            row = cur.fetchone()
+        return int(row[0]) if row and row[0] else None
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record."""
@@ -115,6 +134,7 @@ class InsiderHoldingsSECLoader(OptimalLoader):
                 "latest_insider_filing_date": None,
                 "sec_filing_url": None,
                 "data_source": "none",
+                "updated_at": now_et,
             }
         ]
 

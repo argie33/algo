@@ -132,6 +132,15 @@ class DailyReconciliation:
                 "[RECONCILIATION] Broker not available - using database portfolio state (paper trading mode). "
                 "Orchestrator will continue with signal generation and exit execution."
             )
+
+            # Resolve any trades stuck NULL/pending broker-fill reconciliation using real EOD
+            # price_daily data - see resolve_local_pending_exits() docstring. Must run before the
+            # realized-P&L read below so a newly-resolved trade counts in this same run.
+            with DatabaseContext("write") as resolve_cur:
+                resolve_result = self.resolve_local_pending_exits(resolve_cur)
+                if resolve_result["resolved"] > 0:
+                    logger.info(f"[RECONCILIATION] {resolve_result['message']}")
+
             # Query actual positions and portfolio value from database instead of hardcoding
             from decimal import Decimal
 
@@ -158,24 +167,27 @@ class DailyReconciliation:
                 total_unrealized_pnl = float(pnl_row["total_pnl"])
                 total_invested = float(pnl_row["total_invested"])
 
-                # CRITICAL: This formula must also include REALIZED P&L from closed trades, not just
-                # unrealized P&L of currently-open positions. Without this, the moment a losing position
-                # closes, total_unrealized_pnl for open positions drops back toward 0 and portfolio_value
-                # silently snaps back to initial_capital - erasing the loss from the equity curve instead
-                # of carrying it forward as cash. This exact corruption already happened once (see
-                # migration 1112, 7 days of fabricated ~$100,006 snapshots that masked a real ~28%
-                # drawdown and defeated the circuit breaker). Closed trades with NULL profit_loss_dollars
-                # (pending broker fill reconciliation - see phase9_reconciliation.py) are correctly
-                # excluded by SUM() rather than treated as a $0 realized result.
-                cur.execute("""
-                    SELECT COALESCE(SUM(profit_loss_dollars), 0) as total_realized_pnl
-                    FROM algo_trades
-                    WHERE status = 'closed'
-                """)
-                realized_row = cur.fetchone()
-                total_realized_pnl = float(realized_row["total_realized_pnl"]) if realized_row else 0.0
+                # Write portfolio snapshot even in paper mode for position monitor and dashboard
+                if not reconcile_date:
+                    reconcile_date = datetime.now(timezone.utc).date()
 
-                # Portfolio value = base capital + all-time realized P&L + current unrealized P&L
+                # CRITICAL: Realized P&L must be scoped to trades closed TODAY, not summed over all
+                # of algo_trades history (see baseline roll-forward comment below for why an all-time
+                # SUM() is the wrong quantity to add to a baseline that itself already reflects all
+                # prior realized P&L). Closed trades with NULL profit_loss_dollars (pending broker
+                # fill reconciliation - see phase9_reconciliation.py) are correctly excluded by SUM()
+                # rather than treated as a $0 realized result.
+                cur.execute(
+                    """
+                    SELECT COALESCE(SUM(profit_loss_dollars), 0) as realized_pnl_today
+                    FROM algo_trades
+                    WHERE status = 'closed' AND exit_date = %s
+                    """,
+                    (reconcile_date,),
+                )
+                realized_row = cur.fetchone()
+                realized_pnl_today = float(realized_row["realized_pnl_today"]) if realized_row else 0.0
+
                 # FIX: Provide default fallback for initial_capital_paper_trading in case config doesn't have it
                 initial_capital = self.config.get("initial_capital_paper_trading")
                 if initial_capital is None:
@@ -189,17 +201,51 @@ class DailyReconciliation:
                         f"[CRITICAL] initial_capital_paper_trading must be positive number, got {initial_capital}. "
                         "Configuration must be valid. Check config values."
                     )
-                portfolio_value = float(initial_capital) + total_realized_pnl + total_unrealized_pnl
+
+                # CRITICAL: Roll FORWARD from the previously recorded snapshot instead of recomputing
+                # an absolute value from initial_capital + all-time trade history. This account can
+                # carry real equity history that predates (or falls outside) algo_trades' own P&L
+                # tracking - e.g. migration 1112 found broker-confirmed equity of $72,029.10 that
+                # SUM(algo_trades.profit_loss_dollars) has no way to reproduce, since it happened
+                # before that ledger existed. Reconstructing "initial_capital + SUM(all closed
+                # trades)" throws that real history away and snaps back to initial_capital the instant
+                # algo_trades' own P&L data is incomplete (NULL, pending broker-fill reconciliation)
+                # or simply doesn't cover the account's full history - this is the exact corruption
+                # class of migration 1112 recurring in a new form (see migration 1127). Rolling
+                # forward from the prior snapshot can never regress to a stale constant: each run only
+                # nudges the last confirmed value by what changed since, so it is self-healing even if
+                # a gap in algo_trades' knowledge (a NULL P&L trade) means that day's nudge is zero.
+                cur.execute(
+                    """
+                    SELECT total_portfolio_value, unrealized_pnl_total FROM algo_portfolio_snapshots
+                    WHERE snapshot_date < %s
+                    ORDER BY snapshot_date DESC LIMIT 1
+                    """,
+                    (reconcile_date,),
+                )
+                prev_snapshot_row = cur.fetchone()
+                if prev_snapshot_row and prev_snapshot_row["total_portfolio_value"] is not None:
+                    baseline_equity = float(prev_snapshot_row["total_portfolio_value"])
+                    prev_unrealized_pnl = (
+                        float(prev_snapshot_row["unrealized_pnl_total"])
+                        if prev_snapshot_row["unrealized_pnl_total"] is not None
+                        else 0.0
+                    )
+                else:
+                    # Bootstrap: no prior snapshot exists at all - initial_capital is the only
+                    # reference point available.
+                    baseline_equity = float(initial_capital)
+                    prev_unrealized_pnl = 0.0
+
+                unrealized_pnl_change = total_unrealized_pnl - prev_unrealized_pnl
+                portfolio_value = baseline_equity + realized_pnl_today + unrealized_pnl_change
 
                 logger.info(
                     f"[RECONCILIATION PAPER MODE] Found {open_position_count} open positions, "
-                    f"realized P&L: ${total_realized_pnl:.2f}, unrealized P&L: ${total_unrealized_pnl:.2f}, "
+                    f"baseline: ${baseline_equity:.2f}, realized P&L today: ${realized_pnl_today:.2f}, "
+                    f"unrealized P&L change: ${unrealized_pnl_change:+.2f} (now ${total_unrealized_pnl:.2f}), "
                     f"portfolio value: ${portfolio_value:.2f}"
                 )
-
-            # Write portfolio snapshot even in paper mode for position monitor and dashboard
-            if not reconcile_date:
-                reconcile_date = datetime.now(timezone.utc).date()
 
             try:
                 logger.info(
@@ -207,11 +253,10 @@ class DailyReconciliation:
                 )
                 with DatabaseContext("write") as cur:
                     logger.info("[RECONCILIATION] Paper mode: DatabaseContext opened, role=write")
-                    # CRITICAL: Calculate cash from initial capital + realized P&L - invested amount
-                    # (never hardcoded). Must include realized P&L for the same reason portfolio_value
-                    # does above - omitting it understates/overstates cash by the account's entire
-                    # lifetime trading result.
-                    cash_remaining = float(initial_capital) + total_realized_pnl - total_invested
+                    # Cash = total account value minus what's tied up in the cost basis of currently
+                    # open positions. Derived from the rolled-forward portfolio_value (never hardcoded
+                    # or recomputed from initial_capital) so it stays consistent with it by construction.
+                    cash_remaining = portfolio_value - total_invested
 
                     # CRITICAL: Portfolio value must be positive for valid reconciliation
                     if portfolio_value <= 0:
@@ -261,26 +306,12 @@ class DailyReconciliation:
                     # from this table - it does not recompute it. Hardcoding this to 0.0 (as before)
                     # silently disabled the Daily Loss Limit circuit breaker for every reconciliation
                     # that goes through this LOCAL_MODE fallback path, since a fabricated 0.0% daily
-                    # return can never breach a negative threshold. Compute it from the previous
-                    # snapshot instead.
-                    cur.execute(
-                        """
-                        SELECT total_portfolio_value FROM algo_portfolio_snapshots
-                        WHERE snapshot_date < %s
-                        ORDER BY snapshot_date DESC LIMIT 1
-                        """,
-                        (reconcile_date,),
+                    # return can never breach a negative threshold. Reuse baseline_equity (the same
+                    # prior-snapshot value portfolio_value was rolled forward from above) rather than
+                    # re-querying it - they are the same "previous total_portfolio_value" quantity.
+                    daily_return_pct = (
+                        (portfolio_value - baseline_equity) / baseline_equity * 100 if baseline_equity > 0 else 0.0
                     )
-                    prev_snapshot_row = cur.fetchone()
-                    if prev_snapshot_row and prev_snapshot_row["total_portfolio_value"]:
-                        prev_portfolio_value = float(prev_snapshot_row["total_portfolio_value"])
-                        daily_return_pct = (
-                            (portfolio_value - prev_portfolio_value) / prev_portfolio_value * 100
-                            if prev_portfolio_value > 0
-                            else 0.0
-                        )
-                    else:
-                        daily_return_pct = 0.0  # Bootstrap: no prior snapshot to compare against
                     cumulative_return_pct = (portfolio_value - float(initial_capital)) / float(initial_capital) * 100
 
                     snapshot_params = (
@@ -292,7 +323,7 @@ class DailyReconciliation:
                         0.0,
                         0.0,
                         0.0,
-                        0.0,
+                        realized_pnl_today,  # was hardcoded 0.0 - dashboard/reporting always showed $0 realized
                         total_unrealized_pnl,
                         unrealized_pnl_pct,
                         winning_count,
@@ -331,6 +362,7 @@ class DailyReconciliation:
                         total_cash = EXCLUDED.total_cash,
                         total_equity = EXCLUDED.total_equity,
                         position_count = EXCLUDED.position_count,
+                        realized_pnl_today = EXCLUDED.realized_pnl_today,
                         unrealized_pnl_total = EXCLUDED.unrealized_pnl_total,
                         unrealized_pnl_pct = EXCLUDED.unrealized_pnl_pct,
                         unrealized_pnl_winning_count = EXCLUDED.unrealized_pnl_winning_count,
@@ -1263,6 +1295,99 @@ class DailyReconciliation:
                 "Cannot reconcile exit prices with broker fills. "
                 "Reconciliation requires accurate exit prices for P&L validation."
             ) from e
+
+    def resolve_local_pending_exits(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
+        """LOCAL_MODE-only: resolve trades stuck with NULL P&L pending broker fill reconciliation.
+
+        reconcile_exit_fills() (above) is the only code path that ever resolves an
+        estimated_exit_price into a real fill price, and it requires self.broker to be set AND a
+        successful live Alpaca call - both unavailable in local dev (no broker, or placeholder
+        credentials that can never authenticate). Without this, any trade closed by
+        phase9_reconciliation.py's _record_closed_positions_exits() stays profit_loss_dollars=NULL
+        forever, permanently invisible to win_rate/consecutive_losses/realized P&L in local dev.
+
+        Uses price_daily's real EOD close for the exit symbol/date as the fill price - this is
+        genuine market data (not fabricated), consistent with governance's real-data-only rule,
+        unlike the fixed bug where a stale current_price silently produced a fake $0.00 P&L. Only
+        resolves trades whose exit_date has an actual close on file (i.e. strictly before today,
+        since today's close doesn't exist until market close) - if not yet available, leaves the
+        trade pending for a future run rather than guessing early.
+        """
+        cur.execute(
+            """
+            SELECT trade_id, symbol, entry_price, stop_loss_price, entry_quantity, exit_date
+            FROM algo_trades
+            WHERE status = 'closed'
+              AND profit_loss_dollars IS NULL
+              AND estimated_exit_price IS NOT NULL
+              AND exit_date < CURRENT_DATE
+            """
+        )
+        pending = cur.fetchall()
+        if not pending:
+            return {"resolved": 0, "message": "No local-mode pending exits to resolve"}
+
+        resolved = 0
+        for trade_id, symbol, entry_price, stop_loss_price, entry_qty, exit_date in pending:
+            if entry_price is None or stop_loss_price is None or entry_qty is None:
+                logger.warning(
+                    f"[LOCAL EXIT RESOLUTION] {trade_id} ({symbol}) missing entry_price/stop_loss_price/"
+                    "entry_quantity - cannot resolve, leaving pending"
+                )
+                continue
+
+            cur.execute(
+                """
+                SELECT close FROM price_daily
+                WHERE symbol = %s AND date = %s AND (data_unavailable IS NOT TRUE)
+                """,
+                (symbol, exit_date),
+            )
+            price_row = cur.fetchone()
+            if price_row is None or price_row[0] is None:
+                logger.debug(
+                    f"[LOCAL EXIT RESOLUTION] No price_daily close yet for {symbol} on {exit_date} "
+                    f"- leaving {trade_id} pending"
+                )
+                continue
+
+            fill_price = Decimal(str(price_row[0]))
+            entry_dec = Decimal(str(entry_price))
+            qty_dec = Decimal(str(entry_qty))
+            pnl_pct = float(((fill_price - entry_dec) / entry_dec * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP))
+            pnl_dollars = float(((fill_price - entry_dec) * qty_dec).quantize(Decimal("0.01"), ROUND_HALF_UP))
+            risk = float(entry_price) - float(stop_loss_price)
+            exit_r_multiple = (
+                float(((fill_price - entry_dec) / Decimal(str(risk))).quantize(Decimal("0.01"), ROUND_HALF_UP))
+                if risk > 0
+                else None
+            )
+
+            cur.execute(
+                """
+                UPDATE algo_trades
+                SET exit_price = %s, profit_loss_dollars = %s, profit_loss_pct = %s,
+                    exit_r_multiple = %s, exit_price_reconciled_at = CURRENT_TIMESTAMP,
+                    reconciliation_note = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE trade_id = %s
+                """,
+                (
+                    float(fill_price),
+                    pnl_dollars,
+                    pnl_pct,
+                    exit_r_multiple,
+                    f"[LOCAL_MODE] Resolved via price_daily EOD close for {exit_date} "
+                    "(no live broker available to confirm actual fill)",
+                    trade_id,
+                ),
+            )
+            resolved += 1
+            logger.info(
+                f"[LOCAL EXIT RESOLUTION] {trade_id} ({symbol}): resolved P&L ${pnl_dollars:+.2f} "
+                f"({pnl_pct:+.2f}%) using {exit_date} close ${float(fill_price):.2f}"
+            )
+
+        return {"resolved": resolved, "message": f"Resolved {resolved} local-mode pending exit(s)"}
 
     def audit_stale_estimated_prices(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
         """Audit for trades with estimated exit prices that haven't been reconciled to the

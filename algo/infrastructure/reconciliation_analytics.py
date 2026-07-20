@@ -63,7 +63,8 @@ class ReconciliationAnalytics:
                     "alert": alert,
                 }
         except Exception as e:
-            logger.warning(f"Could not compute IC: {e}")
+            logger.error(f"[TRADE ANALYTICS] IC computation failed: {e}", exc_info=True)
+            result["ic"] = {"valid": False, "error": str(e)}
 
         # Compute expectancy and Kelly Fraction
         try:
@@ -129,7 +130,12 @@ class ReconciliationAnalytics:
                     "alert": alert,
                 }
         except Exception as e:
-            logger.warning(f"Could not compute expectancy: {e}")
+            # Same issue as compute_closed_trade_metrics below: the ValueErrors above are
+            # intentional fail-fast signals ("Do NOT default NULL values to 0.0"), not
+            # expected-empty states - a bare warning here silently discards them and
+            # returns {"valid": False} indistinguishable from "not enough trades yet".
+            logger.error(f"[TRADE ANALYTICS] Expectancy computation failed: {e}", exc_info=True)
+            result["expectancy"] = {"valid": False, "error": str(e)}
 
         return result
 
@@ -249,6 +255,14 @@ class ReconciliationAnalytics:
                 result["reason"] = "No closed trades yet"
 
         except Exception as e:
-            logger.warning(f"Could not compute closed trade metrics: {e}")
+            # The ValueErrors raised above (wins/losses NULL, P&L NULL, gross_loss <= 0)
+            # are intentional fail-fast signals for real data-quality problems - the
+            # explicit comments right next to those raises say "Do NOT silently convert
+            # NULL to 0". A bare `except Exception: logger.warning(...)` here caught them
+            # and returned this function's own all-zero default dict, which is exactly the
+            # silent-zero behavior those raises exist to prevent. Log loud (ERROR + trace)
+            # and surface the real reason instead of masking it behind "Unable to compute".
+            logger.error(f"[TRADE ANALYTICS] Closed trade metrics computation failed: {e}", exc_info=True)
+            result["reason"] = f"Unable to compute closed trade metrics: {e}"
 
         return result

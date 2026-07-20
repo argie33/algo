@@ -33,7 +33,7 @@ const WealthManagement = () => {
       title: "Pre-Trade Simulation",
       description:
         "Run hypothetical trades through our risk model before you place them. Evaluate position sizing, expected drawdown, and portfolio impact based on historical volatility and current market regime.",
-      link: "/app/simulate",
+      link: "/app/pre-trade-impact",
     },
     {
       icon: <BarChartIcon />,

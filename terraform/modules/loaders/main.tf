@@ -371,6 +371,14 @@ locals {
     # Continuous updates (quarterly and annual filings)
     "earnings_calendar_sec" = "load_earnings_calendar_sec.py"
 
+    # Market-exposure factor inputs (Session 301: restored after being deleted while
+    # algo/risk/factors/naaim_factor.py + aaii_sentiment_factor.py — 2 of the Core 12
+    # market-exposure factors — kept silently reading the resulting stale tables with
+    # no freshness check). Must run before market_status_daily, which computes the
+    # regime/exposure score from these tables.
+    "naaim"          = "load_naaim.py"
+    "aaii_sentiment" = "load_aaii_sentiment.py"
+
     # Risk metrics: volatility + beta + momentum calculations for position monitoring
     # Single consolidated loader: computes momentum (1m/3m/6m/12m) + stability (vol/beta)
     "stability_metrics" = "load_risk_metrics_daily.py"
@@ -536,6 +544,14 @@ locals {
     # FINRA short interest (bi-weekly regulatory data)
     "short_interest_finra" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
 
+    # Market-exposure factor inputs (Session 301 restoration, see loader_file_map comment)
+    # NAAIM: plain HTTP GET + pandas.read_html, no browser needed - lightweight like short_interest_finra
+    "naaim" = { cpu = 256, memory = 512, timeout = 300, parallelism = 1 }
+    # AAII: needs Playwright/Chromium to bypass Incapsula bot protection (image already has
+    # `playwright install chromium` — see repo root Dockerfile). Live-tested locally at ~23s
+    # end-to-end including browser launch; sized with headroom for a cold Fargate start.
+    "aaii_sentiment" = { cpu = 512, memory = 1024, timeout = 300, parallelism = 1 }
+
     # Core Market Data
     "market_constituents" = { cpu = 128, memory = 256, timeout = 120, parallelism = 1 }
     "economic_data" = { cpu = 256, memory = 512, timeout = 900, parallelism = 1 }
@@ -582,7 +598,11 @@ locals {
 
     # Economic data
     "economic_data",
-    "short_interest_finra"
+    "short_interest_finra",
+
+    # Market-exposure factor inputs (Session 301 restoration)
+    "naaim",
+    "aaii_sentiment"
   ])
 }
 

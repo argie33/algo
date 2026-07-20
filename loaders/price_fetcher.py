@@ -9,7 +9,7 @@ import logging
 import random
 import threading
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
 from utils.cache.price_cache import PriceCache
@@ -184,7 +184,7 @@ class PriceFetcher:
         """
         from utils.infrastructure.timezone import EASTERN_TZ
 
-        now_utc = datetime.now().astimezone()
+        now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
         end = now_et.date()  # Fetch only through today, not tomorrow
 
@@ -227,7 +227,7 @@ class PriceFetcher:
         """
         from utils.infrastructure.timezone import EASTERN_TZ
 
-        now_utc = datetime.now().astimezone()
+        now_utc = datetime.now(timezone.utc)
         now_et = now_utc.astimezone(EASTERN_TZ)
 
         end = now_et.date()  # Always fetch through today's date only

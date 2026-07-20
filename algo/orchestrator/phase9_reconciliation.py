@@ -736,7 +736,7 @@ def _record_closed_positions_exits(
                             write_cursor.execute(
                                 """
                                 UPDATE algo_positions
-                                SET status = 'CLOSED', current_price = %s, unrealized_pnl = NULL,
+                                SET status = 'closed', current_price = %s, unrealized_pnl = NULL,
                                     updated_at = CURRENT_TIMESTAMP
                                 WHERE symbol = %s
                             """,

@@ -65,9 +65,27 @@ class SectorRotationDetector:
             eval_date = _date.today()
 
         try:
-            sector_data = self._fetch_and_validate_sector_data(eval_date)
+            sector_data, only_missing_12w = self._fetch_and_validate_sector_data(eval_date)
             defensive = [d for d in sector_data.values() if d["is_defensive"]]
             cyclical = [d for d in sector_data.values() if d["is_cyclical"]]
+            if (not defensive or not cyclical) and only_missing_12w:
+                # Every required sector had complete 1w/4w/momentum data but was skipped solely
+                # because the 84-day (12w) lookback predates sector_ranking's earliest row - a
+                # genuine "dataset too young yet" gap (self-resolving as history accumulates), not
+                # a data-corruption bug. Degrade this one factor gracefully (matching
+                # BreadthFetcher's "insufficient 252-day history" pattern) instead of blocking the
+                # entire market exposure computation on it.
+                logger.warning(
+                    f"[SECTOR ROTATION] Insufficient 12w history for {eval_date} across all "
+                    "required sectors - dataset too young for this lookback yet. "
+                    "Returning neutral (no penalty) result instead of failing exposure calc."
+                )
+                return {
+                    "eval_date": str(eval_date),
+                    "data_unavailable": True,
+                    "reason": "insufficient_12w_sector_history",
+                    "reduce_exposure_pts": 0,
+                }
             self._validate_sector_coverage(sector_data, eval_date)
 
             metrics = self._compute_sector_metrics(defensive, cyclical)
@@ -93,7 +111,14 @@ class SectorRotationDetector:
         except Exception as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def _fetch_and_validate_sector_data(self, eval_date: _date) -> dict[str, dict[str, Any]]:
+    def _fetch_and_validate_sector_data(self, eval_date: _date) -> tuple[dict[str, dict[str, Any]], bool]:
+        """Returns (sector_data, only_missing_12w).
+
+        only_missing_12w is True iff every required (defensive/cyclical) sector that got
+        skipped had complete 1w/4w/momentum data and was skipped solely for missing
+        rank_12w_ago - i.e. a "dataset too young for this lookback yet" gap, not a
+        data-corruption/missing-row problem. Callers can use this to degrade gracefully.
+        """
         with DatabaseContext("read") as cur:
             cur.execute(
                 """
@@ -112,6 +137,9 @@ class SectorRotationDetector:
             rows = cur.fetchall()
 
         sector_data: dict[str, dict[str, Any]] = {}
+        required_sectors = set(DEFENSIVE_SECTORS) | set(CYCLICAL_SECTORS)
+        skipped_required_all_12w_only = True
+        saw_skipped_required = False
         for sector_name, rank, momentum, r1w, r4w, r12w in rows:
             if rank is None:
                 continue
@@ -123,6 +151,10 @@ class SectorRotationDetector:
                     f"[SECTOR ROTATION] {sector_name}: missing {', '.join(missing)} data for {eval_date} - "
                     "skipping sector from rotation signal (lookback data not yet available)"
                 )
+                if sector_name in required_sectors:
+                    saw_skipped_required = True
+                    if missing != ["12w"]:
+                        skipped_required_all_12w_only = False
                 continue
 
             imp_4w = int(r4w) - rank
@@ -138,7 +170,13 @@ class SectorRotationDetector:
                 "is_defensive": sector_name in DEFENSIVE_SECTORS,
                 "is_cyclical": sector_name in CYCLICAL_SECTORS,
             }
-        return sector_data
+
+        # If a required sector never appeared in the result set at all (not just skipped for
+        # missing 12w), that's a different, more serious gap - don't call it "12w-only".
+        seen_sector_names = {row[0] for row in rows}
+        missing_required_entirely = required_sectors - seen_sector_names
+        only_missing_12w = saw_skipped_required and skipped_required_all_12w_only and not missing_required_entirely
+        return sector_data, only_missing_12w
 
     def _validate_sector_row(
         self, sector_name: str, r1w: Any, r4w: Any, r12w: Any, momentum: Any, eval_date: _date

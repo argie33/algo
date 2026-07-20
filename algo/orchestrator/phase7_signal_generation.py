@@ -642,16 +642,28 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
 
             days_stale = (run_date - latest_buysell_date).days
 
-            # FIXED NON-TRADING DAY LOGIC:
-            # On weekends/holidays, data from the most recent trading day is FRESH (not stale)
-            # Allow data that is: (1) from the most recent trading day, OR (2) within recent window on non-trading days
+            # TRADING-DAY-AWARE TOLERANCE: the loader publishes buy_sell_daily for trading day D
+            # using D's EOD close, so the freshest data available *before* D+1's own close is D's -
+            # i.e. up to one trading day of lag is normal, not stale. A raw "most_recent_trading_day
+            # - 1 calendar day" tolerance (the previous version of this check) false-halts every
+            # Monday (Friday's data is 3 calendar days old) and after any holiday, since it doesn't
+            # walk back over the weekend/holiday gap - same bug class already fixed for
+            # market_exposure_daily regime staleness (regime_manager.py._expected_regime_date) and
+            # for price_daily (phase1_data_freshness.py, Session 239/288). Walk back to the actual
+            # previous trading day instead of subtracting a fixed calendar day.
+            previous_trading_day = most_recent_trading_day - timedelta(days=1)
+            prev_trading_day_iterations = 0
+            while not MarketCalendar.is_trading_day(previous_trading_day) and prev_trading_day_iterations < 10:
+                previous_trading_day -= timedelta(days=1)
+                prev_trading_day_iterations += 1
+
             is_trading_today = MarketCalendar.is_trading_day(run_date)
-            data_is_from_recent_trading_day = (latest_buysell_date >= most_recent_trading_day - timedelta(days=1))
+            data_is_from_recent_trading_day = latest_buysell_date >= previous_trading_day
             data_is_within_window = (latest_buysell_date >= run_date - timedelta(days=4))  # 4-day window covers weekends
 
             acceptable_staleness = data_is_from_recent_trading_day or (not is_trading_today and data_is_within_window)
 
-            if latest_buysell_date < most_recent_trading_day - timedelta(days=1) and not acceptable_staleness:
+            if latest_buysell_date < previous_trading_day and not acceptable_staleness:
                 # Most recent data is OLDER than recent trading days - this is a red flag
                 msg = (
                     f"[PHASE 7 CRITICAL HALT] buy_sell_daily data is STALE: most recent is from {latest_buysell_date}. "

@@ -2266,10 +2266,15 @@ function SectorRotationMap({ markets, onSelect }) {
         s.rank_4w_ago != null && s.rank != null
           ? s.rank_4w_ago - s.rank // positive = improving
           : null;
+      if (rsMomentum == null) {
+        // Chart requires both axes; a sector with no 4w-ago rank can't be
+        // plotted honestly (defaulting to 0 would fabricate "no change").
+        return null;
+      }
       return {
         name: s.name,
         rsRank: Number(rsRank.toFixed(1)),
-        rsMomentum: rsMomentum != null ? Number(rsMomentum) : null,
+        rsMomentum: Number(rsMomentum),
         rank: s.rank,
         momentum: s.momentum,
       };

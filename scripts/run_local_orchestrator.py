@@ -33,6 +33,37 @@ except Exception as e:
     logging.getLogger(__name__).warning(f"[CREDS] Could not load credentials from database: {e}")
 
 
+def _find_todays_run(run_type: str, run_date) -> dict | None:
+    """Return the most recent orchestrator_execution_log row for this run_type/run_date, if any.
+
+    Matches on run_id's "LOCAL-{TYPE}-" prefix (the format this script itself generates) rather
+    than a dedicated run_type column, since that's what actually distinguishes morning/afternoon/
+    evening runs in this table today.
+    """
+    try:
+        from utils.db import DatabaseContext
+
+        with DatabaseContext("read") as cur:
+            cur.execute(
+                """
+                SELECT run_id, overall_status, started_at
+                FROM orchestrator_execution_log
+                WHERE run_date = %s AND run_id ILIKE %s
+                ORDER BY started_at DESC LIMIT 1
+                """,
+                (run_date, f"LOCAL-{run_type.upper()}-%"),
+            )
+            row = cur.fetchone()
+            if row is None:
+                return None
+            return {"run_id": row[0], "overall_status": row[1], "started_at": row[2]}
+    except Exception as e:
+        # Best-effort guard - if the check itself fails (e.g. table missing locally), don't
+        # block the run over it; just proceed without the same-day protection this run.
+        print(f"  WARNING: same-day run check failed ({type(e).__name__}: {e}) - proceeding without it")
+        return None
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run orchestrator locally (development mode)",
@@ -57,6 +88,16 @@ def main() -> None:
         action="store_true",
         help="Run all orchestrator times (morning + afternoon + evening)",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run even if this run_type already ran today. Nothing guards against running "
+        "--morning/--afternoon/--evening multiple times for the same trading day by default - "
+        "unlike EventBridge in AWS (which fires each exactly once), so repeated manual re-runs "
+        "re-execute entry/exit/reconciliation against the same day's already-processed state, "
+        "producing duplicate-looking trades and oscillating portfolio snapshots. Use --force only "
+        "for deliberate re-testing after a real code fix, not as a way to retry past a halt/error.",
+    )
 
     args = parser.parse_args()
 
@@ -74,6 +115,16 @@ def main() -> None:
     # Set LOCAL_MODE for direct database access
     os.environ["LOCAL_MODE"] = "true"
     os.environ["ENVIRONMENT"] = "development"
+    # CRITICAL: Force paper trading for this local-dev entry point, matching every other
+    # local launcher (start_dashboard_dev.py, run_dev_pipeline.py, start_dev.py,
+    # dev_environment_setup.py). Without this, ALPACA_PAPER_TRADING falls through to
+    # whatever the ambient shell happens to have - algo/infrastructure/config/main.py and
+    # executor_strategies.py both default "unset" to paper, but an explicit "false" left
+    # over in the shell environment (e.g. from a prior session) would silently flip live,
+    # and this script - unlike its siblings - had no override. GOVERNANCE.md states paper
+    # trading as a non-negotiable local/dev invariant; this script must enforce it, not
+    # merely default to it.
+    os.environ["ALPACA_PAPER_TRADING"] = "true"
     # NOTE: SKIP_ORCHESTRATOR_LOCK removed - distributed lock prevents concurrent execution and duplicate trades
 
     et = ZoneInfo("America/New_York")
@@ -86,6 +137,17 @@ def main() -> None:
     print(f"Runs to execute: {', '.join(runs)}\n")
 
     for run_type in runs:
+        if not args.force:
+            prior_run = _find_todays_run(run_type, now.date())
+            if prior_run is not None:
+                print(f"Skipping {run_type.upper()}: already ran today.")
+                print(f"  Prior run: {prior_run['run_id']} (status={prior_run['overall_status']}, "
+                      f"started {prior_run['started_at']})")
+                print("  Re-running the same trading day re-executes entry/exit/reconciliation "
+                      "against already-processed state and produces confusing duplicate-looking "
+                      "trades and oscillating portfolio snapshots. Pass --force to override.")
+                continue
+
         print(f"Starting {run_type.upper()} orchestrator run...")
 
         # Import and run orchestrator module

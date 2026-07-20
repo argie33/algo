@@ -552,8 +552,20 @@ class MarketExposure:
                         raise ValueError(
                             "Sector rotation detector returned incomplete data: missing reduce_exposure_pts"
                         )
-                    rot_penalty = rotation["reduce_exposure_pts"]
-                    if rot_penalty > 0:
+                    if rotation.get("data_unavailable"):
+                        # Dataset too young for the 12w lookback yet (see sector_rotation.py) -
+                        # apply zero penalty and record explicitly, rather than treating a
+                        # temporary history gap as fatal to the whole exposure computation.
+                        factors["sector_rotation"] = {
+                            "signal": "data_unavailable",
+                            "defensive_lead_score": None,
+                            "penalty_applied": 0,
+                            "pts": 0,
+                            "max": 0,
+                            "reason": rotation.get("reason"),
+                        }
+                    elif rotation["reduce_exposure_pts"] > 0:
+                        rot_penalty = rotation["reduce_exposure_pts"]
                         score = max(0.0, score - rot_penalty)
                         factors["sector_rotation"] = {
                             "signal": rotation["signal"],

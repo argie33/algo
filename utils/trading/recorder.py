@@ -211,7 +211,7 @@ class TradeRecorder:
                 cursor.execute(
                     """
                     UPDATE algo_positions
-                    SET status = 'CLOSED', current_price = %s, unrealized_pnl = %s,
+                    SET status = 'closed', current_price = %s, unrealized_pnl = %s,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE symbol = %s
                 """,

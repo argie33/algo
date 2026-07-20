@@ -1538,10 +1538,11 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
         >
           {breakers.map((b) => {
             if (b.current == null || b.threshold == null) {
-              console.error(`[CircuitBreaker] Incomplete circuit breaker data: ${b.name}`, b);
+              // Backend reports this as a normal state (e.g. insufficient trade
+              // history) via `description`, not a malformed response - don't error.
               return (
-                <div key={b.name} style={{ padding: "var(--space-2)", color: "var(--error)" }}>
-                  {b.name}: Data unavailable
+                <div key={b.id} style={{ padding: "var(--space-2)", color: "var(--muted)" }}>
+                  {b.label}: {b.description || "Data unavailable"}
                 </div>
               );
             }
@@ -1549,8 +1550,8 @@ function CircuitBreakerPanel({ data, loading, error: queryError }) {
             const threshold = toSafeNumber(b.threshold, null);
             if (current == null || threshold == null) {
               return (
-                <div key={b.name} style={{ padding: "var(--space-2)", color: "var(--error)" }}>
-                  {b.name}: Invalid data type
+                <div key={b.id} style={{ padding: "var(--space-2)", color: "var(--error)" }}>
+                  {b.label}: Invalid data type
                 </div>
               );
             }
@@ -1843,7 +1844,7 @@ function DailyReturnHistogram({ histogram_data, loading, error }) {
   const { buckets, stats } = useMemo(() => {
     if (!histogram_data || typeof histogram_data !== "object")
       return { buckets: [], stats: null };
-    const bucketList = safeGetArray(histogram_data, "buckets", []);
+    const bucketList = safeGetArray(histogram_data, "items", []);
     const statData = safeGet(histogram_data, "stats", null);
     return { buckets: bucketList, stats: statData };
   }, [histogram_data]);
@@ -1957,7 +1958,7 @@ function DailyReturnHistogram({ histogram_data, loading, error }) {
 // ─── Trade outcome distribution ────────────────────────────────────────────
 function TradeDistribution({ distribution_data, loading, error }) {
   const buckets = useMemo(() => {
-    return safeGetArray(distribution_data, "buckets", []);
+    return safeGetArray(distribution_data, "items", []);
   }, [distribution_data]);
 
   return (
@@ -2055,7 +2056,7 @@ function TradeDistribution({ distribution_data, loading, error }) {
 // ─── Holding period histogram ──────────────────────────────────────────────
 function HoldingPeriodHistogram({ holding_data, error }) {
   const buckets = useMemo(() => {
-    return safeGetArray(holding_data, "buckets", []);
+    return safeGetArray(holding_data, "items", []);
   }, [holding_data]);
 
   return (
@@ -2470,7 +2471,7 @@ function SectorConcentration({ sector_allocation, loading, error }) {
 // ─── Stage phase donut ─────────────────────────────────────────────────────
 function StagePhaseDonut({ distribution, loading, error }) {
   const data = useMemo(() => {
-    const distArray = safeGetArray(distribution, "distribution", []);
+    const distArray = safeGetArray(distribution, "items", []);
     return distArray.filter((item) => item && typeof item === "object");
   }, [distribution]);
 
@@ -2788,7 +2789,7 @@ DrawdownChart.propTypes = {
 
 DailyReturnHistogram.propTypes = {
   histogram_data: PropTypes.shape({
-    buckets: PropTypes.array,
+    items: PropTypes.array,
     stats: PropTypes.object,
   }),
   loading: PropTypes.bool.isRequired,
@@ -2800,7 +2801,7 @@ DailyReturnHistogram.propTypes = {
 
 TradeDistribution.propTypes = {
   distribution_data: PropTypes.shape({
-    buckets: PropTypes.array,
+    items: PropTypes.array,
   }),
   loading: PropTypes.bool.isRequired,
   error: PropTypes.shape({
@@ -2811,7 +2812,7 @@ TradeDistribution.propTypes = {
 
 HoldingPeriodHistogram.propTypes = {
   holding_data: PropTypes.shape({
-    buckets: PropTypes.array,
+    items: PropTypes.array,
   }),
   error: PropTypes.shape({
     message: PropTypes.string,
@@ -2841,8 +2842,7 @@ SectorConcentration.propTypes = {
 
 StagePhaseDonut.propTypes = {
   distribution: PropTypes.shape({
-    labels: PropTypes.array,
-    values: PropTypes.array,
+    items: PropTypes.array,
   }),
   loading: PropTypes.bool.isRequired,
   error: PropTypes.shape({

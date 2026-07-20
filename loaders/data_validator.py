@@ -5,7 +5,7 @@ Catches issues early: missing data, duplicates, schema violations, outliers.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -154,7 +154,7 @@ class DataValidator:
 
     def get_report(self) -> dict[str, Any]:
         return {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "valid": len(self.errors) == 0,
             "errors": self.errors,
             "warnings": self.warnings,

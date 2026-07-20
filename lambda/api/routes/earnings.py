@@ -48,15 +48,13 @@ def handle(
                 cur,
                 """
                 SELECT symbol,
-                       earnings_date AS report_date,
-                       CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
-                       eps_actual, eps_estimate,
-                       eps_surprise_pct AS eps_surprise,
-                       revenue_actual, revenue_estimate,
-                       revenue_surprise_pct AS revenue_surprise
-                FROM earnings_history
+                       filing_date AS report_date,
+                       filing_type AS fiscal_period
+                FROM earnings_calendar_sec
                 WHERE symbol = %s
-                ORDER BY earnings_date DESC
+                  AND filing_type IN ('10-K', '10-Q')
+                  AND data_unavailable = false
+                ORDER BY filing_date DESC
                 LIMIT %s
             """,
                 (symbol.upper(), limit),
@@ -71,7 +69,7 @@ def handle(
                     "Earnings data validation failed; earnings history query returned invalid data",
                 )
 
-            freshness = check_data_freshness(cur, "earnings_history", "earnings_date", warning_days=7)
+            freshness = check_data_freshness(cur, "earnings_calendar_sec", "filing_date", warning_days=120)
             result = list_response(
                 [safe_json_serialize(dict(r)) for r in rows],
                 data_freshness=freshness,
@@ -97,12 +95,12 @@ def handle(
             cur,
             """
             SELECT symbol,
-                   earnings_date AS report_date,
-                   CONCAT(fiscal_quarter, 'Q', fiscal_year) AS fiscal_period,
-                   eps_actual, eps_estimate,
-                   eps_surprise_pct AS eps_surprise
-            FROM earnings_history
-            ORDER BY earnings_date DESC
+                   filing_date AS report_date,
+                   filing_type AS fiscal_period
+            FROM earnings_calendar_sec
+            WHERE filing_type IN ('10-K', '10-Q')
+              AND data_unavailable = false
+            ORDER BY filing_date DESC
             LIMIT %s
         """,
             (limit,),
@@ -117,7 +115,7 @@ def handle(
                 "Earnings data validation failed; earnings all query returned invalid data",
             )
 
-        freshness = check_data_freshness(cur, "earnings_history", "earnings_date", warning_days=7)
+        freshness = check_data_freshness(cur, "earnings_calendar_sec", "filing_date", warning_days=120)
         result = list_response(
             [safe_json_serialize(dict(r)) for r in rows],
             data_freshness=freshness,

@@ -10,6 +10,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db import DatabaseContext, assert_safe_column, assert_safe_table
 from utils.infrastructure import EASTERN_TZ
 
@@ -45,9 +46,19 @@ class TableHealth:
     def is_critical(self) -> bool:
         """Check if table is critical for algo execution.
 
-        buy_sell_daily and stock_scores are excluded - they are orchestrator OUTPUTS
-        (written by Phase 5/6), not upstream inputs. Treating them as critical halts
-        Phase 1 before Phase 5/6 can populate them (circular dependency).
+        buy_sell_daily and technical_data_daily ARE upstream loader-pipeline outputs
+        (EOD Step Functions pipeline, loaders/load_buy_sell_daily.py and
+        loaders/load_technical_indicators.py - see steering/DATA_LOADERS.md), not
+        orchestrator outputs, and Phase 7 (signal_generation) has a dedicated
+        fail-closed halt when buy_sell_daily is stale (see phase7_signal_generation.py).
+        A prior version of this check excluded them as "orchestrator outputs written by
+        Phase 5/6" - that premise was wrong (no orchestrator phase writes either table)
+        and caused this health panel to report HEALTHY while Phase 7 was actively
+        halting on the same staleness.
+
+        stock_scores is excluded - Phase 1 already runs its own dedicated completeness/
+        freshness check for it (see phase1_data_freshness.py), so double-counting it
+        here would just duplicate that alert under a coarser (day-granularity) check.
 
         economic_data is excluded - it stores FRED macro series with no pipeline loader;
         algo_market_exposure.py handles missing rows with safe defaults.
@@ -56,6 +67,8 @@ class TableHealth:
             "stock_symbols",
             "price_daily",
             "market_health_daily",
+            "buy_sell_daily",
+            "technical_data_daily",
         }
         return self.table_name in critical_tables
 
@@ -114,24 +127,62 @@ class PipelineHealth:
     """Monitor and report on data pipeline health."""
 
     # Define critical tables and their SLA requirements.
-    # market_health_daily and price_daily use sla_days=5 so that a 3-day holiday
-    # weekend (e.g. Memorial Day Friday -> Tuesday = 4 calendar days) or a 4-day
-    # Thanksgiving break (Wednesday -> Monday = 5 days) does not trigger a VERY_STALE
-    # critical halt in Phase 1. Phase 1's explicit staleness check uses trading-day-
-    # aware comparison; PipelineHealth is a secondary check and should not over-block.
+    # sla_days reflects the REAL once-per-trading-day cadence documented in
+    # steering/DATA_LOADERS.md (price_daily/technical_data_daily/buy_sell_daily/
+    # market_health_daily are all EOD-pipeline outputs expected fresh as of the last
+    # completed trading day). A prior version padded these to sla_days=5 as a blunt
+    # workaround for not knowing about weekend/holiday gaps - that hid genuine 2-4
+    # day staleness (a real loader failure) behind the same threshold meant to
+    # tolerate a long weekend. _gap_adjusted_sla() now adds back exactly the size of
+    # any actual weekend/holiday gap via MarketCalendar, so a real gap is tolerated
+    # without also tolerating a same-length loader outage on a normal week.
     CRITICAL_TABLES: dict[str, dict[str, str | int]] = {
         "stock_symbols": {"date_column": "created_at", "sla_days": 30},
-        "price_daily": {"date_column": "date", "sla_days": 5},
-        "buy_sell_daily": {"date_column": "date", "sla_days": 5},
+        "price_daily": {"date_column": "date", "sla_days": 1},
+        "buy_sell_daily": {"date_column": "date", "sla_days": 1},
+        "technical_data_daily": {"date_column": "date", "sla_days": 1},
         "stock_scores": {"date_column": "updated_at", "sla_days": 5},
         "economic_data": {"date_column": "date", "sla_days": 7},
-        "market_health_daily": {"date_column": "date", "sla_days": 5},
+        "market_health_daily": {"date_column": "date", "sla_days": 1},
         "analyst_sentiment_analysis": {"date_column": "updated_at", "sla_days": 7},
         "earnings_calendar": {"date_column": "created_at", "sla_days": 30},
     }
 
+    # Tables that only update once per trading day - a weekend/holiday gap since the
+    # last completed trading day is expected staleness, not an incident. Tables not in
+    # this set (e.g. stock_symbols, earnings_calendar with sla_days=30) already have
+    # enough slack that a multi-day gap is a rounding error and don't need adjustment.
+    TRADING_DAY_CADENCE_TABLES = frozenset(
+        {"price_daily", "buy_sell_daily", "technical_data_daily", "market_health_daily"}
+    )
+
+    @staticmethod
+    def _trading_day_gap_days(today: _date) -> int:
+        """Calendar days between today and the most recent completed trading day before it.
+
+        1 on a normal day (yesterday traded); >1 across a weekend/holiday (e.g. 3 on a
+        Monday following a Friday close). Mirrors the logic already proven correct in
+        scripts/monitor_data_staleness.py rather than re-deriving a second version.
+        """
+        from datetime import timedelta
+
+        prev_trading_day = today - timedelta(days=1)
+        for _ in range(10):
+            if MarketCalendar.is_trading_day(prev_trading_day):
+                break
+            prev_trading_day -= timedelta(days=1)
+        return (today - prev_trading_day).days
+
+    def _gap_adjusted_sla(self, table_name: str, base_sla_days: int, today: _date) -> int:
+        """Pad base_sla_days by any weekend/holiday gap for trading-day-cadence tables."""
+        if table_name not in self.TRADING_DAY_CADENCE_TABLES:
+            return base_sla_days
+        gap_days = self._trading_day_gap_days(today)
+        return base_sla_days + max(0, gap_days - 1)
+
     def check_table_health(self, cur: Any, table_name: str, date_column: str | None, sla_days: int) -> TableHealth:
-        health = TableHealth(table_name=table_name, status=HealthStatus.ERROR, sla_days=sla_days)
+        effective_sla_days = self._gap_adjusted_sla(table_name, sla_days, datetime.now(EASTERN_TZ).date())
+        health = TableHealth(table_name=table_name, status=HealthStatus.ERROR, sla_days=effective_sla_days)
 
         try:
             safe_table = assert_safe_table(table_name)
@@ -219,10 +270,10 @@ class PipelineHealth:
             today_et = datetime.now(EASTERN_TZ).date()
             health.age_days = (today_et - latest_date).days
 
-            # Determine status based on SLA
-            if health.age_days > (sla_days * 2):
+            # Determine status based on the gap-adjusted SLA (see _gap_adjusted_sla)
+            if health.age_days > (effective_sla_days * 2):
                 health.status = HealthStatus.VERY_STALE
-            elif health.age_days > sla_days:
+            elif health.age_days > effective_sla_days:
                 health.status = HealthStatus.STALE
             else:
                 health.status = HealthStatus.HEALTHY
@@ -412,14 +463,20 @@ class PipelineHealth:
                                 if table_health.status == HealthStatus.ERROR
                                 else (None if table_health.status == HealthStatus.HEALTHY
                                       else existing_errors.get(table_health.table_name)),
+                            # Was previously never written by any code path (a static value
+                            # from a one-time seed insert, unrelated to the sla_days actually
+                            # used to compute `status` above) - wire it to the real,
+                            # gap-adjusted threshold so this column stops silently
+                            # contradicting the status it sits next to.
+                            table_health.sla_days,
                         )
                         for table_health in status.tables.values()
                     ]
                     cur.executemany(
                         """
                         INSERT INTO data_loader_status
-                        (table_name, status, row_count, latest_date, age_days, error_message, last_updated)
-                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                        (table_name, status, row_count, latest_date, age_days, error_message, stale_threshold_days, last_updated)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
                         ON CONFLICT (table_name)
                         DO UPDATE SET
                             status = EXCLUDED.status,
@@ -427,6 +484,7 @@ class PipelineHealth:
                             latest_date = EXCLUDED.latest_date,
                             age_days = EXCLUDED.age_days,
                             error_message = EXCLUDED.error_message,
+                            stale_threshold_days = EXCLUDED.stale_threshold_days,
                             last_updated = NOW()
                         """,
                         insert_values,

@@ -5,7 +5,7 @@ Provides early warning for potential issues.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
 
@@ -187,7 +187,7 @@ class LoaderHealthMonitor:
         ]
 
         return {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "overall_status": self.status.value,
             "checks": self.checks,
         }

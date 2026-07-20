@@ -39,13 +39,11 @@ THRESHOLDS = {
         "fresh": 30,  # 30 min during trading hours
         "stale": 240,  # 4 hours - need immediate attention
         "critical": 1440,  # 24 hours - major issue
-        "fresh_non_trading": 2880,  # 48 hours on weekends/holidays (data from last trading day OK)
     },
     "technical_data_daily": {
         "fresh": 60,  # 1 hour
         "stale": 240,  # 4 hours
         "critical": 1440,  # 24 hours
-        "fresh_non_trading": 2880,  # 48 hours on weekends/holidays
     },
     "stock_scores": {
         "fresh": 240,  # 4 hours
@@ -229,10 +227,14 @@ def check_all_tables() -> dict:
         else:
             formatted = format_age(age)
 
-            # When there's a weekend/holiday gap, shift ALL tiers (not just "fresh") by
-            # the size of that gap for tables tied to the trading calendar. Otherwise data
-            # that's legitimately fresh-as-of-Friday still gets compared against the
-            # 4h/24h intraday stale/critical cutoffs on Monday morning and reads as DEAD.
+            # When there's a weekend/holiday gap, shift ALL tiers (including "fresh", not
+            # just stale/critical) by the size of that gap for tables tied to the trading
+            # calendar. A fixed "fresh_non_trading" cap (previously a static 48h) breaks as
+            # soon as the actual gap exceeds it: every ordinary Friday->Monday gap is itself
+            # 3 calendar days (4320min), so a static 48h (2880min) cap falsely read Monday
+            # morning's still-fresh Friday data as WARNING before intraday updates began.
+            # Scaling "fresh" by the same gap_minutes used for stale/critical below fixes
+            # that for any gap length (weekend, holiday, or multi-day holiday weekend alike).
             # Applies to every table that updates once per trading day - both plain `date`
             # columns (one row per trading day: price_daily, technical_data_daily,
             # market_exposure_daily, sector_rotation_signal, trend_template_data,
@@ -257,7 +259,7 @@ def check_all_tables() -> dict:
                 and spans_gap
             ):
                 gap_minutes = (today - prev_trading_day).days * 1440
-                fresh_threshold = thresholds.get("fresh_non_trading", thresholds["fresh"])
+                fresh_threshold = thresholds["fresh"] + gap_minutes
                 stale_threshold = thresholds["stale"] + gap_minutes
                 critical_threshold = thresholds["critical"] + gap_minutes
             else:
@@ -320,6 +322,7 @@ def print_report(results: dict) -> None:
     print("ACTIONS:")
 
     critical_tables = [t for t, d in results.items() if d["level"] in ("critical", "dead", "unknown")]
+    warning_tables = [t for t, d in results.items() if d["level"] == "warning"]
     if critical_tables:
         print(f"\n🚨 STALE DATA DETECTED: {', '.join(critical_tables)}")
         print("\nFIX IMMEDIATELY:")
@@ -331,6 +334,14 @@ def print_report(results: dict) -> None:
         print("       --name 'manual-refresh-$(date +%s)'")
         print("\n  3. Local dev - run orchestrator:")
         print("     python scripts/run_local_orchestrator.py --morning")
+        if warning_tables:
+            print(f"\n⚠️  Also approaching staleness (not yet critical): {', '.join(warning_tables)}")
+    elif warning_tables:
+        print(f"\n⚠️  STALE (WARNING) DATA: {', '.join(warning_tables)}")
+        print("\nNot yet critical, but past the fresh threshold - check soon:")
+        print("  1. Local dev - run orchestrator/loaders to refresh:")
+        print("     python scripts/run_local_orchestrator.py --morning")
+        print("  2. If this persists across checks, treat it like critical staleness above.")
     else:
         print("\n✅ All data is fresh. No action needed.")
 

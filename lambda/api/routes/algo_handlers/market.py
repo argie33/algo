@@ -303,12 +303,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "buy_sell_daily",
                 "SELECT COUNT(*) AS row_count, MAX(date) AS last_updated FROM buy_sell_daily",
             ),
-            # Phase 7: Signal evaluation
-            (
-                "algo_signals_evaluated",
-                "SELECT COUNT(*) AS row_count, MAX(signal_date) AS last_updated FROM algo_signals_evaluated",
-            ),
             # Phase 7: Final signals generated
+            # (algo_signals_evaluated removed from this list - orphaned/deprecated since Session 274,
+            # already excluded from the loader-based list above via pipeline_removed_tables. Its only
+            # writer was deleted in commit c45211720 [2026-05-31], so it was permanently stuck showing
+            # a fixed stale date here regardless of how many times the pipeline ran - see daily_report.py
+            # for the equivalent fix to the query that read from it.)
             (
                 "algo_signals",
                 "SELECT COUNT(*) AS row_count, MAX(signal_date) AS last_updated FROM algo_signals",
@@ -534,7 +534,34 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         ok_count = summary.get("ok", 0)
         if not isinstance(ok_count, int):
             raise ValueError(f"Expected int for 'ok' count in health summary, got {type(ok_count).__name__}")
-        ready_to_trade = len(critical_stale) == 0 and ok_count > 0
+        data_fresh_enough = len(critical_stale) == 0 and ok_count > 0
+
+        # CRITICAL: Data freshness alone does not mean trading is actually authorized.
+        # The circuit breaker (Phase 2) can halt entries for reasons unrelated to data
+        # staleness (e.g. portfolio drawdown >= 20%) - ready_to_trade must reflect that,
+        # or the dashboard shows a contradictory "READY TO TRADE" checkmark right next to
+        # an orchestrator panel reporting HALTED. Use the most recent orchestrator run's
+        # halt state as the authoritative "is trading currently permitted" signal.
+        trading_halted = False
+        trading_halt_reason = None
+        try:
+            cur.execute("""
+                SELECT overall_status, halt_reason
+                FROM algo_orchestrator_runs
+                ORDER BY started_at DESC
+                LIMIT 1
+            """)
+            latest_run_row = cur.fetchone()
+            if latest_run_row:
+                latest_run_dict = safe_dict_convert(latest_run_row)
+                run_status = str(latest_run_dict.get("overall_status") or "").lower()
+                if run_status in ("halted", "error"):
+                    trading_halted = True
+                    trading_halt_reason = latest_run_dict.get("halt_reason")
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.warning(f"[DATA_STATUS] Could not determine orchestrator halt state: {e}")
+
+        ready_to_trade = data_fresh_enough and not trading_halted
 
         # ── Phase 1-9 Execution Health ──────────────────────────────────
         # Query execution health from tables populated by each orchestrator phase
@@ -807,6 +834,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         response = list_response(sources, total=len(sources), limit=None, offset=None)
         response["data"]["sources"] = sources
         response["data"]["ready_to_trade"] = ready_to_trade
+        response["data"]["trading_halted"] = trading_halted
+        response["data"]["trading_halt_reason"] = trading_halt_reason
         response["data"]["summary"] = summary
         response["data"]["critical_stale"] = critical_stale
         response["data"]["expected_date"] = str(expected_date)

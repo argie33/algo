@@ -91,7 +91,7 @@ const InvestmentTools = () => {
       title: "Pre-Trade Simulator",
       description:
         "Simulate any trade before placing it. Input ticker, size, and entry price to see projected risk, position weight, and how the trade affects overall portfolio exposure and drawdown limits.",
-      link: "/app/simulate",
+      link: "/app/pre-trade-impact",
       badge: null,
     },
   ];

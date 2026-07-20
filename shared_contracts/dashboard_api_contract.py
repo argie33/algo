@@ -976,6 +976,21 @@ DASHBOARD_ENDPOINTS = {
         "strict_fields": [],
         "critical": False,
     },
+    "earnings": {
+        "path": "/api/earnings",
+        "method": "GET",
+        "params": {"limit": 100},
+        "description": "Recent 10-K/10-Q earnings-related filing dates across the universe",
+        "response_schema": ResponseSchema(
+            required_fields=[],
+            optional_fields=["items", "total", "data_freshness"],
+            field_types={"items": list, "total": int},
+            description="Earnings filing dates (symbol, report_date, fiscal_period)",
+        ),
+        "freshness_max_age_seconds": 10368000,
+        "strict_fields": [],
+        "critical": False,
+    },
     "stocks": {
         "path": "/api/stocks",
         "method": "GET",

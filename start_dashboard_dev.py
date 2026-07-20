@@ -189,8 +189,13 @@ def run_complete_loader_pipeline() -> bool:
     print("[STARTUP] ============================================================", flush=True)
 
     # Step 1: Run morning pipeline (prices, technicals)
+    # 7 loaders (incl. rate-limited SEC/FINRA/Playwright fetches) over the full symbol
+    # universe (5459 active symbols as of the stock_symbols NYSE-listing fix) routinely
+    # exceed 10 minutes - a too-short timeout here silently truncates the pipeline
+    # mid-loader every run, which is why price_daily/technical_data_daily kept going
+    # stale even when this startup script ran. 1800s matches the metrics pipeline budget.
     print("[STARTUP] Step 1/2: Morning pipeline (prices, technicals, market status)...", flush=True)
-    morning_ok = run_loader_pipeline("morning", timeout=600)
+    morning_ok = run_loader_pipeline("morning", timeout=1800)
 
     if not morning_ok:
         print("[STARTUP] [WARN] Morning pipeline failed - proceeding with stale data", flush=True)

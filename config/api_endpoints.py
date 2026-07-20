@@ -47,9 +47,10 @@ def get_fred_url() -> str:
 
 
 def get_aaii_sentiment_url() -> str:
-    """Return AAII sentiment API base URL.
+    """Return AAII (American Association of Individual Investors) sentiment Excel download URL.
 
     Used by: load_aaii_sentiment loader
-    Pattern: https://www.aaii.com
+    Pattern: https://www.aaii.com/files/surveys/sentiment.xls
+    Note: Direct Excel download (no API key required). Returns XLS or XLSX depending on AAII.
     """
-    return "https://www.aaii.com"
+    return "https://www.aaii.com/files/surveys/sentiment.xls"

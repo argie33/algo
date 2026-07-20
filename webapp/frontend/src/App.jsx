@@ -30,8 +30,16 @@ const SystemBlueprint = React.lazy(() => import("./pages/SystemBlueprint"));
 const ConfigurationViewer = React.lazy(
   () => import("./pages/ConfigurationViewer")
 );
+const PreTradeSimulator = React.lazy(
+  () => import("./pages/PreTradeSimulator")
+);
+const RiskAnalytics = React.lazy(() => import("./pages/RiskAnalytics"));
+const EarningsCalendar = React.lazy(
+  () => import("./pages/EarningsCalendar")
+);
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
+import ErrorBoundary from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
 
 // Marketing pages
@@ -179,6 +187,14 @@ function App() {
             {/* Stocks Analysis & Signals */}
             <Route path="/app/deep-value" element={<DeepValueStocks />} />
             <Route
+              path="/app/earnings"
+              element={
+                <ProtectedRoute requireAuth>
+                  <EarningsCalendar />
+                </ProtectedRoute>
+              }
+            />
+            <Route
               path="/app/trading-signals"
               element={
                 <ProtectedRoute requireAuth>
@@ -225,6 +241,22 @@ function App() {
               element={
                 <ProtectedRoute requireAuth>
                   <TradeTracker />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/pre-trade-impact"
+              element={
+                <ProtectedRoute requireAuth>
+                  <PreTradeSimulator />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/app/risk-analytics"
+              element={
+                <ProtectedRoute requireAuth>
+                  <RiskAnalytics />
                 </ProtectedRoute>
               }
             />

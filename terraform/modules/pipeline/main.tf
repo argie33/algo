@@ -631,7 +631,7 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
           Next        = "LogFredFailure"
           ResultPath  = "$.loaderError"
         }]
-        Next = "MarketStatusDaily"
+        Next = "NaaimSentiment"
       }
 
       LogFredFailure = {
@@ -639,6 +639,109 @@ resource "aws_sfn_state_machine" "eod_pipeline" {
         Resource = var.loader_failure_handler_arn
         Parameters = {
           loader_name        = "economic_data"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "NaaimSentiment"
+          ResultPath  = "$.logError"
+        }]
+        Next = "NaaimSentiment"
+      }
+
+      # ── Step 8c-ter: NAAIM + AAII sentiment loaders (Session 301 restoration) ──
+      # Feed algo/risk/factors/naaim_factor.py + aaii_sentiment_factor.py, 2 of the Core 12
+      # market-exposure factors computed by MarketStatusDaily below. Both were deleted
+      # 2026-07-03 (mislabeled "unused") while the factors kept silently scoring off the
+      # resulting stale tables (3-4 weeks old, no freshness check anywhere in the read
+      # path). Fail-open like FredEconomicData: a missed weekly survey degrades the
+      # regime score by 2 of ~20 factor inputs, not worth halting the whole EOD pipeline.
+      NaaimSentiment = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 300
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["naaim"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogNaaimFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "AaiiSentiment"
+      }
+
+      LogNaaimFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "naaim"
+          "error.$"          = "$.loaderError.Error"
+          "error_message.$"  = "$.loaderError.Cause"
+          is_critical_loader = false
+        }
+        ResultPath = "$.failureLog"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.Unknown"]
+          IntervalSeconds = 2
+          MaxAttempts     = 2
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "AaiiSentiment"
+          ResultPath  = "$.logError"
+        }]
+        Next = "AaiiSentiment"
+      }
+
+      AaiiSentiment = {
+        Type           = "Task"
+        Resource       = "arn:aws:states:::ecs:runTask.sync"
+        TimeoutSeconds = 300
+        Parameters = {
+          Cluster              = var.ecs_cluster_arn
+          LaunchType           = "FARGATE"
+          TaskDefinition       = var.loader_task_definition_arns["aaii_sentiment"]
+          NetworkConfiguration = local.network_config
+        }
+        Retry = [{
+          ErrorEquals     = ["States.ALL"]
+          IntervalSeconds = 60
+          MaxAttempts     = 1
+          BackoffRate     = 2.0
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "LogAaiiFailure"
+          ResultPath  = "$.loaderError"
+        }]
+        Next = "MarketStatusDaily"
+      }
+
+      LogAaiiFailure = {
+        Type     = "Task"
+        Resource = var.loader_failure_handler_arn
+        Parameters = {
+          loader_name        = "aaii_sentiment"
           "error.$"          = "$.loaderError.Error"
           "error_message.$"  = "$.loaderError.Cause"
           is_critical_loader = false

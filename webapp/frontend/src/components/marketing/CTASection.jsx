@@ -13,7 +13,7 @@ const CTASection = ({
   title,
   subtitle,
   primaryCTA = { label: "Get Started", link: "/app/markets" },
-  secondaryCTA = { label: "Learn More", link: "/services" },
+  secondaryCTA = { label: "Learn More", link: "/research-insights" },
   variant = "primary",
   centered = true,
 }) => {

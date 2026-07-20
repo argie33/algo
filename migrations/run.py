@@ -57,15 +57,23 @@ def _has_sql_content(stmt: str) -> bool:
 
 
 def _split_sql_statements(sql: str) -> list:
-    """Split SQL into individual statements on ';', respecting dollar-quoted strings.
+    """Split SQL into individual statements on ';', respecting dollar-quoted and
+    single-quoted strings.
 
     PostgreSQL functions use dollar-quoting ($$ ... $$ or $tag$ ... $tag$).
     A naive sql.split(';') breaks inside function bodies that contain semicolons.
+    It also breaks inside ordinary '...' string literals that happen to contain a
+    semicolon (e.g. a human-readable description value like 'foo; bar') - this was
+    NOT previously tracked at all, so any such migration would silently split mid-
+    string and fail with a psycopg2 "unterminated quoted string" error. Standard SQL
+    escapes an embedded quote as '' (two single quotes), which is handled below by
+    treating a quote immediately followed by another quote as staying inside the string.
     Filters out empty or comment-only fragments (psycopg2 rejects empty queries).
     """
     statements = []
     current = []
     dollar_tag = None  # None = not in dollar-quote; set to tag string when inside
+    in_string = False  # True while inside an ordinary '...' string literal
     i = 0
     n = len(sql)
 
@@ -73,13 +81,13 @@ def _split_sql_statements(sql: str) -> list:
         ch = sql[i]
 
         # Skip line comments (-- ...) without treating their ; as statement separators
-        if dollar_tag is None and ch == "-" and i + 1 < n and sql[i + 1] == "-":
+        if dollar_tag is None and not in_string and ch == "-" and i + 1 < n and sql[i + 1] == "-":
             while i < n and sql[i] != "\n":
                 current.append(sql[i])
                 i += 1
             continue
 
-        if dollar_tag is None and ch == "$":
+        if not in_string and dollar_tag is None and ch == "$":
             # Scan potential dollar-quote opening tag: $identchars$
             j = i + 1
             while j < n and (sql[j].isalnum() or sql[j] == "_"):
@@ -98,7 +106,18 @@ def _split_sql_statements(sql: str) -> list:
                 dollar_tag = None
                 continue
 
-        if ch == ";" and dollar_tag is None:
+        if dollar_tag is None and ch == "'":
+            # '' inside a string is an escaped literal quote, not the closing quote
+            if in_string and i + 1 < n and sql[i + 1] == "'":
+                current.append(sql[i : i + 2])
+                i += 2
+                continue
+            in_string = not in_string
+            current.append(ch)
+            i += 1
+            continue
+
+        if ch == ";" and dollar_tag is None and not in_string:
             stmt = "".join(current).strip()
             if _has_sql_content(stmt):
                 statements.append(stmt)
