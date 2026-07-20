@@ -73,8 +73,8 @@ def handle(  # noqa: C901
                     qm.current_ratio,
                     qm.quick_ratio,
                     vm.market_cap,
-                    pm.insider_ownership AS held_percent_insiders,
-                    pm.institutional_ownership AS held_percent_institutions
+                    pm.insider_ownership_pct AS held_percent_insiders,
+                    pm.institutional_ownership_pct AS held_percent_institutions
                 FROM value_metrics vm
                 LEFT JOIN quality_metrics qm ON vm.symbol = qm.symbol
                 LEFT JOIN company_profile cp ON vm.symbol = cp.ticker

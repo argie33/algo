@@ -464,6 +464,25 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
         rows = execute_with_timeout(cur, query, timeout_sec=15, max_attempts=1)
         rows = [safe_json_serialize(dict(row)) for row in rows]
 
+        # Trading-day-aware thresholds: these tables are written once per trading day (EOD
+        # loaders). A plain "NOW() - MAX(date)" age check compares against raw calendar days,
+        # so every Monday morning (and after any holiday) the ~3-calendar-day gap since
+        # Friday's close reads as STALE/CRITICAL even though the data is exactly as fresh as
+        # expected. Shift the healthy/critical tiers by the size of the weekend/holiday gap
+        # since the last completed trading day, mirroring the fix already applied to
+        # scripts/monitor_data_staleness.py for the same bug class.
+        from datetime import timedelta
+
+        from algo.infrastructure import MarketCalendar
+
+        today = datetime.now(timezone.utc).date()
+        prev_trading_day = today - timedelta(days=1)
+        for _ in range(10):
+            if MarketCalendar.is_trading_day(prev_trading_day):
+                break
+            prev_trading_day -= timedelta(days=1)
+        gap_days = max(0, (today - prev_trading_day).days - 1)
+
         config = get_config()
         tables = []
         for row in rows:
@@ -481,10 +500,12 @@ def _handle_pipeline(cur: cursor, jwt_claims: dict[str, Any] | None) -> Any:
 
             age = float(row["age_days"])
             row_count = int(row["row_count"])
+            healthy_threshold = config.pipeline_healthy_days + gap_days
+            critical_threshold = config.pipeline_critical_days + gap_days
 
-            if age <= config.pipeline_healthy_days and row_count > 0:
+            if age <= healthy_threshold and row_count > 0:
                 status = "HEALTHY"
-            elif age <= config.pipeline_critical_days:
+            elif age <= critical_threshold:
                 status = "STALE"
             else:
                 status = "CRITICAL"

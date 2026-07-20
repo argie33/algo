@@ -297,7 +297,9 @@ def handle(  # noqa: C901
                         [safe_json_serialize(dict(r)) for r in rows],
                         data_freshness=freshness,
                     )
-                    is_valid, error_msg = ResponseValidator.validate_endpoint_response("stocks", deep_value_result)
+                    is_valid, error_msg = ResponseValidator.validate_endpoint_response(
+                        "stocks", deep_value_result["data"]
+                    )
                     if not is_valid:
                         logger.error(f"Endpoint response validation failed: {error_msg}")
                         if error_msg:
