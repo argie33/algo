@@ -262,8 +262,6 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             "signal_trade_performance",
             "qualified_trades",
             "manual_positions",
-            # Orphaned/deprecated signal evaluation (no active writer as of Session 274)
-            "algo_signals_evaluated",
         }
 
         cur.execute("""
@@ -304,11 +302,6 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "SELECT COUNT(*) AS row_count, MAX(date) AS last_updated FROM buy_sell_daily",
             ),
             # Phase 7: Final signals generated
-            # (algo_signals_evaluated removed from this list - orphaned/deprecated since Session 274,
-            # already excluded from the loader-based list above via pipeline_removed_tables. Its only
-            # writer was deleted in commit c45211720 [2026-05-31], so it was permanently stuck showing
-            # a fixed stale date here regardless of how many times the pipeline ran - see daily_report.py
-            # for the equivalent fix to the query that read from it.)
             (
                 "algo_signals",
                 "SELECT COUNT(*) AS row_count, MAX(signal_date) AS last_updated FROM algo_signals",
@@ -383,7 +376,6 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "algo_trades": "entry_date",
                         "algo_reconciliation_log": "reconciliation_date",
                         "algo_signals": "signal_date",
-                        "algo_signals_evaluated": "signal_date",
                         "circuit_breaker_status": "check_date",
                         "algo_performance_daily": "report_date",
                         "algo_portfolio_snapshots": "snapshot_date",

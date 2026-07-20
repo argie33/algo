@@ -69,9 +69,20 @@ class OptimalLoader:
 
         self._infrastructure = LoaderInfrastructure(self.table_name)
         self._stats = LoaderStats()
-        # CRITICAL FIX: Derive loader_name from module name (e.g., loaders.load_prices -> load_prices)
-        # This fixes watermark lookup failure where loader_name was incorrectly set to table_name
-        loader_module_name = self.__class__.__module__.split(".")[-1]
+        # CRITICAL FIX: Derive loader_name from the class's source file, not self.__class__.__module__.
+        # __module__ depends on *how* Python was invoked: every loader here is normally launched as
+        # `python3 loaders/load_x.py` (see scripts/local_loader_scheduler.py, terraform loader tasks),
+        # which makes CPython set that script's module name - and therefore every class defined in
+        # it - to "__main__", not "loaders.load_x". A prior fix (this same line) switched from
+        # self.table_name to self.__class__.__module__.split(".")[-1], which only resolves correctly
+        # when the loader is imported as a module (e.g. `import loaders.load_x`); run the normal way,
+        # every loader collides into a single loader="__main__" bucket in loader_watermarks, so any
+        # two symbols/loaders sharing that bucket silently overwrite each other's incremental
+        # watermark. inspect.getfile() returns the real source path regardless of invocation style.
+        import inspect
+        from pathlib import Path
+
+        loader_module_name = Path(inspect.getfile(self.__class__)).stem
         self._watermark = WatermarkManager(loader_module_name, self.table_name)
         self._bulk_insert_mgr = BulkInsertManager(self.table_name, self.primary_key, self.chunk_size)
         self._last_health_check_update = 0.0  # Track health check updates

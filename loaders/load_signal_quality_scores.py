@@ -134,7 +134,20 @@ class SignalQualityScoresLoader(OptimalLoader):
                     )
                 actual_symbols = int(cur_row[0])
 
-                cur.execute("SELECT symbol, MAX(date) FROM signal_quality_scores GROUP BY symbol")
+                # CRITICAL: only count successfully-scored dates toward the watermark. A row
+                # with data_unavailable=True (error marker written by the except-block below,
+                # e.g. after a transient upstream failure) still has a `date` - counting it here
+                # would advance `since` past that date forever. Because `end` is capped at the
+                # last date buy_sell_daily actually has signals for, `since` can never legitimately
+                # advance beyond `end` until tomorrow's trading day; once one bad run marks
+                # every date through `end` as unavailable, the fetch_incremental() filter below
+                # (`date > since`) discards every subsequently recomputed score as "already done"
+                # on every later run, permanently hiding a since-fixed upstream bug behind an
+                # empty-but-successful result instead of ever retrying those dates.
+                cur.execute(
+                    "SELECT symbol, MAX(date) FROM signal_quality_scores "
+                    "WHERE data_unavailable = false GROUP BY symbol"
+                )
                 watermarks = {row[0]: row[1] for row in cur.fetchall()}
 
             self._batch_context = {

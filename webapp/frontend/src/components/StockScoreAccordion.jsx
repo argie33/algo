@@ -1,17 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Grid,
-  Box,
-  Typography,
-  Chip,
-  useTheme,
-  alpha,
-  CircularProgress,
-} from "@mui/material";
-import { ExpandMore, Star } from "@mui/icons-material";
+import { Star, Activity, DollarSign, TrendingUp, Users, Shield, Inbox } from "lucide-react";
 import {
   formatNumber,
   formatPercentageChange,
@@ -24,21 +12,21 @@ const pct = (v, dp = 2) => formatPercentageChange(v, dp);
 const money = (v) => formatCurrency(v);
 
 const scoreClass = (v) => {
-  if (v == null || isNaN(Number(v))) return "default";
+  if (v == null || isNaN(Number(v))) return "badge";
   const n = Number(v);
-  if (n >= 80) return "success";
-  if (n >= 60) return "info";
-  if (n >= 40) return "warning";
-  return "error";
+  if (n >= 80) return "badge-success";
+  if (n >= 60) return "badge-cyan";
+  if (n >= 40) return "badge-amber";
+  return "badge-danger";
 };
 
-const scoreColor = (v, theme) => {
-  if (v == null || isNaN(Number(v))) return theme.palette.text.secondary;
+const scoreColor = (v) => {
+  if (v == null || isNaN(Number(v))) return "var(--text-faint)";
   const n = Number(v);
-  if (n >= 80) return theme.palette.success.main;
-  if (n >= 60) return theme.palette.info.main;
-  if (n >= 40) return theme.palette.warning.main;
-  return theme.palette.error.main;
+  if (n >= 80) return "var(--success)";
+  if (n >= 60) return "var(--cyan)";
+  if (n >= 40) return "var(--amber)";
+  return "var(--danger)";
 };
 
 const grade = (v) => {
@@ -59,14 +47,26 @@ const grade = (v) => {
 };
 
 const FACTORS = [
-  { key: "quality", label: "Quality", scoreKey: "quality_score" },
-  { key: "momentum", label: "Momentum", scoreKey: "momentum_score" },
-  { key: "value", label: "Value", scoreKey: "value_score" },
-  { key: "growth", label: "Growth", scoreKey: "growth_score" },
-  { key: "positioning", label: "Positioning", scoreKey: "positioning_score" },
-  { key: "stability", label: "Stability", scoreKey: "stability_score" },
+  { key: "quality", label: "Quality", scoreKey: "quality_score", icon: Star },
+  { key: "momentum", label: "Momentum", scoreKey: "momentum_score", icon: Activity },
+  { key: "value", label: "Value", scoreKey: "value_score", icon: DollarSign },
+  { key: "growth", label: "Growth", scoreKey: "growth_score", icon: TrendingUp },
+  { key: "positioning", label: "Positioning", scoreKey: "positioning_score", icon: Users },
+  { key: "stability", label: "Stability", scoreKey: "stability_score", icon: Shield },
 ];
 
+// ─── Empty state ────────────────────────────────────────────────────────────
+function Empty({ title, desc }) {
+  return (
+    <div className="empty">
+      <Inbox size={24} />
+      <div className="empty-title">{title}</div>
+      {desc && <div className="empty-desc">{desc}</div>}
+    </div>
+  );
+}
+
+// ─── recent trading signals for a stock ────────────────────────────────────
 const SignalsForStock = ({ symbol }) => {
   const [signals, setSignals] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -88,911 +88,292 @@ const SignalsForStock = ({ symbol }) => {
       });
   }, [symbol]);
 
-  if (loading) {
-    return (
-      <Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
-        <CircularProgress size={28} />
-      </Box>
-    );
-  }
-
-  if (error) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="caption" color="error">
-          {error}
-        </Typography>
-      </Box>
-    );
-  }
-
-  if (!signals || signals.length === 0) {
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="caption" color="text.secondary">
-          No recent trading signals
-        </Typography>
-      </Box>
-    );
-  }
-
   return (
-    <Box>
-      <Box sx={{ overflowX: "auto" }}>
-        <table className="data-table" style={{ minWidth: 600 }}>
-          <thead>
-            <tr>
-              <th style={{ width: 80 }}>Date</th>
-              <th style={{ width: 60 }}>Signal</th>
-              <th style={{ width: 80 }}>Score</th>
-              <th style={{ width: 100 }}>Grade</th>
-              <th style={{ width: 120 }}>Pass Gates</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-          <tbody>
-            {signals.map((sig, idx) => (
-              <tr key={`${sig.symbol}-${sig.date}-${idx}`}>
-                <td style={{ fontSize: "0.85rem" }}>
-                  {sig.date ? new Date(sig.date).toLocaleDateString() : "—"}
-                </td>
-                <td style={{ fontSize: "0.85rem", fontWeight: 600 }}>
-                  <Chip
-                    label={sig.signal || "—"}
-                    size="small"
-                    color={sig.signal === "BUY" ? "success" : "error"}
-                    sx={{ fontWeight: 700 }}
-                  />
-                </td>
-                <td
-                  style={{
-                    fontSize: "0.85rem",
-                    fontWeight: 600,
-                    textAlign: "center",
-                  }}
-                >
-                  {sig.entry_quality_score != null
-                    ? formatNumber(sig.entry_quality_score, 1)
-                    : "—"}
-                </td>
-                <td style={{ fontSize: "0.85rem" }}>{sig.grade || "—"}</td>
-                <td style={{ fontSize: "0.85rem" }}>
-                  {sig.pass_gates ? "✓ Pass" : "✗ Fail"}
-                </td>
-                <td
-                  style={{
-                    fontSize: "0.85rem",
-                    color: "var(--text-secondary)",
-                  }}
-                >
-                  {sig.reason || "—"}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </Box>
-    </Box>
-  );
-};
-
-const StockScoreAccordion = ({
-  stocks = [],
-  marketAvgs = {},
-  sectorAvgs = {},
-}) => {
-  const theme = useTheme();
-
-  if (!stocks || stocks.length === 0) {
-    return (
-      <Box sx={{ p: 4, textAlign: "center" }}>
-        <Typography variant="body1" color="text.secondary">
-          No stock scores data found
-        </Typography>
-      </Box>
-    );
-  }
-
-  const _DataField = ({
-    label,
-    value,
-    format = "text",
-    color = null,
-    unit = "",
-  }) => {
-    if (value === null || value === undefined || value === "") {
-      return null;
-    }
-
-    let displayValue = value;
-    if (format === "currency" && value) {
-      displayValue = formatCurrency(value);
-    } else if (format === "percent" && value !== null && value !== undefined) {
-      displayValue = formatPercentageChange(value, 2);
-    } else if (format === "number" && value !== null && value !== undefined) {
-      displayValue = formatNumber(value, 2);
-    }
-
-    return (
-      <Box sx={{ mb: 1 }}>
-        <Typography
-          variant="caption"
-          sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
-        >
-          {label}
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{
-            fontWeight: 600,
-            color: color || "text.primary",
-            fontSize: "0.95rem",
-          }}
-        >
-          {displayValue} {unit}
-        </Typography>
-      </Box>
-    );
-  };
-
-  const FactorSection = ({ factor, stock, sectorAvg, marketAvg }) => {
-    const stockScore = stock[factor.scoreKey];
-    const Icon = Star;
-
-    return (
-      <Grid item xs={12} sm={6} md={4} lg={2.4}>
-        <Box sx={{ mb: 2 }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.5 }}>
-            <Icon sx={{ fontSize: 18, color: scoreColor(stockScore, theme) }} />
-            <Typography
-              variant="subtitle2"
-              sx={{
-                fontWeight: 700,
-                color: "text.primary",
-                fontSize: "0.85rem",
-                textTransform: "uppercase",
-                letterSpacing: "0.3px",
-              }}
-            >
-              {factor.label}
-            </Typography>
-            <Chip
-              label={num(stockScore, 1)}
-              size="small"
-              color={scoreClass(stockScore)}
-              sx={{ ml: "auto", fontWeight: 700 }}
-            />
-          </Box>
-        </Box>
-
-        {/* Stock score comparison */}
-        <Box
-          sx={{
-            p: 1.5,
-            backgroundColor: alpha(scoreColor(stockScore, theme), 0.08),
-            borderRadius: 1,
-            mb: 1,
-          }}
-        >
-          <Typography
-            variant="caption"
-            sx={{
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              color: "text.secondary",
-              display: "block",
-              mb: 0.5,
-            }}
-          >
-            STOCK SCORE
-          </Typography>
-          <Typography
-            variant="h6"
-            sx={{ fontWeight: 700, color: scoreColor(stockScore, theme) }}
-          >
-            {num(stockScore, 1)}
-          </Typography>
-        </Box>
-
-        {/* Sector comparison */}
-        {sectorAvg != null && (
-          <Box
-            sx={{
-              p: 1.5,
-              backgroundColor: alpha(theme.palette.info.main, 0.08),
-              borderRadius: 1,
-              mb: 1,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "text.secondary",
-                display: "block",
-                mb: 0.5,
-              }}
-            >
-              SECTOR AVG
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ fontWeight: 600, color: theme.palette.info.main }}
-            >
-              {num(sectorAvg, 1)}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", fontSize: "0.7rem" }}
-            >
-              {stockScore > sectorAvg ? "+" : ""}
-              {num(stockScore - sectorAvg, 1)} vs sector
-            </Typography>
-          </Box>
-        )}
-
-        {/* Market average comparison */}
-        {marketAvg != null && (
-          <Box
-            sx={{
-              p: 1.5,
-              backgroundColor: alpha(theme.palette.text.secondary, 0.08),
-              borderRadius: 1,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                fontSize: "0.75rem",
-                fontWeight: 600,
-                color: "text.secondary",
-                display: "block",
-                mb: 0.5,
-              }}
-            >
-              MARKET AVG
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ fontWeight: 600, color: theme.palette.text.primary }}
-            >
-              {num(marketAvg, 1)}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", fontSize: "0.7rem" }}
-            >
-              {stockScore > marketAvg ? "+" : ""}
-              {num(stockScore - marketAvg, 1)} vs market
-            </Typography>
-          </Box>
-        )}
-      </Grid>
-    );
-  };
-
-  return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {stocks.map((stock, index) => {
-        const sectorAvgsForStock = sectorAvgs || {};
-
-        return (
-          <Accordion
-            key={`${stock.symbol}-${index}`}
-            defaultExpanded={index === 0}
-            sx={{ mb: 1 }}
-          >
-            {/* ─── ACCORDION SUMMARY (Header with key metrics) ─── */}
-            <AccordionSummary
-              expandIcon={<ExpandMore />}
-              sx={{
-                "&:hover": {
-                  backgroundColor: alpha(theme.palette.primary.main, 0.02),
-                },
-              }}
-            >
-              <Grid
-                container
-                alignItems="center"
-                spacing={2}
-                sx={{ width: "100%" }}
-              >
-                {/* Composite Score Badge */}
-                <Grid item xs="auto">
-                  <Box
-                    sx={{
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      gap: 0.5,
-                    }}
-                  >
-                    <Chip
-                      label={grade(stock.composite_score)}
-                      color={scoreClass(stock.composite_score)}
-                      sx={{
-                        fontWeight: 700,
-                        fontSize: "0.9rem",
-                        height: 36,
-                        width: 36,
-                      }}
-                    />
-                    <Typography
-                      variant="caption"
-                      sx={{ fontSize: "0.65rem", fontWeight: 600 }}
-                    >
-                      Grade
-                    </Typography>
-                  </Box>
-                </Grid>
-
-                {/* Symbol, Company, Sector */}
-                <Grid
-                  item
-                  xs={12}
-                  sm="auto"
-                  sx={{ flexGrow: { xs: 1, sm: 0 }, minWidth: { sm: 200 } }}
-                >
-                  <Box
-                    sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}
-                  >
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Typography variant="h5" fontWeight={700}>
-                        {stock.symbol}
-                      </Typography>
-                      {stock.price && (
-                        <Typography
-                          variant="caption"
-                          sx={{ fontWeight: 600, color: "text.secondary" }}
-                        >
-                          ${num(stock.price, 2)}
-                        </Typography>
-                      )}
-                    </Box>
-                    {stock.company_name && (
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                          lineHeight: 1.2,
-                          maxWidth: 250,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
+    <div className="card">
+      <div className="card-body" style={{ padding: 0 }}>
+        {loading ? (
+          <Empty title="Loading signals…" />
+        ) : error ? (
+          <div className="t-xs" style={{ color: "var(--danger)", padding: "var(--space-3)" }}>
+            {error}
+          </div>
+        ) : !signals || signals.length === 0 ? (
+          <Empty title="No recent trading signals" />
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 80 }}>Date</th>
+                  <th style={{ width: 60 }}>Signal</th>
+                  <th className="num" style={{ width: 70 }}>Score</th>
+                  <th style={{ width: 60 }}>Grade</th>
+                  <th style={{ width: 100 }}>Gates</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {signals.map((sig, idx) => (
+                  <tr key={`${sig.symbol}-${sig.date}-${idx}`}>
+                    <td className="t-xs muted">
+                      {sig.date ? new Date(sig.date).toLocaleDateString() : "—"}
+                    </td>
+                    <td>
+                      <span
+                        className={`badge ${sig.signal === "BUY" ? "badge-success" : "badge-danger"}`}
                       >
-                        {stock.company_name}
-                      </Typography>
-                    )}
-                    {stock.sector && (
-                      <Typography variant="caption" color="text.secondary">
-                        {stock.sector}
-                      </Typography>
-                    )}
-                  </Box>
-                </Grid>
-
-                {/* Key Metrics - Right Side */}
-                <Grid item xs={12} sm sx={{ flexGrow: 1 }}>
-                  <Grid container spacing={2} sx={{ ml: 0 }}>
-                    {/* Composite Score */}
-                    <Grid item xs={6} sm="auto">
-                      <Box sx={{ minWidth: 90 }}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          fontWeight={600}
-                          sx={{
-                            display: "block",
-                            fontSize: "0.7rem",
-                            mb: 0.25,
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          Composite
-                        </Typography>
-                        <Chip
-                          label={num(stock.composite_score, 1)}
-                          color={scoreClass(stock.composite_score)}
-                          sx={{ fontWeight: 700 }}
-                        />
-                      </Box>
-                    </Grid>
-
-                    {/* Quality Score */}
-                    <Grid item xs={6} sm="auto">
-                      <Box sx={{ minWidth: 70 }}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          fontWeight={600}
-                          sx={{
-                            display: "block",
-                            fontSize: "0.7rem",
-                            mb: 0.25,
-                          }}
-                        >
-                          Quality
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          fontWeight={700}
-                          sx={{
-                            fontSize: "0.9rem",
-                            color: scoreColor(stock.quality_score, theme),
-                          }}
-                        >
-                          {num(stock.quality_score, 0)}
-                        </Typography>
-                      </Box>
-                    </Grid>
-
-                    {/* Momentum Score */}
-                    <Grid item xs={6} sm="auto">
-                      <Box sx={{ minWidth: 70 }}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          fontWeight={600}
-                          sx={{
-                            display: "block",
-                            fontSize: "0.7rem",
-                            mb: 0.25,
-                          }}
-                        >
-                          Momentum
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          fontWeight={700}
-                          sx={{
-                            fontSize: "0.9rem",
-                            color: scoreColor(stock.momentum_score, theme),
-                          }}
-                        >
-                          {num(stock.momentum_score, 0)}
-                        </Typography>
-                      </Box>
-                    </Grid>
-
-                    {/* Value Score */}
-                    <Grid item xs={6} sm="auto">
-                      <Box sx={{ minWidth: 60 }}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          fontWeight={600}
-                          sx={{
-                            display: "block",
-                            fontSize: "0.7rem",
-                            mb: 0.25,
-                          }}
-                        >
-                          Value
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          fontWeight={700}
-                          sx={{
-                            fontSize: "0.9rem",
-                            color: scoreColor(stock.value_score, theme),
-                          }}
-                        >
-                          {num(stock.value_score, 0)}
-                        </Typography>
-                      </Box>
-                    </Grid>
-
-                    {/* Growth Score */}
-                    <Grid item xs={6} sm="auto">
-                      <Box sx={{ minWidth: 70 }}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          fontWeight={600}
-                          sx={{
-                            display: "block",
-                            fontSize: "0.7rem",
-                            mb: 0.25,
-                          }}
-                        >
-                          Growth
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          fontWeight={700}
-                          sx={{
-                            fontSize: "0.9rem",
-                            color: scoreColor(stock.growth_score, theme),
-                          }}
-                        >
-                          {num(stock.growth_score, 0)}
-                        </Typography>
-                      </Box>
-                    </Grid>
-
-                    {/* Positioning Score */}
-                    <Grid item xs={6} sm="auto">
-                      <Box sx={{ minWidth: 70 }}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          fontWeight={600}
-                          sx={{
-                            display: "block",
-                            fontSize: "0.7rem",
-                            mb: 0.25,
-                          }}
-                        >
-                          Position
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          fontWeight={700}
-                          sx={{
-                            fontSize: "0.9rem",
-                            color: scoreColor(stock.positioning_score, theme),
-                          }}
-                        >
-                          {num(stock.positioning_score, 0)}
-                        </Typography>
-                      </Box>
-                    </Grid>
-
-                    {/* Stability Score */}
-                    <Grid item xs={6} sm="auto">
-                      <Box sx={{ minWidth: 70 }}>
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          fontWeight={600}
-                          sx={{
-                            display: "block",
-                            fontSize: "0.7rem",
-                            mb: 0.25,
-                          }}
-                        >
-                          Stability
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          fontWeight={700}
-                          sx={{
-                            fontSize: "0.9rem",
-                            color: scoreColor(stock.stability_score, theme),
-                          }}
-                        >
-                          {num(stock.stability_score, 0)}
-                        </Typography>
-                      </Box>
-                    </Grid>
-
-                    {/* Updated Date */}
-                    {stock.last_updated && (
-                      <Grid item xs={12} sm="auto">
-                        <Typography variant="caption" color="text.secondary">
-                          Updated{" "}
-                          {new Date(stock.last_updated).toLocaleDateString()}
-                        </Typography>
-                      </Grid>
-                    )}
-                  </Grid>
-                </Grid>
-              </Grid>
-            </AccordionSummary>
-
-            {/* ─── ACCORDION DETAILS (Expandable factor breakdown) ─── */}
-            <AccordionDetails
-              sx={{
-                backgroundColor: "background.paper",
-                borderTop: `2px solid ${alpha(theme.palette.primary.main, 0.1)}`,
-                pt: 3.5,
-                pb: 3.5,
-                px: 3,
-              }}
-            >
-              {/* ─── Factor Scores with Comparisons ─── */}
-              <Box sx={{ mb: 4 }}>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 700,
-                    mb: 3,
-                    color: "primary.main",
-                    textTransform: "uppercase",
-                    fontSize: "0.9rem",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  📊 Factor Scores & Comparisons
-                </Typography>
-                <Grid container spacing={2}>
-                  {FACTORS.map((f) => (
-                    <FactorSection
-                      key={f.key}
-                      factor={f}
-                      stock={stock}
-                      sectorAvg={sectorAvgsForStock[f.key]}
-                      marketAvg={marketAvgs[f.key]}
-                    />
-                  ))}
-                </Grid>
-              </Box>
-
-              {/* ─── Factor Inputs Tables ─── */}
-              <Box sx={{ mb: 4 }}>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 700,
-                    mb: 3,
-                    color: "primary.main",
-                    textTransform: "uppercase",
-                    fontSize: "0.9rem",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  📋 Detailed Factor Inputs
-                </Typography>
-                <Grid container spacing={3}>
-                  <InputsGrid
-                    title="Quality & Fundamentals"
-                    inputs={stock}
-                    schema={QUALITY_SCHEMA}
-                  />
-                  <InputsGrid
-                    title="Momentum"
-                    inputs={stock}
-                    schema={MOMENTUM_SCHEMA}
-                  />
-                  <InputsGrid
-                    title="Value"
-                    inputs={stock}
-                    schema={VALUE_SCHEMA}
-                  />
-                  <InputsGrid
-                    title="Growth"
-                    inputs={stock}
-                    schema={GROWTH_SCHEMA}
-                  />
-                  <InputsGrid
-                    title="Positioning"
-                    inputs={stock}
-                    schema={POSITIONING_SCHEMA}
-                  />
-                  <InputsGrid
-                    title="Stability"
-                    inputs={stock}
-                    schema={STABILITY_SCHEMA}
-                  />
-                </Grid>
-              </Box>
-
-              {/* ─── Trading Signals ─── */}
-              <Box>
-                <Typography
-                  variant="h6"
-                  sx={{
-                    fontWeight: 700,
-                    mb: 3,
-                    color: "primary.main",
-                    textTransform: "uppercase",
-                    fontSize: "0.9rem",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  📈 Recent Trading Signals
-                </Typography>
-                <SignalsForStock symbol={stock.symbol} />
-              </Box>
-            </AccordionDetails>
-          </Accordion>
-        );
-      })}
-    </Box>
+                        {sig.signal || "—"}
+                      </span>
+                    </td>
+                    <td className="num t-xs">
+                      {sig.entry_quality_score != null
+                        ? formatNumber(sig.entry_quality_score, 1)
+                        : "—"}
+                    </td>
+                    <td className="t-xs">{sig.grade || "—"}</td>
+                    <td className="t-xs">
+                      {sig.pass_gates ? (
+                        <span className="badge badge-success">Pass</span>
+                      ) : (
+                        <span className="badge badge-danger">Fail</span>
+                      )}
+                    </td>
+                    <td className="t-xs muted">{sig.reason || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
-function InputsGrid({ title, inputs, schema }) {
-  const theme = useTheme();
-
-  if (!inputs || typeof inputs !== "object" || Array.isArray(inputs)) {
-    return (
-      <Grid item xs={12} sm={6} md={4}>
-        <Box sx={{ p: 2, backgroundColor: "action.hover", borderRadius: 1 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontWeight: 700, mb: 1, fontSize: "0.85rem" }}
-          >
-            {title}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            No data available
-          </Typography>
-        </Box>
-      </Grid>
-    );
-  }
-
-  const rows = schema
-    .map((s) => ({ ...s, value: inputs[s.key] }))
-    .filter((r) => r.value != null && r.fmt && typeof r.fmt === "function");
-
-  if (rows.length === 0) {
-    return (
-      <Grid item xs={12} sm={6} md={4}>
-        <Box sx={{ p: 2, backgroundColor: "action.hover", borderRadius: 1 }}>
-          <Typography
-            variant="subtitle2"
-            sx={{ fontWeight: 700, mb: 1, fontSize: "0.85rem" }}
-          >
-            {title}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            No detailed metrics available
-          </Typography>
-        </Box>
-      </Grid>
-    );
-  }
+// ─── factor score summary card ─────────────────────────────────────────────
+function FactorCard({ factor, stock, sectorAvg, marketAvg }) {
+  const Icon = factor.icon;
+  const score = stock[factor.scoreKey];
+  const diff = (avg) => {
+    if (score == null || avg == null) return null;
+    const d = Number(score) - Number(avg);
+    return `${d >= 0 ? "+" : ""}${num(d, 1)}`;
+  };
 
   return (
-    <Grid item xs={12} sm={6} md={4}>
-      <Box
-        sx={{
-          borderRadius: 1,
-          overflow: "hidden",
-          border: `1px solid ${theme.palette.divider}`,
-        }}
-      >
-        <Box
-          sx={{
-            p: 1.5,
-            backgroundColor: alpha(theme.palette.primary.main, 0.06),
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          }}
-        >
-          <Typography
-            variant="subtitle2"
-            sx={{
-              fontWeight: 700,
-              fontSize: "0.85rem",
+    <div className="card" style={{ background: "var(--surface-2)" }}>
+      <div className="card-body">
+        <div className="flex items-center gap-2" style={{ marginBottom: "var(--space-3)" }}>
+          <Icon size={15} style={{ color: scoreColor(score) }} />
+          <span
+            style={{
+              fontWeight: "var(--w-semibold)",
+              fontSize: "var(--t-xs)",
               textTransform: "uppercase",
               letterSpacing: "0.3px",
             }}
           >
-            {title}
-          </Typography>
-        </Box>
-        <Box sx={{ p: 1.5 }}>
-          {rows.map((r) => (
-            <Box
-              key={r.key}
-              sx={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                py: 0.75,
-                borderBottom: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-                "&:last-child": { borderBottom: "none" },
-              }}
-            >
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ fontSize: "0.8rem" }}
-              >
-                {r.label}
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{
-                  fontWeight: 600,
-                  fontSize: "0.8rem",
-                  fontFamily: "monospace",
-                  ml: 1,
-                  textAlign: "right",
-                  color: "text.primary",
-                }}
-              >
-                {r.fmt(r.value)}
-              </Typography>
-            </Box>
-          ))}
-        </Box>
-      </Box>
-    </Grid>
+            {factor.label}
+          </span>
+          <span className={`badge ${scoreClass(score)}`} style={{ marginLeft: "auto" }}>
+            {num(score, 1)}
+          </span>
+        </div>
+        <div className="flex flex-col" style={{ gap: 4 }}>
+          <div className="flex" style={{ fontSize: "var(--t-2xs)" }}>
+            <span className="muted" style={{ minWidth: 80 }}>Sector avg</span>
+            <span className="mono tnum" style={{ flex: 1, textAlign: "right" }}>
+              {sectorAvg != null ? `${num(sectorAvg, 1)} (${diff(sectorAvg)})` : "—"}
+            </span>
+          </div>
+          <div className="flex" style={{ fontSize: "var(--t-2xs)" }}>
+            <span className="muted" style={{ minWidth: 80 }}>Market avg</span>
+            <span className="mono tnum" style={{ flex: 1, textAlign: "right" }}>
+              {marketAvg != null ? `${num(marketAvg, 1)} (${diff(marketAvg)})` : "—"}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
+// ─── factor inputs card ─────────────────────────────────────────────────────
+function InputsCard({ title, stock, schema }) {
+  const rows = schema
+    .map((s) => ({ ...s, value: stock[s.key] }))
+    .filter((r) => r.value != null && typeof r.fmt === "function");
+
+  return (
+    <div className="card">
+      <div className="card-head">
+        <div
+          className="card-title"
+          style={{ fontSize: "var(--t-xs)", textTransform: "uppercase", letterSpacing: "0.3px" }}
+        >
+          {title}
+        </div>
+      </div>
+      <div className="card-body" style={{ padding: 0 }}>
+        {rows.length === 0 ? (
+          <div className="t-xs muted" style={{ padding: "var(--space-3)" }}>
+            No detailed metrics available
+          </div>
+        ) : (
+          <table className="data-table">
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.key}>
+                  <td className="t-xs">{r.label}</td>
+                  <td className="num mono tnum t-xs">{r.fmt(r.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── single stock detail (matches TradingSignals' SignalDetail styling) ────
+function StockDetail({ stock, marketAvgs, sectorAvgs }) {
+  return (
+    <div>
+      {/* Overview / meta bar */}
+      <div
+        className="flex gap-3 items-center"
+        style={{ marginBottom: "var(--space-4)", flexWrap: "wrap" }}
+      >
+        <span className={`badge badge-lg ${scoreClass(stock.composite_score)}`}>
+          Grade {grade(stock.composite_score)}
+        </span>
+        {stock.industry && <span className="t-xs muted">{stock.industry}</span>}
+        {stock.data_completeness != null && (
+          <span className="t-xs muted">
+            Data completeness {num(stock.data_completeness, 0)}%
+          </span>
+        )}
+        {stock.rs_percentile != null && (
+          <span className="t-xs muted">RS percentile {num(stock.rs_percentile, 0)}</span>
+        )}
+        {stock.last_updated && (
+          <span className="t-xs muted" style={{ marginLeft: "auto" }}>
+            Updated {new Date(stock.last_updated).toLocaleDateString()}
+          </span>
+        )}
+      </div>
+
+      {/* Factor scores vs sector/market */}
+      <div className="eyebrow" style={{ marginBottom: "var(--space-2)" }}>
+        Factor Scores vs Sector &amp; Market
+      </div>
+      <div className="grid grid-3 gap-3" style={{ marginBottom: "var(--space-5)" }}>
+        {FACTORS.map((f) => (
+          <FactorCard
+            key={f.key}
+            factor={f}
+            stock={stock}
+            sectorAvg={sectorAvgs?.[f.key]}
+            marketAvg={marketAvgs?.[f.key]}
+          />
+        ))}
+      </div>
+
+      {/* Detailed factor inputs */}
+      <div className="eyebrow" style={{ marginBottom: "var(--space-2)" }}>
+        Detailed Factor Inputs
+      </div>
+      <div className="grid grid-3 gap-3" style={{ marginBottom: "var(--space-5)" }}>
+        <InputsCard title="Quality & Fundamentals" stock={stock} schema={QUALITY_SCHEMA} />
+        <InputsCard title="Momentum" stock={stock} schema={MOMENTUM_SCHEMA} />
+        <InputsCard title="Value" stock={stock} schema={VALUE_SCHEMA} />
+        <InputsCard title="Growth" stock={stock} schema={GROWTH_SCHEMA} />
+        <InputsCard title="Positioning" stock={stock} schema={POSITIONING_SCHEMA} />
+        <InputsCard title="Stability" stock={stock} schema={STABILITY_SCHEMA} />
+      </div>
+
+      {/* Recent trading signals */}
+      <div className="eyebrow" style={{ marginBottom: "var(--space-2)" }}>
+        Recent Trading Signals
+      </div>
+      <SignalsForStock symbol={stock.symbol} />
+    </div>
+  );
+}
+
+const StockScoreAccordion = ({ stocks = [], marketAvgs = {}, sectorAvgs = {} }) => {
+  if (!stocks || stocks.length === 0) {
+    return <Empty title="No stock scores data found" />;
+  }
+
+  return (
+    <div className="flex flex-col" style={{ gap: "var(--space-6)" }}>
+      {stocks.map((stock, index) => (
+        <StockDetail
+          key={`${stock.symbol}-${index}`}
+          stock={stock}
+          marketAvgs={marketAvgs}
+          sectorAvgs={sectorAvgs}
+        />
+      ))}
+    </div>
+  );
+};
+
 export default StockScoreAccordion;
 
-// ─── Input Schemas ────────────────────────────────────────────────────────────
+// ─── Input Schemas — every factor input the API returns ───────────────────
 const QUALITY_SCHEMA = [
   { key: "roe_pct", label: "ROE", fmt: (v) => pct(v, 1) },
   { key: "roa_val", label: "ROA", fmt: (v) => pct(v, 1) },
   { key: "debt_to_equity", label: "Debt / Equity", fmt: (v) => num(v, 2) },
   { key: "current_ratio_val", label: "Current Ratio", fmt: (v) => num(v, 2) },
   { key: "quick_ratio_val", label: "Quick Ratio", fmt: (v) => num(v, 2) },
-  {
-    key: "interest_coverage_val",
-    label: "Interest Coverage",
-    fmt: (v) => num(v, 2),
-  },
+  { key: "interest_coverage_val", label: "Interest Coverage", fmt: (v) => num(v, 2) },
   { key: "operating_margin_val", label: "Operating Margin", fmt: (v) => pct(v, 1) },
   { key: "net_margin_val", label: "Profit Margin", fmt: (v) => pct(v, 1) },
 ];
 
 const MOMENTUM_SCHEMA = [
   { key: "current_price", label: "Current Price", fmt: (v) => `$${num(v, 2)}` },
+  { key: "change_percent", label: "1-Day Change", fmt: (v) => pct(v, 2) },
+  { key: "high_52w_val", label: "52-Week High", fmt: (v) => `$${num(v, 2)}` },
   { key: "price_vs_52w_high_val", label: "vs 52w High", fmt: (v) => pct(v, 2) },
   { key: "price_vs_sma_50", label: "vs 50-SMA", fmt: (v) => pct(v, 2) },
   { key: "price_vs_sma_200", label: "vs 200-SMA", fmt: (v) => pct(v, 2) },
+  { key: "tdd_roc_20d", label: "20-Day ROC", fmt: (v) => pct(v, 2) },
   { key: "tdd_roc_60d", label: "60-Day ROC", fmt: (v) => pct(v, 2) },
   { key: "tdd_roc_120d", label: "120-Day ROC", fmt: (v) => pct(v, 2) },
+  { key: "tdd_roc_252d", label: "252-Day ROC", fmt: (v) => pct(v, 2) },
   { key: "tdd_rsi", label: "RSI (14)", fmt: (v) => num(v, 1) },
   { key: "tdd_macd", label: "MACD", fmt: (v) => num(v, 3) },
 ];
 
 const VALUE_SCHEMA = [
+  { key: "market_cap", label: "Market Cap", fmt: money },
   { key: "trailing_pe", label: "P/E", fmt: (v) => num(v, 2) },
   { key: "price_to_book", label: "P/B", fmt: (v) => num(v, 2) },
   { key: "ps_ratio_val", label: "P/S", fmt: (v) => num(v, 2) },
   { key: "peg_ratio_val", label: "PEG", fmt: (v) => num(v, 2) },
-  {
-    key: "fcf_yield_val",
-    label: "FCF Yield",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "dividend_yield",
-    label: "Dividend Yield",
-    fmt: (v) => pct(v, 2),
-  },
+  { key: "fcf_yield_val", label: "FCF Yield", fmt: (v) => pct(v, 2) },
+  { key: "dividend_yield", label: "Dividend Yield", fmt: (v) => pct(v, 2) },
 ];
 
 const GROWTH_SCHEMA = [
-  {
-    key: "rev_growth_1y_val",
-    label: "Revenue Growth (1Y)",
-    fmt: (v) => pct(v, 2),
-  },
+  { key: "rev_growth_1y_val", label: "Revenue Growth (1Y)", fmt: (v) => pct(v, 2) },
   { key: "eps_growth_1y_val", label: "EPS Growth (1Y)", fmt: (v) => pct(v, 2) },
-  {
-    key: "rev_growth_3y_val",
-    label: "Revenue Growth (3Y)",
-    fmt: (v) => pct(v, 2),
-  },
+  { key: "rev_growth_3y_val", label: "Revenue Growth (3Y)", fmt: (v) => pct(v, 2) },
   { key: "eps_growth_3y_val", label: "EPS Growth (3Y)", fmt: (v) => pct(v, 2) },
-  {
-    key: "rev_growth_5y_val",
-    label: "Revenue Growth (5Y)",
-    fmt: (v) => pct(v, 2),
-  },
+  { key: "rev_growth_5y_val", label: "Revenue Growth (5Y)", fmt: (v) => pct(v, 2) },
   { key: "eps_growth_5y_val", label: "EPS Growth (5Y)", fmt: (v) => pct(v, 2) },
 ];
 
 const POSITIONING_SCHEMA = [
-  {
-    key: "inst_own_val",
-    label: "Institutional Own %",
-    fmt: (v) => pct(v, 1),
-  },
-  {
-    key: "insider_own_val",
-    label: "Insider Own %",
-    fmt: (v) => pct(v, 1),
-  },
-  {
-    key: "short_pct_val",
-    label: "Short Interest %",
-    fmt: (v) => pct(v, 2),
-  },
-  {
-    key: "short_interest_trend_val",
-    label: "Short Interest Trend",
-    fmt: (v) => String(v),
-  },
+  { key: "inst_own_val", label: "Institutional Own %", fmt: (v) => pct(v, 1) },
+  { key: "insider_own_val", label: "Insider Own %", fmt: (v) => pct(v, 1) },
+  { key: "short_pct_val", label: "Short Interest %", fmt: (v) => pct(v, 2) },
+  { key: "short_interest_trend_val", label: "Short Interest Trend", fmt: (v) => String(v) },
   {
     key: "shares_short_prior_month_val",
     label: "Shares Short (Prior Mo)",

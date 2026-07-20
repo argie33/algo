@@ -542,6 +542,7 @@ export default function ScoresDashboard() {
 // ─── tabs: rankings ────────────────────────────────────────────────────────
 function RankingsTab({
   rows,
+  all,
   isLoading,
   page,
   setPage,
@@ -634,7 +635,7 @@ function RankingsTab({
                     <StockScoreAccordion
                       stocks={[s]}
                       marketAvgs={marketAvgs}
-                      sectorAvgs={sectorAvgs}
+                      sectorAvgs={computeSectorAvgs(all, s.sector)}
                     />
                   </div>
                 )}
@@ -1908,6 +1909,20 @@ function topBy(items, field, count, sector, dir) {
       : Number(a[field]) - Number(b[field])
   );
   return arr.slice(0, count);
+}
+
+function computeSectorAvgs(items, sector) {
+  if (!items || !sector) return {};
+  const peers = items.filter((s) => s.sector === sector);
+  const o = {};
+  FACTORS.forEach((f) => {
+    const vals = peers
+      .map((s) => s[f.scoreKey])
+      .filter((v) => v != null)
+      .map(Number);
+    o[f.key] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  });
+  return o;
 }
 
 // ─── input schemas ─────────────────────────────────────────────────────────

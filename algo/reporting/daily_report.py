@@ -247,15 +247,10 @@ class DailyFinanceReport:
             else:
                 candidates = result[0]
 
-            # NOTE: previously read algo_signals_evaluated.filter_tier_5_pass, but that table's
-            # only writer (algo_filter_pipeline.py::_persist_signal_evaluation) was deleted as an
-            # incidental side effect of commit c45211720 ("Consolidate _compute_stop_loss to
-            # FilterTier3Mixin", 2026-05-31) - a stop-loss refactor that accidentally dropped the
-            # unrelated 283-line tier-audit persistence function along with it. No code has written
-            # to algo_signals_evaluated since (last row 2026-06-03), so this query has silently
-            # returned 0 in every daily report for ~7 weeks while signals were actually qualifying
-            # normally. algo_signals (populated by phase8_entry_execution.py::_persist_signals_to_database)
-            # is the current, actively-maintained record of signals that passed all filter tiers.
+            # GOVERNANCE: Read from algo_signals, the source of truth for signals that passed all filter tiers.
+            # (Historical note: algo_signals_evaluated was an audit trail table for filter tier pass/fail details,
+            # but its writer was accidentally deleted in commit c45211720 [2026-05-31] as a side effect of a
+            # refactoring. The table has since been dropped. See Session 311+ for cleanup details.)
             cur.execute(
                 """SELECT COUNT(*) FROM algo_signals
                    WHERE signal_date = %s""",
