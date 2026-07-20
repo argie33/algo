@@ -69,7 +69,10 @@ class ShortInterestFinraLoader(OptimalLoader):
             import yfinance as yf
             ticker = yf.Ticker(symbol)
             info = ticker.info
-            short_pct = info.get("shortPercentOfFloat")
+            # GOVERNANCE FIX: Use explicit key checking instead of .get() on financial data
+            if "shortPercentOfFloat" not in info:
+                return None
+            short_pct = info["shortPercentOfFloat"]
 
             # yfinance returns decimal (0.01 for 1%), convert to percentage
             if short_pct is not None and 0 < short_pct < 1:
