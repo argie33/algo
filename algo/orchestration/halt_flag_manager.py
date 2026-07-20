@@ -289,7 +289,7 @@ class HaltFlagManager:
                 logger.error(f"Failed to atomically update halt count: {update_err}")
                 raise
 
-            if halt_escalated and halt_count >= 2:
+            if halt_count >= 2:
                 logger.critical(f"[HALT_FLAG_SET_ESCALATED] {reason or 'Phase 1 degraded'} (halt #{halt_count})")
             else:
                 logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
