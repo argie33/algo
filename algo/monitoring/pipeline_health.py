@@ -23,6 +23,7 @@ class HealthStatus(str, Enum):
     VERY_STALE = "VERY_STALE"  # Data > 2x SLA old
     MISSING = "MISSING"  # Table empty
     ERROR = "ERROR"  # Query failed
+    DEPRECATED = "DEPRECATED"  # Table intentionally frozen - see KNOWN_DEPRECATED_TABLES
 
 
 @dataclass
@@ -40,7 +41,11 @@ class TableHealth:
 
     @property
     def is_healthy(self) -> bool:
-        return self.status == HealthStatus.HEALTHY
+        # DEPRECATED counts toward "no action needed", same as HEALTHY: these tables are
+        # expected to sit frozen (loader deliberately retired, see KNOWN_DEPRECATED_TABLES),
+        # so counting them against coverage_pct/healthy_count would make 100% pipeline
+        # coverage permanently unreachable for a reason that isn't a real degradation.
+        return self.status in (HealthStatus.HEALTHY, HealthStatus.DEPRECATED)
 
     @property
     def is_critical(self) -> bool:
@@ -154,6 +159,25 @@ class PipelineHealth:
     # enough slack that a multi-day gap is a rounding error and don't need adjustment.
     TRADING_DAY_CADENCE_TABLES = frozenset(
         {"price_daily", "buy_sell_daily", "technical_data_daily", "market_health_daily"}
+    )
+
+    # Tables whose loaders were deliberately removed/consolidated (see
+    # loaders/DEPRECATED_LOADERS.md) - they are expected to sit frozen at whatever date
+    # they last held, not creeping staleness needing investigation. Confirmed live
+    # 2026-07-20: these were showing STALE/VERY_STALE/MISSING on every health sweep
+    # indistinguishable from genuine loader breakage (e.g. get_loader_health()'s
+    # stale_loaders list), which is exactly the kind of noise that made a REAL bug
+    # (sector_performance silently stuck since 2026-07-10, fixed same session) hard to
+    # spot in a wall of expected-but-unlabeled staleness. Does not include sector_performance/
+    # sector_ranking/market_sentiment/market_exposure_daily - those are still actively
+    # written by their (consolidated) loaders and must keep alerting if they go stale.
+    KNOWN_DEPRECATED_TABLES = frozenset(
+        {
+            "price_extremes_52week",  # ORPHANED per DEPRECATED_LOADERS.md - load_price_extremes.py removed
+            "market_cap_computed",  # ORPHANED per DEPRECATED_LOADERS.md - load_market_cap_computed.py removed
+            "yfinance_snapshot",  # DEPRECATED per DEPRECATED_LOADERS.md - frozen at Session 275
+            "fear_greed_index",  # Standalone legacy table; superseded by market_sentiment.fear_greed_index column
+        }
     )
 
     @staticmethod
@@ -270,8 +294,12 @@ class PipelineHealth:
             today_et = datetime.now(EASTERN_TZ).date()
             health.age_days = (today_et - latest_date).days
 
-            # Determine status based on the gap-adjusted SLA (see _gap_adjusted_sla)
-            if health.age_days > (effective_sla_days * 2):
+            # Determine status based on the gap-adjusted SLA (see _gap_adjusted_sla) - unless
+            # this table's loader was deliberately retired (KNOWN_DEPRECATED_TABLES), in which
+            # case it's expected to sit frozen and age_days climbing is not an incident.
+            if table_name in self.KNOWN_DEPRECATED_TABLES:
+                health.status = HealthStatus.DEPRECATED
+            elif health.age_days > (effective_sla_days * 2):
                 health.status = HealthStatus.VERY_STALE
             elif health.age_days > effective_sla_days:
                 health.status = HealthStatus.STALE
