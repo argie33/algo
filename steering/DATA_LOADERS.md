@@ -109,6 +109,94 @@ clamped to parallelism 1-2 to protect rate limits.
   SHRS_OWND_FOLWNG_TRANS per issuer/reporting-owner pair, ~3yr lookback) and
   `loaders/load_insider_holdings_sec.py`. Foreign private issuers commonly exempt from
   Section 16 correctly report `data_unavailable` (no Form 3/4/5 filings exist for them).
+- **Cash flow health metrics (`sec_cash_flow_metrics`):** fixed 2026-07-20. The loader
+  (`load_sec_cash_flow_metrics.py`, table registered "critical" in terraform since Session
+  274) had NO destination table anywhere in migrations/schema.sql - every run failed
+  outright on INSERT. Added migration 1131 + `sql_safety.py` whitelist entry + registered
+  in `scripts/local_loader_scheduler.py`'s metrics pipeline (was also missing there).
+  Verified live end-to-end (AAPL/MSFT/GOOGL rows written).
+- **Business segment metrics (`sec_segment_metrics`):** genuinely unimplemented, same class
+  as the 13F gap above - do not re-enable without a real fix. `load_sec_segment_metrics.py`
+  reads from `sec_segment_info`, a table that does not exist and has zero writers anywhere
+  in the codebase (no 10-K/10-Q segment-disclosure extraction was ever built), and writes to
+  `sec_segment_metrics`, which also does not exist. Registered "critical" in terraform since
+  Session 274 but not wired into any actual Step Functions pipeline step (dead task-def
+  entry, confirmed via `grep` - not invoked automatically). A real implementation needs an
+  XBRL segment-reporting (ASC 280) extractor feeding `sec_segment_info` before this loader
+  can do anything.
+- **Capex/net-change-in-cash silently NULL since Session 274 (fixed 2026-07-20):**
+  `load_financial_statements.py`'s `_CASHFLOW_FIELD_MAPPING` mapped SEC's
+  `PaymentsToAcquirePropertyPlantAndEquipment` concept to a DB column named
+  `capital_expenditures`, which has never existed on `annual_cash_flow`/
+  `quarterly_cash_flow` (real column: `capex`) - every write silently vanished at the
+  schema-validation step in `loaders/helpers/sec_base.py::transform()` (which validates
+  against the loader's own hardcoded `schema_cols`, not the live DB schema, so the mismatch
+  never raised). Confirmed live: 0 of ~140K existing rows across both tables had `capex`
+  populated. Fixed the mapping + `schema_cols` naming (also `net_change_in_cash` ->
+  `net_change_cash`, though no SEC concept is actually fetched for that column yet - it
+  remains legitimately unpopulated, not a bug). New/incremental fetches now populate `capex`
+  correctly (verified live against AAPL). Existing rows needed a backfill since the
+  watermark gate skips already-seen fiscal years regardless of column completeness - ran a
+  one-time full re-fetch (`loader_watermarks` reset to 2000-01-01 for
+  `financial_statements_cashflow_{annual,quarterly}`, then a full un-scoped loader run) to
+  backfill all symbols. Same silent-drop mechanism also affected
+  `quarterly_income_statement.cost_of_revenue` (schema_cols listed it, column never existed
+  on that table) - fixed via migration 1130 (added the column; annual already had it, no
+  downstream reader yet so no backfill urgency).
+  **Process note for future loader work:** `SecEdgarStatementLoader.transform()`'s
+  `schema_cols` frozensets in `get_*_config()` are hand-maintained and can silently drift
+  from the real DB schema with no error - when adding/renaming a mapped field, verify the
+  target column actually exists (`information_schema.columns`), don't just trust the
+  frozenset.
+
+---
+
+## KNOWN GAP: 5 "critical" loaders are registered but never actually scheduled in AWS (found 2026-07-20)
+
+`terraform/modules/loaders/main.tf`'s `critical_loaders` set (task-def catalog, controls
+FARGATE launch type + IAM) lists 24 loaders. Cross-checked every one against actual
+`var.loader_task_definition_arns[...]` usages inside Step Functions Task states in
+`terraform/modules/pipeline/main.tf` (the only thing that actually triggers a loader run in
+AWS) - **5 have zero matches, meaning they never run automatically in production**:
+
+- `company_info_sec` (`load_company_info_sec.py`) - company master data (sector/industry,
+  shares outstanding used by the FINRA short-interest % calc below)
+- `earnings_calendar_sec` (`load_earnings_calendar_sec.py`) - earnings dates
+- `short_interest_finra` (`load_short_interest_finra.py`) - the loader this doc credits with
+  lifting `positioning_metrics` coverage 58.9% -> ~93% and `stock_scores` tradeable coverage
+  53.4% -> ~64%; that lift may only be reflected in whichever DB last ran it manually/locally,
+  not on an ongoing basis in AWS
+- `sec_cash_flow_metrics` / `sec_segment_metrics` (see below - the former is now fixed and
+  functional, just still unscheduled in AWS; the latter is a genuine dead end)
+
+**Root cause, `company_info_sec`/`earnings_calendar_sec`:** a `reference_data_pipeline` state
+machine used to trigger these at 9:15 AM ET. Session 276 deleted it, believing its
+functionality had been "merged into computed_metrics_pipeline" after the yfinance Phase 3
+consolidation (see the Session 276 comment right above `eod_pipeline_trigger` in
+`terraform/modules/pipeline/main.tf`). That belief was incorrect for these two loaders -
+grepped the full pipeline file for both script names and `loader_task_definition_arns["company_info_sec"|"earnings_calendar_sec"]`
+and found zero references anywhere. This looks like an unintentional regression from Session
+276, not a deliberate deprecation (contrast with the *actually*-deprecated yfinance loaders in
+`loaders/DEPRECATED_LOADERS.md`, which were removed from terraform on purpose and documented
+as such).
+
+**Root cause, `short_interest_finra`/`sec_cash_flow_metrics`/`sec_segment_metrics`:** appear to
+have been added to the `critical_loaders` task-def catalog (Session 274/298) without a
+corresponding Step Functions wiring step ever being added - infrastructure was scaffolded but
+the actual pipeline integration was never finished.
+
+**Local dev is NOT affected** (as of 2026-07-20): `scripts/local_loader_scheduler.py` already
+runs `load_company_info_sec.py` + `load_earnings_calendar_sec.py` in its "reference" pipeline
+and `load_short_interest_finra.py` in its "morning" pipeline; `load_sec_cash_flow_metrics.py`
+was just added to "metrics" (see below). Only AWS production has this gap.
+
+**Not fixed in this pass:** this needs new Step Functions Task states added to
+`computed_metrics_pipeline` (or a revived reference-data step) in
+`terraform/modules/pipeline/main.tf`, which is a production infrastructure change this
+environment cannot validate (no working AWS credentials here - confirmed via live
+`UnrecognizedClientException`/`InvalidClientTokenId` errors when the loaders themselves tried
+to reach DynamoDB/CloudWatch/Secrets Manager during testing). Flagging for the user to review
+and apply via the normal `terraform plan`/`apply` + CI flow rather than hand-editing blind.
 
 ---
 

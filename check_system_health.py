@@ -99,16 +99,22 @@ def check_database() -> dict:
                     # Use SQL to calculate age for accurate timezone handling
                     # (database may store naive datetimes in local timezone)
                     if table_name == "stock_scores":
-                        # stock_scores.updated_at is `timestamp without time zone` written via
-                        # datetime.now(timezone.utc) in load_stock_scores.py - the stored digits ARE
-                        # UTC wall-clock, unlike started_at below (session-timezone-local, see comment
-                        # there). Bare NOW() - MAX(updated_at) implicitly casts using the session
-                        # timezone (America/Chicago) instead of UTC, shifting it ~5-6h and making fresh
-                        # data misreport as being hours in the future. AT TIME ZONE 'UTC' makes the
-                        # correct interpretation explicit.
+                        # stock_scores.updated_at is `timestamp without time zone`, written via
+                        # datetime.now(timezone.utc) in load_stock_scores.py. Historically this
+                        # loader's COPY/CSV path (BulkInsertManager) silently dropped the UTC
+                        # offset before a fix (see migration history), so `AT TIME ZONE 'UTC'`
+                        # was added here to compensate. That underlying bug is now fixed the
+                        # other way: BulkInsertManager converts tz-aware datetimes to
+                        # session-local (America/Chicago) wall-clock before storage, matching
+                        # what a plain parameterized INSERT already produces - so the stored
+                        # digits are session-local, same as every other naive timestamp column.
+                        # Verified live: bare NOW() - MAX(updated_at) matches real elapsed time;
+                        # `AT TIME ZONE 'UTC'` now overstates age by the UTC/Chicago offset
+                        # (~5-6h), which is what re-broke this after the BulkInsertManager fix
+                        # landed. No special-case needed - treat it like every other column.
                         cur.execute(
                             f"SELECT COUNT(*), MAX(updated_at), "
-                            f"EXTRACT(EPOCH FROM (NOW() - (MAX(updated_at) AT TIME ZONE 'UTC'))) / 3600 as age_hours "
+                            f"EXTRACT(EPOCH FROM (NOW() - MAX(updated_at))) / 3600 as age_hours "
                             f"FROM {table_name}"
                         )
                     elif table_name == "algo_orchestrator_runs":

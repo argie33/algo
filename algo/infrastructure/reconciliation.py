@@ -270,6 +270,22 @@ class DailyReconciliation:
                     # CRITICAL: P&L percentage calculation requires valid portfolio value
                     unrealized_pnl_pct = (total_unrealized_pnl / float(initial_capital)) * 100
 
+                    # Calculate running peak and drawdown percentage
+                    # running_peak = maximum portfolio value seen up to this date
+                    # drawdown_pct = how far below peak the current portfolio is
+                    cur.execute("""
+                        SELECT MAX(total_portfolio_value)
+                        FROM algo_portfolio_snapshots
+                        WHERE snapshot_date <= %s
+                    """, (reconcile_date,))
+                    peak_result = cur.fetchone()
+                    running_peak = peak_result["max"] if peak_result and peak_result["max"] else portfolio_value
+                    running_peak = max(running_peak, portfolio_value)  # Today's value is the new peak if higher
+
+                    drawdown_pct = 0.0
+                    if running_peak > 0:
+                        drawdown_pct = ((running_peak - portfolio_value) / running_peak) * 100
+
                     # Calculate position win/loss/breakeven counts from actual positions
                     winning_count = 0
                     losing_count = 0
@@ -337,6 +353,8 @@ class DailyReconciliation:
                         0.0,
                         0.0,
                         "paper_mode",
+                        drawdown_pct,
+                        running_peak,
                     )
                     logger.info(
                         f"[RECONCILIATION] Paper mode: INSERT params - date={reconcile_date}, positions={open_position_count}, portfolio_value={portfolio_value}, cash={cash_remaining}"
@@ -353,9 +371,9 @@ class DailyReconciliation:
                             unrealized_pnl_source,
                             win_count_today, loss_count_today,
                             daily_return_pct, cumulative_return_pct, max_drawdown_pct,
-                            sharpe_ratio, market_health_status, created_at
+                            sharpe_ratio, market_health_status, drawdown_pct, running_peak, created_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (snapshot_date) DO UPDATE SET
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
@@ -371,6 +389,9 @@ class DailyReconciliation:
                         unrealized_pnl_source = EXCLUDED.unrealized_pnl_source,
                         daily_return_pct = EXCLUDED.daily_return_pct,
                         cumulative_return_pct = EXCLUDED.cumulative_return_pct,
+                        max_drawdown_pct = EXCLUDED.max_drawdown_pct,
+                        drawdown_pct = EXCLUDED.drawdown_pct,
+                        running_peak = EXCLUDED.running_peak,
                         updated_at = NOW()
                         """,
                         snapshot_params,
@@ -964,6 +985,16 @@ class DailyReconciliation:
                     if peak_val_dec > 0:
                         max_drawdown_pct_dec = ((peak_val_dec - trough_val_dec) / peak_val_dec) * Decimal(100)
 
+                # Calculate running peak for current snapshot (for use by circuit breaker)
+                # running_peak = maximum portfolio value seen up to and including today
+                running_peak_dec = max(peak_val_dec, total_equity_dec) if peak_row and peak_row[0] else total_equity_dec
+
+                # Calculate drawdown percentage from running peak (used by circuit breaker)
+                # drawdown_pct = how far below the all-time peak the current portfolio is
+                drawdown_pct_dec = Decimal(0)
+                if running_peak_dec > 0:
+                    drawdown_pct_dec = ((running_peak_dec - total_equity_dec) / running_peak_dec) * Decimal(100)
+
                 # Calculate Sharpe ratio: mean_return / std_dev * sqrt(252)
                 sharpe_ratio = None
                 try:
@@ -1011,9 +1042,9 @@ class DailyReconciliation:
                             unrealized_pnl_source,
                             win_count_today, loss_count_today,
                             daily_return_pct, cumulative_return_pct, max_drawdown_pct,
-                            sharpe_ratio, market_health_status, created_at
+                            sharpe_ratio, market_health_status, drawdown_pct, running_peak, created_at
                         ) VALUES (
-                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
+                            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP
                         )
                         ON CONFLICT (snapshot_date) DO UPDATE SET
                         total_portfolio_value = EXCLUDED.total_portfolio_value,
@@ -1037,6 +1068,8 @@ class DailyReconciliation:
                         max_drawdown_pct = EXCLUDED.max_drawdown_pct,
                         sharpe_ratio = EXCLUDED.sharpe_ratio,
                         market_health_status = EXCLUDED.market_health_status,
+                        drawdown_pct = EXCLUDED.drawdown_pct,
+                        running_peak = EXCLUDED.running_peak,
                         updated_at = NOW()
                 """,
                         (
@@ -1066,6 +1099,8 @@ class DailyReconciliation:
                             float(max_drawdown_pct_dec),
                             sharpe_ratio,
                             market_trend,
+                            float(drawdown_pct_dec),
+                            float(running_peak_dec),
                         ),
                     )
                 finally:

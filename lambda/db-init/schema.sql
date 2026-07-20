@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS positioning_metrics (
 );
 CREATE INDEX IF NOT EXISTS idx_positioning_metrics_updated_at ON positioning_metrics(updated_at DESC);
 
--- Added by migration 1129: loaders/load_sec_cash_flow_metrics.py has been a registered
+-- Added by migration 1131: loaders/load_sec_cash_flow_metrics.py has been a registered
 -- "critical" production loader (terraform/modules/loaders/main.tf) since Session 274 with
 -- no destination table anywhere - every run failed on INSERT until this was added.
 CREATE TABLE IF NOT EXISTS sec_cash_flow_metrics (

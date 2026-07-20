@@ -168,18 +168,19 @@ def get_table_age_minutes(table_name: str) -> float | None:
                     return float(row[0]) * 1440
                 return None
 
-            # CRITICAL: `timestamp without time zone` columns are ambiguous - some loaders write
-            # them via datetime.now(timezone.utc) (true UTC wall-clock digits), others rely on a DB
-            # default like CURRENT_TIMESTAMP (session-timezone-local, i.e. America/Chicago here).
-            # Comparing bare against NOW() implicitly casts the naive value using the session
-            # timezone, which is correct for the latter but silently shifts the former by the
-            # UTC/Chicago offset (~5-6h). stock_scores.updated_at is confirmed written via
-            # datetime.now(timezone.utc) in load_stock_scores.py, so it needs the explicit UTC
-            # interpretation; that shift is what previously showed it as a negative/future age here.
-            utc_written_cols = {"stock_scores"}
-            ts_expr = f"({ts_col} AT TIME ZONE 'UTC')" if table_name in utc_written_cols else ts_col
+            # stock_scores.updated_at is `timestamp without time zone`, written via
+            # datetime.now(timezone.utc) in load_stock_scores.py. It used to need an explicit
+            # `AT TIME ZONE 'UTC'` treatment here because BulkInsertManager's COPY/CSV path
+            # silently dropped the UTC offset (storing true-UTC digits uncorrected). That bug
+            # is now fixed the other way: BulkInsertManager converts tz-aware datetimes to
+            # session-local (America/Chicago) wall-clock before storage, matching a plain
+            # parameterized INSERT - so the stored digits are session-local like every other
+            # naive timestamp column. Verified live: bare NOW() - MAX(updated_at) matches real
+            # elapsed time; `AT TIME ZONE 'UTC'` now overstates age by the UTC/Chicago offset
+            # (~5-6h) - exactly what re-broke this (reported ~5h stale on data written minutes
+            # earlier) after the BulkInsertManager fix landed. No special-case needed.
             cur.execute(f"""
-                SELECT EXTRACT(EPOCH FROM (NOW() - MAX({ts_expr}))) / 60 as age_minutes
+                SELECT EXTRACT(EPOCH FROM (NOW() - MAX({ts_col}))) / 60 as age_minutes
                 FROM {table_name}
             """)
             row = cur.fetchone()

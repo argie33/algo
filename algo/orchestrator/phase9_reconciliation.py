@@ -372,11 +372,21 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
         if pnl_pct is None:
             logger.critical("CRITICAL: Portfolio daily_pnl_pct missing from daily report.")
             raise ValueError("Daily report: daily_pnl_pct missing. Cannot report P&L.")
+
+        # Safely format portfolio metrics, handling edge cases where values might still be None
+        try:
+            current_val_str = str(current_val) if isinstance(current_val, str) else f"{float(current_val):,.0f}" if current_val is not None else "N/A"
+            pnl_pct_str = str(pnl_pct) if isinstance(pnl_pct, str) else f"{float(pnl_pct):+.2f}%" if pnl_pct is not None else "N/A"
+            report_summary = f"Portfolio ${current_val_str}, P&L {pnl_pct_str}"
+        except (ValueError, TypeError) as fmt_err:
+            logger.error(f"[PHASE 9 REPORT] Failed to format portfolio metrics: {fmt_err}. Using defaults.")
+            report_summary = f"Portfolio $? P&L ?"
+
         log_phase_result_fn(
             9,
             "daily_report",
             "success",
-            f"Portfolio ${current_val if isinstance(current_val, str) else f'{current_val:,.0f}'}, P&L {pnl_pct if isinstance(pnl_pct, str) else f'{pnl_pct:+.2f}%'}",
+            report_summary,
         )
     except ValueError as e:
         error_msg = (
@@ -900,12 +910,14 @@ def run(  # noqa: C901
                     SET quantity = entry_quantity, updated_at = CURRENT_TIMESTAMP
                     WHERE status = 'open' AND (quantity IS NULL OR quantity != entry_quantity)
                 """)
-                synced_count = cur.cursor.rowcount
+                synced_count = cur.rowcount
                 if synced_count > 0:
                     logger.info(
                         f"[PHASE 9] Synced quantity for {synced_count} open positions (quantity = entry_quantity)"
                     )
-            log_phase_result_fn(9, "quantity_sync", "success", f"synced {synced_count} open positions")
+                else:
+                    logger.debug("[PHASE 9] No quantity sync needed - all open positions have quantity set")
+            log_phase_result_fn(9, "quantity_sync", "success", f"synced {synced_count} open positions" if synced_count > 0 else "no sync needed")
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[PHASE 9] CRITICAL: Failed to sync quantity column: {e}")
             log_phase_result_fn(9, "quantity_sync", "error", f"sync failed: {str(e)[:60]}")

@@ -1,4 +1,4 @@
--- Migration 1129: Create sec_cash_flow_metrics table.
+-- Migration 1131: Create sec_cash_flow_metrics table.
 --
 -- ROOT CAUSE: loaders/load_sec_cash_flow_metrics.py (table_name = "sec_cash_flow_metrics")
 -- has existed since Session 274 and is registered as a "critical" (cannot-tolerate-
