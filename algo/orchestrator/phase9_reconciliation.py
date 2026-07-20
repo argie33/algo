@@ -170,9 +170,6 @@ def _audit_exit_prices_step(
             stale_audit = recon.audit_stale_estimated_prices(audit_cur)
             status = stale_audit.get("status")
             if status is None:
-                if stale_audit.get("implementation_required"):
-                    logger.warning("[PHASE 9] Exit price audit not yet implemented - skipping stale price check")
-                    return
                 raise ValueError(f"Exit price audit result missing 'status' field. Keys: {list(stale_audit.keys())}")
 
             if status != "OK":
@@ -181,7 +178,10 @@ def _audit_exit_prices_step(
                     raise ValueError(
                         f"Exit price audit status '{status}' but message missing. Keys: {list(stale_audit.keys())}"
                     )
-                logger.warning(f"[PHASE 9 AUDIT] Stale estimated prices detected: {msg}")
+                if status == "CRITICAL":
+                    logger.critical(f"[PHASE 9 AUDIT] Stale estimated prices detected: {msg}")
+                else:
+                    logger.warning(f"[PHASE 9 AUDIT] Stale estimated prices detected: {msg}")
                 log_phase_result_fn(9, "exit_reconciliation_audit", "warn", msg)
             else:
                 logger.info("[PHASE 9 AUDIT] All exit prices reconciled properly")

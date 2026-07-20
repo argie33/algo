@@ -1215,27 +1215,80 @@ class DailyReconciliation:
             ) from e
 
     def audit_stale_estimated_prices(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """Audit for trades with estimated exit prices.
+        """Audit for trades with estimated exit prices that haven't been reconciled to the
+        broker's actual fill price yet.
 
-        Returns dict with audit results. If not implemented, returns dict with
-        implementation_required flag and detailed requirements.
+        executor_exit_handler.py writes estimated_exit_price + status='closed' immediately on
+        exit (PENDING_FILL_RECONCILIATION) when the real fill price isn't known synchronously;
+        exit_price_reconciled_at is set once a later reconciliation pass confirms the real fill.
+        A row that stays unreconciled too long means P&L/exit_r_multiple are still computed from
+        a guess, not the broker's actual fill - this audit surfaces that before it goes unnoticed.
+
+        Returns dict: {'status': 'OK'|'ALERT'|'CRITICAL', 'message': str, 'stale_trade_count': int,
+        'stale_trades': list[dict]}.
         """
+        stale_threshold = timedelta(hours=2)
+        critical_threshold = timedelta(hours=24)
+
+        cur.execute(
+            """SELECT trade_id, symbol, estimated_exit_price, exit_time
+               FROM algo_trades
+               WHERE estimated_exit_price IS NOT NULL
+                 AND exit_price_reconciled_at IS NULL
+               ORDER BY exit_time ASC"""
+        )
+        rows = cur.fetchall()
+
+        if not rows:
+            return {
+                "status": "OK",
+                "message": "No unreconciled estimated exit prices.",
+                "stale_trade_count": 0,
+                "stale_trades": [],
+            }
+
+        now = datetime.now(timezone.utc)
+        stale_trades: list[dict[str, Any]] = []
+        max_age = timedelta(0)
+        for trade_id, symbol, estimated_exit_price, exit_time in rows:
+            if exit_time is None:
+                # No exit_time recorded - can't compute age, but flag it as data quality issue
+                age = critical_threshold + timedelta(seconds=1)
+            else:
+                exit_time_utc = exit_time if exit_time.tzinfo else exit_time.replace(tzinfo=timezone.utc)
+                age = now - exit_time_utc
+            if age >= stale_threshold:
+                stale_trades.append(
+                    {
+                        "trade_id": trade_id,
+                        "symbol": symbol,
+                        "estimated_exit_price": float(estimated_exit_price),
+                        "exit_time": exit_time.isoformat() if exit_time else None,
+                        "age_hours": round(age.total_seconds() / 3600, 1),
+                    }
+                )
+                max_age = max(max_age, age)
+
+        if not stale_trades:
+            return {
+                "status": "OK",
+                "message": f"{len(rows)} unreconciled estimated exit price(s), all under {stale_threshold}.",
+                "stale_trade_count": 0,
+                "stale_trades": [],
+            }
+
+        status = "CRITICAL" if max_age >= critical_threshold else "ALERT"
+        symbols = ", ".join(f"{t['symbol']}({t['age_hours']}h)" for t in stale_trades[:10])
+        message = (
+            f"[STALE_PRICE_AUDIT] {len(stale_trades)} trade(s) still on estimated exit price "
+            f"past the {stale_threshold} threshold: {symbols}"
+            + ("..." if len(stale_trades) > 10 else "")
+        )
         return {
-            "implementation_required": True,
-            "audit_type": "stale_price_audit",
-            "message": (
-                "[STALE_PRICE_AUDIT] NOT IMPLEMENTED: audit_stale_estimated_prices() requires implementation. "
-                "Price staleness auditing is CRITICAL for position reconciliation accuracy. "
-                "Cannot reconcile positions with stale or estimated prices - this can cause "
-                "incorrect profit/loss calculations and risk miscalculation. "
-            ),
-            "requirements": [
-                "(1) Find trades with estimated exit prices in algo_trades table",
-                "(2) Check exit_price_reconciled_at timestamp against current time",
-                "(3) Alert on stale prices (estimated prices older than 2 hours)",
-                "(4) Raise RuntimeError to halt reconciliation when stale data detected",
-                "(5) Return results with stale_trade_count and alert_status",
-            ],
+            "status": status,
+            "message": message,
+            "stale_trade_count": len(stale_trades),
+            "stale_trades": stale_trades,
         }
 
     def sync_positions(self, cur: PsycopgCursor[Any]) -> dict[str, Any]:
