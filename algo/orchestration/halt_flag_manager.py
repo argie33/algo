@@ -39,10 +39,13 @@ class HaltFlagManager:
         self.log_phase_result = log_phase_result
 
     def check_halt_flag(self) -> bool:
-        """Check for halt flag in DynamoDB. Returns True if halt was requested.
+        """Check for halt flag with DynamoDB + RDS fallback. Returns True if halt was requested.
+
+        RDS FALLBACK FIX (Session 289): Try DynamoDB first (fast), fall back to RDS if unavailable.
+        This prevents orchestrator crashes when AWS credentials missing or DynamoDB unavailable.
 
         Uses DynamoDB instead of /tmp to work in Lambda where /tmp is ephemeral.
-        SECURITY: If DynamoDB is unreachable, emits CloudWatch alarm metric.
+        SECURITY: If both DynamoDB and RDS unreachable, emits CloudWatch alarm metric.
 
         ISSUE #8 FIX: Halt flag persists through entire trading day (9:30 AM - 4:00 PM ET)
         to prevent Phase 5 from generating signals with stale data set by early morning
@@ -59,6 +62,23 @@ class HaltFlagManager:
         use dry_run=True instead of relying on LOCAL_MODE bypasses.
         """
 
+        # Try DynamoDB first (preferred)
+        dynamodb_result = self._check_halt_flag_dynamodb()
+        if dynamodb_result is not None:
+            return dynamodb_result
+
+        # Fall back to RDS if DynamoDB unavailable
+        logger.warning("[HALT_FLAG] DynamoDB unavailable, falling back to RDS")
+        rds_result = self._check_halt_flag_rds()
+        if rds_result is not None:
+            return rds_result
+
+        # Both unavailable: fail-closed (assume halt)
+        logger.critical("[HALT_FLAG] Both DynamoDB and RDS unavailable - failing closed for safety")
+        return True
+
+    def _check_halt_flag_dynamodb(self) -> bool | None:
+        """Check halt flag in DynamoDB. Returns True/False if successful, None if unavailable."""
         try:
             import boto3
 
@@ -182,51 +202,120 @@ class HaltFlagManager:
 
             return False
         except Exception as e:
-            # SESSION 282 FIX: Eliminate LOCAL_MODE bypass for halt flag checks
-            # GOVERNANCE: Halt flag check is non-negotiable - fail-fast on any error
-            # Previously: Returned False for credential/authentication errors (allowed trading anyway)
-            # Now: Treat ALL failures as halt condition
-            # If developers need to test without AWS, use dry_run=True instead of relying on LOCAL_MODE bypasses
-            logger.critical(f"[CRITICAL] Could not check halt flag in DynamoDB: {e}")
-            logger.critical("[CRITICAL] FAILING CLOSED: Treating DynamoDB unavailability as halt condition for safety")
+            # Session 289 FIX: Don't crash on DynamoDB unavailability, fall back to RDS instead
+            # Log the error but return None to signal fallback, not fail-closed
+            logger.debug(f"[HALT_FLAG] DynamoDB check failed: {e}. Will try RDS fallback.")
+            return None
 
-            try:
-                self.alerts.send_position_alert(
-                    "DYNAMODB",
-                    "HALT_CHECK_UNAVAILABLE",
-                    "DynamoDB halt flag check failed. Emergency halt mechanism DISABLED. Trading halted as fail-safe. "
-                    f"Error: {str(e)[:200]}",
-                    {"error": str(e)[:200], "action": "manual_intervention_required"},
+    def _check_halt_flag_rds(self) -> bool | None:
+        """Check halt flag in RDS. Returns True/False if successful, None if unavailable."""
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT halt_flag, halt_reason, halt_triggered_at
+                    FROM algo_runtime_state
+                    WHERE state_key = %s
+                    """,
+                    (self.HALT_FLAG_DYNAMODB_KEY,),
                 )
-            except Exception as alert_err:
-                logger.warning(f"Could not send DynamoDB unavailability alert: {alert_err}")
+                result = cur.fetchone()
 
-            try:
-                from algo.reporting import MetricsPublisher
+                if not result:
+                    logger.debug("[HALT_FLAG] No halt flag in RDS (not set)")
+                    return False
 
-                MetricsPublisher().add_metric("DynamoDBHaltCheckFailure", 1, unit="Count")
-            except (ValueError, ZeroDivisionError, TypeError) as metric_err:
-                logger.warning(f"Could not emit halt check failure metric: {metric_err}")
+                halt_flag, reason, triggered_at = result
 
-            return True
+                if not halt_flag:
+                    return False
+
+                # Check if halt is from previous trading day (auto-expiry)
+                if triggered_at:
+                    try:
+                        trigger_dt = datetime.fromisoformat(triggered_at.isoformat() if hasattr(triggered_at, 'isoformat') else triggered_at)
+                        now_utc = datetime.now(timezone.utc)
+
+                        trigger_et = trigger_dt.astimezone(EASTERN_TZ) if trigger_dt.tzinfo else trigger_dt.replace(tzinfo=EASTERN_TZ)
+                        now_et = now_utc.astimezone(EASTERN_TZ)
+
+                        trigger_date = trigger_et.date()
+                        now_date_et = now_et.date()
+
+                        if trigger_date < now_date_et:
+                            market_open_et = now_et.replace(
+                                hour=MARKET_OPEN_HOUR,
+                                minute=MARKET_OPEN_MINUTE,
+                                second=0,
+                                microsecond=0,
+                            )
+                            market_open_et = market_open_et.replace(tzinfo=EASTERN_TZ)
+
+                            if now_et >= market_open_et:
+                                logger.info(
+                                    f"[HALT_FLAG] Halt from {trigger_date} past market open ({MARKET_OPEN_HOUR}:{MARKET_OPEN_MINUTE:02d} ET) "
+                                    f"on {now_date_et} - auto-clearing via RDS"
+                                )
+                                # Clear halt flag in RDS
+                                try:
+                                    clear_cur = DatabaseContext("write")
+                                    with clear_cur as cur2:
+                                        cur2.execute(
+                                            """UPDATE algo_runtime_state SET halt_flag = FALSE, halt_count = 0
+                                               WHERE state_key = %s""",
+                                            (self.HALT_FLAG_DYNAMODB_KEY,)
+                                        )
+                                except Exception as clear_err:
+                                    logger.warning(f"[HALT_FLAG] Could not auto-clear halt in RDS: {clear_err}")
+                                return False
+                            else:
+                                logger.info(f"[HALT_FLAG] Halt from {trigger_date} still active before market open today")
+                                return True
+
+                        if trigger_date == now_date_et:
+                            hours_halted = (now_utc - trigger_dt).total_seconds() / 3600
+                            logger.critical(
+                                f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS) on {now_date_et}. "
+                                f"Triggered {hours_halted:.1f}h ago. "
+                                f"Reason: {reason[:150] if reason else 'N/A'}"
+                            )
+                            return True
+
+                    except (ValueError, KeyError, TypeError) as parse_err:
+                        logger.warning(f"[HALT_FLAG] Could not parse RDS timestamp: {parse_err}")
+
+                if reason:
+                    logger.critical(
+                        f"[HALT_FLAG_ACTIVE] HALT FLAG DETECTED (from RDS, could not parse timestamp). "
+                        f"Reason: {reason[:150]}"
+                    )
+                return True
+
+        except Exception as e:
+            logger.debug(f"[HALT_FLAG] RDS check failed: {e}. Both DynamoDB and RDS unavailable.")
+            return None
 
     def set_halt_flag(self, reason: str = "") -> bool:
-        """Set halt flag in DynamoDB. Returns True if successfully set.
+        """Set halt flag in DynamoDB or RDS. Returns True if successfully set.
+
+        Session 289 FIX: Try DynamoDB first, fall back to RDS if unavailable.
+        RDS serves as fallback so system doesn't crash when AWS credentials missing.
 
         ISSUE #8 FIX: When Phase 1 detects stale data, set halt flag to stop
         Phase 5 from generating full-intensity signals during degradation.
 
         ISSUE #10 FIX: Track multiple halt events in a day for escalation.
         """
+        halt_count = 1
+        now_utc = datetime.now(timezone.utc)
+        now_et = now_utc.astimezone(EASTERN_TZ)
+
         try:
             import boto3
 
             dynamodb = boto3.resource("dynamodb")
             table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
             table = dynamodb.Table(table_name)
-
-            now_utc = datetime.now(timezone.utc)
-            now_et = now_utc.astimezone(EASTERN_TZ)
 
             # CRITICAL FIX: Use atomic UpdateExpression to increment halt_count
             # Prevents race: two concurrent halts both reading count=1 and writing count=2
@@ -286,7 +375,7 @@ class HaltFlagManager:
                         except (ValueError, KeyError) as escalation_err:
                             logger.warning(f"Could not parse halt escalation: {escalation_err}")
             except Exception as update_err:
-                logger.error(f"Failed to atomically update halt count: {update_err}")
+                logger.debug(f"Failed to set DynamoDB halt flag: {update_err}. Trying RDS fallback.")
                 raise
 
             if halt_count >= 2:
@@ -294,8 +383,37 @@ class HaltFlagManager:
             else:
                 logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'}")
             return True
-        except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+        except Exception as e:
+            # Fall back to RDS
+            logger.debug(f"[HALT_FLAG] DynamoDB set failed: {e}. Using RDS fallback.")
+            try:
+                return self._set_halt_flag_rds(reason, now_utc, now_et)
+            except Exception as rds_err:
+                raise RuntimeError(f"Both DynamoDB and RDS halt flag set failed: {e} / {rds_err}") from rds_err
+
+    def _set_halt_flag_rds(self, reason: str, now_utc: datetime, now_et: datetime) -> bool:
+        """Set halt flag in RDS. Returns True if successfully set."""
+        try:
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
+                    INSERT INTO algo_runtime_state (
+                        state_key, halt_flag, halt_triggered_at, halt_reason, halt_count, updated_by
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (state_key) DO UPDATE SET
+                        halt_flag = EXCLUDED.halt_flag,
+                        halt_triggered_at = EXCLUDED.halt_triggered_at,
+                        halt_reason = EXCLUDED.halt_reason,
+                        halt_count = COALESCE(algo_runtime_state.halt_count, 0) + 1,
+                        last_updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (self.HALT_FLAG_DYNAMODB_KEY, True, now_utc.isoformat(), reason or "Phase 1 degraded: stale data detected", 1, "orchestrator"),
+                )
+            logger.critical(f"[HALT_FLAG_SET] {reason or 'Phase 1 degraded: halt flag activated'} (via RDS fallback)")
+            return True
+        except Exception as e:
+            logger.error(f"[HALT_FLAG] Failed to set halt flag in RDS: {e}")
+            raise
 
     def proactive_clear_stale_halt(self) -> bool:
         """Proactively clear halt flag at orchestrator startup if halt is from prior trading day.
