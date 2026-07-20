@@ -761,7 +761,7 @@ function ChartTab({
       </div>
       <div className="card-body" style={{ padding: "var(--space-4)" }}>
         {loading ? (
-          <Empty title="Loadingâ€¦" />
+          <Empty title="Loading…" />
         ) : !series.length ? (
           <Empty
             title="No price data"

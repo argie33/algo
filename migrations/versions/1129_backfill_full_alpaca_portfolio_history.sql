@@ -1,0 +1,37 @@
+-- Migration 1129 (applied via script, documented here for the historical record - see
+-- session memory market_exposure_breadth_bug_and_fake_seed_snapshot_rows.md): backfilled
+-- algo_portfolio_snapshots with this account's full real equity history from Alpaca's
+-- authoritative /v2/account/portfolio/history endpoint (account PA3KLJ0Y1HOP, created
+-- 2024-04-26), for every date not already present locally (547 rows, 2024-04-26 through
+-- 2026-07-03; local data already covered 2026-06-30 onward after migration 1128).
+--
+-- WHY: circuit_breaker.py's _check_drawdown() computes peak = MAX(total_portfolio_value)
+-- over the whole table. Before this backfill, the table's earliest row was 2026-06-30
+-- (migration 1128), so the "peak" could never reflect this account's true history - only
+-- whatever happened to be the highest value in a ~3-week local window. This is a materially
+-- different answer than the account's real risk picture: the true all-time peak is $106,914.68
+-- (2024-06-06) and true 3-month peak is $76,021.61 (2026-06-04), vs the ~$73k the truncated
+-- local table showed. Backfilling with real data (not an estimate or reconstruction) means the
+-- circuit breaker's drawdown % now reflects genuine account risk since inception, matching the
+-- "accurate over convenient" principle used throughout this session's other fixes rather than
+-- leaving an artificially narrow window that understates real risk.
+--
+-- RESULT: true drawdown from account inception is 32.63% (verified: (106914.68 - 72029.10) /
+-- 106914.68 * 100), correctly >= the 20% halt_drawdown_pct threshold - trading remains halted,
+-- and now for the right, fully-evidenced reason instead of an artifact of incomplete local
+-- history.
+--
+-- Backfilled rows only set snapshot_date/total_portfolio_value/total_equity/total_cash/
+-- position_count=0/unrealized_pnl_source='alpaca_portfolio_history_backfill_session304' -
+-- position-level detail (open positions, win/loss counts, etc.) is not available from this
+-- account-level equity endpoint for historical dates and was intentionally left NULL rather
+-- than guessed.
+--
+-- This file documents the change; the actual backfill was applied via a one-off Python script
+-- (paginated Alpaca API fetch + INSERT ... ON CONFLICT (snapshot_date) DO NOTHING) since it
+-- required a live authenticated API call, not a static SQL migration. Re-running the query
+-- below confirms the applied state; it is a no-op if already applied.
+
+-- Verification query (not a repair - re-run to confirm expected state):
+-- SELECT MIN(snapshot_date), MAX(total_portfolio_value) FROM algo_portfolio_snapshots;
+-- Expected: 2024-04-26, 106914.68

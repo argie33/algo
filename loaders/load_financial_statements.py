@@ -112,7 +112,13 @@ _CASHFLOW_FIELD_MAPPING = {
     "net_cash_provided_by_used_in_operating_activities": "operating_cash_flow",
     "net_cash_provided_by_used_in_investing_activities": "investing_cash_flow",
     "net_cash_provided_by_used_in_financing_activities": "financing_cash_flow",
-    "payments_to_acquire_property_plant_and_equipment": "capital_expenditures",
+    # Found 2026-07-20: this mapped to "capital_expenditures", a column that has never
+    # existed in annual_cash_flow/quarterly_cash_flow (real column is "capex") - every
+    # write silently vanished at the schema-validation step below, leaving capex NULL for
+    # all ~140K existing rows across both tables since this loader was created (Session
+    # 274). Renamed to match the real column so new/incremental writes actually land;
+    # existing NULL rows need a backfill (re-run with BACKFILL_DAYS or per-symbol refetch).
+    "payments_to_acquire_property_plant_and_equipment": "capex",
     **_MARKER_FIELDS,
 }
 
@@ -293,9 +299,9 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "operating_cash_flow",
                     "investing_cash_flow",
                     "financing_cash_flow",
-                    "net_change_in_cash",
+                    "net_change_cash",
                     "free_cash_flow",
-                    "capital_expenditures",
+                    "capex",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -315,9 +321,9 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "operating_cash_flow",
                     "investing_cash_flow",
                     "financing_cash_flow",
-                    "net_change_in_cash",
+                    "net_change_cash",
                     "free_cash_flow",
-                    "capital_expenditures",
+                    "capex",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -335,9 +341,9 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
                     "operating_cash_flow",
                     "investing_cash_flow",
                     "financing_cash_flow",
-                    "net_change_in_cash",
+                    "net_change_cash",
                     "free_cash_flow",
-                    "capital_expenditures",
+                    "capex",
                     "created_at",
                     "data_unavailable",
                     "reason",

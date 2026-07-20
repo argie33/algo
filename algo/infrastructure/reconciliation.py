@@ -579,6 +579,17 @@ class DailyReconciliation:
                 logger.info("\n1b2. Exit Fill Reconciliation:")
                 logger.info(f"   {fill_result['message']}")
 
+                # 1b2b. Fall back to price_daily EOD close for whatever reconcile_exit_fills()
+                # couldn't resolve (no broker configured, or a live Alpaca call failed) - see
+                # resolve_local_pending_exits()'s docstring. Only touches rows still NULL after
+                # the broker attempt above, and only ever uses genuine price_daily data, so this
+                # is safe to run unconditionally in every environment: it's a no-op wherever the
+                # broker path already succeeded.
+                local_fallback_result = self.resolve_local_pending_exits(cur)
+                if local_fallback_result["resolved"] > 0:
+                    logger.info("\n1b2b. Local-Mode Exit Fallback:")
+                    logger.info(f"   {local_fallback_result['message']}")
+
                 # 1b3. Check for trades pending Phase 7 price reconciliation
                 pending_result = self.check_pending_reconciliations(cur)
                 if "pending_count" not in pending_result:
@@ -1345,31 +1356,39 @@ class DailyReconciliation:
                 )
                 continue
 
-            # For same-day trades where entry=exit, use estimated_exit_price directly (no price lookup needed)
-            if exit_date == datetime.now(timezone.utc).date() and entry_price == estimated_exit_price:
+            # Always prefer price_daily's real close for exit_date over estimated_exit_price -
+            # the estimate was itself derived from algo_positions.current_price at close time,
+            # which is only as fresh as the last price sync before the position closed (see
+            # _record_closed_positions_exits's comment above). For same-day trades in particular,
+            # that sync often ran before the morning loader landed today's close, so blindly
+            # trusting the estimate reproduces the exact "stale current_price -> fake $0.00 P&L"
+            # bug this function exists to fix. Only fall back to the estimate when price_daily
+            # genuinely has no close yet for exit_date (e.g. resolving before today's data loads).
+            cur.execute(
+                """
+                SELECT close FROM price_daily
+                WHERE symbol = %s AND date = %s AND (data_unavailable IS NOT TRUE)
+                """,
+                (symbol, exit_date),
+            )
+            price_row = cur.fetchone()
+            if price_row is not None and price_row[0] is not None:
+                fill_price = Decimal(str(price_row[0]))
+                price_source = f"price_daily EOD close for {exit_date}"
+            elif exit_date == datetime.now(timezone.utc).date() and entry_price == estimated_exit_price:
                 fill_price = Decimal(str(estimated_exit_price))
+                price_source = "estimated_exit_price (no price_daily close for today yet)"
                 logger.debug(
                     f"[LOCAL EXIT RESOLUTION] Same-day close for {trade_id} ({symbol}): "
                     f"using estimated_exit_price ${float(fill_price):.2f}"
                 )
             else:
-                # For historical trades, lookup price_daily
-                cur.execute(
-                    """
-                    SELECT close FROM price_daily
-                    WHERE symbol = %s AND date = %s AND (data_unavailable IS NOT TRUE)
-                    """,
-                    (symbol, exit_date),
+                logger.debug(
+                    f"[LOCAL EXIT RESOLUTION] No price_daily close yet for {symbol} on {exit_date} "
+                    f"- leaving {trade_id} pending"
                 )
-                price_row = cur.fetchone()
-                if price_row is None or price_row[0] is None:
-                    logger.debug(
-                        f"[LOCAL EXIT RESOLUTION] No price_daily close yet for {symbol} on {exit_date} "
-                        f"- leaving {trade_id} pending"
-                    )
-                    continue
+                continue
 
-                fill_price = Decimal(str(price_row[0]))
             entry_dec = Decimal(str(entry_price))
             qty_dec = Decimal(str(entry_qty))
             pnl_pct = float(((fill_price - entry_dec) / entry_dec * Decimal(100)).quantize(Decimal("0.01"), ROUND_HALF_UP))
@@ -1394,8 +1413,7 @@ class DailyReconciliation:
                     pnl_dollars,
                     pnl_pct,
                     exit_r_multiple,
-                    f"[LOCAL_MODE] Resolved via price_daily EOD close for {exit_date} "
-                    "(no live broker available to confirm actual fill)",
+                    f"[LOCAL_MODE] Resolved via {price_source} (no live broker available to confirm actual fill)",
                     trade_id,
                 ),
             )

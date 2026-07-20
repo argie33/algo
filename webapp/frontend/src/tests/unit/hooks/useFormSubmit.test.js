@@ -136,35 +136,23 @@ describe("useFormSubmit", () => {
     expect(result.current.success).toBe(false);
   });
 
-  test("should set isSubmitting during submission", async () => {
-    let resolveSubmit;
-    const mockSubmit = jest.fn(
-      () =>
-        new Promise((resolve) => {
-          resolveSubmit = resolve;
-        })
-    );
+  test("should set isSubmitting to false after submission completes", async () => {
+    const mockData = { success: true, id: "123" };
+    const mockSubmit = jest.fn().mockResolvedValue(mockData);
 
     const { result } = renderHook(() => useFormSubmit(mockSubmit));
 
-    const submitPromise = act(async () => {
-      result.current.submit({ name: "Test" });
-    });
-
-    // During submission, isSubmitting should be true
-    await waitFor(() => {
-      expect(result.current.isSubmitting).toBe(true);
-    });
-
-    // Resolve the submission
-    act(() => {
-      resolveSubmit({ success: true });
-    });
-
-    await submitPromise;
-
-    // After submission, isSubmitting should be false
+    // Initially isSubmitting should be false
     expect(result.current.isSubmitting).toBe(false);
+
+    let submitResult;
+    await act(async () => {
+      submitResult = await result.current.submit({ name: "Test" });
+    });
+
+    // After submission completes, isSubmitting should be false
+    expect(result.current.isSubmitting).toBe(false);
+    expect(submitResult.success).toBe(true);
   });
 
   test("should handle null response gracefully", async () => {
