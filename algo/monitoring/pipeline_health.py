@@ -202,10 +202,37 @@ class PipelineHealth:
 
         return health
 
+    def update_loader_status_age_days(self) -> int:
+        """Update age_days for all tables in data_loader_status.
+
+        CRITICAL FIX (Session 289): age_days was NULL for 95% of tables.
+        This calculates age in days from last_updated and persists to data_loader_status.
+
+        Returns: count of rows updated
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                # Calculate age_days for all rows where last_updated exists
+                cur.execute("""
+                    UPDATE data_loader_status
+                    SET age_days = EXTRACT(DAY FROM NOW() - last_updated)::INTEGER
+                    WHERE last_updated IS NOT NULL
+                      AND (age_days IS NULL OR age_days != EXTRACT(DAY FROM NOW() - last_updated)::INTEGER)
+                """)
+                rows_updated = cur.rowcount
+                logger.info(f"[LOADER_STATUS] Updated age_days for {rows_updated} tables")
+                return rows_updated
+        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+            logger.error(f"[LOADER_STATUS] Failed to update age_days: {e}")
+            return 0
+
     def get_pipeline_status(self) -> PipelineStatus:
         status = PipelineStatus()
 
         try:
+            # CRITICAL: Update age_days BEFORE checking status so monitoring is current
+            self.update_loader_status_age_days()
+
             with DatabaseContext("read") as cur:
                 # Set statement timeout for health checks (fail fast)
                 stmt_timeout_ms = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", 30000))
