@@ -192,7 +192,7 @@ def get_lock_manager(
 ) -> "DynamoDBLockManager":
     """Factory function that returns a distributed lock manager.
 
-    CRITICAL: Always uses DynamoDB distributed locks, never filesystem locks for orchestrator.
+    CRITICAL: Tries DynamoDB first (preferred for distributed safety), falls back to RDS.
 
     LOCAL_MODE ("run orchestrator directly instead of via Lambda") is NOT the
     same thing as "isolated sandbox with no shared state": LOCAL_MODE runs still
@@ -202,33 +202,50 @@ def get_lock_manager(
     prevent two concurrent LOCAL_MODE processes (e.g. separate dev sessions)
     from racing on shared state.
 
-    FIXED (Session 281): Removed LOCAL_MODE fallback to FileLockManager.
-    - LOCAL_MODE only controls orchestrator invocation method (direct vs Lambda wrapper)
-    - Distributed locking ALWAYS uses DynamoDB (non-negotiable for safety)
-    - If DynamoDB unavailable, orchestrator fails fast with clear error
-    - This prevents silent race conditions where multiple users could trade simultaneously
+    ENHANCED (Session 290): DynamoDB preferred, RDS fallback when AWS unavailable
+    - Try DynamoDB first (fastest, works in production AWS Lambda)
+    - Fall back to RDS when AWS credentials missing (works in local dev mode)
+    - If BOTH unavailable, fail fast with clear error
+    - This maintains safety while enabling local development without AWS credentials
     """
     import os
 
     from utils.db.dynamo_lock import DynamoDBLockManager
+    from utils.db.rds_lock import RDSLockManager
 
+    # Try DynamoDB first (preferred for production AWS Lambda)
     try:
-        logger.info("[LOCK_FACTORY] Using DynamoDB locks (required for distributed safety)")
-        return DynamoDBLockManager(
+        logger.info("[LOCK_FACTORY] Trying DynamoDB locks (preferred for production)")
+        lock_mgr = DynamoDBLockManager(
             table_name=table_name,
             lock_duration_seconds=lock_duration_seconds,
             enable_auto_cleanup=enable_auto_cleanup,
         )
+        if lock_mgr.is_available:
+            logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available")
+            return lock_mgr
     except Exception as e:
-        # CRITICAL: DynamoDB lock initialization is non-negotiable
-        # If DynamoDB is unavailable, the orchestrator must fail fast, not silently degrade
-        # to filesystem locks which provide zero protection across machines
-        error_msg = (
-            f"[LOCK_FACTORY] CRITICAL: DynamoDB lock manager unavailable: {e}. "
-            "Orchestrator requires distributed locking (DynamoDB) to prevent race conditions. "
-            "LOCAL_MODE development still connects to shared prod DB and live Alpaca account, "
-            "so filesystem locks are insufficient. "
-            "Fix: Ensure AWS credentials available and orchestrator-locks DynamoDB table exists."
+        logger.debug(f"[LOCK_FACTORY] DynamoDB initialization failed: {e}")
+
+    # DynamoDB unavailable, try RDS fallback (works without AWS credentials)
+    logger.info("[LOCK_FACTORY] DynamoDB unavailable, falling back to RDS locks")
+    try:
+        lock_mgr = RDSLockManager(
+            table_name=table_name,
+            lock_duration_seconds=lock_duration_seconds,
+            enable_auto_cleanup=enable_auto_cleanup,
         )
-        logger.critical(error_msg)
-        raise RuntimeError(error_msg) from e
+        if lock_mgr.is_available:
+            logger.warning("[LOCK_FACTORY] ⚠️  Using RDS fallback for distributed locking (no AWS credentials)")
+            return lock_mgr
+    except Exception as e:
+        logger.debug(f"[LOCK_FACTORY] RDS initialization failed: {e}")
+
+    # Both unavailable: fail closed
+    error_msg = (
+        "[LOCK_FACTORY] CRITICAL: Both DynamoDB and RDS lock managers unavailable. "
+        "Orchestrator requires distributed locking to prevent race conditions. "
+        "Fix: Either (1) provide AWS credentials for DynamoDB, or (2) ensure RDS database is accessible."
+    )
+    logger.critical(error_msg)
+    raise RuntimeError(error_msg)
