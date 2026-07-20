@@ -7,9 +7,6 @@ This script manually triggers the critical loaders to get fresh data for orchest
 
 import logging
 import sys
-from datetime import datetime
-
-import psycopg2
 
 from utils.db.context import DatabaseContext
 
@@ -92,12 +89,12 @@ def main() -> int:
 
     # First, check current status
     logger.info("1. Checking current data freshness...")
-    before_status = check_loader_freshness()
+    check_loader_freshness()
 
     # Trigger loaders
     logger.info("\n2. Triggering critical loaders...")
     results = {}
-    for loader_key, loader_name in CRITICAL_LOADERS.items():
+    for loader_key, _loader_name in CRITICAL_LOADERS.items():
         success = trigger_loader(loader_key)
         results[loader_key] = success
         if success:
@@ -107,7 +104,7 @@ def main() -> int:
 
     # Check status after
     logger.info("\n3. Checking data freshness after load...")
-    after_status = check_loader_freshness()
+    check_loader_freshness()
 
     # Summary
     logger.info("\n=== SUMMARY ===\n")

@@ -69,7 +69,7 @@ def check_table_exists(cur: Any, table: str) -> bool:
             raise RuntimeError(f"SELECT EXISTS query for table '{table}' returned no result")
         return result[0]
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        raise RuntimeError(f"Database error checking table '{table}': {e}")
+        raise RuntimeError(f"Database error checking table '{table}': {e}") from e
     except RuntimeError:
         raise
 
@@ -119,7 +119,7 @@ def get_table_stats(cur: Any, table: str) -> dict[str, Any]:
             "latest_date": latest_date,
         }
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-        raise RuntimeError(f"Database error getting stats for table '{table}': {e}")
+        raise RuntimeError(f"Database error getting stats for table '{table}': {e}") from e
     except RuntimeError:
         raise
 

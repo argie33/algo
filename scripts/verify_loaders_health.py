@@ -175,8 +175,9 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                     # CRITICAL FIX: Use trading-day logic instead of hardcoded 2-day threshold.
                     # A 3-day weekend (Fri to Tue = 4 calendar days) is only 1 trading day apart.
                     # Use MarketCalendar to correctly handle holidays and weekends.
-                    from algo.infrastructure import MarketCalendar
                     from datetime import timedelta
+
+                    from algo.infrastructure import MarketCalendar
 
                     # Allow up to 2 trading days of staleness for monitoring purposes
                     expected_date = today - timedelta(days=1)

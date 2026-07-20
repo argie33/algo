@@ -1,10 +1,11 @@
 import sys
+
 sys.path.insert(0, 'lambda/api')
 
 # Test the stocks handler
 try:
-    from routes.stocks import handle
     from api_utils.database_context import DatabaseContext
+    from routes.stocks import handle
 
     with DatabaseContext() as cur:
         result = handle(cur, '/api/stocks', 'GET', {}, None, None)

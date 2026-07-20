@@ -90,10 +90,20 @@ class OrchestratorExecutionTracker:
         try:
             completed_at = datetime.now(timezone.utc)
 
-            # Count phase outcomes (status values: "ok", "halted", "error", "degraded", "skipped")
-            phases_completed = sum(1 for r in self.phase_results.values() if r["status"] == "ok")
-            phases_halted = sum(1 for r in self.phase_results.values() if r["status"] == "halted")
-            phases_errored = sum(1 for r in self.phase_results.values() if r["status"] == "error")
+            # Count phase outcomes. Phase implementations log via two DIFFERENT status
+            # vocabularies that were never reconciled: the PhaseResult object they return uses
+            # "ok"/"halted"/"error"/"degraded"/"skipped", but the log_phase_result_fn() callback
+            # they call during execution (which populates self.phase_results, read here) uses
+            # "success"/"halt"/"error"/"warn"/"alert"/"degraded"/"skipped" instead - phase4 in
+            # particular logs its failure case as "alert", not "error". Matching only "ok"/
+            # "halted"/"error" here meant phases_completed and phases_halted were silently 0 on
+            # EVERY run regardless of what actually happened (confirmed live via
+            # /api/algo/last-run showing "Completed successfully (0 phases)" for a run where all
+            # 9 phases succeeded) - phases_errored partially worked, since "error" happens to be
+            # used by both vocabularies for some phases. Recognize both vocabularies.
+            phases_completed = sum(1 for r in self.phase_results.values() if r["status"] in ("ok", "success"))
+            phases_halted = sum(1 for r in self.phase_results.values() if r["status"] in ("halted", "halt"))
+            phases_errored = sum(1 for r in self.phase_results.values() if r["status"] in ("error", "alert"))
 
             # Build human-readable summary
             if overall_status == "skipped":

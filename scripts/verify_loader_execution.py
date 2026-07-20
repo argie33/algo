@@ -6,7 +6,7 @@ This script identifies which loaders are not executing and why.
 """
 
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import psycopg2
 
@@ -186,7 +186,7 @@ def main() -> int:
     failed = len([s for s in results["critical"].values() if s["status"] == "FAILED"])
     ok = len([s for s in results["critical"].values() if s["status"] == "SUCCESS"])
 
-    logger.info(f"\n=== SUMMARY ===")
+    logger.info("\n=== SUMMARY ===")
     logger.info(f"Critical Loaders: {ok}/{total_critical} healthy")
     if missing:
         logger.critical(f"  {missing} never run")

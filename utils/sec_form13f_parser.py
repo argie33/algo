@@ -15,7 +15,6 @@ This parser focuses on the information table to extract holdings data.
 """
 
 import logging
-import re
 import xml.etree.ElementTree as ET
 from typing import Any
 

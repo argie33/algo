@@ -151,7 +151,7 @@ def main():
         print()
 
     # Check if any are stale
-    stale_locks = [l for l in lock_status["locks"] if l.get("is_stale")]
+    stale_locks = [lock for lock in lock_status["locks"] if lock.get("is_stale")]
 
     if stale_locks:
         print(f"[WARN]  Found {len(stale_locks)} stale lock(s) (not updated for > 5min)")

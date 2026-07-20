@@ -15,16 +15,17 @@ Usage:
 """
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 # Add project root to path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from scripts.load_credentials import ensure_credentials_loaded
 import logging
+
+from scripts.load_credentials import ensure_credentials_loaded
 
 logging.basicConfig(
     level=os.getenv('LOG_LEVEL', 'INFO'),
@@ -49,7 +50,7 @@ def main():
 
     try:
         result = subprocess.run(
-            [sys.executable, 'scripts/run_local_orchestrator.py'] + sys.argv[1:],
+            [sys.executable, 'scripts/run_local_orchestrator.py', *sys.argv[1:]],
             cwd=str(project_root),
         )
         sys.exit(result.returncode)

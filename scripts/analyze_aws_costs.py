@@ -182,7 +182,7 @@ def main():
         print("[INFO] Using infrastructure cost estimations instead...\n")
 
     # Show infrastructure estimates
-    ecs_costs = analyze_ecs_costs()
+    analyze_ecs_costs()
     analyze_rds_costs()
     analyze_dynamodb_costs()
     analyze_lambda_costs()

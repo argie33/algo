@@ -150,17 +150,24 @@ class LoaderInfrastructure:
     def update_loader_status(self, status: str) -> None:
         """Update loader status in data_loader_status table.
 
-        Status values: 'loading' (was 'RUNNING'), 'ok' (was 'COMPLETED'), 'error' (was 'FAILED'/'INCOMPLETE').
-        Maps legacy status values to new enum for backward compatibility with existing callers.
+        Writes the canonical LoaderStatus enum values (utils/loaders/status_enum.py) -
+        RUNNING/COMPLETED/FAILED. This used to translate to its own ad-hoc lowercase
+        vocabulary ('loading'/'ok'/'error'), a THIRD vocabulary alongside the canonical
+        enum and algo/monitoring/pipeline_health.py's separate HealthStatus
+        (HEALTHY/STALE/VERY_STALE/MISSING) - both of which write the same column. Several
+        downstream dependency checks (see loaders/load_buy_sell_daily.py,
+        loaders/load_signal_quality_scores.py) already had to defensively whitelist status
+        strings from all three vocabularies plus rely on completion_pct as the real signal
+        because of this. Consolidating this writer onto the documented canonical values
+        removes one of the three competing vocabularies; the existing whitelists in those
+        two callers already include "COMPLETED" so they keep working unchanged.
+        INCOMPLETE maps to FAILED (LoaderStatus has no separate value) - preserves the
+        original 'error' classification, just under the canonical status name.
         """
-        # Map old status values to new health-based enum
         status_map = {
-            "RUNNING": "loading",
-            "COMPLETED": "ok",
-            "FAILED": "error",
-            "INCOMPLETE": "error",
+            "INCOMPLETE": "FAILED",
         }
-        db_status = status_map.get(status, status)  # Use mapped value, or original if not in map
+        db_status = status_map.get(status, status)  # Canonicalize INCOMPLETE, else pass through unchanged
 
         try:
             from utils.db.pooled_context_var import (

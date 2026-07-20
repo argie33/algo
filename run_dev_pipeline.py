@@ -161,7 +161,7 @@ def run_pipeline(pipeline_name: str, loaders: list[str], skip_slow: bool = False
 
     # Run orchestrator
     print("\nStep 2: Running orchestrator (9 phases)...")
-    orch_ok = run_command(
+    run_command(
         ["python", "scripts/run_local_orchestrator.py"],
         "orchestrator",
         timeout=300
@@ -169,7 +169,7 @@ def run_pipeline(pipeline_name: str, loaders: list[str], skip_slow: bool = False
 
     # Check data freshness
     print("\nStep 3: Checking data freshness...")
-    fresh_ok = run_command(
+    run_command(
         ["python", "check_system_health.py"],
         "system health check",
         timeout=30

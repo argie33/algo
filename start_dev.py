@@ -83,7 +83,7 @@ def start_service(cmd: list[str], name: str, wait_for_ready: bool = False) -> su
         if wait_for_ready:
             # Wait for service to be ready
             max_retries = 10
-            for attempt in range(max_retries):
+            for _attempt in range(max_retries):
                 time.sleep(1)
                 if name == "Dev Server" and check_dev_server():
                     print("[OK]")

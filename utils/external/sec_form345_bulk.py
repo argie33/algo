@@ -43,7 +43,7 @@ import logging
 import threading
 import zipfile
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 
 import pandas as pd
 import requests

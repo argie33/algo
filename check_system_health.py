@@ -12,10 +12,13 @@ Run: python check_system_health.py
 """
 
 import io
+import logging
 import os
 import socket
 import sys
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Fix Windows console encoding for unicode output
 if sys.platform.startswith("win"):
@@ -23,8 +26,7 @@ if sys.platform.startswith("win"):
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
     except Exception as e:
         # Log but don't crash - console encoding issues are non-fatal but should be visible
-        import logging
-        logging.warning(f"[STARTUP] Failed to set UTF-8 console encoding: {type(e).__name__}: {e}")
+        logger.warning(f"[STARTUP] Failed to set UTF-8 console encoding: {type(e).__name__}: {e}")
 
 # Add repo root to path
 sys.path.insert(0, str(Path(__file__).parent))
@@ -39,8 +41,7 @@ def check_port_open(host: str, port: int, timeout: float = 2.0) -> bool:
         return result == 0
     except Exception as e:
         # Socket errors are expected (port unreachable), log at debug level
-        import logging
-        logging.debug(f"[DEBUG] Port check failed for {host}:{port}: {type(e).__name__}: {e}")
+        logger.debug(f"[DEBUG] Port check failed for {host}:{port}: {type(e).__name__}: {e}")
         return False
 
 
@@ -151,8 +152,9 @@ def check_database() -> dict:
                     # that is exactly as fresh as expected. What matters is whether there's a weekend/
                     # holiday gap since the last completed trading day - shift the threshold by that
                     # gap's size, mirroring monitor_data_staleness.py's check_all_tables().
+                    from datetime import date, datetime, timedelta, timezone
+
                     from algo.infrastructure.market_calendar import MarketCalendar
-                    from datetime import datetime, timezone, date, timedelta
 
                     now = datetime.now(timezone.utc)
                     is_trading_day = MarketCalendar.is_trading_day(now.date())

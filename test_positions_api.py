@@ -2,6 +2,7 @@
 """Test the positions API endpoint."""
 
 import json
+
 try:
     import requests
 except ImportError:

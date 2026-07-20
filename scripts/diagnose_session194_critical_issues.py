@@ -76,7 +76,7 @@ def check_lambda_deployment():
 
     # Check if local code has the fix
     print("\nLocal orchestrator code:")
-    rc, out = run_shell_cmd(["grep", "-n", "algo-algo-secrets-dev",
+    rc, _out = run_shell_cmd(["grep", "-n", "algo-algo-secrets-dev",
                             "lambda/algo_orchestrator/lambda_function.py"])
     if rc == 0:
         print("  ✓ Code has credentials fix (algo-algo-secrets-dev)")
@@ -128,7 +128,7 @@ def check_database_tables():
                 result = cur.fetchone()
                 if not result:
                     raise RuntimeError(f"No data returned for {table}")
-                latest, count = result
+                latest, _count = result
                 if latest:
                     days_old = (today - latest).days
                     status = "✓ FRESH" if days_old == 0 else "⚠ STALE" if days_old > 1 else "? 1d old"

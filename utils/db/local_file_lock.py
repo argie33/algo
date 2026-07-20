@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from utils.db.dynamo_lock import DynamoDBLockManager
+    from utils.db.rds_lock import RDSLockManager
 
 logger = logging.getLogger(__name__)
 
@@ -189,7 +190,7 @@ def get_lock_manager(
     table_name: str | None = None,
     lock_duration_seconds: int = 600,
     enable_auto_cleanup: bool = True,
-) -> "DynamoDBLockManager":
+) -> "DynamoDBLockManager | RDSLockManager":
     """Factory function that returns a distributed lock manager.
 
     CRITICAL: Tries DynamoDB first (preferred for distributed safety), falls back to RDS.
@@ -208,7 +209,6 @@ def get_lock_manager(
     - If BOTH unavailable, fail fast with clear error
     - This maintains safety while enabling local development without AWS credentials
     """
-    import os
 
     from utils.db.dynamo_lock import DynamoDBLockManager
     from utils.db.rds_lock import RDSLockManager
@@ -216,7 +216,7 @@ def get_lock_manager(
     # Try DynamoDB first (preferred for production AWS Lambda)
     try:
         logger.info("[LOCK_FACTORY] Trying DynamoDB locks (preferred for production)")
-        lock_mgr = DynamoDBLockManager(
+        lock_mgr: DynamoDBLockManager | RDSLockManager = DynamoDBLockManager(
             table_name=table_name,
             lock_duration_seconds=lock_duration_seconds,
             enable_auto_cleanup=enable_auto_cleanup,

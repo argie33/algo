@@ -18,11 +18,9 @@ publish for free. Blocked until a free crosswalk source is found.
 """
 
 import logging
-from datetime import datetime, timedelta
 from typing import Any
 
 from utils.external.sec_edgar_client import SecEdgarClient
-from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 

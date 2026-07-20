@@ -8,11 +8,9 @@ LOCAL_MODE: Metrics disabled (prints to stderr instead).
 AWS_MODE: Metrics sent to CloudWatch for production visibility.
 """
 
-import json
 import logging
 import os
 from datetime import datetime, timezone
-from typing import Any
 
 logger = logging.getLogger(__name__)
 

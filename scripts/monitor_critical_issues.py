@@ -16,9 +16,7 @@ Usage:
 import argparse
 import sys
 import time
-from datetime import datetime, timedelta, timezone
-
-import psycopg2
+from datetime import datetime, timezone
 
 from utils.db.context import DatabaseContext
 
@@ -79,7 +77,7 @@ def check_loaders_running() -> dict:
                 "load_market_exposure_daily",
             ]
 
-            missing = [l for l in critical if l not in recent_loaders]
+            missing = [loader for loader in critical if loader not in recent_loaders]
 
             return {
                 "recent_loaders": len(recent_loaders),
@@ -118,7 +116,7 @@ def check_data_staleness() -> dict:
 
             stale = []
             for row in cur.fetchall():
-                table, status, age, updated, count = row
+                table, _status, age, updated, count = row
                 if age is not None and age > 0:
                     stale.append({
                         "table": table,

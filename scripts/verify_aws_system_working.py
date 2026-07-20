@@ -74,10 +74,8 @@ def check_database_freshness():
         for table, latest, hours_old in cur.fetchall():
             if latest is None:
                 status = "NO DATA"
-                stale = True
             elif hours_old < 24:
                 status = f"FRESH ({hours_old:.1f}h old)"
-                stale = False
             elif hours_old < 48:
                 status = f"ACCEPTABLE ({hours_old:.1f}h old)"
             else:

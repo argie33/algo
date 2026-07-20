@@ -64,27 +64,27 @@ def trigger_pipeline(environment: str = "dev") -> str | None:
         )
 
         execution_arn = response["executionArn"]
-        print(f"[OK] Pipeline triggered successfully")
+        print("[OK] Pipeline triggered successfully")
         print(f"  Execution ARN: {execution_arn}")
         return execution_arn
 
     except ClientError as e:
         error_code = e.response["Error"]["Code"]
         if error_code == "InvalidArn":
-            print(f"[ERR] State machine not found (invalid ARN)")
-            print(f"  Check that terraform apply has been run recently")
+            print("[ERR] State machine not found (invalid ARN)")
+            print("  Check that terraform apply has been run recently")
             print(f"  And that the state machine exists in {environment} environment")
         elif error_code == "AccessDenied":
-            print(f"[ERR] Access denied - check IAM permissions for step functions:StartExecution")
+            print("[ERR] Access denied - check IAM permissions for step functions:StartExecution")
         else:
             print(f"[ERR] {error_code}: {e.response['Error']['Message']}")
         return None
 
     except (BotoCoreError, Exception) as e:
         if "Unable to locate credentials" in str(e):
-            print(f"[ERR] AWS credentials not found")
-            print(f"  Run: aws configure")
-            print(f"  Or set AWS_PROFILE environment variable")
+            print("[ERR] AWS credentials not found")
+            print("  Run: aws configure")
+            print("  Or set AWS_PROFILE environment variable")
         else:
             print(f"[ERR] {type(e).__name__}: {e}")
         return None
@@ -122,22 +122,22 @@ def watch_execution(execution_arn: str, poll_interval: int = 10, max_wait_minute
             print(f"[{elapsed:6.0f}s] Status: {status:12s} | StartDate: {start} | StopDate: {end}")
 
             if status == "SUCCEEDED":
-                print(f"\n[OK] Execution succeeded!")
+                print("\n[OK] Execution succeeded!")
                 return True
 
             elif status == "FAILED":
-                print(f"\n[FAIL] Execution failed")
+                print("\n[FAIL] Execution failed")
                 # Try to get error details
                 if "cause" in response:
                     print(f"  Cause: {response['cause']}")
                 return False
 
             elif status == "TIMED_OUT":
-                print(f"\n[TIMEOUT] Execution timed out")
+                print("\n[TIMEOUT] Execution timed out")
                 return False
 
             elif status == "ABORTED":
-                print(f"\n[ABORT] Execution was aborted")
+                print("\n[ABORT] Execution was aborted")
                 return False
 
             time.sleep(poll_interval)

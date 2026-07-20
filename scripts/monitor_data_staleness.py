@@ -13,7 +13,7 @@ Usage:
 import os
 import sys
 import time
-from datetime import datetime, timezone, date, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 # Windows encoding fix
 if sys.platform.startswith("win"):
@@ -27,9 +27,9 @@ if sys.platform.startswith("win"):
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db.context import DatabaseContext
 from utils.logging import logger
-from algo.infrastructure.market_calendar import MarketCalendar
 
 # Freshness thresholds (max age before each status)
 # For price/technical tables: thresholds differ on trading vs non-trading days

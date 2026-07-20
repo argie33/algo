@@ -17,7 +17,7 @@ import html
 import logging
 import re
 from datetime import date, datetime
-from typing import Any, Optional
+from typing import Any
 
 from utils.monitoring.form4_parsing_metrics import track_form4_parsing_error, track_form4_parsing_success
 
@@ -98,7 +98,7 @@ class Form4PlaintextParser:
     )
 
     @staticmethod
-    def parse(content: str, symbol: str) -> Optional[dict[str, Any]]:
+    def parse(content: str, symbol: str) -> dict[str, Any] | None:
         """Parse Form 4 plain-text content and extract insider data.
 
         Handles both pure plain-text and HTML-embedded SEC Form 4 files.
@@ -171,7 +171,7 @@ class Form4PlaintextParser:
         return result
 
     @staticmethod
-    def _extract_insider_name(content: str, symbol: str) -> Optional[str]:
+    def _extract_insider_name(content: str, symbol: str) -> str | None:
         """Extract insider name from Form 4 header.
 
         Tries multiple patterns to handle variations in SEC Form 4 formatting,
@@ -199,7 +199,7 @@ class Form4PlaintextParser:
         return None
 
     @staticmethod
-    def _extract_insider_title(content: str, symbol: str) -> Optional[str]:
+    def _extract_insider_title(content: str, symbol: str) -> str | None:
         """Extract insider title/position from Form 4."""
         patterns = [
             r"(?:Officer\s*Title|Title\s*of|Position/Title)\s*[:\-]?\s*([A-Za-z\s,\.]+?)(?:\n|$)",
@@ -216,7 +216,7 @@ class Form4PlaintextParser:
         return None
 
     @staticmethod
-    def _extract_transactions(content: str, symbol: str) -> tuple[int, int, int, Optional[date]]:
+    def _extract_transactions(content: str, symbol: str) -> tuple[int, int, int, date | None]:
         """Extract transaction counts and latest date from Form 4.
 
         Returns:
@@ -261,7 +261,7 @@ class Form4PlaintextParser:
         return buy_count, sell_count, net_txns, latest_date
 
     @staticmethod
-    def _extract_shares_owned(content: str, symbol: str) -> Optional[int]:
+    def _extract_shares_owned(content: str, symbol: str) -> int | None:
         """Extract current shares owned following most recent transaction.
 
         Tries multiple patterns to handle SEC Form 4 variations.
@@ -287,7 +287,7 @@ class Form4PlaintextParser:
         return None
 
     @staticmethod
-    def _extract_ownership_pct(content: str, symbol: str) -> Optional[float]:
+    def _extract_ownership_pct(content: str, symbol: str) -> float | None:
         """Extract % ownership of class from Form 4."""
         patterns = [
             r"(?:%\s*of\s*Class|Percent\s*of\s*Class|Ownership\s*%)\s*[:\-]?\s*([\d.]+)%?",
@@ -307,7 +307,7 @@ class Form4PlaintextParser:
         return None
 
     @staticmethod
-    def _find_transaction_section(content: str) -> Optional[str]:
+    def _find_transaction_section(content: str) -> str | None:
         r"""Find and extract the transaction data section from Form 4.
 
         Tries multiple section markers to handle variations in SEC Form 4 structure.

@@ -215,8 +215,24 @@ class DataSourceRouter:
                 # CRITICAL: Mark data with source info and degradation status
                 # Consumers MUST check _primary_source_failed before using data
                 if isinstance(result, dict) and not _is_data_unavailable_marker(result):
-                    result["_source_name"] = name
-                    result["_primary_source_failed"] = primary_failed
+                    if result and all(v is None or isinstance(v, list) for v in result.values()):
+                        # Batch shape (dict[symbol] -> rows, e.g. fetch_ohlcv_batch's
+                        # wholesale-fallback path): do NOT stamp _source_name/
+                        # _primary_source_failed as extra top-level "symbol" keys, as this
+                        # used to do - that corrupts the symbol->rows structure, and
+                        # loaders/load_prices.py's `for row in rows: if "date" not in row`
+                        # would then iterate the *string* "yfinance" character-by-character
+                        # and crash, exactly during the wholesale-Alpaca-outage fallback this
+                        # data is meant to serve. self.last_source (set just above) already
+                        # gives per-row consumers (e.g. load_prices.py's
+                        # `r.pop("_source_name", None) or self.router.last_source`) correct
+                        # attribution without mutating the batch; per-row stamping for mixed
+                        # Alpaca/yfinance batches is handled separately by
+                        # _fill_alpaca_residual_from_yfinance.
+                        pass
+                    else:
+                        result["_source_name"] = name
+                        result["_primary_source_failed"] = primary_failed
                     if primary_failed and i > 0:
                         logger.error(
                             "[DataSourceRouter] PRIMARY SOURCE FAILED for %s, using fallback source '%s'. "
@@ -431,7 +447,7 @@ class DataSourceRouter:
         results.update(fetched)
 
         # TRANSPARENCY FIX: Mark each row with Alpaca source attribution
-        for sym, rows in results.items():
+        for _sym, rows in results.items():
             if rows and not _is_data_unavailable_marker(rows):
                 for row in rows:
                     row["_source_name"] = "alpaca"

@@ -15,8 +15,11 @@ Usage:
   python TEST_POSITIONS_FIX.py
 """
 
+import logging
 import os
 import sys
+
+logger = logging.getLogger(__name__)
 
 sys.path.insert(0, os.getcwd())
 
@@ -85,9 +88,7 @@ def test_positions_api():
             pass
         except Exception as e:
             # Log any other errors but continue
-            import logging
-
-            logging.warning(f"Could not clear API cache: {type(e).__name__}: {e}")
+            logger.warning(f"Could not clear API cache: {type(e).__name__}: {e}")
 
         from dashboard.api_data_layer import api_call
 

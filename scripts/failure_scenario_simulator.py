@@ -15,16 +15,11 @@ Usage:
 """
 
 import argparse
-import json
 import logging
-import os
-import signal
-import subprocess
 import sys
-import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 from unittest import mock
 
 import psycopg2
@@ -194,7 +189,7 @@ class FailureScenarioSimulator:
         }
 
         try:
-            from algo.exceptions import DataLoadError, ErrorCategory
+            from algo.exceptions import DataLoadError
 
             # Verify that disk full errors are non-retryable
             error = DataLoadError(
@@ -251,8 +246,9 @@ class FailureScenarioSimulator:
 
         try:
             # Verify halt flag manager handles DynamoDB unavailability
-            from algo.orchestration.halt_flag_manager import HaltFlagManager
             from unittest.mock import MagicMock
+
+            from algo.orchestration.halt_flag_manager import HaltFlagManager
 
             mock_alerts = MagicMock()
             mock_log = MagicMock()
@@ -366,7 +362,7 @@ class FailureScenarioSimulator:
         }
 
         try:
-            from algo.exceptions import DataLoadError, ErrorCategory
+            from algo.exceptions import DataLoadError
 
             error = DataLoadError(
                 source="sec_api",
@@ -430,7 +426,7 @@ class FailureScenarioSimulator:
         }
 
         try:
-            from algo.exceptions import LockAcquisitionError, ErrorCategory
+            from algo.exceptions import ErrorCategory, LockAcquisitionError
 
             error = LockAcquisitionError(
                 lock_key="orchestrator_phase_4",

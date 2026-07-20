@@ -9,12 +9,13 @@ Priority: Critical data first, then important data, then nice-to-have.
 Usage: python3 scripts/refresh_stale_loaders.py [--force] [--verbose]
 """
 
+import logging
 import subprocess
 import sys
 import time
-import logging
-from datetime import datetime, timedelta, date
+from datetime import date
 from pathlib import Path
+
 import psycopg2
 
 logging.basicConfig(
@@ -108,7 +109,7 @@ def run_loader(loader_path: str, timeout_seconds: int = 300) -> bool:
         # Long-running loaders (SEC API) may timeout; this is not necessarily failure
         return True  # Optimistic - assume it's working
     except Exception as e:
-        logger.error(f"✗ ERROR: {loader_path}: {str(e)}")
+        logger.error(f"✗ ERROR: {loader_path}: {e!s}")
         return False
 
 def main():
@@ -180,7 +181,7 @@ def main():
     logger.info("=" * 80)
 
     all_fresh = True
-    for loader_path, table_name, priority, _ in stale_loaders:
+    for _loader_path, table_name, _priority, _ in stale_loaders:
         age_info = get_data_age(table_name)
 
         if age_info['exists'] and age_info['age_days'] is not None:

@@ -5,7 +5,6 @@ Provides the same interface as DynamoDBLockManager for compatibility.
 """
 
 import logging
-import os
 import time
 import uuid
 from datetime import datetime, timedelta, timezone

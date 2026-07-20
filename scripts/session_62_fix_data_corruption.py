@@ -111,9 +111,7 @@ def main():
         # Verify all tables are fresh
         print("\n3. Verifying all halt-critical tables are fresh...")
 
-        from algo.infrastructure.market_calendar import MarketCalendar
-
-        expected = today if MarketCalendar.is_trading_day(today) else today
+        expected = today
 
         halt_tables = {
             "market_health_daily": "date",

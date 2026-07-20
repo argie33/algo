@@ -66,21 +66,29 @@ class SecValuationsLoader(OptimalLoader):
                         earnings_per_share
                     FROM annual_income_statement
                     WHERE symbol = %s AND data_unavailable = FALSE
-                    ORDER BY fiscal_year DESC LIMIT 1
+                    ORDER BY fiscal_year DESC LIMIT 2
                     """,
                     (symbol,),
                 )
-                income_row = cur.fetchone()
-                if not income_row:
+                income_rows = cur.fetchall()
+                if not income_rows:
                     return [self._unavailable_marker(symbol, "no_income_statement")]
 
-                ttm_revenue, _ttm_net_income, ttm_eps_basic = income_row
+                ttm_revenue, _ttm_net_income, ttm_eps_basic = income_rows[0]
+                # PEG's growth-rate leg needs a genuinely prior-year EPS, not the same TTM
+                # value used twice - GOVERNANCE: this used to set `latest_eps = ttm_eps_basic`
+                # (comment literally said "Use same EPS for both TTM and latest"), which made
+                # _compute_valuations()'s growth_rate = (ttm_eps - latest_eps)/abs(latest_eps)
+                # always exactly 0 for every symbol, so peg_ratio silently never populated
+                # anywhere in the system with no marker flagging PEG specifically as broken.
+                # A missing second fiscal year (new filer, gap) leaves it None, which
+                # _compute_valuations already handles by leaving peg_ratio NULL.
+                prior_year_eps = income_rows[1][2] if len(income_rows) > 1 else None
 
                 # Validate critical fields are not NULL (fail-fast if SEC data incomplete)
                 # Allow revenue-only companies: can compute PS ratio even without EPS
                 if ttm_revenue is None and ttm_eps_basic is None:
                     return [self._unavailable_marker(symbol, "income_statement_revenue_and_eps_null")]
-                latest_eps = ttm_eps_basic  # Use same EPS for both TTM and latest (can be None)
 
                 # Compute shares outstanding from SEC financial data: shares = net_income / eps
                 # This is more reliable than fetching from company_info_sec which often lacks this data.
@@ -172,7 +180,7 @@ class SecValuationsLoader(OptimalLoader):
                 float(book_value) if book_value else None,
                 float(ocf) if ocf else 0.0,
                 float(capex) if capex else 0.0,
-                float(latest_eps) if latest_eps else None,
+                float(prior_year_eps) if prior_year_eps else None,
             )]
 
         except TimeoutError as e:
@@ -205,7 +213,7 @@ class SecValuationsLoader(OptimalLoader):
         book_value: float | None,
         ocf: float,
         capex: float,
-        latest_eps: float | None,
+        prior_year_eps: float | None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data."""
         result: dict[str, Any] = {
@@ -279,10 +287,11 @@ class SecValuationsLoader(OptimalLoader):
             logger.warning(f"[{symbol}] TTM revenue missing, PS ratio unavailable")
 
         # PEG Ratio = PE ÷ Earnings Growth Rate % (bound to 0..10000)
-        # Growth rate: (Latest Quarter EPS - EPS from 1yr ago) / EPS from 1yr ago
-        # NOTE: This is approximate with available data; full 1yr lookback would require quarterly history
-        if result["pe_ratio"] and latest_eps and latest_eps > 0 and ttm_eps > 0:
-            growth_rate = ((ttm_eps - latest_eps) / abs(latest_eps)) * 100 if latest_eps != 0 else None
+        # Growth rate: (TTM EPS - EPS from prior fiscal year) / EPS from prior fiscal year
+        # NOTE: Annual (fiscal-year over fiscal-year), not quarterly - full quarterly
+        # lookback would require quarterly history this loader doesn't fetch.
+        if result["pe_ratio"] and prior_year_eps and prior_year_eps > 0 and ttm_eps > 0:
+            growth_rate = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100 if prior_year_eps != 0 else None
             if growth_rate and growth_rate > 0 and result["pe_ratio"] > 0:
                 peg = result["pe_ratio"] / growth_rate
                 if peg <= 10000:  # Reasonable PEG bounds

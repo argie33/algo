@@ -45,7 +45,7 @@ def check_veto3_fix() -> bool:
         )
         runs = cur.fetchall()
         for run in runs:
-            run_id, started_at, status, halt_reason = run
+            run_id, _started_at, status, halt_reason = run
             halt_msg = f" | Halt: {halt_reason[:40]}" if halt_reason else ""
             print(f"  {run_id:40} | {status:10}{halt_msg}")
 

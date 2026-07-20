@@ -100,7 +100,6 @@ def check_step_functions_executions():
                 print(f"\n{sm['name']}:")
                 for exec_info in execs.get("executions", []):
                     exec_name = exec_info["name"]
-                    is_manual = "manual" in exec_name.lower()
                     start_time = exec_info.get("startDate")
 
                     # Check if time matches schedule (2 AM or 4:05 PM)

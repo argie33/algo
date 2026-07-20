@@ -400,10 +400,15 @@ class OptimalLoader:
         # If invalid, use file-based locking instead of failing.
         # This allows loaders to run locally without DynamoDB access.
         is_local_mode = os.getenv("LOCAL_MODE", "").lower() in ("1", "true", "yes")
-        from utils.db.local_file_lock import FileLockManager, get_lock_manager
         from utils.db.dynamo_lock import DynamoDBLockManager
+        from utils.db.local_file_lock import get_lock_manager
+        from utils.db.rds_lock import RDSLockManager
 
-        lock_manager: DynamoDBLockManager | FileLockManager | None = None
+        # No FileLockManager here: Session 282 removed it as a fallback option (Windows
+        # race condition on non-atomic file creation) - get_lock_manager() only ever
+        # returns DynamoDBLockManager or the RDS-backed fallback added in Session 290
+        # (utils/db/rds_lock.py, shared/atomic like DynamoDB - not a local file lock).
+        lock_manager: DynamoDBLockManager | RDSLockManager | None = None
         if is_local_mode:
             logger.info(f"[{self.table_name}] LOCAL_MODE enabled - using file-based locks")
             lock_manager = None
@@ -424,8 +429,10 @@ class OptimalLoader:
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             except RuntimeError as ddb_err:
-                # CRITICAL (Session 282): DynamoDB unavailable - fail fast, no fallback
-                # Reason: FileLockManager has Windows race condition (non-atomic file creation).
+                # CRITICAL (Session 282, updated Session 290): get_lock_manager() itself already
+                # falls back from DynamoDB to RDS - this RuntimeError only reaches here when BOTH
+                # are unavailable. At that point, fail fast with no further fallback: FileLockManager
+                # has a Windows race condition (non-atomic file creation) and must never be used.
                 # Better to fail-fast and trigger infrastructure retry than silently degrade to unsafe locking.
                 # Loaders are orchestrated by Step Functions/EventBridge which handles retries.
                 logger.critical(
@@ -442,9 +449,10 @@ class OptimalLoader:
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 # Lock acquisition failed. Check if it's a permission issue or actual contention.
                 if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
-                    # CRITICAL (Session 282): DynamoDB permission error - fail fast, never fall back to FileLockManager
-                    # Reason: FileLockManager has Windows race condition (non-atomic file creation).
-                    # Fallback makes situation WORSE, not better. Fail-fast with clear error so ops can fix AWS access.
+                    # CRITICAL (Session 282): permission error on whichever backend get_lock_manager()
+                    # returned - fail fast, never fall back to FileLockManager. Reason: FileLockManager
+                    # has a Windows race condition (non-atomic file creation) - falling back to it
+                    # makes the situation WORSE, not better. Fail-fast with clear error so ops can fix access.
                     logger.critical(
                         f"[{self.table_name}] DynamoDB lock unavailable (permission denied). "
                         f"Cannot proceed with idempotency guarantee. Fix AWS credentials or DynamoDB access."
@@ -570,9 +578,14 @@ class OptimalLoader:
 
     def load_global(self) -> int:
         from utils.db.dynamo_lock import DynamoDBLockManager
-        from utils.db.local_file_lock import FileLockManager, get_lock_manager
+        from utils.db.local_file_lock import get_lock_manager
+        from utils.db.rds_lock import RDSLockManager
 
-        lock_manager: DynamoDBLockManager | FileLockManager | None = None
+        # No FileLockManager here: Session 282 removed it as a fallback option (Windows
+        # race condition on non-atomic file creation) - get_lock_manager() only ever
+        # returns DynamoDBLockManager or the RDS-backed fallback added in Session 290
+        # (utils/db/rds_lock.py, shared/atomic like DynamoDB - not a local file lock).
+        lock_manager: DynamoDBLockManager | RDSLockManager | None = None
         try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
@@ -589,8 +602,10 @@ class OptimalLoader:
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             except RuntimeError as ddb_err:
-                # CRITICAL (Session 282): DynamoDB unavailable - fail fast, no fallback
-                # Reason: FileLockManager has Windows race condition (non-atomic file creation).
+                # CRITICAL (Session 282, updated Session 290): get_lock_manager() itself already
+                # falls back from DynamoDB to RDS - this RuntimeError only reaches here when BOTH
+                # are unavailable. At that point, fail fast with no further fallback: FileLockManager
+                # has a Windows race condition (non-atomic file creation) and must never be used.
                 # Better to fail-fast and trigger infrastructure retry than silently degrade to unsafe locking.
                 # Loaders are orchestrated by Step Functions/EventBridge which handles retries.
                 logger.critical(
@@ -607,9 +622,10 @@ class OptimalLoader:
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 # Lock acquisition failed. Check if it's a permission issue or actual contention.
                 if hasattr(lock_manager, 'is_available') and not lock_manager.is_available:
-                    # CRITICAL (Session 282): DynamoDB permission error - fail fast, never fall back to FileLockManager
-                    # Reason: FileLockManager has Windows race condition (non-atomic file creation).
-                    # Fallback makes situation WORSE, not better. Fail-fast with clear error so ops can fix AWS access.
+                    # CRITICAL (Session 282): permission error on whichever backend get_lock_manager()
+                    # returned - fail fast, never fall back to FileLockManager. Reason: FileLockManager
+                    # has a Windows race condition (non-atomic file creation) - falling back to it
+                    # makes the situation WORSE, not better. Fail-fast with clear error so ops can fix access.
                     logger.critical(
                         f"[{self.table_name}] DynamoDB lock unavailable (permission denied). "
                         f"Cannot proceed with idempotency guarantee. Fix AWS credentials or DynamoDB access."

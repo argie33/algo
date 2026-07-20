@@ -8,7 +8,6 @@ CRITICAL: Must be imported BEFORE any boto3/AWS calls.
 """
 
 import os
-import sys
 from pathlib import Path
 
 

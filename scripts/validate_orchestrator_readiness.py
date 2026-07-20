@@ -44,7 +44,7 @@ def validate_environment():
             logger.info(f"  ✓ {var} is set")
 
     # Set optional variables with defaults if not set
-    for var, (default_val, desc) in optional_vars.items():
+    for var, (default_val, _desc) in optional_vars.items():
         value = os.getenv(var)
         if not value:
             os.environ[var] = default_val

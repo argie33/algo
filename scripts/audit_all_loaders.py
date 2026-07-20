@@ -13,14 +13,13 @@ Checks:
 Usage: python3 scripts/audit_all_loaders.py
 """
 
-import os
-import sys
 import importlib.util
 import logging
+import sys
+from datetime import date
 from pathlib import Path
-from datetime import date, datetime
+
 import psycopg2
-import traceback
 
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
@@ -36,7 +35,7 @@ def load_module_from_file(file_path):
             module = importlib.util.module_from_spec(spec)
             return module
         return None
-    except Exception as e:
+    except Exception:
         return None
 
 def check_loader_imports(loader_file):
@@ -89,7 +88,7 @@ def check_table_exists(table_name):
         return result[0]
     except psycopg2.Error as e:
         logger.error(f"[DB_ERROR] Failed to check table existence for {table_name}: {type(e).__name__}: {e}")
-        raise RuntimeError(f"Cannot verify table existence for {table_name}: {e}")
+        raise RuntimeError(f"Cannot verify table existence for {table_name}: {e}") from e
     finally:
         cur.close()
         conn.close()
@@ -137,7 +136,7 @@ def main():
     logger.info("=" * 100)
 
     # Find all loader files
-    loader_files = sorted([f for f in LOADERS_DIR.glob('load_*.py')])
+    loader_files = sorted(LOADERS_DIR.glob('load_*.py'))
     loader_mapping = get_loader_table_mapping()
 
     audit_results = {
@@ -172,7 +171,7 @@ def main():
         # Check output tables
         output_tables = loader_mapping.get(loader_name, [])
         if not output_tables:
-            logger.warning(f"  [?] No table mapping found (update get_loader_table_mapping())")
+            logger.warning("  [?] No table mapping found (update get_loader_table_mapping())")
             continue
 
         logger.info(f"  Output tables ({len(output_tables)}):")
@@ -241,10 +240,10 @@ def main():
         logger.error(f"\n[FAIL] System has {critical_issues} critical issue(s)")
         return 1
     elif audit_results['tables_stale']:
-        logger.warning(f"\n[WARN] System has stale data but is operational")
+        logger.warning("\n[WARN] System has stale data but is operational")
         return 0
     else:
-        logger.info(f"\n[OK] All loaders healthy")
+        logger.info("\n[OK] All loaders healthy")
         return 0
 
 if __name__ == '__main__':

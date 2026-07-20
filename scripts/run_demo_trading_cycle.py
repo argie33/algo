@@ -62,7 +62,7 @@ def run_demo_trading_cycle():
     for signal in signals:
         try:
             qty = 10  # Buy 10 shares of each
-            order = account.submit_order(
+            account.submit_order(
                 symbol=signal["symbol"],
                 qty=qty,
                 side="buy",
@@ -121,7 +121,7 @@ def run_demo_trading_cycle():
     exited_count = 0
     for exit_order in exits:
         try:
-            order = account.submit_order(
+            account.submit_order(
                 symbol=exit_order["symbol"],
                 qty=exit_order["qty"],
                 side="sell",

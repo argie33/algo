@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Verify that session 256 completion requirements are met."""
 
-import os
 from pathlib import Path
+
 from utils.db import DatabaseContext
 
 # Check 1: Log file exists

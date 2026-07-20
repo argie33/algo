@@ -2,6 +2,7 @@
 """Insert demo positions for local development testing."""
 
 from datetime import datetime
+
 from utils.db import DatabaseContext
 
 demo_positions = [

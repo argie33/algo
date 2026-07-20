@@ -10,6 +10,7 @@ Usage:
 """
 
 import sys
+
 from loaders.loader_helper import setup_imports
 
 setup_imports()
@@ -17,7 +18,6 @@ setup_imports()
 import argparse
 import logging
 from datetime import date, datetime, timedelta
-from typing import Any
 
 from algo.infrastructure import MarketCalendar
 from loaders.load_buy_sell_daily import SignalsDailyLoader

@@ -37,6 +37,7 @@ logger = logging.getLogger(__name__)
 
 # Load .env.local credentials BEFORE any imports
 from utils.dotenv_loader import load_env_local
+
 load_env_local()
 
 # Load Alpaca credentials from database (persistent storage, not files)
@@ -71,7 +72,7 @@ def cleanup_orphaned_dev_servers() -> None:
     try:
         if sys.platform == "win32":
             # Windows: use taskkill to kill only dev_server processes
-            result = subprocess.run(
+            subprocess.run(
                 ["tasklist", "/FI", "WINDOWTITLE eq dev_server*", "/FO", "CSV"],
                 capture_output=True,
                 text=True,

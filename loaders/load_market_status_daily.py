@@ -366,9 +366,11 @@ class MarketStatusDailyLoader(OptimalLoader):
             return {
                 "fear_greed_index": round(fear_greed, 2),
                 "sentiment_score": None,  # Computed from bull/bear/neutral if available
-                "bullish_pct": round(bullish_pct, 2) if bullish_pct else None,
-                "bearish_pct": round(bearish_pct, 2) if bearish_pct else None,
-                "neutral_pct": round(neutral_pct, 2) if neutral_pct else None,
+                # `is not None`, not truthiness: a genuine 0.0% reading (all bearish,
+                # zero bullish) is a real, meaningful value and must not collapse to NULL.
+                "bullish_pct": round(bullish_pct, 2) if bullish_pct is not None else None,
+                "bearish_pct": round(bearish_pct, 2) if bearish_pct is not None else None,
+                "neutral_pct": round(neutral_pct, 2) if neutral_pct is not None else None,
             }
 
         except Exception as e:

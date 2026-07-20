@@ -9,7 +9,9 @@ Run: python3 scripts/cleanup_nan_data.py
 """
 
 import sys
+
 from utils.db import DatabaseContext
+
 
 def cleanup_nan(table: str, columns: list[str]) -> int:
     """Replace NaN with NULL in specified table/columns."""
