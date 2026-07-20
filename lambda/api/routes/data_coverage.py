@@ -248,7 +248,20 @@ def get_loader_health(cur: cursor) -> Any:
             logger.error(error_msg)
             return error_response(503, "no_loader_status", error_msg)
 
-        stale_loaders = [row[0] for row in rows if row[1] in ("stale", "error") or row[1] is None]
+        # data_loader_status.status is written by two competing vocabularies: the loader's
+        # own canonical execution result (utils/loaders/status_enum.py - RUNNING/COMPLETED/
+        # FAILED/TIMEOUT) and algo/monitoring/pipeline_health.py's periodic freshness sweep
+        # (HEALTHY/STALE/VERY_STALE/MISSING/ERROR), which overwrites the same column on every
+        # sweep. Comparing against lowercase "stale"/"error" only ever matched a legacy
+        # lowercase mapping that utils/loader_infrastructure.py no longer writes - it missed
+        # every uppercase value from both real vocabularies, so this endpoint reported
+        # "healthy" even when loaders were genuinely stale or failed. Match case-insensitively
+        # against all known bad-status values from both vocabularies instead of one hardcoded
+        # lowercase pair.
+        bad_statuses = {"stale", "very_stale", "missing", "error", "failed", "timeout"}
+        stale_loaders = [
+            row[0] for row in rows if row[1] is None or str(row[1]).lower() in bad_statuses
+        ]
         return success_response(
             {
                 "total_tracked": len(rows),

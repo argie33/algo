@@ -462,9 +462,30 @@ class APIHandler(BaseHTTPRequestHandler):
             summary = {"ok": 0, "stale": 0, "empty": 0}
             critical_stale = []
 
+            # data_loader_status.status is written by two competing vocabularies:
+            # utils/loaders/status_enum.py's canonical RUNNING/COMPLETED/FAILED/TIMEOUT, and
+            # algo/monitoring/pipeline_health.py's periodic freshness sweep -
+            # HEALTHY/STALE/VERY_STALE/MISSING/ERROR - both of which write this same column.
+            # Bucket every known value from both (case-insensitively) into the 3-value
+            # ok/stale/empty vocabulary this endpoint's summary/role logic actually uses,
+            # instead of comparing raw status text against only a lowercase "stale"/"empty"
+            # pair that matched neither real vocabulary - which made ready_to_trade and the
+            # summary counts silently ignore loader health entirely.
+            stale_statuses = {"stale", "very_stale", "error", "failed", "timeout"}
+            empty_statuses = {"missing", "empty", "not_started", "idle"}
+
+            def _bucket_status(raw_status: Any) -> str:
+                s = str(raw_status).lower() if raw_status else "empty"
+                if s in stale_statuses:
+                    return "stale"
+                if s in empty_statuses:
+                    return "empty"
+                return "ok"
+
             for loader in loaders:
                 table_name = loader.get("table_name", "unknown")
                 status = loader.get("status", "empty")
+                status_bucket = _bucket_status(status)
                 last_updated = loader.get("last_updated")
                 # CRITICAL FIX: Check for None (data missing) vs 0 (zero rows loaded)
                 row_count = loader.get("row_count")
@@ -473,7 +494,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     ready_to_trade = False
 
                 # Mark as failed if status is error or stale
-                if status in ("error", "stale") or (
+                if status_bucket != "ok" or (
                     last_updated and (now - last_updated.replace(tzinfo=EASTERN_TZ).astimezone(timezone.utc)).total_seconds() > 86400
                 ):
                     ready_to_trade = False
@@ -487,14 +508,14 @@ class APIHandler(BaseHTTPRequestHandler):
                 # Determine role (criticality level)
                 if table_name in critical_tables:
                     role = "CRIT"
-                elif status in ("stale", "empty"):
+                elif status_bucket in ("stale", "empty"):
                     role = "IMP"
                 else:
                     role = "NORM"
 
                 # Track for summary
-                summary[status] = summary.get(status, 0) + 1
-                if status in ("stale", "empty") and table_name in critical_tables:
+                summary[status_bucket] = summary.get(status_bucket, 0) + 1
+                if status_bucket in ("stale", "empty") and table_name in critical_tables:
                     critical_stale.append(table_name)
 
                 sources.append(

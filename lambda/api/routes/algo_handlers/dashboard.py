@@ -1807,7 +1807,6 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         logger.info(f"[SCORES] Query returned {len(rows)} rows")
 
         top_scores = []
-        null_rs_percentile_count = 0
         for row in rows:
             score_dict = safe_json_serialize(safe_dict_convert(row))
             # SESSION 255: rs_percentile COALESCE fallback removed - now selected directly without synthetic 50.0 default
@@ -1885,22 +1884,27 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
 def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
+        # drawdown_pct is computed from adjusted_equity (cash-flow-adjusted, migration
+        # 1134), not raw total_portfolio_value, so a capital deposit/withdrawal doesn't
+        # show up as a fake drawdown spike here while the circuit breaker/risk dashboard
+        # agree on the real trading-performance figure. total_portfolio_value itself is
+        # still returned as-is (real dollar equity curve).
         cur.execute(
             """
                 WITH snapshots AS (
                     SELECT snapshot_date, total_portfolio_value, total_cash,
-                           unrealized_pnl_total, position_count, daily_return_pct,
-                           MAX(total_portfolio_value) OVER (
+                           unrealized_pnl_total, position_count, daily_return_pct, adjusted_equity,
+                           MAX(adjusted_equity) OVER (
                                ORDER BY snapshot_date ASC
                                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-                           ) AS running_peak
+                           ) AS adjusted_running_peak
                     FROM algo_portfolio_snapshots
-                    WHERE snapshot_date >= %s AND total_portfolio_value > 0
+                    WHERE snapshot_date >= %s AND total_portfolio_value > 0 AND adjusted_equity IS NOT NULL
                 )
                 SELECT snapshot_date, total_portfolio_value, total_cash,
                        unrealized_pnl_total, position_count, daily_return_pct,
                        ROUND(
-                           (total_portfolio_value - running_peak) / NULLIF(running_peak, 0) * 100,
+                           (adjusted_equity - adjusted_running_peak) / NULLIF(adjusted_running_peak, 0) * 100,
                            4
                        ) AS drawdown_pct
                 FROM snapshots

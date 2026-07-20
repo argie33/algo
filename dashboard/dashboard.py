@@ -17,8 +17,11 @@ Modes:
   AWS (default): Set DASHBOARD_API_URL, COGNITO_USER_POOL_ID, COGNITO_CLIENT_ID env vars
 """
 
+import logging
 import os
 import sys
+
+logger = logging.getLogger(__name__)
 
 # CRITICAL FIX: Windows console encoding (cp1252) cannot display UTF-8.
 # Redirect stdout/stderr to use UTF-8 before any Rich console creation.
@@ -65,8 +68,7 @@ def _is_dev_server_available() -> bool:
         sock.close()
         return result == 0
     except Exception as e:
-        import logging
-        logging.debug(f"[DEBUG] localhost:3001 connectivity check failed: {type(e).__name__}: {e}")
+        logger.debug(f"[DEBUG] localhost:3001 connectivity check failed: {type(e).__name__}: {e}")
         return False
 
 
@@ -112,13 +114,11 @@ try:
                     ch = msvcrt.getch()
                     return str(ch.decode("utf-8", errors="ignore").lower())
                 except Exception as e:
-                    import logging
-                    logging.debug(f"[DEBUG] Windows msvcrt getch() failed: {type(e).__name__}: {e}")
+                    logger.debug(f"[DEBUG] Windows msvcrt getch() failed: {type(e).__name__}: {e}")
                     return ""
             return ""
         except Exception as e:
-            import logging
-            logging.debug(f"[DEBUG] Windows msvcrt kbhit() failed: {type(e).__name__}: {e}")
+            logger.debug(f"[DEBUG] Windows msvcrt kbhit() failed: {type(e).__name__}: {e}")
             return ""
 
 except ImportError:

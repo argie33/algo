@@ -1453,13 +1453,11 @@ def _get_cap_distribution(cur: cursor) -> Any:
 
 
 def _get_index_symbols() -> list[str]:
-    from utils.market_symbols_config import MarketSymbolsConfig
 
     return MarketSymbolsConfig.get_index_symbols()
 
 
 def _get_index_names() -> dict[str, str]:
-    from utils.market_symbols_config import MarketSymbolsConfig
 
     return MarketSymbolsConfig.get_index_names()
 

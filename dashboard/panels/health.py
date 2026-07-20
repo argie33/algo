@@ -335,7 +335,7 @@ def _build_phase_execution_panel(
 
         # Phase details - expand each phase with all relevant info
         if phase_data is None:
-            phase_rows.append(Text.from_markup(f"      [dim]─ no data available[/]"))
+            phase_rows.append(Text.from_markup("      [dim]─ no data available[/]"))
         elif phase_num == 1:  # Data Freshness Check
             tables_validated = phase_data.get("tables_validated")
             tables_fresh = phase_data.get("tables_fresh")
@@ -604,7 +604,7 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
         exits = exit_ex.get("exits_executed")
         success_rate = exit_ex.get("success_rate")
         if exits is None or success_rate is None:
-            rows.append(Text.from_markup(f"  [dim]↓ P6:[/] [dim]DATA UNAVAILABLE[/]"))
+            rows.append(Text.from_markup("  [dim]↓ P6:[/] [dim]DATA UNAVAILABLE[/]"))
         else:
             exit_color = G if exits > 0 and success_rate >= 80 else (Y if exits > 0 else DIM)
             rows.append(Text.from_markup(f"  [{exit_color}]↓ P6:[/] {exits} exits, {success_rate:.0f}% success"))
@@ -615,7 +615,7 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
         signals = sig.get("signals_generated")
         avg_str = sig.get("avg_strength")
         if signals is None:
-            rows.append(Text.from_markup(f"  [dim]◆ P7:[/] [dim]DATA UNAVAILABLE[/]"))
+            rows.append(Text.from_markup("  [dim]◆ P7:[/] [dim]DATA UNAVAILABLE[/]"))
         else:
             sig_color = G if signals > 0 else DIM
             if avg_str is not None:
@@ -629,7 +629,7 @@ def _format_phase_execution_health(execution_health: dict[str, Any] | None) -> l
         entries = entry_ex.get("entries_executed")
         success_rate = entry_ex.get("success_rate")
         if entries is None or success_rate is None:
-            rows.append(Text.from_markup(f"  [dim]↑ P8:[/] [dim]DATA UNAVAILABLE[/]"))
+            rows.append(Text.from_markup("  [dim]↑ P8:[/] [dim]DATA UNAVAILABLE[/]"))
         else:
             entry_color = G if entries > 0 and success_rate >= 80 else (Y if entries > 0 else DIM)
             rows.append(Text.from_markup(f"  [{entry_color}]↑ P8:[/] {entries} entries, {success_rate:.0f}% success"))
@@ -895,7 +895,7 @@ def _extract_orch_risk_metrics_string(risk: dict[str, Any] | None) -> str:
         return f"\n[{R}][error] Risk calculation failed[/]"
 
 
-def panel_orch(  # noqa: C901
+def panel_orch(
     run: dict[str, Any] | None,
     cfg: dict[str, Any],
     risk: dict[str, Any] | None = None,
@@ -2057,7 +2057,7 @@ def _format_notifications_section(valid_notifs: list[Any]) -> list[Text | Rule]:
     return rows
 
 
-def panel_status(  # noqa: C901
+def panel_status(
     act: dict[str, Any] | None,
     hlth: dict[str, Any] | list[Any] | None,
     notifs: list[Any],
@@ -2551,7 +2551,7 @@ def panel_status(  # noqa: C901
     )
 
 
-def panel_algo_health(  # noqa: C901
+def panel_algo_health(
     run: dict[str, Any] | None,
     act: dict[str, Any] | None,
     hlth: dict[str, Any] | list[Any] | None,
@@ -2804,7 +2804,7 @@ def panel_algo_health(  # noqa: C901
     )
 
 
-def _build_results_panel(  # noqa: C901
+def _build_results_panel(
     run: dict[str, Any] | None,
     act: dict[str, Any] | None,
     algo_metrics: list[Any],

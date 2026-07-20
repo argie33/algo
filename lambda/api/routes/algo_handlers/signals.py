@@ -25,7 +25,6 @@ from routes.utils import (
 )
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
-from utils.market_symbols_config import MarketSymbolsConfig
 from utils.validation import (
     format_decimal_string,
     safe_float,

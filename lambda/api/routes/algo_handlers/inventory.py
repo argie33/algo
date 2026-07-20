@@ -2,15 +2,18 @@
 
 from __future__ import annotations
 
-import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
 from psycopg2.extensions import cursor
-
-from routes.utils import db_route_handler, error_response, handle_db_error, list_response, safe_dict_convert, safe_json_serialize
+from routes.utils import (
+    db_route_handler,
+    error_response,
+    handle_db_error,
+    list_response,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +21,7 @@ logger = logging.getLogger(__name__)
 @db_route_handler("get table inventory")
 def _get_table_inventory(cur: cursor) -> Any:
     """Get COMPLETE table inventory - all tracked, deprecated, untracked tables with staleness status.
-    
+
     No filtering. Shows:
     - All tables in data_loader_status (active/deprecated/archived)
     - All actual tables in database not yet tracked
@@ -32,7 +35,7 @@ def _get_table_inventory(cur: cursor) -> Any:
             ORDER BY status, age_days DESC NULLS LAST, table_name
         """)
         tracked_rows = cur.fetchall()
-        
+
         tracked_tables = []
         for row in tracked_rows:
             tbl_name, status, threshold, age, count, last_updated = row
@@ -46,19 +49,19 @@ def _get_table_inventory(cur: cursor) -> Any:
                 "last_updated": last_updated.isoformat() if last_updated else None,
                 "is_stale": (age and threshold and age > threshold) if (age and threshold) else None,
             })
-        
+
         # 2. Get all actual tables in database
         cur.execute("""
-            SELECT table_name 
-            FROM information_schema.tables 
-            WHERE table_schema = 'public' 
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = 'public'
             AND table_type = 'BASE TABLE'
             ORDER BY table_name
         """)
-        
+
         actual_tables_set = {row[0] for row in cur.fetchall()}
         tracked_tables_set = {t["name"] for t in tracked_tables}
-        
+
         # 3. Find untracked tables (exist but not in data_loader_status)
         untracked_tables = []
         for tbl_name in sorted(actual_tables_set - tracked_tables_set):
@@ -87,10 +90,10 @@ def _get_table_inventory(cur: cursor) -> Any:
                     "last_updated": None,
                     "is_stale": None,
                 })
-        
+
         # 4. Combine all tables
         all_tables = tracked_tables + untracked_tables
-        
+
         # 5. Compute summary
         summary = {
             "total_tables": len(all_tables),
@@ -101,18 +104,18 @@ def _get_table_inventory(cur: cursor) -> Any:
             "archived": sum(1 for t in tracked_tables if t["status"] == "archived"),
             "stale_active": sum(1 for t in tracked_tables if t.get("is_stale") is True),
         }
-        
+
         # 6. Find gaps (tracked but don't exist)
         tracked_names = {row[0] for row in tracked_rows}
         missing_tables = sorted(tracked_names - actual_tables_set)
-        
+
         response = list_response(all_tables, total=len(all_tables), limit=None, offset=None)
         response["data"]["summary"] = summary
         response["data"]["missing_tables"] = missing_tables
         response["data"]["as_of"] = datetime.now(timezone.utc).isoformat()
-        
+
         return response
-        
+
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         code, error_type, message = handle_db_error(e, "fetch table inventory")
         logger.error(f"Failed to fetch table inventory: {error_type} - {message}")

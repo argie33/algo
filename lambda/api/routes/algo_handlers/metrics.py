@@ -543,10 +543,14 @@ def _get_algo_portfolio(cur: cursor) -> Any:
     No placeholder/fallback data - portfolio value is critical for trading.
     """
     try:
+        # NOTE: aliases adjusted_drawdown_pct (cash-flow-adjusted, migration 1134) as
+        # max_drawdown_pct in the response so this endpoint agrees with the circuit
+        # breaker and risk dashboard instead of showing the raw, capital-flow-conflated
+        # figure - see steering/GOVERNANCE.md and algo/risk/circuit_breaker.py::_check_drawdown.
         cur.execute("""
             SELECT snapshot_date, total_portfolio_value, total_cash,
                    unrealized_pnl_total, position_count, daily_return_pct, unrealized_pnl_pct,
-                   cumulative_return_pct, max_drawdown_pct, largest_position_pct,
+                   cumulative_return_pct, adjusted_drawdown_pct AS max_drawdown_pct, largest_position_pct,
                    unrealized_pnl_winning_count, unrealized_pnl_losing_count, unrealized_pnl_breakeven_count,
                    unrealized_pnl_source, created_at, updated_at
             FROM algo_portfolio_snapshots

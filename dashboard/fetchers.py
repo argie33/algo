@@ -221,7 +221,7 @@ def _execute_fetcher_batch(
                     f"[DASHBOARD CRITICAL] Critical fetcher(s) timed out: {missing_str}. "
                     f"Cannot render dashboard without {len(critical_missing)} critical data source(s). "
                     f"API or database may be unresponsive."
-                )
+                ) from None
 
     return out
 

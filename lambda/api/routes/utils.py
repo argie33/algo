@@ -626,8 +626,9 @@ def check_data_freshness(
         # to handle market holidays (e.g., Presidents Day, Thanksgiving).
         # If today is a trading day: Friday data is 1 day old (if today is Monday) → +0 to +1 grace
         # If today is weekend/holiday: Friday data is N days old but M trading days old → use trading days
-        from algo.infrastructure import MarketCalendar
         from datetime import timedelta
+
+        from algo.infrastructure import MarketCalendar
 
         # Find most recent trading day before or on today
         most_recent_trading_day = today
@@ -643,8 +644,8 @@ def check_data_freshness(
         else:
             # Data is from before most recent trading day - allow extra grace only if we're
             # in the pre-market hours before market opens (9:30 AM ET)
-            from zoneinfo import ZoneInfo
             from datetime import datetime
+            from zoneinfo import ZoneInfo
 
             now_et = datetime.now(ZoneInfo("America/New_York"))
             if now_et.hour < 10:  # Pre-market (before 10 AM ET = safe pre-market window)
