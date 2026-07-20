@@ -54,7 +54,7 @@ class CompanyInfoSECLoader(SecLoaderBase):
     """
 
     table_name = "company_info_sec"
-    primary_key = ("symbol", "filing_date")
+    primary_key = ("symbol",)
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
 
