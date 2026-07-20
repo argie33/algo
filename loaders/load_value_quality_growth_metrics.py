@@ -303,21 +303,35 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "updated_at": date.today().isoformat(),
             }
 
+            failed_metrics: list[str] = []
+
             # ROE = Net Income / Shareholders' Equity
             if net_income is not None and stockholders_equity is not None and stockholders_equity != 0:
                 metrics["roe"] = float((net_income / stockholders_equity) * 100)
+            else:
+                failed_metrics.append("roe")
 
             # Operating Margin = Operating Income / Revenue
             if operating_income is not None and revenue is not None and revenue != 0:
                 metrics["operating_margin"] = float((operating_income / revenue) * 100)
+            else:
+                failed_metrics.append("operating_margin")
 
             # Net Margin = Net Income / Revenue
             if net_income is not None and revenue is not None and revenue != 0:
                 metrics["net_margin"] = float((net_income / revenue) * 100)
+            else:
+                failed_metrics.append("net_margin")
 
             # Debt to Equity = Total Liabilities / Shareholders' Equity
             if total_liabilities is not None and stockholders_equity is not None and stockholders_equity != 0:
                 metrics["debt_to_equity"] = float(total_liabilities / stockholders_equity)
+            else:
+                failed_metrics.append("debt_to_equity")
+
+            # Mark unavailable if all metrics are None
+            if all(metrics[k] is None for k in ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity"]):
+                return self._unavailable_marker("quality_metrics", symbol)
 
             # Compute composite quality_score from available metrics
             # Score is average of available metrics (0-100 scale)
@@ -327,10 +341,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 metrics["net_margin"],
             ]
             available_components = [m for m in quality_components if m is not None]
-
-            # Mark unavailable if all metrics are None
-            if all(metrics[k] is None for k in ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity"]):
-                return self._unavailable_marker("quality_metrics", symbol)
 
             # Mark unavailable if all available quality components are negative or zero
             # (unprofitable/break-even companies don't have meaningful "quality" scores)
@@ -342,6 +352,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 # Clamp negatives to 0 only if at least one component is positive
                 normalized = [min(100, max(0, m)) for m in available_components]
                 metrics["quality_score"] = float(sum(normalized) / len(normalized))
+
+            if failed_metrics:
+                metrics["data_unavailable"] = True
+                metrics["reason"] = f"Incomplete quality metrics: {', '.join(sorted(set(failed_metrics)))} unavailable (insufficient SEC data)"
+                logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Partial quality metrics (unavailable: {', '.join(sorted(set(failed_metrics)))})")
 
             return metrics
 
@@ -367,13 +382,21 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         ratio = latest_f / previous_f
         return float(((ratio ** (1.0 / years)) - 1) * 100)
 
-    def _compute_period_growth(self, symbol: str, values: list[float], offset: int, years: int, metric_key: str, metrics: dict[str, Any]) -> None:
-        """Compute growth for a single period (1y, 3y, or 5y)."""
+    def _compute_period_growth(self, symbol: str, values: list[float], offset: int, years: int, metric_key: str, metrics: dict[str, Any], failed_metrics: list[str]) -> None:
+        """Compute growth for a single period (1y, 3y, or 5y).
+
+        Sets metrics[metric_key] if computation succeeds; appends metric_key to failed_metrics if it fails.
+        """
         required_count = offset + 1
-        if len(values) >= required_count:
-            growth = self._cagr(values[0], values[offset], years)
-            if growth is not None:
-                metrics[metric_key] = float(round(growth, 2))
+        if len(values) < required_count:
+            failed_metrics.append(metric_key)
+            return
+
+        growth = self._cagr(values[0], values[offset], years)
+        if growth is not None:
+            metrics[metric_key] = float(round(growth, 2))
+        else:
+            failed_metrics.append(metric_key)
 
     def _compute_growth_metrics(self, symbol: str, income_rows: list[Any]) -> dict[str, Any]:
         """Compute multi-year growth rates from annual income statement history.
@@ -413,15 +436,23 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             except (ValueError, TypeError):
                 continue
 
-        self._compute_period_growth(symbol, revenues, 1, 1, "revenue_growth_1y", metrics)
-        self._compute_period_growth(symbol, eps_values, 1, 1, "eps_growth_1y", metrics)
-        self._compute_period_growth(symbol, revenues, 3, 3, "revenue_growth_3y", metrics)
-        self._compute_period_growth(symbol, eps_values, 3, 3, "eps_growth_3y", metrics)
-        self._compute_period_growth(symbol, revenues, 5, 5, "revenue_growth_5y", metrics)
-        self._compute_period_growth(symbol, eps_values, 5, 5, "eps_growth_5y", metrics)
+        failed_metrics: list[str] = []
+        self._compute_period_growth(symbol, revenues, 1, 1, "revenue_growth_1y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, eps_values, 1, 1, "eps_growth_1y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, revenues, 3, 3, "revenue_growth_3y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, eps_values, 3, 3, "eps_growth_3y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, revenues, 5, 5, "revenue_growth_5y", metrics, failed_metrics)
+        self._compute_period_growth(symbol, eps_values, 5, 5, "eps_growth_5y", metrics, failed_metrics)
 
-        if all(metrics[k] is None for k in ["revenue_growth_1y", "revenue_growth_3y", "revenue_growth_5y", "eps_growth_1y", "eps_growth_3y", "eps_growth_5y"]):
+        if not revenues and not eps_values:
             return self._unavailable_marker("growth_metrics", symbol)
+
+        if failed_metrics:
+            if len(failed_metrics) == 6:
+                return self._unavailable_marker("growth_metrics", symbol)
+            metrics["data_unavailable"] = True
+            metrics["reason"] = f"Incomplete growth metrics: {', '.join(sorted(set(failed_metrics)))} failed to compute (insufficient history or invalid data)"
+            logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Partial growth metrics (failed: {', '.join(sorted(set(failed_metrics)))})")
 
         return metrics
 
@@ -454,8 +485,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO quality_metrics
-            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, quality_score, data_unavailable, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, quality_score, data_unavailable, reason, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -464,11 +495,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 debt_to_equity = EXCLUDED.debt_to_equity,
                 quality_score = EXCLUDED.quality_score,
                 data_unavailable = EXCLUDED.data_unavailable,
+                reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
-            (row["symbol"], row["roe"], row["roa"], row["operating_margin"],
-             row["net_margin"], row["debt_to_equity"], row.get("quality_score"), row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"]),
+            (row["symbol"], row["roe"], row.get("roa"), row["operating_margin"],
+             row["net_margin"], row["debt_to_equity"], row.get("quality_score"), row["data_unavailable"], row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:

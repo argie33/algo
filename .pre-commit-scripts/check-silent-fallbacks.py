@@ -9,7 +9,7 @@ CRITICAL: Code must either:
 1. Raise an exception on data unavailability (for CRITICAL data), OR
 2. Return explicit dict with data_unavailable=True and reason= (for OPTIONAL data)
 
-❌ FORBIDDEN PATTERNS (silent fallbacks):
+FORBIDDEN PATTERNS (silent fallbacks):
   return []                           # Empty array fallback
   return {}                           # Empty dict fallback
   return 0 / return Decimal(0)        # Hardcoded zero for financial data
@@ -18,7 +18,7 @@ CRITICAL: Code must either:
   if not data: return []              # Conditional empty return
   if error: return []                 # Conditional empty return
 
-✅ CORRECT PATTERNS:
+CORRECT PATTERNS:
   raise RuntimeError("reason")        # Fail-fast for CRITICAL data
   raise ValueError("reason")          # Explicit error for validation
   return {"data_unavailable": True, "reason": "..."}  # Explicit marker for OPTIONAL data
@@ -31,6 +31,11 @@ import re
 import sys
 from pathlib import Path
 from typing import Any
+
+# FIX: Configure UTF-8 output on Windows to prevent UnicodeEncodeError
+if sys.stdout.encoding != 'utf-8':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
 
 # Files/paths to CHECK (ALL Python files except skip list)
 # This is enforced EVERYWHERE in the codebase
