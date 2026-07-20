@@ -46,7 +46,11 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
     """
 
     table_name = "institutional_holdings_13f"
-    primary_key = ("symbol", "filing_date")
+    # symbol-only: this is a current-snapshot table (one row per symbol), not a real
+    # historical time series - filing_date gets set to "today" on every run since the
+    # source is always data_unavailable, so a compound key here just accumulates a
+    # fresh duplicate row forever instead of updating in place (fixed by migration 1124).
+    primary_key = ("symbol",)
     watermark_field = "filing_date"
     exclude_etfs_from_symbols = True
 

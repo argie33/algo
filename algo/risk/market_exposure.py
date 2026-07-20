@@ -295,6 +295,15 @@ class MarketExposure:
         if eval_date is None:
             eval_date = _date.today()
 
+        from algo.infrastructure import MarketCalendar
+
+        if not MarketCalendar.is_trading_day(eval_date):
+            raise ValueError(
+                f"[MARKET_EXPOSURE] Refusing to compute/persist exposure for {eval_date}: not a trading day "
+                f"(weekend or holiday). market_exposure_daily rows must represent real trading days - "
+                f"callers (loaders, scripts, manual testing) must pass an actual trading-day eval_date."
+            )
+
         # Check cache first (unless force_recompute=True)
         if not force_recompute:
             cached = self.try_load_cached(eval_date)
@@ -1307,36 +1316,42 @@ def read_market_regime(eval_date: _date) -> dict[str, Any]:
                 )
 
             # CRITICAL FIX: Use trading-day logic, not calendar days
-            # market_exposure_daily is generated after market close each trading day.
+            # market_exposure_daily is generated after market close (~4:05 PM ET) each trading day.
             # On Mondays, data from Friday is 3-5 calendar days old but is from the most recent trading day - that's NORMAL
             # Do NOT halt on Monday with "data 3 days old" when that data is from Friday's close
             from algo.infrastructure import MarketCalendar
 
-            is_trading_day = MarketCalendar.is_trading_day(eval_date)
-            if is_trading_day:
-                # Today is a trading day: require today's data
-                if _cached_date != eval_date:
-                    raise MarketDataUnavailableError(
-                        f"[MARKET REGIME] market_exposure_daily data missing for today ({eval_date}). "
-                        f"Latest available: {_cached_date}. "
-                        f"Cannot apply position sizing policy without today's market regime analysis. "
-                        f"Phase 4 must run daily to provide fresh market exposure analysis."
-                    )
-            else:
-                # Today is weekend/holiday: data from most recent trading day is acceptable
-                # Find the most recent trading day
+            now_et = datetime.now(EASTERN_TZ)
+            if MarketCalendar.is_trading_day(eval_date) and eval_date == now_et.date() and now_et.hour < 16:
+                # PREVIOUS BUG: required _cached_date == eval_date whenever eval_date was a trading
+                # day, with no exception for "today, but before the 4:05 PM EOD load has run yet".
+                # That made every intraday/morning read of today's own regime raise unconditionally,
+                # every single trading day - the EOD row for today cannot exist before EOD runs.
+                # Same-day, pre-close: the previous trading day's snapshot is the most recent
+                # COMPLETE one and is the expected/acceptable data.
                 expected_trading_day = eval_date - timedelta(days=1)
                 for _ in range(10):
                     if MarketCalendar.is_trading_day(expected_trading_day):
                         break
                     expected_trading_day -= timedelta(days=1)
-                # Accept data from the expected trading day or earlier (if delayed)
-                if _cached_date < expected_trading_day:
-                    calendar_age = (eval_date - _cached_date).days
-                    raise MarketDataUnavailableError(
-                        f"[MARKET REGIME] market_exposure_daily data too stale: {_cached_date} vs expected {expected_trading_day} "
-                        f"(calendar age: {calendar_age} days). Cannot apply position sizing policy with stale market regime."
-                    )
+            elif MarketCalendar.is_trading_day(eval_date):
+                # eval_date is a trading day that has already closed (today after 4 PM ET, or a
+                # historical/backfill date): require that day's own data.
+                expected_trading_day = eval_date
+            else:
+                # eval_date is a weekend/holiday: data from the most recent trading day is expected.
+                expected_trading_day = eval_date - timedelta(days=1)
+                for _ in range(10):
+                    if MarketCalendar.is_trading_day(expected_trading_day):
+                        break
+                    expected_trading_day -= timedelta(days=1)
+
+            if _cached_date < expected_trading_day:
+                calendar_age = (eval_date - _cached_date).days
+                raise MarketDataUnavailableError(
+                    f"[MARKET REGIME] market_exposure_daily data too stale: {_cached_date} vs expected {expected_trading_day} "
+                    f"(calendar age: {calendar_age} days). Cannot apply position sizing policy with stale market regime."
+                )
 
             if exposure_pct is None:
                 raise MarketDataUnavailableError(

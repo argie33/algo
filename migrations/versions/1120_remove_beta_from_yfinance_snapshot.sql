@@ -3,4 +3,4 @@
 -- and stored in stability_metrics table. yfinance beta fetch is unused.
 -- Removing saves ~4% of yfinance API calls with no data quality loss.
 
-ALTER TABLE yfinance_snapshot DROP COLUMN beta;
+ALTER TABLE yfinance_snapshot DROP COLUMN IF EXISTS beta;
