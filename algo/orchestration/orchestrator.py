@@ -12,6 +12,11 @@ from typing import Any
 
 import psycopg2
 
+# CRITICAL: Load environment variables from .env.local BEFORE any boto3/AWS calls
+# This must happen before any other imports that might trigger AWS operations
+from utils.dotenv_loader import load_env_local
+load_env_local()
+
 from algo.config.environment_validation import EnvironmentValidator
 from algo.infrastructure import MarketCalendar
 from algo.orchestration.database_health_monitor import DatabaseHealthMonitor

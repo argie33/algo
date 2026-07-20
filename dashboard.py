@@ -11,6 +11,10 @@ if __name__ == "__main__":
     if root_dir not in sys.path:
         sys.path.insert(0, root_dir)
 
+    # Load .env.local credentials BEFORE any imports
+    from utils.dotenv_loader import load_env_local
+    load_env_local()
+
     try:
         from dashboard.dashboard import main
 

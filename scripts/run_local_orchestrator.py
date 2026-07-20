@@ -15,6 +15,10 @@ import os
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+# CRITICAL: Load environment variables from .env.local BEFORE any boto3/AWS calls
+from utils.dotenv_loader import load_env_local
+load_env_local()
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(
