@@ -99,14 +99,16 @@ class LivePerformance:
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
-    def win_rate(self, lookback_trades: int = 50) -> dict[str, float] | None:
+    def win_rate(self, lookback_trades: int = 50) -> dict[str, Any] | None:
         """Compute win rate and average R-multiple from closed trades. FAIL-FAST on no trades.
 
         Args:
             lookback_trades: Number of recent closed trades to analyze
 
         Returns:
-            dict with win_rate_pct, avg_win_r, avg_loss_r, win_count, loss_count
+            dict with win_rate_pct, avg_win_r, avg_loss_r, win_count, loss_count.
+            avg_win_r/avg_loss_r are None when the lookback window has no trades on that side
+            (e.g. no losses yet) - expected for a small/early sample, not a failure.
 
         Raises:
             ValueError: If no closed trades found. Win rate is critical metric - cannot use default.
@@ -168,19 +170,14 @@ class LivePerformance:
             win_count = win_count
             loss_count = loss_count
 
-            # BUG FIX: the None-checks below used to run AFTER float(avg_win_r)/float(avg_loss_r),
-            # so AVG(...) FILTER (WHERE is_win) returning NULL (no winning trades in the lookback
-            # window - normal during a losing streak) crashed with a raw, unhelpful
-            # "float() argument must be ... not 'NoneType'" TypeError instead of this intended
-            # explicit message. Check for None BEFORE converting.
-            if avg_win_r is None or avg_loss_r is None:
-                raise ValueError(
-                    f"CRITICAL: Win/loss R-multiples missing (avg_win_r={avg_win_r}, avg_loss_r={avg_loss_r}). "
-                    f"Cannot calculate expectancy without valid R-multiple data. Expected when every "
-                    f"closed trade in the lookback window is a win (avg_loss_r NULL) or a loss (avg_win_r NULL)."
-                )
-            avg_win_r = float(avg_win_r)
-            avg_loss_r = abs(float(avg_loss_r))
+            # avg_win_r/avg_loss_r come back NULL from the SQL AVG(...) FILTER whenever every
+            # closed trade in the lookback window is a loss (avg_win_r NULL) or a win (avg_loss_r
+            # NULL) - an expected state for a small/early sample (e.g. only 3 closed trades, all
+            # flat), not missing or corrupt data. Pass them through as None instead of fail-fast;
+            # win_rate_pct is still fully computable, and expectancy() (which genuinely needs both
+            # sides) is the right place to decide it can't produce a number yet.
+            avg_win_r_f = float(avg_win_r) if avg_win_r is not None else None
+            avg_loss_r_f = abs(float(avg_loss_r)) if avg_loss_r is not None else None
             avg_win_pct = float(avg_win_pct) if avg_win_pct is not None else 0.0
             avg_loss_pct = float(avg_loss_pct) if avg_loss_pct is not None else 0.0
 
@@ -194,23 +191,29 @@ class LivePerformance:
                 "loss_count": int(loss_count),
                 "avg_win_pct": _dec_round(avg_win_pct, 3),
                 "avg_loss_pct": _dec_round(avg_loss_pct, 3),
-                "avg_win_r": _dec_round(avg_win_r, 3),
-                "avg_loss_r": _dec_round(avg_loss_r, 3),
+                "avg_win_r": _dec_round(avg_win_r_f, 3) if avg_win_r_f is not None else None,
+                "avg_loss_r": _dec_round(avg_loss_r_f, 3) if avg_loss_r_f is not None else None,
             }
         except (ValueError, ZeroDivisionError, TypeError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def expectancy(self, lookback_trades: int = 50) -> float | None:
-        """Compute expectancy: E = (WR x Avg Win R) - (LR x Avg Loss R). FAIL-FAST on insufficient data.
+        """Compute expectancy: E = (WR x Avg Win R) - (LR x Avg Loss R).
+
+        Returns None (not a fail-fast raise) when the lookback window has no winning trades or
+        no losing trades yet - expectancy genuinely needs both sides of the distribution to mean
+        anything, and lacking one side is an expected early-sample state (e.g. only a handful of
+        closed trades so far), not missing/corrupt data. Still fails fast via win_rate() when
+        there are no closed trades at all.
 
         Args:
             lookback_trades: Number of trades for calculation
 
         Returns:
-            Expectancy in R-multiples
+            Expectancy in R-multiples, or None if the sample doesn't yet contain both a win and a loss
 
         Raises:
-            ValueError: If win_rate calculation fails (propagated from win_rate method)
+            RuntimeError: If win_rate calculation fails (no closed trades at all)
         """
         try:
             wr = self.win_rate(lookback_trades)
@@ -220,10 +223,13 @@ class LivePerformance:
                     "Cannot compute expectancy without valid win rate metrics."
                 )
 
-            win_rate = wr["win_rate_pct"] / 100.0
-            loss_rate = 1.0 - win_rate
             avg_win_r = wr["avg_win_r"]
             avg_loss_r = wr["avg_loss_r"]
+            if avg_win_r is None or avg_loss_r is None:
+                return None
+
+            win_rate = wr["win_rate_pct"] / 100.0
+            loss_rate = 1.0 - win_rate
 
             expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
             return _dec_round(expectancy, 4)
@@ -469,11 +475,15 @@ class LivePerformance:
             wr = self.win_rate(50)
             if wr is None:
                 raise ValueError("Win rate is critical for strategy evaluation - cannot proceed with None")
-            logger.debug(f"  Win rate: {wr['win_rate_pct'] if wr else None}%")
+            logger.debug(f"  Win rate: {wr['win_rate_pct']}%")
             expectancy = self.expectancy(50)
             if expectancy is None:
-                raise ValueError("Expectancy is critical for position sizing - cannot proceed with None")
-            logger.debug(f"  Expectancy: {expectancy}")
+                logger.warning(
+                    "  Expectancy unavailable: lookback window doesn't yet contain both a winning "
+                    "and a losing trade (needs both sides to compute)."
+                )
+            else:
+                logger.debug(f"  Expectancy: {expectancy}")
             max_dd = self.max_drawdown()
             logger.debug(f"  Max drawdown: {max_dd}%")
             comparison = self.backtest_vs_live_comparison()
@@ -518,8 +528,8 @@ class LivePerformance:
                 sortino_val = float(sortino) if sortino is not None else None
                 calmar_val = float(calmar) if calmar is not None else None
                 win_rate_val = float(wr["win_rate_pct"]) if wr else None
-                avg_win_r_val = float(wr["avg_win_r"]) if wr else None
-                avg_loss_r_val = float(wr["avg_loss_r"]) if wr else None
+                avg_win_r_val = float(wr["avg_win_r"]) if wr and wr["avg_win_r"] is not None else None
+                avg_loss_r_val = float(wr["avg_loss_r"]) if wr and wr["avg_loss_r"] is not None else None
                 expectancy_val = float(expectancy) if expectancy is not None else None
                 max_dd_val = float(max_dd) if max_dd is not None else None
 
