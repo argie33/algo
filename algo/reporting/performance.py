@@ -87,10 +87,9 @@ class LivePerformance:
 
             values: list[float] = []
             for i, row in enumerate(rows):
-                val = float(row[1])
-                if val is None:
-                    raise ValueError(f"Portfolio snapshot {i} has missing/invalid value")
-                values.append(val)
+                if row[1] is None:
+                    raise ValueError(f"Portfolio snapshot {i} ({row[0]}) has missing/invalid value")
+                values.append(float(row[1]))
             daily_returns: list[float] = []
             for i in range(1, len(values)):
                 if values[i - 1] > 0:
@@ -168,21 +167,22 @@ class LivePerformance:
             ) = row
             win_count = win_count
             loss_count = loss_count
-            avg_win_r = float(avg_win_r)
-            avg_loss_r_val = float(avg_loss_r)
-            avg_win_pct = float(avg_win_pct)
-            avg_loss_pct = float(avg_loss_pct)
 
-            if avg_win_r is None or avg_loss_r_val is None:
+            # BUG FIX: the None-checks below used to run AFTER float(avg_win_r)/float(avg_loss_r),
+            # so AVG(...) FILTER (WHERE is_win) returning NULL (no winning trades in the lookback
+            # window - normal during a losing streak) crashed with a raw, unhelpful
+            # "float() argument must be ... not 'NoneType'" TypeError instead of this intended
+            # explicit message. Check for None BEFORE converting.
+            if avg_win_r is None or avg_loss_r is None:
                 raise ValueError(
-                    f"CRITICAL: Win/loss R-multiples missing (avg_win_r={avg_win_r}, avg_loss_r={avg_loss_r_val}). "
-                    f"Cannot calculate expectancy without valid R-multiple data."
+                    f"CRITICAL: Win/loss R-multiples missing (avg_win_r={avg_win_r}, avg_loss_r={avg_loss_r}). "
+                    f"Cannot calculate expectancy without valid R-multiple data. Expected when every "
+                    f"closed trade in the lookback window is a win (avg_loss_r NULL) or a loss (avg_win_r NULL)."
                 )
-            avg_loss_r = abs(avg_loss_r_val)
-            if avg_win_pct is None:
-                avg_win_pct = 0.0
-            if avg_loss_pct is None:
-                avg_loss_pct = 0.0
+            avg_win_r = float(avg_win_r)
+            avg_loss_r = abs(float(avg_loss_r))
+            avg_win_pct = float(avg_win_pct) if avg_win_pct is not None else 0.0
+            avg_loss_pct = float(avg_loss_pct) if avg_loss_pct is not None else 0.0
 
             if total <= 0:
                 raise ValueError(f"CRITICAL: No trades for expectancy calculation (total={total})")
@@ -249,10 +249,11 @@ class LivePerformance:
 
             values = []
             for i, row in enumerate(rows):
-                val = float(row[1])
-                if val is None:
-                    raise ValueError(f"Portfolio snapshot {i} has missing/invalid value for max_drawdown calculation")
-                values.append(val)
+                if row[1] is None:
+                    raise ValueError(
+                        f"Portfolio snapshot {i} ({row[0]}) has missing/invalid value for max_drawdown calculation"
+                    )
+                values.append(float(row[1]))
             return cast(float, MetricsCalculator.calculate_max_drawdown(values))
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Operation failed: {e}") from e
@@ -288,7 +289,11 @@ class LivePerformance:
                     f"Sortino is important for evaluating downside risk - cannot use default."
                 )
 
-            values = [float(r[0]) for i, r in enumerate(rows)]
+            values = []
+            for i, r in enumerate(rows):
+                if r[0] is None:
+                    raise ValueError(f"Portfolio snapshot {i} has missing/invalid value for Sortino calculation")
+                values.append(float(r[0]))
             daily_returns: list[float] = []
             for i in range(1, len(values)):
                 if values[i - 1] > 0:
@@ -330,7 +335,11 @@ class LivePerformance:
                     f"Calmar is standard benchmark for trend strategies - cannot use default."
                 )
 
-            values = [float(r[0]) for i, r in enumerate(rows)]
+            values = []
+            for i, r in enumerate(rows):
+                if r[0] is None:
+                    raise ValueError(f"Portfolio snapshot {i} has missing/invalid value for Calmar calculation")
+                values.append(float(r[0]))
             return MetricsCalculator.calculate_calmar_ratio(values)
         except ValueError:
             raise
