@@ -371,9 +371,9 @@ locals {
     # Continuous updates (quarterly and annual filings)
     "earnings_calendar_sec" = "load_earnings_calendar_sec.py"
 
-    # Risk metrics: volatility + beta calculations for position monitoring
+    # Risk metrics: volatility + beta + momentum calculations for position monitoring
+    # Single consolidated loader: computes momentum (1m/3m/6m/12m) + stability (vol/beta)
     "stability_metrics" = "load_risk_metrics_daily.py"
-    "momentum_metrics"  = "load_risk_metrics_daily.py"
 
     # Positioning: short interest + institutional/insider holdings
     "positioning_metrics" = "load_positioning_metrics.py"
@@ -526,8 +526,9 @@ locals {
     "stock_scores" = { cpu = 1024, memory = 2048, timeout = 3600, parallelism = 2 }
 
     # Risk metrics: volatility, beta, momentum for position monitoring (Session 275: consolidated from separate loaders)
+    # Single loader computes BOTH momentum and stability metrics in one pass
+    # Writes to momentum_metrics table (primary) and stability_metrics table (side effect)
     "stability_metrics" = { cpu = 512, memory = 1024, timeout = 4200, parallelism = 2 }
-    "momentum_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 2 }
 
     # Positioning metrics: short interest (FINRA) + institutional/insider holdings (SEC)
     "positioning_metrics" = { cpu = 512, memory = 1024, timeout = 1800, parallelism = 1 }
@@ -565,7 +566,6 @@ locals {
     "sector_industry_daily",
     "positioning_metrics",
     "stability_metrics",
-    "momentum_metrics",
 
     # SEC data sources
     "financials_all",
