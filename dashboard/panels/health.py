@@ -8,8 +8,12 @@ from typing import TYPE_CHECKING, Any, cast
 logger = logging.getLogger(__name__)
 
 # Phase status constants to prevent shotgun surgery changes
+# "skipped" (skip_if_halted=YES phases that never ran because an earlier phase halted)
+# is intentionally separate from a genuine halt/warn/degraded - see SKIPPED_STATES below
+# and its longer explanation next to the module-level HALTED_STATES constant.
 PHASE_SUCCESS_STATES = ("success", "completed", "ok")
-PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded", "skipped")
+PHASE_HALTED_STATES = ("halt", "halted", "warn", "degraded")
+PHASE_SKIPPED_STATES = ("skipped",)
 
 
 # Phase status determination strategy (replaces long if/elif chains)
@@ -146,7 +150,15 @@ from .data_extractors import (
 
 # Status state constants
 SUCCESS_STATES = ("success", "completed", "ok")
-HALTED_STATES = ("halt", "halted", "warn", "degraded", "skipped")
+# "skipped" was previously lumped into HALTED_STATES, rendering skip_if_halted=YES phases
+# (4,5,7,8 per GOVERNANCE.md's Orchestrator Phases spec) with the identical "~ HALTED"
+# yellow badge as the phase that actually triggered the halt (e.g. Phase 2). That's the
+# likely source of "why do so many stages show halted" confusion when only one phase
+# genuinely halted and the rest were skipped as a downstream consequence - the
+# orchestrator itself already emits a distinct status="skipped" (see
+# algo/orchestrator/phase_executor.py), the dashboard just wasn't using the distinction.
+HALTED_STATES = ("halt", "halted", "warn", "degraded")
+SKIPPED_STATES = ("skipped",)
 ERROR_STATES = ("error", "failed")
 
 # Role priority ordering for health items
@@ -167,6 +179,8 @@ def _format_phase_badge(phase_status: str | None) -> tuple[str, str]:
         return (G, "✓")
     elif status_lower in HALTED_STATES:
         return (Y, "~")
+    elif status_lower in SKIPPED_STATES:
+        return (DIM, "⊘")
     elif status_lower in ERROR_STATES:
         return (R, "✗")
     else:
@@ -277,7 +291,8 @@ def _build_phase_execution_panel(
 
     # Track phase statistics
     executed = sum(1 for p in phase_status_map.values() if p["status"] in ("success", "completed", "ok"))
-    halted = sum(1 for p in phase_status_map.values() if p["status"] in ("halt", "halted", "warn", "degraded", "skipped"))
+    halted = sum(1 for p in phase_status_map.values() if p["status"] in ("halt", "halted", "warn", "degraded"))
+    skipped = sum(1 for p in phase_status_map.values() if p["status"] == "skipped")
     errored = sum(1 for p in phase_status_map.values() if p["status"] in ("error", "failed"))
     not_run = 9 - len(phase_status_map)
 
@@ -293,10 +308,18 @@ def _build_phase_execution_panel(
             status_icon = "[bold green]✓[/]"
             status_text = "COMPLETED"
             base_color = G
-        elif status_str in ("halt", "halted", "warn", "degraded", "skipped"):
+        elif status_str in ("halt", "halted", "warn", "degraded"):
             status_icon = "[bold yellow]~[/]"
             status_text = "HALTED"
             base_color = Y
+        elif status_str == "skipped":
+            # Distinct from HALTED: this phase never ran because an earlier phase
+            # halted (skip_if_halted=YES per GOVERNANCE.md), not because it failed
+            # itself. Conflating the two here previously made every downstream phase
+            # look like it independently halted.
+            status_icon = "[dim]⊘[/]"
+            status_text = "SKIPPED (halt upstream)"
+            base_color = DIM
         elif status_str in ("error", "failed"):
             status_icon = "[bold red]✗[/]"
             status_text = "ERROR"
@@ -498,7 +521,7 @@ def _build_phase_execution_panel(
         phase_rows.append(Text(""))
 
     # Build summary header
-    summary = f"[dim]{executed}✓  {halted}~  {errored}✗  {not_run}⊘[/]"
+    summary = f"[dim]{executed}✓  {halted}~  {errored}✗  {skipped + not_run}⊘[/]"
 
     # Build panel with all phases
     return Panel(
@@ -966,8 +989,14 @@ def panel_orch(  # noqa: C901
                     ps = "unknown"  # Explicit marker; will render as red X
                 else:
                     ps = ps_raw.lower()
-                pc = G if ps in PHASE_SUCCESS_STATES else (Y if ps in PHASE_HALTED_STATES else R)
-                pi = "✓" if ps in PHASE_SUCCESS_STATES else ("~" if ps in PHASE_HALTED_STATES else "✗")
+                if ps in PHASE_SUCCESS_STATES:
+                    pc, pi = G, "✓"
+                elif ps in PHASE_HALTED_STATES:
+                    pc, pi = Y, "~"
+                elif ps in PHASE_SKIPPED_STATES:
+                    pc, pi = DIM, "⊘"
+                else:
+                    pc, pi = R, "✗"
                 pbadges.append(f"[{pc}]{pi}{short}[/]")
             # Show halt reason if halted
             halt_r = run.get("halt_reason")
