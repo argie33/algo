@@ -353,9 +353,20 @@ class CircuitBreaker:
         if require_ftd:
             # A Follow-Through Day is when SPY up 1.25%+ on higher volume after a pullback/correction
             # For now, simplified check: market is in Stage 2
-            cur.execute("SELECT market_stage FROM market_health_daily ORDER BY date DESC LIMIT 1")
+            cur.execute("SELECT market_stage, data_unavailable, reason FROM market_health_daily ORDER BY date DESC LIMIT 1")
             market_row = cur.fetchone()
-            if market_row is None or market_row[0] != 2:
+            if market_row is None:
+                return {
+                    "halted": True,
+                    "reason": "Market health data missing - cannot check for Follow-Through Day conditions. Fail-closed halt.",
+                }
+            # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using market_stage
+            if market_row[1] is True:
+                return {
+                    "halted": True,
+                    "reason": f"Market health data marked unavailable: {market_row[2] or 'no reason provided'}. Cannot determine market stage for FTD check. Fail-closed halt.",
+                }
+            if market_row[0] != 2:
                 return {
                     "halted": True,
                     "reason": "Recovery conditions met, but market not in Stage 2 uptrend (waiting for Follow-Through Day)",
@@ -608,7 +619,7 @@ class CircuitBreaker:
         is_trading_day = MarketCalendar.is_trading_day(current_date)
 
         cur.execute(
-            "SELECT vix_level, date FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
+            "SELECT vix_level, date, data_unavailable, reason FROM market_health_daily WHERE date <= %s AND vix_level IS NOT NULL ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
         row = cur.fetchone()
@@ -617,7 +628,19 @@ class CircuitBreaker:
             vix = None
             data_date = None
         else:
+            vix = row[0]
             data_date = row[1]
+            data_unavailable_flag = row[2]
+            reason_msg = row[3]
+
+            # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using VIX data
+            if data_unavailable_flag is True:
+                return {
+                    "halted": True,
+                    "reason": f"VIX data marked unavailable: {reason_msg or 'no reason provided'}. Cannot assess market volatility without valid VIX data. Fail-closed halt.",
+                }
+
+            vix = _float(vix, None, context="vix_level check")
             # CRITICAL FIX: Use trading-day logic, not calendar days
             # On trading days: accept data from today OR the most recent trading day (pre-market runs get yesterday's EOD)
             # On non-trading days: data from most recent trading day is valid (market regime unchanged while closed)
@@ -669,12 +692,6 @@ class CircuitBreaker:
                     "value": None,
                     "threshold": _float(vix_max_val, None),
                 }
-            # Row data exists - validate with _float to reject NaN/Inf
-            try:
-                vix = _float(row[0], context="vix_level")
-            except ValueError:
-                # NaN/Inf in vix_level - treat as missing data
-                vix = None
 
         # CRITICAL: VIX data unavailable - cannot safely assess volatility risk.
         # Fail-closed: cannot use fallback estimates. Even computed estimates from SPY
@@ -731,7 +748,7 @@ class CircuitBreaker:
                 expected_data_date -= timedelta(days=1)
 
         cur.execute(
-            "SELECT date, market_stage, market_trend FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+            "SELECT date, market_stage, market_trend, data_unavailable, reason FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
             (expected_data_date,),
         )
         row = cur.fetchone()
@@ -741,11 +758,19 @@ class CircuitBreaker:
                 "reason": "Market health data missing - fail-closed",
             }
 
-        data_date = row[0]
+        data_date, market_stage_val, market_trend_val, data_unavailable_flag, reason_msg = row[0], row[1], row[2], row[3], row[4]
+
+        # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using any data from this row
+        if data_unavailable_flag is True:
+            return {
+                "halted": True,
+                "reason": f"Market health data marked unavailable: {reason_msg or 'no reason provided'}. Cannot determine market stage without valid data. Fail-closed halt.",
+            }
+
         if isinstance(data_date, datetime):
             data_date = data_date.date()
 
-        if row[1] is None:
+        if market_stage_val is None:
             # Market stage data exists for expected date but value is NULL
             # This means the loader ran but couldn't compute the stage
             return {
@@ -753,8 +778,8 @@ class CircuitBreaker:
                 "reason": f"Market stage NULL for {expected_data_date} - cannot determine regime. Fail-closed halt.",
             }
 
-        stage = int(row[1])
-        trend = row[2] if row[2] is not None else "unknown"
+        stage = int(market_stage_val)
+        trend = market_trend_val if market_trend_val is not None else "unknown"
         # Stage 4 = halt new entries (full downtrend). Stage 3 = caution but allow.
         halted = stage == 4
         return {
@@ -816,11 +841,21 @@ class CircuitBreaker:
         Coordinated via get_freshness_rule("price_daily") for consistency with other components.
         CRITICAL: MarketCalendar must succeed; cannot fall back to weekday logic (misses holidays).
         """
-        cur.execute("SELECT date FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1")
+        cur.execute("SELECT date, data_unavailable, reason FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1")
         row = cur.fetchone()
         if row is None or len(row) < 1 or row[0] is None:
             return {"halted": True, "reason": "No SPY data at all"}
+
         latest = row[0]
+        data_unavailable_flag = row[1] if len(row) > 1 else False
+        reason_msg = row[2] if len(row) > 2 else None
+
+        # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using price data
+        if data_unavailable_flag is True:
+            return {
+                "halted": True,
+                "reason": f"SPY price data marked unavailable: {reason_msg or 'no reason provided'}. Cannot assess data freshness without valid prices. Fail-closed halt.",
+            }
         days_stale = (current_date - latest).days
 
         # Compute the previous trading day as the freshness reference point.
@@ -877,7 +912,7 @@ class CircuitBreaker:
         try:
             cur.execute(
                 """
-                SELECT close FROM price_daily
+                SELECT close, data_unavailable, reason FROM price_daily
                 WHERE symbol = 'SPY'
                   AND date <= %s
                 ORDER BY date DESC LIMIT 2
@@ -891,6 +926,16 @@ class CircuitBreaker:
                     "Cannot determine prior-day market movement. Halting to prevent trading in unknown market conditions."
                 )
                 return {"halted": True, "reason": "Insufficient SPY price history - cannot assess market stability"}
+
+            # GOVERNANCE COMPLIANCE: Check data_unavailable flags before using prices
+            for idx, row in enumerate(rows):
+                data_unavailable_flag = row[1] if len(row) > 1 else False
+                reason_msg = row[2] if len(row) > 2 else None
+                if data_unavailable_flag is True:
+                    return {
+                        "halted": True,
+                        "reason": f"SPY price data marked unavailable (row {idx}): {reason_msg or 'no reason provided'}. Cannot assess market movement with invalid prices. Fail-closed halt.",
+                    }
 
             latest = float(rows[0][0]) if rows[0][0] is not None else None
             prior = float(rows[1][0]) if rows[1][0] is not None else None
