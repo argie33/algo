@@ -222,8 +222,18 @@ class RiskMetricsLoader(OptimalLoader):
                 unavailability_reasons.append(f"beta: {beta.get('reason', 'unknown')}")
                 beta = None
 
-            has_complete_metrics = all(v is not None for v in [vol_30d, vol_60d, vol_252d, beta])
-            data_unavailable = not has_complete_metrics
+            # FIX 2026-07-20: Previously required ALL of vol_30d/vol_60d/vol_252d/beta
+            # to mark the row available, discarding real computed values whenever any
+            # one component was missing (e.g. a stock with 100 days of history gets a
+            # real vol_252d-via-shorter-window... no, gets a real vol_30d/vol_60d but
+            # no vol_252d, and the whole row was thrown away). Downstream consumer
+            # load_stock_scores.py._score_stability() is explicitly documented to only
+            # need ONE non-null field ("MINIMUM DATA REQUIREMENT: At least one of
+            # volatility_252d/volatility_60d/beta/debt_to_assets must be non-NULL"), so
+            # requiring all four upstream silently dropped real data the scorer was
+            # designed to consume. Mark unavailable only if every component failed.
+            has_any_metric = any(v is not None for v in [vol_30d, vol_60d, vol_252d, beta])
+            data_unavailable = not has_any_metric
             unavailability_reason: str | None = "; ".join(unavailability_reasons) if unavailability_reasons else None
 
             if data_unavailable and unavailability_reasons:
