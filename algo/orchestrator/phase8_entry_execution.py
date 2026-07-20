@@ -657,21 +657,20 @@ def run(
 
     # Primary: Try database snapshot (atomic, consistent across all trades)
     try:
-        from algo.trading.position_sizer import PortionSizer
-        cur = db_context.get_cursor()
-        cur.execute("""
-            SELECT total_portfolio_value, snapshot_date
-            FROM algo_portfolio_snapshots
-            WHERE snapshot_date = CURRENT_DATE AT TIME ZONE 'America/New_York'
-            ORDER BY snapshot_date DESC LIMIT 1
-        """)
-        result = cur.fetchone()
-        if result and result[0] is not None:
-            portfolio_value = Decimal(str(result[0]))
-            portfolio_value_source = "database_snapshot"
-            logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from database snapshot)")
-        else:
-            raise ValueError("No portfolio snapshot available for today")
+        with DatabaseContext("read") as cur:
+            cur.execute("""
+                SELECT total_portfolio_value, snapshot_date
+                FROM algo_portfolio_snapshots
+                WHERE snapshot_date = CURRENT_DATE AT TIME ZONE 'America/New_York'
+                ORDER BY snapshot_date DESC LIMIT 1
+            """)
+            result = cur.fetchone()
+            if result and result[0] is not None:
+                portfolio_value = Decimal(str(result[0]))
+                portfolio_value_source = "database_snapshot"
+                logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from database snapshot)")
+            else:
+                raise ValueError("No portfolio snapshot available for today")
     except Exception as db_err:
         logger.warning(f"[PHASE 8] Database snapshot unavailable: {db_err}. Trying Alpaca API...")
 
@@ -1007,7 +1006,8 @@ def run(
                 _log_signal_rejection(
                     symbol,
                     "stop_loss_validation_failed",
-                    f"Cannot verify stop loss against support levels - {type(e).__name__}"
+                    f"Cannot verify stop loss against support levels - {type(e).__name__}",
+                    run_date,
                 )
                 continue
 
