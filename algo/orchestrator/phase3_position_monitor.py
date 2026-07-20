@@ -104,6 +104,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                         prices[symbol] = float(close_price) if close_price is not None else None
 
+                update_errors = []
                 for position_id, symbol, quantity, old_price, entry_date, stop_loss, avg_entry in positions:
                     try:
                         # GOVERNANCE: Require fresh price data for position monitoring
@@ -172,8 +173,17 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         )
                         updated += 1
                     except Exception as e:
-                        logger.warning(f"[PHASE 3] Failed to update {symbol}: {type(e).__name__}: {e}")
-                        continue
+                        logger.error(f"[PHASE 3 CRITICAL] Failed to update {symbol}: {type(e).__name__}: {e}")
+                        update_errors.append((symbol, str(e)[:100]))
+
+                # GOVERNANCE: Fail-fast if ANY position update failed
+                if update_errors:
+                    errors_str = "; ".join(f"{sym}({err})" for sym, err in update_errors[:3])
+                    if len(update_errors) > 3:
+                        errors_str += f"... and {len(update_errors) - 3} more"
+                    error_msg = f"[PHASE 3 CRITICAL] {len(update_errors)} position price updates failed: {errors_str}"
+                    logger.critical(error_msg)
+                    raise RuntimeError(error_msg)
 
                 return updated
 
@@ -247,36 +257,31 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 try:
                     halt_check = meh.check_single_stock_halt(symbol)
                     if halt_check is None:
-                        logger.debug(f"[PHASE 3] {symbol}: halt check returned None (unexpected but continuing)")
-                        continue
-
-                    # Check for error response from halt check
-                    if "error" in halt_check:
+                        logger.error(f"[PHASE 3 CRITICAL] {symbol}: halt check returned None - cannot verify if position is halted")
+                        halt_check_errors.append((symbol, "halt_check_returned_None"))
+                    elif "error" in halt_check:
                         error_reason = halt_check.get("reason", "unknown")
-                        logger.warning(
-                            f"[PHASE 3] {symbol}: halt check failed ({error_reason}) - continuing with caution"
-                        )
+                        logger.error(f"[PHASE 3 CRITICAL] {symbol}: halt check API failed ({error_reason})")
                         halt_check_errors.append((symbol, error_reason))
-                        continue
-
-                    # Check if symbol is halted
-                    if halt_check.get("halted"):
+                    elif halt_check.get("halted"):
                         halts_found.append(symbol)
                         meh.handle_single_stock_halt(symbol)
                         if verbose:
                             logger.warning(f"  [WARN] {symbol} halted - pending orders cancelled")
                 except Exception as halt_exc:
-                    logger.warning(
-                        f"[PHASE 3] Unexpected error checking halt status for {symbol}: {type(halt_exc).__name__}: {halt_exc}"
+                    logger.error(
+                        f"[PHASE 3 CRITICAL] Failed to check halt status for {symbol}: {type(halt_exc).__name__}: {halt_exc}"
                     )
                     halt_check_errors.append((symbol, f"exception: {type(halt_exc).__name__}"))
-                    continue
 
+            # GOVERNANCE: Fail-fast if halt checks failed - cannot monitor positions without halt detection
             if halt_check_errors:
-                errors_str = "; ".join(f"{sym}({err})" for sym, err in halt_check_errors[:5])
-                if len(halt_check_errors) > 5:
-                    errors_str += f"... and {len(halt_check_errors) - 5} more"
-                logger.warning(f"[PHASE 3] {len(halt_check_errors)} halt checks failed: {errors_str}")
+                errors_str = "; ".join(f"{sym}({err})" for sym, err in halt_check_errors[:3])
+                if len(halt_check_errors) > 3:
+                    errors_str += f"... and {len(halt_check_errors) - 3} more"
+                error_msg = f"[PHASE 3 CRITICAL] Cannot monitor positions - {len(halt_check_errors)} halt checks failed: {errors_str}"
+                logger.critical(error_msg)
+                raise RuntimeError(error_msg)
             if halts_found:
                 log_phase_result_fn(
                     3,
