@@ -869,13 +869,22 @@ def run(  # noqa: C901
                 # Stocks with 0% completeness are legitimately unavailable due to missing metrics,
                 # and should not drag down the average or halt trading for all other stocks.
                 try:
+                    # CRITICAL: stock_scores.updated_at is `timestamp without time zone`, written via
+                    # datetime.now(timezone.utc) in load_stock_scores.py (i.e. the stored digits ARE
+                    # UTC wall-clock). Comparing it bare against NOW() (a timestamptz) makes Postgres
+                    # implicitly cast the naive value using the SESSION timezone (America/Chicago,
+                    # UTC-5/-6) instead of UTC, silently shifting it ~5-6h into the future relative to
+                    # its true UTC instant. That makes rows up to ~5-6h staler than the 1-day threshold
+                    # read as still within it, silently passing genuinely-stale scores through this
+                    # completeness gate. `AT TIME ZONE 'UTC'` makes the UTC interpretation explicit
+                    # regardless of session timezone.
                     cur.execute("""
                         SELECT AVG(data_completeness) as avg_completeness,
                                COUNT(*) as total_available_scores,
                                COUNT(CASE WHEN data_completeness >= 70 THEN 1 END) as complete_scores,
                                COUNT(*) FILTER (WHERE data_unavailable = FALSE) as available_count
                         FROM stock_scores
-                        WHERE updated_at > NOW() - INTERVAL '1 day' AND data_unavailable = FALSE
+                        WHERE (updated_at AT TIME ZONE 'UTC') > NOW() - INTERVAL '1 day' AND data_unavailable = FALSE
                     """)
                     completeness_row = cur.fetchone()
                     if completeness_row and completeness_row[0] is not None:

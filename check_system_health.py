@@ -44,6 +44,24 @@ def check_port_open(host: str, port: int, timeout: float = 2.0) -> bool:
         return False
 
 
+def _get_db_credentials() -> dict[str, str | int]:
+    """Get database credentials from environment, fail-fast on missing required vars."""
+    db_host = os.getenv("DB_HOST") or "localhost"
+    db_port = int(os.getenv("DB_PORT") or 5432)
+    db_user = os.getenv("DB_USER")
+    db_password = os.getenv("DB_PASSWORD")
+    db_name = os.getenv("DB_NAME")
+
+    if not db_user:
+        raise ValueError("DB_USER environment variable not set")
+    if not db_password:
+        raise ValueError("DB_PASSWORD environment variable not set")
+    if not db_name:
+        raise ValueError("DB_NAME environment variable not set")
+
+    return {"host": db_host, "port": db_port, "user": db_user, "password": db_password, "name": db_name}
+
+
 def check_database() -> dict:
     result = {
         "name": "Database",
@@ -55,26 +73,13 @@ def check_database() -> dict:
         import psycopg2
 
         try:
-            # Fail-fast on missing credentials: no hardcoded defaults for auth
-            db_host = os.getenv("DB_HOST") or "localhost"
-            db_port = int(os.getenv("DB_PORT") or 5432)
-            db_user = os.getenv("DB_USER")
-            db_password = os.getenv("DB_PASSWORD")
-            db_name = os.getenv("DB_NAME")
-
-            if not db_user:
-                raise ValueError("DB_USER environment variable not set")
-            if not db_password:
-                raise ValueError("DB_PASSWORD environment variable not set")
-            if not db_name:
-                raise ValueError("DB_NAME environment variable not set")
-
+            creds = _get_db_credentials()
             conn = psycopg2.connect(
-                host=db_host,
-                port=db_port,
-                user=db_user,
-                password=db_password,
-                database=db_name,
+                host=creds["host"],
+                port=creds["port"],
+                user=creds["user"],
+                password=creds["password"],
+                database=creds["name"],
                 connect_timeout=5,
             )
             cur = conn.cursor()
@@ -94,9 +99,16 @@ def check_database() -> dict:
                     # Use SQL to calculate age for accurate timezone handling
                     # (database may store naive datetimes in local timezone)
                     if table_name == "stock_scores":
+                        # stock_scores.updated_at is `timestamp without time zone` written via
+                        # datetime.now(timezone.utc) in load_stock_scores.py - the stored digits ARE
+                        # UTC wall-clock, unlike started_at below (session-timezone-local, see comment
+                        # there). Bare NOW() - MAX(updated_at) implicitly casts using the session
+                        # timezone (America/Chicago) instead of UTC, shifting it ~5-6h and making fresh
+                        # data misreport as being hours in the future. AT TIME ZONE 'UTC' makes the
+                        # correct interpretation explicit.
                         cur.execute(
                             f"SELECT COUNT(*), MAX(updated_at), "
-                            f"EXTRACT(EPOCH FROM (NOW() - MAX(updated_at))) / 3600 as age_hours "
+                            f"EXTRACT(EPOCH FROM (NOW() - (MAX(updated_at) AT TIME ZONE 'UTC'))) / 3600 as age_hours "
                             f"FROM {table_name}"
                         )
                     elif table_name == "algo_orchestrator_runs":
@@ -125,18 +137,34 @@ def check_database() -> dict:
                     cnt, _, age_hours = query_result
                     age_hours = float(age_hours) if age_hours is not None else None
 
-                    # Use market-calendar-aware thresholds (consistent with monitor_data_staleness.py)
-                    # On non-trading days (weekends/holidays), data from last trading day is fresh
+                    # Use market-calendar-aware thresholds (consistent with monitor_data_staleness.py).
+                    # CRITICAL: "is today a trading day" is the wrong question - on a Monday morning
+                    # before the loader has run, the most recent data is Friday's close, 3 calendar days
+                    # back, even though today trades. That previously made this check use the tight 24h
+                    # trading-day threshold on every Monday/post-holiday morning and false-WARN on data
+                    # that is exactly as fresh as expected. What matters is whether there's a weekend/
+                    # holiday gap since the last completed trading day - shift the threshold by that
+                    # gap's size, mirroring monitor_data_staleness.py's check_all_tables().
                     from algo.infrastructure.market_calendar import MarketCalendar
-                    from datetime import datetime, timezone
+                    from datetime import datetime, timezone, date
 
-                    cal = MarketCalendar()
                     now = datetime.now(timezone.utc)
-                    is_trading_day = cal.is_trading_day(now)
+                    is_trading_day = MarketCalendar.is_trading_day(now.date())
 
-                    if table_name in ("price_daily", "technical_data_daily"):
-                        # On trading days: 24h, on non-trading: 48h (Friday data OK on Saturday)
-                        threshold = 24 if is_trading_day else 48
+                    today = date.today()
+                    prev_trading_day = MarketCalendar.get_previous_trading_day(today - timedelta(days=1))
+                    if prev_trading_day is None:
+                        # Fallback if trading day lookup fails (shouldn't happen)
+                        from datetime import timedelta
+                        prev_trading_day = today - timedelta(days=1)
+                    gap_days = (today - prev_trading_day).days
+
+                    if table_name in ("price_daily", "technical_data_daily", "market_exposure_daily"):
+                        # On trading days with no gap: 24h (one trading day's normal loader lag).
+                        # Across a weekend/holiday gap, add a full day per gap day so Friday's close on
+                        # Monday morning (a 3-calendar-day gap, expected and not actionable) doesn't
+                        # trip this WARN - only a loader that's actually stuck past that should.
+                        threshold = 24 + gap_days * 24 if gap_days > 1 else 24
                     else:
                         # Always use 24h for other tables
                         threshold = 24
@@ -221,26 +249,13 @@ def check_orchestrator() -> dict:
     try:
         import psycopg2
 
-        # Fail-fast on missing credentials: no hardcoded defaults for auth
-        db_host = os.getenv("DB_HOST") or "localhost"
-        db_port = int(os.getenv("DB_PORT") or 5432)
-        db_user = os.getenv("DB_USER")
-        db_password = os.getenv("DB_PASSWORD")
-        db_name = os.getenv("DB_NAME")
-
-        if not db_user:
-            raise ValueError("DB_USER environment variable not set")
-        if not db_password:
-            raise ValueError("DB_PASSWORD environment variable not set")
-        if not db_name:
-            raise ValueError("DB_NAME environment variable not set")
-
+        creds = _get_db_credentials()
         conn = psycopg2.connect(
-            host=db_host,
-            port=db_port,
-            user=db_user,
-            password=db_password,
-            database=db_name,
+            host=creds["host"],
+            port=creds["port"],
+            user=creds["user"],
+            password=creds["password"],
+            database=creds["name"],
             connect_timeout=5,
         )
         cur = conn.cursor()
@@ -327,12 +342,13 @@ def main() -> int:
     ]
 
     results = []
+    status_map = {"OK": "[OK]", "FAIL": "[FAIL]", "WARN": "[WARN]", "unknown": "[?]"}
     for check_fn in checks:
         try:
             result = check_fn()
             results.append(result)
-            status_icon = result.get("status", "?")
-            status_display = status_icon.replace("OK", "[OK]").replace("FAIL", "[FAIL]").replace("WARN", "[WARN]")
+            status_icon = result.get("status", "unknown")
+            status_display = status_map.get(status_icon, status_icon)
             print(f"{status_display} {result['name']}")
             for detail in result.get("details", []):
                 print(f"    {detail}")

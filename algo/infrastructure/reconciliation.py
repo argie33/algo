@@ -158,7 +158,24 @@ class DailyReconciliation:
                 total_unrealized_pnl = float(pnl_row["total_pnl"])
                 total_invested = float(pnl_row["total_invested"])
 
-                # Portfolio value = base capital + unrealized P&L
+                # CRITICAL: This formula must also include REALIZED P&L from closed trades, not just
+                # unrealized P&L of currently-open positions. Without this, the moment a losing position
+                # closes, total_unrealized_pnl for open positions drops back toward 0 and portfolio_value
+                # silently snaps back to initial_capital - erasing the loss from the equity curve instead
+                # of carrying it forward as cash. This exact corruption already happened once (see
+                # migration 1112, 7 days of fabricated ~$100,006 snapshots that masked a real ~28%
+                # drawdown and defeated the circuit breaker). Closed trades with NULL profit_loss_dollars
+                # (pending broker fill reconciliation - see phase9_reconciliation.py) are correctly
+                # excluded by SUM() rather than treated as a $0 realized result.
+                cur.execute("""
+                    SELECT COALESCE(SUM(profit_loss_dollars), 0) as total_realized_pnl
+                    FROM algo_trades
+                    WHERE status = 'closed'
+                """)
+                realized_row = cur.fetchone()
+                total_realized_pnl = float(realized_row["total_realized_pnl"]) if realized_row else 0.0
+
+                # Portfolio value = base capital + all-time realized P&L + current unrealized P&L
                 # FIX: Provide default fallback for initial_capital_paper_trading in case config doesn't have it
                 initial_capital = self.config.get("initial_capital_paper_trading")
                 if initial_capital is None:
@@ -172,10 +189,12 @@ class DailyReconciliation:
                         f"[CRITICAL] initial_capital_paper_trading must be positive number, got {initial_capital}. "
                         "Configuration must be valid. Check config values."
                     )
-                portfolio_value = float(initial_capital) + total_unrealized_pnl
+                portfolio_value = float(initial_capital) + total_realized_pnl + total_unrealized_pnl
 
                 logger.info(
-                    f"[RECONCILIATION PAPER MODE] Found {open_position_count} open positions, portfolio value: ${portfolio_value:.2f}"
+                    f"[RECONCILIATION PAPER MODE] Found {open_position_count} open positions, "
+                    f"realized P&L: ${total_realized_pnl:.2f}, unrealized P&L: ${total_unrealized_pnl:.2f}, "
+                    f"portfolio value: ${portfolio_value:.2f}"
                 )
 
             # Write portfolio snapshot even in paper mode for position monitor and dashboard
@@ -188,8 +207,11 @@ class DailyReconciliation:
                 )
                 with DatabaseContext("write") as cur:
                     logger.info("[RECONCILIATION] Paper mode: DatabaseContext opened, role=write")
-                    # CRITICAL: Calculate cash from initial capital - invested amount (never hardcoded)
-                    cash_remaining = float(initial_capital) - total_invested
+                    # CRITICAL: Calculate cash from initial capital + realized P&L - invested amount
+                    # (never hardcoded). Must include realized P&L for the same reason portfolio_value
+                    # does above - omitting it understates/overstates cash by the account's entire
+                    # lifetime trading result.
+                    cash_remaining = float(initial_capital) + total_realized_pnl - total_invested
 
                     # CRITICAL: Portfolio value must be positive for valid reconciliation
                     if portfolio_value <= 0:
@@ -235,6 +257,32 @@ class DailyReconciliation:
                         breakeven_row = cur.fetchone()
                         breakeven_count = breakeven_row["count"] if breakeven_row else 0
 
+                    # CRITICAL: circuit_breaker.py::_check_daily_loss() reads daily_return_pct directly
+                    # from this table - it does not recompute it. Hardcoding this to 0.0 (as before)
+                    # silently disabled the Daily Loss Limit circuit breaker for every reconciliation
+                    # that goes through this LOCAL_MODE fallback path, since a fabricated 0.0% daily
+                    # return can never breach a negative threshold. Compute it from the previous
+                    # snapshot instead.
+                    cur.execute(
+                        """
+                        SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                        WHERE snapshot_date < %s
+                        ORDER BY snapshot_date DESC LIMIT 1
+                        """,
+                        (reconcile_date,),
+                    )
+                    prev_snapshot_row = cur.fetchone()
+                    if prev_snapshot_row and prev_snapshot_row["total_portfolio_value"]:
+                        prev_portfolio_value = float(prev_snapshot_row["total_portfolio_value"])
+                        daily_return_pct = (
+                            (portfolio_value - prev_portfolio_value) / prev_portfolio_value * 100
+                            if prev_portfolio_value > 0
+                            else 0.0
+                        )
+                    else:
+                        daily_return_pct = 0.0  # Bootstrap: no prior snapshot to compare against
+                    cumulative_return_pct = (portfolio_value - float(initial_capital)) / float(initial_capital) * 100
+
                     snapshot_params = (
                         reconcile_date,
                         portfolio_value,
@@ -253,14 +301,14 @@ class DailyReconciliation:
                         "open_positions_only",
                         0,
                         0,
-                        0.0,
-                        0.0,
+                        daily_return_pct,
+                        cumulative_return_pct,
                         0.0,
                         0.0,
                         "paper_mode",
                     )
                     logger.info(
-                        f"[RECONCILIATION] Paper mode: INSERT params - date={reconcile_date}, positions={open_position_count}, portfolio_value={portfolio_value}, cash={100000.00 - total_invested}"
+                        f"[RECONCILIATION] Paper mode: INSERT params - date={reconcile_date}, positions={open_position_count}, portfolio_value={portfolio_value}, cash={cash_remaining}"
                     )
 
                     cur.execute(
@@ -289,6 +337,8 @@ class DailyReconciliation:
                         unrealized_pnl_losing_count = EXCLUDED.unrealized_pnl_losing_count,
                         unrealized_pnl_breakeven_count = EXCLUDED.unrealized_pnl_breakeven_count,
                         unrealized_pnl_source = EXCLUDED.unrealized_pnl_source,
+                        daily_return_pct = EXCLUDED.daily_return_pct,
+                        cumulative_return_pct = EXCLUDED.cumulative_return_pct,
                         updated_at = NOW()
                         """,
                         snapshot_params,

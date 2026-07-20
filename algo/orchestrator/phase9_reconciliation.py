@@ -697,17 +697,27 @@ def _record_closed_positions_exits(
                         if entry_price is None or entry_price <= 0:
                             logger.error(f"CRITICAL: Trade {symbol} has invalid entry_price ({entry_price}), skipping")
                             continue
-                        pnl = (exit_price - entry_price) * quantity
-                        pnl_pct = (exit_price - entry_price) / entry_price * 100
 
+                        # CRITICAL: `exit_price` here is algo_positions.current_price at the moment this
+                        # position was detected closed (e.g. no longer present at the broker per
+                        # alpaca_sync_manager.py's reconciliation). That is NOT a confirmed broker fill -
+                        # if current_price was never refreshed after entry (position closed at the broker
+                        # before the next price sync ran), it silently equals entry_price, fabricating a
+                        # $0.00 P&L that hides the real gain/loss. Record it the same way
+                        # executor_exit_handler.py already does for its own estimated exits: leave
+                        # profit_loss_dollars/pct NULL (unknown, not zero) and mark estimated_exit_price
+                        # so the existing reconcile_exit_fills() pass on a subsequent run - and
+                        # audit_stale_estimated_prices() if it stays unreconciled too long - can replace
+                        # this guess with the broker's actual fill price.
                         sp = f"sp_exit_{symbol.replace('-', '_').replace('.', '_')}"
                         try:
                             write_cursor.execute(f"SAVEPOINT {sp}")
                             write_cursor.execute(
                                 """
                                 UPDATE algo_trades
-                                SET exit_date = %s, exit_price = %s, profit_loss_dollars = %s,
-                                    profit_loss_pct = %s, exit_reason = %s, status = 'closed',
+                                SET exit_date = %s, exit_price = %s, estimated_exit_price = %s,
+                                    profit_loss_dollars = NULL, profit_loss_pct = NULL, exit_r_multiple = NULL,
+                                    exit_reason = %s, status = 'closed',
                                     updated_at = CURRENT_TIMESTAMP
                                 WHERE trade_id = (
                                     SELECT trade_id FROM algo_trades
@@ -718,20 +728,19 @@ def _record_closed_positions_exits(
                                 (
                                     run_date,
                                     exit_price,
-                                    pnl,
-                                    pnl_pct,
-                                    "Closed position recorded during reconciliation",
+                                    exit_price,
+                                    "Closed position recorded during reconciliation - pending fill price confirmation",
                                     symbol,
                                 ),
                             )
                             write_cursor.execute(
                                 """
                                 UPDATE algo_positions
-                                SET status = 'CLOSED', current_price = %s, unrealized_pnl = %s,
+                                SET status = 'CLOSED', current_price = %s, unrealized_pnl = NULL,
                                     updated_at = CURRENT_TIMESTAMP
                                 WHERE symbol = %s
                             """,
-                                (exit_price, pnl, symbol),
+                                (exit_price, symbol),
                             )
                             if write_cursor.rowcount == 0:
                                 logger.warning(
@@ -742,8 +751,8 @@ def _record_closed_positions_exits(
                                 exits_recorded += 1
                             write_cursor.execute(f"RELEASE SAVEPOINT {sp}")
                             logger.info(
-                                f"Recorded exit: {symbol} {quantity}sh @ ${exit_price:.2f} on {run_date} "
-                                f"(P&L: ${pnl:.2f} / {pnl_pct:.1f}%)"
+                                f"Recorded exit: {symbol} {quantity}sh @ ~${exit_price:.2f} (estimated) on {run_date} "
+                                f"- P&L pending broker fill reconciliation"
                             )
                         except (
                             psycopg2.DatabaseError,
