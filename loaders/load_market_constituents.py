@@ -21,7 +21,7 @@ import socket
 import sys
 from datetime import date
 from io import StringIO
-from typing import Any
+from typing import Any, cast
 
 import pandas as pd
 import requests
@@ -207,16 +207,52 @@ class MarketConstituentsLoader(OptimalLoader):
 
             rows = []
             etf_rows = []
+            seen_symbols: set[str] = set()
 
-            for text in [nas_text, oth_text]:
-                reader = csv.DictReader(text.splitlines(), delimiter="|")
+            # BUGFIX 2026-07-20: nasdaqlisted.txt and otherlisted.txt use DIFFERENT column
+            # schemas (confirmed live against both feeds). nasdaqlisted.txt: "Symbol",
+            # "Market Category" (Q/G/S), has "Financial Status". otherlisted.txt (the feed
+            # for NYSE/NYSE American/NYSE Arca/BATS/IEXG-listed stocks - i.e. most non-NASDAQ
+            # names): "ACT Symbol", "Exchange" (N/A/P/Z/V), NO "Financial Status" column at
+            # all. The old single shared parse loop looked up "Symbol"/"Market Category"
+            # unconditionally, so EVERY row of otherlisted.txt failed the "Symbol" presence
+            # check and was silently skipped - meaning stock_symbols has never contained a
+            # single true NYSE-listed company (AbbVie, Abbott, Alcoa, ADM, ...) via this
+            # loader; only NASDAQ + the NASDAQ feed's own "NYSE MKT" rows ever landed there.
+            _SCHEMAS = [
+                {
+                    "text": nas_text,
+                    "symbol_field": "Symbol",
+                    "exchange_field": "Market Category",
+                    "exchange_map": {"Q": "NASDAQ", "G": "NASDAQ", "S": "NYSE MKT"},
+                    "has_financial_status": True,
+                },
+                {
+                    "text": oth_text,
+                    "symbol_field": "ACT Symbol",
+                    "exchange_field": "Exchange",
+                    "exchange_map": {"N": "NYSE", "A": "NYSE MKT", "P": "NYSE ARCA", "Z": "BATS", "V": "IEXG"},
+                    "has_financial_status": False,
+                },
+            ]
+
+            for schema in _SCHEMAS:
+                symbol_field = cast(str, schema["symbol_field"])
+                exchange_field = cast(str, schema["exchange_field"])
+                exchange_map = cast(dict[str, str], schema["exchange_map"])
+                reader = csv.DictReader(cast(str, schema["text"]).splitlines(), delimiter="|")
                 for r in reader:
                     # CRITICAL: Symbol is required - explicit validation, no defaults
-                    if "Symbol" not in r or not r["Symbol"]:
-                        logger.warning("[MARKET_CONSTITUENTS] Skipping row with missing or empty 'Symbol' field.")
+                    if symbol_field not in r or not r[symbol_field]:
+                        logger.warning(
+                            f"[MARKET_CONSTITUENTS] Skipping row with missing or empty '{symbol_field}' field."
+                        )
                         continue
-                    sym = r["Symbol"].strip()
+                    sym = r[symbol_field].strip()
                     if sym.startswith("File Creation Time"):
+                        continue
+                    if sym in seen_symbols:
+                        # Cross-listed on both feeds (rare) - keep the first classification.
                         continue
 
                     # CRITICAL: Security Name is required
@@ -233,7 +269,9 @@ class MarketConstituentsLoader(OptimalLoader):
                         )
 
                     # ETFs go to separate table (not stock_symbols)
-                    required_classifier_fields = ["ETF", "Test Issue", "Financial Status"]
+                    required_classifier_fields = ["ETF", "Test Issue"] + (
+                        ["Financial Status"] if schema["has_financial_status"] else []
+                    )
                     for field in required_classifier_fields:
                         if field not in r:
                             raise ValueError(
@@ -250,6 +288,7 @@ class MarketConstituentsLoader(OptimalLoader):
                                 "data_unavailable_reason": None,
                             }
                         )
+                        seen_symbols.add(sym)
                         continue
 
                     if should_exclude(name):
@@ -258,30 +297,27 @@ class MarketConstituentsLoader(OptimalLoader):
                         continue
                     if r["Test Issue"].upper() == "Y":
                         continue
-                    if r["Financial Status"].strip() == "D":
+                    # otherlisted.txt has no "Financial Status" (deficient-issuer) column -
+                    # that NASDAQ-specific flag simply doesn't exist for NYSE/other listings.
+                    if schema["has_financial_status"] and r["Financial Status"].strip() == "D":
                         continue
                     if "etf" in name.lower() or "fund" in name.lower():
                         logger.debug(f"Excluding {sym} ({name}) by security name pattern")
                         continue
 
-                    # FIXED: NASDAQ API changed from "Listing Exchange" to "Market Category"
-                    # Market Category: G=Global Market, Q=NASDAQ, S=NYSE MKT
-                    exchange_field = "Listing Exchange" if "Listing Exchange" in r else "Market Category"
                     if exchange_field not in r or not r[exchange_field]:
                         logger.warning(f"[MARKET_CONSTITUENTS] Symbol {sym} missing exchange field. Skipping.")
                         continue
-                    market_cat = r[exchange_field].upper().strip()
-                    # Map Market Category to exchange code
-                    exchange_map = {"Q": "NASDAQ", "N": "NYSE", "S": "NYSE MKT", "G": "NASDAQ"}
+                    exchange_code = r[exchange_field].upper().strip()
                     # FAIL-FAST: Skip symbols with unmapped exchange codes instead of using "UNKNOWN"
-                    if market_cat not in exchange_map:
+                    if exchange_code not in exchange_map:
                         logger.warning(
-                            f"[MARKET_CONSTITUENTS] Symbol {sym} has unmapped exchange code '{market_cat}'. Skipping. "
-                            f"This indicates: (1) New exchange code from API, or (2) Data quality issue. "
+                            f"[MARKET_CONSTITUENTS] Symbol {sym} has unmapped exchange code '{exchange_code}'. "
+                            f"Skipping. This indicates: (1) New exchange code from API, or (2) Data quality issue. "
                             f"Known codes: {list(exchange_map.keys())}"
                         )
                         continue
-                    exchange = exchange_map[market_cat]
+                    exchange = exchange_map[exchange_code]
                     rows.append(
                         {
                             "symbol": sym,
@@ -290,6 +326,7 @@ class MarketConstituentsLoader(OptimalLoader):
                             "etf": "N",
                         }
                     )
+                    seen_symbols.add(sym)
 
             # Upsert ETFs to separate table
             if etf_rows:
