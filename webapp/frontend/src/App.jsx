@@ -32,7 +32,6 @@ const ConfigurationViewer = React.lazy(
 );
 
 import ProtectedRoute from "./components/auth/ProtectedRoute";
-import ErrorBoundary from "./components/ErrorBoundary";
 import { LoadingFallback } from "./components/LoadingFallback";
 
 // Marketing pages
@@ -44,7 +43,6 @@ const OurTeam = React.lazy(() => import("./pages/marketing/OurTeam"));
 const MissionValues = React.lazy(
   () => import("./pages/marketing/MissionValues")
 );
-const Services = React.lazy(() => import("./pages/marketing/Services"));
 const ResearchInsights = React.lazy(
   () => import("./pages/marketing/ResearchInsights")
 );
@@ -79,118 +77,19 @@ function App() {
             <Route path="/" element={<Navigate to="/app/markets" replace />} />
 
             {/* Marketing Pages */}
-            <Route
-              path="/home"
-              element={
-                <ErrorBoundary>
-                  <Home />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/firm"
-              element={
-                <ErrorBoundary>
-                  <Firm />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/contact"
-              element={
-                <ErrorBoundary>
-                  <Contact />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/about"
-              element={
-                <ErrorBoundary>
-                  <About />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/our-team"
-              element={
-                <ErrorBoundary>
-                  <OurTeam />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/mission-values"
-              element={
-                <ErrorBoundary>
-                  <MissionValues />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/services"
-              element={
-                <ErrorBoundary>
-                  <Services />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/research-insights"
-              element={
-                <ErrorBoundary>
-                  <ResearchInsights />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/articles/:articleId"
-              element={
-                <ErrorBoundary>
-                  <ArticleDetail />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/investment-tools"
-              element={
-                <ErrorBoundary>
-                  <InvestmentTools />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/wealth-management"
-              element={
-                <ErrorBoundary>
-                  <WealthManagement />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/terms"
-              element={
-                <ErrorBoundary>
-                  <Terms />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/privacy"
-              element={
-                <ErrorBoundary>
-                  <Privacy />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/login"
-              element={
-                <ErrorBoundary>
-                  <LoginPage />
-                </ErrorBoundary>
-              }
-            />
+            <Route path="/home" element={<Home />} />
+            <Route path="/firm" element={<Firm />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/our-team" element={<OurTeam />} />
+            <Route path="/mission-values" element={<MissionValues />} />
+            <Route path="/research-insights" element={<ResearchInsights />} />
+            <Route path="/articles/:articleId" element={<ArticleDetail />} />
+            <Route path="/investment-tools" element={<InvestmentTools />} />
+            <Route path="/wealth-management" element={<WealthManagement />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/login" element={<LoginPage />} />
 
             {/* Legacy route redirects to /app/* equivalents */}
             <Route
@@ -272,86 +171,43 @@ function App() {
             />
 
             {/* Markets & Analysis */}
-            <Route
-              path="/app/markets"
-              element={
-                <ErrorBoundary>
-                  <MarketsHealth />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/app/economic"
-              element={
-                <ErrorBoundary>
-                  <EconomicDashboard />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/app/sectors"
-              element={
-                <ErrorBoundary>
-                  <SectorAnalysis />
-                </ErrorBoundary>
-              }
-            />
-            <Route
-              path="/app/sentiment"
-              element={
-                <ErrorBoundary>
-                  <Sentiment />
-                </ErrorBoundary>
-              }
-            />
+            <Route path="/app/markets" element={<MarketsHealth />} />
+            <Route path="/app/economic" element={<EconomicDashboard />} />
+            <Route path="/app/sectors" element={<SectorAnalysis />} />
+            <Route path="/app/sentiment" element={<Sentiment />} />
 
             {/* Stocks Analysis & Signals */}
-            <Route
-              path="/app/deep-value"
-              element={
-                <ErrorBoundary>
-                  <DeepValueStocks />
-                </ErrorBoundary>
-              }
-            />
+            <Route path="/app/deep-value" element={<DeepValueStocks />} />
             <Route
               path="/app/trading-signals"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth>
-                    <TradingSignals />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth>
+                  <TradingSignals />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/swing"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth>
-                    <SwingCandidates />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth>
+                  <SwingCandidates />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/scores"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth>
-                    <ScoresDashboard />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth>
+                  <ScoresDashboard />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/stock/:symbol"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth>
-                    <StockDetail />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth>
+                  <StockDetail />
+                </ProtectedRoute>
               }
             />
 
@@ -359,21 +215,17 @@ function App() {
             <Route
               path="/app/portfolio"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth>
-                    <PortfolioDashboard />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth>
+                  <PortfolioDashboard />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/trades"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth>
-                    <TradeTracker />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth>
+                  <TradeTracker />
+                </ProtectedRoute>
               }
             />
 
@@ -381,21 +233,17 @@ function App() {
             <Route
               path="/app/algo-dashboard"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth requireRole="admin">
-                    <AlgoTradingDashboard />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth requireRole="admin">
+                  <AlgoTradingDashboard />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/backtests"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth>
-                    <BacktestResults />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth>
+                  <BacktestResults />
+                </ProtectedRoute>
               }
             />
 
@@ -403,61 +251,49 @@ function App() {
             <Route
               path="/app/configuration"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth requireRole="admin">
-                    <ConfigurationViewer />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth requireRole="admin">
+                  <ConfigurationViewer />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/health"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth requireRole="admin">
-                    <ServiceHealth />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth requireRole="admin">
+                  <ServiceHealth />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/notifications"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth requireRole="admin">
-                    <NotificationCenter />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth requireRole="admin">
+                  <NotificationCenter />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/audit"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth requireRole="admin">
-                    <AuditViewer />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth requireRole="admin">
+                  <AuditViewer />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/blueprint"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth requireRole="admin">
-                    <SystemBlueprint />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth requireRole="admin">
+                  <SystemBlueprint />
+                </ProtectedRoute>
               }
             />
             <Route
               path="/app/settings"
               element={
-                <ErrorBoundary>
-                  <ProtectedRoute requireAuth>
-                    <Settings />
-                  </ProtectedRoute>
-                </ErrorBoundary>
+                <ProtectedRoute requireAuth>
+                  <Settings />
+                </ProtectedRoute>
               }
             />
 
