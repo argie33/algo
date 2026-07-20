@@ -12,6 +12,16 @@ FORCE REFRESH (--force-refresh):
   Bypasses watermarks AND updates loader_watermarks for all processed symbols to TODAY.
   This ensures data stays fresh in LOCAL_MODE (fixes Session 211 data staleness issue).
   Used by Phase 1 failsafe retry in LOCAL_MODE to refresh stale data.
+
+FIX (2026-07-20): every "load the universe" query in this file (watermark update +
+all 6 run_*_loader functions) selected from stock_symbols with no `active` filter,
+unlike load_positioning_metrics.py/load_financial_statements.py/utils/loaders/helpers.py,
+which all filter `WHERE active = true`. This file is not just a manual dev tool -
+algo/orchestrator/phase1_failsafe_retry.py invokes it automatically via subprocess with
+--force-refresh, so any symbol marked inactive (delisted, but not yet purged from
+stock_symbols) would still get reprocessed into stability_metrics/momentum_metrics/etc
+every time the failsafe retry fires, undoing any manual stale-row cleanup. Added the
+same `WHERE active = true` filter everywhere else already uses.
 """
 
 import argparse
@@ -63,7 +73,7 @@ def update_watermarks_to_today(loader_name: str, table_names: list[str]) -> None
         # Get all active symbols from stock_symbols table
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
 
         if not symbols:
@@ -120,7 +130,7 @@ def run_price_loader(symbols=None, backfill_days=1):
         try:
             conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
             cursor = conn.cursor()
-            cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
             symbols = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
@@ -144,7 +154,7 @@ def run_technical_indicators_loader(backfill_days=1):
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -206,7 +216,7 @@ def run_value_quality_growth_loader():
         try:
             conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
             cursor = conn.cursor()
-            cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+            cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
             symbols = [row[0] for row in cursor.fetchall()]
             cursor.close()
             conn.close()
@@ -231,7 +241,7 @@ def run_stock_scores_loader(limit=None):
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -256,7 +266,7 @@ def run_positioning_metrics_loader():
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
@@ -281,7 +291,7 @@ def run_stability_metrics_loader():
     try:
         conn = psycopg2.connect("dbname=stocks user=stocks host=localhost")
         cursor = conn.cursor()
-        cursor.execute("SELECT symbol FROM stock_symbols ORDER BY symbol")
+        cursor.execute("SELECT symbol FROM stock_symbols WHERE active = true ORDER BY symbol")
         symbols = [row[0] for row in cursor.fetchall()]
         cursor.close()
         conn.close()
