@@ -83,6 +83,11 @@ class HaltFlagManager:
         try:
             import boto3
 
+            # Check if AWS credentials available - skip DynamoDB if not configured (local dev)
+            if not os.environ.get("AWS_ACCESS_KEY_ID"):
+                logger.debug("[HALT_FLAG] AWS credentials not configured - skipping DynamoDB, using RDS fallback")
+                return None
+
             dynamodb = boto3.resource("dynamodb")
             table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
             table = dynamodb.Table(table_name)
@@ -320,6 +325,11 @@ class HaltFlagManager:
         for attempt in range(max_retries):
             try:
                 import boto3
+
+                # Check if AWS credentials available - skip DynamoDB if not configured (local dev)
+                if not os.environ.get("AWS_ACCESS_KEY_ID"):
+                    logger.debug("[HALT_FLAG] AWS credentials not configured - skipping DynamoDB, using RDS fallback")
+                    raise ValueError("AWS credentials missing - forcing RDS fallback")
 
                 dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
                 table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
@@ -654,6 +664,11 @@ class HaltFlagManager:
         for attempt in range(max_retries):
             try:
                 import boto3
+
+                # Check if AWS credentials available - skip DynamoDB if not configured (local dev)
+                if not os.environ.get("AWS_ACCESS_KEY_ID"):
+                    logger.debug("[HALT_FLAG] AWS credentials not configured - skipping DynamoDB, using RDS fallback")
+                    raise ValueError("AWS credentials missing - forcing RDS fallback")
 
                 dynamodb = boto3.resource("dynamodb", region_name=os.getenv("AWS_REGION", "us-east-1"))
                 table_name = os.getenv("HALT_FLAG_TABLE", "algo_orchestrator_state")
