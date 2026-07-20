@@ -123,8 +123,12 @@ class EarningsCalendarSECLoader(SecLoaderBase):
 
             earnings_dates_dict = {}  # Key: filing_date, Value: (filing_type, record)
 
-            # Extract 10-K and 10-Q filing dates
+            # Extract 10-K and 10-Q filing dates (these are the earnings-bearing
+            # filing types; the SEC submissions feed also includes unrelated forms
+            # like 8-K, S-4, and Form 4 which must be excluded here)
             for i, form_type in enumerate(forms):
+                if form_type not in ("10-K", "10-Q"):
+                    continue
                 try:
                     filing_date_str = filing_dates[i]
                     # Validate filing date format (ISO format expected)
@@ -186,11 +190,34 @@ class EarningsCalendarSECLoader(SecLoaderBase):
                 raise
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
-        """Helper to create a data_unavailable record."""
+        """Helper to create a data_unavailable record.
+
+        Reuses the filing_date of any existing unavailable marker for this symbol
+        instead of always stamping today's date. primary_key is (symbol, filing_date),
+        so stamping "today" here would insert a brand-new row every day this symbol
+        has no recent filings, growing the table unbounded (same bug class fixed in
+        company_info_sec/institutional_holdings_13f/insider_holdings_sec).
+        """
+        from utils.db.context import DatabaseContext
+
+        filing_date = now_et.date()
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    "SELECT filing_date FROM earnings_calendar_sec "
+                    "WHERE symbol = %s AND data_unavailable = true LIMIT 1",
+                    (symbol,),
+                )
+                existing = cur.fetchone()
+                if existing:
+                    filing_date = existing[0]
+        except Exception as e:
+            logger.warning(f"[{symbol}] Failed to look up existing unavailable marker: {e}")
+
         return [
             {
                 "symbol": symbol,
-                "filing_date": now_et.date(),
+                "filing_date": filing_date,
                 "filing_type": None,
                 "data_unavailable": True,
                 "reason": reason,

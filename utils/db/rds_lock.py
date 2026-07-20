@@ -8,7 +8,7 @@ import logging
 import os
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from utils.db import DatabaseContext
 
@@ -66,7 +66,7 @@ class RDSLockManager:
         while time.time() - start_time < timeout_seconds:
             attempt += 1
             try:
-                now_utc = datetime.utcnow()
+                now_utc = datetime.now(timezone.utc)
                 expires_at = now_utc + timedelta(seconds=self.lock_duration_seconds)
 
                 with DatabaseContext("write") as cur:
@@ -162,7 +162,7 @@ class RDSLockManager:
 
         try:
             cleaned = 0
-            cutoff_time = datetime.utcnow() - timedelta(seconds=max_age_seconds)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
 
             with DatabaseContext("write") as cur:
                 if lock_key:
@@ -210,7 +210,7 @@ class RDSLockManager:
                     return {"status": "free"}
 
                 locked_by, locked_at, expires_at = result
-                is_expired = expires_at < datetime.utcnow() if expires_at else False
+                is_expired = expires_at < datetime.now(timezone.utc) if expires_at else False
 
                 return {
                     "status": "expired" if is_expired else "held",

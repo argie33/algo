@@ -99,12 +99,28 @@ class ShortInterestFinraLoader(OptimalLoader):
 
             rows_inserted = 0
             rows_unavailable = 0
-            record_date = settlement_date or run_date
+
+            # primary_key is (symbol, settlement_date). When FINRA is unreachable,
+            # settlement_date is None and every symbol would otherwise fall back to
+            # today's date - a fresh PK, so a fresh duplicate row, on every failed
+            # run instead of updating one persistent marker (same bug class fixed in
+            # company_info_sec/institutional_holdings_13f/earnings_calendar_sec).
+            # Reuse each symbol's existing unavailable-marker date instead.
+            existing_marker_dates: dict[str, Any] = {}
+            if settlement_date is None:
+                with DatabaseContext("read") as cur:
+                    cur.execute(
+                        "SELECT symbol, settlement_date FROM short_interest_finra "
+                        "WHERE symbol = ANY(%s) AND data_unavailable = true",
+                        (symbols,),
+                    )
+                    existing_marker_dates = dict(cur.fetchall())
 
             with DatabaseContext("write") as cur:
                 for symbol in symbols:
                     finra_row = finra_data.get(symbol)
                     outstanding = shares_outstanding.get(symbol)
+                    record_date = settlement_date or existing_marker_dates.get(symbol, run_date)
 
                     if finra_row is None:
                         short_pct = None
