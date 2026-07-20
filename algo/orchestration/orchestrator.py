@@ -1003,15 +1003,11 @@ class Orchestrator:
                     "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) and AWS credentials."
                 )
         elif result.status == "ok":
-            halt_clear_result = self.halt_manager.clear_halt_flag(
+            # Clear halt flag after Phase 1 verified data is fresh
+            # If this fails (both DynamoDB and RDS unavailable), clear_halt_flag() raises RuntimeError
+            self.halt_manager.clear_halt_flag(
                 f"Phase 1 verified data is fresh at {datetime.now(timezone.utc).isoformat()}"
             )
-            if not halt_clear_result:
-                raise RuntimeError(
-                    "[GOVERNANCE VIOLATION] Halt flag could not be cleared despite fresh data. "
-                    "This is a critical safety failure - we may be stuck in halted mode or the flag is stale. "
-                    "Orchestrator MUST fail. Check database connectivity (RDS and DynamoDB) and AWS credentials."
-                )
 
         return not result.halted
 
