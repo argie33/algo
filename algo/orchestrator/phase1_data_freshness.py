@@ -299,7 +299,14 @@ def run(  # noqa: C901
                 return PhaseResult(1, "data_freshness", "halted", {}, True, error_msg)
             logger.info(f"[PHASE 1] Pre-flight: stock_symbols table OK ({symbol_count:,} active symbols)")
     except Exception as pre_check_err:
-        logger.warning(f"[PHASE 1] Could not pre-validate stock_symbols table: {pre_check_err}. Proceeding anyway.")
+        error_msg = (
+            f"[PHASE 1 CRITICAL] Pre-flight validation failed - cannot verify stock_symbols table: {pre_check_err}. "
+            f"This prevents all downstream phases from running correctly. "
+            f"Fail-fast: halting Phase 1 to surface data quality issue."
+        )
+        logger.critical(error_msg)
+        log_phase_result_fn(1, "data_freshness", "halt", error_msg)
+        return PhaseResult(1, "data_freshness", "halted", {}, True, error_msg)
 
     try:
         with DatabaseContext("read") as cur:
