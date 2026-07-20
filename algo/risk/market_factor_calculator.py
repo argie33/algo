@@ -277,24 +277,20 @@ class MarketFactorCalculator:
                 )
 
             most_recent_date = price_row[0]
-            age = eval_date - most_recent_date
 
-            # CRITICAL FIX: Use trading-day logic instead of calendar days.
-            # On a trading day (Mon-Fri, non-holiday): require today's data.
-            # On weekends/holidays: previous trading day's data is acceptable.
-            # Don't reject Friday data on Monday just because age.days > 0.
+            # Use trading-day logic instead of calendar days, and accept the most
+            # recently COMPLETED trading day's data rather than demanding eval_date's
+            # own close - the orchestrator runs this pre-market (2 AM ET), hours before
+            # today's close exists. Walk back from the trading day before eval_date to
+            # find the latest close we can reasonably expect to already be loaded.
             from algo.infrastructure import MarketCalendar
             from datetime import timedelta
 
-            is_trading_day = MarketCalendar.is_trading_day(eval_date)
-            expected_date = eval_date
-            if not is_trading_day:
-                # Not a trading day (weekend/holiday): use previous trading day's data
+            expected_date = eval_date - timedelta(days=1)
+            for _ in range(10):
+                if MarketCalendar.is_trading_day(expected_date):
+                    break
                 expected_date -= timedelta(days=1)
-                for _ in range(10):
-                    if MarketCalendar.is_trading_day(expected_date):
-                        break
-                    expected_date -= timedelta(days=1)
 
             if most_recent_date < expected_date:
                 raise RuntimeError(

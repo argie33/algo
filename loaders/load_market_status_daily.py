@@ -151,12 +151,13 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "date": end_date,
                 "data_unavailable": False,
 
-                # market_health_daily fields
+                # market_health_daily fields (column names per market_health_daily schema -
+                # health_data uses different internal key names, see _fetch_market_health)
                 "vix_level": health_data.get("vix_level"),
                 "advance_decline_ratio": health_data.get("advance_decline_ratio"),
-                "new_highs": health_data.get("new_highs"),
-                "new_lows": health_data.get("new_lows"),
-                "yield_10y_2y_spread": health_data.get("yield_10y_2y_spread"),
+                "new_highs_count": health_data.get("new_highs"),
+                "new_lows_count": health_data.get("new_lows"),
+                "yield_curve_slope": health_data.get("yield_10y_2y_spread"),
                 "put_call_ratio": health_data.get("put_call_ratio"),
 
                 # market_exposure_daily fields
@@ -210,7 +211,11 @@ class MarketStatusDailyLoader(OptimalLoader):
             if not vix_data or vix_data.get("data_unavailable"):
                 return {"data_unavailable": True, "reason": "vix_unavailable"}
 
-            vix_level = vix_data.get("vix_close")
+            # vix_data is keyed by ISO date string (see VIXFetcher._fetch_vix_data),
+            # e.g. {"2026-07-17": {"vix_close": ..., ...}} - not a flat {"vix_close": ...}
+            # dict. Take the most recent date's close.
+            latest_vix_date = max(vix_data.keys())
+            vix_level = vix_data[latest_vix_date].get("vix_close")
 
             # Fetch breadth (advance/decline, new highs/lows)
             start_date = eval_date - timedelta(days=60)
@@ -227,7 +232,11 @@ class MarketStatusDailyLoader(OptimalLoader):
             if not yield_data or yield_data.get("data_unavailable"):
                 return {"data_unavailable": True, "reason": "yield_curve_unavailable"}
 
-            yield_spread = yield_data.get("yield_10y_2y_spread")
+            # yield_data is keyed by ISO date string (see YieldCurveFetcher._fetch_yield_curve_data),
+            # e.g. {"2026-07-17": {"yield_spread": ..., ...}} - not a flat dict, and the field is
+            # named "yield_spread" not "yield_10y_2y_spread".
+            latest_yield_date = max(yield_data.keys())
+            yield_spread = yield_data[latest_yield_date].get("yield_spread")
 
             # Fetch put/call ratio (optional market sentiment indicator)
             put_call = None

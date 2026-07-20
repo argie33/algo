@@ -382,10 +382,16 @@ class PipelineHealth:
                             table_health.row_count,
                             table_health.latest_date,
                             table_health.age_days,
-                            # Preserve original error_message if health check status is not ERROR
-                            # If health check found ERROR, use its error_message
-                            table_health.error_message if table_health.status == HealthStatus.ERROR
-                                else existing_errors.get(table_health.table_name),
+                            # If this check found ERROR, use its (fresh) error_message.
+                            # If the table is now HEALTHY, clear it - an old error sitting
+                            # next to a fresh last_updated timestamp reads as "still broken"
+                            # on the health panel even after the table has recovered.
+                            # Otherwise (STALE/VERY_STALE/MISSING but not erroring), preserve
+                            # whatever context was already recorded.
+                            table_health.error_message
+                                if table_health.status == HealthStatus.ERROR
+                                else (None if table_health.status == HealthStatus.HEALTHY
+                                      else existing_errors.get(table_health.table_name)),
                         )
                         for table_health in status.tables.values()
                     ]
