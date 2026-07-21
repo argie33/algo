@@ -958,7 +958,12 @@ def _get_performance_metrics_endpoint(cur: cursor) -> Any:
 
 
 @db_route_handler("get portfolio summary")  # type: ignore[untyped-decorator]
-@validate_api_response("port")  # type: ignore[untyped-decorator]
+# NOTE: not @validate_api_response("port") - "port" is the schema for the separate
+# /api/algo/portfolio endpoint (_get_algo_portfolio below), whose required fields
+# (total_portfolio_value, total_cash, position_count) don't match this endpoint's
+# response shape (total_value, cash, invested, positions). Validating against it
+# made every call to /api/algo/portfolio-summary fail contract validation and
+# return a 500, regardless of the underlying data.
 def _get_portfolio_summary(cur: cursor) -> Any:
     cur.execute("""
         SELECT total_portfolio_value, total_cash, total_equity, position_count, daily_return_pct
@@ -990,29 +995,34 @@ def _get_portfolio_summary(cur: cursor) -> Any:
 
     daily_change_dollars = (daily_return_pct / 100 * total_value) if total_value is not None and daily_return_pct is not None else None
 
+    # Check `is not None`, not falsiness (see comment above): cash=$0.00 (fully invested),
+    # invested=$0.00 (all cash), and daily_return_pct=0.00% (flat day) are all valid, common
+    # portfolio states, not missing data - `if x else None` was silently reporting each of
+    # them as unavailable ("N/A") on the portfolio summary, one of the most visible numbers
+    # in the dashboard.
     if positions is None:
         return json_response(
             200,
             {
-                "total_value": round(total_value, 2) if total_value else None,
-                "cash": round(cash, 2) if cash else None,
-                "invested": round(invested, 2) if invested else None,
+                "total_value": round(total_value, 2) if total_value is not None else None,
+                "cash": round(cash, 2) if cash is not None else None,
+                "invested": round(invested, 2) if invested is not None else None,
                 "positions": None,
                 "_warning": "positions count unavailable",
-                "daily_change": (round(daily_change_dollars, 2) if daily_change_dollars else None),
-                "daily_change_percent": (round(daily_return_pct, 2) if daily_return_pct else None),
+                "daily_change": (round(daily_change_dollars, 2) if daily_change_dollars is not None else None),
+                "daily_change_percent": (round(daily_return_pct, 2) if daily_return_pct is not None else None),
             },
         )
 
     return json_response(
         200,
         {
-            "total_value": round(total_value, 2) if total_value else None,
-            "cash": round(cash, 2) if cash else None,
-            "invested": round(invested, 2) if invested else None,
+            "total_value": round(total_value, 2) if total_value is not None else None,
+            "cash": round(cash, 2) if cash is not None else None,
+            "invested": round(invested, 2) if invested is not None else None,
             "positions": positions,
-            "daily_change": (round(daily_change_dollars, 2) if daily_change_dollars else None),
-            "daily_change_percent": (round(daily_return_pct, 2) if daily_return_pct else None),
+            "daily_change": (round(daily_change_dollars, 2) if daily_change_dollars is not None else None),
+            "daily_change_percent": (round(daily_return_pct, 2) if daily_return_pct is not None else None),
         },
     )
 

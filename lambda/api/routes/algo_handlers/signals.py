@@ -486,7 +486,7 @@ def _get_rejection_funnel(cur: cursor) -> Any:
                 "t3": t3,
                 "t4": t4,
                 "t5": t5,
-                "avg_score": safe_float(avg_score, default=None, strict=True) if avg_score else None,
+                "avg_score": safe_float(avg_score, default=None, strict=True) if avg_score is not None else None,
                 "signal_date": signal_date,
                 "rejected": rejected,
             },

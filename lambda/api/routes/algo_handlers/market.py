@@ -1203,7 +1203,9 @@ def _get_market_sentiment(cur: cursor) -> Any:
     return json_response(
         200,
         {
-            "sentiment": round(sentiment_score, 2) if sentiment_score else None,
+            # sentiment_score is validated non-None above; an extreme-bearish reading of
+            # exactly 0 must not be hidden as "unavailable" by a falsy check.
+            "sentiment": round(sentiment_score, 2),
             "trend": trend,
             "bullish_pct": round(bullish, 1) if bullish else None,
             "bearish_pct": round(bearish, 1) if bearish else None,
