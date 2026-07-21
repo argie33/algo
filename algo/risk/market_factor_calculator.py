@@ -430,7 +430,8 @@ class MarketFactorCalculator:
         """52-week new highs vs new lows (critical).
 
         Raises RuntimeError if data unavailable - market leadership is key to confirm trends.
-        New highs/lows is a 5pt factor. Missing leadership data is a data error, not a skip.
+        New highs/lows is a 7pt factor (MarketExposure.W_NEW_HIGHS_LOWS). Missing leadership
+        data is a data error, not a skip.
         """
         try:
             cur.execute(
@@ -470,7 +471,9 @@ class MarketFactorCalculator:
         """Advance/decline line vs SPY (critical).
 
         Raises RuntimeError if data unavailable - A/D confirmation is key to market health check.
-        A/D line is a 5pt factor. Missing breadth direction data is a data error, not a skip.
+        A/D line is a 6pt factor (MarketExposure.W_AD_LINE - rebalanced from 5pt, this
+        docstring wasn't updated at the time). Missing breadth direction data is a data
+        error, not a skip.
         """
         try:
             cur.execute(
@@ -566,7 +569,8 @@ class MarketFactorCalculator:
         """NAAIM exposure (contrarian positioning, critical). Uses most recent weekly reading.
 
         Raises RuntimeError if data unavailable - professional positioning is key contrarian signal.
-        NAAIM is a 3pt factor. Missing positioning data is a data error, not a skip condition.
+        NAAIM is a 5pt factor (MarketExposure.W_NAAIM - rebalanced from 3pt, this docstring
+        wasn't updated at the time). Missing positioning data is a data error, not a skip condition.
         """
         try:
             cur.execute(
