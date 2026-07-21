@@ -125,6 +125,13 @@ def _update_position(cur: cursor, body: dict[str, Any]) -> Any:
             f"UPDATE algo_positions SET {update_sql}, updated_at = NOW() WHERE id = %s",
             update_args,
         )
+        # The existence check above (SELECT ... WHERE id = %s) narrows the race but doesn't
+        # close it - the position can still be closed/deleted between that SELECT and this
+        # UPDATE (e.g. the exit engine or position monitor racing this admin edit). Without
+        # checking rowcount, that race silently reports "status": "success" with the request
+        # body's intended values even though nothing in the database actually changed.
+        if cur.rowcount == 0:
+            raise_api_error(404, "not_found", f"Position {position_id} was not found at update time (may have just closed)")
 
         result = {
             "status": "success",
