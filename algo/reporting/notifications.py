@@ -94,9 +94,9 @@ class TradeNotificationService:
                     f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
                 )
             if target_1 is None:
-                raise ValueError(
-                    f"CRITICAL: Trade entry event missing target_1. "
-                    f"Cannot format notification without target level. "
+                logger.warning(
+                    f"Trade {event.get('id')} missing target_1 (optional). "
+                    f"Target level unavailable but trade executed successfully. "
                     f"Audit log corruption: symbol={symbol}, event={event.get('id')}"
                 )
 

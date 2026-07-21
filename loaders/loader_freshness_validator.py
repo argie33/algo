@@ -45,6 +45,14 @@ def validate_snapshot_freshness(
         logger.warning(f"[{table_name}] {symbol} missing updated_at timestamp")
         return False
 
+    if updated_at.tzinfo is None:
+        logger.error(
+            f"[{table_name}] {symbol} updated_at is naive (no timezone). "
+            f"Cannot compare with UTC datetime. Database schema violation: timestamps must be timezone-aware. "
+            f"Freshness check cannot proceed - treating as stale data."
+        )
+        return False
+
     try:
         age = datetime.now(timezone.utc) - updated_at
         if age > timedelta(hours=max_age_hours):
@@ -52,7 +60,7 @@ def validate_snapshot_freshness(
             return False
         return True
     except Exception as e:
-        logger.error(f"[{table_name}] Freshness check failed for {symbol}: {e}")
+        logger.error(f"[{table_name}] Freshness check failed for {symbol}: {type(e).__name__}: {e}")
         return False
 
 

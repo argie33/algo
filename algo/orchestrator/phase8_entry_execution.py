@@ -665,9 +665,16 @@ def run(
     )
 
     # ISSUE #4 FIX: Check if paper mode is active before initializing TradeExecutor
-    execution_mode_check = config.get("execution_mode", "paper")
     # CRITICAL FIX: Require explicit config - fail-fast if missing
     # No silent fallback to False (which would attempt live trading)
+    if "execution_mode" not in config:
+        raise ValueError(
+            "[PHASE 8] Config missing 'execution_mode'. "
+            "Trading mode must be explicit ('paper' or 'auto'). "
+            "Check algo_config table has this key."
+        )
+    execution_mode_check = config["execution_mode"]
+
     if "alpaca_paper_trading" not in config:
         raise ValueError(
             "[PHASE 8] Config missing 'alpaca_paper_trading'. "
