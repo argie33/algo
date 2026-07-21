@@ -379,8 +379,7 @@ class PriceLoader(OptimalLoader):
 
             if best_size is not None and best_rate >= 0.5:
                 logger.debug(
-                    "[BATCH_SIZE_SMART] Using batch={best_size} (success rate %s)",
-                    best_rate,
+                    f"[BATCH_SIZE_SMART] Using batch={best_size} (success rate {best_rate:.1%})"
                 )
                 return best_size
 
@@ -658,7 +657,9 @@ class PriceLoader(OptimalLoader):
                             "Audit trail broken - raising to retry.",
                             metric_err,
                         )
-                        raise RuntimeError(f"Metrics publishing failed (audit trail requirement): {metric_err}") from metric_err
+                        raise RuntimeError(
+                            f"Metrics publishing failed (audit trail requirement): {metric_err}"
+                        ) from metric_err
                     return True
                 # Data not available yet, will retry
                 consecutive_errors = 0
@@ -1860,7 +1861,9 @@ class PriceLoader(OptimalLoader):
                 )
                 raise
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.critical(f"[LOADER STATUS] CRITICAL: Failed to update data_loader_status for {self.table_name}: {e}. Orchestrator cannot detect hung loaders.")
+            logger.critical(
+                f"[LOADER STATUS] CRITICAL: Failed to update data_loader_status for {self.table_name}: {e}. Orchestrator cannot detect hung loaders."
+            )
             raise RuntimeError(f"Loader status update failed - cannot track loader health: {e}") from e
 
         # Finalization complete. Implicit None return signals successful cleanup.
@@ -1889,6 +1892,7 @@ class PriceLoader(OptimalLoader):
         # Markets are closed on weekends/holidays, so no new price data is available
         # Loaders should not fail just because it's Saturday - that's expected behavior
         from algo.infrastructure import MarketCalendar
+
         now_et = datetime.now(EASTERN_TZ)
         run_date = now_et.date()
         if not MarketCalendar.is_trading_day(run_date):
@@ -2169,7 +2173,6 @@ class PriceLoader(OptimalLoader):
 
             self._stats["rows_inserted"] += inserted
             self._stats["symbols_processed"] += len(pending_symbol_rowcounts)
-
 
 
 def _invalidate_phase1_cache() -> None:
