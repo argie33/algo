@@ -84,6 +84,31 @@ class TestPhaseDependencyValidation:
         with pytest.raises(MissingPhaseDataError):
             executor.get_phase_data_required(3, "recommendations")
 
+    def test_missing_dependency_error_includes_diagnostic_context(self):
+        """MissingPhaseDataError raised by validate_dependency_executed must carry a
+        context dict (phase_num/dep_num/etc), not just a formatted message string.
+
+        Regression guard: these raise sites previously omitted context entirely, which
+        AlgoError.__init__ itself flags via a "[ERROR_CONTEXT_MISSING] permanent error
+        raised without diagnostic context" warning on every single occurrence - confirmed
+        firing repeatedly in orchestrator_full_run.log. context also feeds
+        AlgoError.to_dict()'s "_context" field, used by API error responses.
+        """
+        from algo.orchestrator.phase_data_contract import validate_dependency_executed
+
+        with pytest.raises(MissingPhaseDataError) as exc_info:
+            validate_dependency_executed(7, 5, None)
+        assert exc_info.value.context, "context must not be empty for a never-executed dependency"
+        assert exc_info.value.context.get("phase_num") == 7
+        assert exc_info.value.context.get("dep_num") == 5
+
+        failed_result = PhaseResult(5, "EXPOSURE_POLICY", "error", {}, True, "boom")
+        with pytest.raises(MissingPhaseDataError) as exc_info2:
+            validate_dependency_executed(7, 5, failed_result)
+        assert exc_info2.value.context, "context must not be empty for a failed dependency"
+        assert exc_info2.value.context.get("dep_status") == "error"
+        assert exc_info2.value.context.get("dep_error") == "boom"
+
     def test_old_getattr_pattern_would_hide_failure(self):
         """Demonstrate that old getattr() pattern hides Phase 3 failure.
 

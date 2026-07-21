@@ -262,19 +262,27 @@ def validate_dependency_executed(phase_num: int | str, dep_num: int | str, resul
 
     if result is None:
         raise MissingPhaseDataError(
-            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num} never executed. Dependency chain broken."
+            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num} never executed. Dependency chain broken.",
+            context={"phase_num": phase_num, "dep_num": dep_num, "result": None},
         )
 
     if not isinstance(result, PhaseResult):
         raise MissingPhaseDataError(
-            f"Phase {phase_num} depends on Phase {dep_num} but got invalid result type: {type(result).__name__}"
+            f"Phase {phase_num} depends on Phase {dep_num} but got invalid result type: {type(result).__name__}",
+            context={"phase_num": phase_num, "dep_num": dep_num, "result_type": type(result).__name__},
         )
 
     if not result.ok:
         raise MissingPhaseDataError(
             f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num} failed: "
             f"status={result.status}, error={result.error}. "
-            f"Cannot proceed without successful Phase {dep_num}."
+            f"Cannot proceed without successful Phase {dep_num}.",
+            context={
+                "phase_num": phase_num,
+                "dep_num": dep_num,
+                "dep_status": result.status,
+                "dep_error": result.error,
+            },
         )
 
     # Validate dependency data schema
@@ -282,7 +290,8 @@ def validate_dependency_executed(phase_num: int | str, dep_num: int | str, resul
         validate_phase_data(dep_num, result.data)
     except DataContractError as e:
         raise MissingPhaseDataError(
-            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num}'s data is invalid: {e}"
+            f"Phase {phase_num} depends on Phase {dep_num} but Phase {dep_num}'s data is invalid: {e}",
+            context={"phase_num": phase_num, "dep_num": dep_num, "validation_error": str(e)},
         ) from e
 
 
