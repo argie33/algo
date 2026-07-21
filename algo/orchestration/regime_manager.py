@@ -127,7 +127,15 @@ class RegimeManager:
         """
         try:
             if as_of_date is None:
-                as_of_date = _date.today()
+                # Eastern Time, not system-local date.today() - same bug class already fixed
+                # elsewhere in this codebase (see algo/trading/pretrade_checks.py, and prior
+                # sessions' "N more date.today()-instead-of-Eastern-Time instances" fixes).
+                # This file already uses _datetime.now(_ET) correctly in _expected_regime_date()
+                # above; a server not running in America/New_York (UTC in AWS, Central on this
+                # dev machine) could resolve "today" to the wrong calendar day near midnight ET,
+                # looking up the wrong day's regime and feeding a stale/wrong position-size
+                # multiplier into position sizing.
+                as_of_date = _datetime.now(_ET).date()
 
             with DatabaseContext("read") as cur:
                 # GOVERNANCE: Must check data_unavailable flag before using regime data
@@ -256,7 +264,7 @@ class RegimeManager:
 
     def regime_history(self, days: int = 30) -> list[dict[str, Any]]:
         try:
-            start_date = _date.today() - timedelta(days=days)
+            start_date = _datetime.now(_ET).date() - timedelta(days=days)
 
             with DatabaseContext("read") as cur:
                 # GOVERNANCE: Select data_unavailable to filter out invalid rows
@@ -311,7 +319,8 @@ class RegimeManager:
         """
         try:
             if as_of_date is None:
-                as_of_date = _date.today()
+                # Eastern Time, not system-local date.today() - see get_current_regime() above.
+                as_of_date = _datetime.now(_ET).date()
 
             with DatabaseContext("read") as cur:
                 # GOVERNANCE: Check data_unavailable flag before using score
