@@ -24,14 +24,31 @@ aws logs describe-log-groups --query 'logGroups[0].logGroupName' --region us-eas
 
 ---
 
-## CI/CD Pipeline (ci-fast-gates.yml)
+## CI/CD Pipeline (.github/workflows/ci.yml)
 
-Runs on every commit to `main` and every PR. 27 min average, all gates blocking.
+**Correction (2026-07-21):** this section previously described a file named
+`ci-fast-gates.yml`, which does not exist anywhere in this repo - the actual (and only)
+CI workflow is `.github/workflows/ci.yml` ("CI"), 3 jobs: `validate` (Python lint/type/
+test), `lint-js` (webapp/lambda ESLint/Prettier/npm audit - see the dead-code note above,
+this job still runs even though webapp/lambda isn't deployed), `coverage`.
 
-**What gets checked:**
-- Security: Secrets scan (TruffleHog), dependencies (pip-audit), static analysis (Bandit), IaC (tfsec), containers (Trivy), JS/TS (Semgrep)
-- Quality: Imports validation, linting (ruff), formatting, type checking (mypy), unit/integration tests, coverage (75% minimum)
-- Compliance: License scan (warning only), SBOM generation, supply chain scan
+**What actually runs (verified against the workflow file, not the checklist below):**
+- Quality: ruff lint + format check, mypy, a narrow pylint rule pair
+  (`comparison-with-callable`/`unsupported-binary-operation`), 4 pre-commit validation
+  scripts, unit/edge/integration/StrictValidationError test suites, coverage report
+  (no enforced minimum/threshold - just reported).
+- Security: Bandit (`--severity-level medium --confidence-level high`) and TruffleHog
+  (`--only-verified`) do run, but **both commands end in `2>/dev/null || true` /
+  `|| true`, so neither can ever fail the job regardless of what they find** - directly
+  contradicting the "all gates blocking" claim this section used to make. Currently
+  moot in practice (Bandit reports 0 issues at that severity/confidence threshold as of
+  2026-07-21), but a real secret or high-severity issue introduced later would not block
+  a merge. `webapp/lambda`'s `npm audit --audit-level=high` (in `lint-js`) is NOT
+  similarly neutered and does block.
+- **Does NOT exist in this pipeline at all** (previously claimed here): pip-audit
+  (dependency scanning), tfsec (IaC scanning), Trivy (container scanning), Semgrep,
+  license scanning, SBOM generation, supply-chain scanning. If any of these are wanted,
+  they need to be added, not just documented.
 
 **How to run locally:**
 ```bash
