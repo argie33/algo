@@ -62,8 +62,9 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import date as _date
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, TypeVar
+from zoneinfo import ZoneInfo
 
 import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor
@@ -201,8 +202,20 @@ class MarketExposure:
             # it - confirmed live 2026-07-20 (computed 7-8h ago, every call raised instead
             # of recomputing).
             if updated_at:
-                now = datetime.now(EASTERN_TZ)
-                age = now - updated_at.replace(tzinfo=EASTERN_TZ) if not updated_at.tzinfo else now - updated_at
+                # updated_at is written via SQL `NOW()` into a `timestamp without time zone`
+                # column, so a naive value here is in the DB session's local wall-clock time
+                # (utils/bulk_insert_manager.py's documented convention), not necessarily
+                # Eastern - confirmed live this session's actual `SHOW timezone` is
+                # America/Chicago, a full hour off Eastern during DST. Mislabeling it as
+                # Eastern via .replace(tzinfo=EASTERN_TZ) silently inflated every cache-age
+                # computed here by that offset. Same fix as lambda/api/routes/utils.py's
+                # normalize_to_utc_datetime - resolve the real session timezone dynamically.
+                if not updated_at.tzinfo:
+                    cur.execute("SHOW timezone")
+                    naive_tz = ZoneInfo(cur.fetchone()[0])
+                    updated_at = updated_at.replace(tzinfo=naive_tz)
+                now = datetime.now(timezone.utc)
+                age = now - updated_at
                 max_age = timedelta(hours=2)
                 if age > max_age:
                     logger.info(
@@ -739,15 +752,15 @@ class MarketExposure:
 
             final = min(score, cap)
 
-            # Determine recommended state based on final exposure score
-            if final >= 70:
-                regime = "confirmed_uptrend"
-            elif final >= 45:
-                regime = "uptrend_under_pressure"
-            elif final >= 25:
-                regime = "caution"
-            else:
-                regime = "correction"
+            # Determine recommended state based on final exposure score. Sourced from
+            # EXPOSURE_TIERS (algo/risk/exposure_policy.py) - the actual policy tier
+            # tier_for_exposure() will select for this same score - rather than a second,
+            # independently-hardcoded copy of the same 70/45/25 boundaries, which could
+            # silently drift out of sync with the real policy tiers if either one is ever
+            # tuned without remembering to update the other.
+            from algo.risk.exposure_policy import tier_for_exposure
+
+            regime = tier_for_exposure(final)["name"]
 
             logger.info(
                 f"[MARKET_EXPOSURE_FINAL] exposure_pct={final}%, regime={regime}, raw_score={score:.1f}, factors_computed=12"
