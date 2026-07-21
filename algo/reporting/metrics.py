@@ -15,7 +15,17 @@ class MetricsPublisher:
     """Thin wrapper around CloudWatch put_metric_data with batching."""
 
     def __init__(self, dry_run: bool = False):
-        self._dry_run = dry_run
+        # Only 2 of the ~13 call sites across the codebase pass dry_run explicitly - every
+        # other one (loaders, sla_monitor, optimal_loader, one orchestrator spot) always
+        # attempted a real CloudWatch put_metric_data call regardless of environment. Local
+        # dev has no valid CloudWatch write credentials, so every local orchestrator/loader
+        # run logged an ERROR-level "metrics.flush_failed" for every batch, forever - noise
+        # that looks like a real problem but has zero effect on trading behavior (this class
+        # already tolerates publish failure gracefully, just at the wrong log severity and
+        # without ever avoiding the doomed network call in the first place). Auto-dry-run in
+        # LOCAL_MODE so this degrades quietly there while still behaving normally (and still
+        # actually trying to publish) in AWS, where credentials are expected to be valid.
+        self._dry_run = dry_run or os.getenv("LOCAL_MODE", "").strip().lower() == "true"
         self._client: Any = None
         self._batch: list[dict[str, Any]] = []
 
@@ -117,7 +127,15 @@ class MetricsPublisher:
             if "status" not in result:
                 raise ValueError(f"phase_results[{phase_num}] missing 'status' key. Got: {list(result.keys())}")
 
-            phase_ok = result.get("status") in ("success", "halt")
+            # Same canonical vocabulary PhaseResult.ok uses (algo/orchestrator/phase_result.py):
+            # "ok"/"degraded" are successful outcomes, "halted"/"error"/"skipped" are not.
+            # self.phase_results (what orchestrator.py actually passes in here) stores
+            # phase_result.status - the canonical "ok"/"halted"/"degraded"/"skipped"/"error"
+            # vocabulary - not the raw "success"/"halt" strings individual phase modules pass
+            # to log_phase_result_fn (those get normalized before reaching this dict). Checking
+            # for "success"/"halt" here never matched anything, so PhaseSuccess/PhaseFailure
+            # metrics reported every phase as failed on every run regardless of actual outcome.
+            phase_ok = result.get("status") in ("ok", "degraded")
             self._emit(
                 "PhaseSuccess",
                 1 if phase_ok else 0,

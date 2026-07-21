@@ -166,6 +166,9 @@ terraform/lambda_api.zip
 .serverless/
 **/serverless-state.json
 
+# Local dev_server code-fingerprint state (utils/dev_server_state.py) - process-local, regenerated on every start
+.dev_server_state.json
+
 # Large binary files
 *.msi
 *.exe
