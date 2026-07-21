@@ -662,7 +662,7 @@ def _build_freshness_panel(hlth_items: list[Any], ready_to_trade: bool | None) -
     Returns:
         Rich Panel with freshness table
     """
-    left_rows: list[Text | Table] = []
+    left_rows: list[Text | Table | Layout] = []
 
     if not hlth_items:
         msg = "⚠ Data health unavailable - loaders may not have run yet.\n"
