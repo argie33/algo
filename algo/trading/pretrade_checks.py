@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date as _date
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -10,6 +11,7 @@ import psycopg2
 
 from algo.risk import EarningsBlackout
 from utils.db import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 if TYPE_CHECKING:
     from algo.infrastructure.config import AlgoConfig
@@ -70,7 +72,16 @@ class PreTradeChecks:
             - If failed: (False, "reason for failure")
         """
         if eval_date is None:
-            eval_date = _date.today()
+            # Eastern Time, not system-local date.today() - eval_date feeds
+            # EarningsBlackout.run()'s exact trading-day-based window arithmetic (a
+            # documented hard gate), so a server running in a different timezone (UTC in
+            # AWS, or anything not America/New_York) could evaluate the blackout window
+            # against the wrong calendar day near midnight, off-by-one-trading-day in
+            # exactly the boundary cases that matter most. Same bug class fixed 2026-07-21
+            # in algo/trading/tca.py's record_fill() and multiple prior sessions elsewhere
+            # in this codebase (see git history: "N more date.today()-instead-of-Eastern-
+            # Time instances").
+            eval_date = datetime.now(EASTERN_TZ).date()
 
         # Issue #11: Earnings blackout check (hard gate, must pass before any entry)
         if side == "BUY":

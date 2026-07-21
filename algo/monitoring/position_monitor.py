@@ -842,7 +842,13 @@ class PositionMonitor:
         # This ratchets stops UP as price rises, but never above current price - ATR.
         new_stop = max(candidates) if candidates else active_stop
         # NEVER lower the trailing stop below its prior level
-        return round(max(new_stop, active_stop), 2)
+        # Decimal quantize at the final step, not round(): same bug class already fixed
+        # 2026-07-21 elsewhere in this file (_apply_split_adjustment) and in order_manager.py/
+        # exposure_policy.py/buy_signal_generator.py - candidates above involve real float
+        # arithmetic (cur_price - 2*atr, cur_price - atr), and this trailing-stop value is a
+        # real stop-loss protecting a live position.
+        final_stop = max(new_stop, active_stop)
+        return float(Decimal(str(final_stop)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
     def _check_relative_strength(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> str:
         """20-day relative return vs SPY: weakening / neutral / strong."""
@@ -1361,7 +1367,16 @@ class PositionMonitor:
                 f"CRITICAL: Database position quantity invalid ({db_qty}) - cannot calculate split ratio. "
                 f"Position data corruption detected for {symbol}."
             )
-        split_ratio = alpaca_qty / db_qty
+        # CRITICAL (2026-07-21 financial-integrity audit): this stop-loss adjustment feeds
+        # current_stop_price - a real value controlling actual stop-loss risk protection -
+        # but was computed via chained plain-float division (alpaca_qty/db_qty then db_stop/
+        # split_ratio) with no Decimal quantization before the DB write. Split ratios aren't
+        # guaranteed to be clean floats (any share-count discrepancy from prior partial-fill
+        # corrections makes the ratio non-round), so this could silently write an
+        # unquantized, imprecise stop price. Same bug class already fixed in order_manager.py
+        # and exposure_policy.py this session - a price about to control real trading
+        # behavior, computed without Decimal.
+        split_ratio_dec = Decimal(str(alpaca_qty)) / Decimal(str(db_qty))
 
         if not db_stop:
             raise RuntimeError(
@@ -1370,7 +1385,8 @@ class PositionMonitor:
                 f"Manual intervention required to restore stop loss protection before trading continues."
             )
 
-        new_stop = db_stop / split_ratio
+        new_stop_dec = (Decimal(str(db_stop)) / split_ratio_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        new_stop = float(new_stop_dec)
         cur.execute(
             "UPDATE algo_positions SET quantity = %s, current_stop_price = %s WHERE position_id = %s",
             (alpaca_qty, new_stop, pos_id),
@@ -1381,7 +1397,7 @@ class PositionMonitor:
             (
                 "CORPORATE_ACTION_SPLIT",
                 datetime.now(timezone.utc),
-                f"Split: {symbol} {db_qty} -> {alpaca_qty} ratio {split_ratio:.2f}. Stop adjusted {db_stop:.2f} to {new_stop:.2f}",
+                f"Split: {symbol} {db_qty} -> {alpaca_qty} ratio {float(split_ratio_dec):.2f}. Stop adjusted {db_stop:.2f} to {new_stop:.2f}",
                 "WARN",
             ),
         )
@@ -1392,7 +1408,7 @@ class PositionMonitor:
                 "action": "STOCK_SPLIT",
                 "old_qty": db_qty,
                 "new_qty": alpaca_qty,
-                "split_ratio": round(split_ratio, 2),
+                "split_ratio": round(float(split_ratio_dec), 2),
                 "old_stop": db_stop,
                 "new_stop": new_stop,
             }

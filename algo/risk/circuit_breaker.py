@@ -12,6 +12,7 @@ import psycopg2
 from psycopg2.extensions import cursor as PsycopgCursor
 
 from utils.db import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.trading import PositionStatus, TradeStatus
 
 if TYPE_CHECKING:
@@ -152,7 +153,14 @@ class CircuitBreaker:
     def check_all(self, current_date: date | datetime | None = None) -> dict[str, Any]:
         """Run all circuit breakers. Returns dict with per-check status."""
         if current_date is None:
-            current_date = _date.today()
+            # Eastern Time, not system-local date.today() - current_date feeds every
+            # date-filtered check below (daily_loss, weekly_loss, etc.). The only
+            # production caller (phase2_circuit_breakers.py) always passes run_date
+            # explicitly, so this default isn't live-reachable today, but fixed defensively
+            # to the same Eastern-Time convention as every other eval_date default in this
+            # codebase (2026-07-21 audit) rather than leave a known-bad pattern for a future
+            # caller (script, test, direct invocation) to inherit.
+            current_date = datetime.now(EASTERN_TZ).date()
         elif isinstance(current_date, datetime):
             current_date = current_date.date()
 

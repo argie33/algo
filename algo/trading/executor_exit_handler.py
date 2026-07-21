@@ -487,6 +487,77 @@ class ExitHandler:
 
         return shares_to_exit, full_exit
 
+    def _compute_cumulative_pnl(
+        self,
+        cur: PsycopgCursor[Any],
+        trade_id: int,
+        symbol: str,
+        pnl_dollars: float,
+        pnl_pct: float,
+        r_multiple: float,
+        entry_price: float,
+        entry_qty: int,
+        risk_per_share: Decimal,
+        full_exit: bool,
+        is_estimated_price: bool,
+    ) -> tuple[float, float, float]:
+        """Return (pnl_dollars, pnl_pct, r_multiple), summed across every leg of a
+        multi-leg exit when this call is the final leg.
+
+        CRITICAL (2026-07-21 financial-integrity audit): a position closed via multiple
+        partial exits (e.g. T1/T2 profit-taking before a final stop/target exit) previously
+        had algo_trades.profit_loss_dollars/pct/exit_r_multiple set from ONLY the final
+        leg's shares_to_exit - the remaining shares at that point, not the original position
+        size. Earlier partial exits log their own pnl_dollars into algo_audit_log (structured
+        JSON, one row per leg) but nothing ever aggregated them before this fix, so the
+        trade-level total silently discarded every dollar realized on the earlier legs.
+        Concrete example: a 100-share position that takes 40sh profit at T1 (+$200) then
+        closes the remaining 60sh at breakeven would have recorded profit_loss_dollars=$0
+        for the whole trade pre-fix, when the true realized total is +$200.
+
+        For a partial exit (full_exit=False) or an unreconciled estimated fill, there is no
+        final trade-level total to report yet - returns the single-leg values unchanged.
+        """
+        if not (full_exit and not is_estimated_price):
+            return pnl_dollars, pnl_pct, r_multiple
+
+        cur.execute(
+            """
+            SELECT COALESCE(SUM((details->>'pnl_dollars')::numeric), 0)
+            FROM algo_audit_log
+            WHERE action_type LIKE 'exit_%%'
+              AND (details->>'trade_id')::bigint = %s
+              AND (details->>'full_exit')::boolean = false
+            """,
+            (trade_id,),
+        )
+        prior_partial_pnl_row = cur.fetchone()
+        prior_partial_pnl_dec = Decimal(str(prior_partial_pnl_row[0])) if prior_partial_pnl_row else Decimal(0)
+        if prior_partial_pnl_dec == 0:
+            return pnl_dollars, pnl_pct, r_multiple
+
+        cumulative_pnl_dollars_dec = (prior_partial_pnl_dec + Decimal(str(pnl_dollars))).quantize(
+            Decimal("0.01"), ROUND_HALF_UP
+        )
+        entry_qty_dec = Decimal(str(entry_qty))
+        original_cost_basis = Decimal(str(entry_price)) * entry_qty_dec
+        original_risk_dollars = risk_per_share * entry_qty_dec
+        cumulative_pnl_dollars = float(cumulative_pnl_dollars_dec)
+        cumulative_pnl_pct = float(
+            (cumulative_pnl_dollars_dec / original_cost_basis * Decimal(100)).quantize(
+                Decimal("0.01"), ROUND_HALF_UP
+            )
+        )
+        cumulative_r_multiple = float(
+            (cumulative_pnl_dollars_dec / original_risk_dollars).quantize(Decimal("0.01"), ROUND_HALF_UP)
+        )
+        logger.info(
+            f"[MULTI_LEG_EXIT] {symbol} trade {trade_id}: cumulative P&L across all legs "
+            f"${cumulative_pnl_dollars:.2f} (prior partial legs: ${float(prior_partial_pnl_dec):.2f}, "
+            f"final leg: ${pnl_dollars:.2f})"
+        )
+        return cumulative_pnl_dollars, cumulative_pnl_pct, cumulative_r_multiple
+
     def _execute_exit(  # noqa: C901
         self,
         cur: PsycopgCursor[Any],
@@ -514,7 +585,7 @@ class ExitHandler:
         (
             symbol,
             entry_price,
-            _entry_qty,
+            entry_qty,
             stop_loss_price,
             alpaca_order_id,
             position_id,
@@ -712,6 +783,26 @@ class ExitHandler:
         if isinstance(pnl_pct, float) and pnl_pct != pnl_pct:  # NaN check
             raise ValueError(f"P&L percent calculation produced NaN; check entry_price={entry_price} for zero value")
 
+        # CRITICAL (2026-07-21 financial-integrity audit): for a multi-leg exit (position
+        # closed via T1/T2 partial profit-taking before the final leg), pnl_dollars/pnl_pct/
+        # r_multiple above reflect ONLY shares_to_exit for THIS call - the remaining shares
+        # at final-exit time, not the original position size. See _compute_cumulative_pnl's
+        # docstring for the full explanation and a concrete example of the corruption this
+        # caused before the fix.
+        cumulative_pnl_dollars, cumulative_pnl_pct, cumulative_r_multiple = self._compute_cumulative_pnl(
+            cur,
+            trade_id,
+            symbol,
+            pnl_dollars,
+            pnl_pct,
+            r_multiple,
+            entry_price,
+            entry_qty,
+            risk_per_share,
+            full_exit,
+            is_estimated_price,
+        )
+
         # TRANSACTION GUARD 3: Update algo_trades
         if full_exit:
             estimated_price = exit_price if is_estimated_price else None
@@ -746,7 +837,9 @@ class ExitHandler:
                     ),
                 )
             else:
-                # Real fill: store actual P&L
+                # Real fill: store actual P&L. Cumulative across all legs for a multi-leg
+                # exit (see comment above) - equals pnl_dollars/pnl_pct/r_multiple unchanged
+                # when there were no prior partial exits.
                 cur.execute(
                     """UPDATE algo_trades
                         SET exit_date = CURRENT_DATE,
@@ -762,9 +855,9 @@ class ExitHandler:
                     (
                         final_exit_price,
                         exit_reason,
-                        r_multiple,
-                        pnl_dollars,
-                        pnl_pct,
+                        cumulative_r_multiple,
+                        cumulative_pnl_dollars,
+                        cumulative_pnl_pct,
                         trade_id,
                     ),
                 )
@@ -924,13 +1017,17 @@ class ExitHandler:
             "success": True,
             "trade_id": trade_id,
             "shares_exited": shares_to_exit,
-            "profit_loss_dollars": None if is_estimated_price else pnl_dollars,
-            "profit_loss_pct": None if is_estimated_price else pnl_pct,
-            "r_multiple": None if is_estimated_price else r_multiple,
+            # Cumulative across all legs when full_exit=True (matches what's stored in
+            # algo_trades - see the multi-leg comment above); equal to this leg's own
+            # pnl_dollars/pnl_pct/r_multiple for a partial exit or an as-yet-unreconciled
+            # estimated fill, since there's no final trade-level total to report yet.
+            "profit_loss_dollars": None if is_estimated_price else cumulative_pnl_dollars,
+            "profit_loss_pct": None if is_estimated_price else cumulative_pnl_pct,
+            "r_multiple": None if is_estimated_price else cumulative_r_multiple,
             "full_exit": full_exit,
             "is_estimated_price": is_estimated_price,
             "message": (
                 f"Exited {shares_to_exit}sh of {symbol} @ ${final_exit_price:.2f} - "
-                f"{'P&L PENDING fill reconciliation' if is_estimated_price else f'{pnl_pct:+.2f}%, {r_multiple:+.2f}R'}"
+                f"{'P&L PENDING fill reconciliation' if is_estimated_price else f'{cumulative_pnl_pct:+.2f}%, {cumulative_r_multiple:+.2f}R'}"
             ),
         }

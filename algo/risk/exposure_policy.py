@@ -3,11 +3,14 @@
 import logging
 import math
 from datetime import date as _date
+from datetime import datetime
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 import psycopg2
 
 from utils.db import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +146,12 @@ class ExposurePolicy:
         without this data violates risk management.
         """
         if eval_date is None:
-            eval_date = _date.today()
+            # Eastern Time, not system-local date.today() - eval_date drives an exact
+            # date-boundary query (WHERE date <= %s ORDER BY date DESC) below. The only
+            # production caller (phase5_exposure_policy.py) always passes run_date
+            # explicitly, so this default isn't live-reachable today, but fixed defensively
+            # to match every other eval_date default in this codebase (2026-07-21 audit).
+            eval_date = datetime.now(EASTERN_TZ).date()
 
         try:
             with DatabaseContext("read") as cur:
@@ -198,7 +206,7 @@ class ExposurePolicy:
 
         tier = active["tier"]
         if eval_date is None:
-            eval_date = _date.today()
+            eval_date = datetime.now(EASTERN_TZ).date()
 
         try:
             with DatabaseContext("read") as cur:
@@ -347,7 +355,13 @@ class ExposurePolicy:
                     "action": "tighten_stop",
                     "reason": (f"Tier '{tier['name']}' tighten: R={r_mult:.2f} >= {tighten_threshold}R, raise stop"),
                     "exit_fraction": 0.0,
-                    "new_stop": round(tightened, 2),
+                    # Decimal.quantize(ROUND_HALF_UP), not round() - same binary-float
+                    # representation trap fixed 2026-07-21 in order_manager.py's price
+                    # rounding (round(2.675, 2) == 2.67 due to 2.675 not being exactly
+                    # representable). new_stop feeds phase6_exit_execution.py's stop-price
+                    # update, the same "price value on its way to changing what the system
+                    # actually does with a position" category as the order-submission fix.
+                    "new_stop": float(Decimal(str(tightened)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                     "r_multiple": r_mult,
                     "tier": tier["name"],
                 }

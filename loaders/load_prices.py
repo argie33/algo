@@ -1330,11 +1330,37 @@ class PriceLoader(OptimalLoader):
         return self.transformer.validate_and_transform(rows)
 
     def _validate_row(self, row: dict[str, Any]) -> bool:
-        """Add price-range sanity check on top of default PK check."""
+        """Add price-range sanity check on top of default PK check.
+
+        CRITICAL (2026-07-21): previously only checked high>=low, close>0, open>0 - missing
+        two real invariants: low/high must themselves be positive (a row with low=-50,
+        high=1000000, close=20, open=15 passed the old check despite the negative low being
+        nonsensical), and open/close must actually fall within [low, high] (by definition of
+        what "high"/"low" mean for a trading session - a close outside that range is corrupt
+        data, not a valid tick). Also: this method's boolean return was, until the matching
+        fix in utils/optimal_loader.py, silently ignored by the caller - a False here never
+        actually excluded the row from being inserted. Both fixed together; a single bad row
+        from a vendor glitch now gets skipped-and-logged instead of corrupting price_daily
+        and every downstream technical indicator / position-sizing / P&L calculation that
+        reads it.
+        """
         if not super()._validate_row(row):
             return False
         try:
-            return cast(bool, row["high"] >= row["low"] and row["close"] > 0 and row["open"] > 0)
+            low = row["low"]
+            high = row["high"]
+            close = row["close"]
+            open_ = row["open"]
+            return cast(
+                bool,
+                low > 0
+                and high > 0
+                and close > 0
+                and open_ > 0
+                and high >= low
+                and low <= close <= high
+                and low <= open_ <= high,
+            )
         except (KeyError, TypeError) as e:
             raise RuntimeError(
                 f"[PRICE_VALIDATION] Price validation failed: row is missing required fields or has invalid types: {e}. "

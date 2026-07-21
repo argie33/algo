@@ -61,6 +61,16 @@ class OrderManager:
         logger.info(
             f"[SEND_ORDER] {symbol}: Sending order - {shares}sh @ ${entry_price:.2f}, stop ${stop_loss_price:.2f} to {self.alpaca_base_url}"
         )
+        # CRITICAL: use Decimal.quantize(ROUND_HALF_UP), not Python's built-in round(), for every
+        # price submitted to the broker. round() operates on binary float representation and uses
+        # round-half-to-even - the classic round(2.675, 2) == 2.67 trap (2.675 isn't exactly
+        # representable in binary float) can silently submit an order 1 cent off the intended
+        # price. The take_profit fallback two blocks below already used Decimal correctly; the
+        # entry limit_price/stop_price literally two lines above it did not. Fixed 2026-07-21 for
+        # consistency with position_sizer.py/executor_entry_handler.py, which are Decimal-only.
+        def _q2(v: float) -> str:
+            return str(Decimal(str(v)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
         try:
             order_data = {
                 "symbol": symbol,
@@ -68,26 +78,28 @@ class OrderManager:
                 "side": "buy",
                 "type": "limit",
                 "time_in_force": "day",
-                "limit_price": str(round(entry_price, 2)),
+                "limit_price": _q2(entry_price),
                 "extended_hours": False,
             }
 
             if stop_loss_price is not None and stop_loss_price > 0:
                 order_data["order_class"] = "bracket"
                 order_data["stop_loss"] = {
-                    "stop_price": str(round(stop_loss_price, 2)),
+                    "stop_price": _q2(stop_loss_price),
                 }
                 if take_profit_price is not None and take_profit_price > entry_price:
                     order_data["take_profit"] = {
-                        "limit_price": str(round(take_profit_price, 2)),
+                        "limit_price": _q2(take_profit_price),
                     }
                 else:
                     risk_dec = Decimal(str(entry_price)) - Decimal(str(stop_loss_price))
                     if risk_dec > 0:
                         tp_dec = Decimal(str(entry_price)) + (Decimal("1.5") * risk_dec)
-                        tp = float(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+                        # Quantize once and use the Decimal string directly - converting to
+                        # float and back through round() (as this used to do) reintroduces the
+                        # exact binary-representation risk the Decimal quantize above avoided.
                         order_data["take_profit"] = {
-                            "limit_price": str(round(tp, 2)),
+                            "limit_price": str(tp_dec.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)),
                         }
 
             logger.debug(f"[SEND_ORDER] {symbol}: Payload = {order_data}")

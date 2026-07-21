@@ -11,6 +11,7 @@ import json
 import os
 import time
 from pathlib import Path
+from typing import Any
 
 STATE_FILE_NAME = ".dev_server_state.json"
 
@@ -51,14 +52,15 @@ def write_state(repo_root: Path) -> None:
         pass  # Best-effort - staleness detection just won't be available this run
 
 
-def read_state(repo_root: Path) -> dict | None:
+def read_state(repo_root: Path) -> dict[str, Any] | None:
     path = repo_root / STATE_FILE_NAME
     if not path.exists():
         return None
     try:
-        return json.loads(path.read_text())
+        loaded: Any = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError):
         return None
+    return loaded if isinstance(loaded, dict) else None
 
 
 def is_running_server_stale(repo_root: Path) -> bool:
@@ -70,4 +72,5 @@ def is_running_server_stale(repo_root: Path) -> bool:
     state = read_state(repo_root)
     if state is None:
         return False
-    return compute_code_fingerprint(repo_root) > state.get("code_fingerprint", float("inf"))
+    fingerprint = state.get("code_fingerprint", float("inf"))
+    return bool(compute_code_fingerprint(repo_root) > fingerprint)

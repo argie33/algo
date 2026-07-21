@@ -29,7 +29,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from algo.infrastructure.market_calendar import MarketCalendar
 from utils.db.context import DatabaseContext
-from utils.logging import logger
+from utils.logging.logger import get_logger
+
+logger = get_logger(__name__)
 
 # Freshness thresholds (max age before each status)
 # For price/technical tables: thresholds differ on trading vs non-trading days

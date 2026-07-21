@@ -167,6 +167,17 @@ def panel_scores_compact(scores: Any) -> Panel:
     if err_panel:
         return err_panel
 
+    # has_error() only flags None or a dict with an error marker - a bare list (malformed/
+    # legacy API response) passes through as "no error" and then crashes safe_get_dict()
+    # with an unhandled TypeError instead of rendering a graceful error panel.
+    if not isinstance(scores, dict):
+        malformed_panel = _error_panel(
+            "scores", {"_error": f"Expected scores dict, got {type(scores).__name__}"}, "SCORES", border="cyan"
+        )
+        if malformed_panel is not None:
+            return malformed_panel
+        return Panel(Text("Malformed score data", style="dim"), title="[bold cyan]SCORES[/]", border_style="cyan")
+
     top_scores_raw = safe_get_list(safe_get_dict(scores).get("top", []))
     top_scores: list[Any] = top_scores_raw if isinstance(top_scores_raw, list) else []
     if not top_scores:
@@ -196,6 +207,16 @@ def panel_scores_expanded(scores: Any) -> Panel:
     err_panel = _error_panel("scores", scores, "SCORES", border="cyan")
     if err_panel:
         return err_panel
+
+    # See panel_scores_compact above: has_error() doesn't flag a bare list, which would
+    # otherwise crash safe_get_dict() with an unhandled TypeError.
+    if not isinstance(scores, dict):
+        malformed_panel = _error_panel(
+            "scores", {"_error": f"Expected scores dict, got {type(scores).__name__}"}, "SCORES", border="cyan"
+        )
+        if malformed_panel is not None:
+            return malformed_panel
+        return Panel(Text("Malformed score data", style="dim"), title="[bold cyan]SCORES[/]", border_style="cyan")
 
     top_scores_raw = safe_get_list(safe_get_dict(scores).get("top", []))
     top_scores: list[Any] = top_scores_raw if isinstance(top_scores_raw, list) else []

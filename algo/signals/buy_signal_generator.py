@@ -12,7 +12,7 @@ Used by: loaders/load_buy_sell_daily.py, orchestrator Phase 7, backtesting.
 """
 
 import logging
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -419,7 +419,13 @@ class BuySignalGenerator:
             strength = min(0.5 + (breakdown_pct / 5.0), 1.0)
             reason = f"Breakdown below swing low ({abs(breakdown_pct):.1f}%)"
             buylevel = round(close, 4)
-            stoplevel = round(close * 1.08, 4)
+            # Decimal, not round(close * 1.08, 4): close * 1.08 is float multiplication -
+            # same binary-representation risk already fixed 2026-07-21 in order_manager.py,
+            # exposure_policy.py, and position_monitor.py. This stoplevel is the actual stop
+            # loss written to buy_sell_daily/algo_trades and feeds real position sizing.
+            stoplevel = float(
+                (Decimal(str(close)) * Decimal("1.08")).quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+            )
 
         return signal_type, strength, reason, buylevel, stoplevel
 

@@ -149,7 +149,11 @@ class MarketExposure:
         Stale cache causes incorrect risk allocation and must be detected + logged, not silently accepted.
         """
         if eval_date is None:
-            eval_date = _date.today()
+            # Eastern Time, not system-local date.today() - eval_date drives an exact
+            # WHERE date = %s cache lookup below. Fixed defensively (2026-07-21 audit) to
+            # match every other eval_date default in this codebase, whether or not this
+            # specific default is reachable from the current call graph.
+            eval_date = datetime.now(EASTERN_TZ).date()
 
         def fetch_cached(cur: PsycopgCursor[Any]) -> dict[str, Any] | None:  # noqa: C901
             cur.execute(
@@ -349,7 +353,7 @@ class MarketExposure:
             force_recompute: If True, always recompute (don't use cache)
         """
         if eval_date is None:
-            eval_date = _date.today()
+            eval_date = datetime.now(EASTERN_TZ).date()
 
         from algo.infrastructure import MarketCalendar
 

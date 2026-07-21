@@ -173,6 +173,65 @@ clamped to parallelism 1-2 to protect rate limits.
 
 ---
 
+## FIXED 2026-07-21: 10,904 stale snapshot rows for out-of-scope symbols (ETF leak + delisted stragglers)
+
+Continuation of the loader-review goal ("if we have dupes or slops or other messes, address
+them"). Audited every single-row-per-symbol "snapshot" table whose loader sets
+`exclude_etfs_from_symbols = True` (stocks-only) for rows belonging to symbols that can never
+legitimately be there. Found two distinct leftover categories, both confirmed via
+`updated_at`/`computed_at` recency to be residue from bugs **already fixed in code** - not
+live/active bugs:
+- **ETF leak** in `momentum_metrics`/`stability_metrics` (2,272/2,273 rows) and
+  `sec_valuations` (5,426 rows, of which only 3 held non-`data_unavailable` data - the rest
+  correctly failed with `no_financial_data`/`no_income_statement`, since ETFs don't file
+  10-Ks). All frozen at `updated_at`/`computed_at` = 2026-07-18/07-19; the most recent run
+  (07-20) touched zero ETF symbols in any of the three - confirms the fix that scoped these
+  loaders to `get_active_symbols(exclude_etfs=True)` already landed and is working, this was
+  just never backfilled away.
+- **Delisted stragglers**: a consistent set of 147 symbols (verified identical membership
+  across `growth_metrics`/`quality_metrics`/`stock_scores`/`institutional_holdings_13f`/
+  `company_info_sec`) plus smaller counts elsewhere (20-26), for symbols that were once in
+  `stock_symbols` but have since been hard-deleted from it (this codebase removes delisted
+  rows outright rather than soft-deleting with `active=false` - confirmed `stock_symbols` has
+  zero `active=false` rows). Single-row snapshot tables have no pruning mechanism, so these
+  rows just accumulate forever once their symbol falls out of the active universe.
+- **Deliberately NOT touched**: `earnings_calendar_sec` (5,351 rows for delisted symbols) -
+  that table is a per-event historical log (one row per symbol per earnings date), not a
+  snapshot; keeping history for delisted symbols there is correct, not slop. Also not
+  touched: `price_daily`/`etf_price_daily` cross-contamination (5,185 ETF-tagged symbols with
+  multi-year history in `price_daily`; 4,798 stock-tagged symbols with history through
+  2026-05-28 in `etf_price_daily`) - verified this is real OHLCV price history (not a null
+  snapshot marker), frozen since well before this session (`etf_price_daily`'s contamination
+  stopped 2026-05-28, ~7 weeks ago; today's writes to both tables are exactly the 5
+  hardcoded essential symbols `SPY`/`QQQ`/`IWM`/`GLD`/`TLT`, confirmed via
+  `MarketSymbolsConfig.DEFAULT_ESSENTIAL_STOCKS`/`DEFAULT_ESSENTIAL_ETF_SYMBOLS`), and no
+  consumer reads either table by broad enumeration (`lambda/api/routes/prices.py` checks
+  `price_daily` first and only falls back to `etf_price_daily`, so a stock found correctly in
+  `price_daily` never surfaces the `etf_price_daily` copy; `signals.py`'s ETF-signals endpoint
+  filters to a curated symbol list, not `SELECT DISTINCT symbol FROM etf_price_daily`).
+  Deleting years of real price history for a table-placement mismatch that no code depends on
+  would be destructive for no benefit - left alone.
+
+**Fix:** deleted the 10,904 confirmed-stale rows (one-time cleanup, live-verified before/after
+counts). Added `scripts/prune_stale_snapshot_symbols.py` (dry-run by default, `--execute` to
+delete) as a reusable maintenance tool, since nothing currently prunes these tables
+automatically and the same accumulation will recur every time a stock gets delisted. Not
+wired into the pipeline/terraform (that's a scheduling decision, not made here) - run
+manually or add to a periodic maintenance job.
+
+**Also fixed in passing:** `scripts/monitor_data_staleness.py` (the script this doc's own
+"Data is stale?" pointer at the top of `CLAUDE.md` sends users to first) did
+`from utils.logging import logger` - `utils/logging/__init__.py` doesn't export a `logger`
+name, so that import silently bound the `utils.logging.logger` *submodule* instead of a
+configured `Logger` instance (Python exposes imported submodules as package attributes even
+without an explicit re-export). The one call site (`logger.error(...)` in the per-table
+exception handler) would have raised `AttributeError` and masked the real error the moment
+this script's own error-handling path was ever exercised - exactly when a real operator is
+depending on it most. Fixed to `from utils.logging.logger import get_logger` /
+`logger = get_logger(__name__)`; verified live (clean run, 14/14 tables fresh, no crash).
+
+---
+
 ## FIXED 2026-07-21: growth_metrics all-or-nothing bug discarding real partial data (score-input quality)
 
 `load_value_quality_growth_metrics.py::_compute_growth_metrics` computes 6 independent

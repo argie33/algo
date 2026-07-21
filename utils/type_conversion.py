@@ -5,10 +5,29 @@ Provides fail-fast validation with clear error messages.
 """
 
 import logging
+import math
 from decimal import Decimal
 from typing import Any, Literal, overload
 
 logger = logging.getLogger(__name__)
+
+
+def _reject_non_finite(value: float, field_name: str) -> float:
+    """Raise if value is NaN or +/-Infinity - never let either reach a calculation.
+
+    CRITICAL (2026-07-21 financial-integrity audit): safe_float() is used across ~40 files
+    specifically for "fail-fast" numeric conversion, but had no NaN/Infinity check at all -
+    isinstance(value, float) returned float('nan') straight through unchanged, and the
+    Decimal/str paths accept Decimal("NaN")/float("nan")/float("inf") without error too.
+    A NaN silently poisons every comparison downstream (NaN > x and NaN < x are both always
+    False, so threshold checks like circuit breaker/exposure-tier gating don't raise, they
+    just silently take the "else" branch) and a NUMERIC DB column write with NaN/Infinity
+    either errors cryptically or, on some drivers, silently coerces - neither is the loud
+    failure a real invalid-data case deserves.
+    """
+    if math.isnan(value) or math.isinf(value):
+        raise ValueError(f"[TYPE_CONVERSION] {field_name}={value!r} is not a finite number (NaN/Infinity)")
+    return value
 
 
 @overload
@@ -46,17 +65,17 @@ def safe_float(value: Any, field_name: str, allow_none: bool = True) -> float | 
         raise ValueError(f"[TYPE_CONVERSION] {field_name}=None but None not allowed")
 
     if isinstance(value, float):
-        return value
+        return _reject_non_finite(value, field_name)
 
     if isinstance(value, int):
         return float(value)
 
     if isinstance(value, Decimal):
-        return float(value)
+        return _reject_non_finite(float(value), field_name)
 
     if isinstance(value, str):
         try:
-            return float(value)
+            return _reject_non_finite(float(value), field_name)
         except ValueError as e:
             raise ValueError(f"[TYPE_CONVERSION] Cannot parse {field_name}={value!r} as float: {e}") from e
 

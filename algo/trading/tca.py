@@ -91,7 +91,13 @@ class TCAEngine:
                     (
                         trade_id,
                         symbol,
-                        date.today(),
+                        # Eastern Time, not system-local - same date.today()-near-midnight fix
+                        # already applied to daily_report()'s report_date below in this file,
+                        # but missed here. signal_date is used for exact date-boundary filtering
+                        # (WHERE signal_date = %s in daily_report/monthly_summary), so a fill
+                        # recorded near midnight would be written under the wrong trading day
+                        # and silently absent from that day's TCA report. Fixed 2026-07-21.
+                        datetime.now(EASTERN_TZ).date(),
                         signal_price,
                         fill_price,
                         shares_requested,

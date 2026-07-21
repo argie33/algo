@@ -7,6 +7,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import date as _date
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any, cast
 
 from psycopg2.extensions import cursor as PsycopgCursor
@@ -551,13 +552,23 @@ class SignalPatternsMixin:
                     f"Not using 7% fallback - fix underlying data."
                 )
 
+            # Decimal quantize at the final step, not round(): candidate is built from
+            # several float multiplications above (pivot_high*(1-consolidation_pct/100),
+            # cons_low*0.95, ATR-based floors) - same binary-representation risk already
+            # fixed 2026-07-21 elsewhere in the stop-loss computation chain (order_manager.py,
+            # exposure_policy.py, position_monitor.py, buy_signal_generator.py).
+            entry_dec = Decimal(str(entry_price))
+            candidate_dec = Decimal(str(candidate)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            risk_per_share_dec = (entry_dec - candidate_dec).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             return {
-                "stop_price": round(candidate, 2),
+                "stop_price": float(candidate_dec),
                 "method": method,
                 "reasoning": reasoning,
                 "base_type": base_type,
-                "risk_per_share": round(entry_price - candidate, 2),
-                "risk_pct": round((entry_price - candidate) / entry_price * 100, 2),
+                "risk_per_share": float(risk_per_share_dec),
+                "risk_pct": float(
+                    (risk_per_share_dec / entry_dec * Decimal(100)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                ),
             }
 
         return cast(dict[str, Any], self._with_cursor(_compute_stop))
