@@ -211,6 +211,15 @@ All fixed by correcting the `Next` targets in place (verified with a scripted re
 scan of every state machine + `terraform validate` with dummy AWS creds - both clean for
 `pipeline/main.tf`, no dangling or orphaned states remain).
 
+**Update (2026-07-21):** the "2 of 4,826" figure below is now stale - re-checked live
+against the current local DB and it's 0 of 5245 checked symbols with real data (all 5245
+`institutional_holdings_13f` rows are explicit `data_unavailable=true` markers, reasons
+`no_13f_filings`/`companyfacts_error`/`cik_not_found`). The underlying diagnosis is
+unchanged and still accurate (this is the architectural per-issuer-CIK dead end described
+below, correctly surfacing as `data_unavailable` per governance rather than silently
+faking a number) - just noting the count moved from "almost entirely unpopulated" to
+"entirely unpopulated" since this doc was last updated, not that anything regressed.
+
 **Class 3 - registered but never wired in at all** (separate root cause, same symptom -
 missing data): `terraform/modules/loaders/main.tf`'s `critical_loaders` set lists 24 loaders;
 5 had zero `var.loader_task_definition_arns[...]` usages anywhere in the pipeline file, so
