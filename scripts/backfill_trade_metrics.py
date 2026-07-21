@@ -25,7 +25,13 @@ logger = logging.getLogger(__name__)
 
 
 def count_trades_needing_metrics() -> int:
-    """Count closed trades without exit_r_multiple calculated."""
+    """Count closed trades missing any of exit_r_multiple/trade_duration_days/mfe_pct/mae_pct.
+
+    Must match backfill_all_trade_metrics()'s own gate condition exactly - this is only a
+    pre-check so the user sees an accurate count/confirmation prompt before the real backfill
+    runs. A narrower condition here would silently skip the confirmation (and the whole run,
+    via the count==0 early-exit below) for trades the real backfill would still update.
+    """
     try:
         with DatabaseContext("read") as cursor:
             cursor.execute(
@@ -34,7 +40,12 @@ def count_trades_needing_metrics() -> int:
                 FROM algo_trades
                 WHERE status = 'closed'
                   AND exit_price IS NOT NULL
-                  AND exit_r_multiple IS NULL
+                  AND (
+                      exit_r_multiple IS NULL
+                      OR trade_duration_days IS NULL
+                      OR mfe_pct IS NULL
+                      OR mae_pct IS NULL
+                  )
             """
             )
             row = cursor.fetchone()

@@ -677,7 +677,8 @@ class ExitHandler:
                             status = 'closed',
                             profit_loss_dollars = NULL,
                             profit_loss_pct = NULL,
-                            exit_r_multiple = NULL
+                            exit_r_multiple = NULL,
+                            trade_duration_days = CURRENT_DATE - entry_date
                         WHERE trade_id = %s""",
                     (
                         final_exit_price,
@@ -697,7 +698,8 @@ class ExitHandler:
                             exit_r_multiple = %s,
                             profit_loss_dollars = %s,
                             profit_loss_pct = %s,
-                            status = 'closed'
+                            status = 'closed',
+                            trade_duration_days = CURRENT_DATE - entry_date
                         WHERE trade_id = %s""",
                     (
                         final_exit_price,

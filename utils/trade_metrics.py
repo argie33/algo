@@ -216,17 +216,29 @@ def update_trade_metrics(cur: cursor, trade_id: str) -> dict[str, Any]:
 
 
 def backfill_all_trade_metrics(cur: cursor) -> dict[str, Any]:
-    """Calculate metrics for all closed trades without exit_r_multiple.
+    """Calculate metrics for all closed trades missing any of exit_r_multiple/
+    trade_duration_days/mfe_pct/mae_pct.
 
     Returns summary of updates.
     """
-    # Find trades that need metrics calculated
+    # Find trades that need metrics calculated. Originally gated on exit_r_multiple
+    # IS NULL alone - but exit_r_multiple is independently computed and written by
+    # executor_exit_handler.py at trade-close time (a separate code path from this
+    # module), so it was already populated for every closed trade and this backfill
+    # could never find any candidates. mfe_pct/mae_pct/trade_duration_days, which
+    # nothing else ever writes, stayed permanently NULL as a result - this was the
+    # only code path meant to backfill them. Gate on any of the four being missing.
     cur.execute(
         """
         SELECT trade_id FROM algo_trades
         WHERE status = 'closed'
           AND exit_price IS NOT NULL
-          AND exit_r_multiple IS NULL
+          AND (
+              exit_r_multiple IS NULL
+              OR trade_duration_days IS NULL
+              OR mfe_pct IS NULL
+              OR mae_pct IS NULL
+          )
         ORDER BY trade_id
     """
     )

@@ -761,6 +761,7 @@ def _record_closed_positions_exits(
                                 SET exit_date = %s, exit_price = %s, estimated_exit_price = %s,
                                     profit_loss_dollars = NULL, profit_loss_pct = NULL, exit_r_multiple = NULL,
                                     exit_reason = %s, status = 'closed',
+                                    trade_duration_days = %s::date - entry_date,
                                     updated_at = CURRENT_TIMESTAMP
                                 WHERE trade_id = (
                                     SELECT trade_id FROM algo_trades
@@ -773,6 +774,7 @@ def _record_closed_positions_exits(
                                     exit_price,
                                     exit_price,
                                     "Closed position recorded during reconciliation - pending fill price confirmation",
+                                    run_date,
                                     symbol,
                                 ),
                             )
