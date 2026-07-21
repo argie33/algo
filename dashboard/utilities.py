@@ -111,16 +111,26 @@ class _AnsiStrippingFormatter(logging.Formatter):
 class _WindowsSafeRotatingFileHandler(logging.handlers.RotatingFileHandler):
     """RotatingFileHandler that gracefully handles Windows file locking issues.
 
-    On Windows, file rotation can fail if another process holds the file open.
-    This handler catches PermissionError and skips rotation rather than crashing.
+    On Windows, file rotation can fail if another process (e.g. a second local
+    dashboard/orchestrator run) holds the file open, since os.rename() can't
+    rename a file another process has open (unlike POSIX). Overriding emit() to
+    catch PermissionError doesn't work: logging.handlers.RotatingFileHandler.emit()
+    already wraps its own call to doRollover() in `except Exception:
+    self.handleError(record)`, which prints the "--- Logging error ---" traceback
+    and returns normally - the exception never propagates out of super().emit()
+    for an emit()-level override to catch. Confirmed live: this dashboard flooded
+    stderr with a PermissionError traceback on every render frame while a second
+    local dashboard process held the log file open, despite this class's
+    (ineffective) emit() override already existing to prevent exactly that.
+    Overriding doRollover() instead catches the failure at its actual source.
     """
 
-    def emit(self, record: logging.LogRecord) -> None:
+    def doRollover(self) -> None:
         try:
-            super().emit(record)
+            super().doRollover()
         except PermissionError:
-            # On Windows, rotation can fail due to file locking. Skip this emit
-            # rather than propagating the error which would break the app.
+            # Another process has the file open - skip rotation for this emit,
+            # logging continues to the current (oversized) file until it's free.
             pass
 
 
