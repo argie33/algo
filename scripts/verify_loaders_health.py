@@ -54,12 +54,17 @@ LOADERS = {
         "date_column": "date",
         "min_rows": 100,
         "critical": False,
+        # NAAIM Exposure Index is published weekly (Wednesdays) - trading-day staleness
+        # logic (built for daily sources) always false-flags this as stale by midweek.
+        "max_staleness_days": 9,
     },
     "load_aaii_sentiment.py": {
         "output_table": "aaii_sentiment",
         "date_column": "date",
         "min_rows": 100,
         "critical": False,
+        # AAII sentiment survey is published weekly (Thursdays) - same reasoning as NAAIM.
+        "max_staleness_days": 9,
     },
     "load_short_interest_finra.py": {
         "output_table": "short_interest_finra",
@@ -225,26 +230,33 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                     today = datetime.now().date()
                     age = today - max_date
 
-                    # CRITICAL FIX: Use trading-day logic instead of hardcoded 2-day threshold.
-                    # A 3-day weekend (Fri to Tue = 4 calendar days) is only 1 trading day apart.
-                    # Use MarketCalendar to correctly handle holidays and weekends.
                     from datetime import timedelta
 
-                    from algo.infrastructure import MarketCalendar
+                    max_staleness_days = config.get("max_staleness_days")
+                    if max_staleness_days is not None:
+                        # Non-daily source (e.g. weekly NAAIM/AAII surveys) - trading-day
+                        # logic below assumes near-daily cadence and always false-flags
+                        # these. Use a flat calendar-day tolerance instead.
+                        prev_trading_day = today - timedelta(days=max_staleness_days)
+                    else:
+                        # CRITICAL FIX: Use trading-day logic instead of hardcoded 2-day threshold.
+                        # A 3-day weekend (Fri to Tue = 4 calendar days) is only 1 trading day apart.
+                        # Use MarketCalendar to correctly handle holidays and weekends.
+                        from algo.infrastructure import MarketCalendar
 
-                    # Allow up to 2 trading days of staleness for monitoring purposes
-                    expected_date = today - timedelta(days=1)
-                    for _ in range(20):  # Look back up to 20 calendar days
-                        if MarketCalendar.is_trading_day(expected_date):
-                            break
-                        expected_date -= timedelta(days=1)
+                        # Allow up to 2 trading days of staleness for monitoring purposes
+                        expected_date = today - timedelta(days=1)
+                        for _ in range(20):  # Look back up to 20 calendar days
+                            if MarketCalendar.is_trading_day(expected_date):
+                                break
+                            expected_date -= timedelta(days=1)
 
-                    # Also get the previous trading day
-                    prev_trading_day = expected_date - timedelta(days=1)
-                    for _ in range(20):
-                        if MarketCalendar.is_trading_day(prev_trading_day):
-                            break
-                        prev_trading_day -= timedelta(days=1)
+                        # Also get the previous trading day
+                        prev_trading_day = expected_date - timedelta(days=1)
+                        for _ in range(20):
+                            if MarketCalendar.is_trading_day(prev_trading_day):
+                                break
+                            prev_trading_day -= timedelta(days=1)
 
                     if max_date < prev_trading_day:
                         results["issues"].append(
