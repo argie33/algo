@@ -83,7 +83,9 @@ class RiskMetricsLoader(OptimalLoader):
                 # by the weight of whichever timeframes are available. 22 days is the
                 # floor: the shortest window (1m = 21 days back) needs a day-0 anchor.
                 if len(rows) < 22:
-                    raise RuntimeError(f"Insufficient price history: {len(rows)} days (need at least 22 for 1m momentum)")
+                    raise RuntimeError(
+                        f"Insufficient price history: {len(rows)} days (need at least 22 for 1m momentum)"
+                    )
 
                 prices = {row[0]: safe_float(row[1], f"{symbol}.close[{row[0]}]", allow_none=False) for row in rows}
                 sorted_dates = sorted(prices.keys())
@@ -177,6 +179,17 @@ class RiskMetricsLoader(OptimalLoader):
                     (symbol,),
                 )
                 rows = cur.fetchall()
+                # Normalize dates to `date` objects immediately after fetching
+                if rows:
+                    rows = [
+                        (
+                            row[0].date() if hasattr(row[0], "date") else (
+                                date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]
+                            ),
+                            row[1],
+                        )
+                        for row in rows
+                    ]
 
                 spy_rows: list[Any] = []
                 if rows:
@@ -187,7 +200,17 @@ class RiskMetricsLoader(OptimalLoader):
                         "SELECT date, close FROM price_daily WHERE symbol = 'SPY' AND date >= %s AND date <= %s ORDER BY date ASC",
                         (min_date, max_date),
                     )
-                    spy_rows = cur.fetchall()
+                    spy_rows_raw = cur.fetchall()
+                    # Normalize SPY dates to `date` objects for consistency
+                    spy_rows = [
+                        (
+                            row[0].date() if hasattr(row[0], "date") else (
+                                date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]
+                            ),
+                            row[1],
+                        )
+                        for row in spy_rows_raw
+                    ] if spy_rows_raw else []
 
             if not rows or len(rows) < 5:
                 actual_rows = len(rows) if rows else 0
@@ -208,10 +231,7 @@ class RiskMetricsLoader(OptimalLoader):
 
             prices = sorted(
                 [
-                    (
-                        (date(row[0].year, row[0].month, row[0].day) if hasattr(row[0], "year") else row[0]),
-                        float(row[1]),
-                    )
+                    (row[0], float(row[1]))
                     for row in rows
                 ]
             )
@@ -317,8 +337,10 @@ class RiskMetricsLoader(OptimalLoader):
     def _persist_stability_metrics(self, row: dict[str, Any]) -> None:
         """Write stability metrics row to stability_metrics table."""
         if "data_unavailable" not in row:
-            logger.critical(f"CRITICAL: data_unavailable key missing from risk metrics row for {row.get('symbol')}. "
-                          "Failing fast - refusing to write corrupted data.")
+            logger.critical(
+                f"CRITICAL: data_unavailable key missing from risk metrics row for {row.get('symbol')}. "
+                "Failing fast - refusing to write corrupted data."
+            )
             raise KeyError("data_unavailable key required in stability metrics row")
 
         try:
@@ -393,10 +415,7 @@ class RiskMetricsLoader(OptimalLoader):
 
         try:
             stock_by_date = {p[0]: p[1] for p in stock_prices}
-            spy_by_date: dict[Any, float] = {}
-            for row in spy_rows:
-                d = row[0].date() if hasattr(row[0], "date") else row[0]
-                spy_by_date[d] = float(row[1])
+            spy_by_date: dict[Any, float] = {row[0]: float(row[1]) for row in spy_rows}
 
             common_dates = sorted(set(stock_by_date.keys()) & set(spy_by_date.keys()))
             if len(common_dates) < 5:
