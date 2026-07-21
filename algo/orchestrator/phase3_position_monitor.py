@@ -69,7 +69,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                 # Get latest prices from price_daily table for all open symbols
                 open_symbols = [row[1] for row in positions]  # row[1] is symbol
-                prices: dict[str, float] = {}
+                prices: dict[str, float | None] = {}
 
                 if open_symbols:
                     cur.execute(
