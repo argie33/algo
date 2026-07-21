@@ -35,15 +35,25 @@ from utils.logging import logger
 # For price/technical tables: thresholds differ on trading vs non-trading days
 # On non-trading days (weekends/holidays), data from last trading day is fresh
 THRESHOLDS = {
+    # price_daily/technical_data_daily/market_exposure_daily were previously tuned
+    # for continuous intraday polling ("fresh: 30 min during trading hours") - a
+    # feature this system has never had. The actual loader is a single once-daily
+    # EOD batch (see CLAUDE.md's documented 2:00 AM ET morning schedule). That
+    # mismatch was invisible while get_table_age_minutes() measured age via
+    # calendar-day arithmetic (see its docstring), which never produced a value
+    # between 0 and 1440 min for these tables regardless of the thresholds below.
+    # Now that age reflects real elapsed time since load, thresholds must match the
+    # real once-per-trading-day cadence - same 24h/36h/48h convention already used
+    # for algo_signals/growth_metrics/quality_metrics/value_metrics below.
     "price_daily": {
-        "fresh": 30,  # 30 min during trading hours
-        "stale": 240,  # 4 hours - need immediate attention
-        "critical": 1440,  # 24 hours - major issue
+        "fresh": 1440,  # 24 hours - one trading day's normal loader lag
+        "stale": 2160,  # 36 hours
+        "critical": 2880,  # 48 hours
     },
     "technical_data_daily": {
-        "fresh": 60,  # 1 hour
-        "stale": 240,  # 4 hours
-        "critical": 1440,  # 24 hours
+        "fresh": 1440,
+        "stale": 2160,
+        "critical": 2880,
     },
     "stock_scores": {
         "fresh": 240,  # 4 hours
@@ -51,9 +61,9 @@ THRESHOLDS = {
         "critical": 1440,  # 24 hours
     },
     "market_exposure_daily": {
-        "fresh": 240,  # 4 hours
-        "stale": 480,  # 8 hours
-        "critical": 1440,  # 24 hours
+        "fresh": 1440,
+        "stale": 2160,
+        "critical": 2880,
     },
     "algo_signals": {
         # Signals are generated once per trading day (with the orchestrator's morning
@@ -118,55 +128,48 @@ THRESHOLDS = {
 
 
 def get_table_age_minutes(table_name: str) -> float | None:
-    """Get age of latest data in table (minutes).
+    """Get age of latest data in table (minutes), from the real load timestamp.
 
-    DATE columns (no time component) are compared by calendar day, not
-    wall-clock time: same-day data is fresh regardless of what time it is
-    right now. Comparing `NOW() - MAX(date_col)` directly would falsely
-    report same-day data as increasingly stale as the day progresses,
-    since DATE values are implicitly midnight.
+    Previously the trading-cadence tables (price_daily, technical_data_daily,
+    etc.) were keyed off their `date` column (the *trading* date, not when the
+    row was written) and measured age via `CURRENT_DATE - MAX(date)`, i.e.
+    calendar-day arithmetic. That collapses to exactly 0 or a multiple of 1440
+    minutes with zero intraday resolution - a row loaded at 11pm on trading day
+    D reads as "0 minutes old" all evening, then the instant the calendar rolls
+    past midnight it jumps straight to a flat 1440 minutes (>= every table's
+    "critical" threshold here), reporting DEAD even though the data is only a
+    few hours old and loaded exactly on schedule. Confirmed live 2026-07-21:
+    price_daily/technical_data_daily/market_exposure_daily all showed DEAD
+    (1.0d) at ~4am with data actually loaded 2-4h earlier. All of these tables
+    carry a real `created_at`/`updated_at` load timestamp - use that directly
+    for true elapsed time; the trading-day gap logic in check_all_tables()
+    still relaxes the thresholds across weekends/holidays.
     """
     try:
         with DatabaseContext("read") as cur:
-            # Map table names to their timestamp columns
+            # Map table names to their actual load-timestamp columns (not the
+            # trading-date column) so age reflects real elapsed time.
             timestamp_cols = {
-                "price_daily": "date",
-                "technical_data_daily": "date",
+                "price_daily": "updated_at",
+                "technical_data_daily": "updated_at",
                 "stock_scores": "updated_at",
-                "market_exposure_daily": "date",
-                "algo_signals": "signal_date",
+                "market_exposure_daily": "updated_at",
+                "algo_signals": "updated_at",
                 "growth_metrics": "created_at",
                 "quality_metrics": "created_at",
                 "value_metrics": "created_at",
-                "algo_trades": "signal_date",
+                "algo_trades": "updated_at",
                 "algo_positions": "updated_at",
-                "algo_reconciliation_log": "reconciliation_date",
-                "industry_ranking": "date_recorded",
-                "sector_rotation_signal": "date",
-                "trend_template_data": "date",
+                "algo_reconciliation_log": "created_at",
+                "industry_ranking": "updated_at",
+                "sector_rotation_signal": "created_at",
+                "trend_template_data": "created_at",
             }
 
             if table_name not in timestamp_cols:
                 return None
 
             ts_col = timestamp_cols[table_name]
-
-            cur.execute(
-                "SELECT data_type FROM information_schema.columns WHERE table_name = %s AND column_name = %s",
-                (table_name, ts_col),
-            )
-            col_row = cur.fetchone()
-            is_date_col = bool(col_row and col_row[0] == "date")
-
-            if is_date_col:
-                cur.execute(f"""
-                    SELECT GREATEST(CURRENT_DATE - MAX({ts_col}), 0)
-                    FROM {table_name}
-                """)
-                row = cur.fetchone()
-                if row and row[0] is not None:
-                    return float(row[0]) * 1440
-                return None
 
             # stock_scores.updated_at is `timestamp without time zone`, written via
             # datetime.now(timezone.utc) in load_stock_scores.py. It used to need an explicit

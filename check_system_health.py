@@ -130,6 +130,18 @@ def check_database() -> dict:
                             f"EXTRACT(EPOCH FROM (NOW() - MAX(updated_at))) / 3600 as age_hours "
                             f"FROM {table_name}"
                         )
+                    elif table_name == "price_daily":
+                        # Use created_at (actual load time), not date::timestamp (midnight of
+                        # the trading date). The latter overstates age by up to ~24h: a row
+                        # for trading date D loaded at 11pm on D already reads as ~23h "stale"
+                        # under date::timestamp even though it loaded minutes after close.
+                        # Confirmed live 2026-07-21: date::timestamp reported 27.0h stale on
+                        # data actually loaded 3.5h earlier (created_at 2026-07-20 23:29).
+                        cur.execute(
+                            f"SELECT COUNT(*), MAX(created_at), "
+                            f"EXTRACT(EPOCH FROM (NOW() - MAX(created_at))) / 3600 as age_hours "
+                            f"FROM {table_name}"
+                        )
                     else:
                         # For date columns, convert to timestamp at midnight for comparison
                         cur.execute(
