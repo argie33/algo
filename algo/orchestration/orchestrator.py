@@ -985,14 +985,20 @@ class Orchestrator:
                 # DynamoDB write failures (permission denied, invalid token) don't block Phase 1.
                 # This is informational only - halt flag management happens separately below.
                 try:
-                    error_dict = e.response.get("Error", {}) if hasattr(e, "response") and isinstance(e.response, dict) else {}
+                    error_dict = (
+                        e.response.get("Error", {}) if hasattr(e, "response") and isinstance(e.response, dict) else {}
+                    )
                     error_code = error_dict.get("Code", "UNKNOWN")
                     if error_code in ("UnrecognizedClientException", "AccessDenied", "AccessDeniedException"):
-                        logger.info(f"[PHASE1_DYNAMODB] Write skipped (invalid credentials): {error_code}. This is non-blocking.")
+                        logger.info(
+                            f"[PHASE1_DYNAMODB] Write skipped (invalid credentials): {error_code}. This is non-blocking."
+                        )
                     else:
                         logger.warning(f"[PHASE1_DYNAMODB] Write failed ({error_code}): {e!s}")
                 except Exception as validation_error:
-                    logger.warning(f"[PHASE1_DYNAMODB] Error parsing AWS response: {validation_error}. Original error: {e}")
+                    logger.warning(
+                        f"[PHASE1_DYNAMODB] Error parsing AWS response: {validation_error}. Original error: {e}"
+                    )
             except Exception as e:
                 # Catch any other boto3 errors (missing env vars, network issues, etc.)
                 logger.warning(f"[PHASE1_DYNAMODB] Unexpected error during DynamoDB write: {type(e).__name__}: {e}")
@@ -1053,7 +1059,7 @@ class Orchestrator:
         if "recommendations" not in result.data:
             self.log_phase_result(
                 3,
-                "position_monitor",
+                "POSITION MONITOR",
                 "error",
                 "Phase 3 data contract violated: missing 'recommendations' key in result",
             )
@@ -1063,7 +1069,7 @@ class Orchestrator:
         if not isinstance(recs, list):
             self.log_phase_result(
                 3,
-                "position_monitor",
+                "POSITION MONITOR",
                 "error",
                 f"Phase 3 data contract violated: recommendations must be list, got {type(recs).__name__}",
             )
@@ -1090,7 +1096,7 @@ class Orchestrator:
         if "actions" not in result.data:
             self.log_phase_result(
                 5,
-                "exposure_policy",
+                "EXPOSURE POLICY ACTIONS",
                 "error",
                 "Phase 5 data contract violated: missing 'actions' key in result",
             )
@@ -1100,7 +1106,7 @@ class Orchestrator:
         if not isinstance(actions, list):
             self.log_phase_result(
                 5,
-                "exposure_policy",
+                "EXPOSURE POLICY ACTIONS",
                 "error",
                 f"Phase 5 data contract violated: actions must be list, got {type(actions).__name__}",
             )
@@ -1264,7 +1270,7 @@ class Orchestrator:
         if phase5_result and phase5_result.halted:
             # CRITICAL: Check if Phase 5 halted due to missing market regime data
             # This is a system-critical issue that should block exits until resolved
-            halt_reason = phase5_result.error or 'unknown reason'
+            halt_reason = phase5_result.error or "unknown reason"
             if "market" in halt_reason.lower() or "regime" in halt_reason.lower():
                 logger.critical(
                     f"[PHASE 6 CRITICAL] Phase 5 halted due to missing market data: {halt_reason}. "
@@ -1320,23 +1326,32 @@ class Orchestrator:
         if phase5_result is None:
             error_msg = "[PHASE 7] Phase 5 (Exposure Policy) never executed - dependency chain broken"
             logger.critical(error_msg)
-            self.log_phase_result(7, "signal_generation", "halt", error_msg)
+            self.log_phase_result(7, "SIGNAL GENERATION & RANKING", "halt", error_msg)
             from algo.orchestrator.phase_result import PhaseResult
-            return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg)
+
+            return PhaseResult(
+                7, "SIGNAL GENERATION & RANKING", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg
+            )
 
         if phase5_result.halted:
             error_msg = f"[PHASE 7] Phase 5 halted: {phase5_result.error or 'unknown reason'}"
             logger.critical(error_msg)
-            self.log_phase_result(7, "signal_generation", "halt", error_msg)
+            self.log_phase_result(7, "SIGNAL GENERATION & RANKING", "halt", error_msg)
             from algo.orchestrator.phase_result import PhaseResult
-            return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg)
+
+            return PhaseResult(
+                7, "SIGNAL GENERATION & RANKING", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg
+            )
 
         if not phase5_result.ok:
             error_msg = f"[PHASE 7] Phase 5 failed: status={phase5_result.status}, error={phase5_result.error}"
             logger.critical(error_msg)
-            self.log_phase_result(7, "signal_generation", "halt", error_msg)
+            self.log_phase_result(7, "SIGNAL GENERATION & RANKING", "halt", error_msg)
             from algo.orchestrator.phase_result import PhaseResult
-            return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg)
+
+            return PhaseResult(
+                7, "SIGNAL GENERATION & RANKING", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, error_msg
+            )
 
         exposure_constraints = executor.get_phase_data_required(5, "constraints")
 
@@ -1520,6 +1535,7 @@ class Orchestrator:
         logger.info("\n[PIPELINE MONITORING] Computing health for all 94 data tables...")
         try:
             from algo.monitoring import PipelineHealth
+
             health_monitor = PipelineHealth()
             pipeline_status = health_monitor.get_pipeline_status()
             health_monitor.log_health_check(pipeline_status)
