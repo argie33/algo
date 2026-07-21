@@ -97,7 +97,39 @@ class MarketExposure:
     W_AAII = 3  # extremes-only scoring (was 4pt)
 
     def __init__(self) -> None:
+        self._validate_weights()
         self.calculator = MarketFactorCalculator()
+
+    @classmethod
+    def _validate_weights(cls) -> None:
+        """Fail-fast if the 12 factor weights above don't sum to exactly 100.
+
+        No test or runtime check previously protected this invariant (unlike
+        algo/signals/filter_registry.py's FilterRegistry.validate(), which runs the
+        equivalent check at module import time for its own weight table) - a future edit to
+        one W_* constant without updating the others would silently produce a composite
+        score that no longer means "0-100", with no error anywhere in the pipeline.
+        """
+        weights = [
+            cls.W_TREND_30WK,
+            cls.W_SPY_MOMENTUM,
+            cls.W_BREADTH_200,
+            cls.W_SELLING_PRESSURE,
+            cls.W_VIX,
+            cls.W_CREDIT_SPREAD,
+            cls.W_PUT_CALL,
+            cls.W_NEW_HIGHS_LOWS,
+            cls.W_AD_LINE,
+            cls.W_BREADTH_50,
+            cls.W_NAAIM,
+            cls.W_AAII,
+        ]
+        total = sum(weights)
+        if total != 100:
+            raise ValueError(
+                f"MarketExposure factor weights must sum to exactly 100, got {total}. "
+                f"Weights: {weights}. Fix the W_* class constants before computing exposure."
+            )
 
     def _with_cursor(self, operation: Callable[[PsycopgCursor[Any]], T]) -> T:
         """Execute an operation with a cursor via DatabaseContext."""
