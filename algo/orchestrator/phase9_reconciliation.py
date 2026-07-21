@@ -271,6 +271,7 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
     from algo.signals.attribution import SignalAttributionEngine
 
     attr_result = {}
+    available_components = 0
     try:
         attribution = SignalAttributionEngine()
         attr_result = attribution.compute_ic(run_date, lookback_trades=40)
@@ -285,8 +286,17 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
                     continue
                 logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
                 raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
+            available_components += 1
             logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
-        if attr_result:
+        # SignalAttributionEngine is fully deprecated (see algo/signals/attribution.py's own
+        # module docstring: "swing scores have been removed; this module ... returns
+        # unavailable data") - compute_ic() always returns every component marked
+        # data_unavailable=True, never a real ic_value. Without this guard, persist() wrote
+        # 7 new all-NULL rows into algo_component_attribution on every single Phase 9 run,
+        # forever, and the phase result below unconditionally reported "success, N
+        # components analyzed" even though nothing was actually analyzed - a misleading
+        # status for a fully dead feature, not just wasted writes.
+        if available_components > 0:
             attribution.persist(run_date, attr_result)
     except ImportError as e:
         error_msg = (
@@ -312,8 +322,10 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
     log_phase_result_fn(
         9,
         "ic_computation",
-        "success" if attr_result else "warn",
-        f"{len(attr_result)} components analyzed",
+        "success" if available_components > 0 else "warn",
+        f"{available_components}/{len(attr_result)} components analyzed"
+        if attr_result
+        else "0 components analyzed",
     )
     return attr_result
 
