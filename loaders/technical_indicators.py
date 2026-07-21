@@ -133,22 +133,39 @@ def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
 def compute_macd(
     closes: pd.Series, fast: int = 12, slow: int = 26, signal_period: int = 9
 ) -> tuple[pd.Series, pd.Series]:
-    ema_fast = closes.ewm(span=fast).mean()
-    ema_slow = closes.ewm(span=slow).mean()
+    """Compute MACD line and signal line using the standard recursive EMA.
+
+    adjust=False, matching the recursive smoothing this file already uses for RSI/ATR/ADX
+    (see compute_rsi's comment) and the textbook MACD definition
+    (EMA_t = alpha*price_t + (1-alpha)*EMA_{t-1}). Pandas' default (adjust=True) computes a
+    finite-history-weighted average instead, which is a materially different number early in
+    a series - measured ~0.19 absolute divergence at bar 12 and still ~0.06 at bar 29 on a
+    synthetic 30-bar series, converging only slowly - most relevant for newly-added symbols
+    or early trading history where a stock has limited price data.
+    """
+    ema_fast = closes.ewm(span=fast, adjust=False).mean()
+    ema_slow = closes.ewm(span=slow, adjust=False).mean()
     macd_line = ema_fast - ema_slow
-    signal_line = macd_line.ewm(span=signal_period).mean()
+    signal_line = macd_line.ewm(span=signal_period, adjust=False).mean()
     return macd_line, signal_line
 
 
 def compute_moving_averages(closes: pd.Series) -> dict[str, pd.Series]:
+    # adjust=False on the EMA columns for the same reason as compute_macd above: the
+    # recursive EMA is the standard convention (and what RSI/ATR/ADX in this file already
+    # use), while pandas' default (adjust=True) is a materially different, finite-history-
+    # weighted number - most divergent on symbols with limited trading history. ema_21 isn't
+    # just a display column: exit_engine.py gates a real distribution-day exit trigger on
+    # `cur_price < ema_21`, so an inaccurate value here can bias a live trading decision, not
+    # just a chart.
     return {
         "sma_20": closes.rolling(20).mean(),
         "sma_50": closes.rolling(50).mean(),
         "sma_150": closes.rolling(150).mean(),
         "sma_200": closes.rolling(200).mean(),
-        "ema_12": closes.ewm(span=12).mean(),
-        "ema_21": closes.ewm(span=21).mean(),
-        "ema_26": closes.ewm(span=26).mean(),
+        "ema_12": closes.ewm(span=12, adjust=False).mean(),
+        "ema_21": closes.ewm(span=21, adjust=False).mean(),
+        "ema_26": closes.ewm(span=26, adjust=False).mean(),
     }
 
 
