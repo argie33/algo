@@ -556,7 +556,6 @@ class BuySignalGenerator:
         atr: float | None,
     ) -> dict[str, Any]:
         """Calculate entry/exit levels and risk/reward metrics."""
-        risk_pct = 8.0
         result: dict[str, Any] = {
             "buylevel": buylevel,
             "stoplevel": stoplevel,
@@ -572,7 +571,12 @@ class BuySignalGenerator:
             "exit_trigger_1": None,
             "exit_trigger_2": None,
             "rr": None,
-            "risk_pct": risk_pct,
+            # CRITICAL: must reflect THIS candidate's actual entry-to-stop distance (same
+            # buy_dec/stop_dec used for `rr` below) - used to be a hardcoded 8.0 regardless of the
+            # real stop distance (confirmed live: 41,768/41,768 buy_sell_daily rows had the
+            # identical value). None here (not a fake default) unless a BUY/SELL branch below sets
+            # a real value, consistent with the rest of this dict using None for unset fields.
+            "risk_pct": None,
         }
 
         if signal_type == "BUY" and close:
@@ -620,6 +624,7 @@ class BuySignalGenerator:
             result["rr"] = (
                 (result["profit_target_20pct"] - buy_dec) / max(buy_dec - stop_dec, Decimal("0.01"))
             ).quantize(Decimal("0.01"))
+            result["risk_pct"] = float(((buy_dec - stop_dec) / buy_dec * 100).quantize(Decimal("0.01")))
 
         elif signal_type == "SELL" and close:
             if buylevel is None:
@@ -664,5 +669,6 @@ class BuySignalGenerator:
             result["rr"] = (
                 (buy_dec - result["profit_target_20pct"]) / max(stop_dec - buy_dec, Decimal("0.01"))
             ).quantize(Decimal("0.01"))
+            result["risk_pct"] = float(((stop_dec - buy_dec) / buy_dec * 100).quantize(Decimal("0.01")))
 
         return result
