@@ -30,6 +30,18 @@ from utils.db import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
+# Rotation thresholds (configurable for market regime tuning)
+DEFENSIVE_LEAD_SCORE_SEVERE_THRESHOLD = 75  # Severe defensive rotation
+DEFENSIVE_LEAD_SCORE_SEVERE_MIN_WEEKS = 3
+DEFENSIVE_LEAD_SCORE_MODERATE_THRESHOLD = 60  # Moderate defensive rotation
+DEFENSIVE_LEAD_SCORE_MODERATE_MIN_WEEKS = 2
+DEFENSIVE_LEAD_SCORE_CAUTION_THRESHOLD = 50  # Caution level
+CYCLICAL_LEAD_SCORE_STRONG_THRESHOLD = 75  # Strong cyclical leadership
+CYCLICAL_LEAD_SCORE_STRONG_MIN_WEEKS = 3
+CYCLICAL_LEAD_SCORE_MODERATE_THRESHOLD = 60  # Moderate cyclical leadership
+CYCLICAL_LEAD_SCORE_MODERATE_MIN_WEEKS = 2
+CYCLICAL_LEAD_SCORE_CAUTION_THRESHOLD = 50  # Caution level
+
 DEFENSIVE_SECTORS = ["Utilities", "Consumer Defensive", "Healthcare"]
 CYCLICAL_SECTORS = [
     "Technology",
@@ -275,21 +287,21 @@ class SectorRotationDetector:
 
     def _determine_rotation_signal(self, defensive_lead_score: float, weeks_persistent: int) -> str:
         """Determine rotation signal based on score and persistence."""
-        if defensive_lead_score >= 75 and weeks_persistent >= 3:
+        if defensive_lead_score >= DEFENSIVE_LEAD_SCORE_SEVERE_THRESHOLD and weeks_persistent >= DEFENSIVE_LEAD_SCORE_SEVERE_MIN_WEEKS:
             return "severe_defensive_rotation"
-        if defensive_lead_score >= 60 and weeks_persistent >= 2:
+        if defensive_lead_score >= DEFENSIVE_LEAD_SCORE_MODERATE_THRESHOLD and weeks_persistent >= DEFENSIVE_LEAD_SCORE_MODERATE_MIN_WEEKS:
             return "defensive_rotation_warning"
-        if defensive_lead_score >= 50:
+        if defensive_lead_score >= DEFENSIVE_LEAD_SCORE_CAUTION_THRESHOLD:
             return "mild_defensive_lead"
         return "neutral"
 
     def _exposure_penalty(self, lead_score: float, weeks: int) -> int:
         """Recommend market exposure reduction in pts based on signal severity."""
-        if lead_score >= 75 and weeks >= 3:
+        if lead_score >= CYCLICAL_LEAD_SCORE_STRONG_THRESHOLD and weeks >= CYCLICAL_LEAD_SCORE_STRONG_MIN_WEEKS:
             return 10
-        if lead_score >= 60 and weeks >= 2:
+        if lead_score >= CYCLICAL_LEAD_SCORE_MODERATE_THRESHOLD and weeks >= CYCLICAL_LEAD_SCORE_MODERATE_MIN_WEEKS:
             return 5
-        if lead_score >= 50:
+        if lead_score >= CYCLICAL_LEAD_SCORE_CAUTION_THRESHOLD:
             return 2
         return 0
 
