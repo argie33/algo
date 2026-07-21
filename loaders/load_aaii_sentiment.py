@@ -363,7 +363,11 @@ class AAIISentimentLoader(OptimalLoader):
             {
                 "data_unavailable": True,
                 "reason": "Failed to fetch AAII sentiment after all attempts",
-                "created_at": datetime.now().isoformat(),
+                # Every other data_unavailable marker in this function uses
+                # datetime.now(timezone.utc) - this branch used a naive datetime.now()
+                # (server-local time), the same "naive timestamp read/written as if it were
+                # UTC" bug class already fixed elsewhere in this codebase this session.
+                "created_at": datetime.now(timezone.utc).isoformat(),
             }
         ]
 
