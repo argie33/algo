@@ -191,13 +191,45 @@ class TickValidator:
         # low-liquidity securities, and market-close thinly traded data.
         # OHLC logic and price bounds checks catch the real issues.
 
+    # Common forward/reverse split ratios (N:1 and fractional like 3:2, 5:4). Prices are
+    # stored raw/unadjusted (auto_adjust=False - see utils/external/alpaca_market_data.py),
+    # so a real stock split produces a single-day close-to-close ratio very close to one of
+    # these, indistinguishable in magnitude from the ">30% jump" this check otherwise treats
+    # as delisting/bad-data. Reverse splits (ratio < 1, e.g. 1:10 for distressed penny
+    # stocks) are covered by checking both n and 1/n below.
+    _SPLIT_RATIOS = (1.25, 1.5, 2, 3, 4, 5, 6, 7, 8, 10, 15, 20, 25, 50, 100)
+    _SPLIT_RATIO_TOLERANCE = 0.02  # 2% - tight enough that genuine bad data essentially never lands here
+
     def _check_sequence(self, open_price: float, close: float) -> None:
         if not self.prior_close or self.prior_close == 0:
             return
 
         gap_pct = abs(close - self.prior_close) / self.prior_close * 100
         if gap_pct > 30:
+            if self._is_likely_split(self.prior_close, close):
+                logger.info(
+                    f"[{self.symbol}] Price gap {gap_pct:.1f}% ({self.prior_close} -> {close}) matches a "
+                    f"clean split ratio - treating as a legitimate stock split, not rejecting."
+                )
+                return
             self.errors.append(f"price gap > 30%: {self.prior_close} → {close} ({gap_pct:.1f}%)")
+
+    def _is_likely_split(self, prior_close: float, close: float) -> bool:
+        """True when prior_close/close (or its reciprocal) is within tolerance of a common
+        split ratio. This was previously not checked at all - the docstring for this class
+        names "delisting/split detection" as the purpose of the 30% gap check, but the code
+        rejected both identically, silently dropping legitimate price data for any actively
+        traded stock on the day it split (e.g. every 2:1 split, which happens routinely for
+        popular large-cap stocks)."""
+        if close <= 0:
+            return False
+        ratio = prior_close / close
+        for n in self._SPLIT_RATIOS:
+            if abs(ratio - n) / n <= self._SPLIT_RATIO_TOLERANCE:
+                return True
+            if abs(ratio - 1 / n) / (1 / n) <= self._SPLIT_RATIO_TOLERANCE:
+                return True
+        return False
 
 
 class TickValidationBatch:
