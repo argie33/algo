@@ -416,7 +416,7 @@ class MarketEventHandler:
         return False
 
     def handle_single_stock_halt(self, symbol: str) -> dict[str, Any]:
-        """Handle single-stock halt: cancel pending orders, log event.
+        """Handle single-stock halt: cancel pending (not-yet-submitted) orders, log event.
 
         Args:
             symbol: Stock symbol that's halted
@@ -429,12 +429,22 @@ class MarketEventHandler:
             from utils.db import DatabaseContext
 
             with DatabaseContext("write") as cur:
-                # Cancel any pending orders for this symbol
+                # CRITICAL: only 'pending' (created, not yet sent to Alpaca), NOT 'open'.
+                # algo_trades.status = 'open' means a currently-HELD, real position - confirmed
+                # by position_monitor.py/exposure_policy.py, which both JOIN
+                # `t.status IN ('open','pending') AND p.status = 'open' AND p.quantity > 0` to
+                # find the trade record for an actual open algo_positions row. Including 'open'
+                # here meant a halt on a symbol you already HOLD flipped its trade record to
+                # 'cancelled', silently dropping it from those position-monitoring/exposure-review
+                # joins even though you still own the shares - the position doesn't disappear
+                # just because it can't be traded during the halt. No action is needed on an
+                # already-open position here; the halt is still recorded via the audit log
+                # INSERT below for operator awareness.
                 cur.execute(
                     """
                     UPDATE algo_trades
                     SET status = 'cancelled'
-                    WHERE symbol = %s AND status IN ('pending', 'open')
+                    WHERE symbol = %s AND status = 'pending'
                     """,
                     (symbol,),
                 )
