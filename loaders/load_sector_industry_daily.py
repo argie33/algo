@@ -227,7 +227,19 @@ class SectorIndustryDailyLoader(OptimalLoader):
                         ss.sector_name,
                         NOW()::date,
                         ss.current_rank,
-                        ss.current_rank - COALESCE(r1.rank, ss.current_rank),
+                        -- Sign convention: positive = improving (rank number went DOWN, e.g.
+                        -- 5 -> 2 means climbing toward #1). This previously computed
+                        -- current_rank - old_rank (the opposite sign: improving showed
+                        -- NEGATIVE), inconsistent with every consumer of rank history in this
+                        -- codebase - algo/signals/sector_rotation.py independently computes its
+                        -- own rank_improvement_1w/4w/12w = old_rank - current_rank (positive =
+                        -- improving) from the same r1w/r4w/r12w columns, and that's what
+                        -- actually drives defensive_lead_score/rotation-signal decisions. This
+                        -- momentum_score column wasn't used for any of those decisions, but IS
+                        -- displayed directly to operators (dashboard/panels/sectors.py:
+                        -- "mom:{value}"), where the sign-inverted value reads backwards -
+                        -- negative looks like decline when it's actually improvement.
+                        COALESCE(r1.rank, ss.current_rank) - ss.current_rank,
                         'price_daily_aggregated' as data_source,
                         COALESCE(r1.rank, ss.current_rank),
                         COALESCE(r4.rank, ss.current_rank),
