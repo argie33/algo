@@ -22,6 +22,7 @@ from typing import Any, cast
 import psycopg2
 
 from utils.db import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 from utils.metrics_calculator import MetricsCalculator
 
 logger = logging.getLogger(__name__)
@@ -473,7 +474,9 @@ class LivePerformance:
         """
         try:
             if not report_date:
-                report_date = date.today()
+                # Eastern Time, not system-local - same date.today()-near-midnight fix
+                # already applied to algo/risk/var.py.
+                report_date = datetime.now(EASTERN_TZ).date()
 
             logger.info(f"Generating daily performance report for {report_date}")
 

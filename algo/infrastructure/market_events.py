@@ -347,7 +347,9 @@ class MarketEventHandler:
 
         """
         if not check_date:
-            check_date = date.today()
+            # Eastern Time, not system-local (e.g. Central on this dev machine) - matches
+            # the fix applied to the same date.today()-near-midnight pattern in algo/risk/var.py.
+            check_date = datetime.now(EASTERN_TZ).date()
 
         try:
             with DatabaseContext("read") as cur:

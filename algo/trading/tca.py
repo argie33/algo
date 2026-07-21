@@ -15,12 +15,13 @@ This is what institutional traders use to validate their edge isn't eroded by fe
 """
 
 import logging
-from datetime import date
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from algo.infrastructure.config import AlgoConfig
 from utils.db import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +164,9 @@ class TCAEngine:
         """
         try:
             if not report_date:
-                report_date = date.today()
+                # Eastern Time, not system-local - same date.today()-near-midnight fix
+                # already applied to algo/risk/var.py.
+                report_date = datetime.now(EASTERN_TZ).date()
 
             with DatabaseContext("read") as cur:
                 cur.execute(
