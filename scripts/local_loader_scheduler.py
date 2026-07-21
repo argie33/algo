@@ -104,6 +104,16 @@ def run_loader_now(loader_name):
     try:
         env = os.environ.copy()
         env["LOCAL_MODE"] = "1"
+        if loader_name == "load_financial_statements.py":
+            # Matches terraform/modules/loaders/main.tf's "financials_all" ECS task
+            # (LOADER_STATEMENT_TYPE=all): without this, the loader's own main() defaults
+            # LOADER_STATEMENT_TYPE to "income" and only ever runs the income/annual combo
+            # (see load_financial_statements.py's main()/load_all_statements() split).
+            # Confirmed live 2026-07-20: a local `--now metrics` run refreshed
+            # annual_income_statement but left annual_balance_sheet/annual_cash_flow/
+            # quarterly_* untouched - a real AWS-vs-local parity gap, not by design (AWS's
+            # ECS task sets this same env var explicitly for exactly this reason).
+            env["LOADER_STATEMENT_TYPE"] = "all"
         result = subprocess.run(
             ["python3", loader_path],
             timeout=LOADER_TIMEOUT_SECONDS,
