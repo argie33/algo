@@ -1595,6 +1595,29 @@ class Orchestrator:
             if not summary and phase_result.status in ("error", "halted", "degraded") and phase_result.error:
                 summary = phase_result.error
 
+            if (
+                already_logged is not None
+                and already_logged.get("status") != phase_result.status
+                and phase_num in self.execution_tracker.phase_results
+            ):
+                # The phase called log_phase_result_fn() directly during execution with its own
+                # ad-hoc status string ("halt", "alert", "warn", "no_signals", ...) - that raw
+                # value already reached self.execution_tracker.phase_results (and, via it,
+                # orchestrator_execution_log.phase_results, the JSON blob the dashboard health
+                # panel reads) through the log_phase_result() call the phase made. The block
+                # below corrects self.phase_results (THIS orchestrator instance's own dict, used
+                # for the console report and any_error/any_halt/any_degraded aggregation below)
+                # to phase_result.status, the canonical PhaseResult vocabulary ("ok"/"halted"/
+                # "error"/"degraded"/"skipped") - but never told the tracker, so the persisted
+                # record keeps the raw string forever. Confirmed live: phase 7's "no candidates
+                # today" case logs "no_signals" (correctly classified as PhaseResult
+                # status="degraded" - a normal, expected outcome) but health.py's status buckets
+                # don't recognize "no_signals" and fall back to the error bucket, rendering a
+                # completely ordinary zero-signal day as a red failure indicator. Keep the
+                # tracker's copy in sync so the DB record - and everything downstream of it -
+                # uses the same canonical vocabulary the orchestrator itself already trusts.
+                self.execution_tracker.phase_results[phase_num]["status"] = phase_result.status
+
             if already_logged is None:
                 # Phase never called log_phase_result_fn itself: this is the skip path inside
                 # phase_executor.py's execute_phase() (skip_if_halted=True after an earlier

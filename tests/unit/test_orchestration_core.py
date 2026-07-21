@@ -526,3 +526,68 @@ class TestSkippedPhasesReachAuditTrail:
         # Executed phases must still log normally (no regression on the working path).
         assert tracker.phase_results[1]["status"] == "ok"
         assert tracker.phase_results[2]["status"] == "halted"
+
+
+class TestTrackerStatusSyncedToCanonicalVocabulary:
+    """Regression: a phase that calls log_phase_result_fn() directly with its own ad-hoc
+    status string (e.g. phase7_signal_generation.py's "no_signals") must not leave that raw
+    string permanently stuck in execution_tracker.phase_results (and therefore in
+    orchestrator_execution_log.phase_results, the JSON the dashboard health panel reads).
+
+    _execute_phases() already corrects self.phase_results (the orchestrator's own in-memory
+    dict) to the canonical PhaseResult vocabulary ("ok"/"halted"/"error"/"degraded"/"skipped")
+    via phase_result.status, but never told execution_tracker about the correction - so the
+    persisted record kept the raw string forever. Concretely: phase 7 finding zero qualifying
+    signals on a given day is a normal outcome, correctly classified by PhaseResult as
+    status="degraded" - but health.py's status buckets don't recognize the raw "no_signals"
+    string that reached the tracker, and silently fall back to the error bucket, rendering an
+    ordinary zero-signal day as a red failure indicator on the dashboard.
+    """
+
+    def test_raw_status_string_corrected_to_canonical_in_tracker(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from algo.orchestration.orchestrator import Orchestrator
+        from algo.orchestrator.phase_result import PhaseResult
+        from utils.logging.execution_tracker import OrchestratorExecutionTracker
+
+        tracker = OrchestratorExecutionTracker()
+        tracker.run_id = "test-run"
+        tracker.run_date = date.today()
+
+        # Simulate phase 7 having already called log_phase_result_fn(7, "signal_generation",
+        # "no_signals", msg) during its own execution, before _execute_phases's post-loop runs.
+        pre_logged = {"phase": 7, "name": "signal_generation", "status": "no_signals", "summary": "no candidates"}
+        phase_results = {7: dict(pre_logged)}
+        tracker.phase_results[7] = dict(pre_logged)
+
+        executor_result = {
+            "results": {
+                7: PhaseResult(7, "signal_generation", "degraded", {"qualified_trades": []}, False, "no candidates"),
+            }
+        }
+
+        fake_self = SimpleNamespace(
+            phase_results=phase_results,
+            execution_tracker=tracker,
+            halt_manager=SimpleNamespace(proactive_clear_stale_halt=lambda: False),
+            _setup_executor=lambda skip_phases: SimpleNamespace(run=lambda: executor_result),
+            run_id="test-run",
+            verbose=False,
+        )
+        fake_self.log_phase_result = lambda *a, **kw: Orchestrator.log_phase_result(fake_self, *a, **kw)
+
+        with (
+            patch("algo.orchestration.orchestrator.get_event_hub"),
+            patch("algo.orchestration.orchestrator.DatabaseContext"),
+        ):
+            Orchestrator._execute_phases(fake_self)
+
+        # Before the fix: tracker.phase_results[7]["status"] stayed "no_signals" forever.
+        assert tracker.phase_results[7]["status"] == "degraded", (
+            "Tracker's persisted status must be corrected to the canonical PhaseResult "
+            "vocabulary, not left at the phase's raw ad-hoc status string"
+        )
+        # The orchestrator's own in-memory dict must also reflect the canonical status.
+        assert fake_self.phase_results[7]["status"] == "degraded"
