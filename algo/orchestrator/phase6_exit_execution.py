@@ -259,11 +259,24 @@ def run(
                                     "UPDATE algo_positions SET current_stop_price = %s WHERE position_id = %s",
                                     (action["new_stop"], action["position_id"]),
                                 )
-                                stop_raises += 1
-                                if verbose:
-                                    logger.info(
-                                        f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                                # rowcount guards against silently counting a no-op as a success -
+                                # e.g. the position closed (a race with a concurrent exit) between
+                                # Phase 5 computing this action and Phase 6 executing it, in which
+                                # case the WHERE clause matches nothing but execute() itself doesn't
+                                # raise, so without this check stop_raises would be incremented and
+                                # "EXPOSURE TIGHTEN" logged as if the stop had actually moved.
+                                if cur.rowcount == 0:
+                                    errors += 1
+                                    logger.warning(
+                                        f"  Tighten no-op for {action['symbol']}: position "
+                                        f"{action['position_id']} not found (likely already closed)"
                                     )
+                                else:
+                                    stop_raises += 1
+                                    if verbose:
+                                        logger.info(
+                                            f"  EXPOSURE TIGHTEN {action['symbol']}: stop -> ${action['new_stop']:.2f}"
+                                        )
                             finally:
                                 release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     except (RuntimeError, ValueError, TypeError) as e:
@@ -320,11 +333,23 @@ def run(
                                         PositionStatus.OPEN.value,
                                     ),
                                 )
-                                stop_raises += 1
-                                if verbose:
-                                    logger.info(
-                                        f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                                # rowcount guards against silently counting a no-op as a success -
+                                # e.g. the position closed between Phase 3 computing this
+                                # recommendation and Phase 6 executing it (status != 'open' by
+                                # then), in which case the WHERE clause matches nothing but
+                                # execute() itself doesn't raise.
+                                if cur.rowcount == 0:
+                                    errors += 1
+                                    logger.warning(
+                                        f"  Stop-raise no-op for {rec['symbol']}: position "
+                                        f"{rec['position_id']} not found or no longer open"
                                     )
+                                else:
+                                    stop_raises += 1
+                                    if verbose:
+                                        logger.info(
+                                            f"  RAISED STOP {rec['symbol']}: ${rec['active_stop']:.2f} -> ${rec['new_stop_recommended']:.2f}"
+                                        )
                             finally:
                                 release_advisory_lock(cur, ALGO_POSITIONS_LOCK_ID, "algo_positions")
                     except (RuntimeError, ValueError, TypeError) as e:
