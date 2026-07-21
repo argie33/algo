@@ -14,6 +14,7 @@ Credentials can be provided via environment variables or stdin JSON (--credentia
 import json
 import logging
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -46,6 +47,25 @@ import psycopg2
 # Set up logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+
+def _migration_sort_key(f: Path) -> tuple[int, str]:
+    """Sort by numeric version prefix, not the raw filename string.
+
+    CRITICAL (2026-07-21 loader-review audit): a plain string sort on f.stem breaks
+    exactly at every digit-count boundary in migrations/versions/ - e.g.
+    "1000_refresh_positions_view_after_creation" sorts BEFORE
+    "999_emergency_recreate_positions_view" under str comparison ('1' < '9'), even
+    though the 1000 migration's own name says it must run after the 999 one creates
+    the view. get_pending_migrations() applies files in this order on a fresh database
+    (schema_version starts empty), so this was a live ordering bug, not theoretical -
+    matches the CI workflow's own comment in .github/workflows/deploy-all-infrastructure.yml
+    about migrations "never actually applied" on a truly fresh DB. Same issue recurs at
+    999/1000 (positions view) and would recur at 9999/10000 in the future; parsing the
+    leading integer fixes it for every boundary, not just this one.
+    """
+    match = re.match(r"^(\d+)", f.stem)
+    return (int(match.group(1)) if match else 0, f.stem)
 
 
 def _has_sql_content(stmt: str) -> bool:
@@ -294,7 +314,7 @@ class MigrationRunner:
             for f in list(MIGRATIONS_DIR.glob("*.sql")) + list(MIGRATIONS_DIR.glob("*.py"))
             if not f.name.startswith("_")
         ]
-        migration_files = sorted(all_files, key=lambda f: f.stem)
+        migration_files = sorted(all_files, key=_migration_sort_key)
 
         pending = []
         for mig_file in migration_files:
