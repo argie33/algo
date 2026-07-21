@@ -92,11 +92,7 @@ with DatabaseContext("read") as cur:
 EOF
 ```
 
-2. If LOCAL, changes don't affect users. Connect to AWS:
-   - `steering/DATABASE_AND_ENVIRONMENTS.md` does not exist (dead link, found 2026-07-20 -
-     referenced from here and OPERATIONS.md but was removed at some point). See
-     `QUICKSTART_LOCAL.md` for local DB setup and `steering/GOVERNANCE.md`'s
-     "Credentials & Deployment" section for AWS endpoint/credential info instead.
+2. If LOCAL, changes don't affect users. For AWS endpoint/credential info, see `steering/GOVERNANCE.md`'s "Credentials & Deployment" section.
 
 3. If AWS, clear dashboard cache:
 ```bash
@@ -521,7 +517,7 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 |-------|-------|
 | Database/AWS setup | [QUICKSTART_LOCAL.md](../QUICKSTART_LOCAL.md) (local DB) / [GOVERNANCE.md](GOVERNANCE.md#credentials--deployment) (AWS) |
 | Data flow & loader issues | [DATA_LOADERS.md](DATA_LOADERS.md) |
-| Code quality | `LINT_POLICY.md` does not exist (dead link, found 2026-07-21) - see `make lint`/`make type-check` in the `Makefile` and [GOVERNANCE.md](GOVERNANCE.md)'s "Code Cleanliness" section |
+| Code quality | `make lint`/`make type-check` ([GOVERNANCE.md](GOVERNANCE.md#code-cleanliness-pre-commit-enforced)) |
 | Architecture questions | [GOVERNANCE.md](GOVERNANCE.md) |
 | Configuration & monitoring | [OPERATIONS.md](OPERATIONS.md) |
 | Deployment | [OPERATIONS.md](OPERATIONS.md) |

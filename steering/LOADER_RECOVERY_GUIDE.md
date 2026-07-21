@@ -322,29 +322,9 @@ aws cloudwatch put-metric-alarm \
   --region us-east-1
 ```
 
-### 2. Data Patrol Task (Every 5 min)
+### 2. Dashboard Staleness Check
 
-**Correction (2026-07-20):** `scripts/data_patrol.py` does not exist - the real module is
-`algo/algo_data_patrol.py`. The "every 5 min ECS service" claim below could not be
-confirmed live: `/ecs/algo-data-patrol` only appears as a CloudWatch log-group retention
-entry in `terraform/modules/lifecycle/main.tf`, plus a reference in
-`terraform/errored.tfstate` (an errored/abandoned state file) - no evidence of an actual
-running `algo-data-patrol` ECS service was found. `algo_data_patrol` is empty locally;
-`data_patrol_log` has 650 historical rows but nothing newer than 2026-07-05 (re-verified
-2026-07-21, 16 days stale) - consistent with a patrol process that ran manually/ad hoc at
-some point, not a live "every 5 min" ECS service. Treat this section as aspirational until
-verified against the real AWS account.
-
-```bash
-# Verify it's running (if it exists)
-aws ecs list-tasks \
-  --cluster algo-cluster \
-  --service-name algo-data-patrol \
-  --region us-east-1
-
-# View logs
-aws logs tail /ecs/algo-cluster --filter-pattern "data-patrol" --follow
-```
+Dashboard staleness indicator shows which tables are DEAD/WARNING/OK. Check the dashboard health panel if you suspect data is out of date.
 
 ### 3. Dashboard Staleness Indicator
 

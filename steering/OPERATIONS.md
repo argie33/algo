@@ -26,11 +26,7 @@ aws logs describe-log-groups --query 'logGroups[0].logGroupName' --region us-eas
 
 ## CI/CD Pipeline (.github/workflows/ci.yml)
 
-**Correction (2026-07-21):** this section previously described a file named
-`ci-fast-gates.yml`, which does not exist anywhere in this repo - the actual (and only)
-CI workflow is `.github/workflows/ci.yml` ("CI"), 3 jobs: `validate` (Python lint/type/
-test), `lint-js` (webapp/lambda ESLint/Prettier/npm audit - see the dead-code note above,
-this job still runs even though webapp/lambda isn't deployed), `coverage`.
+**CI Workflow:** `.github/workflows/ci.yml` contains 3 jobs: `validate` (Python lint/type/test), `lint-js` (Node linting), `coverage`.
 
 **What actually runs (verified against the workflow file, not the checklist below):**
 - Quality: ruff lint + format check, mypy, a narrow pylint rule pair
@@ -145,9 +141,7 @@ aws logs describe-log-streams \
 
 ## Dashboard Diagnostics
 
-**Correction 2026-07-20:** `dashboard.diagnose_dashboard` does not exist as a module -
-this section described aspirational tooling, not something you can actually run. Use one
-of the real diagnostic scripts instead:
+Use these diagnostic scripts:
 
 ```bash
 python check_system_health.py           # DB connectivity + freshness, orchestrator status, dev_server, dashboard import
@@ -296,7 +290,7 @@ gating mechanism was formally retired in migration 103 (composite_score-only tra
 | `earnings_blackout_days_before` / `_after` | int | 7 / 3 | Block entries N days before / after earnings (replaces the nonexistent `enable_earnings_blackout` bool - this gate can't be disabled with a single flag, only widened/narrowed) |
 | `min_daily_volume_shares` | int | 500000 | Min daily volume (replaces nonexistent `entry_volume_threshold`) |
 | `min_avg_daily_dollar_volume` | int | 500000 | Min $ volume (replaces nonexistent `entry_dollar_volume`) |
-| `halt_drawdown_pct` | float | -20.0 | Max drawdown before halt (replaces nonexistent `cb_drawdown_threshold` - note the value is negative) |
+| `halt_drawdown_pct` | float | -20.0 | Max drawdown before halt (negative value) |
 
 **There is no live "disable circuit breakers" flag.** `orchestrator_halt_enabled` was
 documented as one (see "Manual CB Override" below, also corrected) but no code anywhere
@@ -360,10 +354,10 @@ UPDATE algo_config SET value = '85' WHERE key = 'min_completeness_score';
 
 **Monitoring Halts (Live Dashboard):**
 
-**Correction 2026-07-20:** `dashboard.circuit_breaker_monitor` does not exist as a module.
-The dashboard's circuit-breaker panel (`dashboard/panels/`) shows this live when running
-`python -m dashboard --local`; for a one-shot check query `circuit_breaker_status`
-directly: `SELECT * FROM circuit_breaker_status ORDER BY updated_at DESC LIMIT 10;`
+The dashboard's circuit-breaker panel shows live status when running `python -m dashboard --local`. For a one-shot check:
+```sql
+SELECT * FROM circuit_breaker_status ORDER BY updated_at DESC LIMIT 10;
+```
 
 If any circuit breaker triggers:
 ```
@@ -430,8 +424,7 @@ is fixed and the next run re-evaluates.
 **Testing Circuit Breakers (Paper Trading):**
 
 ```sql
--- Set drawdown threshold to 5% temporarily (real key is halt_drawdown_pct, and it's
--- negative - 'cb_drawdown_threshold' from a previous version of this doc does not exist)
+-- Set drawdown threshold to 5% temporarily
 UPDATE algo_config SET value = '-5' WHERE key = 'halt_drawdown_pct';
 
 -- Make a losing trade → Drawdown > 5% → CB triggers
@@ -447,6 +440,5 @@ UPDATE algo_config SET value = '-20' WHERE key = 'halt_drawdown_pct';
 
 See:
 - `steering/GOVERNANCE.md` — Architecture, safety rules, system map, fail-fast principles
-- `steering/LINT_POLICY.md` does not exist (dead link, found 2026-07-21). Code quality/pre-commit enforcement is `make lint`/`make type-check`/`make ci-local` (see `Makefile`) plus the pre-commit hooks described in `steering/GOVERNANCE.md`'s "Code Cleanliness" section - no separate lint-policy doc or automated weekly audit currently exists despite being referenced from here and `GOVERNANCE.md`/`COMMON_OPERATIONS.md`
 - `steering/DATA_LOADERS.md` — Loader orchestration, batch sizing, freshness thresholds
-- `steering/DATABASE_AND_ENVIRONMENTS.md` does not exist (dead link, found 2026-07-20). For database setup see `QUICKSTART_LOCAL.md`; for AWS credentials see `steering/GOVERNANCE.md`'s "Credentials & Deployment" section
+- `QUICKSTART_LOCAL.md` — Local database setup

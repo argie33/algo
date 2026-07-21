@@ -29,7 +29,7 @@ Blocks commits:
 
 Allowed: `print()` in loaders, scripts, tests only.
 
-**See:** `steering/LINT_POLICY.md` does not exist (dead link, found 2026-07-21) - enforcement is `mypy --strict` + Pylint via pre-commit hooks and `make lint`/`make type-check` (see `Makefile`); there is no separate lint-policy doc beyond what's stated above.
+Enforcement: `mypy --strict` + Pylint via pre-commit hooks and `make lint`/`make type-check` (see `Makefile`).
 
 ---
 
@@ -180,7 +180,7 @@ Separately, phases 4/5/7/8 also carry `skip_if_halted=True`, which independently
 
 ## Rule Enforcement & Audit
 
-See "Code Cleanliness" section above for protected rules. No automated weekly audit currently exists (the `steering/LINT_POLICY.md` this line pointed to doesn't exist, found 2026-07-21) - enforcement is per-commit only, via the pre-commit hooks and CI (`.github/workflows/ci.yml`) described above.
+See "Code Cleanliness" section above for protected rules. Enforcement is per-commit via pre-commit hooks and CI (`.github/workflows/ci.yml`).
 
 ---
 
