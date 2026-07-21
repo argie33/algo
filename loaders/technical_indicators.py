@@ -22,6 +22,20 @@ def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
     avg_loss = losses.ewm(com=period - 1, min_periods=period).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
     rsi = 100 - (100 / (1 + rs))
+    # A window with zero down days (or zero up days) makes avg_loss (or avg_gain)
+    # NaN - there are literally no observations of that direction to average, since
+    # min_periods requires non-null values and none exist - not just 0. Textbook
+    # RSI defines these as the extremes (100 for zero down days, 0 for zero up
+    # days), not a divide-by-zero NaN. Without this, the strongest uptrends/
+    # downtrends (exactly the momentum extremes this system is built to find and
+    # to flag as overbought) silently lose their RSI reading - downstream
+    # (load_stock_scores.py _rsi_to_score) treats None/NaN as "no data" and skips
+    # the RSI score component entirely instead of reflecting the extreme reading.
+    # Only genuinely insufficient price history (both sides NaN) stays undefined.
+    no_loss_data = avg_loss.isna() | (avg_loss == 0)
+    no_gain_data = avg_gain.isna() | (avg_gain == 0)
+    rsi = rsi.where(~(no_loss_data & avg_gain.notna() & (avg_gain > 0)), 100.0)
+    rsi = rsi.where(~(no_gain_data & avg_loss.notna() & (avg_loss > 0)), 0.0)
     return rsi
 
 

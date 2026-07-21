@@ -529,12 +529,20 @@ class ValueAtRisk:
                         s_mean = Decimal(str(sum(s_rets) / n))
                         m_mean = Decimal(str(sum(m_rets) / n))
                         cov = Decimal(str(sum((s_rets[i] - s_mean) * (m_rets[i] - m_mean) for i in range(n)) / n))
-                        if spy_var <= 0:
+                        # Beta's denominator must be the variance of the SAME market-return sample
+                        # used in the covariance numerator above, not the unaligned full 60-day
+                        # spy_var - otherwise a stock with any data gap gets cov computed on a
+                        # subsample but divided by variance from a different (larger) sample,
+                        # silently biasing beta. Mirrors the date-alignment fix already applied
+                        # to cov itself (see comment above on common_price_dates).
+                        m_var = Decimal(str(sum((r - m_mean) ** 2 for r in m_rets) / n))
+                        if m_var <= 0:
                             raise ValueError(
-                                f"[VAR CALCULATION] {symbol}: market variance is zero or negative ({spy_var}). "
+                                f"[VAR CALCULATION] {symbol}: market variance is zero or negative ({m_var}) "
+                                f"over the {n}-period window aligned with this symbol. "
                                 f"Cannot compute beta with zero market volatility."
                             )
-                        estimated_beta = (cov / spy_var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                        estimated_beta = (cov / m_var).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
                     except (ValueError, ZeroDivisionError, TypeError) as e:
                         raise RuntimeError(f"Beta calculation failed for {symbol}: {e}") from e
 

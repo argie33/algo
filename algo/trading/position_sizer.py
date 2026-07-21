@@ -341,22 +341,34 @@ class PositionSizer:
 
         Fails fast  -" raises if any data missing. Position sizing requires accurate
         drawdown to adjust risk multiplier correctly. Guessing is worse than not trading.
+
+        Uses adjusted_equity/cash-flow-adjusted peak (migration 1134), NOT raw
+        total_portfolio_value. Raw equity moves for two different reasons: trading
+        performance AND external capital flows (deposits/withdrawals). A withdrawal
+        looks identical to a trading loss in the raw series - this is the same bug
+        migration 1134 fixed in algo/risk/circuit_breaker.py's drawdown check; this
+        method must use the same cash-flow-adjusted series so a withdrawal cannot
+        trip the 5/10/15/20% risk-reduction tiers below (get_risk_adjustment) or
+        the 20% halt as if it were a real trading loss.
         """
 
         def calc_drawdown(cur: PsycopgCursor[Any]) -> Decimal:
-            cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots")
+            cur.execute("SELECT COUNT(*) FROM algo_portfolio_snapshots WHERE adjusted_equity IS NOT NULL")
             count_result = cur.fetchone()
             if count_result is None or len(count_result) < 1 or count_result[0] is None or count_result[0] == 0:
                 raise RuntimeError(
-                    "No portfolio snapshots found. Phase 7 must run daily to maintain drawdown tracking."
+                    "No portfolio snapshots with adjusted_equity found. Phase 7 must run daily to maintain "
+                    "drawdown tracking, and scripts/record_capital_flow.py must have backfilled adjusted_equity."
                 )
 
             cur.execute("""
                 SELECT
-                    MAX(total_portfolio_value) as peak,
-                    (SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                    MAX(adjusted_equity) as peak,
+                    (SELECT adjusted_equity FROM algo_portfolio_snapshots
+                     WHERE adjusted_equity IS NOT NULL
                      ORDER BY snapshot_date DESC LIMIT 1) as current
                 FROM algo_portfolio_snapshots
+                WHERE adjusted_equity IS NOT NULL
             """)
             result = cur.fetchone()
             if result is None or len(result) < 2 or result[0] is None or result[1] is None:
@@ -367,7 +379,7 @@ class PositionSizer:
             peak = Decimal(str(result[0]))
             current = Decimal(str(result[1]))
             if peak == 0:
-                raise RuntimeError("Peak portfolio value is zero. Portfolio snapshots data is invalid.")
+                raise RuntimeError("Peak adjusted equity is zero. Portfolio snapshots data is invalid.")
 
             drawdown_pct = ((peak - current) / peak) * Decimal(100)
             return max(Decimal(0), drawdown_pct)

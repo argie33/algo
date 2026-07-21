@@ -33,7 +33,12 @@ class LiquidityChecks:
 
     def run_all(self, symbol: str, entry_price: float, signal_date: _date | None = None) -> tuple[bool, str]:
         if signal_date is None:
-            return True, "Liquidity checks skipped (no signal_date)"
+            # Every other unavailable-data path in this class fails closed (blocks the
+            # trade) rather than fails open. A missing signal_date is no different - it
+            # means we cannot verify ADV/dollar-volume/IPO-age, so silently passing here
+            # would let an unvetted symbol through liquidity gating entirely.
+            logger.error(f"Liquidity checks unavailable for {symbol}: no signal_date provided - blocking as safety measure")
+            return False, "Liquidity checks unavailable (no signal_date) - blocking as safety measure"
         try:
             age_passed, age_reason = self._check_price_history_age(symbol, signal_date)
             if not age_passed:

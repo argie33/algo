@@ -368,57 +368,9 @@ class SignalsDailyLoader(OptimalLoader):
 
         # CRITICAL FIX (Session 262): Skip watermark lookup entirely for buy_sell_daily.
         # See comment above - we don't use watermarks for incremental loading because
-        # signals are generated for historical dates, not just new dates.
-        # Skipping watermark lookup saves ~100ms per symbol x 2829 symbols = ~4.7 minutes per run.
-        if False:  # Disabled - watermark not used for buy_sell_daily
-            try:
-                # CRITICAL: Validate symbol_watermarks exists in batch_context
-                symbol_watermarks = self._batch_context.get("symbol_watermarks")
-                if symbol_watermarks is None:
-                    raise RuntimeError(
-                        f"[WATERMARK] {symbol}: 'symbol_watermarks' missing from batch context. "
-                        "_prepare_batch_context() must populate symbol_watermarks dict. "
-                        "This indicates batch context initialization failed or was incomplete."
-                    )
-
-                max_date = None
-                if not isinstance(symbol_watermarks, dict):
-                    raise TypeError(
-                        f"[WATERMARK] symbol_watermarks must be dict, got {type(symbol_watermarks).__name__}. "
-                        "Batch context corrupted."
-                    )
-
-                # Lookup in pre-cached watermarks
-                max_date = symbol_watermarks.get(symbol)
-                if max_date is None:
-                    # Cache miss: symbol not in pre-cached watermarks (likely newly added)
-                    # Query database as legitimate fallback for new symbols
-                    with DatabaseContext("read") as cur:
-                        cur.execute(
-                            "SELECT MAX(date) FROM buy_sell_daily WHERE symbol = %s",
-                            (symbol,),
-                        )
-                        row = cur.fetchone()
-                        if row is not None and len(row) >= 1 and row[0] is not None:
-                            max_date = row[0]
-
-                # Convert max_date to date if found
-                if max_date is not None:
-                    if isinstance(max_date, date) and not isinstance(max_date, datetime):
-                        since = max_date
-                    elif isinstance(max_date, datetime):
-                        since = max_date.date()
-                    else:
-                        raise RuntimeError(
-                            f"[BUY_SELL_DAILY] {symbol}: Unexpected date type from watermark: {type(max_date).__name__}. "
-                            f"Expected date or datetime, got: {max_date}. "
-                            f"Database query may be returning wrong type or corrupted data."
-                        )
-            except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-                raise RuntimeError(
-                    f"[BUY_SELL_DAILY] Failed to read watermark for {symbol}: {e}. "
-                    "Cannot determine incremental load point for buy/sell signal computation."
-                ) from e
+        # signals are generated for historical dates, not just new dates. `since` is used
+        # as passed in by the caller (see LOOKBACK FIX below for how a None/stale value
+        # is handled).
 
         # LOOKBACK FIX (Session 263 EXTENDED): swing-pivot detection scans up to 50 bars back (~70+ calendar
         # days). Incremental runs must always have a full lookback window for pattern detection.

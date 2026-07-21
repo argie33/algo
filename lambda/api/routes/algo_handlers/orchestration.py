@@ -70,7 +70,18 @@ def _get_orchestrator_execution_failed(cur: cursor, days: int = 30) -> Any:
 @db_route_handler("fetch orchestrator execution patterns")  # type: ignore[untyped-decorator]
 @validate_api_response("run")  # type: ignore[untyped-decorator]
 def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> Any:
-    """Analyze halt patterns - which phases halt most often."""
+    """Analyze halt/failure patterns - which phases halt or fail most often.
+
+    Phases log via two status vocabularies that were never reconciled (see
+    utils/logging/execution_tracker.py's save_execution_log docstring): the
+    persisted phase_results JSONB uses the log_phase_result_fn callback vocab
+    ("success"/"halt"/"error"/"alert"/"warn"/"degraded"/"skipped"), not the
+    PhaseResult object's own ("ok"/"halted"/...). Phase 4 (reconciliation)
+    in particular logs its failures as "alert", not "halt" - matching only
+    'halt' here silently dropped every reconciliation failure from this
+    analysis. Match the full failure vocabulary so no phase failure is
+    invisible from this endpoint.
+    """
     cur.execute(
         """
         SELECT
@@ -80,7 +91,7 @@ def _get_orchestrator_execution_patterns(cur: cursor, days: int = 30) -> Any:
         FROM orchestrator_execution_log,
              jsonb_array_elements(phase_results) as phase_results
         WHERE run_date >= CURRENT_DATE - %s
-          AND phase_results->>'status' = 'halt'
+          AND phase_results->>'status' IN ('halt', 'halted', 'error', 'alert', 'warn')
         GROUP BY phase_results->>'name'
         ORDER BY halt_count DESC
     """,
@@ -105,20 +116,28 @@ def _get_orchestrator_execution_recent(cur: cursor, days: int = 7, limit: int = 
         cur.execute(
             """
             SELECT run_id, run_date, started_at, completed_at, overall_status, summary,
+                   -- Phases log via two status vocabularies that were never reconciled: the
+                   -- persisted phase_results JSONB uses the log_phase_result_fn callback vocab
+                   -- ("success"/"halt"/"error"/"alert"/"degraded"/"skipped"), not the PhaseResult
+                   -- object's own ("ok"/"halted"/...). Phase 4 (reconciliation) in particular logs
+                   -- failures as "alert" - matching only 'error'/'halt' silently dropped every
+                   -- reconciliation failure from all three buckets below (see
+                   -- utils/logging/execution_tracker.py's save_execution_log for the authoritative
+                   -- mapping this mirrors).
                    COALESCE(ARRAY(
                        SELECT 'P' || (p->>'phase')
                        FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
-                       WHERE p->>'status' = 'success'
+                       WHERE p->>'status' IN ('success', 'ok')
                    ), ARRAY[]::text[]) AS phases_completed,
                    COALESCE(ARRAY(
                        SELECT 'P' || (p->>'phase')
                        FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
-                       WHERE p->>'status' = 'halt'
+                       WHERE p->>'status' IN ('halt', 'halted')
                    ), ARRAY[]::text[]) AS phases_halted,
                    COALESCE(ARRAY(
                        SELECT 'P' || (p->>'phase')
                        FROM jsonb_array_elements(COALESCE(phase_results, '[]'::jsonb)) p
-                       WHERE p->>'status' = 'error'
+                       WHERE p->>'status' IN ('error', 'alert')
                    ), ARRAY[]::text[]) AS phases_errored
             FROM orchestrator_execution_log
             WHERE run_date >= CURRENT_DATE - %s
