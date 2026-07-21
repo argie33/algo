@@ -1143,6 +1143,17 @@ class PositionMonitor:
                     position_value = %s * %s,
                     unrealized_pnl = (%s - avg_entry_price) * %s,
                     unrealized_pnl_pct = CASE WHEN avg_entry_price > 0 THEN ((%s - avg_entry_price) / avg_entry_price) * 100 ELSE NULL END,
+                    -- r_multiple was written once at entry as a hardcoded 1.0 "baseline" (see
+                    -- executor_entry_handler.py._record_entry_phase) and never touched again, so
+                    -- the positions dashboard's "R" column silently showed +1.00R for every open
+                    -- position regardless of actual price movement. Recompute it live every cycle
+                    -- against the original stop_loss_price (not current_stop_price, which trailing
+                    -- stops may have raised) - same convention executor_exit_handler.py uses for
+                    -- exit_r_multiple, so an open position's R stays comparable to its eventual
+                    -- closed R rather than resetting when the stop is trailed.
+                    r_multiple = CASE WHEN (avg_entry_price - stop_loss_price) > 0
+                                      THEN (%s - avg_entry_price) / (avg_entry_price - stop_loss_price)
+                                      ELSE NULL END,
                     days_since_entry = %s,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE position_id = %s
@@ -1153,6 +1164,7 @@ class PositionMonitor:
                     current_price,
                     current_price,
                     quantity,
+                    current_price,
                     current_price,
                     int(rec["days_held"]),
                     rec["position_id"],

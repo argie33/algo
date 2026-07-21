@@ -525,6 +525,8 @@ class EntryHandler:
         entry_price: Decimal,
         executed_price: Decimal | None,
         order_status: str,
+        shares_requested: Decimal,
+        shares_filled: Decimal,
     ) -> None:
         """Record trade cost analysis (execution quality)."""
         try:
@@ -533,13 +535,18 @@ class EntryHandler:
             if execution_latency_ms < 0:
                 raise ValueError(f"[TCA CRITICAL] {symbol}: negative latency {execution_latency_ms}ms")
 
+            # shares_requested/shares_filled were previously hardcoded to 1/1, which made
+            # fill_rate_pct (algo/trading/tca.py::record_fill, shares_filled/shares_requested*100)
+            # always report 100% - a partial fill (e.g. 60 of 100 shares) was recorded in the
+            # TCA execution-quality audit trail identically to a full fill, masking the exact
+            # condition TCA exists to catch.
             tca_result = self.tca.record_fill(
                 trade_id=trade_id,
                 symbol=symbol,
                 signal_price=entry_price,
                 fill_price=(executed_price if executed_price else entry_price),
-                shares_requested=1,
-                shares_filled=1,
+                shares_requested=int(shares_requested),
+                shares_filled=int(shares_filled),
                 side="BUY",
                 execution_latency_ms=execution_latency_ms,
             )
@@ -845,12 +852,15 @@ class EntryHandler:
             # This ensures paper mode trading maintains accurate position state
             position_status = "paper_open" if order_status == "paper_pending" else "open"
 
-            # Calculate R-multiple for risk metrics (entry - stop) for accurate risk assessment
+            # r_multiple at the instant of entry is 0 (current_price == executed_price, no
+            # movement yet), not the 1.0 this previously hardcoded - position_monitor.py's
+            # _persist_review recomputes this live on every subsequent cycle against
+            # stop_loss_price, so this initial value only shows until the first review runs.
             r_multiple = None
             if stop_loss_price and executed_price:
                 risk_per_share = executed_price - stop_loss_price
                 if risk_per_share > 0:
-                    r_multiple = 1.0  # 1R baseline; actual targets provide specific R values
+                    r_multiple = 0.0
 
             cur.execute(
                 """
@@ -892,7 +902,7 @@ class EntryHandler:
 
         # Record TCA (execution quality) for fills in auto mode
         if self.context.execution_mode == "auto" and order_status in ("filled", "partially_filled"):
-            self._record_tca(trade_id, symbol, entry_price, executed_price, order_status)
+            self._record_tca(trade_id, symbol, entry_price, executed_price, order_status, shares, actual_shares)
 
         return order_status
 
