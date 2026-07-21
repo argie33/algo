@@ -336,11 +336,28 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
             "success",
             summary,
         )
+        # Surface the summary metrics the health dashboard (dashboard/panels/health.py,
+        # Phase 3 detail row) already expects under these exact keys - previously this
+        # PhaseResult.data only had recommendations/count, so Open positions/Oldest
+        # position/Max loss/Total unrealized silently never rendered despite each
+        # recommendation dict already carrying days_held/unrealized_pct/unrealized_pnl
+        # per position. FAILED_VALIDATION entries lack these fields entirely, so filter
+        # None values rather than assuming every entry has them.
+        days_held_vals = [r["days_held"] for r in recommendations if r.get("days_held") is not None]
+        unrealized_pct_vals = [r["unrealized_pct"] for r in recommendations if r.get("unrealized_pct") is not None]
+        unrealized_pnl_vals = [r["unrealized_pnl"] for r in recommendations if r.get("unrealized_pnl") is not None]
         return PhaseResult(
             3,
             "position_monitor",
             "ok",
-            {"recommendations": recommendations, "count": len(recommendations)},
+            {
+                "recommendations": recommendations,
+                "count": len(recommendations),
+                "open_positions": len(recommendations),
+                "oldest_days": max(days_held_vals) if days_held_vals else None,
+                "max_loss_pct": min(unrealized_pct_vals) if unrealized_pct_vals else None,
+                "total_unrealized_pnl": sum(unrealized_pnl_vals) if unrealized_pnl_vals else None,
+            },
             False,
             None,
         )
