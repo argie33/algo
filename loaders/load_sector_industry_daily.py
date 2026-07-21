@@ -53,9 +53,14 @@ class SectorIndustryDailyLoader(OptimalLoader):
         import os
 
         from utils.db.dynamo_lock import DynamoDBLockManager
-        from utils.db.local_file_lock import FileLockManager, get_lock_manager
+        from utils.db.local_file_lock import get_lock_manager
+        from utils.db.rds_lock import RDSLockManager
 
-        lock_manager: DynamoDBLockManager | FileLockManager | None = None
+        # get_lock_manager()'s real return type is DynamoDBLockManager | RDSLockManager (see
+        # its docstring: DynamoDB preferred, RDS fallback - FileLockManager was a prior
+        # fallback this codebase deliberately moved away from, see the RuntimeError handler
+        # below). Declared type must match what's actually assigned.
+        lock_manager: DynamoDBLockManager | RDSLockManager | None = None
         try:
             lock_table = os.getenv(
                 "LOADER_LOCKS_TABLE",
@@ -79,6 +84,11 @@ class SectorIndustryDailyLoader(OptimalLoader):
                     context={"table_name": self.table_name}
                 ) from ddb_err
 
+            # get_lock_manager() either returns a real lock manager or raises RuntimeError
+            # above (caught and re-raised as LockAcquisitionError) - it never returns None.
+            # Narrows the type for mypy without weakening lock_manager's declared type,
+            # which must stay Optional for the `if lock_manager:` release check in finally.
+            assert lock_manager is not None
             if not lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
                 logger.error(f"[{self.table_name}] Could not acquire lock")
                 return 0

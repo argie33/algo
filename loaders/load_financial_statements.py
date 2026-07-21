@@ -438,9 +438,13 @@ def load_all_statements() -> int:
 
     # Per-table run locks: same lock keys and skip semantics as OptimalLoader.run.
     from utils.db.dynamo_lock import DynamoDBLockManager
-    from utils.db.local_file_lock import FileLockManager
+    from utils.db.rds_lock import RDSLockManager
 
-    lock_manager: DynamoDBLockManager | FileLockManager | None = None
+    # get_lock_manager()'s real return type is DynamoDBLockManager | RDSLockManager (see
+    # its docstring: DynamoDB preferred, RDS fallback - FileLockManager was a prior
+    # fallback this codebase deliberately moved away from, see the RuntimeError handler
+    # below). Declared type must match what's actually assigned.
+    lock_manager: DynamoDBLockManager | RDSLockManager | None = None
     active: list[ConsolidatedFinancialStatementsLoader] = []
     try:
         lock_table = os.getenv(
@@ -468,6 +472,11 @@ def load_all_statements() -> int:
                 context={"loader": "financial_statements"}
             ) from ddb_err
 
+        # get_lock_manager() either returns a real lock manager or raises RuntimeError
+        # above (caught and re-raised as LockAcquisitionError) - it never returns None.
+        # Narrows the type for mypy without weakening lock_manager's declared type, which
+        # must stay Optional for _release_combo_locks()'s cleanup in the except block below.
+        assert lock_manager is not None
         for loader in loaders:
             if lock_manager.acquire(lock_key=loader.table_name, timeout_seconds=5):
                 active.append(loader)
