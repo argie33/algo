@@ -258,10 +258,21 @@ class EntryHandler:
                 )
             )
             if not order_ok:
-                # PAPER MODE GRACEFUL DEGRADATION: In paper trading, still create trade record
-                # even if Alpaca submission fails (connection, auth, etc.)
-                # This ensures trades are tracked for backtesting and portfolio management
-                if execution_mode in ("paper", "auto"):
+                # CRITICAL: this branch is the ONLY place order_ok can be False, and the ONLY
+                # execution_mode that can ever reach it is "auto" - _submit_and_validate_order()
+                # unconditionally returns success=True for paper/dry/review (they never touch
+                # Alpaca; only "auto" sends a real order and can genuinely fail/be rejected). The
+                # "in ('paper', 'auto')" check below therefore ALWAYS matched on every real live
+                # order rejection, meaning a rejected/failed order in live trading silently
+                # created a fake successful trade record (order_status="paper_pending",
+                # executed_price=entry_price - a price nothing was ever actually filled at)
+                # instead of halting - the "else: Live mode: Alpaca failure is a hard stop"
+                # branch below was completely unreachable dead code for every valid
+                # execution_mode value. Scoped to paper-only: paper mode legitimately wants to
+                # keep tracking a hypothetical trade for backtesting even without Alpaca
+                # connectivity (it was never going to touch real money either way); auto mode
+                # must now correctly fall through to the hard-stop branch.
+                if execution_mode == "paper":
                     logger.warning(
                         f"[PAPER MODE] {symbol}: Alpaca order failed ({order_error}), "
                         f"but creating trade record in paper mode for backtest/tracking"
@@ -273,7 +284,13 @@ class EntryHandler:
                     rejection_reason = f"Paper mode - Alpaca unavailable: {order_error[:200]}"
                     # Continue to Phase 3 to record the trade
                 else:
-                    # Live mode: Alpaca failure is a hard stop
+                    # Live/auto mode: Alpaca order failure or rejection is a hard stop - do NOT
+                    # fabricate a trade record for a position that was never actually opened.
+                    logger.critical(
+                        f"[ENTRY_HANDLER CRITICAL] {symbol}: Order failed/rejected in "
+                        f"execution_mode={execution_mode!r} - NOT creating a trade record. "
+                        f"Reason: {order_error}"
+                    )
                     return {
                         "success": False,
                         "trade_id": trade_id,
