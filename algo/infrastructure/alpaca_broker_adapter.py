@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Alpaca broker adapter - implementation of BrokerAdapter for Alpaca broker."""
 
+import json
 import logging
 import time
 from typing import Any
@@ -196,6 +197,7 @@ class AlpacaBrokerAdapter(BrokerAdapter):
             ValueError,
             KeyError,
             AttributeError,
+            json.JSONDecodeError,
         ) as e:
             if "401" in str(e) or "403" in str(e):
                 raise ValueError(
