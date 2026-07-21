@@ -463,3 +463,66 @@ class TestOrchestrationRecovery:
 
         # Should not retry on data validation errors
         assert permanent_error.is_error is True
+
+
+class TestSkippedPhasesReachAuditTrail:
+    """Regression: phases skipped after an earlier halt (skip_if_halted=True) must still
+    reach orchestrator_execution_log, not vanish from the audit trail.
+
+    phase_executor.py's execute_phase() builds a skipped phase's PhaseResult directly and
+    never calls phase.execute_fn - so the log_phase_result_fn callback wired to each phase
+    module (which forwards into Orchestrator.execution_tracker, the tracker whose
+    phase_results is what actually gets persisted to orchestrator_execution_log) never
+    fires for a skipped phase. Orchestrator._execute_phases() used to only record such
+    phases into self.phase_results (an in-memory dict used solely for the console
+    _final_report()), so they were silently absent from the DB row and from
+    phases_completed/halted/errored counts - not shown as skipped, just missing.
+    """
+
+    def test_skipped_phase_recorded_in_execution_tracker(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+
+        from algo.orchestration.orchestrator import Orchestrator
+        from algo.orchestrator.phase_result import PhaseResult
+        from utils.logging.execution_tracker import OrchestratorExecutionTracker
+
+        tracker = OrchestratorExecutionTracker()
+        tracker.run_id = "test-run"
+        tracker.run_date = date.today()
+
+        executor_result = {
+            "results": {
+                1: PhaseResult(1, "data_freshness", "ok", {}, False, None),
+                2: PhaseResult(2, "circuit_breakers", "halted", {}, True, "CB triggered"),
+                # Phase 4 never executed - skip_if_halted path in phase_executor.py builds
+                # this PhaseResult directly without ever calling phase4's execute_fn.
+                4: PhaseResult(4, "reconciliation", "skipped", {"reason": "phase skipped"}, True, None),
+            }
+        }
+
+        fake_self = SimpleNamespace(
+            phase_results={},
+            execution_tracker=tracker,
+            halt_manager=SimpleNamespace(proactive_clear_stale_halt=lambda: False),
+            _setup_executor=lambda skip_phases: SimpleNamespace(run=lambda: executor_result),
+            run_id="test-run",
+            verbose=False,
+        )
+        # _execute_phases calls self.log_phase_result(...) - bind the real unbound method
+        # to fake_self so it exercises the actual production code path being regression-tested.
+        fake_self.log_phase_result = lambda *a, **kw: Orchestrator.log_phase_result(fake_self, *a, **kw)
+
+        with (
+            patch("algo.orchestration.orchestrator.get_event_hub"),
+            patch("algo.orchestration.orchestrator.DatabaseContext"),
+        ):
+            Orchestrator._execute_phases(fake_self)
+
+        # Before the fix: phase 4 would be present in fake_self.phase_results (in-memory
+        # only) but absent from tracker.phase_results (the one that reaches the DB).
+        assert 4 in tracker.phase_results, "Skipped phase must reach the persisted execution tracker"
+        assert tracker.phase_results[4]["status"] == "skipped"
+        # Executed phases must still log normally (no regression on the working path).
+        assert tracker.phase_results[1]["status"] == "ok"
+        assert tracker.phase_results[2]["status"] == "halted"
