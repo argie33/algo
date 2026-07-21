@@ -2,11 +2,22 @@
 
 from __future__ import annotations
 
+from typing import Any
+
+from psycopg2.extensions import cursor
+
 from routes import sync_stock_scores
 from routes.algo_handlers.inventory import _get_table_inventory
 
 
-def handle(cur, path: str, method: str, params: dict, body: dict | None = None, jwt_claims: dict | None = None):
+def handle(
+    cur: cursor,
+    path: str,
+    method: str,
+    params: dict[str, Any],
+    body: dict[str, Any] | None = None,
+    jwt_claims: dict[str, Any] | None = None,
+) -> Any:
     """Handle /api/admin/* endpoints."""
     if path == "/api/admin/inventory":
         return _get_table_inventory(cur)

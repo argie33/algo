@@ -170,7 +170,8 @@ class SignalsDailyLoader(OptimalLoader):
             ) from e
 
         # Call parent run() with filtered symbols
-        return super().run(symbols, parallelism=parallelism, backfill_days=backfill_days)
+        effective_parallelism: int = parallelism if parallelism is not None else 1
+        return super().run(symbols, parallelism=effective_parallelism, backfill_days=backfill_days)
 
     def _prepare_batch_context(self) -> None:
         """Load shared data once to avoid N+1 queries (ROOT CAUSE #4 FIX).
@@ -310,7 +311,7 @@ class SignalsDailyLoader(OptimalLoader):
                 # OPTIMIZATION (Session 262): Removed pre-caching of symbol watermarks.
                 # Watermarks are no longer used for buy_sell_daily (see fetch_incremental comment).
                 # This saves one TABLE SCAN on buy_sell_daily per run (minor optimization).
-                symbol_watermarks = {}
+                symbol_watermarks: dict[str, date] = {}
 
                 # N+1 FIX: per-symbol technical_data_daily freshness used to be a separate
                 # MAX(date) query inside fetch_incremental for every symbol (~10k round

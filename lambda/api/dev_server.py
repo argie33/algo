@@ -199,7 +199,7 @@ if not os.path.isdir(log_dir):
         raise RuntimeError(error_detail) from e
 
 log_file_path = os.path.join(log_dir, "dev_server.log")
-log_file: str | None = log_file_path
+log_file: str = log_file_path
 
 # Verify log file path is writable before configuring logging
 try:

@@ -170,7 +170,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 "This configuration is required for staleness detection. "
                 "Verify utils/validation/__init__.py imports FRESHNESS_RULES from freshness_config.py."
             )
-        _fr: dict[str, dict[str, int | bool]] = validation_module.FRESHNESS_RULES
+        # FRESHNESS_RULES entries are heterogeneous (critical: bool, max_age_days: int,
+        # description/purpose: str, applies_to: list) - dict[str, int | bool] was too
+        # narrow relative to the real structure in freshness_config.py.
+        _fr: dict[str, dict[str, Any]] = validation_module.FRESHNESS_RULES
 
         # Tables intentionally removed from health tracking - these are optional enrichment only
         # (not core to algo trading decisions). Excluding them prevents noise on the health panel.
@@ -1550,7 +1553,7 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         )
         data["fed"] = market_health.get("fed_rate_environment")
 
-        return json_response(200, response["data"])
+        return json_response(200, data)
     except (
         psycopg2.errors.UndefinedTable,
         psycopg2.errors.UndefinedColumn,

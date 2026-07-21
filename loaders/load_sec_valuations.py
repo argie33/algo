@@ -294,7 +294,13 @@ class SecValuationsLoader(OptimalLoader):
         # Growth rate: (TTM EPS - EPS from prior fiscal year) / EPS from prior fiscal year
         # NOTE: Annual (fiscal-year over fiscal-year), not quarterly - full quarterly
         # lookback would require quarterly history this loader doesn't fetch.
-        if result["pe_ratio"] and prior_year_eps and prior_year_eps > 0 and ttm_eps > 0:
+        if (
+            result["pe_ratio"]
+            and prior_year_eps is not None
+            and prior_year_eps > 0
+            and ttm_eps is not None
+            and ttm_eps > 0
+        ):
             growth_rate = ((ttm_eps - prior_year_eps) / abs(prior_year_eps)) * 100 if prior_year_eps != 0 else None
             if growth_rate and growth_rate > 0 and result["pe_ratio"] > 0:
                 peg = result["pe_ratio"] / growth_rate
