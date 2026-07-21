@@ -34,6 +34,16 @@ def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # data_loader_status.last_updated is naive (timestamp without time zone), written
+        # via utils/bulk_insert_manager.py's session-local convention (`SHOW timezone`), not
+        # UTC - treating it as UTC directly inflated every age_hours below by the session's
+        # UTC offset (4-6h), the same bug just fixed for /api/algo/data-status
+        # (lambda/api/routes/algo_handlers/market.py). Resolved once, not per loader.
+        cur.execute("SHOW timezone")
+        from zoneinfo import ZoneInfo
+
+        naive_tz = ZoneInfo(cur.fetchone()[0])
+
         critical_loaders = [
             "price_daily",
             "sector_ranking",
@@ -67,7 +77,7 @@ def check_loader_health() -> tuple[str, list[dict[str, Any]]]:
 
                 status, last_run = row
                 if last_run:
-                    last_run = last_run.replace(tzinfo=timezone.utc) if last_run.tzinfo is None else last_run
+                    last_run = last_run.replace(tzinfo=naive_tz) if last_run.tzinfo is None else last_run
                     age_hours = (now - last_run).total_seconds() / 3600
 
                     # Check if stale (>26 hours for daily loaders)
@@ -123,6 +133,14 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # Same session-local-not-UTC fix as check_loader_health() above - these tables'
+        # created_at columns are naive and written per utils/bulk_insert_manager.py's
+        # convention.
+        cur.execute("SHOW timezone")
+        from zoneinfo import ZoneInfo
+
+        naive_tz = ZoneInfo(cur.fetchone()[0])
+
         critical_tables = {
             "price_daily": "Daily stock prices (blocks all downstream loaders)",
             "buy_sell_daily": "Buy/sell signals (blocks Phase 5 entry generation)",
@@ -163,7 +181,7 @@ def check_data_freshness() -> tuple[str, list[dict[str, Any]]]:
                         }
                     )
                 elif max_date:
-                    max_date = max_date.replace(tzinfo=timezone.utc) if max_date.tzinfo is None else max_date
+                    max_date = max_date.replace(tzinfo=naive_tz) if max_date.tzinfo is None else max_date
                     age_hours = (now - max_date).total_seconds() / 3600
 
                     # Alert if data is >24 hours old
