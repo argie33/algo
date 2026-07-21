@@ -112,6 +112,20 @@ def _reset_algo_config_key(cur: cursor, key: str, actor: str) -> Any:
     """,
         (default_val, actor, key),
     )
+    # key existing in AlgoConfig.DEFAULTS (checked above) does not guarantee a row exists
+    # in the algo_config TABLE - DEFAULTS is a code-level dict that can drift ahead of the
+    # DB (a new key added to DEFAULTS without a corresponding seed migration). Without this
+    # check, the UPDATE above silently matches zero rows while this endpoint still writes an
+    # audit log entry and reports "status": "success" - an operator resetting a risk
+    # parameter (e.g. a circuit breaker threshold) during a live incident would believe the
+    # reset took effect when the value was never actually persisted.
+    if cur.rowcount == 0:
+        return error_response(
+            404,
+            "not_found",
+            f"Config key '{key}' exists in code defaults but has no row in algo_config table - "
+            f"reset did not persist. This indicates a missing seed migration for this key.",
+        )
 
     # Log to audit trail
     cur.execute(
@@ -180,6 +194,14 @@ def _update_algo_config_key(cur: cursor, key: str, body: dict[str, Any], actor: 
         """,
         (str(new_value), actor, key),
     )
+    # The existence check above (SELECT ... WHERE key = %s) narrows the race but doesn't
+    # close it - without this, a row deleted between that SELECT and this UPDATE would
+    # silently no-op while this endpoint still writes an audit log entry and reports
+    # "status": "success" for a risk-parameter change that never persisted.
+    if cur.rowcount == 0:
+        return error_response(
+            404, "not_found", f"Config key '{key}' was not found at update time (may have just been removed)"
+        )
 
     # Log to audit trail
     cur.execute(
