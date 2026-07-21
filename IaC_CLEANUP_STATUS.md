@@ -146,7 +146,7 @@ gh run view <RUN_ID> --log
 ### Documentation ✅
 - [x] Updated CLAUDE.md with deployment procedures
 - [x] Created steering/OPERATIONS.md (CI/CD + deployment)
-- [x] Created steering/AWS_BILLING_AND_COST_CONTROLS.md
+- [x] Created BILLING_QUICK_REFERENCE.md
 - [x] Created IaC_IMPROVEMENTS.md (what changed + why)
 - [x] Created AWS_ACCOUNT_MIGRATION_GUIDE.md (edgebrookecapital → edgebrookelabs)
 
@@ -373,6 +373,6 @@ aws secretsmanager put-secret-value \
 
 **See also:**
 - `steering/OPERATIONS.md` — Deployment procedures + CI/CD
-- `steering/AWS_BILLING_AND_COST_CONTROLS.md` — Cost monitoring
+- `BILLING_QUICK_REFERENCE.md` — Cost monitoring
 - `IaC_IMPROVEMENTS.md` — What changed and why
 - `AWS_ACCOUNT_MIGRATION_GUIDE.md` — Account setup

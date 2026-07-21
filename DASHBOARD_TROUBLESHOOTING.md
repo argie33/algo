@@ -61,7 +61,7 @@ curl -I https://<your-api-gateway-url>/api/health
 # Should return HTTP 200
 ```
 
-If HTTP 503 (Service Unavailable), see `steering/AWS_LAMBDA_503_FIX.md`.
+If HTTP 503 (Service Unavailable), enable Lambda provisioned concurrency (5 units) via Terraform to prevent cold-start timeouts.
 
 ### Step 3: Check Lambda CloudWatch Logs
 ```bash
@@ -187,7 +187,7 @@ FROM technical_data_daily;
 python scripts/fix-lambda-vpc-config.py
 ```
 
-This ensures Lambda can reach RDS. See `steering/AWS_LAMBDA_503_FIX.md` for manual fix.
+This ensures Lambda can reach RDS. If manual fix needed, check Terraform Lambda VPC configuration and provisioned concurrency.
 
 ### Step 2: Check Database Connectivity
 ```bash
@@ -433,5 +433,5 @@ python dashboard.py 2>&1 | tail -100
 4. If still stuck, check:
    - `steering/COMMON_OPERATIONS.md` — broader troubleshooting
    - `steering/LOADER_RECOVERY_GUIDE.md` — data pipeline issues
-   - `steering/AWS_LAMBDA_503_FIX.md` — AWS-specific issues
+   - `steering/OPERATIONS.md` — AWS/Lambda configuration
 5. Check git log for recent changes: `git log --oneline -20`
