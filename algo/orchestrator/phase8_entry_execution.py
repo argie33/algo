@@ -684,8 +684,15 @@ def run(
             portfolio_value_source = "alpaca_api"
             logger.info(f"[PHASE 8] Portfolio value: ${portfolio_value:,.0f} (from Alpaca API)")
         except RuntimeError as api_err:
-            # Tertiary: Use configured fallback ONLY in paper mode
-            if execution_mode in ("paper", "auto"):
+            # Tertiary: Use configured fallback ONLY in paper mode. "auto" is this system's
+            # real live-trading mode (see this session's other execution_mode fixes:
+            # 0f37d938d, 0d6ce501a, a2389bb48) - including it here meant that if both the
+            # database snapshot AND the live Alpaca API were unavailable during real trading,
+            # this would silently size positions off a static configured
+            # initial_capital_paper_trading number instead of failing fast like the `else`
+            # branch below (which this comment already describes as the intended live-mode
+            # behavior, but which "auto" never actually reached).
+            if execution_mode == "paper":
                 initial_capital = config.get("initial_capital_paper_trading")
                 if not initial_capital or initial_capital <= 0:
                     error_msg = (
