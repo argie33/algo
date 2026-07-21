@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date as _date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import psycopg2
@@ -45,30 +45,6 @@ class PreTradeChecks:
         self.alpaca_base_url = alpaca_base_url
         self.alpaca_key = alpaca_key
         self.alpaca_secret = alpaca_secret
-
-    def apply_slippage_adjustment(
-        self, shares: float, entry_price: float, slippage_pct: float = 1.0
-    ) -> tuple[int, float]:
-        """Issue #28: Apply slippage model to position size.
-
-        Reduces shares by slippage percentage to account for market impact and execution slippage.
-        Default: 1% slippage (typical for mid-caps, up to 2% for illiquid stocks).
-
-        Args:
-            shares: Calculated position size
-            entry_price: Target entry price
-            slippage_pct: Expected slippage percentage (default 1%)
-
-        Returns:
-            (adjusted_shares, actual_cost_per_share)
-        """
-        slippage_factor = Decimal(1) - (Decimal(str(slippage_pct)) / Decimal(100))
-        adjusted_shares = int((Decimal(shares) * slippage_factor).quantize(Decimal(1), rounding=ROUND_HALF_UP))
-        actual_cost = float(Decimal(str(entry_price)) / slippage_factor)
-        logger.debug(
-            f"Slippage adjustment: {shares} -> {adjusted_shares} shares, cost ${entry_price:.2f} -> ${actual_cost:.2f}"
-        )
-        return adjusted_shares, actual_cost
 
     def run_all(
         self,
