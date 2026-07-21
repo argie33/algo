@@ -235,38 +235,6 @@ class TradeExecutor:
             self.alpaca_key, self.alpaca_secret, self.alpaca_base_url
         )
 
-    def _setup_position_data(
-        self,
-        trade_id: str,
-        symbol: str,
-        actual_shares: Decimal,
-        executed_price: Decimal,
-        stop_loss_price: Decimal,
-    ) -> dict[str, Any]:
-        """Build comprehensive position insertion data.
-
-        Returns dict with position_id, symbol, quantity, avg_entry_price, current_price,
-        position_value, and initial stop levels.
-        """
-        position_id = f"POS-{trade_id}"
-        position_value = Decimal(str(actual_shares)) * Decimal(str(executed_price))
-
-        if position_value <= 0:
-            raise ValueError(
-                f"Invalid position value: {actual_shares} shares @ ${executed_price:.2f} = ${position_value:.2f}"
-            )
-
-        return {
-            "position_id": position_id,
-            "symbol": symbol,
-            "quantity": actual_shares,
-            "avg_entry_price": executed_price,
-            "current_price": executed_price,
-            "position_value": position_value,
-            "stop_loss_price": stop_loss_price,
-            "current_stop_price": stop_loss_price,
-        }
-
     def _record_tca_and_notify(
         self,
         trade_id: str,
