@@ -35,7 +35,7 @@ def run(
     verbose: bool,
     log_phase_result_fn: Callable[..., Any],
 ) -> PhaseResult:
-    """Execute Phase 3b: Exposure Policy Actions.
+    """Execute Phase 5: Exposure Policy Actions.
 
     Args:
         config: Configuration object
