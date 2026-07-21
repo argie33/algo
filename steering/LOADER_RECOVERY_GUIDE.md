@@ -107,16 +107,19 @@ aws logs get-log-events \
 
 ### Fix Low Coverage (if < 70%)
 
-```sql
--- Increase timeout for metric loaders
-UPDATE algo_config
-SET value = '900'  -- 15 minutes
-WHERE key = 'loader_timeout_seconds' AND loader_name = 'quality_metrics';
+**Correction (2026-07-20):** the SQL below previously filtered on a `loader_name` column
+and a `batch_size_override` key - `algo_config` is a flat key-value table (`key`, `value`,
+`value_type`) with no per-loader scoping column, and `batch_size_override` isn't a real
+config key (confirmed via `information_schema.columns` / a live `algo_config` query).
+`loader_timeout_seconds` is real and global (applies to all loaders, not just one); use
+`--parallelism` (see Fix #2 table above) to reduce per-loader load instead of a batch-size
+config key that doesn't exist.
 
--- Reduce batch size to avoid rate limits
+```sql
+-- Increase the global loader timeout (applies to all loaders, not per-loader)
 UPDATE algo_config
-SET value = '50'  -- was 100
-WHERE key = 'batch_size_override' AND loader_name = 'quality_metrics';
+SET value = '900'  -- 15 minutes (was 7200s / 2h)
+WHERE key = 'loader_timeout_seconds';
 ```
 
 ---

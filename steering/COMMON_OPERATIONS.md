@@ -265,12 +265,12 @@ aws ec2 describe-security-groups --group-ids sg-xxxxx \
 1. Check which loader is slow:
 ```bash
 # Run with verbose output
-python3 loaders/load_quality_metrics.py 2>&1 | tail -50
+python3 loaders/load_value_quality_growth_metrics.py 2>&1 | tail -50
 ```
 
 2. Check parallelism setting (may be too high):
 ```bash
-python3 loaders/load_quality_metrics.py --parallelism 2
+python3 loaders/load_value_quality_growth_metrics.py --parallelism 2
 ```
 
 3. Check upstream data availability:
@@ -519,7 +519,7 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 
 | Issue | Guide |
 |-------|-------|
-| Database/AWS setup | [DATABASE_AND_ENVIRONMENTS.md](DATABASE_AND_ENVIRONMENTS.md) |
+| Database/AWS setup | [QUICKSTART_LOCAL.md](../QUICKSTART_LOCAL.md) (local DB) / [GOVERNANCE.md](GOVERNANCE.md#credentials--deployment) (AWS) |
 | Data flow & loader issues | [DATA_LOADERS.md](DATA_LOADERS.md) |
 | Code quality | [LINT_POLICY.md](LINT_POLICY.md) |
 | Architecture questions | [GOVERNANCE.md](GOVERNANCE.md) |
