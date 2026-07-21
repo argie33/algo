@@ -30,27 +30,46 @@ class AlgoMetricsDailyLoader(OptimalLoader):
 
         try:
             with DatabaseContext("read") as cur:
+                # entries/exits used to be counted via algo_audit_log.action_type =
+                # 'BUY'/'SELL' - those literal values are never written anywhere in this
+                # codebase (real trade actions log under names like
+                # 'phase_8_entry_execution'/'exit_stop'), so this column pair was silently
+                # 0 every day regardless of real trading activity. algo/orchestrator/
+                # phase9_reconciliation.py's _update_algo_metrics already fixed this by
+                # counting from algo_trades directly - but that fix only applied there;
+                # this loader (a separate scheduled writer to the same
+                # `algo_metrics_daily` primary key) kept the old audit_log-based query, so
+                # whichever of the two ran later for a given date clobbered the other's
+                # entries/exits back to 0 via their shared ON CONFLICT (date) DO UPDATE.
+                # Mirror phase9's counting here too so both writers agree regardless of
+                # run order.
                 cur.execute(
                     """
-                    SELECT
-                        DATE(created_at) as trading_date,
-                        COUNT(*) as total_actions,
-                        SUM(CASE WHEN action_type = 'BUY' THEN 1 ELSE 0 END) as entries,
-                        SUM(CASE WHEN action_type = 'SELL' THEN 1 ELSE 0 END) as exits,
-                        AVG(CAST(details->>'score' AS FLOAT)) as avg_signal_score
+                    SELECT COUNT(*) as total_actions,
+                           AVG(CAST(details->>'score' AS FLOAT)) as avg_signal_score
                     FROM algo_audit_log
                     WHERE DATE(created_at) = %s
-                    GROUP BY DATE(created_at)
                 """,
                     (run_date,),
                 )
+                audit_row = cur.fetchone()
 
-                row = cur.fetchone()
-                if not row:
+                cur.execute(
+                    """
+                    SELECT COUNT(*) FILTER (WHERE entry_date = %s) as entries,
+                           COUNT(*) FILTER (WHERE exit_date = %s) as exits
+                    FROM algo_trades
+                """,
+                    (run_date, run_date),
+                )
+                trade_row = cur.fetchone()
+
+                if not audit_row or not trade_row:
                     raise RuntimeError(
-                        f"[ALGO_METRICS] No audit log data found for {run_date}. "
+                        f"[ALGO_METRICS] No audit log/trade data found for {run_date}. "
                         "Cannot compute performance metrics without trade data."
                     )
+                row = (run_date, audit_row[0], trade_row[0], trade_row[1], audit_row[1])
 
                 # VALIDATION: Tuple structure check before unpacking
                 expected_fields = 5
