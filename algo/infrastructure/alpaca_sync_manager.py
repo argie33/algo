@@ -5,6 +5,7 @@ Extracted from DailyReconciliation to reduce monolithic design and enable
 independent testing of position sync logic.
 """
 
+import json
 import logging
 import os
 from typing import Any
@@ -139,7 +140,7 @@ class AlpacaSyncManager:
             response = self._session.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             return cast(dict[str, Any], response.json())
-        except (requests.RequestException, ValueError) as e:
+        except (requests.RequestException, ValueError, json.JSONDecodeError) as e:
             logger.error(f"Failed to fetch Alpaca account: {e}")
             raise
 
