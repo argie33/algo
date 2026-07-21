@@ -18,6 +18,7 @@ import os
 import time
 from collections.abc import Callable
 from datetime import date as _date
+from datetime import datetime as _datetime
 from datetime import timedelta
 from decimal import ROUND_DOWN, ROUND_HALF_UP, Decimal
 from typing import Any, cast
@@ -35,6 +36,7 @@ from algo.trading.exceptions import (
     PortfolioValueError,
 )
 from utils.db.context import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -156,8 +158,14 @@ class PositionSizer:
                 # FIXED (Session 281): Use trading day logic instead of calendar days
                 # Calendar days false-positive on weekends (Fri snapshot = 3 calendar days old on Mon)
                 # but only 2 trading days old (Fri + Mon = 2 trading days elapsed)
-                calendar_age = (_date.today() - snapshot_date).days
-                trading_age = self._calculate_trading_days_elapsed(snapshot_date, _date.today())
+                # Eastern Time, not system-local date.today() - same bug class already fixed
+                # elsewhere in this codebase this session (pretrade_checks.py, regime_manager.py).
+                # A wrong "today" near the midnight-ET boundary could misjudge snapshot staleness
+                # by a day either direction, feeding position sizing off a value that's either
+                # spuriously halted or wrongly accepted as fresh.
+                today_et = _datetime.now(EASTERN_TZ).date()
+                calendar_age = (today_et - snapshot_date).days
+                trading_age = self._calculate_trading_days_elapsed(snapshot_date, today_et)
 
                 if trading_age <= 1:
                     logger.info(
@@ -454,8 +462,10 @@ class PositionSizer:
                     f"Cannot calculate safe position size without valid market exposure analysis."
                 )
             # FIXED (Session 281): Use trading day logic instead of calendar days
-            calendar_age = (_date.today() - data_date).days
-            trading_age = self._calculate_trading_days_elapsed(data_date, _date.today())
+            # Eastern Time, not system-local date.today() - see get_portfolio_value() above.
+            today_et = _datetime.now(EASTERN_TZ).date()
+            calendar_age = (today_et - data_date).days
+            trading_age = self._calculate_trading_days_elapsed(data_date, today_et)
             if trading_age > 1:
                 raise ValueError(
                     f"Market exposure data too stale: {trading_age} trading days old (max 1 day, {calendar_age}d calendar). "
@@ -487,7 +497,8 @@ class PositionSizer:
                     "VIX level unavailable from market_health_daily. Cannot adjust position size for volatility."
                 )
             data_date = row[1]
-            today = _date.today()
+            # Eastern Time, not system-local date.today() - see get_portfolio_value() above.
+            today = _datetime.now(EASTERN_TZ).date()
             calendar_days_old = (today - data_date).days
 
             trading_days_old = 0
