@@ -124,10 +124,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                 f"price_daily does not contain {symbol} for current trading day."
                             )
 
-                        if current_price is None or quantity is None:
+                        if quantity is None:
                             logger.warning(
-                                f"[PHASE 3] Skipping {symbol}: missing required fields "
-                                f"(qty={quantity}, price={current_price})"
+                                f"[PHASE 3] Skipping {symbol}: missing required quantity field"
                             )
                             continue
 

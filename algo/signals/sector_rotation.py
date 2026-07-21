@@ -221,6 +221,12 @@ class SectorRotationDetector:
     def _compute_sector_metrics(
         self, defensive: list[dict[str, Any]], cyclical: list[dict[str, Any]]
     ) -> dict[str, Any]:
+        if not defensive or not cyclical:
+            raise ValueError(
+                f"Cannot compute sector metrics: defensive={len(defensive)} sectors, cyclical={len(cyclical)} sectors. "
+                f"Both must have data to compute metrics."
+            )
+
         def_imp_4w = sum(d["rank_improvement_4w"] for d in defensive) / len(defensive)
         cyc_imp_4w = sum(d["rank_improvement_4w"] for d in cyclical) / len(cyclical)
         spread = def_imp_4w - cyc_imp_4w

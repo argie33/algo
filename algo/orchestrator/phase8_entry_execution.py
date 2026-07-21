@@ -730,9 +730,10 @@ def run(
             cur.execute("""
                 SELECT total_portfolio_value, snapshot_date
                 FROM algo_portfolio_snapshots
-                WHERE snapshot_date = CURRENT_DATE AT TIME ZONE 'America/New_York'
+                WHERE snapshot_date = %s
                 ORDER BY snapshot_date DESC LIMIT 1
-            """)
+            """,
+            (run_date,))
             result = cur.fetchone()
             if result and result[0] is not None:
                 portfolio_value = Decimal(str(result[0]))

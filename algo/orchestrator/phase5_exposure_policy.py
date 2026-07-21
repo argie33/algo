@@ -18,12 +18,21 @@ def _health_panel_fields(constraints: dict[str, Any]) -> dict[str, Any]:
     Max slots/Halt status silently never rendered despite constraints already having this
     data under its own (differently-named) keys.
     """
+    required_keys = ["regime", "halt_new_entries", "max_new_positions_today", "halt_reason"]
+    missing = [k for k in required_keys if k not in constraints]
+    if missing:
+        raise KeyError(
+            f"Exposure constraints missing required fields {missing}. "
+            f"Dashboard cannot render health panel without complete constraint data. "
+            f"Constraints keys: {list(constraints.keys())}"
+        )
+
     return {
-        "market_regime": constraints.get("regime"),
-        "entry_allowed": not constraints.get("halt_new_entries", False),
-        "halt_active": constraints.get("halt_new_entries", False),
-        "max_new_entries": constraints.get("max_new_positions_today"),
-        "halt_reason": constraints.get("halt_reason"),
+        "market_regime": constraints["regime"],
+        "entry_allowed": not constraints["halt_new_entries"],
+        "halt_active": constraints["halt_new_entries"],
+        "max_new_entries": constraints["max_new_positions_today"],
+        "halt_reason": constraints["halt_reason"],
     }
 
 
@@ -53,6 +62,7 @@ def run(
         # Phase 1 may have detected stale data and set halt flag
         # But if Phase 5 runs before halt flag is checked, we generate signals with stale data
         from algo.orchestration.halt_flag_manager import HaltFlagManager
+
         halt_mgr = HaltFlagManager(alerts, log_phase_result_fn)
         if halt_mgr.check_halt_flag():
             error_msg = "[PHASE 5] Halt flag detected at phase start - aborting signal generation"

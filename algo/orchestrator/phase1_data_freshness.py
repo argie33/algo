@@ -327,7 +327,14 @@ def run(  # noqa: C901
             if max_date is None:
                 logger.critical("[PHASE 1] price_daily table is empty")
                 log_phase_result_fn(1, "price_data", "halt", "price_daily table is empty")
-                return PhaseResult(1, "price_data", "halted", {"status": "halted", "reason": "price_daily table is empty - no pricing data available"}, True, "price_daily table is empty")
+                return PhaseResult(
+                    1,
+                    "price_data",
+                    "halted",
+                    {"status": "halted", "reason": "price_daily table is empty - no pricing data available"},
+                    True,
+                    "price_daily table is empty",
+                )
 
             # CRITICAL FIX: Ensure max_date is a date object, not datetime
             # PostgreSQL date columns can return datetime.datetime from some drivers
@@ -363,12 +370,14 @@ def run(  # noqa: C901
                     is_transient = any(kw in error_str for kw in transient_error_keywords)
 
                     if is_transient and attempt < max_retries - 1:
-                        logger.warning(f"[PHASE 1] Transient stock_symbols check error (attempt {attempt+1}): {query_err}")
+                        logger.warning(
+                            f"[PHASE 1] Transient stock_symbols check error (attempt {attempt + 1}): {query_err}"
+                        )
                         time.sleep(0.3)
                         continue
                     else:
                         # Permanent error or last attempt
-                        logger.error(f"[PHASE 1] stock_symbols check failed (attempt {attempt+1}): {query_err}")
+                        logger.error(f"[PHASE 1] stock_symbols check failed (attempt {attempt + 1}): {query_err}")
                         last_error = f"{type(query_err).__name__}: {str(query_err)[:100]}"
                         break
 
@@ -535,7 +544,7 @@ def run(  # noqa: C901
                    FROM price_daily pd
                    JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
                    WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
-                (last_trading_day,)
+                (last_trading_day,),
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
@@ -554,7 +563,7 @@ def run(  # noqa: C901
                    FROM price_daily pd
                    JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
                    WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
-                (prev_trading_day,)
+                (prev_trading_day,),
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
@@ -719,9 +728,7 @@ def run(  # noqa: C901
                     f"(expected {acceptable_min_date}, got {health_max_date}). "
                     f"Cannot use stale upstream table to validate downstream tables."
                 )
-                halt_stale.append(
-                    f"market_health_daily is {days_behind} day(s) stale (upstream reference invalid)"
-                )
+                halt_stale.append(f"market_health_daily is {days_behind} day(s) stale (upstream reference invalid)")
 
             # Map each table to its upstream reference date for staleness comparison
             table_reference_dates = {
@@ -913,7 +920,7 @@ def run(  # noqa: C901
                                COUNT(CASE WHEN data_completeness >= 70 THEN 1 END) as complete_scores,
                                COUNT(*) FILTER (WHERE data_unavailable = FALSE) as available_count
                         FROM stock_scores
-                        WHERE (updated_at AT TIME ZONE 'UTC') > NOW() - INTERVAL '1 day' AND data_unavailable = FALSE
+                        WHERE (updated_at AT TIME ZONE 'UTC') > (NOW() AT TIME ZONE 'UTC') - INTERVAL '1 day' AND data_unavailable = FALSE
                     """)
                     completeness_row = cur.fetchone()
                     if completeness_row and completeness_row[0] is not None:
@@ -980,9 +987,7 @@ def run(  # noqa: C901
                     else:
                         logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
                         halt_reason = f"Required metric loaders not ready: {metric_error[:100]}"
-                        log_phase_result_fn(
-                            1, "metric_loaders_not_ready", "halt", halt_reason
-                        )
+                        log_phase_result_fn(1, "metric_loaders_not_ready", "halt", halt_reason)
                         return PhaseResult(
                             1,
                             "metric_loaders_not_ready",
@@ -995,9 +1000,7 @@ def run(  # noqa: C901
                     halt_reason = f"Could not verify metric availability: {str(check_err)[:100]}"
                     logger.error(f"[PHASE 1] {halt_reason}")
                     logger.critical(f"[PHASE 1] CRITICAL: Metric loaders validation failed: {metric_error}")
-                    log_phase_result_fn(
-                        1, "metric_verification_error", "halt", halt_reason
-                    )
+                    log_phase_result_fn(1, "metric_verification_error", "halt", halt_reason)
                     return PhaseResult(
                         1,
                         "metric_verification_error",
@@ -1064,4 +1067,6 @@ def run(  # noqa: C901
         error_summary = f"{exception_type}: {exception_msg}"[:200]
         logger.error(f"[PHASE 1] ERROR: {error_summary}", exc_info=True)
         log_phase_result_fn(1, "error", "error", error_summary)
-        return PhaseResult(1, "error", "error", {"status": "error", "reason": f"Phase 1 failed: {error_summary}"}, True, error_summary)
+        return PhaseResult(
+            1, "error", "error", {"status": "error", "reason": f"Phase 1 failed: {error_summary}"}, True, error_summary
+        )
