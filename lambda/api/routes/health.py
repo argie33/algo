@@ -113,7 +113,7 @@ def _handle_basic(cur: cursor) -> Any:
 
         # Signal freshness check using algo_signals (primary signal source from orchestrator Phase 8).
         # This table is populated by the orchestrator and contains the entry/exit signals
-        # used for trading decisions. MAX(signal_date) uses the btree index on signal_date for performance.
+        # used for trading decisions.
         try:
             # Market-aware open check: use trading day logic (accounts for holidays, not just weekdays)
             from algo.infrastructure import MarketCalendar
@@ -122,18 +122,33 @@ def _handle_basic(cur: cursor) -> Any:
             today = now.date()
             market_is_open = MarketCalendar.is_trading_day(today)
 
+            # created_at (a real timestamptz, set when the row is written) - NOT
+            # MAX(signal_date)::timestamp. signal_date is a DATE column recording which
+            # trading day the signal belongs to; casting it to timestamp always yields
+            # midnight UTC of that date, so age_hours was really "hours since midnight UTC
+            # of the signal's trading day", not "hours since the signal was generated".
+            # For a same-day signal generated this evening (US market hours = evening UTC),
+            # that midnight-UTC anchor is already ~20+ hours in the past, so this reported
+            # signals as ~24-29h "STALE" every single evening regardless of how recently
+            # Phase 8 actually ran (confirmed live 2026-07-20: signal created_at 20:24 local
+            # / ~01:24 UTC, but this query reported 26.7h stale at 02:41 UTC the same night).
             signal_check = execute_with_timeout(
                 cur,
-                "SELECT MAX(signal_date)::timestamp AS latest_signal FROM algo_signals WHERE signal_active = true",
+                "SELECT MAX(created_at) AS latest_signal FROM algo_signals WHERE signal_active = true",
                 timeout_sec=2,
             )
 
             if signal_check and len(signal_check) > 0:
                 latest = signal_check[0]["latest_signal"]
                 if latest:
-                    age_hours = (
-                        datetime.now(timezone.utc) - latest.replace(tzinfo=timezone.utc)
-                    ).total_seconds() / 3600
+                    # created_at is timestamptz, so psycopg2 normally returns an
+                    # already-aware datetime - unlike the old naive signal_date::timestamp
+                    # value, blindly calling .replace(tzinfo=timezone.utc) here would
+                    # overwrite (not convert) any non-UTC offset the driver attached,
+                    # silently corrupting the age calculation by that offset. Only attach
+                    # UTC if the driver actually gave us a naive datetime.
+                    latest_aware = latest if latest.tzinfo is not None else latest.replace(tzinfo=timezone.utc)
+                    age_hours = (datetime.now(timezone.utc) - latest_aware).total_seconds() / 3600
                     config = get_config()
                     # Stale/absent signals reflect the trading strategy's output (it may
                     # legitimately find zero qualifying candidates on a given day), not
