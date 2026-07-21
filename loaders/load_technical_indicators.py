@@ -36,6 +36,7 @@ from loaders.technical_indicators import (
     compute_moving_averages,
     compute_rsi,
     compute_volume_ma,
+    detect_and_adjust_splits,
 )
 from utils.data.age_validator import DataAgeValidator
 from utils.db.context import DatabaseContext
@@ -350,6 +351,12 @@ class VectorizedTechnicalLoader:
         skipped_symbols = []
         for symbol in df["symbol"].unique():
             symbol_df = df[df["symbol"] == symbol].sort_values("date").reset_index(drop=True)
+            # In-memory only: price_daily stores raw/unadjusted prices, so a stock split
+            # inside this symbol's history would otherwise read as a fake ~50%+ single-day
+            # move that corrupts every indicator below (RSI/MACD/MAs/ATR/Bollinger/ROC) for
+            # up to 252 days. Does not write back to price_daily. See
+            # loaders/technical_indicators.py::detect_and_adjust_splits for the full story.
+            symbol_df = detect_and_adjust_splits(symbol_df)
 
             # Compute all indicators for this symbol's data
             try:

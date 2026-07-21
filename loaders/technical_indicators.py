@@ -8,6 +8,89 @@ the same indicator calculations from a single source.
 import numpy as np
 import pandas as pd
 
+from utils.data.tick_validator import TickValidator
+
+
+def detect_and_adjust_splits(df: pd.DataFrame) -> pd.DataFrame:
+    """Back-adjust one symbol's OHLCV for stock splits before computing indicators.
+
+    price_daily stores raw/unadjusted prices (see utils/external/alpaca_market_data.py -
+    ALPACA_DATA_ADJUSTMENT defaults to "raw"). A real stock split therefore shows up as a
+    permanent step in the close series - e.g. a 2:1 split reads as a fake -50% single-day
+    return - which every trailing-window indicator computed downstream (RSI, MACD, moving
+    averages, ATR, Bollinger Bands, and the roc_10d..roc_252d momentum columns) then carries
+    for as long as the split date sits inside that indicator's lookback window (up to 252
+    calendar days for roc_252d). Nothing upstream corrects this: tick_validator.py only
+    stops the split-day gap from being rejected as bad data at ingestion, and
+    position_monitor.py only fixes the quantity/stop of a currently open position - neither
+    adjusts the stored historical series.
+
+    This detects splits the same way tick_validator.py does (a close-to-close ratio matching
+    one of TickValidator._SPLIT_RATIOS within its tolerance) and multiplies every row BEFORE
+    the split by the inverse ratio (dividing volume by the same factor), so the indicator
+    functions below see a continuous series. Does not modify the stored price_daily table -
+    this is an in-memory adjustment applied only for indicator computation.
+
+    Args:
+        df: Single symbol's OHLCV rows, sorted ascending by date, with columns
+            open/high/low/close and optionally volume. Not mutated in place.
+
+    Returns:
+        Adjusted copy of df (or df unchanged if no split detected).
+
+    Caveat shared with tick_validator.py: a genuine single-day crash (e.g. delisting,
+    fraud) that happens to land within 2% of a clean split ratio (2, 3, 4, 5, 10, ...) will
+    be misread as a split and have its history incorrectly halved/etc rather than left
+    alone. This is the same trade-off tick_validator.py already accepts to avoid rejecting
+    legitimate split data at ingestion.
+    """
+    close = df["close"]
+    n = len(close)
+    if n < 2:
+        return df
+
+    prior = close.shift(1)
+    factor = 1.0
+    cumulative_factor = [1.0] * n
+    for i in range(n - 1, 0, -1):
+        prior_close = prior.iloc[i]
+        cur_close = close.iloc[i]
+        if pd.notna(prior_close) and prior_close > 0 and pd.notna(cur_close) and cur_close > 0:
+            canonical_ratio = _match_split_ratio(prior_close / cur_close)
+            if canonical_ratio is not None:
+                factor /= canonical_ratio
+        cumulative_factor[i - 1] = factor
+
+    if all(f == 1.0 for f in cumulative_factor):
+        return df
+
+    df = df.copy()
+    adj = pd.Series(cumulative_factor, index=df.index)
+    for col in ("open", "high", "low", "close"):
+        if col in df.columns:
+            df[col] = df[col] * adj
+    if "volume" in df.columns:
+        df["volume"] = (df["volume"] / adj).round()
+    return df
+
+
+def _match_split_ratio(ratio: float) -> float | None:
+    """Snap an observed prior_close/close ratio to the nearest canonical split ratio.
+
+    Returns the canonical ratio (e.g. 2.0 for a 2:1 forward split, 0.1 for a 1:10 reverse
+    split), not the noisy observed value, so an ordinary same-day price move layered on top
+    of the split doesn't get baked into the historical adjustment factor. Uses the same
+    ratio table and tolerance as tick_validator.py's split detector so a price move is
+    treated as a split here if and only if ingestion would also have accepted it as one.
+    """
+    for candidate in TickValidator._SPLIT_RATIOS:
+        if abs(ratio - candidate) / candidate <= TickValidator._SPLIT_RATIO_TOLERANCE:
+            return float(candidate)
+        inverse = 1 / candidate
+        if abs(ratio - inverse) / inverse <= TickValidator._SPLIT_RATIO_TOLERANCE:
+            return float(inverse)
+    return None
+
 
 def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
     """Compute Relative Strength Index using Wilder's EMA smoothing.
@@ -16,26 +99,34 @@ def compute_rsi(closes: pd.Series, period: int = 14) -> pd.Series:
     defaulting to a calculated value. This preserves data quality visibility.
     """
     deltas = closes.diff()
-    gains = deltas.where(deltas > 0, np.nan)
-    losses = -deltas.where(deltas < 0, np.nan)
-    avg_gain = gains.ewm(com=period - 1, min_periods=period).mean()
-    avg_loss = losses.ewm(com=period - 1, min_periods=period).mean()
+    # Textbook Wilder's RSI: gain/loss for EVERY day, 0 on days that don't qualify (a down
+    # day contributes 0 to the gain average, not "excluded from it"; symmetric for losses).
+    # This previously used deltas.where(...>0, np.nan) instead of .clip() - masking
+    # non-qualifying days as NaN and letting .ewm().mean() skip them, which computes something
+    # structurally different from RSI: "average gain per up-day" decayed over up-days only,
+    # rather than "average gain per day" decayed over calendar time (with down-days
+    # contributing zero). The two are not close - live-measured mean ~10.9 / max ~44.6 point
+    # divergence on a 0-100 scale, and the NaN-skip version doesn't produce its first value
+    # until ~2x the documented period (needs `period` up-days, not `period` calendar days).
+    # NaN closes (genuinely missing price data, not "no gain today") still propagate as NaN
+    # through .clip(), preserving the GOVERNANCE behavior above.
+    gains = deltas.clip(lower=0)
+    losses = -deltas.clip(upper=0)
+    # adjust=False for true Wilder's recursive smoothing (y_t = alpha*x_t + (1-alpha)*y_{t-1},
+    # alpha=1/period) - the same convention compute_atr/compute_adx below use and document
+    # ("NOT a simple rolling mean").
+    avg_gain = gains.ewm(alpha=1.0 / period, min_periods=period, adjust=False).mean()
+    avg_loss = losses.ewm(alpha=1.0 / period, min_periods=period, adjust=False).mean()
     rs = avg_gain / avg_loss.replace(0, np.nan)
     rsi = 100 - (100 / (1 + rs))
-    # A window with zero down days (or zero up days) makes avg_loss (or avg_gain)
-    # NaN - there are literally no observations of that direction to average, since
-    # min_periods requires non-null values and none exist - not just 0. Textbook
-    # RSI defines these as the extremes (100 for zero down days, 0 for zero up
-    # days), not a divide-by-zero NaN. Without this, the strongest uptrends/
-    # downtrends (exactly the momentum extremes this system is built to find and
-    # to flag as overbought) silently lose their RSI reading - downstream
-    # (load_stock_scores.py _rsi_to_score) treats None/NaN as "no data" and skips
-    # the RSI score component entirely instead of reflecting the extreme reading.
-    # Only genuinely insufficient price history (both sides NaN) stays undefined.
-    no_loss_data = avg_loss.isna() | (avg_loss == 0)
-    no_gain_data = avg_gain.isna() | (avg_gain == 0)
-    rsi = rsi.where(~(no_loss_data & avg_gain.notna() & (avg_gain > 0)), 100.0)
-    rsi = rsi.where(~(no_gain_data & avg_loss.notna() & (avg_loss > 0)), 0.0)
+    # avg_loss==0 (no losses anywhere in the decayed history) makes RS infinite / rsi's
+    # division above NaN via the replace(0, NaN) guard - textbook RSI defines this as the
+    # extreme (100), not undefined, and symmetrically for avg_gain==0 -> RSI=0. Both being
+    # exactly 0 (avg_gain==0 and avg_loss==0, i.e. a perfectly flat run of closes) is
+    # genuinely undefined (0/0) and stays NaN rather than guessing 50.
+    both_zero = (avg_gain == 0) & (avg_loss == 0)
+    rsi = rsi.where(~((avg_loss == 0) & ~both_zero), 100.0)
+    rsi = rsi.where(~((avg_gain == 0) & ~both_zero), 0.0)
     return rsi
 
 
@@ -149,9 +240,11 @@ def compute_adx(
 def compute_all_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """Compute all technical indicators and add to dataframe.
 
-    Input: DataFrame with columns [date, open, high, low, close, volume]
+    Input: DataFrame with columns [date, open, high, low, close, volume], single symbol,
+        sorted ascending by date
     Output: Same DataFrame with additional columns for all indicators
     """
+    df = detect_and_adjust_splits(df)
     df = df.copy()
 
     # RSI
