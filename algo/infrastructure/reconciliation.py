@@ -355,7 +355,13 @@ class DailyReconciliation:
                         WHERE snapshot_date <= %s
                     """, (reconcile_date,))
                     peak_result = cur.fetchone()
-                    running_peak = peak_result["max"] if peak_result and peak_result["max"] else portfolio_value
+                    # MAX(total_portfolio_value) returns a Decimal (NUMERIC column); portfolio_value
+                    # is a plain float computed above from baseline_equity/realized_pnl_today/
+                    # unrealized_pnl_change - subtracting Decimal - float below raises TypeError,
+                    # which the broad except a few lines down swallowed and logged, then fell
+                    # through to a return statement that crashed on cumulative_return_pct (assigned
+                    # further down, never reached) instead of surfacing this real error.
+                    running_peak = float(peak_result["max"]) if peak_result and peak_result["max"] else portfolio_value
                     running_peak = max(running_peak, portfolio_value)  # Today's value is the new peak if higher
 
                     drawdown_pct = 0.0
@@ -523,7 +529,16 @@ class DailyReconciliation:
 
                     logger.info("[RECONCILIATION] Exiting DatabaseContext to trigger COMMIT")
             except Exception as e:
+                # Re-raise (don't swallow): this used to log-and-continue, falling through to the
+                # `return {"success": True, ...}` below - which references cumulative_return_pct/
+                # adjusted_equity/drawdown_pct etc. computed inside this same try block. Any
+                # exception before those assignments turned a real, diagnosable error (e.g. a
+                # Decimal/float TypeError) into a confusing UnboundLocalError, and even when the
+                # exception happened late enough that every variable WAS defined, silently
+                # continuing here means reporting "success": True for a reconciliation whose
+                # portfolio-snapshot write had actually failed and rolled back.
                 logger.error(f"[RECONCILIATION] Failed to write portfolio snapshot: {e}", exc_info=True)
+                raise RuntimeError(f"[RECONCILIATION] Failed to write portfolio snapshot: {e}") from e
 
             # FINAL VERIFICATION: Query immediately after context exit (after commit) to verify data persisted
             try:
@@ -551,6 +566,8 @@ class DailyReconciliation:
                 "portfolio_value": portfolio_value,
                 "position_value": float(total_invested),
                 "unrealized_pnl": total_unrealized_pnl,
+                "cash_remaining": float(cash_remaining),
+                "cumulative_return_pct": cumulative_return_pct,
                 "reason": "Reconciliation skipped: using database state (broker credentials unavailable, paper trading mode)",
             }
 
@@ -1273,6 +1290,8 @@ class DailyReconciliation:
                 "positions": len(positions),
                 "unrealized_pnl": float(unrealized_pnl),
                 "position_value": float(total_position_value),
+                "cash_remaining": float(cash_dec),
+                "cumulative_return_pct": cumulative_return_pct,
             }
 
         except (

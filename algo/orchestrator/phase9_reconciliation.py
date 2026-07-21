@@ -5,6 +5,7 @@ import logging
 import traceback
 from collections.abc import Callable
 from datetime import date as _date
+from datetime import datetime, timezone
 from typing import Any
 
 import psycopg2
@@ -537,9 +538,16 @@ def _compute_risk_metrics(config: Any, run_date: _date, log_phase_result_fn: Cal
                 conc_pct = concentration.get("top_5_concentration_pct")
                 if conc_pct is not None:
                     summary_parts.append(f"Conc {conc_pct:.1f}%")
-            beta_val = beta_exposure.get("portfolio_beta")
-            if beta_val is not None:
-                summary_parts.append(f"beta={beta_val:.2f}")
+            # ValueAtRisk.beta_exposure() explicitly returns None when there are no open
+            # positions (see algo/risk/var.py) - the same "may legitimately be None" case
+            # already handled for var_metrics/concentration above, but this line called
+            # .get() on it unconditionally, crashing Phase 9 with an AttributeError (masked
+            # by the broad except below into a confusing "failed unexpectedly" RuntimeError)
+            # any time the portfolio had zero positions when the risk report was generated.
+            if beta_exposure is not None:
+                beta_val = beta_exposure.get("portfolio_beta")
+                if beta_val is not None:
+                    summary_parts.append(f"beta={beta_val:.2f}")
             alerts_count = len(alerts)
             if alerts_count:
                 summary_parts.append(f"{alerts_count} alerts")
@@ -1033,10 +1041,20 @@ def run(
         # Degrade gracefully if reconciliation failed (e.g., broker unavailable in dry-run)
         # Phase 9 is always_run, so it should not cause a halt even if broker is unavailable
         if reconciliation_succeeded:
+            # cash_available/total_return_pct/latest_snapshot: the health dashboard
+            # (dashboard/panels/health.py, Phase 9 detail row) already expects these
+            # exact keys, but this dict never included them - only portfolio_value made
+            # it through, so Cash available/Total return/Last snapshot silently never
+            # rendered even though run_daily_reconciliation() now returns the first two
+            # (cash_remaining/cumulative_return_pct) and this phase runs immediately
+            # after the snapshot write, so "now" is an accurate last-snapshot timestamp.
             data = {
                 "portfolio_value": result.get("portfolio_value"),
                 "positions": result.get("positions"),
                 "unrealized_pnl": result.get("unrealized_pnl"),
+                "cash_available": result.get("cash_remaining"),
+                "total_return_pct": result.get("cumulative_return_pct"),
+                "latest_snapshot": datetime.now(timezone.utc).isoformat(),
                 "reconciliation": result,
             }
             phase_status = "ok"
