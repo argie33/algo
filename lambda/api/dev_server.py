@@ -487,5 +487,14 @@ def run_dev_server(port: int = 3001) -> None:
 
 
 if __name__ == "__main__":
+    try:
+        from pathlib import Path
+
+        from utils.dev_server_state import write_state
+
+        write_state(Path(root_dir))
+    except Exception as e:  # noqa: BLE001 - staleness tracking must never block startup
+        logger.warning(f"[DEV_SERVER] Could not record code fingerprint for staleness detection: {e}")
+
     port = int(os.getenv("API_PORT", 3001))
     run_dev_server(port)

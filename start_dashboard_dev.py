@@ -229,8 +229,19 @@ def start_dev_server() -> subprocess.Popen:
 
     # Check if already running
     if is_port_open(3001):
-        print("[STARTUP] [OK] Dev server already running on localhost:3001", flush=True)
-        return None
+        from utils.dev_server_state import is_running_server_stale
+
+        repo_root = Path(__file__).parent
+        if is_running_server_stale(repo_root):
+            print(
+                "[STARTUP] [WARN] Dev server is running but its code is stale (source files "
+                "changed since it started - dev_server.py never hot-reloads). Restarting to "
+                "pick up the latest code...",
+                flush=True,
+            )
+        else:
+            print("[STARTUP] [OK] Dev server already running on localhost:3001", flush=True)
+            return None
 
     # Clean up any orphaned dev_server processes before starting fresh
     print("[STARTUP] Cleaning up any orphaned processes...", flush=True)

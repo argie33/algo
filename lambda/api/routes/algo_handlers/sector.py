@@ -231,84 +231,34 @@ def _get_sector_position_warnings(cur: cursor) -> Any:
 @db_route_handler("get sector rotation")  # type: ignore[untyped-decorator]
 @validate_api_response("sec_rot")  # type: ignore[untyped-decorator]
 def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
+    # Reads the real signal algo/signals/sector_rotation.py already computes and persists to
+    # sector_rotation_signal (rank-improvement/momentum from sector_ranking - the GICS taxonomy
+    # company_profile.sector uses), rather than maintaining a second, ad-hoc implementation here.
+    # The prior version of this query recomputed its own defensive-vs-cyclical comparison from
+    # sector_performance.relative_strength - which is hardcoded to the literal 1.0 for every row
+    # by loaders/load_sector_industry_daily.py (never a real relative-strength calculation), so
+    # every sector's "strength" was identical by construction. It also joined against a hardcoded
+    # GICS sector name list while sector_performance is keyed by SIC-description names for any
+    # date after 2026-07-10 (same taxonomy switch documented in routes/sectors.py's fix) - so
+    # "Real Estate" (a name that happens to exist in both taxonomies) was the only sector that
+    # ever matched, explaining the live symptom of a real defensive_lead_score alongside an
+    # always-NULL cyclical_weak_score/spread on every recent date.
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
     cur.execute(
         """
-            WITH defensive_sectors AS (
-                SELECT 'Consumer Defensive' AS sector UNION ALL
-                SELECT 'Utilities' UNION ALL
-                SELECT 'Healthcare' UNION ALL
-                SELECT 'Real Estate'
-            ),
-            cyclical_sectors AS (
-                SELECT 'Consumer Cyclical' AS sector UNION ALL
-                SELECT 'Industrials' UNION ALL
-                SELECT 'Basic Materials' UNION ALL
-                SELECT 'Technology'
-            ),
-            sector_perf AS (
-                -- CRITICAL: Do NOT COALESCE to 0 - NULL values are valid and affect AVG calculations
-                -- Missing data must be NULL, not silently 0
-                SELECT
-                    date,
-                    sector,
-                    return_pct,
-                    relative_strength
-                FROM sector_performance
-                WHERE date >= %s AND return_pct IS NOT NULL AND relative_strength IS NOT NULL
-            ),
-            rotation_stats AS (
-                SELECT
-                    sp.date,
-                    AVG(CASE WHEN d.sector IS NOT NULL THEN sp.return_pct ELSE NULL END) AS defensive_return,
-                    AVG(CASE WHEN c.sector IS NOT NULL THEN sp.return_pct ELSE NULL END) AS cyclical_return,
-                    AVG(CASE WHEN d.sector IS NOT NULL THEN sp.relative_strength ELSE NULL END) AS defensive_strength,
-                    AVG(CASE WHEN c.sector IS NOT NULL THEN sp.relative_strength ELSE NULL END) AS cyclical_strength
-                FROM sector_perf sp
-                LEFT JOIN defensive_sectors d ON sp.sector = d.sector
-                LEFT JOIN cyclical_sectors c ON sp.sector = c.sector
-                WHERE d.sector IS NOT NULL OR c.sector IS NOT NULL
-                GROUP BY sp.date
-            ),
-            rotation_with_signal AS (
-                SELECT
-                    date,
-                    defensive_strength,
-                    cyclical_strength,
-                    CASE
-                        WHEN defensive_strength > cyclical_strength THEN 'DEFENSIVE'
-                        WHEN cyclical_strength > defensive_strength THEN 'CYCLICAL'
-                        ELSE 'NEUTRAL'
-                    END AS signal
-                FROM rotation_stats
-            ),
-            signal_changes AS (
-                SELECT
-                    date,
-                    defensive_strength,
-                    cyclical_strength,
-                    signal,
-                    CASE WHEN signal != LAG(signal) OVER (ORDER BY date DESC) THEN 1 ELSE 0 END AS is_signal_change
-                FROM rotation_with_signal
-            ),
-            signal_groups AS (
-                SELECT
-                    date,
-                    defensive_strength,
-                    cyclical_strength,
-                    signal,
-                    SUM(is_signal_change) OVER (ORDER BY date DESC) AS signal_group_id
-                FROM signal_changes
-            )
             SELECT
                 date,
-                ROUND(defensive_strength::NUMERIC, 2) AS defensive_lead_score,
-                ROUND(cyclical_strength::NUMERIC, 2) AS cyclical_weak_score,
-                ROUND((defensive_strength - cyclical_strength)::NUMERIC, 2) AS spread,
+                ROUND((details::jsonb->>'defensive_lead_score')::numeric, 2) AS defensive_lead_score,
+                ROUND((details::jsonb->>'cyclical_weak_score')::numeric, 2) AS cyclical_weak_score,
+                ROUND((details::jsonb->>'spread_4w')::numeric, 2) AS spread,
                 signal,
-                ROW_NUMBER() OVER (PARTITION BY signal_group_id ORDER BY date DESC) AS weeks_persistent,
-                (defensive_strength IS NULL OR cyclical_strength IS NULL) AS _is_fallback
-            FROM signal_groups
+                (details::jsonb->>'weeks_persistent')::int AS weeks_persistent,
+                (
+                    details::jsonb->>'defensive_lead_score' IS NULL
+                    OR details::jsonb->>'cyclical_weak_score' IS NULL
+                ) AS _is_fallback
+            FROM sector_rotation_signal
+            WHERE sector = 'market_rotation' AND date >= %s
             ORDER BY date DESC
         """,
         (cutoff_date,),
