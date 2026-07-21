@@ -1586,9 +1586,19 @@ class StockScoresLoader(OptimalLoader):
         Returns None if momentum is weak (< ±3%), as this indicates
         insufficient conviction. Fail-fast: weak signal is missing data, not low score.
         -20% = 0, ±3% = None, +20% = 100.
+
+        pct_return is a percentage NUMBER (e.g. 20.0 for +20%), not a fraction - matches
+        load_risk_metrics_daily.py's ret_pct = (price_new - price_old) / price_old * 100,
+        which is what momentum_1m/3m/6m/12m are computed as and stored as.
         """
-        # Weak momentum zone: -3% to +3% lacks conviction
-        if -0.03 <= pct_return <= 0.03:
+        # Weak momentum zone: -3% to +3% lacks conviction. This previously checked
+        # -0.03 <= pct_return <= 0.03 - a threshold 100x too small for the percentage-number
+        # scale pct_return is actually on, so it matched essentially no real momentum value
+        # (typical 1m/3m/6m/12m returns are single-to-double-digit percent) and this weak-
+        # signal exclusion never fired in practice - every momentum reading, however weak,
+        # was scored instead of being excluded as insufficient conviction per the documented
+        # design intent.
+        if -3 <= pct_return <= 3:
             return None
 
         # Map momentum: -20% = 0, +20% = 100
