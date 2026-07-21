@@ -185,13 +185,16 @@ def panel_exposure_compact(exp_f: Any) -> Any:  # noqa: C901
             logger.warning("[EXPOSURE] Risk factor missing: ad_line missing relation field")
             return "[yellow]⚠[/]"  # Missing relation field
         if key == "aaii_sentiment":
+            # bullish_pct/bearish_pct are already 0-100 scale (aaii_sentiment.bullish/bearish
+            # columns, confirmed via algo/risk/factors/aaii_sentiment_factor.py's
+            # spread = bullish_pct - bearish_pct compared against a +-15 threshold, which only
+            # makes sense on a percentage-point scale - AAII bullish% has never historically
+            # been <=1.0). A previous "auto-detect fraction vs percentage" heuristic here
+            # (multiply by 100 whenever <=1.0) was built on the opposite, incorrect premise.
             bull = safe_float(f.get("bullish_pct"), default=None)
             bear = safe_float(f.get("bearish_pct"), default=None)
             if bull is not None and bear is not None:
-                # Values are fractions (0.4 = 40%); multiply to display as percentages
-                b_pct = bull * 100 if bull <= 1.0 else bull
-                be_pct = bear * 100 if bear <= 1.0 else bear
-                return f" B:{b_pct:.0f}%/Be:{be_pct:.0f}%"
+                return f" B:{bull:.0f}%/Be:{bear:.0f}%"
             logger.warning("[EXPOSURE] Risk factor missing: aaii_sentiment unavailable (bull=%s, bear=%s)", bull, bear)
             return "[yellow]⚠[/]"  # Missing sentiment data
         if key == "naaim":
@@ -574,9 +577,7 @@ def panel_exposure_expanded(exp_f: Any) -> Any:  # noqa: C901
             bull = f.get("bullish_pct")
             bear = f.get("bearish_pct")
             if bull is not None and bear is not None:
-                b_pct = bull * 100 if bull <= 1.0 else bull
-                be_pct = bear * 100 if bear <= 1.0 else bear
-                val_s = f"Bull:{b_pct:.0f}% Bear:{be_pct:.0f}%"
+                val_s = f"Bull:{bull:.0f}% Bear:{bear:.0f}%"
             else:
                 val_s = "--"
         elif key == "naaim":
