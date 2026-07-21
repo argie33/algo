@@ -451,7 +451,7 @@ class HaltFlagManager:
                 try:
                     rds_result = self._set_halt_flag_rds(reason, now_utc, now_et)
                     if not rds_result:
-                        last_error = "RDS returned False (write failed)"
+                        last_error = RuntimeError("RDS returned False (write failed)")
                         logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt+1})")
                         if attempt < max_retries - 1:
                             import time
@@ -752,7 +752,7 @@ class HaltFlagManager:
                 try:
                     rds_result = self._clear_halt_flag_rds(reason)
                     if not rds_result:
-                        last_error = "RDS returned False (write failed)"
+                        last_error = RuntimeError("RDS returned False (write failed)")
                         logger.warning(f"[HALT_FLAG] RDS fallback returned False (attempt {attempt+1})")
                         if attempt < max_retries - 1:
                             import time

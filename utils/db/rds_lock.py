@@ -170,11 +170,11 @@ class RDSLockManager:
                         "DELETE FROM loader_execution_locks WHERE loader_name = %s AND expires_at < %s",
                         (lock_key, cutoff_time),
                     )
-                    cleaned = cur.rowcount
+                    cleaned = int(cur.rowcount)
                 else:
                     # Clean all expired locks
                     cur.execute("DELETE FROM loader_execution_locks WHERE expires_at < %s", (cutoff_time,))
-                    cleaned = cur.rowcount
+                    cleaned = int(cur.rowcount)
 
             if cleaned > 0:
                 logger.info(f"[RDS_LOCK_CLEANUP] Cleaned {cleaned} expired locks")

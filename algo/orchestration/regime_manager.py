@@ -331,7 +331,7 @@ class RegimeManager:
                         f"Market exposure confidence score marked unavailable: {reason or 'no reason provided'}. "
                         f"Cannot assess regime strength without valid exposure analysis."
                     )
-                return min(1.0, max(0.0, score / 100.0))
+                return min(1.0, max(0.0, float(score) / 100.0))
             raise RuntimeError(
                 f"Market exposure score unavailable as of {as_of_date}. "
                 "market_exposure_daily table empty or stale. "
