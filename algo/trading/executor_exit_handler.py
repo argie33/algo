@@ -564,6 +564,31 @@ class ExitHandler:
                         f"Cannot record exit with actual execution price. API response incomplete. "
                         f"Response keys: {list(exit_order_result.keys())}"
                     )
+
+                # CRITICAL: send_market_exit()'s response never includes the actual filled
+                # quantity (only filled_price) - so unlike the entry side (executor_entry_
+                # handler.py explicitly checks order_status == "partially_filled" and calls
+                # _get_order_filled_quantity to get the real fill amount), this exit path was
+                # blindly trusting shares_to_exit (the REQUESTED amount) as if it were always
+                # fully filled. A genuine partial fill on a sell order (illiquid/small-cap
+                # names - the liquidity_checks.py screen exists precisely because this system
+                # trades those - or a volatile market) would then record more shares exited
+                # than actually sold, permanently understating the real remaining position by
+                # the unfilled portion, with no reconciliation path to catch it since Phase 9
+                # only polls for a pending fill *price*, not a fill *quantity* mismatch.
+                # Verify against the broker directly, mirroring the entry-side pattern exactly.
+                exit_order_id = exit_order_result.get("order_id")
+                if exit_order_id:
+                    verified_filled_qty = self.context._get_order_filled_quantity(exit_order_id)
+                    if verified_filled_qty is not None and verified_filled_qty > 0:
+                        if verified_filled_qty != shares_to_exit:
+                            logger.warning(
+                                f"[EXIT_HANDLER] {symbol}: partial exit fill - requested "
+                                f"{shares_to_exit}sh, broker filled {verified_filled_qty}sh. "
+                                f"Using verified fill quantity."
+                            )
+                        shares_to_exit = verified_filled_qty
+                        full_exit = shares_to_exit >= current_qty
             else:
                 # Explicit message handling - log if missing instead of defaulting
                 error_message = exit_order_result.get("message")
