@@ -11,7 +11,11 @@ logger = logging.getLogger(__name__)
 
 
 class VIXFetcher:
-    """Fetches VIX data from yfinance with circuit breaker.
+    """Fetches VIX data from price_daily (Alpaca-sourced), with circuit breaker.
+
+    Breaker is named "yfinance_vix" for historical/dashboard-compatibility reasons
+    only - it does NOT call yfinance. See _fetch_vix_data below: this reads ^VIX
+    rows already loaded into price_daily, same as any other symbol.
 
     CRITICAL: VIX is used for circuit breaker decisions (VIX >= 35 halts trading).
     Marked as CRITICAL to fail-fast on unavailable data per governance.

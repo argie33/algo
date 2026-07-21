@@ -634,9 +634,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if failed_metrics:
             if len(failed_metrics) == 6:
                 return self._unavailable_marker("growth_metrics", symbol)
-            metrics["data_unavailable"] = True
+            # PARTIAL failure (1-5 of 6 periods, e.g. eps_growth_5y needs 6 fiscal years of
+            # history that many symbols don't have yet): the periods that DID compute are
+            # real values, not noise - leave data_unavailable=False so downstream scoring
+            # (load_stock_scores.py::_score_growth) can weight whatever periods are present
+            # instead of discarding the whole row. _score_growth already renormalizes over
+            # available fields; it was this flag - not the scorer - that was throwing partial
+            # data away before it ever got there. `reason` still records what's missing.
             metrics["reason"] = f"Incomplete growth metrics: {', '.join(sorted(set(failed_metrics)))} failed to compute (insufficient history or invalid data)"
-            logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Partial growth metrics (failed: {', '.join(sorted(set(failed_metrics)))})")
+            logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Partial growth metrics (failed: {', '.join(sorted(set(failed_metrics)))})")
 
         return metrics
 

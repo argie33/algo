@@ -165,9 +165,11 @@ python scripts/verify_eventbridge_scheduler.py --fix  # Auto-enable if disabled
 ```
 
 **Loader schedules:**
-- Morning: MON-FRI 2:00 AM ET (prices + technical indicators)
-- EOD: MON-FRI 4:05 PM ET (quality/growth/value metrics)
+- Morning: MON-FRI 2:00 AM ET (pre-market prices + technical indicators)
+- Signals/EOD: MON-FRI 4:05 PM ET (closing prices/technicals + stock scores/buy_sell_daily trading signals - verified 2026-07-21 against terraform's actual `eod_pipeline`, not quality/growth/value as previously stated here)
+- Metrics: MON-FRI 7:00 PM ET (slow SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, quality/growth/value - `computed_metrics_pipeline`)
 - Weekends/holidays: No loaders run (expected behavior)
+- Local dev: `scripts/local_loader_scheduler.py` mirrors this 3-pipeline split (`morning`/`signals`/`metrics`); `start_dashboard_dev.py` always runs `morning` then `signals`, and conditionally runs `metrics` only when fundamentals are incomplete
 
 **If data is stale during trading hours:**
 1. Run: `python scripts/monitor_data_staleness.py` (diagnose)

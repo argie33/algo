@@ -1,5 +1,5 @@
 # Setup Windows Task Scheduler for algo loaders (MON-FRI)
-# Mimics AWS EventBridge schedule: 2 AM ET (morning) + 4:05 PM ET (afternoon)
+# Mimics AWS EventBridge schedule: 2 AM ET (morning) + 4:05 PM ET (signals/EOD) + 7 PM ET (metrics)
 
 $algoPath = "C:\Users\arger\code\algo"
 $taskFolder = "\algo"
@@ -80,27 +80,31 @@ Register-ScheduledTask `
 
 Write-Host "[OK] Morning task scheduled for 2:00 AM ET (MON-FRI)"
 
-# Task 2: Afternoon/EOD loader pipeline (4:05 PM ET, MON-FRI)
+# Task 2: Signals/EOD loader pipeline (4:05 PM ET, MON-FRI)
 Write-Host ""
-Write-Host "Task 2: Afternoon Pipeline (4:05 PM ET, MON-FRI)"
-Write-Host "  - Loads quality/growth/value scores, signals, risk metrics"
+Write-Host "Task 2: Signals Pipeline (4:05 PM ET, MON-FRI)"
+Write-Host "  - Re-fetches closing prices/technicals, then recomputes stock scores, trading signals, risk metrics"
 
 # BUG FIX: same issue as Task 1 - run_local_orchestrator.py --afternoon runs the trading
 # orchestrator's afternoon phase set against whatever's already in the DB, it doesn't
-# refresh financial statements/positioning/quality/growth/value/stock_scores itself.
-# local_loader_scheduler.py's "metrics" pipeline is the actual EOD data-refresh job
-# (see its own LOADERS["metrics"] definition - financial statements through buy_sell_daily).
-$afternoonAction = New-ScheduledTaskAction `
+# refresh prices/technicals/stock_scores/buy_sell_daily itself.
+# local_loader_scheduler.py's "signals" pipeline is the actual EOD data-refresh job (see its
+# own LOADERS["signals"] definition - closing prices through sector_industry_daily). Until
+# 2026-07-21 this task called "--now metrics", which bundled the fast price-driven signal
+# loaders together with slow SEC/EDGAR fundamentals fetches; "metrics" now covers ONLY the
+# slow fundamentals (Task 3 below) and never re-fetches closing prices at all, so pointing
+# this task at it would have silently stopped refreshing buy_sell_daily/stock_scores entirely.
+$signalsAction = New-ScheduledTaskAction `
     -Execute $pythonExe `
-    -Argument "scripts/local_loader_scheduler.py --now metrics" `
+    -Argument "scripts/local_loader_scheduler.py --now signals" `
     -WorkingDirectory $algoPath
 
-$afternoonTrigger = New-ScheduledTaskTrigger `
+$signalsTrigger = New-ScheduledTaskTrigger `
     -Weekly `
     -At "16:05" `
     -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
 
-$afternoonSettings = New-ScheduledTaskSettingsSet `
+$signalsSettings = New-ScheduledTaskSettingsSet `
     -AllowStartIfOnBatteries:$false `
     -Compatibility Win8 `
     -MultipleInstances IgnoreNew
@@ -115,13 +119,55 @@ if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "afternoon-pipeline" -E
 Register-ScheduledTask `
     -TaskName "afternoon-pipeline" `
     -TaskPath $taskFolder `
-    -Action $afternoonAction `
-    -Trigger $afternoonTrigger `
-    -Settings $afternoonSettings `
-    -Description "Load quality/growth/value scores, trading signals, risk metrics (afternoon pipeline)" `
+    -Action $signalsAction `
+    -Trigger $signalsTrigger `
+    -Settings $signalsSettings `
+    -Description "Re-fetch closing prices/technicals, recompute stock scores and trading signals (signals/EOD pipeline)" `
     -ErrorAction Stop | Out-Null
 
-Write-Host "[OK] Afternoon task scheduled for 4:05 PM ET (MON-FRI)"
+Write-Host "[OK] Signals task scheduled for 4:05 PM ET (MON-FRI)"
+
+# Task 3: Metrics/fundamentals loader pipeline (7:00 PM ET, MON-FRI)
+Write-Host ""
+Write-Host "Task 3: Metrics Pipeline (7:00 PM ET, MON-FRI)"
+Write-Host "  - Refreshes slow SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, value/quality/growth"
+
+# ADDED 2026-07-21: previously there was no scheduled task for the slow SEC/EDGAR fundamentals
+# refresh at all - only start_dashboard_dev.py's manual, completeness-gated invocation covered
+# it. A pure Task-Scheduler-only setup (no one ever running start_dashboard_dev.py) would never
+# refresh financial statements/13F/insider/positioning/value-quality-growth data.
+$metricsAction = New-ScheduledTaskAction `
+    -Execute $pythonExe `
+    -Argument "scripts/local_loader_scheduler.py --now metrics" `
+    -WorkingDirectory $algoPath
+
+$metricsTrigger = New-ScheduledTaskTrigger `
+    -Weekly `
+    -At "19:00" `
+    -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
+
+$metricsSettings = New-ScheduledTaskSettingsSet `
+    -AllowStartIfOnBatteries:$false `
+    -Compatibility Win8 `
+    -MultipleInstances IgnoreNew
+
+if (Get-ScheduledTask -TaskPath "$taskFolder\" -TaskName "evening-pipeline" -ErrorAction SilentlyContinue) {
+    Unregister-ScheduledTask -TaskPath "$taskFolder\" -TaskName "evening-pipeline" -Confirm:$false
+    Write-Host "[OK] Replaced existing evening task"
+} else {
+    Write-Host "[INFO] No existing evening task found"
+}
+
+Register-ScheduledTask `
+    -TaskName "evening-pipeline" `
+    -TaskPath $taskFolder `
+    -Action $metricsAction `
+    -Trigger $metricsTrigger `
+    -Settings $metricsSettings `
+    -Description "Refresh SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, value/quality/growth (metrics pipeline)" `
+    -ErrorAction Stop | Out-Null
+
+Write-Host "[OK] Metrics task scheduled for 7:00 PM ET (MON-FRI)"
 
 # List created tasks
 Write-Host ""
@@ -131,7 +177,7 @@ Get-ScheduledTask -TaskPath "$taskFolder\" | Select-Object -Property TaskName, @
 
 Write-Host ""
 Write-Host "[SUCCESS] Task Scheduler setup complete!"
-Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM and 4:05 PM ET"
+Write-Host "The loaders will run automatically on MON-FRI at 2:00 AM, 4:05 PM, and 7:00 PM ET"
 Write-Host ""
 Write-Host "To view/manage tasks, open Task Scheduler (Win+R > taskschd.msc)"
 Write-Host "Tasks are under: Task Scheduler Library > algo"

@@ -173,6 +173,58 @@ clamped to parallelism 1-2 to protect rate limits.
 
 ---
 
+## FIXED 2026-07-21: growth_metrics all-or-nothing bug discarding real partial data (score-input quality)
+
+`load_value_quality_growth_metrics.py::_compute_growth_metrics` computes 6 independent
+growth periods (revenue/EPS x 1y/3y/5y CAGR) from `annual_income_statement` history. Any
+single period failing (most commonly `eps_growth_5y`/`revenue_growth_5y`, which need 6
+distinct fiscal years - many symbols simply don't have that much SEC history yet) set
+`data_unavailable = True` on the ENTIRE row, even when 1-5 of the 6 periods computed real
+values. `load_stock_scores.py::_get_growth_metrics` checks that flag and discards the whole
+row via `marker_not_applicable` when set - so the real partial values it wrote never reached
+`_score_growth`, which already renormalizes over whatever periods are non-NULL (documented
+"RETURN TYPES: metrics available with ≥1 growth field -> returns float"). The scorer was
+never the problem; the loader's flag was silently throwing away good data before the scorer
+ever saw it. This is the SAME bug class already found and fixed in momentum (see
+`load_risk_metrics_daily.py::_compute_momentum_row`'s 2026-07-20 fix comment) - momentum,
+quality_metrics, and value_metrics were all already correctly partial-tolerant (checked
+directly, not just by analogy); growth was the one loader that still had it. Fixed by only
+setting `data_unavailable=True` when ALL 6 periods fail (`reason` still records what's
+missing, for diagnostics). Backfilled live via a full loader re-run (no external API calls -
+growth is computed purely from already-loaded `annual_income_statement`):
+- `growth_metrics` real coverage: 34.3% -> 87.7% (1739 -> 4446 of 5069 rows)
+- `stock_scores` real coverage: 76.5% -> 83.3% (4294 -> 4674 of 5613 rows)
+
+## FIXED 2026-07-21: dead yfinance quoteSummary (`.info`) code path removed
+
+`utils/external/yfinance.py` (`YFinanceWrapper`/`get_ticker`) wrapped yfinance's
+`.info`/quoteSummary endpoint - the API surface `load_yfinance_snapshot.py` used before it
+was deleted in Session 295. After that deletion, this wrapper had exactly one remaining
+caller: `RateLimitValidator.check_api_health()` (`utils/validation/rate_limit.py`), which
+used it purely to answer "is yfinance up" for an ops health check - firing a live, more
+fragile ("Invalid Crumb" 401-prone) request against an endpoint nothing else in the
+pipeline uses anymore, and risking tripping the SHARED cross-ECS-task circuit breaker that
+the real OHLCV fallback path (`yf.download` in `utils/data/source_router.py`) depends on.
+Deleted `utils/external/yfinance.py` and the now-fully-dead `loaders/helpers/
+yfinance_batcher.py` (batch helpers for the same deleted `.info` path, zero callers).
+Replaced the health check with `DataSourceRouter.check_yfinance_reachable()`, a new small
+method that exercises the actual `yf.download` fallback path under the existing shared
+circuit breaker/throttle instead. Also corrected `VIXFetcher`'s docstring/class comment
+(`loaders/market_health_fetchers.py`) - it reads VIX from `price_daily` (Alpaca-sourced),
+not from yfinance; the `"yfinance_vix"` circuit-breaker name is legacy/dashboard-compat
+only and was never a real yfinance call site. And rewrote `tests/
+test_put_call_ratio_yfinance.py`, which still asserted a live yfinance options-chain fetch
+(`0.2 <= result <= 3.0` float) that has been unreachable dead code since Session 291 -
+`PutCallRatioFetcher.fetch()` now unconditionally returns a `data_unavailable` marker (no
+official free put/call source exists); the test now asserts that actual contract instead of
+a path it could never exercise. No production behavior change from the test fix; the health
+check and dead-code removal reduce yfinance surface area per the "break away from yfinance
+as much as we can" ongoing goal - full data flow now: Alpaca (primary, ~99.4%) ->
+`yf.download` OHLCV fallback (~0.6% residual + whole-batch-failure fallback) -> nothing else
+touches yfinance.
+
+---
+
 ## FIXED 2026-07-20: 4 broken/dangling Step Functions transitions + 5 unscheduled "critical" loaders
 
 Two distinct classes of bug found in `terraform/modules/pipeline/main.tf`, both from the same

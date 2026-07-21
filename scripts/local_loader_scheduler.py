@@ -2,15 +2,28 @@
 """Local data loader scheduler - runs loaders on a schedule for local development.
 
 For local dev environments where AWS EventBridge isn't available.
-Runs key loaders at scheduled times to keep data fresh:
-- 2:00 AM ET: Morning pipeline (prices, technicals, market health)
-- 7:00 PM ET: Evening metrics refresh (scores, quality, growth, etc.)
-- 4:05 PM ET: EOD pipeline (end-of-day analysis)
+Runs key loaders at scheduled times to keep data fresh (mirrors AWS's real 3-pipeline
+EventBridge schedule in terraform/modules/pipeline/main.tf, plus a local-only reference pipeline):
+- 2:00 AM ET: Morning pipeline (prices, technicals, market health - pre-market prep)
+- 9:15 AM ET: Reference pipeline (SEC company info, earnings calendar; local-only, not in AWS)
+- 4:05 PM ET: Signals pipeline (re-fetches that day's CLOSING prices/technicals, then recomputes
+  stock_scores/buy_sell_daily/signal_quality_scores/risk_metrics/algo_metrics/sector_industry -
+  all DB-only/price-driven, no external API calls, so this must run every day regardless of
+  whether "metrics" ran that day). Matches AWS's eod_pipeline timing/content exactly. Previously
+  these 6 loaders lived inside "metrics" and were silently skipped whenever stock_scores
+  fundamentals completeness was already >=75% (true on almost every run after the first) - the
+  dashboard's trading signals would then never regenerate even though "morning" refreshed prices
+  every run. Also, nothing previously re-fetched closing prices after the 2 AM pre-market run at
+  all in the daemon/Windows-Task-Scheduler paths. Both fixed 2026-07-21; see
+  run_complete_loader_pipeline() in start_dashboard_dev.py, which now always runs this pipeline.
+- 7:00 PM ET: Metrics pipeline (slow SEC/EDGAR fundamentals refresh: financials, 13F, insider,
+  positioning, value/quality/growth - safe to run after signals since these loaders don't feed
+  same-day signal generation, only slowly-changing composite scores).
 
 Usage:
   python3 scripts/local_loader_scheduler.py                # Run scheduler daemon
   python3 scripts/local_loader_scheduler.py --now morning  # Run morning pipeline now
-  python3 scripts/local_loader_scheduler.py --now eod      # Run EOD pipeline now
+  python3 scripts/local_loader_scheduler.py --now signals  # Run signals pipeline now
 """
 
 import logging
@@ -61,14 +74,14 @@ LOADERS = {
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): stock universe + positioning metrics + SEC valuations + value/quality/growth, risk, stock scores + EOD signals",
+        "description": "Metrics pipeline (7:00 PM ET): slow SEC/EDGAR fundamentals refresh - stock universe, financial statements, valuations, positioning, value/quality/growth. Safe to skip on days fundamentals are already complete (see start_dashboard_dev.py's completeness gate) since SEC filings change rarely.",
         "loaders": [
-            # Found+fixed 2026-07-20 (data-loading audit): market_constituents, algo_metrics_daily,
-            # and economic_data are all wired into the AWS EOD Step Functions pipeline
-            # (terraform/modules/pipeline/main.tf) but were missing from this local scheduler and
-            # from scripts/setup_windows_schedule.ps1's --now metrics call - so local dev silently
-            # never auto-refreshed the stock/ETF universe, algo daily metrics, or FRED/DXY economic
-            # data unless someone ran the loader by hand. Re-added to match prod's actual loader set.
+            # Found+fixed 2026-07-20 (data-loading audit): market_constituents and economic_data
+            # are wired into the AWS EOD Step Functions pipeline (terraform/modules/pipeline/main.tf)
+            # but were missing from this local scheduler and from scripts/setup_windows_schedule.ps1's
+            # --now metrics call - so local dev silently never auto-refreshed the stock/ETF universe
+            # or FRED/DXY economic data unless someone ran the loader by hand. Re-added to match
+            # prod's actual loader set.
             "load_market_constituents.py",  # Universe (stock_symbols/etf_symbols) - must run first; see algo/orchestrator/phase1_data_freshness.py
             "load_financial_statements.py",
             "load_sec_valuations.py",
@@ -77,17 +90,35 @@ LOADERS = {
             "load_insider_holdings_sec.py",  # Phase 2: SEC Form 4/5 insider holdings (replaces ~15% yfinance)
             "load_positioning_metrics.py",  # Reads from Phase 2 SEC tables + FINRA short interest
             "load_value_quality_growth_metrics.py",
+            "load_economic_data.py",  # FRED (T10Y2Y/FEDFUNDS/BAMLH0A0HYM2/ICSA) + DXY
+        ],
+        "interval_hours": 24,
+        "target_hour": 19,
+        "target_minute": 0,
+    },
+    "signals": {
+        "description": "Signals pipeline (4:05 PM ET, 5 min after market close - matches AWS eod_pipeline's real schedule): re-fetches that day's closing prices/technicals, then recomputes scores/signals from them. Must run every day regardless of whether 'metrics' ran, since these are price-driven (not fundamentals-driven).",
+        "loaders": [
+            # Local dev's only other price fetch is 'morning' at 2 AM ET (pre-market, i.e. still
+            # showing the PREVIOUS close). Without re-fetching here, everything below would compute
+            # off a full trading day of stale price/technical data whenever this pipeline is run on
+            # its own schedule (daemon or Windows Task Scheduler) rather than chained after 'morning'
+            # in the same invocation (as start_dashboard_dev.py does). Mirrors AWS's eod_pipeline
+            # (terraform/modules/pipeline/main.tf), which re-runs stock_prices_daily/trend_template_data/
+            # technical_data_daily immediately before buy_sell_daily for exactly this reason.
+            "load_prices.py",
+            "load_technical_indicators.py",
+            "load_trend_analysis.py",
             "load_risk_metrics_daily.py",
             "load_stock_scores.py",
             "load_buy_sell_daily.py",  # EOD signals: depends on stock_scores (must be after load_stock_scores.py)
             "load_signal_quality_scores.py",  # Depends on buy_sell_daily (Session 307 restoration)
             "load_algo_metrics_daily.py",  # Portfolio stats/execution summary from algo_audit_log
             "load_sector_industry_daily.py",
-            "load_economic_data.py",  # FRED (T10Y2Y/FEDFUNDS/BAMLH0A0HYM2/ICSA) + DXY
         ],
         "interval_hours": 24,
-        "target_hour": 19,
-        "target_minute": 0,
+        "target_hour": 16,
+        "target_minute": 5,
     },
 }
 
