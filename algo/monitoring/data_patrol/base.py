@@ -185,8 +185,5 @@ class DataPatrol:
             "total_checks": len(self.results),
         }
 
-    def run_checks(self) -> None:
-        """Run all data patrol checks."""
-
     def get_issues(self) -> list[CheckResult]:
         return self.results

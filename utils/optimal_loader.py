@@ -340,13 +340,29 @@ class OptimalLoader:
         rows = self.transform(rows)
         logger.debug(f"[{self.table_name}] {symbol}: After transform, {len(rows)} rows")
         validated_rows = []
+        rows_rejected = 0
         for i, r in enumerate(rows):
             try:
-                self._validate_row(r)
+                # CRITICAL FIX: the return value of _validate_row() was previously discarded -
+                # only a raised ValueError (missing/None primary key) had any effect. Subclass
+                # overrides that signal a bad row by returning False (e.g. PriceLoader's OHLC
+                # sanity check: high>=low, close>0, open>0) were silently no-ops - the row was
+                # appended and inserted regardless. Confirmed 2026-07-21: a row with negative
+                # low, or close/open outside the [low, high] range, would pass straight through
+                # to price_daily and corrupt every downstream technical indicator/position-sizing/
+                # P&L calculation that reads it. A per-row False now skips just that row (not a
+                # fail-fast crash of the whole symbol - a single bad tick is a routine data-quality
+                # event, not evidence of systemic corruption the way a missing primary key is).
+                if not self._validate_row(r):
+                    rows_rejected += 1
+                    logger.warning(f"[{self.table_name}] {symbol}: Row {i} rejected by validation, skipping: {r}")
+                    continue
                 validated_rows.append(r)
             except ValueError as e:
                 logger.error(f"[{self.table_name}] {symbol}: Row {i} validation failed: {e}")
                 raise ValueError(f"Row {i} failed validation: {e}") from e
+        if rows_rejected:
+            self._stats.increment("rows_rejected_by_validation", rows_rejected)
 
         logger.debug(f"[{self.table_name}] {symbol}: {len(validated_rows)} rows passed validation")
         if not validated_rows:
@@ -721,7 +737,9 @@ class OptimalLoader:
                     logger.warning(f"[{self.table_name}] Failed to release lock in load_global: {lock_err}")
 
     def close(self) -> None:
-        pass
+        """No-op: loaders hold no persistent resources of their own - all DB access goes
+        through the pooled connection context manager, which manages its own lifecycle.
+        Exists as a lifecycle hook for runner.py's `finally: loader.close()`."""
 
     def _run_serial(self, symbols: list[str]) -> None:
         failed_symbols: list[str] = []
