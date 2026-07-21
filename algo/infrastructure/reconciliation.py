@@ -44,6 +44,8 @@ def _compute_adjusted_drawdown(
         (reconcile_date,),
     )
     flow_row = cur.fetchone()
+    if flow_row is None or len(flow_row) < 1:
+        raise RuntimeError("[RECONCILIATION] Capital flow query returned invalid result: expected 1 column, got 0 or None")
     net_capital_flow_cum = float(flow_row[0])
 
     adjusted_equity = portfolio_value - net_capital_flow_cum
@@ -55,6 +57,8 @@ def _compute_adjusted_drawdown(
         (reconcile_date,),
     )
     peak_row = cur.fetchone()
+    if peak_row is None or len(peak_row) < 1:
+        raise RuntimeError("[RECONCILIATION] Peak equity query returned invalid result: expected 1 column, got 0 or None")
     prior_peak_val = peak_row[0]
     adjusted_running_peak = max(float(prior_peak_val), adjusted_equity) if prior_peak_val is not None else adjusted_equity
 

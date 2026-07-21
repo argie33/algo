@@ -304,7 +304,7 @@ class PositionSizer:
         if not key or not secret:
             raise RuntimeError("CRITICAL: Alpaca credentials not found. Cannot fetch portfolio value.")
 
-        max_retries = 3
+        max_retries = self.config.get("alpaca_portfolio_fetch_retries", 3)
         for attempt in range(max_retries):
             try:
                 response = requests.get(
@@ -424,11 +424,13 @@ class PositionSizer:
         dd = self.get_current_drawdown()
 
         if dd >= 20:
-            logger.critical(
-                "CIRCUIT BREAKER TRIGGERED: Portfolio drawdown >= 20%. "
-                "Position sizing halted. All entries blocked until recovery."
-            )
-            return Decimal(0)
+            risk_mult = Decimal(str(self.config.get("risk_reduction_at_minus_20", 0.0)))
+            if risk_mult == 0:
+                logger.critical(
+                    "CIRCUIT BREAKER TRIGGERED: Portfolio drawdown >= 20%. "
+                    "Position sizing halted. All entries blocked until recovery."
+                )
+            return risk_mult
         elif dd >= 15:
             return Decimal(str(self.config["risk_reduction_at_minus_15"]))
         elif dd >= 10:
