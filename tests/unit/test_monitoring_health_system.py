@@ -11,6 +11,7 @@ Health monitoring ensures the trading system stays operational:
 Tests verify that system state is accurately reported and alerts trigger correctly.
 """
 
+from datetime import date as _date
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, Mock, patch
 
@@ -57,6 +58,52 @@ class TestPipelineHealthMonitoring:
         assert isinstance(status.healthy_count, int)
         assert isinstance(status.total_count, int)
         assert isinstance(status.coverage_pct, float)
+
+    def test_log_health_check_writes_per_table_last_updated_not_now(self):
+        """log_health_check's bulk executemany must stamp last_updated from each table's own
+        latest_date, not a single NOW() shared by the whole transaction. A blind NOW() made
+        every table in data_loader_status share one identical timestamp on every orchestrator
+        run (Postgres's NOW() is constant for the whole transaction), clobbering the real
+        per-loader freshness signal /api/algo/data-status reads back out - confirmed live:
+        every one of 95 tables reported the same age_hours regardless of true staleness.
+        """
+        from algo.monitoring.pipeline_health import HealthStatus, PipelineHealth, PipelineStatus, TableHealth
+
+        fresh_date = _date(2026, 7, 20)
+        stale_date = _date(2026, 7, 10)
+        status = PipelineStatus(
+            tables={
+                "price_daily": TableHealth(
+                    table_name="price_daily", status=HealthStatus.HEALTHY, row_count=100, latest_date=fresh_date
+                ),
+                "aaii_sentiment": TableHealth(
+                    table_name="aaii_sentiment",
+                    status=HealthStatus.STALE,
+                    row_count=50,
+                    latest_date=stale_date,
+                ),
+            }
+        )
+
+        mock_cur = Mock()
+        mock_cur.fetchall.return_value = []
+        with patch("algo.monitoring.pipeline_health.DatabaseContext") as mock_db_ctx:
+            mock_db_ctx.return_value.__enter__.return_value = mock_cur
+            mock_db_ctx.return_value.__exit__.return_value = False
+            monitor = PipelineHealth()
+            monitor.log_health_check(status)
+
+        executemany_call = mock_cur.executemany.call_args
+        sql_text = executemany_call[0][0]
+        insert_values = executemany_call[0][1]
+
+        assert "NOW()" not in sql_text.replace("COALESCE(%s::timestamptz, NOW())", "")
+        assert "last_updated = EXCLUDED.last_updated" in sql_text
+
+        last_updated_by_table = {row[0]: row[-1] for row in insert_values}
+        assert last_updated_by_table["price_daily"] == fresh_date
+        assert last_updated_by_table["aaii_sentiment"] == stale_date
+        assert last_updated_by_table["price_daily"] != last_updated_by_table["aaii_sentiment"]
 
 
 class TestConnectionMonitoring:

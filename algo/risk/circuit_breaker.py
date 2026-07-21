@@ -489,6 +489,14 @@ class CircuitBreaker:
 
         Win rate = wins / (wins + losses), where losses include both closed losses and open positions
         with negative unrealized P&L. Excluding break-even trades to avoid dilution.
+
+        Rolling 30-trade window (per solution-blueprint.html's CB11 spec and the same convention
+        _check_consecutive_losses uses via its own LIMIT 10) - NOT all-time history. An earlier
+        version of this query aggregated every closed trade ever with no ORDER BY/LIMIT, so a
+        cluster of old losses could permanently anchor the win rate below floor and halt trading
+        forever regardless of how well it was performing recently; loaders/compute_circuit_breakers.py's
+        _compute_win_rate already implemented the correct rolling-30 window (for a metrics/display
+        table only, never wired into this actual gating check) - mirrored here.
         """
         # Include both closed trades (confirmed exits) and open positions (unrealized losses).
         # This prevents masked deterioration where closed trades look good but open positions bleed.
@@ -499,12 +507,17 @@ class CircuitBreaker:
                    COUNT(*) FILTER (WHERE pnl_pct = 0) as breakeven,
                    COUNT(*) as total
             FROM (
-                -- Closed trades with confirmed exits
+                -- Most recent 30 closed trades with confirmed exits (rolling window, not all-time)
                 SELECT profit_loss_pct as pnl_pct
-                FROM algo_trades
-                WHERE status = %s AND exit_date IS NOT NULL
-                  AND exit_r_multiple IS NOT NULL
-                  AND trade_id NOT LIKE 'EXT-%%'
+                FROM (
+                    SELECT profit_loss_pct
+                    FROM algo_trades
+                    WHERE status = %s AND exit_date IS NOT NULL
+                      AND exit_r_multiple IS NOT NULL
+                      AND trade_id NOT LIKE 'EXT-%%'
+                    ORDER BY exit_date DESC, exit_time DESC NULLS LAST
+                    LIMIT 30
+                ) recent_closed
                 UNION ALL
                 -- Open positions with unrealized P&L (show current risk)
                 SELECT unrealized_pnl_pct as pnl_pct
@@ -520,19 +533,28 @@ class CircuitBreaker:
             return {"halted": False, "reason": "No trade data available - insufficient trades (< 10)"}
 
         total = row[3]
-        if total is None or int(total) < 10:
+        if total is None:
             return {"halted": False, "reason": "Insufficient closed trades (< 10)"}
+        total = int(total)
 
         wins = row[0] if row[0] is not None else 0
         losses = row[1] if row[1] is not None else 0
-        total = int(total)
 
         # Win rate based on wins vs (wins + losses), excluding break-even trades
         # This avoids dilution where many break-even trades inflate the denominator
         decisive_trades = wins + losses
-        if decisive_trades <= 0:
-            logger.critical("CRITICAL: No decisive trades (wins + losses = 0) - cannot calculate win rate")
-            return {"halted": True, "reason": "Insufficient decisive trades for win rate threshold check"}
+        # The sample-size guard must gate on decisive_trades (the actual win_rate
+        # denominator below), not on total (which also counts breakeven placeholder
+        # rows - e.g. Phase 9 "pending fill price confirmation" reconciliation exits
+        # recorded at exactly 0.00% before their real fill price is known). Gating on
+        # total let it through with total=26 but decisive_trades=8 in a live run -
+        # a below-threshold sample size computing a real halt off effectively 8 trades.
+        if decisive_trades < 10:
+            return {
+                "halted": False,
+                "reason": f"Insufficient decisive trades ({decisive_trades} < 10)",
+                "trades_sampled": total,
+            }
         win_rate = wins / decisive_trades * 100.0
         win_rate_val = self._get_required_config("min_win_rate_pct", "in win rate check")
         threshold = float(win_rate_val)

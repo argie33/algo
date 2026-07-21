@@ -512,6 +512,24 @@ class PipelineHealth:
                             # gap-adjusted threshold so this column stops silently
                             # contradicting the status it sits next to.
                             table_health.sla_days,
+                            # last_updated must reflect real data recency (latest_date, the
+                            # table's own most recent row), not "when this health check ran".
+                            # This bulk executemany runs in ONE transaction on every orchestrator
+                            # run (pre-Phase-1, unconditional) - Postgres's NOW() is fixed for the
+                            # whole transaction, so the old `last_updated = NOW()` stamped every
+                            # one of the ~95 tracked tables with the SAME timestamp every run,
+                            # for EVERY table including ones with their own precise per-loader
+                            # last_updated (load_prices.py etc. already set this correctly via a
+                            # table-name-scoped UPDATE) - clobbering it. Confirmed live: every row
+                            # in data_loader_status shared one identical microsecond-precision
+                            # timestamp, and /api/algo/data-status (which computes age_hours/stale
+                            # status directly off this column, per its own last_updated.date() vs
+                            # expected_date comparison) reported every table as equally ~fresh
+                            # regardless of true staleness - masking exactly the kind of stale-data
+                            # condition this health check exists to surface. Fall back to NOW()
+                            # only when no latest_date could be determined (no usable date column
+                            # on that table) - see _infer_date_column's "skipping age check" path.
+                            table_health.latest_date,
                         )
                         for table_health in status.tables.values()
                     ]
@@ -519,7 +537,7 @@ class PipelineHealth:
                         """
                         INSERT INTO data_loader_status
                         (table_name, status, row_count, latest_date, age_days, error_message, stale_threshold_days, last_updated)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, COALESCE(%s::timestamptz, NOW()))
                         ON CONFLICT (table_name)
                         DO UPDATE SET
                             status = EXCLUDED.status,
@@ -528,7 +546,7 @@ class PipelineHealth:
                             age_days = EXCLUDED.age_days,
                             error_message = EXCLUDED.error_message,
                             stale_threshold_days = EXCLUDED.stale_threshold_days,
-                            last_updated = NOW()
+                            last_updated = EXCLUDED.last_updated
                         """,
                         insert_values,
                     )

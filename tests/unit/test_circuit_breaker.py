@@ -264,3 +264,47 @@ class TestCircuitBreakerWithMalformedData:
             assert breaker.config["drawdown_limit"] <= 0
         except (ValueError, AssertionError):
             pass  # Expected
+
+
+class TestWinRateFloorSampleSize:
+    """_check_win_rate_floor's sample-size guard must gate on decisive_trades (wins+losses),
+    not on total (which also counts breakeven placeholder rows - e.g. Phase 9's "pending fill
+    price confirmation" reconciliation exits recorded at exactly 0.00% before their real fill
+    price is known). A live run hit total=26/decisive_trades=8: the old total-based guard let
+    an 8-trade sample compute a real halt.
+    """
+
+    def test_below_threshold_decisive_sample_does_not_halt_despite_high_total(self, mock_config):
+        """total=26 (mostly breakeven placeholders) but only 8 decisive trades - must not halt."""
+        config = dict(mock_config, min_win_rate_pct=40.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        # wins=3, losses=5, breakeven=18, total=26 -> decisive_trades=8 < 10
+        mock_cur.fetchone.return_value = (3, 5, 18, 26)
+        result = cb._check_win_rate_floor(current_date=None, cur=mock_cur)
+        assert result["halted"] is False
+        assert "8" in result["reason"]
+
+    def test_at_threshold_decisive_sample_does_halt_on_low_win_rate(self, mock_config):
+        """decisive_trades=10 (>= minimum) with a real floor breach must still halt."""
+        config = dict(mock_config, min_win_rate_pct=40.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        # wins=3, losses=7 -> decisive_trades=10, win_rate=30% < 40% floor
+        mock_cur.fetchone.return_value = (3, 7, 0, 10)
+        result = cb._check_win_rate_floor(current_date=None, cur=mock_cur)
+        assert result["halted"] is True
+        assert result["value"] == 30.0
+
+    def test_query_uses_rolling_30_trade_window_not_all_time_history(self, mock_config):
+        """The closed-trades subquery must LIMIT to a rolling window, matching
+        _check_consecutive_losses's own LIMIT 10 and solution-blueprint.html's documented
+        "Rolling 30-trade win rate" design - not aggregate every closed trade ever.
+        """
+        config = dict(mock_config, min_win_rate_pct=40.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        mock_cur.fetchone.return_value = (3, 7, 0, 10)
+        cb._check_win_rate_floor(current_date=None, cur=mock_cur)
+        executed_sql = mock_cur.execute.call_args[0][0]
+        assert "LIMIT 30" in executed_sql
