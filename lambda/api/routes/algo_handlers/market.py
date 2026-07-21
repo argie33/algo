@@ -1177,13 +1177,11 @@ def _get_market_factors(cur: cursor) -> Any:
 @db_route_handler("get market sentiment")  # type: ignore[untyped-decorator]
 @validate_api_response("mkt")  # type: ignore[untyped-decorator]
 def _get_market_sentiment(cur: cursor) -> Any:
-    # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score
+    # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score.
+    # bullish/bearish/neutral breakdown is not available in this view (AAII survey data lives in
+    # aaii_sentiment instead) - only sentiment_score is used below.
     cur.execute("""
-        SELECT sentiment_score,
-               COALESCE(put_call_ratio, NULL::numeric) AS bullish_pct,
-               COALESCE(vix, NULL::numeric) AS bearish_pct,
-               NULL::numeric AS neutral_pct,
-               date
+        SELECT sentiment_score, date
         FROM market_sentiment
         ORDER BY date DESC
         LIMIT 1
