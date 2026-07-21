@@ -227,6 +227,26 @@ def _error_panel(data_name: str, data: Any, title: str, border: str = "magenta")
             padding=(0, 1),
         )
 
+    # A non-empty list is a valid, successful data shape here, not an error - callers
+    # commonly pass ctx.<name> properties (e.g. sectors.py's `srank`) that have already
+    # been unwrapped from {"items": [...]} to a plain list by
+    # dashboard/panels/trades.py::_extract_items(), which is the intended behavior for
+    # panels that want to iterate the list directly. Previously this branch treated ANY
+    # non-dict as "invalid data" - confirmed live: the SECTORS panel showed "srank
+    # returned invalid data (expected dict, got list)" on every single render where real
+    # sector data was actually available, because a successful fetch is exactly what
+    # produces this list shape. error_boundary.has_error() already correctly treats a
+    # non-dict, non-None value as "no error" (below), so only genuinely unexpected types
+    # (not dict, not list, not None) are truly invalid data.
+    if not isinstance(data, dict) and not isinstance(data, list):
+        logger.error(f"[_error_panel] {data_name}: expected dict or list, got {type(data).__name__}")
+        return Panel(
+            Text.from_markup(f"[{R}]{data_name}[/] returned invalid data (expected dict or list, got {type(data).__name__})"),
+            title=f"[bold]{title}[/]",
+            border_style=border,
+            padding=(0, 1),
+        )
+
     if error_boundary.has_error(data):
         error_msg = error_boundary.get_error_message(data)
         return Panel(
