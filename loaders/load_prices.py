@@ -131,7 +131,10 @@ class PriceLoader(OptimalLoader):
             if self._is_eod_pipeline
             else "loader_rate_limit_circuit_break_threshold_morning"
         )
-        self._rate_limit_circuit_break_threshold = int(config.get(key))
+        threshold_val = config.get(key)
+        if threshold_val is None:
+            raise ValueError(f"[PRICE_LOADER] Missing config '{key}'. Cannot determine rate limit threshold.")
+        self._rate_limit_circuit_break_threshold = int(threshold_val)
 
         # Instantiate specialists - each handles a specific concern
         self.fetcher = PriceFetcher(
