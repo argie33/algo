@@ -36,8 +36,8 @@ from .signals import _TIER_CONFIG
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get data quality")  # type: ignore[untyped-decorator]
-@validate_api_response("health")  # type: ignore[untyped-decorator]
+@db_route_handler("get data quality")
+@validate_api_response("health")
 def _get_data_quality(cur: cursor) -> Any:
     try:
         # Get patrol log entries from last 24 hours
@@ -151,8 +151,8 @@ def _get_data_quality(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch data status")  # type: ignore[untyped-decorator]
-@validate_api_response("health")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch data status")
+@validate_api_response("health")
 def _get_data_status(cur: cursor) -> Any:  # noqa: C901
     """Get data freshness status with summary for ServiceHealth/AlgoTradingDashboard.
 
@@ -389,12 +389,11 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     }
                     ts_col = ts_columns.get(tbl_name, "created_at")
 
-                    cur.execute(psycopg2.sql.SQL(
-                        "SELECT COUNT(*) AS cnt, MAX({}) AS last_ts FROM {}"
-                    ).format(
-                        psycopg2.sql.Identifier(ts_col),
-                        psycopg2.sql.Identifier(tbl_name)
-                    ))
+                    cur.execute(
+                        psycopg2.sql.SQL("SELECT COUNT(*) AS cnt, MAX({}) AS last_ts FROM {}").format(
+                            psycopg2.sql.Identifier(ts_col), psycopg2.sql.Identifier(tbl_name)
+                        )
+                    )
                     refresh_row = cur.fetchone()
                     if refresh_row:
                         actual_count = refresh_row[0]
@@ -578,20 +577,30 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         # trend_template_data, sector_ranking
         try:
             phase1_tables = [
-                'price_daily', 'market_health_daily', 'market_exposure_daily',
-                'earnings_calendar', 'growth_metrics', 'quality_metrics',
-                'value_metrics', 'positioning_metrics', 'stability_metrics',
-                'trend_template_data', 'sector_ranking'
+                "price_daily",
+                "market_health_daily",
+                "market_exposure_daily",
+                "earnings_calendar",
+                "growth_metrics",
+                "quality_metrics",
+                "value_metrics",
+                "positioning_metrics",
+                "stability_metrics",
+                "trend_template_data",
+                "sector_ranking",
             ]
 
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT COUNT(*) as total_tables,
                        COUNT(*) FILTER (WHERE EXTRACT(EPOCH FROM (NOW() - last_updated)) / 3600 <= 24) as fresh_count,
                        COUNT(*) FILTER (WHERE EXTRACT(EPOCH FROM (NOW() - last_updated)) / 3600 > 24) as stale_count,
                        MAX(last_updated) as last_checked
                 FROM data_loader_status
                 WHERE table_name = ANY(%s)
-            """, (phase1_tables,))
+            """,
+                (phase1_tables,),
+            )
             phase1_row = cur.fetchone()
             if phase1_row:
                 phase1_dict = safe_dict_convert(phase1_row)
@@ -613,7 +622,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "tables_fresh": fresh_count,
                         "tables_stale": stale_count,
                         "validation_status": "pass" if stale_count == 0 else ("warn" if stale_count <= 2 else "fail"),
-                        "last_checked": phase1_dict.get("last_checked").isoformat() if phase1_dict.get("last_checked") else None,
+                        "last_checked": phase1_dict.get("last_checked").isoformat()
+                        if phase1_dict.get("last_checked")
+                        else None,
                     }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_1_data_check"] = None
@@ -630,7 +641,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             if cb_row:
                 cb_dict = safe_dict_convert(cb_row)
                 any_triggered = False
-                if cb_dict.get("portfolio_drawdown_pct") is not None and float(cb_dict["portfolio_drawdown_pct"]) >= 20.0:
+                if (
+                    cb_dict.get("portfolio_drawdown_pct") is not None
+                    and float(cb_dict["portfolio_drawdown_pct"]) >= 20.0
+                ):
                     any_triggered = True
                 if cb_dict.get("daily_loss_pct") is not None and float(cb_dict["daily_loss_pct"]) >= 2.0:
                     any_triggered = True
@@ -642,14 +656,24 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     any_triggered = True
 
                 check_date = cb_dict.get("check_date")
-                check_date_str = check_date.isoformat() if check_date and hasattr(check_date, "isoformat") else str(check_date)
+                check_date_str = (
+                    check_date.isoformat() if check_date and hasattr(check_date, "isoformat") else str(check_date)
+                )
 
                 execution_health["phase_2_circuit_breakers"] = {
                     "any_triggered": any_triggered,
-                    "drawdown_pct": float(cb_dict["portfolio_drawdown_pct"]) if cb_dict.get("portfolio_drawdown_pct") is not None else None,
-                    "daily_loss_pct": float(cb_dict["daily_loss_pct"]) if cb_dict.get("daily_loss_pct") is not None else None,
-                    "weekly_loss_pct": float(cb_dict["weekly_loss_pct"]) if cb_dict.get("weekly_loss_pct") is not None else None,
-                    "open_risk_pct": float(cb_dict["open_risk_pct"]) if cb_dict.get("open_risk_pct") is not None else None,
+                    "drawdown_pct": float(cb_dict["portfolio_drawdown_pct"])
+                    if cb_dict.get("portfolio_drawdown_pct") is not None
+                    else None,
+                    "daily_loss_pct": float(cb_dict["daily_loss_pct"])
+                    if cb_dict.get("daily_loss_pct") is not None
+                    else None,
+                    "weekly_loss_pct": float(cb_dict["weekly_loss_pct"])
+                    if cb_dict.get("weekly_loss_pct") is not None
+                    else None,
+                    "open_risk_pct": float(cb_dict["open_risk_pct"])
+                    if cb_dict.get("open_risk_pct") is not None
+                    else None,
                     "vix_level": float(cb_dict["vix_level"]) if cb_dict.get("vix_level") is not None else None,
                     "last_check": check_date_str,
                 }
@@ -672,7 +696,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 execution_health["phase_3_position_monitor"] = {
                     "open_positions": int(pos_dict["open_count"]) if pos_dict.get("open_count") else 0,
                     "oldest_days": int(pos_dict["oldest_days"]) if pos_dict.get("oldest_days") is not None else None,
-                    "max_loss_pct": float(pos_dict["max_loss_pct"]) if pos_dict.get("max_loss_pct") is not None else None,
+                    "max_loss_pct": float(pos_dict["max_loss_pct"])
+                    if pos_dict.get("max_loss_pct") is not None
+                    else None,
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError, AttributeError) as e:
             logger.debug(f"[HEALTH] Phase 3 position monitor query failed: {e}")
@@ -696,7 +722,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 execution_health["phase_4_broker_reconciliation"] = {
                     "sync_count": sync_count,
                     "latest_sync": recon_dict.get("latest_sync").isoformat() if recon_dict.get("latest_sync") else None,
-                    "avg_match_pct": float(recon_dict["avg_match_pct"]) if recon_dict.get("avg_match_pct") is not None else None,
+                    "avg_match_pct": float(recon_dict["avg_match_pct"])
+                    if recon_dict.get("avg_match_pct") is not None
+                    else None,
                 }
             else:
                 execution_health["phase_4_broker_reconciliation"] = None
@@ -804,8 +832,12 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "signals_generated": total_signals,
                         "buy_signals": buy_signals,
                         "sell_signals": sell_signals,
-                        "avg_strength": float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") is not None else None,
-                        "latest_signal": sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None,
+                        "avg_strength": float(sig_dict["avg_strength"])
+                        if sig_dict.get("avg_strength") is not None
+                        else None,
+                        "latest_signal": sig_dict.get("latest_signal").isoformat()
+                        if sig_dict.get("latest_signal")
+                        else None,
                         "symbols_with_signals": sig_dict.get("symbols_with_signals") or [],
                     }
             else:
@@ -854,7 +886,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                 snap_dict = safe_dict_convert(snap_row)
                 execution_health["phase_9_portfolio_snapshot"] = {
                     "snapshot_count": int(snap_dict["snapshot_count"]) if snap_dict.get("snapshot_count") else 0,
-                    "latest_snapshot": snap_dict.get("latest_date").isoformat() if snap_dict.get("latest_date") else None,
+                    "latest_snapshot": snap_dict.get("latest_date").isoformat()
+                    if snap_dict.get("latest_date")
+                    else None,
                     "portfolio_value": float(snap_dict["latest_value"]) if snap_dict.get("latest_value") else None,
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
@@ -1011,8 +1045,8 @@ def _normalize_exposure(exp: dict[str, Any]) -> Any:
     }
 
 
-@db_route_handler("get market")  # type: ignore[untyped-decorator]
-@validate_api_response("mkt")  # type: ignore[untyped-decorator]
+@db_route_handler("get market")
+@validate_api_response("mkt")
 def _get_market(cur: cursor) -> Any:
     try:
         cur.execute("SET LOCAL statement_timeout = '8000ms'")
@@ -1107,17 +1141,23 @@ def _get_market(cur: cursor) -> Any:
             "new_lows_count": int(nl_val) if nl_val is not None else None,
             "put_call_ratio": float(pcr_val) if pcr_val is not None else None,
             "put_call_ratio_data_unavailable": pcr_val is None,
-            "put_call_ratio_unavailable_reason": market_health.get("put_call_ratio_unavailable_reason") if pcr_val is None else None,
+            "put_call_ratio_unavailable_reason": market_health.get("put_call_ratio_unavailable_reason")
+            if pcr_val is None
+            else None,
             "breadth_momentum_10d": float(bm_val) if bm_val is not None else None,
             "yield_curve_slope": float(ycs_val) if ycs_val is not None else None,
             "yield_curve_data_unavailable": ycs_val is None,
-            "yield_curve_unavailable_reason": market_health.get("yield_curve_unavailable_reason") if ycs_val is None else None,
+            "yield_curve_unavailable_reason": market_health.get("yield_curve_unavailable_reason")
+            if ycs_val is None
+            else None,
             "fed_rate_environment": market_health.get("fed_rate_environment"),
             # CRITICAL FIX: Explicitly check if fed_rate_data_unavailable is True (not False default).
             # Do NOT silently default to False if field is missing - that masks data quality issues.
             # Consistency: Put_call_ratio and yield_curve use explicit None checks, apply same pattern here.
             "fed_rate_data_unavailable": market_health.get("fed_rate_data_unavailable") is True,
-            "fed_rate_unavailable_reason": market_health.get("fed_rate_unavailable_reason") if market_health.get("fed_rate_data_unavailable") is True else None,
+            "fed_rate_unavailable_reason": market_health.get("fed_rate_unavailable_reason")
+            if market_health.get("fed_rate_data_unavailable") is True
+            else None,
         }
 
         return json_response(200, data)
@@ -1134,7 +1174,7 @@ def _get_market(cur: cursor) -> Any:
         return error_response(503, "service_unavailable", "Failed to fetch market data")
 
 
-@db_route_handler("get market factors")  # type: ignore[untyped-decorator]
+@db_route_handler("get market factors")
 def _get_market_factors(cur: cursor) -> Any:
     logger.debug("[MARKET_FACTORS] Function called - no validation decorator")
     try:
@@ -1187,8 +1227,8 @@ def _get_market_factors(cur: cursor) -> Any:
         return error_response(503, "service_unavailable", "Failed to fetch market factors")
 
 
-@db_route_handler("get market sentiment")  # type: ignore[untyped-decorator]
-@validate_api_response("mkt")  # type: ignore[untyped-decorator]
+@db_route_handler("get market sentiment")
+@validate_api_response("mkt")
 def _get_market_sentiment(cur: cursor) -> Any:
     # market_sentiment view provides: date, fear_greed_index, label, put_call_ratio, vix, sentiment_score.
     # bullish/bearish/neutral breakdown is not available in this view (AAII survey data lives in
@@ -1237,8 +1277,8 @@ def _get_market_sentiment(cur: cursor) -> Any:
     )
 
 
-@db_route_handler("get markets")  # type: ignore[untyped-decorator]
-@validate_api_response("mkt")  # type: ignore[untyped-decorator]
+@db_route_handler("get markets")
+@validate_api_response("mkt")
 def _get_markets(cur: cursor) -> Any:  # noqa: C901
     try:
         # Latest exposure row (skip non-trading days to get last valid trading day)
@@ -1335,7 +1375,9 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                         }
                     )
                 except Exception as hist_err:
-                    logger.error(f"[MARKETS_API] Failed to parse history item: {hist_err}. Marking history unavailable.")
+                    logger.error(
+                        f"[MARKETS_API] Failed to parse history item: {hist_err}. Marking history unavailable."
+                    )
                     history_data_unavailable = True
                     break
         except Exception as h_err:
@@ -1376,7 +1418,6 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         # Markets only have valid data on trading days
         market_health = {}
         try:
-
             cur.execute("""
                     SELECT date, market_trend, market_stage, vix_level, spy_change_pct,
                            up_volume_percent, advance_decline_ratio, new_highs_count,
@@ -1403,15 +1444,16 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
                     "This should never happen - indicates database or query logic error."
                 )
                 raise ValueError(
-                    "Market health VIX validation failed (query logic error). "
-                    "Check API query and database state."
+                    "Market health VIX validation failed (query logic error). Check API query and database state."
                 )
 
             # Validate VIX is numeric and > 0 (VIX is never zero or negative)
             try:
                 vix_float = float(vix_val)
                 if vix_float <= 0:
-                    raise ValueError(f"VIX {vix_float} is invalid (must be > 0). Data quality issue in market_health_daily.")
+                    raise ValueError(
+                        f"VIX {vix_float} is invalid (must be > 0). Data quality issue in market_health_daily."
+                    )
             except (ValueError, TypeError) as e:
                 logger.error(
                     f"[MARKETS API] CRITICAL: VIX validation failed: {e}. "
@@ -1575,8 +1617,8 @@ def _get_markets(cur: cursor) -> Any:  # noqa: C901
         )
 
 
-@db_route_handler("get trend criteria")  # type: ignore[untyped-decorator]
-@validate_api_response("mkt")  # type: ignore[untyped-decorator]
+@db_route_handler("get trend criteria")
+@validate_api_response("mkt")
 def _get_trend_criteria(cur: cursor) -> Any:
     cur.execute("""
         SELECT

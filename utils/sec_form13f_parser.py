@@ -28,7 +28,7 @@ class Form13FParser:
     This parser extracts holdings data and calculates institutional ownership.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     def parse_13f_xml(self, xml_content: str, symbol: str) -> dict[str, Any]:
@@ -52,21 +52,21 @@ class Form13FParser:
             # Navigate to information table (structure varies by document format)
             # Common paths: //informationTable or //doc/document/section[@type='13F']
 
-            holdings_for_symbol = []
-            total_value = 0
-            total_shares = 0
+            holdings_for_symbol: list[dict[str, Any]] = []
+            total_value = 0.0
+            total_shares = 0.0
 
             # Try to find holdings in information table
             # Form 13F XML structure: documentNode > issuer > nameOfIssuer, cusip, value, shrsOrPrnAmt, etc.
 
             # Extract all holdings
-            for info_table_entry in root.findall('.//infotable', namespaces={'': 'http://www.sec.gov/cgi-bin'}):
+            for info_table_entry in root.findall(".//infotable", namespaces={"": "http://www.sec.gov/cgi-bin"}):
                 try:
                     # Get issuer name
-                    name_elem = info_table_entry.find('.//nameOfIssuer')
-                    cusip_elem = info_table_entry.find('.//cusip')
-                    shares_elem = info_table_entry.find('.//shrsOrPrnAmt')
-                    value_elem = info_table_entry.find('.//value')
+                    name_elem = info_table_entry.find(".//nameOfIssuer")
+                    cusip_elem = info_table_entry.find(".//cusip")
+                    shares_elem = info_table_entry.find(".//shrsOrPrnAmt")
+                    value_elem = info_table_entry.find(".//value")
 
                     if name_elem is not None and name_elem.text:
                         issuer_name = name_elem.text.strip().upper()
@@ -76,13 +76,15 @@ class Form13FParser:
 
                         # Check if this is our target symbol (name match or CUSIP match)
                         if symbol.upper() in issuer_name or (cusip and self._cusip_matches_symbol(cusip, symbol)):
-                            holdings_for_symbol.append({
-                                'symbol': symbol,
-                                'shares': shares,
-                                'value': value,
-                                'cusip': cusip,
-                                'name': issuer_name
-                            })
+                            holdings_for_symbol.append(
+                                {
+                                    "symbol": symbol,
+                                    "shares": shares,
+                                    "value": value,
+                                    "cusip": cusip,
+                                    "name": issuer_name,
+                                }
+                            )
 
                         # Track total for this filing
                         if shares:
@@ -96,13 +98,13 @@ class Form13FParser:
 
             # Return parsed data
             if holdings_for_symbol:
-                total_shares_for_symbol = sum(h['shares'] or 0 for h in holdings_for_symbol)
+                total_shares_for_symbol = sum(h["shares"] or 0 for h in holdings_for_symbol)
 
                 return {
                     "symbol": symbol,
                     "holdings": holdings_for_symbol,
                     "total_shares": total_shares_for_symbol,
-                    "total_value": sum(h['value'] or 0 for h in holdings_for_symbol),
+                    "total_value": sum(h["value"] or 0 for h in holdings_for_symbol),
                     "data_source": "sec_form13f_xml",
                     "data_available": True,
                 }
@@ -137,7 +139,7 @@ class Form13FParser:
             return None
         try:
             # Remove commas and other formatting
-            cleaned = value_str.replace(',', '').strip()
+            cleaned = value_str.replace(",", "").strip()
             return float(cleaned)
         except (ValueError, AttributeError):
             return None

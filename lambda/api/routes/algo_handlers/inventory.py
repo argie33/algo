@@ -18,7 +18,7 @@ from routes.utils import (
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get table inventory")  # type: ignore[untyped-decorator]
+@db_route_handler("get table inventory")
 def _get_table_inventory(cur: cursor) -> Any:
     """Get COMPLETE table inventory - all tracked, deprecated, untracked tables with staleness status.
 
@@ -39,16 +39,18 @@ def _get_table_inventory(cur: cursor) -> Any:
         tracked_tables = []
         for row in tracked_rows:
             tbl_name, status, threshold, age, count, last_updated = row
-            tracked_tables.append({
-                "name": tbl_name,
-                "type": "tracked",
-                "status": status,
-                "stale_threshold_days": threshold,
-                "age_days": age,
-                "row_count": count or 0,
-                "last_updated": last_updated.isoformat() if last_updated else None,
-                "is_stale": (age and threshold and age > threshold) if (age and threshold) else None,
-            })
+            tracked_tables.append(
+                {
+                    "name": tbl_name,
+                    "type": "tracked",
+                    "status": status,
+                    "stale_threshold_days": threshold,
+                    "age_days": age,
+                    "row_count": count or 0,
+                    "last_updated": last_updated.isoformat() if last_updated else None,
+                    "is_stale": (age and threshold and age > threshold) if (age and threshold) else None,
+                }
+            )
 
         # 2. Get all actual tables in database
         cur.execute("""
@@ -68,28 +70,32 @@ def _get_table_inventory(cur: cursor) -> Any:
             try:
                 cur.execute(f'SELECT COUNT(*) FROM "{tbl_name}"')
                 cnt = cur.fetchone()[0]
-                untracked_tables.append({
-                    "name": tbl_name,
-                    "type": "untracked",
-                    "status": None,
-                    "stale_threshold_days": None,
-                    "age_days": None,
-                    "row_count": cnt,
-                    "last_updated": None,
-                    "is_stale": None,
-                })
+                untracked_tables.append(
+                    {
+                        "name": tbl_name,
+                        "type": "untracked",
+                        "status": None,
+                        "stale_threshold_days": None,
+                        "age_days": None,
+                        "row_count": cnt,
+                        "last_updated": None,
+                        "is_stale": None,
+                    }
+                )
             except Exception as e:
                 logger.warning(f"Could not count rows in {tbl_name}: {e}")
-                untracked_tables.append({
-                    "name": tbl_name,
-                    "type": "untracked",
-                    "status": None,
-                    "stale_threshold_days": None,
-                    "age_days": None,
-                    "row_count": None,
-                    "last_updated": None,
-                    "is_stale": None,
-                })
+                untracked_tables.append(
+                    {
+                        "name": tbl_name,
+                        "type": "untracked",
+                        "status": None,
+                        "stale_threshold_days": None,
+                        "age_days": None,
+                        "row_count": None,
+                        "last_updated": None,
+                        "is_stale": None,
+                    }
+                )
 
         # 4. Combine all tables
         all_tables = tracked_tables + untracked_tables

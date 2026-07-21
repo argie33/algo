@@ -39,7 +39,7 @@ class Form13FAggregator:
     - Coverage limited to mid-cap and above (small-caps may not have enough 13F holders)
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.sec_client = SecEdgarClient()
 
     def get_institutional_ownership_pct(self, symbol: str, cik: str) -> dict[str, Any]:
@@ -60,43 +60,41 @@ class Form13FAggregator:
             # Get company submissions to find 13F filings
             submissions = self.sec_client.get_submissions(cik)
 
-            if not submissions or 'filings' not in submissions:
-                return self._unavailable_result(
-                    symbol,
-                    "submissions_not_found"
-                )
+            if not submissions or "filings" not in submissions:
+                return self._unavailable_result(symbol, "submissions_not_found")
 
-            recent_filings = submissions.get('filings', {}).get('recent', {})
+            recent_filings = submissions.get("filings", {}).get("recent", {})
 
-            if not recent_filings or 'form' not in recent_filings:
-                return self._unavailable_result(
-                    symbol,
-                    "no_recent_filings"
-                )
+            if not recent_filings or "form" not in recent_filings:
+                return self._unavailable_result(symbol, "no_recent_filings")
 
             # Find most recent 13F-HR filing
             most_recent_13f_date = None
             most_recent_13f_accession = None
 
-            for i, form_type in enumerate(recent_filings['form']):
-                if form_type == '13F-HR':
-                    filing_date = recent_filings.get('filingDate', [])[i] if i < len(recent_filings.get('filingDate', [])) else None
+            for i, form_type in enumerate(recent_filings["form"]):
+                if form_type == "13F-HR":
+                    filing_date = (
+                        recent_filings.get("filingDate", [])[i]
+                        if i < len(recent_filings.get("filingDate", []))
+                        else None
+                    )
                     if filing_date:
                         most_recent_13f_date = filing_date
-                        most_recent_13f_accession = recent_filings.get('accessionNumber', [])[i] if i < len(recent_filings.get('accessionNumber', [])) else None
+                        most_recent_13f_accession = (
+                            recent_filings.get("accessionNumber", [])[i]
+                            if i < len(recent_filings.get("accessionNumber", []))
+                            else None
+                        )
                         break  # First one is most recent
 
             if not most_recent_13f_date:
-                return self._unavailable_result(
-                    symbol,
-                    "no_13f_filings"
-                )
+                return self._unavailable_result(symbol, "no_13f_filings")
 
             # Unreachable in practice (see module docstring) - kept for the day a
             # real INFOTABLE-based lookup replaces the issuer-CIK check above.
             logger.debug(
-                f"[{symbol}] Found Form 13F filing: {most_recent_13f_date}, "
-                f"accession: {most_recent_13f_accession}"
+                f"[{symbol}] Found Form 13F filing: {most_recent_13f_date}, accession: {most_recent_13f_accession}"
             )
 
             return {
@@ -106,15 +104,12 @@ class Form13FAggregator:
                 "data_source": "sec_form13f",
                 "accession_number": most_recent_13f_accession,
                 "data_unavailable": True,  # Mark as unavailable until parser complete
-                "note": "13F filing exists but requires XML parsing to extract holdings"
+                "note": "13F filing exists but requires XML parsing to extract holdings",
             }
 
         except Exception as e:
             logger.debug(f"[{symbol}] Form 13F aggregation failed: {e}")
-            return self._unavailable_result(
-                symbol,
-                f"aggregation_error: {str(e)[:50]}"
-            )
+            return self._unavailable_result(symbol, f"aggregation_error: {str(e)[:50]}")
 
     def _unavailable_result(self, symbol: str, reason: str) -> dict[str, Any]:
         """Return standardized unavailable result."""

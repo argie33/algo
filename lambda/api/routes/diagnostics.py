@@ -31,7 +31,7 @@ def handle(
     return _check_data_sync_health(cur)
 
 
-@db_route_handler("check data sync health")  # type: ignore[untyped-decorator]
+@db_route_handler("check data sync health")
 def _check_data_sync_health(cur: cursor) -> Any:
     """Check if position data sources are synchronized.
 

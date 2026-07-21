@@ -602,14 +602,12 @@ def _dispatch(  # noqa: C901
         except (ImportError, AttributeError) as e:
             logger.warning(f"[ALGO_HEALTH] Could not import health handler: {e} - returning degraded status")
             return json_response(
+                503,
                 {
-                    "statusCode": 503,
-                    "data": {
-                        "status": "degraded",
-                        "message": "Health module unavailable",
-                        "reason": "data_health_check_unavailable",
-                    },
-                }
+                    "status": "degraded",
+                    "message": "Health module unavailable",
+                    "reason": "data_health_check_unavailable",
+                },
             )
     else:
         raise_api_error(404, "not_found", f"No algo handler for {path}")

@@ -86,9 +86,9 @@ def _run_reconciliation_step(
 
         # Defensive formatting for reconciliation summary - handle None values gracefully
         try:
-            pf_val = result['portfolio_value']
-            pos_count = result['positions']
-            pnl = result['unrealized_pnl']
+            pf_val = result["portfolio_value"]
+            pos_count = result["positions"]
+            pnl = result["unrealized_pnl"]
 
             pf_str = f"{float(pf_val):,.2f}" if pf_val is not None else "N/A"
             pos_str = f"{int(pos_count)}" if pos_count is not None else "N/A"
@@ -323,9 +323,7 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
         9,
         "ic_computation",
         "success" if available_components > 0 else "warn",
-        f"{available_components}/{len(attr_result)} components analyzed"
-        if attr_result
-        else "0 components analyzed",
+        f"{available_components}/{len(attr_result)} components analyzed" if attr_result else "0 components analyzed",
     )
     return attr_result
 
@@ -418,8 +416,20 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
 
         # Safely format portfolio metrics, handling edge cases where values might still be None
         try:
-            current_val_str = str(current_val) if isinstance(current_val, str) else f"{float(current_val):,.0f}" if current_val is not None else "N/A"
-            pnl_pct_str = str(pnl_pct) if isinstance(pnl_pct, str) else f"{float(pnl_pct):+.2f}%" if pnl_pct is not None else "N/A"
+            current_val_str = (
+                str(current_val)
+                if isinstance(current_val, str)
+                else f"{float(current_val):,.0f}"
+                if current_val is not None
+                else "N/A"
+            )
+            pnl_pct_str = (
+                str(pnl_pct)
+                if isinstance(pnl_pct, str)
+                else f"{float(pnl_pct):+.2f}%"
+                if pnl_pct is not None
+                else "N/A"
+            )
             report_summary = f"Portfolio ${current_val_str}, P&L {pnl_pct_str}"
         except (ValueError, TypeError) as fmt_err:
             logger.error(f"[PHASE 9 REPORT] Failed to format portfolio metrics: {fmt_err}. Using defaults.")
@@ -626,9 +636,7 @@ def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., An
                 (run_date, run_date),
             )
             trade_row = cur.fetchone()
-            row_data = (
-                (audit_row[0], trade_row[0], trade_row[1], audit_row[1]) if audit_row and trade_row else None
-            )
+            row_data = (audit_row[0], trade_row[0], trade_row[1], audit_row[1]) if audit_row and trade_row else None
 
         if row_data:
             total_actions, entries, exits, avg_score = row_data
@@ -1000,7 +1008,12 @@ def run(
                     )
                 else:
                     logger.debug("[PHASE 9] No quantity sync needed - all open positions have quantity set")
-            log_phase_result_fn(9, "quantity_sync", "success", f"synced {synced_count} open positions" if synced_count > 0 else "no sync needed")
+            log_phase_result_fn(
+                9,
+                "quantity_sync",
+                "success",
+                f"synced {synced_count} open positions" if synced_count > 0 else "no sync needed",
+            )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             logger.error(f"[PHASE 9] CRITICAL: Failed to sync quantity column: {e}")
             log_phase_result_fn(9, "quantity_sync", "error", f"sync failed: {str(e)[:60]}")
@@ -1100,11 +1113,9 @@ def run(
             # GOVERNANCE: Reconciliation is non-negotiable. Using estimated/cached portfolio state
             # instead of broker source-of-truth masks data sync issues and leads to position sizing errors.
             # Better to halt explicitly and require broker access than to silently degrade.
-            error_msg = result.get("reason")
-            if error_msg is None:
-                error_msg = result.get("error")
-            if error_msg is None:
-                error_msg = "(reconciliation failed with no error details)"
+            error_msg = str(
+                result.get("reason") or result.get("error") or "(reconciliation failed with no error details)"
+            )
 
             logger.critical(
                 f"[PHASE 9] CRITICAL: Reconciliation failed: {error_msg}. "
@@ -1133,4 +1144,11 @@ def run(
         # CRITICAL: Include full traceback in summary so it persists to execution log
         error_summary = f"{error_type}: {error_msg[:100]}\n{full_traceback[:500]}"
         log_phase_result_fn(9, "reconciliation", "error", error_summary)
-        return PhaseResult(9, "reconciliation", "error", {"status": "error", "reason": f"Phase 9 error ({error_type}): {error_msg[:100]}", "positions": 0}, True, f"Phase 9 error ({error_type}): {error_msg[:100]}")
+        return PhaseResult(
+            9,
+            "reconciliation",
+            "error",
+            {"status": "error", "reason": f"Phase 9 error ({error_type}): {error_msg[:100]}", "positions": 0},
+            True,
+            f"Phase 9 error ({error_type}): {error_msg[:100]}",
+        )

@@ -41,8 +41,8 @@ _positions_cache: dict[str, Any] = {"data": None, "timestamp": 0.0, "cache_ttl_s
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("fetch algo positions")  # type: ignore[untyped-decorator]
-@validate_api_response("pos")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo positions")
+@validate_api_response("pos")
 def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa: C901
     """Get current open positions with computed fields.
 
@@ -73,7 +73,9 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
 
         # CRITICAL: Add cache freshness metadata to cached response
         # Frontend needs to know response was cached, not just when underlying data was fetched
-        cached_response = _positions_cache["data"].copy() if isinstance(_positions_cache["data"], dict) else _positions_cache["data"]
+        cached_response = (
+            _positions_cache["data"].copy() if isinstance(_positions_cache["data"], dict) else _positions_cache["data"]
+        )
         if isinstance(cached_response, dict) and "body" in cached_response:
             # json_response format: {"statusCode": 200, "body": {...}}
             body = cached_response.get("body")
@@ -563,15 +565,21 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             # FAIL-FAST: Don't silently default - check for missing data
             sector = sector_map.get(symbol)
             if sector is None:
-                logger.warning(f"[UNTRACKED] {symbol}: sector enrichment missing - skipping. Data quality issue detected.")
+                logger.warning(
+                    f"[UNTRACKED] {symbol}: sector enrichment missing - skipping. Data quality issue detected."
+                )
                 continue
             company_name = company_name_map.get(symbol)
             if company_name is None:
-                logger.warning(f"[UNTRACKED] {symbol}: company_name enrichment missing - skipping. Data quality issue detected.")
+                logger.warning(
+                    f"[UNTRACKED] {symbol}: company_name enrichment missing - skipping. Data quality issue detected."
+                )
                 continue
             technical = technical_map.get(symbol)
             if technical is None:
-                logger.warning(f"[UNTRACKED] {symbol}: technical enrichment missing - skipping. Data quality issue detected.")
+                logger.warning(
+                    f"[UNTRACKED] {symbol}: technical enrichment missing - skipping. Data quality issue detected."
+                )
                 continue
 
             untracked_item = {
@@ -639,8 +647,8 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     return cached_response
 
 
-@db_route_handler("fetch algo status")  # type: ignore[untyped-decorator]
-@validate_api_response("run")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo status")
+@validate_api_response("run")
 def _get_algo_status(cur: cursor) -> Any:  # noqa: C901
     """Get latest algo execution status plus latest portfolio snapshot.
 
@@ -870,8 +878,8 @@ def _get_algo_status(cur: cursor) -> Any:  # noqa: C901
     )
 
 
-@db_route_handler("fetch algo trades")  # type: ignore[untyped-decorator]
-@validate_api_response("trades")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch algo trades")
+@validate_api_response("trades")
 def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, status: str | None = None) -> Any:
     """Get recent trades with all fields for frontend.
 
@@ -924,8 +932,8 @@ def _get_algo_trades(cur: cursor, limit: int = 200, user_id: str | None = None, 
     return json_response(200, sanitized, data_freshness=freshness)
 
 
-@db_route_handler("fetch circuit breakers")  # type: ignore[untyped-decorator]
-@validate_api_response("cb")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch circuit breakers")
+@validate_api_response("cb")
 def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
     try:
         today = date.today()
@@ -1575,8 +1583,8 @@ def _get_circuit_breakers(cur: cursor) -> Any:  # noqa: C901
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch dashboard signals")  # type: ignore[untyped-decorator]
-@validate_api_response("sig")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch dashboard signals")
+@validate_api_response("sig")
 def _get_dashboard_signals(cur: cursor) -> Any:
     """Get dashboard-specific signal data from algo_signals table.
 
@@ -1680,7 +1688,9 @@ def _get_dashboard_signals(cur: cursor) -> Any:
             buy_sigs = [safe_json_serialize(safe_dict_convert(row)) for row in buy_sigs_rows]
 
             # CRITICAL AUDIT: Track NULL signal_quality_score (COALESCE default usage)
-            null_quality_count = sum(1 for row in buy_sigs_rows if row and row[1] is None)  # column 1 = signal_quality_score
+            null_quality_count = sum(
+                1 for row in buy_sigs_rows if row and row[1] is None
+            )  # column 1 = signal_quality_score
             if null_quality_count > 0:
                 logger.warning(
                     f"[DASHBOARD AUDIT] {null_quality_count}/{len(buy_sigs_rows)} signals have NULL quality_score. "
@@ -1789,8 +1799,8 @@ def _get_dashboard_signals(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch dashboard scores")  # type: ignore[untyped-decorator]
-@validate_api_response("scores")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch dashboard scores")
+@validate_api_response("scores")
 def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
     # VERSION: 20260714-153700 (COALESCE fix deployed)
     try:
@@ -1958,7 +1968,7 @@ def _get_dashboard_scores(cur: cursor, limit: int = 50) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch equity curve")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch equity curve")
 def _get_equity_curve(cur: cursor, days: int = 180) -> Any:
     try:
         cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()

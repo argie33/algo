@@ -86,7 +86,9 @@ def handle(
             else:
                 raw_signal = signal_list[0] if signal_list else None
                 if raw_signal and raw_signal.upper() not in ("BUY", "SELL"):
-                    return error_response(400, "bad_request", f"Invalid signal value: {raw_signal}. Must be BUY or SELL.")
+                    return error_response(
+                        400, "bad_request", f"Invalid signal value: {raw_signal}. Must be BUY or SELL."
+                    )
                 signal_filter = raw_signal.upper() if raw_signal else None
 
             return _get_signals_stocks(cur, limit, timeframe, symbol_filter, signal_filter)
@@ -119,7 +121,7 @@ def handle(
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch stock signals")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch stock signals")
 def _get_signals_stocks(
     cur: cursor,
     limit: int = 500,
@@ -252,7 +254,7 @@ def _get_signals_stocks(
         return error_response(code, error_type, message)
 
 
-@db_route_handler("fetch ETF signals")  # type: ignore[untyped-decorator]
+@db_route_handler("fetch ETF signals")
 def _get_signals_etf(cur: cursor, limit: int = 500) -> Any:
     """Get ETF market-regime signals from price_daily + trend_template_data.
 

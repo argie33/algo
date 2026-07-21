@@ -29,8 +29,8 @@ from shared_contracts.response_validator import ResponseValidator
 logger = logging.getLogger(__name__)
 
 
-@db_route_handler("get algo evaluate")  # type: ignore[untyped-decorator]
-@validate_api_response("sig_eval")  # type: ignore[untyped-decorator]
+@db_route_handler("get algo evaluate")
+@validate_api_response("sig_eval")
 def _get_algo_evaluate(cur: cursor) -> Any:
     """Get comprehensive signal evaluation with candidate analysis and constraints.
 
@@ -47,8 +47,8 @@ def _get_algo_evaluate(cur: cursor) -> Any:
     )
 
 
-@db_route_handler("get sector breadth")  # type: ignore[untyped-decorator]
-@validate_api_response("srank")  # type: ignore[untyped-decorator]
+@db_route_handler("get sector breadth")
+@validate_api_response("srank")
 def _get_sector_breadth(cur: cursor) -> Any:
     """Get sector breadth indicators: % of stocks above 50-day and 200-day moving averages.
 
@@ -115,7 +115,14 @@ def _get_sector_breadth(cur: cursor) -> Any:
 
         # CRITICAL: Validate all required fields are present in every row (Issue #8 fix)
         # Missing fields indicate upstream data quality issues that should be surfaced
-        required_fields = {"sector", "pct_above_50d", "pct_above_200d", "_is_fallback", "symbol_coverage_50d_pct", "symbol_coverage_200d_pct"}
+        required_fields = {
+            "sector",
+            "pct_above_50d",
+            "pct_above_200d",
+            "_is_fallback",
+            "symbol_coverage_50d_pct",
+            "symbol_coverage_200d_pct",
+        }
         breadth_data = []
         for row in breadth:
             row_dict = safe_dict_convert(row)
@@ -134,7 +141,7 @@ def _get_sector_breadth(cur: cursor) -> Any:
                     503,
                     "data_incomplete",
                     f"Sector breadth data incomplete - missing fields: {', '.join(missing_fields)}. "
-                    f"Check technical_data_daily and price_daily loaders."
+                    f"Check technical_data_daily and price_daily loaders.",
                 )
 
             breadth_data.append(row_json)
@@ -156,8 +163,8 @@ def _get_sector_breadth(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get sector position warnings")  # type: ignore[untyped-decorator]
-@validate_api_response("pos")  # type: ignore[untyped-decorator]
+@db_route_handler("get sector position warnings")
+@validate_api_response("pos")
 def _get_sector_position_warnings(cur: cursor) -> Any:
     """Get sector position concentration warnings (FIX: missing endpoint for dashboard fallback).
 
@@ -228,8 +235,8 @@ def _get_sector_position_warnings(cur: cursor) -> Any:
         return error_response(code, error_type, message)
 
 
-@db_route_handler("get sector rotation")  # type: ignore[untyped-decorator]
-@validate_api_response("sec_rot")  # type: ignore[untyped-decorator]
+@db_route_handler("get sector rotation")
+@validate_api_response("sec_rot")
 def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
     # Reads the real signal algo/signals/sector_rotation.py already computes and persists to
     # sector_rotation_signal (rank-improvement/momentum from sector_ranking - the GICS taxonomy
@@ -275,8 +282,8 @@ def _get_sector_rotation(cur: cursor, days: int = 180) -> Any:
     return response
 
 
-@db_route_handler("get sector stage2")  # type: ignore[untyped-decorator]
-@validate_api_response("srank")  # type: ignore[untyped-decorator]
+@db_route_handler("get sector stage2")
+@validate_api_response("srank")
 def _get_sector_stage2(cur: cursor) -> Any:
     try:
         cur.execute("""

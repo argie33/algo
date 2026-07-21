@@ -215,7 +215,7 @@ class Form345BulkAggregator:
                 logger.warning(f"[FORM345_BULK] Unexpected status {resp.status_code} fetching {url}")
                 continue
             logger.debug(f"[FORM345_BULK] Downloaded {quarter} from {prefix} ({len(resp.content)} bytes)")
-            return resp.content
+            return bytes(resp.content)
         return None
 
     def _process_quarter(
@@ -230,11 +230,15 @@ class Form345BulkAggregator:
                 zf.open("SUBMISSION.tsv"), sep="\t", usecols=_SUBMISSION_COLS, dtype=str, low_memory=False
             )
             submission = submission[submission["DOCUMENT_TYPE"].isin(_RELEVANT_FORMS)]
-            submission = submission[submission["ISSUERTRADINGSYMBOL"].notna() & (submission["ISSUERTRADINGSYMBOL"] != "")]
+            submission = submission[
+                submission["ISSUERTRADINGSYMBOL"].notna() & (submission["ISSUERTRADINGSYMBOL"] != "")
+            ]
             if submission.empty:
                 return
 
-            owners = pd.read_csv(zf.open("REPORTINGOWNER.tsv"), sep="\t", usecols=_OWNER_COLS, dtype=str, low_memory=False)
+            owners = pd.read_csv(
+                zf.open("REPORTINGOWNER.tsv"), sep="\t", usecols=_OWNER_COLS, dtype=str, low_memory=False
+            )
             # Multiple reporting owners can co-file one accession (e.g. spouse joint filings);
             # take the first listed owner per accession as the position holder to avoid
             # double-counting the same reported share balance across co-filers.
@@ -245,7 +249,9 @@ class Form345BulkAggregator:
             holding = pd.read_csv(
                 zf.open("NONDERIV_HOLDING.tsv"), sep="\t", usecols=_HOLDING_COLS, dtype=str, low_memory=False
             )
-            trans = pd.read_csv(zf.open("NONDERIV_TRANS.tsv"), sep="\t", usecols=_TRANS_COLS, dtype=str, low_memory=False)
+            trans = pd.read_csv(
+                zf.open("NONDERIV_TRANS.tsv"), sep="\t", usecols=_TRANS_COLS, dtype=str, low_memory=False
+            )
 
         submission = submission.set_index("ACCESSION_NUMBER")
         filing_date_by_accession = pd.to_datetime(submission["FILING_DATE"], format="%d-%b-%Y", errors="coerce")
@@ -298,7 +304,9 @@ class Form345BulkAggregator:
 
         if is_most_recent:
             trans_dated = trans.assign(
-                _symbol=trans["ACCESSION_NUMBER"].map(lambda a: submission.at[a, "ISSUERTRADINGSYMBOL"] if a in submission.index else None)
+                _symbol=trans["ACCESSION_NUMBER"].map(
+                    lambda a: submission.at[a, "ISSUERTRADINGSYMBOL"] if a in submission.index else None
+                )
             )
             trans_dated = trans_dated[trans_dated["_symbol"].notna()]
             buys = trans_dated[trans_dated["TRANS_CODE"] == OPEN_MARKET_BUY_CODE].groupby("_symbol").size()

@@ -38,7 +38,15 @@ LOADER_TIMEOUT_SECONDS = 45 * 60  # 45 minutes
 
 def _timeout_handler(signum: int, frame: object) -> None:
     """Signal handler for SIGALRM timeout. Raises RuntimeError to interrupt hung loader."""
-    raise RuntimeError(f"Loader execution exceeded timeout of {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS//60} minutes)")
+    raise RuntimeError(
+        f"Loader execution exceeded timeout of {LOADER_TIMEOUT_SECONDS}s ({LOADER_TIMEOUT_SECONDS // 60} minutes)"
+    )
+
+
+def _force_exit_on_timeout() -> None:
+    """threading.Timer callback for the Windows fallback path - log then exit forcefully."""
+    logger.critical(f"[TIMEOUT] Loader exceeded {LOADER_TIMEOUT_SECONDS // 60} minute timeout. Exiting forcefully.")
+    os._exit(1)
 
 
 def _setup_timeout() -> None:
@@ -49,17 +57,11 @@ def _setup_timeout() -> None:
     """
     if hasattr(signal, "SIGALRM"):
         signal.signal(signal.SIGALRM, _timeout_handler)
-        signal.alarm(LOADER_TIMEOUT_SECONDS)
-        logger.info(f"[TIMEOUT] Loader timeout set to {LOADER_TIMEOUT_SECONDS//60} minutes")
+        signal.alarm(LOADER_TIMEOUT_SECONDS)  # type: ignore[attr-defined]  # guarded by hasattr above; SIGALRM/alarm are Unix-only
+        logger.info(f"[TIMEOUT] Loader timeout set to {LOADER_TIMEOUT_SECONDS // 60} minutes")
     else:
         logger.warning("[TIMEOUT] signal.SIGALRM not available (Windows). Falling back to threading.Timer.")
-        timer = threading.Timer(
-            LOADER_TIMEOUT_SECONDS,
-            lambda: (
-                logger.critical(f"[TIMEOUT] Loader exceeded {LOADER_TIMEOUT_SECONDS//60} minute timeout. Exiting forcefully."),
-                os._exit(1)
-            )
-        )
+        timer = threading.Timer(LOADER_TIMEOUT_SECONDS, _force_exit_on_timeout)
         timer.daemon = True
         timer.start()
 

@@ -821,7 +821,7 @@ def _handle_naaim(cur: cursor) -> Any:
         raise  # unreachable - raise_db_error is NoReturn; satisfies mypy without lambda path config
 
 
-@db_route_handler("get fear greed history")  # type: ignore[untyped-decorator]
+@db_route_handler("get fear greed history")
 def _get_fear_greed_history(cur: cursor, days: int = 30) -> Any:
     cur.execute("SET LOCAL statement_timeout = '5000ms'")
     cutoff_date = (datetime.now(timezone.utc) - timedelta(days=days)).date()
@@ -909,7 +909,7 @@ def _get_fear_greed_history(cur: cursor, days: int = 30) -> Any:
         )
 
 
-@db_route_handler("get market latest")  # type: ignore[untyped-decorator]
+@db_route_handler("get market latest")
 def _get_market_latest(cur: cursor) -> Any:
     cur.execute("""
         SELECT date, market_trend, market_stage, advance_decline_ratio,
@@ -972,16 +972,16 @@ def _parse_range_param(params: dict[str, Any], default: int = 30) -> int:
         try:
             val_str = str(range_val[0]).strip()
             # Handle time suffixes: 30d, 4w, 12m, 1y
-            if val_str and val_str[-1].lower() in 'dwmy':
+            if val_str and val_str[-1].lower() in "dwmy":
                 suffix = val_str[-1].lower()
                 num = int(val_str[:-1])
-                if suffix == 'd':
+                if suffix == "d":
                     parsed = num
-                elif suffix == 'w':
+                elif suffix == "w":
                     parsed = num * 7
-                elif suffix == 'm':
+                elif suffix == "m":
                     parsed = num * 30  # Approximate 30 days per month
-                elif suffix == 'y':
+                elif suffix == "y":
                     parsed = num * 365  # Approximate 365 days per year
             else:
                 parsed = int(val_str)
@@ -999,16 +999,16 @@ def _parse_range_param(params: dict[str, Any], default: int = 30) -> int:
         try:
             val_str = str(days_val[0]).strip()
             # Handle time suffixes: 30d, 4w, 12m, 1y
-            if val_str and val_str[-1].lower() in 'dwmy':
+            if val_str and val_str[-1].lower() in "dwmy":
                 suffix = val_str[-1].lower()
                 num = int(val_str[:-1])
-                if suffix == 'd':
+                if suffix == "d":
                     parsed = num
-                elif suffix == 'w':
+                elif suffix == "w":
                     parsed = num * 7
-                elif suffix == 'm':
+                elif suffix == "m":
                     parsed = num * 30
-                elif suffix == 'y':
+                elif suffix == "y":
                     parsed = num * 365
             else:
                 parsed = int(val_str)
@@ -1022,7 +1022,7 @@ def _parse_range_param(params: dict[str, Any], default: int = 30) -> int:
     return default
 
 
-@db_route_handler("get correlation matrix")  # type: ignore[untyped-decorator]
+@db_route_handler("get correlation matrix")
 def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
     """Compute and return correlation matrix between key market indices.
 
@@ -1275,7 +1275,7 @@ def _get_correlation_matrix(cur: cursor) -> Any:  # noqa: C901
     )
 
 
-@db_route_handler("get cap distribution")  # type: ignore[untyped-decorator]
+@db_route_handler("get cap distribution")
 def _get_cap_distribution(cur: cursor) -> Any:
     # market_cap is in key_metrics, sector is in company_profile - stock_symbols has neither
     cur.execute("""
@@ -1453,16 +1453,16 @@ def _get_cap_distribution(cur: cursor) -> Any:
 
 
 def _get_index_symbols() -> list[str]:
-
-    return MarketSymbolsConfig.get_index_symbols()
+    symbols: list[str] = MarketSymbolsConfig.get_index_symbols()
+    return symbols
 
 
 def _get_index_names() -> dict[str, str]:
+    names: dict[str, str] = MarketSymbolsConfig.get_index_names()
+    return names
 
-    return MarketSymbolsConfig.get_index_names()
 
-
-@db_route_handler("get market indices")  # type: ignore[untyped-decorator]
+@db_route_handler("get market indices")
 def _get_markets(cur: cursor) -> Any:
     index_symbols = _get_index_symbols()
     cur.execute(
@@ -1601,7 +1601,7 @@ def _get_markets(cur: cursor) -> Any:
     return json_response(200, result)
 
 
-@db_route_handler("get sector overview")  # type: ignore[untyped-decorator]
+@db_route_handler("get sector overview")
 def _get_sector_overview(cur: cursor) -> Any:
     cur.execute("""
         SELECT sector_name, performance_ytd, performance_1y, pe_ratio,

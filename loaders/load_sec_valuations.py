@@ -172,18 +172,20 @@ class SecValuationsLoader(OptimalLoader):
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
             # If revenue is None, _compute_valuations will skip PS ratio (but that's OK)
-            return [self._compute_valuations(
-                symbol,
-                float(current_price),
-                float(shares_out),
-                float(ttm_eps_basic) if ttm_eps_basic else None,
-                float(ttm_revenue) if ttm_revenue else None,  # Changed from 0.0 to None
-                float(book_value) if book_value else None,
-                float(ocf) if ocf else 0.0,
-                float(capex) if capex else 0.0,
-                float(prior_year_eps) if prior_year_eps else None,
-                float(dividends_paid) if dividends_paid else None,
-            )]
+            return [
+                self._compute_valuations(
+                    symbol,
+                    float(current_price),
+                    float(shares_out),
+                    float(ttm_eps_basic) if ttm_eps_basic else None,
+                    float(ttm_revenue) if ttm_revenue else None,  # Changed from 0.0 to None
+                    float(book_value) if book_value else None,
+                    float(ocf) if ocf else 0.0,
+                    float(capex) if capex else 0.0,
+                    float(prior_year_eps) if prior_year_eps else None,
+                    float(dividends_paid) if dividends_paid else None,
+                )
+            ]
 
         except TimeoutError as e:
             marker = handle_exception(symbol, e, "querying SEC financial data")
@@ -225,12 +227,10 @@ class SecValuationsLoader(OptimalLoader):
             "data_unavailable": False,
             "reason": None,
             "data_source": "sec_audited",
-
             # Price-based metrics
             "current_price": current_price,
             "shares_outstanding": shares_out,
             "market_cap": None,
-
             # Valuation ratios
             "pe_ratio": None,
             "pb_ratio": None,
@@ -343,7 +343,6 @@ class SecValuationsLoader(OptimalLoader):
             "data_unavailable": True,
             "reason": reason,
             "data_source": "none",
-
             # All metrics NULL
             "current_price": None,
             "shares_outstanding": None,

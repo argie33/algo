@@ -38,7 +38,7 @@ from utils.db.context import DatabaseContext as _DatabaseContext
 __all__ = ["DatabaseContext"]
 
 
-class DatabaseContext(_DatabaseContext):
+class DatabaseContext(_DatabaseContext):  # type: ignore[misc]  # sys.path hack above resolves fine at runtime; mypy can't follow it statically
     """REST API database context with disabled correlation tracking.
 
     Re-exports utils.DatabaseContext but:
