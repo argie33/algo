@@ -2,7 +2,7 @@
 
 ## Critical Issues
 
-### 1. VIX Data Staleness (2026-07-17, 4 days old)
+### 1. VIX Data Staleness (2026-07-17, 4 days old) - **FIXED Session 336**
 **Symptom**: market_status_daily loader crashes
 ```
 [CRITICAL] VIX data unavailable in price_daily for 2026-07-20 to 2026-07-21
@@ -15,16 +15,14 @@
 
 **Impact**: Market health status cannot be calculated; loader fails completely
 
-**Fix Options**:
-1. Add ^VIX to the price_daily loader's required symbols
-2. Add VIX fallback if current data unavailable (would disable market halt checks but allow trading)
-3. Schedule market_status_daily to run AFTER VIX is loaded (morning pipeline)
-
-**Recommendation**: Option 1 - ensure ^VIX is always in loader symbol list
+**Fix Applied**:
+- Added ^VIX to DEFAULT_ESSENTIAL_STOCKS in utils/market_symbols_config.py
+- ^VIX will now be loaded every day along with SPY, QQQ, IWM, GLD, TLT
+- Market health VIX requirements satisfied; circuit breaker protection restored
 
 ---
 
-### 2. FINRA Short Interest Calculation Overflow
+### 2. FINRA Short Interest Calculation Overflow - **FIXED Session 336**
 **Symptom**: FOX short_pct tries to write 1105207000.0 (numeric overflow for NUMERIC(6,2))
 ```
 Error: numeric field overflow for column with precision 6, scale 2
@@ -37,12 +35,11 @@ Error: numeric field overflow for column with precision 6, scale 2
 
 **Data Issue**: company_info_sec.shares_outstanding for FOX is corrupted/missing
 
-**Impact**: FINRA loader crashes when processing FOX, short_interest_finra table not updated
-
-**Fix**: 
-1. Validate company_info_sec data before using (shares_outstanding > 0)
-2. Mark data_unavailable if shares_outstanding looks wrong (e.g., = 1)
-3. Check why FOX has such bad SEC data
+**Fix Applied**:
+- Added validation in load_short_interest_finra.py: reject shares_outstanding <= 1000
+- Invalid shares_outstanding now marked data_unavailable with reason "shares_outstanding_invalid"
+- FOX and other symbols with bad SEC data will gracefully skip short_pct calculation
+- Prevents loader crashes; maintains audit trail of data quality issues
 
 ---
 

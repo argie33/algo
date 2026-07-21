@@ -35,8 +35,9 @@ class MarketSymbolsConfig:
     # SPY: required by Mansfield RS, seasonality, market health breadth, yield-curve factor
     # QQQ, IWM: used by correlation matrix and market regime logic
     # GLD/TLT: used by correlation matrix and macro regime logic
+    # ^VIX: CRITICAL for circuit breaker VIX >= 35 halt logic (Session 335 fix)
     # Removed DIA (Session 196): Redundant with SPY
-    DEFAULT_ESSENTIAL_STOCKS = ["SPY", "QQQ", "IWM", "GLD", "TLT"]
+    DEFAULT_ESSENTIAL_STOCKS = ["SPY", "QQQ", "IWM", "GLD", "TLT", "^VIX"]
 
     # Essential ETFs (Session 196 optimization): Keep only CRITICAL ETFs
     # Removed 14 wasteful ETFs that were never used by any algorithm:

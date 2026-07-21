@@ -134,11 +134,11 @@ class ShortInterestFinraLoader(OptimalLoader):
                         short_shares = None
                         data_unavailable = True
                         reason = "finra_data_unavailable" if finra_data else "finra_api_unreachable"
-                    elif not outstanding:
+                    elif not outstanding or outstanding <= 1000:
                         short_pct = None
                         short_shares = finra_row["short_shares"]
                         data_unavailable = True
-                        reason = "shares_outstanding_unavailable"
+                        reason = "shares_outstanding_unavailable" if not outstanding else "shares_outstanding_invalid"
                     else:
                         short_shares = finra_row["short_shares"]
                         # No upper clamp: short interest CAN legitimately exceed 100% of float
