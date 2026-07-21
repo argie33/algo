@@ -329,10 +329,11 @@ aws cloudwatch put-metric-alarm \
 confirmed live: `/ecs/algo-data-patrol` only appears as a CloudWatch log-group retention
 entry in `terraform/modules/lifecycle/main.tf`, plus a reference in
 `terraform/errored.tfstate` (an errored/abandoned state file) - no evidence of an actual
-running `algo-data-patrol` ECS service was found. The `algo_data_patrol` / `data_patrol_log`
-DB tables are both empty locally, consistent with this never having run rather than having
-run cleanly with nothing to report. Treat this section as aspirational until verified
-against the real AWS account.
+running `algo-data-patrol` ECS service was found. `algo_data_patrol` is empty locally;
+`data_patrol_log` has 650 historical rows but nothing newer than 2026-07-05 (re-verified
+2026-07-21, 16 days stale) - consistent with a patrol process that ran manually/ad hoc at
+some point, not a live "every 5 min" ECS service. Treat this section as aspirational until
+verified against the real AWS account.
 
 ```bash
 # Verify it's running (if it exists)
