@@ -535,17 +535,25 @@ class CredentialManager:
         # is unavailable and credentials are stored in RDS, we should use them.
         try:
             import psycopg2
+
             db_host = os.getenv("DB_HOST", "localhost")
             db_user = os.getenv("DB_USER", "stocks")
-            db_password = os.getenv("DB_PASSWORD", "")
+            db_password = os.getenv("DB_PASSWORD")
             db_name = os.getenv("DB_NAME", "stocks")
+            if db_password is None:
+                # Only localhost Postgres is expected to run with trust-auth (no password
+                # required) - a real DB_HOST (RDS endpoint) must have an explicit password;
+                # silently trying "" against it would just fail auth anyway, but with a
+                # confusing connection error instead of naming the actual missing config.
+                if db_host not in ("localhost", "127.0.0.1"):
+                    raise ValueError(
+                        f"DB_PASSWORD not set in environment - required to connect to non-local DB_HOST={db_host!r} "
+                        "for the Alpaca-credentials database fallback."
+                    )
+                db_password = ""
 
             conn = psycopg2.connect(
-                host=db_host,
-                user=db_user,
-                password=db_password,
-                database=db_name,
-                connect_timeout=5
+                host=db_host, user=db_user, password=db_password, database=db_name, connect_timeout=5
             )
             cur = conn.cursor()
 
