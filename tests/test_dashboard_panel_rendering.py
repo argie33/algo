@@ -321,6 +321,51 @@ class TestPanelPositions:
         assert result is not None
         print("✓ Positions panel handles no positions")
 
+    def _position_data(self, is_stale: bool) -> dict[str, object]:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        return {
+            "items": [
+                {
+                    "symbol": "AAPL",
+                    "avg_entry_price": 140.0,
+                    "current_price": 150.0,
+                    "position_value": 1500.0,
+                    "unrealized_pnl_pct": 5.0,
+                }
+            ],
+            # fetch_positions() sets this to the local fetch clock time, not any real data
+            # timestamp - always "now" regardless of how stale the underlying data is.
+            "timestamp": datetime.now(ZoneInfo("America/New_York")),
+            "data_freshness": {
+                "is_stale": is_stale,
+                "data_age_days": 3 if is_stale else 0,
+                "warning": "Data is 3 days old" if is_stale else None,
+            },
+        }
+
+    def test_positions_panel_flags_stale_from_data_freshness(self) -> None:
+        """STALE warning must fire from the server's data_freshness.is_stale flag.
+
+        Previously this checked isinstance(pos_timestamp, datetime), but pos_timestamp is
+        set by fetch_positions() to datetime.now(ET) at fetch time - always "now", never able
+        to reflect real data staleness - so the warning could never actually fire.
+        """
+        from dashboard.panels.positions import panel_positions
+        from tests.test_helpers.assertions import render_panel_to_text
+
+        text = render_panel_to_text(panel_positions(self._position_data(is_stale=True)))
+        assert "STALE" in text, f"expected STALE warning for stale position data, got: {text!r}"
+
+    def test_positions_panel_no_false_stale_warning(self) -> None:
+        """Fresh position data (data_freshness.is_stale=False) must not show STALE."""
+        from dashboard.panels.positions import panel_positions
+        from tests.test_helpers.assertions import render_panel_to_text
+
+        text = render_panel_to_text(panel_positions(self._position_data(is_stale=False)))
+        assert "STALE" not in text, f"unexpected STALE warning for fresh position data: {text!r}"
+
 
 class TestPanelSignals:
     """Signals panel tests."""

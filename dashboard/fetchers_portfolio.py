@@ -308,6 +308,11 @@ def fetch_positions(c: None) -> dict[str, Any]:
             "items_coverage_pct": items_coverage_pct,
             "items_valid_count": len(valid_items),
             "items_total_count": total_items,
+            # Server-computed, trading-day-aware freshness of algo_positions.updated_at
+            # (see lambda/api/routes/algo_handlers/dashboard.py's check_data_freshness call) -
+            # NOT derived from the "timestamp" field above, which is only this fetch's local
+            # clock time and can't detect genuinely stale underlying position data.
+            "data_freshness": data.get("data_freshness") if isinstance(data, dict) else None,
         }
     except Exception as e:
         error_msg = format_fetcher_error("pos", e)

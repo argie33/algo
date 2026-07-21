@@ -277,28 +277,24 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
 
     content = t
 
-    # GOVERNANCE FIX: Check data freshness and warn if stale (>24h old)
+    # GOVERNANCE FIX: Check data freshness and warn if stale.
+    # Must use the server-computed data_freshness.is_stale (from algo_positions.updated_at,
+    # trading-day-aware - see lambda/api/routes/algo_handlers/dashboard.py's
+    # check_data_freshness call), NOT pos_timestamp: that field is set by fetch_positions()
+    # to datetime.now(ET) at fetch time, not any real data timestamp, so it is always "just
+    # now" and can never detect genuinely stale underlying position data - and the old
+    # `isinstance(pos_timestamp, datetime)` check here was dead anyway once this data
+    # round-trips through JSON (always a str), same class of bug as the portfolio panel's
+    # equivalent check (see dashboard/panels/portfolio.py's fix).
     stale_warning = ""
-    if pos_timestamp is not None:
-        from datetime import datetime as dt_cls
-        from datetime import timezone as tz_cls
+    if isinstance(pos, dict):
+        data_freshness = pos.get("data_freshness")
+        if isinstance(data_freshness, dict) and data_freshness.get("is_stale"):
+            warning_text = data_freshness.get("warning") or "stale"
+            stale_warning = " [yellow]⚠ STALE[/]"
+            logger.warning(f"[POSITIONS] Position data stale: {warning_text}")
 
-        try:
-            now = dt_cls.now(tz_cls.utc)
-            if isinstance(pos_timestamp, dt_cls):
-                # Ensure both are timezone-aware for comparison
-                if pos_timestamp.tzinfo is None:
-                    pos_ts_aware = pos_timestamp.replace(tzinfo=tz_cls.utc)
-                else:
-                    pos_ts_aware = pos_timestamp
-                age_hours = (now - pos_ts_aware).total_seconds() / 3600
-                if age_hours > 24:
-                    stale_warning = " [yellow]⚠ STALE[/]"
-                    logger.warning(f"[POSITIONS] Position data stale ({age_hours:.0f}h old)")
-        except (ValueError, TypeError, AttributeError):
-            logger.debug("[POSITIONS] Could not calculate staleness")
-
-    age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]{stale_warning}" if pos_timestamp is not None else ""
+    age_s = f"  [dim]{fmt_age(pos_timestamp)}[/]{stale_warning}" if pos_timestamp is not None else stale_warning
 
     # Show filtering status from API if available
     coverage = None
