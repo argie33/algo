@@ -327,7 +327,7 @@ class BuySignalGenerator:
                     recent_swing_low = candidate
 
         if recent_swing_low is not None:
-            return recent_swing_low
+            return float(recent_swing_low)
 
         # STRATEGY 2: Try relative swing (low < most surrounding bars, allow 1 exception)
         # This handles choppy markets where perfect swings are rare
@@ -355,7 +355,7 @@ class BuySignalGenerator:
                     recent_swing_low = candidate
 
         if recent_swing_low is not None:
-            return recent_swing_low
+            return float(recent_swing_low)
 
         # STRATEGY 3: Recent minimum (lowest price in 20-bar window)
         # Valid for all market conditions, no pattern required
