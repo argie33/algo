@@ -337,7 +337,7 @@ class MarketStatusDailyLoader(OptimalLoader):
             result = exposure.compute(eval_date, force_recompute=False)
 
             if not result or result.get("data_unavailable"):
-                return {
+                unavailable_result = {
                     "regime": None,
                     "exposure_pct": None,
                     "raw_score": None,
@@ -347,8 +347,14 @@ class MarketStatusDailyLoader(OptimalLoader):
                     "data_unavailable": True,
                     "reason": result.get("reason", "exposure_data_unavailable") if result else "exposure_no_result",
                 }
+                # CRITICAL FIX: Persist unavailable exposure data to market_exposure_daily
+                # even when unavailable, so the table gets updated with data_unavailable=True
+                # instead of remaining stale with old data. Without this persist, the table
+                # can lag behind market_health_daily by days.
+                self._persist_market_exposure(eval_date, unavailable_result)
+                return unavailable_result
 
-            return {
+            result_with_data = {
                 "regime": result.get("regime"),
                 "exposure_pct": result.get("exposure_pct"),
                 "raw_score": result.get("raw_score"),
@@ -356,10 +362,16 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "distribution_days": result.get("distribution_days"),
                 "factors": result.get("factors"),
             }
+            # CRITICAL FIX: Persist successful exposure data to market_exposure_daily table.
+            # The consolidated loader returns this data as part of fetch_incremental's row,
+            # but BulkInsertManager silently drops columns that don't exist in market_health_daily
+            # (the base table_name). Without this persist, market_exposure_daily never gets updated.
+            self._persist_market_exposure(eval_date, result_with_data)
+            return result_with_data
 
         except Exception as e:
             logger.error(f"[MARKET_STATUS] Exposure computation failed: {e}")
-            return {
+            error_result = {
                 "regime": None,
                 "exposure_pct": None,
                 "raw_score": None,
@@ -375,6 +387,13 @@ class MarketStatusDailyLoader(OptimalLoader):
                 # halt reason was reduced to "...computed " with the actual age silently lost).
                 "reason": f"exposure_computation_failed: {e}"[:255],
             }
+            # CRITICAL FIX: Persist exception case to market_exposure_daily so error is recorded
+            # and table is not left stale.
+            try:
+                self._persist_market_exposure(eval_date, error_result)
+            except Exception as persist_err:
+                logger.error(f"[MARKET_STATUS] market_exposure persist also failed: {persist_err}")
+            return error_result
 
     def _compute_market_stage_trend(self, eval_date: date) -> dict[str, Any]:
         """Market stage (Weinstein 1-4) + trend for SPY, derived from `trend_template_data`.
@@ -504,6 +523,44 @@ class MarketStatusDailyLoader(OptimalLoader):
             except Exception as persist_err:
                 logger.error(f"[MARKET_STATUS] market_sentiment persist also failed: {persist_err}")
             return result
+
+    def _persist_market_exposure(self, eval_date: date, exposure: dict[str, Any]) -> None:
+        """Write the computed exposure row directly to `market_exposure_daily` (upsert by date).
+
+        CRITICAL FIX: The consolidated loader computes exposure but the base OptimalLoader
+        only persists to self.table_name (market_health_daily). BulkInsertManager silently
+        drops columns that don't exist in the target table, so exposure_pct/regime/factors
+        never reach market_exposure_daily. This explicit persist ensures the table stays fresh.
+        """
+        with DatabaseContext("write") as cur:
+            cur.execute(
+                """
+                INSERT INTO market_exposure_daily
+                    (date, regime, exposure_pct, raw_score, halt_reasons, distribution_days, factors, data_unavailable, reason)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (date) DO UPDATE SET
+                    regime = EXCLUDED.regime,
+                    exposure_pct = EXCLUDED.exposure_pct,
+                    raw_score = EXCLUDED.raw_score,
+                    halt_reasons = EXCLUDED.halt_reasons,
+                    distribution_days = EXCLUDED.distribution_days,
+                    factors = EXCLUDED.factors,
+                    data_unavailable = EXCLUDED.data_unavailable,
+                    reason = EXCLUDED.reason,
+                    updated_at = CURRENT_TIMESTAMP
+                """,
+                (
+                    eval_date,
+                    exposure.get("regime"),
+                    exposure.get("exposure_pct"),
+                    exposure.get("raw_score"),
+                    exposure.get("halt_reasons"),
+                    exposure.get("distribution_days"),
+                    exposure.get("factors"),
+                    bool(exposure.get("data_unavailable", False)),
+                    exposure.get("reason"),
+                ),
+            )
 
     def _persist_market_sentiment(
         self, eval_date: date, vix: float | None, put_call_ratio: float | None, sentiment: dict[str, Any]
