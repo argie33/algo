@@ -419,16 +419,12 @@ def _generate_daily_report(run_date: _date, log_phase_result_fn: Callable[..., A
             current_val_str = (
                 str(current_val)
                 if isinstance(current_val, str)
-                else f"{float(current_val):,.0f}"
-                if current_val is not None
-                else "N/A"
+                else f"{float(current_val):,.0f}" if current_val is not None else "N/A"
             )
             pnl_pct_str = (
                 str(pnl_pct)
                 if isinstance(pnl_pct, str)
-                else f"{float(pnl_pct):+.2f}%"
-                if pnl_pct is not None
-                else "N/A"
+                else f"{float(pnl_pct):+.2f}%" if pnl_pct is not None else "N/A"
             )
             report_summary = f"Portfolio ${current_val_str}, P&L {pnl_pct_str}"
         except (ValueError, TypeError) as fmt_err:
@@ -1128,6 +1124,9 @@ def run(
                 "reconciliation": result,
             }
 
+        # Validate schema contract before returning
+        from algo.orchestrator.phase_data_contract import validate_phase_data
+        validate_phase_data(9, data)
         return PhaseResult(9, "reconciliation", phase_status, data, False, None)
 
     except Exception as e:

@@ -734,13 +734,15 @@ def run(
     # Primary: Try database snapshot (atomic, consistent across all trades)
     try:
         with DatabaseContext("read") as cur:
-            cur.execute("""
+            cur.execute(
+                """
                 SELECT total_portfolio_value, snapshot_date
                 FROM algo_portfolio_snapshots
                 WHERE snapshot_date = %s
                 ORDER BY snapshot_date DESC LIMIT 1
             """,
-            (run_date,))
+                (run_date,),
+            )
             result = cur.fetchone()
             if result and result[0] is not None:
                 portfolio_value = Decimal(str(result[0]))
@@ -1145,9 +1147,16 @@ def run(
             max_risk_per_trade_pct = float(config.get("max_risk_per_trade_pct", 18.0))
 
             if risk_pct > max_risk_per_trade_pct:
-                logger.info(f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}% > {max_risk_per_trade_pct:.1f}%), skipping")
+                logger.info(
+                    f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}% > {max_risk_per_trade_pct:.1f}%), skipping"
+                )
                 _log_signal_rejection(
-                    symbol, "stop_too_wide", f"Risk {risk_pct:.1f}% > {max_risk_per_trade_pct:.1f}%", run_date, entry_price, risk_pct
+                    symbol,
+                    "stop_too_wide",
+                    f"Risk {risk_pct:.1f}% > {max_risk_per_trade_pct:.1f}%",
+                    run_date,
+                    entry_price,
+                    risk_pct,
                 )
 
                 skipped_count += 1
@@ -1339,20 +1348,24 @@ def run(
     attempted = executed_count + failed_count
     success_rate = round((executed_count / attempted * 100) if attempted > 0 else 0, 1)
 
+    result_data = {
+        "entered": executed_count,
+        "skipped": skipped_count,
+        "failed": failed_count,
+        "execution_rejection_rate": execution_rejection_rate,
+        "entries_executed": executed_count,
+        "success_rate": success_rate,
+        "avg_entry_price": round(sum(entered_prices) / len(entered_prices), 2) if entered_prices else None,
+        "symbols_entered": entered_symbols,
+    }
+    # Validate schema contract before returning
+    from algo.orchestrator.phase_data_contract import validate_phase_data
+    validate_phase_data(8, result_data)
     return PhaseResult(
         8,
         "entry_execution",
         "ok",
-        {
-            "entered": executed_count,
-            "skipped": skipped_count,
-            "failed": failed_count,
-            "execution_rejection_rate": execution_rejection_rate,
-            "entries_executed": executed_count,
-            "success_rate": success_rate,
-            "avg_entry_price": round(sum(entered_prices) / len(entered_prices), 2) if entered_prices else None,
-            "symbols_entered": entered_symbols,
-        },
+        result_data,
         False,
         f"Executed {executed_count} trades (rejection rate: {execution_rejection_rate}%)",
     )

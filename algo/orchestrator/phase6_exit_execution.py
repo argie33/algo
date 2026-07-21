@@ -395,17 +395,21 @@ def run(
         # the majority of real exits - a fabricated-looking number is worse than no number.
         total_exit_attempts = exit_count + errors
         success_rate = (exit_count / total_exit_attempts * 100) if total_exit_attempts > 0 else None
+        result_data = {
+            "exits": exit_count,
+            "exits_executed": exit_count,
+            "stop_raises": stop_raises,
+            "errors": errors,
+            "success_rate": success_rate,
+        }
+        # Validate schema contract before returning
+        from algo.orchestrator.phase_data_contract import validate_phase_data
+        validate_phase_data(6, result_data)
         return PhaseResult(
             6,
             "exit_execution",
             "ok",
-            {
-                "exits": exit_count,
-                "exits_executed": exit_count,
-                "stop_raises": stop_raises,
-                "errors": errors,
-                "success_rate": success_rate,
-            },
+            result_data,
             False,
             None,
         )
@@ -413,4 +417,11 @@ def run(
     except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
         traceback.print_exc()
         log_phase_result_fn(6, "exit_execution", "error", str(e))
-        return PhaseResult(6, "exit_execution", "halted", {"status": "halted", "reason": f"Database error in exit execution: {str(e)[:100]}", "exits_executed": 0}, True, str(e))
+        return PhaseResult(
+            6,
+            "exit_execution",
+            "halted",
+            {"status": "halted", "reason": f"Database error in exit execution: {str(e)[:100]}", "exits_executed": 0},
+            True,
+            str(e),
+        )
