@@ -33,19 +33,20 @@ class MetricsCalculator:
     ) -> float | dict[str, Any]:
         """Calculate win rate percentage from trade counts.
 
-        Formula: (wins / total_trades) * 100
+        Formula: (wins / (wins + losses)) * 100
 
         Args:
-            total_trades: Total number of trades (closed + open with P&L)
+            total_trades: Total number of trades (closed + open with P&L) - used only for
+                the minimum-data check below, NOT as the win-rate denominator
             wins: Count of winning trades (profit_loss_dollars > 0)
             losses: Count of losing trades (profit_loss_dollars < 0)
-            (Breakeven trades (= 0) excluded from denominator)
+            (Breakeven trades (= 0) and unclassifiable trades excluded from denominator)
 
         Returns:
             Win rate as percentage (0-100), or marker dict if insufficient data:
             {
                 'data_unavailable': True,
-                'reason': 'insufficient_trades' | 'missing_win_count'
+                'reason': 'insufficient_trades' | 'missing_win_count' | 'no_decisive_trades'
             }
 
         Data Requirements:
@@ -55,16 +56,25 @@ class MetricsCalculator:
         Edge Cases:
             - If total_trades is None or 0, returns unavailable marker
             - If wins is None, raises ValueError (cannot calculate without win count)
+            - If wins + losses is 0 (all breakeven/unclassifiable), returns unavailable marker
         """
         if total_trades is None or total_trades <= 0:
             logger.warning(f"Cannot calculate win rate: insufficient trades (total_trades={total_trades})")
             return {"data_unavailable": True, "reason": "insufficient_trades"}
         if wins is None:
             raise ValueError("Cannot calculate win rate: wins count is None")
-        if wins < 0 or wins > total_trades:
-            logger.warning(f"Cannot calculate win rate: invalid win count (wins={wins}, total={total_trades})")
+        if losses is None:
+            raise ValueError("Cannot calculate win rate: losses count is None")
+        if wins < 0 or losses < 0 or wins + losses > total_trades:
+            logger.warning(
+                f"Cannot calculate win rate: invalid win/loss counts (wins={wins}, losses={losses}, total={total_trades})"
+            )
             return {"data_unavailable": True, "reason": "invalid_trade_counts"}
-        wr = (wins / total_trades) * 100
+        decisive = wins + losses
+        if decisive <= 0:
+            logger.warning(f"Cannot calculate win rate: no decisive trades (wins={wins}, losses={losses})")
+            return {"data_unavailable": True, "reason": "no_decisive_trades"}
+        wr = (wins / decisive) * 100
         return round(wr, 2)
 
     @staticmethod
