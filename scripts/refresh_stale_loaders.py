@@ -25,9 +25,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Loaders to refresh, with priority (1=critical, 2=important, 3=nice-to-have)
+# Table names verified live against what each loader actually writes to (see
+# scripts/verify_loaders_health.py / scripts/audit_all_loaders.py for the same
+# reconciliation) - the old 'earnings_history' entry pointed at a permanently-empty
+# (0 rows) legacy table instead of 'earnings_calendar_sec' (353k rows, updated daily),
+# which crashed get_data_age's None-vs-int staleness comparison on every run before a
+# single loader could refresh. 'load_growth_metrics.py' referenced a file deleted since
+# Session 275 (renamed to load_value_quality_growth_metrics.py).
 LOADERS_TO_REFRESH = [
     # CRITICAL PRIORITY (last refreshed 2+ weeks ago)
-    ('loaders/load_earnings_calendar_sec.py', 'earnings_history', 1, 7),
+    ('loaders/load_earnings_calendar_sec.py', 'earnings_calendar_sec', 1, 7),
     ('loaders/load_sector_industry_daily.py', 'industry_ranking', 1, 7),
 
     # IMPORTANT PRIORITY (last refreshed 2+ days ago)
@@ -37,7 +44,7 @@ LOADERS_TO_REFRESH = [
 
     # MAINTAIN PRIORITY (keep fresh)
     ('loaders/load_stock_scores.py', 'stock_scores', 2, 1),
-    ('loaders/load_growth_metrics.py', 'growth_metrics', 2, 3),
+    ('loaders/load_value_quality_growth_metrics.py', 'growth_metrics', 2, 3),
     ('loaders/load_sec_valuations.py', 'sec_valuations', 2, 3),
 ]
 
@@ -55,7 +62,7 @@ def get_data_age(table_name: str) -> dict:
             'stock_scores': 'updated_at',
             'growth_metrics': 'updated_at',
             'sec_valuations': 'updated_at',
-            'earnings_history': 'updated_at',
+            'earnings_calendar_sec': 'updated_at',
             'industry_ranking': 'updated_at',
         }
         date_col = date_col_map.get(table_name, 'updated_at')
@@ -137,11 +144,21 @@ def main():
 
         if age_info['exists']:
             age = age_info['age_days']
-            status = "CRITICAL" if age > threshold_days * 2 else "STALE" if age > threshold_days else "OK"
+            # age is None when the table exists but has no rows with a non-null date
+            # column (never populated, or genuinely empty) - treat as CRITICAL rather
+            # than crashing the None-vs-int comparison below.
+            status = (
+                "CRITICAL"
+                if age is None or age > threshold_days * 2
+                else "STALE"
+                if age > threshold_days
+                else "OK"
+            )
             marker = "🔴" if status == "CRITICAL" else "🟡" if status == "STALE" else "🟢"
+            age_str = f"{age:3}" if age is not None else "N/A"
 
             logger.info(
-                f"{marker} {table_name:25} | Age: {age:3}d | Threshold: {threshold_days}d | {status:8} | {age_info['rows']:,} rows"
+                f"{marker} {table_name:25} | Age: {age_str}d | Threshold: {threshold_days}d | {status:8} | {age_info['rows']:,} rows"
             )
 
             if status in ("STALE", "CRITICAL"):
@@ -155,8 +172,9 @@ def main():
 
     logger.info(f"\n[ALERT] Found {len(stale_loaders)} stale loader(s). Starting refresh...")
 
-    # Refresh stale loaders in priority order (1 = critical first)
-    stale_loaders.sort(key=lambda x: (-x[2], -x[3]))  # Sort by priority, then age (oldest first)
+    # Refresh stale loaders in priority order (1 = critical first, then oldest age
+    # first - None (table has no dated rows at all) sorts as oldest, not a crash)
+    stale_loaders.sort(key=lambda x: (-x[2], -(x[3] if x[3] is not None else float("inf"))))
 
     logger.info("\n" + "=" * 80)
     logger.info("REFRESH SEQUENCE (Priority Order)")
