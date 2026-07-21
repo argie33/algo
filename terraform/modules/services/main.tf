@@ -973,18 +973,43 @@ resource "null_resource" "algo_concurrency_propagation_delay" {
   depends_on = [aws_lambda_function.algo]
 }
 
+# Same root cause and fix as aws_lambda_alias.api_live above: EventBridge Scheduler targets
+# below invoke aws_lambda_function.algo.arn unqualified (always $LATEST), and
+# deploy-orchestrator-lambda.yml does a plain update-function-code with no --publish/alias
+# repoint - but this provisioned concurrency config used to target aws_lambda_function.algo
+# .version, a number frozen at the last `terraform apply`. Every code-only deploy after that
+# left the warmed version further behind $LATEST while EventBridge kept invoking $LATEST
+# cold, defeating provisioned concurrency entirely (confirmed dormant, not yet live-impacting:
+# the actually-deployed terraform.tfvars has algo_lambda_provisioned_concurrency=0; only the
+# unused dev.tfvars had it enabled - found via steering/AWS_LAMBDA_503_FIX.md cross-check,
+# 2026-07-20). Fix: target a "LIVE" alias everywhere (Scheduler targets, provisioned
+# concurrency, and the Lambda permission's qualifier), same as the API Lambda.
+resource "aws_lambda_alias" "algo_live" {
+  count            = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
+  name             = "LIVE"
+  function_name    = aws_lambda_function.algo.function_name
+  function_version = aws_lambda_function.algo.version
+
+  lifecycle {
+    ignore_changes = [function_version]
+  }
+}
+
 # Provisioned concurrency for Orchestrator Lambda (keep instances warm for scheduled runs)
-# When provisioned_concurrency > 0, enable with published version (not $LATEST)
+# When provisioned_concurrency > 0, enable with published version via the "LIVE" alias (not
+# a frozen version number, and not $LATEST - see aws_lambda_alias.algo_live comment above).
 resource "aws_lambda_provisioned_concurrency_config" "algo" {
   count                             = var.algo_lambda_provisioned_concurrency > 0 ? 1 : 0
   function_name                     = aws_lambda_function.algo.function_name
   provisioned_concurrent_executions = var.algo_lambda_provisioned_concurrency
-  qualifier                         = aws_lambda_function.algo.version
+  qualifier                         = aws_lambda_alias.algo_live[0].name
 
-  lifecycle {
-    create_before_destroy = true
-  }
-  depends_on = [aws_lambda_function.algo, null_resource.algo_concurrency_propagation_delay]
+  # Deliberately NO create_before_destroy: see aws_lambda_provisioned_concurrency_config.api
+  # above for why (AWS rejects provisioned concurrency on an alias and its underlying version
+  # existing at once; the old version-qualified config must be deleted before this one is
+  # created; the brief unwarmed window is fine since the old config warmed a version nothing
+  # invoked anyway).
+  depends_on = [aws_lambda_function.algo, aws_lambda_alias.algo_live, null_resource.algo_concurrency_propagation_delay]
 }
 
 # ============================================================
@@ -1380,7 +1405,7 @@ resource "aws_cloudwatch_metric_alarm" "loader_failures_accumulating" {
 # Both orchestrator and circuit breaker Lambda reference this table.
 
 resource "aws_dynamodb_table" "orchestrator_state" {
-  name   ="algo_orchestrator_state"
+  name         = "algo_orchestrator_state"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "key"
 
@@ -1400,7 +1425,7 @@ resource "aws_dynamodb_table" "orchestrator_state" {
 # Access: ECS loaders (invalidation on completion/failure) + orchestrator Lambda (read/write).
 
 resource "aws_dynamodb_table" "phase1_cache" {
-  name   ="algo_phase1_cache"
+  name         = "algo_phase1_cache"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "cache_key"
 
@@ -1445,8 +1470,17 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
   statement_id  = "AllowEventBridgeSchedulerInvoke"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.algo.function_name
-  principal     = "scheduler.amazonaws.com"
-  source_arn    = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
+  # A permission granted on the unqualified function only covers $LATEST invocations; the
+  # Scheduler targets below invoke the "LIVE" alias ARN when provisioned concurrency is
+  # enabled, which is checked against the alias's own resource policy - must grant here too,
+  # same reasoning as aws_lambda_permission.api_gateway's qualifier above.
+  qualifier  = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].name : null
+  principal  = "scheduler.amazonaws.com"
+  source_arn = "arn:aws:scheduler:${var.aws_region}:${var.aws_account_id}:schedule/*/*"
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # ============================================================
@@ -1454,7 +1488,7 @@ resource "aws_lambda_permission" "eventbridge_scheduler" {
 # ============================================================
 
 resource "aws_dynamodb_table" "contact_rate_limit" {
-  name   ="${var.project_name}-contact-rate-limit-${var.environment}"
+  name         = "${var.project_name}-contact-rate-limit-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "email"
 
@@ -1506,7 +1540,7 @@ resource "aws_iam_role_policy" "api_contact_rate_limit" {
 # Used by POST /api/logout to revoke tokens immediately.
 
 resource "aws_dynamodb_table" "token_blocklist" {
-  name   ="${var.project_name}-token-blocklist-${var.environment}"
+  name         = "${var.project_name}-token-blocklist-${var.environment}"
   billing_mode = "PAY_PER_REQUEST"
   hash_key     = "jti"
 

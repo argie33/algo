@@ -127,3 +127,22 @@ jobs:
             --region us-east-1 \
             --query '{FunctionName:FunctionName,LastModified:LastModified,CodeSize:CodeSize}' \
             --output json
+
+          aws lambda wait function-updated --function-name algo-algo-dev --region us-east-1
+
+          # Provisioned concurrency (Terraform-managed, aws_lambda_alias.algo_live in
+          # terraform/modules/services/main.tf) targets the "LIVE" alias, not $LATEST. Publish
+          # a version from the code we just deployed and repoint the alias so the warm/
+          # pre-initialized instances actually run the new code - same fix and same reasoning
+          # as deploy-api-lambda.yml's equivalent step (both Lambdas had the identical
+          # qualifier-mismatch bug; see steering/AWS_LAMBDA_503_FIX.md).
+          NEW_VERSION=$(aws lambda publish-version --function-name algo-algo-dev --region us-east-1 --query Version --output text)
+          echo "Published version: $NEW_VERSION"
+          aws lambda wait function-updated --function-name algo-algo-dev --region us-east-1
+
+          if aws lambda get-alias --function-name algo-algo-dev --name LIVE --region us-east-1 >/dev/null 2>&1; then
+            aws lambda update-alias --function-name algo-algo-dev --name LIVE --function-version "$NEW_VERSION" --region us-east-1
+            echo "Updated LIVE alias -> version $NEW_VERSION"
+          else
+            echo "No LIVE alias found (provisioned concurrency disabled) - skipping alias update"
+          fi

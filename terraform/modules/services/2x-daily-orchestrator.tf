@@ -40,7 +40,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator_premarket" {
   }
 
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -77,7 +80,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator_morning" {
   }
 
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -114,7 +120,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator_afternoon" {
   }
 
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -152,7 +161,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator_preclose" {
   }
 
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -192,7 +204,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator" {
   }
 
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -239,7 +254,10 @@ resource "aws_scheduler_schedule" "weight_optimization" {
   # (EventBridge Scheduler doesn't support direct ECS task scheduling in all regions,
   #  so we use Lambda as a bridge to invoke the ECS task)
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -288,7 +306,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_morning" {
   }
 
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -325,7 +346,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_afternoon" {
   }
 
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
@@ -363,7 +387,10 @@ resource "aws_scheduler_schedule" "algo_orchestrator_prewarm_preclose" {
   }
 
   target {
-    arn      = aws_lambda_function.algo.arn
+    # Invoke the "LIVE" alias when provisioned concurrency is enabled so scheduled runs land
+    # on pre-warmed instances instead of a cold $LATEST - see aws_lambda_alias.algo_live in
+    # main.tf for why (same qualifier-mismatch bug already fixed for the API Lambda).
+    arn      = var.algo_lambda_provisioned_concurrency > 0 ? aws_lambda_alias.algo_live[0].arn : aws_lambda_function.algo.arn
     role_arn = var.eventbridge_scheduler_role_arn
 
     input = jsonencode({
