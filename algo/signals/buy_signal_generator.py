@@ -148,6 +148,17 @@ class BuySignalGenerator:
                 )
 
                 # Build signal record
+                pct_from_sma50 = (
+                    round((close - sma_50) / sma_50 * 100, 4)
+                    if sma_50 and close and sma_50 > 0
+                    else None
+                )
+                pct_from_ema21 = (
+                    round((close - ema_21) / ema_21 * 100, 4)
+                    if ema_21 and close and ema_21 > 0
+                    else None
+                )
+
                 signal = {
                     "symbol": symbol,
                     "date": row["date"],
@@ -167,6 +178,8 @@ class BuySignalGenerator:
                     "sma_50": float(sma_50) if sma_50 is not None else None,
                     "sma_200": float(sma_200) if sma_200 is not None else None,
                     "ema_21": float(ema_21) if ema_21 is not None else None,
+                    "pct_from_sma50": pct_from_sma50,
+                    "pct_from_ema21": pct_from_ema21,
                     "atr": float(atr) if atr is not None else None,
                     "adx": float(adx) if adx is not None else None,
                     "mansfield_rs": (float(mansfield_rs) if mansfield_rs is not None else None),
@@ -312,9 +325,7 @@ class BuySignalGenerator:
             lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
             # Bounded at i+1, not len(rows) - see matching comment in _find_swing_high.
             lookforward_bars = [
-                rows[k].get("low")
-                for k in range(j + 1, min(len(rows), i + 1, j + 4))
-                if rows[k].get("low") is not None
+                rows[k].get("low") for k in range(j + 1, min(len(rows), i + 1, j + 4)) if rows[k].get("low") is not None
             ]
 
             # Lenient requirement: need at least 2 lookback and 2 lookforward bars
@@ -339,9 +350,7 @@ class BuySignalGenerator:
             lookback_bars = [rows[k].get("low") for k in range(max(0, j - 3), j) if rows[k].get("low") is not None]
             # Bounded at i+1, not len(rows) - see matching comment in _find_swing_high.
             lookforward_bars = [
-                rows[k].get("low")
-                for k in range(j + 1, min(len(rows), i + 1, j + 4))
-                if rows[k].get("low") is not None
+                rows[k].get("low") for k in range(j + 1, min(len(rows), i + 1, j + 4)) if rows[k].get("low") is not None
             ]
 
             if len(lookback_bars) < 1 or len(lookforward_bars) < 1:
@@ -550,7 +559,9 @@ class BuySignalGenerator:
             base_length_days = int(duration_weeks * 5) if duration_weeks is not None else None
             return display_name, base_length_days
         except Exception as e:  # best-effort enrichment, must never break signal generation
-            logger.warning(f"[SIGNAL_GENERATION] {symbol}: base pattern classification failed - {type(e).__name__}: {e}")
+            logger.warning(
+                f"[SIGNAL_GENERATION] {symbol}: base pattern classification failed - {type(e).__name__}: {e}"
+            )
             return None, None
 
     def _calculate_entry_exit_levels(
