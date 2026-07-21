@@ -432,11 +432,20 @@ class PositionSizer:
                 )
             return risk_mult
         elif dd >= 15:
-            return Decimal(str(self.config["risk_reduction_at_minus_15"]))
+            val = self.config.get("risk_reduction_at_minus_15")
+            if val is None:
+                raise KeyError("[POSITION_SIZER] Config missing 'risk_reduction_at_minus_15'")
+            return Decimal(str(val))
         elif dd >= 10:
-            return Decimal(str(self.config["risk_reduction_at_minus_10"]))
+            val = self.config.get("risk_reduction_at_minus_10")
+            if val is None:
+                raise KeyError("[POSITION_SIZER] Config missing 'risk_reduction_at_minus_10'")
+            return Decimal(str(val))
         elif dd >= 5:
-            return Decimal(str(self.config["risk_reduction_at_minus_5"]))
+            val = self.config.get("risk_reduction_at_minus_5")
+            if val is None:
+                raise KeyError("[POSITION_SIZER] Config missing 'risk_reduction_at_minus_5'")
+            return Decimal(str(val))
         else:
             return Decimal(1)
 
@@ -517,10 +526,19 @@ class PositionSizer:
                     f"Volatility protection requires fresh VIX data from last trading day."
                 )
             vix = Decimal(str(row[0]))
-            caution_threshold = Decimal(str(self.config["vix_caution_threshold"]))
-            max_threshold = Decimal(str(self.config["vix_max_threshold"]))
+            caution_threshold_val = self.config.get("vix_caution_threshold")
+            if caution_threshold_val is None:
+                raise KeyError("[POSITION_SIZER] Config missing 'vix_caution_threshold'")
+            max_threshold_val = self.config.get("vix_max_threshold")
+            if max_threshold_val is None:
+                raise KeyError("[POSITION_SIZER] Config missing 'vix_max_threshold'")
+            caution_threshold = Decimal(str(caution_threshold_val))
+            max_threshold = Decimal(str(max_threshold_val))
             if vix > caution_threshold and vix <= max_threshold:
-                return Decimal(str(self.config["vix_caution_risk_reduction"]))
+                vix_reduction_val = self.config.get("vix_caution_risk_reduction")
+                if vix_reduction_val is None:
+                    raise KeyError("[POSITION_SIZER] Config missing 'vix_caution_risk_reduction'")
+                return Decimal(str(vix_reduction_val))
             return Decimal(1)
 
         result: Decimal | int | float = self._with_cursor(fetch_vix)
@@ -720,9 +738,15 @@ class PositionSizer:
         assert isinstance(active_positions, int), f"Active positions must be int, got {type(active_positions)}"
         active_position_value = self.get_active_positions_value()
 
-        max_positions = int(self.config["max_positions"])
+        max_positions_val = self.config.get("max_positions")
+        if max_positions_val is None:
+            raise ValueError("[POSITION_SIZER] Config missing required 'max_positions' key")
+        try:
+            max_positions = int(max_positions_val)
+        except (ValueError, TypeError) as e:
+            raise ValueError(f"[POSITION_SIZER] max_positions must be integer, got {type(max_positions_val).__name__}: {max_positions_val}") from e
         if max_positions <= 0:
-            raise ValueError(f"max_positions must be > 0, got {max_positions}")
+            raise ValueError(f"[POSITION_SIZER] max_positions must be > 0, got {max_positions}")
         if active_positions >= max_positions:
             return {
                 "shares": 0,
@@ -741,7 +765,10 @@ class PositionSizer:
                 "reason": "Drawdown >= 20%, trading halted",
             }
 
-        base_risk_pct = Decimal(str(self.config["base_risk_pct"])) / Decimal(100)
+        base_risk_val = self.config.get("base_risk_pct")
+        if base_risk_val is None:
+            raise KeyError("[POSITION_SIZER] Config missing 'base_risk_pct'")
+        base_risk_pct = Decimal(str(base_risk_val)) / Decimal(100)
         exposure_mult = self.get_market_exposure_multiplier()
         phase_mult = self.get_phase_size_multiplier()
         vix_mult = self.get_vix_caution_multiplier()
