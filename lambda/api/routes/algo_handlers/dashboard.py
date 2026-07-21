@@ -470,12 +470,22 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
     # CRITICAL: Fail-fast if portfolio appears empty after position processing
     # Division-by-zero fallback (setting total=1) would create FAKE allocation percentages
     total_abs_value = sum(abs(v) for v in sector_risk.values())
-    if total_abs_value == 0:
+    if total_abs_value == 0 and not items:
+        # No open positions is a normal, expected state (already logged as such above at
+        # "no open positions" / "held outside algo tracking") - not a data-quality failure.
+        # This branch used to log it as "[POSITIONS CRITICAL]" via logger.error() regardless
+        # of whether items was empty (flat portfolio, benign) or non-empty with zero-value
+        # positions (genuinely suspicious), contradicting this same function's own earlier
+        # handling of the identical zero-positions case and generating a false CRITICAL
+        # alert - and a misleading "data incomplete" dashboard banner - on every flat day.
+        logger.debug("[POSITIONS] No open positions - sector allocation is empty (not an error)")
+        sector_allocation: list[dict[str, Any]] = []
+    elif total_abs_value == 0:
         logger.error(
             "[POSITIONS CRITICAL] Portfolio allocation cannot be computed: "
-            "total_abs_value is 0 after processing %d items. "
-            "This indicates either no positions with valid sectors, or all positions skipped due to missing data. "
-            "Check: (1) Positions have sector data? (2) Position values are non-zero?",
+            "total_abs_value is 0 after processing %d items with open positions. "
+            "This indicates all positions have zero value or invalid sector data despite passing enrichment. "
+            "Check: (1) Position values are non-zero? (2) sector_risk accumulation logic.",
             len(items),
         )
         stale_alerts.append("Portfolio data incomplete: unable to compute sector allocation")
