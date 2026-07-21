@@ -1041,14 +1041,27 @@ class PositionMonitor:
         Raises:
             ValueError: If market health data is unavailable for the date
         """
+        # market_health_daily.distribution_days_4w is only populated by the ~2-3am morning
+        # loader, which runs before MarketExposure has enough same-day data to compute a real
+        # distribution-day count - that row is written with distribution_days_4w=NULL and never
+        # refreshed later in the day. market_exposure_daily.distribution_days is the same
+        # underlying computation (MarketExposure.compute()), but gets a real value once
+        # recomputed later in the trading day/EOD - read from there instead, and skip any NULL
+        # rows rather than trusting "most recent date" to also mean "most recent populated
+        # value". Same fix as algo/trading/exit_engine.py::_fetch_market_dist_days, which hit
+        # this identically for open positions in execution_mode='paper'/'dry' - this method is
+        # the equivalent for execution_mode='auto' (Phase 3 short-circuits before reaching it
+        # in paper mode, so this path is currently dormant but will hit the same crash the
+        # moment auto/live mode runs with an open position).
         cur.execute(
-            "SELECT distribution_days_4w, data_unavailable, reason FROM market_health_daily WHERE date <= %s ORDER BY date DESC LIMIT 1",
+            "SELECT distribution_days, data_unavailable, reason FROM market_exposure_daily "
+            "WHERE date <= %s AND distribution_days IS NOT NULL ORDER BY date DESC LIMIT 1",
             (current_date,),
         )
         row = cur.fetchone()
-        if not row or row[0] is None:
+        if not row:
             raise ValueError(
-                f"Market distribution days not available for {current_date} - market_health_daily table missing or empty"
+                f"Market distribution days not available for {current_date} - market_exposure_daily table missing or empty"
             )
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using distribution days
@@ -1056,7 +1069,7 @@ class PositionMonitor:
         reason_msg = row[2] if len(row) > 2 else None
         if data_unavailable_flag is True:
             raise ValueError(
-                f"Market health data marked unavailable for {current_date}: {reason_msg or 'no reason provided'}. "
+                f"Market exposure data marked unavailable for {current_date}: {reason_msg or 'no reason provided'}. "
                 f"Cannot assess market distribution days with invalid data."
             )
 
