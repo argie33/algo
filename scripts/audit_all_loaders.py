@@ -51,29 +51,47 @@ def check_loader_imports(loader_file):
         return {'importable': False, 'error': f"Error: {str(e)[:50]}"}
 
 def get_loader_table_mapping():
-    """Map loader files to their output tables."""
+    """Map loader files to their output tables.
+
+    Kept in sync with the active loader list in scripts/local_loader_scheduler.py
+    (see scripts/verify_loaders_health.py for the same reconciliation, done first).
+    Previous version pointed load_earnings_calendar_sec.py at 'earnings_history' -
+    a different, permanently-empty (0 rows) legacy table - instead of the table the
+    loader actually writes to ('earnings_calendar_sec', 353k rows, updated daily).
+    That misdirection made a healthy loader report as EMPTY/critical while the table
+    it really populates was never checked at all. Also referenced load_growth_metrics.py
+    and load_market_health_daily.py, neither of which exists as a file anymore (renamed/
+    dead since Session 275) - those entries were silently unreachable since this script
+    iterates real files in loaders/, so they never fired, but a dozen real active loaders
+    (SEC filings, sentiment, positioning, etc.) had no mapping entry at all and were
+    silently skipped with "[?] No table mapping found".
+    """
     return {
         'load_prices.py': ['price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly'],
         'load_technical_indicators.py': ['technical_data_daily'],
-        'load_buy_sell_daily.py': ['buy_sell_daily'],
-        'load_stock_scores.py': ['stock_scores'],
-        'load_growth_metrics.py': ['growth_metrics'],
-        'load_sec_valuations.py': ['sec_valuations'],
-        'load_earnings_calendar_sec.py': ['earnings_history'],
-        'load_sector_industry_daily.py': ['industry_ranking'],
-        'load_market_exposure_daily.py': ['market_exposure_daily'],
+        'load_trend_analysis.py': ['trend_template_data'],
+        'load_market_status_daily.py': ['market_sentiment'],
+        'load_naaim.py': ['naaim'],
+        'load_aaii_sentiment.py': ['aaii_sentiment'],
+        'load_short_interest_finra.py': ['short_interest_finra'],
         'load_company_info_sec.py': ['company_info_sec'],
+        'load_earnings_calendar_sec.py': ['earnings_calendar_sec'],
+        'load_market_constituents.py': ['stock_symbols', 'etf_symbols'],
         'load_financial_statements.py': ['annual_income_statement', 'annual_balance_sheet'],
+        'load_sec_valuations.py': ['sec_valuations'],
+        'load_sec_cash_flow_metrics.py': ['sec_cash_flow_metrics'],
         'load_institutional_holdings_13f.py': ['institutional_holdings_13f'],
         'load_insider_holdings_sec.py': ['insider_holdings_sec'],
         'load_positioning_metrics.py': ['positioning_metrics'],
-        'load_market_health_daily.py': ['market_health_daily'],
-        'load_market_sentiment.py': ['market_sentiment'],
-        'load_economic_data.py': ['economic_data'],
-        'load_market_constituents.py': ['stock_symbols', 'etf_symbols'],
-        'load_algo_metrics_daily.py': ['algo_metrics_daily'],
+        'load_value_quality_growth_metrics.py': ['growth_metrics', 'quality_metrics', 'value_metrics'],
         'load_risk_metrics_daily.py': ['momentum_metrics', 'stability_metrics'],
-        'load_trend_analysis.py': ['trend_template_data'],
+        'load_stock_scores.py': ['stock_scores'],
+        'load_buy_sell_daily.py': ['buy_sell_daily'],
+        'load_signal_quality_scores.py': ['signal_quality_scores'],
+        'load_algo_metrics_daily.py': ['algo_metrics_daily'],
+        'load_sector_industry_daily.py': ['sector_ranking', 'industry_ranking', 'sector_performance'],
+        'load_market_exposure_daily.py': ['market_exposure_daily'],
+        'load_economic_data.py': ['economic_data'],
     }
 
 def check_table_exists(table_name):
@@ -115,6 +133,14 @@ def get_table_freshness(table_name):
                     return {'rows': rows, 'latest': latest, 'age_days': age_days, 'date_column': date_col}
                 break
             except psycopg2.errors.UndefinedColumn:
+                # Postgres aborts the whole transaction on ANY failed statement - every
+                # subsequent query on this connection raises InFailedSqlTransaction until
+                # rolled back. Without this, the first date_column that doesn't exist on a
+                # table (e.g. 'updated_at' on trend_template_data, which only has 'date')
+                # poisoned the connection and made the NEXT (valid) column attempt fail too,
+                # falling through to the generic except below and reporting a real,
+                # populated table as EMPTY/no-data.
+                conn.rollback()
                 continue
             except psycopg2.Error as e:
                 logger.error(f"[DB_ERROR] Failed to get freshness for table {table_name}, column {date_col}: {type(e).__name__}: {e}")
