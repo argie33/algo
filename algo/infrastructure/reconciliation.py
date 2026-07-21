@@ -541,6 +541,14 @@ class DailyReconciliation:
                 raise RuntimeError(f"[RECONCILIATION] Failed to write portfolio snapshot: {e}") from e
 
             # FINAL VERIFICATION: Query immediately after context exit (after commit) to verify data persisted
+            # CRITICAL: this can genuinely detect and log a real persistence failure (mismatch or
+            # query error) - the return below used to ignore that outcome entirely and always
+            # report "success": True, the exact same "log a real failure, report success anyway"
+            # anti-pattern already fixed above (see the comment on the outer except at the top of
+            # this write path) for the write itself. Post-commit, we can't roll back, but we can -
+            # and must - stop silently claiming the snapshot is verified when it isn't.
+            final_verification_failed = False
+            final_verification_detail = None
             try:
                 with DatabaseContext("read") as verify_ctx:
                     verify_ctx.execute(
@@ -554,13 +562,17 @@ class DailyReconciliation:
                         )
                     else:
                         actual = verify_final["position_count"] if verify_final else "NULL"
+                        final_verification_failed = True
+                        final_verification_detail = f"expected position_count={open_position_count}, got {actual}"
                         logger.error(
                             f"[RECONCILIATION] FINAL VERIFICATION FAILED: Expected position_count={open_position_count}, got {actual}"
                         )
             except Exception as final_verify_err:
+                final_verification_failed = True
+                final_verification_detail = f"verification query error: {final_verify_err}"
                 logger.error(f"[RECONCILIATION] FINAL VERIFICATION ERROR: {final_verify_err}")
 
-            return {
+            result = {
                 "success": True,
                 "positions": open_position_count,
                 "portfolio_value": portfolio_value,
@@ -570,6 +582,10 @@ class DailyReconciliation:
                 "cumulative_return_pct": cumulative_return_pct,
                 "reason": "Reconciliation skipped: using database state (broker credentials unavailable, paper trading mode)",
             }
+            if final_verification_failed:
+                result["final_verification_failed"] = True
+                result["final_verification_detail"] = final_verification_detail
+            return result
 
         if dry_run:
             import os
@@ -1809,6 +1825,12 @@ class DailyReconciliation:
                     )
 
                     try:
+                        # strict=True: notify() otherwise swallows every delivery failure
+                        # internally and just logs, which made the except clause below
+                        # (added specifically so a broken alert channel can't silently
+                        # skip operator awareness of a partial-fill correction) dead code -
+                        # it could never see a psycopg2 error notify() had already caught
+                        # and discarded itself.
                         notify(
                             severity="warning",
                             title="Partial Fill Detected and Corrected",
@@ -1819,8 +1841,9 @@ class DailyReconciliation:
                                 "db_quantity": db_qty_int,
                                 "alpaca_filled": alpaca_filled_int,
                             },
+                            strict=True,
                         )
-                    except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+                    except Exception as e:
                         # CRITICAL: Fail fast when alert system is down - partial fill corrections must be audited
                         raise RuntimeError(
                             f"[PARTIAL_FILL_ALERT CRITICAL] Failed to notify operator of fill correction "

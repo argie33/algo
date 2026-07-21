@@ -150,6 +150,17 @@ def run(
             summary = f"{positions_count} positions verified"
             if result.get("partial_fill_check_skipped"):
                 summary += " (partial-fill check skipped: broker auth unavailable)"
+            # CRITICAL: reconciliation.py's own post-commit verification can genuinely detect
+            # the portfolio snapshot didn't persist as expected - don't let that surface only as
+            # a log line nobody watching the orchestrator would see. Not escalated to "alert"
+            # status (the write itself succeeded; this is "we couldn't confirm it", not "it
+            # failed"), but it must not be silently absorbed into an unqualified "success" either.
+            if result.get("final_verification_failed"):
+                summary += f" (WARNING: final verification failed - {result.get('final_verification_detail', 'unknown')})"
+                logger.warning(
+                    f"[PHASE 4] Portfolio snapshot final verification failed: "
+                    f"{result.get('final_verification_detail')}"
+                )
             log_phase_result_fn(
                 4,
                 "reconciliation",
