@@ -156,6 +156,13 @@ def run(
                 "success",
                 summary,
             )
+            # sync_count/avg_match_pct/errors_found: the health dashboard
+            # (dashboard/panels/health.py, Phase 4 detail row) reads these exact keys, but
+            # `result` never carried them - previously always rendered nothing despite
+            # positions_count/match_pct being computed right above for the audit-log INSERT.
+            result["sync_count"] = positions_count
+            result["avg_match_pct"] = match_pct
+            result["errors_found"] = partial_fill_result.get("mismatches", 0)
             return PhaseResult(4, "reconciliation", "ok", result, False, None)
         else:
             # Reconciliation failed - return error status with appropriate logging

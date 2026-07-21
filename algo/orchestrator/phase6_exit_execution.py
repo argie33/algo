@@ -347,11 +347,28 @@ def run(
             "success",
             f"{exit_count} exits, {stop_raises} stop-raises, {errors} errors",
         )
+        # exits_executed/success_rate: the health dashboard (dashboard/panels/health.py,
+        # Phase 6 detail row) reads these exact keys, but this dict only ever had
+        # exits/stop_raises/errors - "exits_executed" never matched "exits" so it always
+        # rendered nothing. avg_profit/symbols_exited are deliberately NOT added here:
+        # ExitEngine.check_and_execute_exits() (the tiered target/stop/time exit path,
+        # likely most actual exits) returns only a bare int count with no per-exit
+        # symbol/profit detail exposed to this phase, so computing those two fields only
+        # from the exposure-action/position-rec exit loops above would silently exclude
+        # the majority of real exits - a fabricated-looking number is worse than no number.
+        total_exit_attempts = exit_count + errors
+        success_rate = (exit_count / total_exit_attempts * 100) if total_exit_attempts > 0 else None
         return PhaseResult(
             6,
             "exit_execution",
             "ok",
-            {"exits": exit_count, "stop_raises": stop_raises, "errors": errors},
+            {
+                "exits": exit_count,
+                "exits_executed": exit_count,
+                "stop_raises": stop_raises,
+                "errors": errors,
+                "success_rate": success_rate,
+            },
             False,
             None,
         )

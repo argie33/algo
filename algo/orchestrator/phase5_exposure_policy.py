@@ -11,6 +11,22 @@ from algo.reporting import AlertManager
 logger = logging.getLogger(__name__)
 
 
+def _health_panel_fields(constraints: dict[str, Any]) -> dict[str, Any]:
+    """Map ExposurePolicy constraint keys to the exact keys the health dashboard
+    (dashboard/panels/health.py, Phase 5 detail row) reads - previously PhaseResult.data
+    only carried {"constraints": {...}, "actions": [...]}, so Market regime/New entries/
+    Max slots/Halt status silently never rendered despite constraints already having this
+    data under its own (differently-named) keys.
+    """
+    return {
+        "market_regime": constraints.get("regime"),
+        "entry_allowed": not constraints.get("halt_new_entries", False),
+        "halt_active": constraints.get("halt_new_entries", False),
+        "max_new_entries": constraints.get("max_new_positions_today"),
+        "halt_reason": constraints.get("halt_reason"),
+    }
+
+
 def run(
     config: Any,
     run_date: _date,
@@ -108,7 +124,7 @@ def run(
                 5,
                 "exposure_policy",
                 "ok",
-                {"constraints": constraints, "actions": []},
+                {"constraints": constraints, "actions": [], **_health_panel_fields(constraints)},
                 False,
                 None,
             )
@@ -162,7 +178,7 @@ def run(
             5,
             "exposure_policy",
             "ok",
-            {"constraints": constraints, "actions": actions},
+            {"constraints": constraints, "actions": actions, **_health_panel_fields(constraints)},
             False,
             None,
         )
@@ -194,7 +210,7 @@ def run(
             5,
             "exposure_policy",
             "error",
-            {"constraints": fail_halt_constraints, "actions": []},
+            {"constraints": fail_halt_constraints, "actions": [], **_health_panel_fields(fail_halt_constraints)},
             True,  # CRITICAL: Market data missing = halt orchestrator
             str(e),
         )
@@ -226,7 +242,7 @@ def run(
             5,
             "exposure_policy",
             "error",
-            {"constraints": fail_halt_constraints, "actions": []},
+            {"constraints": fail_halt_constraints, "actions": [], **_health_panel_fields(fail_halt_constraints)},
             True,  # CRITICAL: Exposure policy error = halt orchestrator
             str(e),
         )

@@ -1022,6 +1022,13 @@ def run(  # noqa: C901
         f"{len(liq_passed)} signals qualified from {len(raw_candidates)} candidates",
     )
 
+    # signals_generated/buy_signals/sell_signals/avg_strength/symbols_with_signals: the
+    # health dashboard (dashboard/panels/health.py, Phase 7 detail row) reads these exact
+    # keys, but this dict never carried them - previously always rendered nothing.
+    # sell_signals=0 is not a guess: every query feeding this phase filters
+    # WHERE signal = 'BUY' (this system is long-only), so every qualified trade here is
+    # necessarily a buy signal by construction.
+    strength_vals = [float(s["composite_score"]) for s in liq_passed if s.get("composite_score") is not None]
     return PhaseResult(
         7,
         "signal_generation",
@@ -1033,6 +1040,11 @@ def run(  # noqa: C901
             "liquidity_passed": len(liq_passed),
             "regime": regime,
             "signal_source": signal_source,
+            "signals_generated": len(liq_passed),
+            "buy_signals": len(liq_passed),
+            "sell_signals": 0,
+            "avg_strength": (sum(strength_vals) / len(strength_vals)) if strength_vals else None,
+            "symbols_with_signals": [s["symbol"] for s in liq_passed if s.get("symbol")],
         },
         False,
         f"Generated {len(liq_passed)} signals in {elapsed:.1f}s (source={signal_source})",
