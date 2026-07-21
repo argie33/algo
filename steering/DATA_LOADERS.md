@@ -397,6 +397,30 @@ writer in ~2 months.
 
 ---
 
+## GAP (documented, not fixed) 2026-07-21: economic_metrics_daily has a table but no loader
+
+`economic_metrics_daily` (CPI YoY, SPY price change, 10Y-2Y yield curve slope - migration 079,
+`report_date` PK) is a genuinely different table from `economic_data` (the FRED series table
+T10Y2Y/FEDFUNDS/BAMLH0A0HYM2/ICSA + DXY that `loaders/load_economic_data.py` actually writes) -
+don't confuse the two, they were both real at some point. Migration 079's own comment says "The
+economic_metrics_daily loader fails... until this runs," confirming a loader for this table
+existed at some point, but **no such loader file exists anywhere in the current codebase**, it
+is not wired into either `terraform/modules/loaders/main.tf` or `terraform/modules/pipeline/
+main.tf`, and no dashboard/API code actually queries it for data (only config/allowlist
+references remain: `utils/data_tiers.py`, `utils/loader_priority.py`, `utils/db/sql_safety.py`'s
+SQL-safety allowlist, a CloudWatch log-group placeholder in `terraform/modules/lifecycle/
+main.tf`, and `lambda/api/routes/algo_handlers/market.py`'s dashboard health-panel *exclusion*
+list - which correctly already treats it as "not used in trading logic," so this isn't causing
+a false-stale health-panel alarm today). Net effect: inert, not actively harmful, but genuine
+slop - a migration and several scattered config references pointing at a feature that was
+apparently built once and then had its loader removed without cleaning those up. Left in place
+rather than touched in this pass (removing the migration/table would need confirming nothing in
+git history still depends on it; removing just the scattered config references is low-value
+churn for a table nothing reads) - flagging here so it isn't mistaken for an active gap needing
+a new loader built from scratch.
+
+---
+
 ## Pipelines (Step Functions, EventBridge Scheduler, America/New_York)
 
 **Morning (2:00 AM):** prices (1d, FAIL-CLOSED) → market health ∥ trend template →
