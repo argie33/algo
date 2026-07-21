@@ -136,15 +136,22 @@ def _compute_scores_vectorized(merged: pd.DataFrame) -> pd.DataFrame:
 
     # Minervini score (0-8)
     # GOVERNANCE: NaN indicators become NaN score (fail-fast), not silent 0 (no fallback to False)
+    # c1/c2/c3/c7 previously used plain (a > b).astype(int) - pandas comparisons against NaN
+    # silently evaluate to False (confirmed: (NaN > x) is False, not NaN), so a newly-listed
+    # stock without 200 days of history (sma200 is NaN) had c1/c3/c7 silently score as "0 -
+    # criterion failed" instead of "undetermined", understating minervini_trend_score by up
+    # to 3/8 points - directly contradicting this function's own governance comment above,
+    # and inconsistent with weinstein_stage a few lines below, which already correctly guards
+    # this exact same missing-close/sma50/sma200 condition via `valid_data`.
     minervini_components = pd.DataFrame(
         {
-            "c1": (close > sma200).astype(int),
-            "c2": (close > sma50).astype(int),
-            "c3": (sma50 > sma200).astype(int),
+            "c1": (close > sma200).where(pd.notna(close) & pd.notna(sma200), pd.NA).astype("Int64"),
+            "c2": (close > sma50).where(pd.notna(close) & pd.notna(sma50), pd.NA).astype("Int64"),
+            "c3": (sma50 > sma200).where(pd.notna(sma50) & pd.notna(sma200), pd.NA).astype("Int64"),
             "c4": (roc60 > 0).where(pd.notna(roc60), pd.NA).astype("Int64"),
             "c5": (roc252 > 10).where(pd.notna(roc252), pd.NA).astype("Int64"),
             "c6": (rsi > 50).where(pd.notna(rsi), pd.NA).astype("Int64"),
-            "c7": (close > sma200 * 1.10).astype(int),
+            "c7": (close > sma200 * 1.10).where(pd.notna(close) & pd.notna(sma200), pd.NA).astype("Int64"),
             "c8": (roc20 > 0).where(pd.notna(roc20), pd.NA).astype("Int64"),
         }
     )
