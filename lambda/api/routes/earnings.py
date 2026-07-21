@@ -44,6 +44,14 @@ def handle(
                 max_val=200,
                 default=20,
             )
+            # "report_date" is the SEC 10-K/10-Q FILING date, not the earnings announcement
+            # date - per load_earnings_calendar_sec.py's own docstring, filings lag the actual
+            # earnings press release by up to 60-90 days. Kept as "report_date" for API
+            # contract stability (existing consumers key off this field name), but callers
+            # correlating this with price action around an earnings reaction should not treat
+            # it as the announcement date. algo/signals/advanced_filters.py's earnings-blackout
+            # gate deliberately does NOT use this table for exactly this reason - it reads
+            # earnings_calendar/earnings_estimates/earnings_history instead.
             rows = execute_with_timeout(
                 cur,
                 """
@@ -91,6 +99,8 @@ def handle(
             max_val=1000,
             default=100,
         )
+        # See the per-symbol query above: "report_date" is the SEC filing date, not the
+        # earnings announcement date (filings lag the actual report by up to 60-90 days).
         rows = execute_with_timeout(
             cur,
             """
