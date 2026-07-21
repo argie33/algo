@@ -71,7 +71,14 @@ logger = logging.getLogger(__name__)
 
 _LIQUIDITY_CHECK_LIMIT = 20  # Increased from 10 to 20 for better coverage (AUDIT FIX Session 276)
 _HISTORICAL_SIGNAL_MEDIAN_MIN = 300  # Typical trading day has 300+ BUY signals in buy_sell_daily
-_SIGNAL_COUNT_ANOMALY_THRESHOLD = 50  # Alert if count drops below 5% of median (15 signals)
+# Absolute floor below which a non-zero signal count is still treated as anomalous, not just
+# exactly 0. Was defined but never referenced anywhere - the only anomaly check actually wired
+# up was "count == 0" (see _check_critical_dependencies below), so a severe but non-zero
+# collapse (e.g. the typical 300+/day dropping to single digits - a >95% degradation, clearly
+# indicative of an upstream data quality problem) silently passed through with no halt and no
+# alert, contradicting this module's own stated design intent ("Prevents silent degradation
+# where empty signals show on dashboard").
+_SIGNAL_COUNT_ANOMALY_THRESHOLD = 50
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 30  # Minimum composite_score to qualify (0-100 scale). Median=32.75, so this filters ~60% of universe to top performers
 _BUYSELL_LOOKBACK_DAYS = 7  # Calendar days; covers full prior week including weekends and missed EOD runs
@@ -710,6 +717,30 @@ def _check_critical_dependencies(run_date: _date, log_phase_result_fn: Callable[
                     f"(2) Signal generation thresholds were too strict, or "
                     f"(3) No symbols passed selection criteria. "
                     f"Most likely: upstream technical_data_daily failure. "
+                    f"Check: (1) technical_data_daily status in data_loader_status, "
+                    f"(2) CloudWatch logs for buy_sell_daily loader errors, "
+                    f"(3) Check if price_daily and other dependencies are fresh. "
+                    f"DO NOT use stock_scores fallback - fix underlying data issue first."
+                )
+                logger.critical(msg)
+                log_phase_result_fn(7, "signal_generation", "halt", msg)
+                return False, msg
+
+            # Severe but non-zero collapse: _SIGNAL_COUNT_ANOMALY_THRESHOLD was previously
+            # defined but never checked, so a drop from the typical 300+/day to a handful of
+            # signals silently passed through as "OK" - same underlying failure modes as the
+            # zero-signal case above (upstream loader degradation), just not total.
+            if (
+                0 < today_count < _SIGNAL_COUNT_ANOMALY_THRESHOLD
+                and latest_buysell_date >= run_date - timedelta(days=1)
+            ):
+                msg = (
+                    f"[PHASE 7 CRITICAL HALT] buy_sell_daily on {latest_buysell_date} has only {today_count} "
+                    f"BUY signals (< anomaly floor of {_SIGNAL_COUNT_ANOMALY_THRESHOLD}). "
+                    f"Historical normal: 300-1000+ signals per trading day. "
+                    f"This indicates a severe (though not total) upstream data quality problem: "
+                    f"(1) technical_data_daily loader partially failed, "
+                    f"(2) universe coverage collapsed for another reason. "
                     f"Check: (1) technical_data_daily status in data_loader_status, "
                     f"(2) CloudWatch logs for buy_sell_daily loader errors, "
                     f"(3) Check if price_daily and other dependencies are fresh. "
