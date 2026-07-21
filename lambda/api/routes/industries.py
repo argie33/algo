@@ -109,8 +109,9 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
     from utils.validation import DatabaseResultValidator
 
     try:
+        interval_1d = get_interval_sql("1d")
         cur.execute(
-            """
+            f"""
             SELECT
                 ir.industry,
                 ir.current_rank,
@@ -120,7 +121,10 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 ir.rank_12w_ago,
                 ir.stock_count,
                 ir.avg_score,
-                cp_sector.sector
+                cp_sector.sector,
+                ip.perf_1d,
+                ip.perf_5d,
+                ip.perf_20d
             FROM industry_ranking ir
             LEFT JOIN (
                 SELECT DISTINCT ON (industry) industry, sector
@@ -128,6 +132,44 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 WHERE sector IS NOT NULL AND sector != ''
                 ORDER BY industry, (sector = 'Unknown'), sector
             ) cp_sector ON cp_sector.industry = ir.industry
+            LEFT JOIN (
+                -- Same taxonomy the industry_ranking loader itself uses (company_profile.industry),
+                -- computed directly from price_daily rather than a precomputed table - see the
+                -- analogous fix in routes/sectors.py for why sector_performance can't be trusted
+                -- for this: no equivalent per-industry performance table exists here at all, so
+                -- this endpoint's performance_1d/5d/20d fields were simply hardcoded to None below
+                -- and never wired up, leaving the Industries page's 1-day/5-day/20-day percent
+                -- columns blank for every row.
+                SELECT cp.industry AS industry,
+                       ROUND((AVG(CASE WHEN p1.close IS NOT NULL AND p1.close != 0
+                            THEN (pnow.close - p1.close) / p1.close * 100 END))::numeric, 2) AS perf_1d,
+                       ROUND((AVG(CASE WHEN p5.close IS NOT NULL AND p5.close != 0
+                            THEN (pnow.close - p5.close) / p5.close * 100 END))::numeric, 2) AS perf_5d,
+                       ROUND((AVG(CASE WHEN p20.close IS NOT NULL AND p20.close != 0
+                            THEN (pnow.close - p20.close) / p20.close * 100 END))::numeric, 2) AS perf_20d
+                FROM company_profile cp
+                JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = cp.ticker ORDER BY date DESC LIMIT 1
+                ) pnow ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = cp.ticker AND date <= CURRENT_DATE - {interval_1d}
+                    ORDER BY date DESC LIMIT 1
+                ) p1 ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = cp.ticker AND date <= CURRENT_DATE - INTERVAL '5 days'
+                    ORDER BY date DESC LIMIT 1
+                ) p5 ON TRUE
+                LEFT JOIN LATERAL (
+                    SELECT close FROM price_daily
+                    WHERE symbol = cp.ticker AND date <= CURRENT_DATE - INTERVAL '20 days'
+                    ORDER BY date DESC LIMIT 1
+                ) p20 ON TRUE
+                WHERE cp.industry IS NOT NULL AND cp.industry != ''
+                GROUP BY cp.industry
+            ) ip ON ip.industry = ir.industry
             WHERE ir.date_recorded = (SELECT MAX(date_recorded) FROM industry_ranking)
             ORDER BY ir.current_rank
             LIMIT %s OFFSET %s
@@ -171,6 +213,9 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
         stock_count = DatabaseResultValidator.safe_get_int(row, "stock_count")  # Optional
         avg_score = DatabaseResultValidator.safe_get_float(row, "avg_score")  # Optional
         sector = DatabaseResultValidator.safe_get_str(row, "sector", default=None)  # Optional
+        perf_1d = DatabaseResultValidator.safe_get_float(row, "perf_1d")  # Optional
+        perf_5d = DatabaseResultValidator.safe_get_float(row, "perf_5d")  # Optional
+        perf_20d = DatabaseResultValidator.safe_get_float(row, "perf_20d")  # Optional
 
         momentum_label = (
             "Strong"
@@ -196,9 +241,9 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 "quality_score": None,
                 "growth_score": None,
                 "stability_score": None,
-                "performance_1d": None,
-                "performance_5d": None,
-                "performance_20d": None,
+                "performance_1d": perf_1d,
+                "performance_5d": perf_5d,
+                "performance_20d": perf_20d,
                 "current_momentum": momentum_label,
                 "current_trend": "Sideways",
                 "pe": {"trailing": None, "percentile": None},

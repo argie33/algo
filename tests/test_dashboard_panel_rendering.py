@@ -76,7 +76,7 @@ def _mock_panel_data() -> dict[str, object]:
             "factors": [{"name": "momentum", "value": 0.8}],
         },
         # Scores & rankings
-        "scores": [{"symbol": "AAPL", "quality_score": 85.0}],
+        "scores": {"top": [{"symbol": "AAPL", "quality_score": 85.0}]},
         "irank": {"items": [{"symbol": "GOOGL", "rank": 1}]},
         # Additional panels
         "trades": {"items": []},
@@ -334,6 +334,55 @@ class TestPanelSectors:
         result = panel_sector_compact(data["srank"], data["pos"], data["port"])
         assert result is not None
         print("✓ Sectors panel renders")
+
+    def test_sectors_panel_handles_one_sided_rotation_scores(self) -> None:
+        """Regression: fetch_sector_rotation only sets 'cyc_score' in the response
+        dict when cyclical_weak_score is non-null (dashboard/fetchers_market.py) - it's
+        legitimately absent, not just falsy, whenever the API returns null for it (a
+        live, reproducible state, not just a hypothetical one). The old condition
+        `def_f is not None or cyc_f is not None` formatted BOTH values with `:.0f`
+        whenever EITHER was present, so def_score=1.0 + cyc_score missing raised
+        'TypeError: unsupported format string passed to NoneType.__format__' on every
+        render."""
+        from dashboard.panels.sectors import panel_sector_compact
+
+        data = _mock_panel_data()
+        sec_rot = {"signal": "NEUTRAL", "weeks": 1, "def_score": 1.0}  # cyc_score absent
+        result = panel_sector_compact(data["srank"], data["pos"], data["port"], sec_rot)
+        assert result is not None
+        print("✓ Sectors panel handles one-sided rotation scores without crashing")
+
+
+class TestPanelScores:
+    """Scores panel tests."""
+
+    def test_scores_panel_renders(self) -> None:
+        """Scores panel should render with valid data."""
+        from dashboard.panels.scores import panel_scores_compact
+
+        scores = {
+            "top": [{"symbol": "AAPL", "composite_score": 85.0, "sector": "Technology"}],
+        }
+        result = panel_scores_compact(scores)
+        assert result is not None
+        print("✓ Scores panel renders")
+
+    def test_scores_panel_handles_null_sector(self) -> None:
+        """Regression: a candidate with sector=None (no company_profile match,
+        e.g. symbol LSPD) must not crash the panel. safe_get_field only falls
+        back to its default when the key is *missing*, not when present with
+        value None, so `sector[:12]` used to raise
+        'TypeError: NoneType object is not subscriptable'."""
+        from dashboard.panels.scores import panel_scores_compact, panel_scores_expanded
+
+        scores = {
+            "top": [{"symbol": "LSPD", "composite_score": 72.0, "sector": None}],
+        }
+        result = panel_scores_compact(scores)
+        assert result is not None
+        result_expanded = panel_scores_expanded(scores)
+        assert result_expanded is not None
+        print("✓ Scores panel handles sector=None without crashing")
 
 
 class TestPanelIntegration:

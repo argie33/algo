@@ -1055,24 +1055,37 @@ class ExitEngine:
         return cur_price, prev_close
 
     def _fetch_market_dist_days(self, cur: PsycopgCursor[Any], current_date: _date | datetime) -> int | None:
-
+        # market_health_daily.distribution_days_4w is only populated by the ~2-3am morning
+        # loader, which runs before MarketExposure has enough same-day data to compute a
+        # real distribution-day count - that row is written with distribution_days_4w=NULL
+        # and never refreshed later in the day. market_exposure_daily.distribution_days is
+        # the same underlying computation (MarketExposure.compute()), but gets a real value
+        # once recomputed later in the trading day/EOD - read from there instead, and skip
+        # any NULL rows rather than trusting "most recent date" to also mean "most recent
+        # populated value" (confirmed live: today's market_health_daily row had NULL while
+        # market_exposure_daily's same-day row already had a real count).
         cur.execute(
             """
-
-            SELECT distribution_days_4w FROM market_health_daily
-
-            WHERE date <= %s ORDER BY date DESC LIMIT 1
-
+            SELECT distribution_days, data_unavailable, reason
+            FROM market_exposure_daily
+            WHERE date <= %s AND distribution_days IS NOT NULL
+            ORDER BY date DESC LIMIT 1
             """,
             (current_date,),
         )
 
         row = cur.fetchone()
 
-        if not row or row[0] is None:
+        if not row:
             raise RuntimeError(
                 f"[MARKET_DIST_DAYS_MISSING] Market distribution data unavailable for {current_date}. "
                 f"Cannot evaluate exit conditions - distribution day counts are required for risk control decisions."
+            )
+        if row[1] is True:
+            raise RuntimeError(
+                f"[MARKET_DIST_DAYS_MISSING] Market exposure data marked unavailable for {current_date}: "
+                f"{row[2] or 'no reason provided'}. Cannot evaluate exit conditions without valid distribution "
+                f"day counts."
             )
         return int(row[0])
 

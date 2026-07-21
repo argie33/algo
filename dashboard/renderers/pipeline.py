@@ -151,6 +151,9 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
                 return result
             return Panel(str(result))
         except Exception as e:
+            panel_name = getattr(panel_fn, "__name__", repr(panel_fn))
+            logger.error(f"Panel rendering failed ({panel_name}): {type(e).__name__}: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return Panel(
                 Text.from_markup(f"[red]Panel rendering failed[/]: {type(e).__name__}\n[dim]{str(e)[:80]}[/]"),
                 title="[bold red]ERROR[/]",

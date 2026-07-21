@@ -140,7 +140,10 @@ def panel_sector_compact(srank: Any, pos: Any, port: Any, sec_rot: Any = None, i
         cyc_f = safe_float(cyc_s)
         strength_f = safe_float(strength)
         sig_c = R if def_f is not None and def_f >= 60 else (Y if def_f is not None and def_f >= 40 else G)
-        scores_s = f" [dim]def:{def_f:.0f} cyc:{cyc_f:.0f}[/]" if def_f is not None or cyc_f is not None else ""
+        def_part = f"def:{def_f:.0f}" if def_f is not None else ""
+        cyc_part = f"cyc:{cyc_f:.0f}" if cyc_f is not None else ""
+        scores_parts = " ".join(p for p in (def_part, cyc_part) if p)
+        scores_s = f" [dim]{scores_parts}[/]" if scores_parts else ""
         str_s = f" [dim]spread:{strength_f:.1f}[/]" if strength_f is not None else ""
         wks_s = f" [dim]{wks}wk[/]" if wks is not None else " [dim]--wk[/]"
         rows.append(Text.from_markup(f"[dim]Sector Rotation:[/] [{sig_c}]{sig_name[:24]}[/]{wks_s}{scores_s}{str_s}"))

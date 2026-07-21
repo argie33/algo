@@ -152,17 +152,39 @@ def handle(  # noqa: C901
             else:
                 days = safe_days(extract_param(params, "days"), max_val=365, default=90)
                 cur.execute("SET LOCAL statement_timeout = '5000ms'")
+                # Computed from price_daily grouped by company_profile.sector (GICS), same fix as
+                # the /trend branch above and the main /api/sectors listing below - sector_performance
+                # rows are keyed by fine-grained SEC SIC-description names (e.g. "Adhesives & Sealants"),
+                # not the broad GICS categories ("Utilities", "Technology", ...) this route's
+                # `sector_name` argument uses, so `WHERE sector = %s` here never matched a real GICS
+                # name and always returned an empty series.
                 cur.execute(
                     """
-                        SELECT date, sector, return_pct
-                        FROM sector_performance
-                        WHERE sector = %s AND date >= CURRENT_DATE - (%s || ' days')::interval
+                        WITH sector_daily_avg AS (
+                            SELECT pd.date, AVG(pd.close) AS avg_close
+                            FROM price_daily pd
+                            JOIN company_profile cp ON pd.symbol = cp.ticker
+                            WHERE cp.sector = %s
+                              AND pd.date >= CURRENT_DATE - ((%s::int + 1) || ' days')::interval
+                            GROUP BY pd.date
+                        ),
+                        sector_returns AS (
+                            SELECT date,
+                                   ROUND(((avg_close - LAG(avg_close) OVER (ORDER BY date))
+                                          / NULLIF(LAG(avg_close) OVER (ORDER BY date), 0) * 100)::numeric, 4)
+                                       AS return_pct
+                            FROM sector_daily_avg
+                        )
+                        SELECT date, %s AS sector, return_pct
+                        FROM sector_returns
+                        WHERE date >= CURRENT_DATE - (%s || ' days')::interval
+                          AND return_pct IS NOT NULL
                         ORDER BY date DESC
                     """,
-                    (sector_name, days),
+                    (sector_name, days, sector_name, days),
                 )
                 rows = cur.fetchall()
-                freshness = check_data_freshness(cur, "sector_performance", "date", warning_days=1)
+                freshness = check_data_freshness(cur, "price_daily", "date", warning_days=1)
                 return list_response(
                     [safe_json_serialize(dict(r)) for r in rows],
                     data_freshness=freshness,
@@ -177,49 +199,52 @@ def handle(  # noqa: C901
             interval_1d = get_interval_sql("1d")
             cur.execute(
                 f"""
-                    WITH sp_exists AS (
-                        SELECT EXISTS(SELECT 1 FROM sector_performance LIMIT 1) AS has_data
-                    ),
-                    sr_exists AS (
+                    WITH sr_exists AS (
                         SELECT EXISTS(SELECT 1 FROM sector_ranking LIMIT 1) AS has_data
                     ),
-                    sector_perf_latest AS (
-                        SELECT DISTINCT ON (sector) sector, return_pct AS latest_ytd
-                        FROM sector_performance
-                        WHERE (SELECT has_data FROM sp_exists)
-                        ORDER BY sector, date DESC
-                    ),
-                    sector_perf_1d_prior AS (
-                        SELECT DISTINCT ON (sector) sector, return_pct AS prior_1d
-                        FROM sector_performance
-                        WHERE date <= CURRENT_DATE - {interval_1d}
-                          AND (SELECT has_data FROM sp_exists)
-                        ORDER BY sector, date DESC
-                    ),
-                    sector_perf_5d_prior AS (
-                        SELECT DISTINCT ON (sector) sector, return_pct AS prior_5d
-                        FROM sector_performance
-                        WHERE date <= CURRENT_DATE - INTERVAL '5 days'
-                          AND (SELECT has_data FROM sp_exists)
-                        ORDER BY sector, date DESC
-                    ),
-                    sector_perf_prior AS (
-                        SELECT DISTINCT ON (sector) sector, return_pct AS prior_ytd
-                        FROM sector_performance
-                        WHERE date <= CURRENT_DATE - INTERVAL '20 days'
-                          AND (SELECT has_data FROM sp_exists)
-                        ORDER BY sector, date DESC
-                    ),
+                    -- Computed directly from price_daily grouped by company_profile.sector (GICS),
+                    -- NOT from sector_performance.return_pct: sector_performance's loader writes
+                    -- fine-grained SEC SIC-description sector names (e.g. "Adhesives & Sealants"),
+                    -- a deliberate fix for company_profile.sector being mostly "Unknown" - see
+                    -- loaders/load_sector_industry_daily.py's own comment on why sector_ranking
+                    -- avoids that same switch. But this endpoint's sector_scores CTE below groups
+                    -- by cp.sector (the broad GICS-style categories like "Utilities", "Technology"),
+                    -- so joining it against SIC-taxonomy sector_performance rows only ever matched
+                    -- by coincidence (confirmed live 2026-07-20: only "Unknown" and "Real Estate"
+                    -- matched out of 13 sectors) - every other sector fell back to the LAST row that
+                    -- ever matched under the old GICS-writing loader (frozen since 2026-07-10), so
+                    -- latest/prior always resolved to the same stale snapshot and perf_1d/5d/20d
+                    -- rounded to ~0.00 for nearly every sector on every run since the loader switch.
                     sector_perf AS (
-                        SELECT l.sector,
-                               ROUND((l.latest_ytd - COALESCE(p1.prior_1d, l.latest_ytd))::numeric, 2) AS perf_1d,
-                               ROUND((l.latest_ytd - COALESCE(p5.prior_5d, l.latest_ytd))::numeric, 2) AS perf_5d,
-                               ROUND((l.latest_ytd - COALESCE(p.prior_ytd, l.latest_ytd))::numeric, 2) AS perf_20d
-                        FROM sector_perf_latest l
-                        LEFT JOIN sector_perf_1d_prior p1 ON p1.sector = l.sector
-                        LEFT JOIN sector_perf_5d_prior p5 ON p5.sector = l.sector
-                        LEFT JOIN sector_perf_prior p ON p.sector = l.sector
-                        WHERE (SELECT has_data FROM sp_exists)
+                        SELECT cp.sector AS sector,
+                               ROUND((AVG(CASE WHEN p1.close IS NOT NULL AND p1.close != 0
+                                    THEN (pnow.close - p1.close) / p1.close * 100 END))::numeric, 2) AS perf_1d,
+                               ROUND((AVG(CASE WHEN p5.close IS NOT NULL AND p5.close != 0
+                                    THEN (pnow.close - p5.close) / p5.close * 100 END))::numeric, 2) AS perf_5d,
+                               ROUND((AVG(CASE WHEN p20.close IS NOT NULL AND p20.close != 0
+                                    THEN (pnow.close - p20.close) / p20.close * 100 END))::numeric, 2) AS perf_20d
+                        FROM company_profile cp
+                        JOIN LATERAL (
+                            SELECT close FROM price_daily
+                            WHERE symbol = cp.ticker ORDER BY date DESC LIMIT 1
+                        ) pnow ON TRUE
+                        LEFT JOIN LATERAL (
+                            SELECT close FROM price_daily
+                            WHERE symbol = cp.ticker AND date <= CURRENT_DATE - {interval_1d}
+                            ORDER BY date DESC LIMIT 1
+                        ) p1 ON TRUE
+                        LEFT JOIN LATERAL (
+                            SELECT close FROM price_daily
+                            WHERE symbol = cp.ticker AND date <= CURRENT_DATE - INTERVAL '5 days'
+                            ORDER BY date DESC LIMIT 1
+                        ) p5 ON TRUE
+                        LEFT JOIN LATERAL (
+                            SELECT close FROM price_daily
+                            WHERE symbol = cp.ticker AND date <= CURRENT_DATE - INTERVAL '20 days'
+                            ORDER BY date DESC LIMIT 1
+                        ) p20 ON TRUE
+                        WHERE cp.sector IS NOT NULL
+                        GROUP BY cp.sector
                     ),
                     sector_scores AS (
                         SELECT

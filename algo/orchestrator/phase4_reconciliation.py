@@ -92,6 +92,19 @@ def run(
                 )
                 result["partial_fill_corrections"] = partial_fill_result
 
+            # CRITICAL: auth_unavailable means the partial-fill check never actually ran
+            # (broker 401'd before it could compare any orders) - the 0 mismatches above is
+            # "not checked", not "checked and clean". Without this, a broker auth outage
+            # silently skips partial-fill correction for the whole day while Phase 4 still
+            # reports full success below, since "mismatches" and "error"/"error_status" are
+            # the only fields the checks above look at.
+            if partial_fill_result.get("auth_unavailable"):
+                logger.warning(
+                    "[PHASE_3A] Partial fill check skipped - broker auth unavailable. "
+                    "Any partial fills today will not be detected or corrected until broker access is restored."
+                )
+                result["partial_fill_check_skipped"] = "broker_auth_unavailable"
+
         # Validate result structure upfront
         if "success" not in result or result["success"] is None:
             raise RuntimeError(f"Reconciliation result missing 'success' field. Got keys: {list(result.keys())}")
@@ -134,11 +147,14 @@ def run(
                     logger.critical(error_msg)
                     raise RuntimeError(error_msg) from db_err
 
+            summary = f"{positions_count} positions verified"
+            if result.get("partial_fill_check_skipped"):
+                summary += " (partial-fill check skipped: broker auth unavailable)"
             log_phase_result_fn(
                 4,
                 "reconciliation",
                 "success",
-                f"{positions_count} positions verified",
+                summary,
             )
             return PhaseResult(4, "reconciliation", "ok", result, False, None)
         else:
