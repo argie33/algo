@@ -70,7 +70,19 @@ def run(
                 "Check algo_config table has this key."
             )
         alpaca_paper_trading = config["alpaca_paper_trading"]
-        is_paper_mode = execution_mode_check in ("paper", "auto") or alpaca_paper_trading
+        # CRITICAL: "auto" is this system's real live-trading mode. Phase 3
+        # (phase3_position_monitor.py) itself only skips position monitoring for
+        # execution_mode == "paper" (confirmed by reading its own check), so it DOES
+        # populate real position_recs in "auto" mode - the premise of "position_recs will
+        # be empty, this is expected" above does not hold for "auto". Including "auto" here
+        # meant a genuine safety check below (detect Phase 3 crashing and returning [] while
+        # real open positions exist) was silently skipped for every live orchestrator run,
+        # logged with a misleading "[PHASE 6] Paper trading mode active" message. Same bug
+        # class as this session's other execution_mode fixes (position_sizer.py, executor.py,
+        # executor_entry_handler.py) - scope to paper only; alpaca_paper_trading is a
+        # separate, legitimate flag (the configured Alpaca account itself being a paper
+        # account) left untouched.
+        is_paper_mode = execution_mode_check == "paper" or alpaca_paper_trading
 
         # In paper mode, skip all position_recs validation - Phase 3 intentionally returns empty
         if is_paper_mode:

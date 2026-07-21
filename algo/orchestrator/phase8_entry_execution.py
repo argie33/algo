@@ -610,7 +610,11 @@ def run(
             "Check algo_config table has this key."
         )
     alpaca_paper_trading = config["alpaca_paper_trading"]
-    if execution_mode_check in ("paper", "auto") or alpaca_paper_trading:
+    # "auto" is this system's real live-trading mode (see this session's other
+    # execution_mode fixes) - this is log text only (no behavior gated on it), but
+    # including "auto" made every live orchestrator run log the misleading "Paper trading
+    # mode active... Trades will execute against paper account" message.
+    if execution_mode_check == "paper" or alpaca_paper_trading:
         logger.info(
             f"[PHASE 8] Paper trading mode active (execution_mode={execution_mode_check}, "
             f"alpaca_paper_trading={alpaca_paper_trading}). Trades will execute against paper account."

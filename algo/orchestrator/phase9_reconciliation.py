@@ -40,7 +40,12 @@ def _run_reconciliation_step(
     except Exception as e:
         error_str = str(e).lower()
         is_alpaca_auth_error = "401" in str(e) or "403" in str(e) or "unauthorized" in error_str
-        is_paper_mode = config.get("execution_mode") in ("paper", "auto")
+        # "auto" is this system's real live-trading mode (see this session's other
+        # execution_mode fixes) - both branches below ultimately raise regardless, so this
+        # doesn't change control flow, only which error message an "auto" mode auth failure
+        # gets logged/raised under (previously always the misleading "[PHASE 9 PAPER MODE]"
+        # one, obscuring that a live deployment's Alpaca credentials are the real problem).
+        is_paper_mode = config.get("execution_mode") == "paper"
 
         if is_alpaca_auth_error and is_paper_mode:
             logger.error(
