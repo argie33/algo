@@ -794,6 +794,13 @@ def run(
 
     failed_count = 0
 
+    # entries_executed/success_rate/avg_entry_price/symbols_entered: the health dashboard
+    # (dashboard/panels/health.py, Phase 8 detail row) reads these exact keys, but this
+    # phase's PhaseResult.data only ever carried entered/skipped/failed/
+    # execution_rejection_rate - that section of the panel always rendered nothing.
+    entered_symbols: list[str] = []
+    entered_prices: list[float] = []
+
     # ISSUE #8 FIX: Build a dict with precomputed technical data from Phase 5 signals
     # to avoid redundant SMA_50/ATR calculations in Phase 6.
     # VALIDATION: Only store actual values; track which signals lack precomputed data (data_unavailable markers).
@@ -1159,6 +1166,8 @@ def run(
                             )
 
                         executed_count += 1
+                        entered_symbols.append(symbol)
+                        entered_prices.append(entry_price)
 
                         logger.info(
                             f"[PHASE 8] {symbol}: ENTERED trade_id={result['trade_id']} alpaca_order_id={result.get('alpaca_order_id')} status={result.get('status')}"
@@ -1188,6 +1197,8 @@ def run(
                 logger.info(f"[PHASE 8] DRY-RUN: Would execute {symbol} ({shares} shares @ ${entry_price:.2f})")
 
                 executed_count += 1
+                entered_symbols.append(symbol)
+                entered_prices.append(entry_price)
 
                 if max_entries and executed_count >= max_entries:
                     logger.info(f"[PHASE 8] Reached max_new_positions_today={max_entries}, stopping")
@@ -1219,6 +1230,14 @@ def run(
 
     log_phase_result_fn(8, "entry_execution", "success", f"{executed_count} trades executed")
 
+    # success_rate: percentage of actual submission attempts (executed + failed) that
+    # succeeded. Deliberately excludes skipped_count from the denominator - those are
+    # signals filtered out by policy before an order was ever attempted (sizing/exposure
+    # gates), a different concept from execution_rejection_rate above (which does include
+    # skips, to answer "how much of today's signal pool got filtered").
+    attempted = executed_count + failed_count
+    success_rate = round((executed_count / attempted * 100) if attempted > 0 else 0, 1)
+
     return PhaseResult(
         8,
         "entry_execution",
@@ -1228,6 +1247,10 @@ def run(
             "skipped": skipped_count,
             "failed": failed_count,
             "execution_rejection_rate": execution_rejection_rate,
+            "entries_executed": executed_count,
+            "success_rate": success_rate,
+            "avg_entry_price": round(sum(entered_prices) / len(entered_prices), 2) if entered_prices else None,
+            "symbols_entered": entered_symbols,
         },
         False,
         f"Executed {executed_count} trades (rejection rate: {execution_rejection_rate}%)",

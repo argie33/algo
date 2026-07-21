@@ -148,13 +148,46 @@ class TestPositionCreationValidation:
         pytest.fail("Position creation must validate stop_loss_price is NOT NULL")
 
     def test_database_should_enforce_not_null_on_stop_price(self) -> None:
-        """Verify (via audit) that algo_positions.current_stop_price should be NOT NULL."""
-        # This is a reminder test - actual schema change requires migration
-        # For now, document that this should be enforced at DB level
-        pytest.skip(
-            "TODO (Session 282): Add migration to make algo_positions.current_stop_price NOT NULL. "
-            "Currently validated at application level (executor_entry_handler.py), "
-            "but should be enforced at database level for data integrity."
+        """Verify algo_positions.current_stop_price is enforced NOT NULL at the DB level.
+
+        This was a skipped reminder ("TODO Session 282: add migration") for ~40 sessions -
+        the migration was actually applied at some point since, but the test kept skipping
+        instead of ever confirming it, so a regression (e.g. a migration rollback) would
+        have gone unnoticed. Converted to a real assertion.
+
+        Deliberately connects via raw psycopg2 instead of DatabaseContext/get_db_connection:
+        tests/conftest.py's pytest_configure() globally patches psycopg2.pool.SimpleConnectionPool
+        and utils.db.connection.get_db_connection for the whole suite (CI has no live Postgres
+        service, so every other test goes through that hermetic mock) - going through either
+        would silently hand back canned fixture rows instead of real schema, always "passing"
+        regardless of actual DB state. Skips (doesn't fail) when no live DB is reachable, since
+        CI legitimately has none; this is a local-dev schema guard, not a CI gate.
+        """
+        import psycopg2
+
+        try:
+            conn = psycopg2.connect("dbname=stocks user=stocks host=localhost", connect_timeout=3)
+        except psycopg2.OperationalError as e:
+            pytest.skip(f"No live local Postgres reachable (expected in CI): {e}")
+
+        try:
+            cur = conn.cursor()
+            cur.execute(
+                """
+                SELECT is_nullable FROM information_schema.columns
+                WHERE table_name = 'algo_positions' AND column_name = 'current_stop_price'
+                """
+            )
+            row = cur.fetchone()
+        finally:
+            conn.close()
+
+        assert row is not None, "algo_positions.current_stop_price column not found"
+        is_nullable = row[0]
+        assert is_nullable == "NO", (
+            f"algo_positions.current_stop_price must be NOT NULL at the DB level for data "
+            f"integrity (currently nullable={is_nullable}); application-level validation in "
+            f"executor_entry_handler.py alone is not sufficient defense-in-depth"
         )
 
 

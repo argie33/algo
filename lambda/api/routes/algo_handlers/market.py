@@ -736,7 +736,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         try:
             cur.execute("""
                 SELECT COUNT(*) as exits_executed,
-                       COUNT(*) FILTER (WHERE exit_price IS NOT NULL) as successful_exits
+                       COUNT(*) FILTER (WHERE exit_price IS NOT NULL) as successful_exits,
+                       AVG(profit_loss_dollars) FILTER (WHERE profit_loss_dollars IS NOT NULL) as avg_profit,
+                       ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL) as symbols_exited
                 FROM algo_trades
                 WHERE exit_date >= CURRENT_DATE - INTERVAL '1 day'
                 AND exit_date IS NOT NULL
@@ -750,6 +752,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "exits_executed": total_exits,
                     "successful_exits": successful,
                     "success_rate": (successful / total_exits * 100) if total_exits > 0 else 0,
+                    "avg_profit": float(exit_dict["avg_profit"]) if exit_dict.get("avg_profit") is not None else None,
+                    "symbols_exited": exit_dict.get("symbols_exited") or [],
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_6_exit_execution"] = None
@@ -762,7 +766,8 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                        COUNT(*) FILTER (WHERE raw_signal = 'BUY') as buy_count,
                        COUNT(*) FILTER (WHERE raw_signal = 'SELL') as sell_count,
                        AVG(CAST(signal_quality_score AS FLOAT)) as avg_strength,
-                       MAX(created_at) as latest_signal
+                       MAX(created_at) as latest_signal,
+                       ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL) as symbols_with_signals
                 FROM algo_signals
                 WHERE created_at >= CURRENT_DATE - INTERVAL '1 day'
             """)
@@ -788,6 +793,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                         "sell_signals": sell_signals,
                         "avg_strength": float(sig_dict["avg_strength"]) if sig_dict.get("avg_strength") is not None else None,
                         "latest_signal": sig_dict.get("latest_signal").isoformat() if sig_dict.get("latest_signal") else None,
+                        "symbols_with_signals": sig_dict.get("symbols_with_signals") or [],
                     }
             else:
                 execution_health["phase_7_signal_generation"] = None
@@ -798,7 +804,9 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         try:
             cur.execute("""
                 SELECT COUNT(*) as entries_executed,
-                       COUNT(*) FILTER (WHERE entry_price IS NOT NULL) as successful_entries
+                       COUNT(*) FILTER (WHERE entry_price IS NOT NULL) as successful_entries,
+                       AVG(entry_price) FILTER (WHERE entry_price IS NOT NULL) as avg_entry_price,
+                       ARRAY_AGG(DISTINCT symbol) FILTER (WHERE symbol IS NOT NULL) as symbols_entered
                 FROM algo_trades
                 WHERE entry_date >= CURRENT_DATE - INTERVAL '1 day'
                 AND entry_date IS NOT NULL
@@ -812,6 +820,10 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     "entries_executed": total_entries,
                     "successful_entries": successful,
                     "success_rate": (successful / total_entries * 100) if total_entries > 0 else 0,
+                    "avg_entry_price": float(entry_dict["avg_entry_price"])
+                    if entry_dict.get("avg_entry_price") is not None
+                    else None,
+                    "symbols_entered": entry_dict.get("symbols_entered") or [],
                 }
         except (psycopg2.DatabaseError, psycopg2.OperationalError, ValueError, TypeError):
             execution_health["phase_8_entry_execution"] = None
