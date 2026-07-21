@@ -109,7 +109,9 @@ class NotificationDispatcher:
         """Notify of trade entry execution."""
         try:
             message = f"Entry: {symbol} @ ${entry_price:.2f}, {shares}sh, stop ${stop_loss:.2f}"
-            notify("info", title="Trade Entry", message=message)
+            # strict=True: without it, notify() swallows delivery failures internally and
+            # this except block can never fire - see notify()'s docstring.
+            notify("info", title="Trade Entry", message=message, strict=True)
             logger.info(f"[NOTIFY_ENTRY] {symbol}: ${entry_price:.2f} x {shares}sh, stop=${stop_loss:.2f}")
         except Exception as e:
             logger.error(f"Critical: Failed to send entry notification for {symbol}: {e}")
@@ -119,7 +121,7 @@ class NotificationDispatcher:
         """Notify of trade exit execution."""
         try:
             message = f"Exit: {symbol} @ ${exit_price:.2f}, {shares}sh, P&L=${pnl:.2f} ({pnl_pct:+.1f}%)"
-            notify("info", title="Trade Exit", message=message)
+            notify("info", title="Trade Exit", message=message, strict=True)
             logger.info(f"[NOTIFY_EXIT] {symbol}: ${exit_price:.2f} x {shares}sh, PnL=${pnl:.2f}")
         except Exception as e:
             logger.error(f"Critical: Failed to send exit notification for {symbol}: {e}")
@@ -128,7 +130,7 @@ class NotificationDispatcher:
     def notify_trade_error(self, symbol: str, error: str) -> None:
         """Notify of trade execution error."""
         try:
-            notify("error", title="Trade Failed", message=f"{symbol}: {error}")
+            notify("error", title="Trade Failed", message=f"{symbol}: {error}", strict=True)
             logger.error(f"[NOTIFY_ERROR] {symbol}: {error}")
         except Exception as e:
             logger.error(f"Critical: Failed to send error notification for {symbol}: {e}")
@@ -141,6 +143,7 @@ class NotificationDispatcher:
                 "warning",
                 title=f"Position Alert: {alert_type}",
                 message=f"{symbol}: {message}",
+                strict=True,
             )
             logger.warning(f"[NOTIFY_ALERT] {symbol} {alert_type}: {message}")
         except Exception as e:

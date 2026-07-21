@@ -291,8 +291,22 @@ def notify(
     message: str,
     symbol: str | None = None,
     details: dict[str, Any] | None = None,
+    strict: bool = False,
 ) -> None:
-    """Convenience function to send alerts without managing service lifecycle."""
+    """Convenience function to send alerts without managing service lifecycle.
+
+    strict=True re-raises delivery failures instead of swallowing them. Several
+    callers across the codebase (e.g. reconciliation.py's partial-fill correction
+    alert, notification_dispatcher.py's trade entry/exit/error/position alerts)
+    wrap notify() in their own try/except specifically to convert a delivery
+    failure into a fail-fast RuntimeError - GOVERNANCE requires operator awareness
+    of certain events, not silent best-effort delivery. With the default
+    strict=False, this function's own blanket except below unconditionally
+    swallowed every exception before it could ever reach those callers' except
+    blocks, making that fail-fast safety net structurally dead code regardless of
+    what it caught. Pass strict=True at any call site where a notification not
+    reaching the operator must be treated as a hard failure, not a log line.
+    """
     try:
         # Use minimal valid config to satisfy validation requirements
         service = TradeNotificationService(config={"enabled": True})
@@ -306,6 +320,8 @@ def notify(
         )
     except Exception as e:
         logger.error(f"notify() failed: {e}")
+        if strict:
+            raise
 
 
 def notify_signal_staleness(stale_tables: list[str], details: dict[str, Any] | None = None) -> None:
