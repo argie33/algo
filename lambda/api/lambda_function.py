@@ -42,10 +42,13 @@ _CLOUDFRONT_DOMAIN_CACHE_TIME = None
 _CLOUDFRONT_DOMAIN_CACHE_TTL_SECONDS = 86400  # Refresh CloudFront domain daily
 _CLOUDFRONT_DOMAIN_LOCK = threading.Lock()  # Protects CloudFront domain cache
 _JWKS_CACHE_TTL_SECONDS = 3600  # Refresh JWKS keys hourly
+_NAIVE_DB_TZ_CACHE: "ZoneInfo | timezone | None" = None  # DB session tz for naive `timestamp without time zone` cols
+_NAIVE_DB_TZ_LOCK = threading.Lock()
 
 try:
     import base64
-    from datetime import datetime, timedelta, timezone
+    from datetime import date, datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
 
     import api_router
     import jwt
@@ -1718,11 +1721,41 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             }
 
         # Ensure response has proper format
+        def _naive_db_timezone() -> ZoneInfo | timezone:
+            """Timezone naive `timestamp without time zone` DB columns are actually written in.
+
+            Confirmed live (see lambda/api/routes/utils.py::normalize_to_utc_datetime and
+            utils/bulk_insert_manager.py): this codebase's naive timestamp columns are written
+            in the DB session's local wall-clock (`SHOW timezone`), not UTC. Without this,
+            calling .isoformat() on a naive datetime below emits an offset-less string that
+            every downstream consumer (e.g. dashboard/formatter_strategies.py's DataAgeFormatter)
+            has to guess a zone for - and previously guessed Eastern, silently off by the
+            session's actual UTC offset. Cached process-wide: this is a fixed connection
+            setting, not a per-request value.
+            """
+            global _NAIVE_DB_TZ_CACHE
+            if _NAIVE_DB_TZ_CACHE is not None:
+                return _NAIVE_DB_TZ_CACHE
+            with _NAIVE_DB_TZ_LOCK:
+                if _NAIVE_DB_TZ_CACHE is None:
+                    try:
+                        with DatabaseContext("read") as tz_cur:
+                            tz_cur.execute("SHOW timezone")
+                            _NAIVE_DB_TZ_CACHE = ZoneInfo(tz_cur.fetchone()[0])
+                    except Exception as tz_err:
+                        logger.warning(
+                            f"[JSON_DEFAULT] Could not resolve DB session timezone, assuming UTC: {tz_err}"
+                        )
+                        _NAIVE_DB_TZ_CACHE = timezone.utc
+            return _NAIVE_DB_TZ_CACHE
+
         def _json_default(obj: Any) -> str | float:
-            import datetime
             from decimal import Decimal
 
-            if isinstance(obj, (datetime.date, datetime.datetime)):
+            if isinstance(obj, datetime):
+                dt = obj if obj.tzinfo is not None else obj.replace(tzinfo=_naive_db_timezone())
+                return dt.isoformat()
+            if isinstance(obj, date):
                 return obj.isoformat()
             if isinstance(obj, Decimal):
                 return float(obj)
