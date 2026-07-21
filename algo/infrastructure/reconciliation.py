@@ -222,7 +222,8 @@ class DailyReconciliation:
                 # Calculate unrealized P&L from positions (both real and paper)
                 cur.execute("""
                     SELECT COALESCE(SUM(unrealized_pnl), 0) as total_pnl,
-                           COALESCE(SUM(position_value), 0) as total_invested
+                           COALESCE(SUM(position_value), 0) as total_invested,
+                           COALESCE(SUM(quantity * avg_entry_price), 0) as total_cost_basis
                     FROM algo_positions
                     WHERE status IN ('open', 'paper_open')
                 """)
@@ -235,6 +236,7 @@ class DailyReconciliation:
                     )
                 total_unrealized_pnl = float(pnl_row["total_pnl"])
                 total_invested = float(pnl_row["total_invested"])
+                total_cost_basis = float(pnl_row["total_cost_basis"])
 
                 # Write portfolio snapshot even in paper mode for position monitor and dashboard
                 if not reconcile_date:
@@ -336,8 +338,13 @@ class DailyReconciliation:
                             f"(2) position values in database are correct"
                         )
 
-                    # CRITICAL: P&L percentage calculation requires valid portfolio value
-                    unrealized_pnl_pct = (total_unrealized_pnl / float(initial_capital)) * 100
+                    # Unrealized P&L % against the cost basis of open positions, NOT
+                    # initial_capital - matches the broker-available path below and the
+                    # per-position convention in algo_positions.unrealized_pnl_pct (see
+                    # position_analyzer.py). Dividing by initial_capital instead makes this
+                    # number drift from what "% unrealized on my open positions" should mean
+                    # any time initial_capital differs from what's actually invested right now.
+                    unrealized_pnl_pct = (total_unrealized_pnl / total_cost_basis * 100) if total_cost_basis > 0 else 0.0
 
                     # Calculate running peak and drawdown percentage
                     # running_peak = maximum portfolio value seen up to this date
@@ -856,6 +863,7 @@ class DailyReconciliation:
 
                 total_position_value = analysis["total_position_value"]
                 unrealized_pnl = analysis["unrealized_pnl"]
+                analysis_unrealized_pnl_pct = analysis["unrealized_pnl_pct"]
                 positions_with_prices = analysis["positions_with_prices"]
                 unrealized_pnl_winning_count = analysis["winning_count"]
                 unrealized_pnl_losing_count = analysis["losing_count"]
@@ -919,10 +927,15 @@ class DailyReconciliation:
                             f"Position value drift: Alpaca ${float(alpaca_portfolio_value_dec):,.2f} vs DB-computed ${float(total_equity_db_dec):,.2f} ({float(drift_pct):+.1f}%)"
                         )
 
-                if total_equity_dec > 0:
-                    unrealized_pnl_pct_dec = (unrealized_pnl / total_equity_dec) * Decimal(100)
-                else:
-                    unrealized_pnl_pct_dec = Decimal(0)
+                # Unrealized P&L % against the cost basis of open positions (via PositionAnalyzer),
+                # NOT total account equity - equity includes cash that isn't part of what's "unrealized".
+                # Dividing by total equity means this number silently shrinks whenever equity grows
+                # relative to invested capital (e.g. after a deposit), even though nothing about the
+                # positions' actual performance changed. Matches the per-position convention in
+                # algo_positions.unrealized_pnl_pct (see position_analyzer.py for the full rationale).
+                unrealized_pnl_pct_dec = (
+                    Decimal(str(analysis_unrealized_pnl_pct)) if analysis_unrealized_pnl_pct is not None else Decimal(0)
+                )
 
                 position_values = [p[5] for p in positions if p[5] is not None]  # position_value is now at index 5 (was 4)
                 if len(position_values) < len(positions):

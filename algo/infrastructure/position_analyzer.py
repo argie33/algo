@@ -24,6 +24,7 @@ class PositionAnalyzer:
 
         Returns: {
             'total_position_value': Decimal,
+            'total_cost_basis': Decimal,
             'unrealized_pnl': Decimal,
             'unrealized_pnl_pct': float,
             'positions_with_prices': int,
@@ -34,6 +35,7 @@ class PositionAnalyzer:
         }
         """
         total_position_value = Decimal(0)
+        total_cost_basis = Decimal(0)
         unrealized_pnl = Decimal(0)
         positions_with_prices = 0
         winning_count = 0
@@ -64,6 +66,7 @@ class PositionAnalyzer:
             pnl_pct_dec = ((current_dec - entry_dec) / entry_dec * Decimal(100)) if entry_dec > 0 else Decimal(0)
 
             total_position_value += pos_value_dec
+            total_cost_basis += entry_dec * qty_dec
             unrealized_pnl += pnl_dec
             positions_with_prices += 1
 
@@ -88,14 +91,20 @@ class PositionAnalyzer:
                 }
             )
 
-        # Compute total unrealized P&L percentage
-        if total_position_value <= 0:
+        # Compute total unrealized P&L percentage against cost basis (what was paid for the
+        # open positions), NOT current market value. Dividing by current value instead of
+        # cost basis understates gains and overstates losses (e.g. $1000 gain on $2000 cost
+        # now worth $3000 reads as 33% here instead of the correct 50%) and doesn't match
+        # the per-position convention already used everywhere else (algo_positions.unrealized_pnl_pct
+        # = (current-entry)/entry*100, see phase3_position_monitor.py/position_monitor.py).
+        if total_cost_basis <= 0:
             unrealized_pnl_pct = None
         else:
-            unrealized_pnl_pct = float(unrealized_pnl / total_position_value * Decimal(100))
+            unrealized_pnl_pct = float(unrealized_pnl / total_cost_basis * Decimal(100))
 
         return {
             "total_position_value": total_position_value,
+            "total_cost_basis": total_cost_basis,
             "unrealized_pnl": unrealized_pnl,
             "unrealized_pnl_pct": unrealized_pnl_pct,
             "positions_with_prices": positions_with_prices,
