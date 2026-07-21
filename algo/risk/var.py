@@ -24,6 +24,7 @@ from typing import Any
 import psycopg2
 
 from utils.db import DatabaseContext
+from utils.infrastructure.timezone import EASTERN_TZ
 
 logger = logging.getLogger(__name__)
 
@@ -381,11 +382,18 @@ class ValueAtRisk:
 
                 # CRITICAL: Validate snapshot freshness - stale portfolio value causes incorrect beta sizing
                 if snapshot_date:
-                    from datetime import date
-
                     from algo.infrastructure import MarketCalendar
 
-                    today = date.today()
+                    # date.today() uses the system's LOCAL timezone (whatever the OS is set to,
+                    # e.g. Central Time on this dev machine) - but Phase 9 writes snapshot_date
+                    # using Eastern Time (the correct reference frame for a US equities trading
+                    # day). Every day in the ~1h window where ET has already crossed midnight but
+                    # the system's local zone hasn't (e.g. 11pm-midnight Central), this compared
+                    # a same-day snapshot against a "today" that was still yesterday, raising a
+                    # false "Portfolio snapshot is stale... calendar age: -1 days" error - confirmed
+                    # live 2026-07-20/21: a snapshot dated 2026-07-21 (correct, ET-based) rejected
+                    # as stale by a "today" of 2026-07-20 (system-local Central Time).
+                    today = datetime.now(EASTERN_TZ).date()
                     is_trading_today = MarketCalendar.is_trading_day(today)
 
                     # CRITICAL FIX: Use trading-day logic, not calendar days
@@ -640,7 +648,10 @@ class ValueAtRisk:
                     )
                 from algo.infrastructure import MarketCalendar
 
-                today = date.today()
+                # Same fix as beta_exposure()'s identical staleness check above: use Eastern
+                # Time, not the system's local timezone, to match how Phase 9 writes
+                # snapshot_date.
+                today = datetime.now(EASTERN_TZ).date()
                 is_trading_today = MarketCalendar.is_trading_day(today)
 
                 # CRITICAL FIX: Use trading-day logic, not calendar days
@@ -783,7 +794,10 @@ class ValueAtRisk:
         """
         try:
             if not report_date:
-                report_date = date.today()
+                # Eastern Time, not system-local, to match how every other date in this report
+                # (snapshot_date, market data dates) is anchored - see the two identical fixes
+                # above in beta_exposure()/concentration_report().
+                report_date = datetime.now(EASTERN_TZ).date()
 
             logger.info(f"Generating daily risk report for {report_date}")
 
