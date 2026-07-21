@@ -752,6 +752,44 @@ class DataSourceRouter:
             msg = f"Error checking market close data for {symbol}: {type(e).__name__}: {str(e)[:100]}"
             raise RuntimeError(msg) from e
 
+    # ============== YFINANCE REACHABILITY CHECK ==============
+
+    def check_yfinance_reachable(self, symbol: str = "SPY", timeout_sec: int = 15) -> bool:
+        """Quick check that yfinance is reachable, exercising the actual `yf.download`
+        fallback path this module uses for OHLCV (NOT the deprecated `.info`/quoteSummary
+        endpoint - that path has no remaining live callers since the yfinance_snapshot
+        loader was removed, and pinging it needlessly risked tripping the shared circuit
+        breaker that the real OHLCV fallback depends on).
+
+        Returns True if yfinance served recent data, False on timeout/error/no data.
+        """
+        from datetime import datetime, timedelta
+
+        try:
+            if yf is None:
+                logger.error("[yfinance-reachable] yfinance not installed")
+                return False
+
+            yf_symbol = symbol.replace(".", "-") if "." in symbol else symbol
+            end = datetime.now(EASTERN_TZ).date()
+            start = end - timedelta(days=5)
+
+            def do_download() -> Any:
+                return yf.download(
+                    yf_symbol,
+                    start=start,
+                    end=end + timedelta(days=1),
+                    interval="1d",
+                    auto_adjust=False,
+                    progress=False,
+                )
+
+            hist = _yf_download_with_circuit_breaker(do_download, timeout_sec=timeout_sec, retries=1)
+            return hist is not None and not hist.empty
+        except Exception as e:
+            logger.debug(f"[yfinance-reachable] check failed: {type(e).__name__}: {str(e)[:100]}")
+            return False
+
     # ============== HEALTH REPORT ==============
 
     def health_report(self) -> dict[str, Any]:

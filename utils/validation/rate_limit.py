@@ -112,18 +112,16 @@ class RateLimitValidator:
             "fred_available": False,
         }
 
-        # Check yfinance (used by price loader)
+        # Check yfinance (used as OHLCV fallback behind Alpaca - see
+        # utils/data/source_router.py). Exercises the actual `yf.download` path under
+        # the shared IP circuit breaker, not the deprecated `.info`/quoteSummary
+        # endpoint - that endpoint has no remaining live callers since the
+        # yfinance_snapshot loader was removed (Session 275), and it's more fragile
+        # ("Invalid Crumb" 401s) than the download path this codebase actually uses.
         try:
-            # Route through YFinanceWrapper so the health check respects the shared
-            # IP circuit breaker and per-process throttle instead of firing a raw
-            # unthrottled yfinance.Ticker().info request (which could worsen an
-            # active rate-limit ban). get_ticker() raises on failure, which the
-            # except below converts into the same yfinance_available=False contract.
-            from utils.external import get_ticker
+            from utils.data.source_router import DataSourceRouter
 
-            ticker = get_ticker(DEFAULT_HEALTH_CHECK_TICKER)
-            info = ticker.info
-            if info and "currentPrice" in info:
+            if DataSourceRouter().check_yfinance_reachable(DEFAULT_HEALTH_CHECK_TICKER):
                 health["yfinance_available"] = True
                 logger.debug("[API-HEALTH] yfinance responding")
             else:
