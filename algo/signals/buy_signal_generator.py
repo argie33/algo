@@ -17,6 +17,9 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Signal generation thresholds
+SWING_LOOKBACK_WINDOW_BARS = 20  # Number of bars for recent high/low fallback strategy
+
 # Internal classify_base_type() pattern names -> display strings used by the frontend
 # (webapp/frontend/src/pages/TradingSignals.jsx BASE_TYPE_VARIANT / badges).
 _BASE_TYPE_DISPLAY = {
