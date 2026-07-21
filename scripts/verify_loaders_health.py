@@ -14,37 +14,76 @@ from typing import Any
 
 import psycopg2
 
+
+# Kept in sync with the active loader list in scripts/local_loader_scheduler.py.
+# Previous version of this dict referenced load_yfinance_snapshot.py and
+# load_yfinance_derived_metrics.py, both fully deprecated + deleted in Session 275
+# (see steering/DATA_LOADERS.md), plus several renamed loaders (e.g.
+# load_quality_growth_metrics.py -> load_value_quality_growth_metrics.py,
+# load_sector_rankings.py/load_sector_performance.py -> load_sector_industry_daily.py,
+# load_market_health_daily.py -> load_market_status_daily.py). Those stale entries
+# checked tables that no longer exist or are no longer written, producing false
+# CRITICAL/STALE noise on every run regardless of real system health.
 LOADERS = {
     "load_prices.py": {
         "output_table": "price_daily",
         "date_column": "date",
-        "min_rows": 100000,
+        "min_rows": 5000000,
         "critical": True,
     },
     "load_technical_indicators.py": {
         "output_table": "technical_data_daily",
         "date_column": "date",
-        "min_rows": 50000,
+        "min_rows": 100000,
         "critical": True,
     },
     "load_trend_analysis.py": {
         "output_table": "trend_template_data",
         "date_column": "date",
-        "min_rows": 500000,
+        "min_rows": 50000,
         "critical": True,
     },
-    "load_yfinance_snapshot.py": {
-        "output_table": "yfinance_snapshot",
+    "load_market_status_daily.py": {
+        "output_table": "market_sentiment",
+        "date_column": "date",
+        "min_rows": 1,
+        "critical": False,
+    },
+    "load_naaim.py": {
+        "output_table": "naaim",
+        "date_column": "date",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_aaii_sentiment.py": {
+        "output_table": "aaii_sentiment",
+        "date_column": "date",
+        "min_rows": 100,
+        "critical": False,
+    },
+    "load_short_interest_finra.py": {
+        "output_table": "short_interest_finra",
         "date_column": "updated_at",
         "min_rows": 1000,
         "critical": False,
     },
-    "load_yfinance_derived_metrics.py": {
-        "output_table": "company_profile",
+    "load_company_info_sec.py": {
+        "output_table": "company_info_sec",
         "date_column": "updated_at",
         "min_rows": 1000,
         "critical": True,
-        "note": "Consolidated loader: writes to company_profile, value_metrics, positioning_metrics, earnings_calendar, analyst_sentiment_analysis",
+    },
+    "load_earnings_calendar_sec.py": {
+        "output_table": "earnings_calendar_sec",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+    },
+    "load_market_constituents.py": {
+        "output_table": "stock_symbols",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": True,
     },
     "load_financial_statements.py": {
         "output_table": "annual_income_statement",
@@ -52,9 +91,46 @@ LOADERS = {
         "min_rows": 100,
         "critical": True,
     },
-    "load_quality_growth_metrics.py": {
+    "load_sec_valuations.py": {
+        "output_table": "sec_valuations",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+    },
+    "load_sec_cash_flow_metrics.py": {
+        "output_table": "sec_cash_flow_metrics",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+    },
+    "load_institutional_holdings_13f.py": {
+        "output_table": "institutional_holdings_13f",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+    },
+    "load_insider_holdings_sec.py": {
+        "output_table": "insider_holdings_sec",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+    },
+    "load_positioning_metrics.py": {
+        "output_table": "positioning_metrics",
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": False,
+    },
+    "load_value_quality_growth_metrics.py": {
         "output_table": "quality_metrics",
-        "date_column": None,
+        "date_column": "updated_at",
+        "min_rows": 1000,
+        "critical": True,
+        "note": "Consolidated loader: also writes growth_metrics, value_metrics",
+    },
+    "load_risk_metrics_daily.py": {
+        "output_table": "stability_metrics",
+        "date_column": "updated_at",
         "min_rows": 1000,
         "critical": True,
     },
@@ -70,41 +146,10 @@ LOADERS = {
         "min_rows": 10000,
         "critical": True,
     },
-    "load_risk_metrics_daily.py": {
-        "output_table": "stability_metrics",
-        "date_column": None,
-        "min_rows": 1000,
-        "critical": True,
-        "note": "Consolidated loader: writes to stability_metrics and momentum_metrics",
-    },
-    "load_market_health_daily.py": {
-        "output_table": "market_health_daily",
+    "load_signal_quality_scores.py": {
+        "output_table": "signal_quality_scores",
         "date_column": "date",
-        "min_rows": 100,
-        "critical": True,
-    },
-    "load_market_constituents.py": {
-        "output_table": "stock_symbols",
-        "date_column": "updated_at",
-        "min_rows": 1000,
-        "critical": True,
-    },
-    "load_sector_rankings.py": {
-        "output_table": "sector_ranking",
-        "date_column": "date",
-        "min_rows": 100,
-        "critical": False,
-    },
-    "load_sector_performance.py": {
-        "output_table": "sector_performance",
-        "date_column": "date",
-        "min_rows": 10,
-        "critical": False,
-    },
-    "load_market_exposure_daily.py": {
-        "output_table": "market_exposure_daily",
-        "date_column": "date",
-        "min_rows": 10,
+        "min_rows": 10000,
         "critical": False,
     },
     "load_algo_metrics_daily.py": {
@@ -113,18 +158,26 @@ LOADERS = {
         "min_rows": 1,
         "critical": False,
     },
+    "load_sector_industry_daily.py": {
+        "output_table": "sector_ranking",
+        "date_column": "date",
+        "min_rows": 100,
+        "critical": False,
+        "note": "Consolidated loader: also writes industry_ranking, sector_performance",
+    },
+    "load_market_exposure_daily.py": {
+        "output_table": "market_exposure_daily",
+        "date_column": "date",
+        "min_rows": 1,
+        "critical": False,
+        "note": "Computed by algo/risk/market_exposure.py during orchestrator Phase 5, not a standalone loaders/ script",
+    },
     "load_economic_data.py": {
         "output_table": "economic_data",
         "date_column": "date",
         "min_rows": 10,
         "critical": False,
         "note": "Consolidated loader: writes FRED + DXY to economic_data",
-    },
-    "load_market_sentiment.py": {
-        "output_table": "market_sentiment",
-        "date_column": "date",
-        "min_rows": 1,
-        "critical": False,
     },
 }
 
@@ -198,11 +251,11 @@ def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:
                             f"Stale data: from {max_date} ({age.days} calendar days old, "
                             f"older than {prev_trading_day})"
                         )
+                else:
+                    results["issues"].append("No date data found")
             except Exception:
                 # Skip if date column doesn't work
                 pass
-            else:
-                results["issues"].append("No date data found")
 
         # Check for excessive NULLs in key columns
         try:
