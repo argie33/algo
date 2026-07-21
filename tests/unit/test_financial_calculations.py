@@ -153,6 +153,41 @@ class TestValueAtRisk:
         percentile = var_calculator.config["stressed_var_percentile"]
         assert 1 <= percentile <= 50
 
+    def test_var_cvar_stressed_var_query_adjusted_equity_not_raw(self, var_calculator):
+        """Regression: historical_var()/cvar()/stressed_var() queried raw
+        total_portfolio_value instead of adjusted_equity (migration 1134). Raw equity
+        moves for both trading performance AND external capital flows - a same-day
+        deposit/withdrawal reads as an equivalent trading gain/loss, injecting a fake
+        extreme "return" into the historical sample these functions build VaR/CVaR/
+        stressed-VaR from. Every other equity-series risk metric in this codebase
+        (circuit_breaker.py drawdown/daily_loss/weekly_loss, position_sizer.py
+        drawdown, performance.py Sharpe/Sortino/Calmar/max_drawdown) was already
+        fixed to use adjusted_equity; these three were the last holdouts."""
+        from unittest.mock import MagicMock, patch
+
+        mock_cur = MagicMock()
+        mock_cur.fetchall.return_value = []
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+
+        with patch("algo.risk.var.DatabaseContext", return_value=mock_ctx):
+            try:
+                var_calculator.historical_var()
+            except RuntimeError:
+                pass  # expected: no rows -> insufficient data
+            try:
+                var_calculator.cvar()
+            except RuntimeError:
+                pass
+            try:
+                var_calculator.stressed_var()
+            except RuntimeError:
+                pass
+
+        executed_sql = " ".join(str(call.args[0]) for call in mock_cur.execute.call_args_list)
+        assert "adjusted_equity" in executed_sql
+        assert "total_portfolio_value" not in executed_sql
+
     def test_percentile_calculation(self):
         """Verify numpy percentile calculation for VaR."""
         returns = np.array([-0.05, -0.03, -0.02, 0.0, 0.02, 0.03, 0.05])

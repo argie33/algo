@@ -48,10 +48,18 @@ class ValueAtRisk:
 
         try:
             with DatabaseContext("read") as cur:
+                # Cash-flow-adjusted (migration 1134): total_portfolio_value moves for both
+                # trading performance AND external capital flows (deposits/withdrawals) - a
+                # withdrawal reads as an equivalent trading loss in the raw series. VaR/CVaR
+                # must measure the distribution of trading returns, not account-size changes;
+                # a same-day capital flow would otherwise inject a fake extreme "return" into
+                # the historical sample and distort every downstream VaR/CVaR percentile. See
+                # algo/risk/circuit_breaker.py::_check_drawdown for the same fix applied there.
                 cur.execute(
                     """
-                    SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
+                    SELECT snapshot_date, adjusted_equity FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - (%s || ' days')::interval
+                      AND adjusted_equity IS NOT NULL
                     ORDER BY snapshot_date ASC
                     """,
                     (int(lookback_days),),
@@ -179,10 +187,13 @@ class ValueAtRisk:
             raise RuntimeError(f"Operation failed: {e}") from e
 
     def _fetch_portfolio_snapshots(self, cur: Any, lookback_days: int) -> list[Any]:
+        # Cash-flow-adjusted (migration 1134) - see historical_var() above for why raw
+        # total_portfolio_value would distort the CVaR tail-loss sample with capital flows.
         cur.execute(
             """
-            SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
+            SELECT snapshot_date, adjusted_equity FROM algo_portfolio_snapshots
             WHERE snapshot_date >= CURRENT_DATE - (%s || ' days')::interval
+              AND adjusted_equity IS NOT NULL
             ORDER BY snapshot_date ASC
             """,
             (int(lookback_days),),
@@ -263,9 +274,13 @@ class ValueAtRisk:
 
         try:
             with DatabaseContext("read") as cur:
+                # Cash-flow-adjusted (migration 1134) - see historical_var() above for why raw
+                # total_portfolio_value would let a capital flow masquerade as the worst
+                # trading loss in the 12-month rolling window this scans for.
                 cur.execute("""
-                    SELECT snapshot_date, total_portfolio_value FROM algo_portfolio_snapshots
+                    SELECT snapshot_date, adjusted_equity FROM algo_portfolio_snapshots
                     WHERE snapshot_date >= CURRENT_DATE - INTERVAL '5 years'
+                      AND adjusted_equity IS NOT NULL
                     ORDER BY snapshot_date ASC
                     """)
                 rows = cur.fetchall()
