@@ -304,7 +304,6 @@ def panel_recent_trades(trades: Any) -> Any:
                     f"[TRADES_PANEL] Trade {safe_get_field(tr, 'trade_id')}: exit_date missing, using trade_date"
                 )
 
-        has_pnl = pnl_p is not None
         pnl_for_color = pnl_d if pnl_d is not None else pnl_p
         pc = G if (pnl_for_color is not None and pnl_for_color > 0) else R
         si = f"[{G}]▲[/]" if (pnl_p is not None and pnl_p > 0) else f"[{R}]▼[/]"
@@ -320,8 +319,8 @@ def panel_recent_trades(trades: Any) -> Any:
             _fmt_date(exit_date),
             Text(f"${entry_p:.2f}" if entry_p is not None else "--", style="dim"),
             Text(f"${exit_p:.2f}" if exit_p is not None else "--", style="dim"),
-            Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if has_pnl else "--", style=pc),
-            Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=pc),
+            Text(f"{sign(pnl_p)}{abs(pnl_p):.1f}%" if pnl_p is not None else "--", style=pc),
+            Text(f"{sign(rmul)}{abs(rmul):.2f}R" if rmul is not None else "--", style=pc),
             Text(f"{dur}d" if dur is not None else "--", style="dim"),
             Text(grade, style=grade_c),
         )
@@ -530,8 +529,8 @@ def panel_trades_expanded(trades: Any) -> Any:
                 f"{sign(pnl_d)}${abs(pnl_d):.0f}" if pnl_d is not None else "--",
                 style=pc,
             ),
-            Text(f"{sign(pnl_p)}{pnl_p:.1f}%" if pnl_p is not None else "--", style=pc),
-            Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=pc),
+            Text(f"{sign(pnl_p)}{abs(pnl_p):.1f}%" if pnl_p is not None else "--", style=pc),
+            Text(f"{sign(rmul)}{abs(rmul):.2f}R" if rmul is not None else "--", style=pc),
             Text(f"{dur}d" if dur is not None else "--", style="dim"),
             Text(grade, style=grade_c),
             Text(exit_rsn, style=exit_rsn_c),

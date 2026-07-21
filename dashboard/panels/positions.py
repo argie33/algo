@@ -251,10 +251,10 @@ def panel_positions(pos: Any, compact: bool = False, trades: Any = None, extende
             fmt_money_short(pval) if pval is not None else "--",
             f"${entry:.2f}" if entry is not None else "--",
             f"${price:.2f}" if price is not None else "--",
-            Text(f"{sign(pnl)}{pnl:.2f}%" if pnl is not None else "--", style=pc),
+            Text(f"{sign(pnl)}{abs(pnl):.2f}%" if pnl is not None else "--", style=pc),
         ]
         if extended:
-            row.append(Text(f"{sign(rmul)}{rmul:.2f}R" if rmul is not None else "--", style=rc))
+            row.append(Text(f"{sign(rmul)}{abs(rmul):.2f}R" if rmul is not None else "--", style=rc))
         row += [
             f"${stop:.2f}" if stop is not None else "--",
             Text(f"{dist:.1f}%" if dist is not None else "--", style=dc),

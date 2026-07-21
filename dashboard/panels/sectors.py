@@ -413,7 +413,7 @@ def panel_sectors_expanded(srank: Any, pos: Any, port: Any, sec_rot: Any = None,
                 # avg_pnl is None when every position in this sector lacks P&L data (empty
                 # dv["pnls"]) - unlike every other field in this file, this was formatted
                 # with :.1f unconditionally, raising TypeError and killing the whole panel.
-                avg_pnl_str = f"{sign(avg_pnl)}{avg_pnl:.1f}% avg P&L" if avg_pnl is not None else "avg P&L n/a"
+                avg_pnl_str = f"{sign(avg_pnl)}{abs(avg_pnl):.1f}% avg P&L" if avg_pnl is not None else "avg P&L n/a"
                 rows.append(
                     Text.from_markup(
                         f"  [white]{sec!s:<24}[/]{bar_s} [dim]{pct:.1f}%  {dv['n']} pos[/]  [{pc}]{avg_pnl_str}[/]"

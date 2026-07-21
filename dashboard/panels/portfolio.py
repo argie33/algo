@@ -269,15 +269,15 @@ def panel_portfolio(
     )
 
     # Daily return / Unrealized P&L
-    dr_s = f"[{G if dr >= 0 else R}]{sign(dr)}{dr:.2f}%[/]" if dr is not None else "[dim]--[/]"
-    urp_s = f"[{G if urp >= 0 else R}]{sign(urp)}{urp:.2f}%[/]" if urp is not None else "[dim]--[/]"
+    dr_s = f"[{G if dr >= 0 else R}]{sign(dr)}{abs(dr):.2f}%[/]" if dr is not None else "[dim]--[/]"
+    urp_s = f"[{G if urp >= 0 else R}]{sign(urp)}{abs(urp):.2f}%[/]" if urp is not None else "[dim]--[/]"
     tbl.add_row(cell("Daily Return:", dr_s), cell("Unrealized P&L:", urp_s))
 
     # Total return / Max drawdown
     cum_v = float(cum) if cum is not None else None
     mxdd_v = float(mxdd) if mxdd is not None else None
     cc = G if cum_v is not None and cum_v >= 0 else R
-    cum_val = f"[{cc}]{sign(cum_v)}{cum_v:.2f}%[/]" if cum_v is not None else "[dim]--[/]"
+    cum_val = f"[{cc}]{sign(cum_v)}{abs(cum_v):.2f}%[/]" if cum_v is not None else "[dim]--[/]"
     dd_v: float | None = abs(mxdd_v) if mxdd_v is not None else None
     dd_c = R if dd_v is not None and dd_v >= 15 else (Y if dd_v is not None and dd_v >= 5 else G)
     dd_val = f"[{dd_c}]-{dd_v:.1f}%[/]" if dd_v is not None else "[dim]--[/]"
@@ -566,7 +566,7 @@ def panel_performance_spark(
                     d_s = str(dt)[:3]
             else:
                 d_s = str(dt)[:3]
-            parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{ret:.1f}%[/]")
+            parts.append(f"[dim]{d_s}[/][{rc}]{sign(ret)}{abs(ret):.1f}%[/]")
         if skipped_returns > 0:
             logger.warning(f"[PORTFOLIO] Skipped {skipped_returns} invalid recent_rets entries")
         if parts:
