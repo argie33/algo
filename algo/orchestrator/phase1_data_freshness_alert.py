@@ -15,7 +15,7 @@ This module sends alerts to SNS topic when data is stale, enabling:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 import boto3
 import psycopg2
@@ -78,7 +78,11 @@ def send_staleness_alert(stale_tables: dict[str, tuple[int, bool]]) -> None:
 
     # Build alert message
     alert_lines = [
-        f"[ALERT] Data Staleness Detected at {datetime.now().isoformat()}",
+        # UTC, explicit: this alert can fire from any AWS region/server, so a naive
+        # datetime.now() (server-local time) would be ambiguous to whoever reads it -
+        # matches the UTC-explicit convention used for stored/compared timestamps
+        # elsewhere in this codebase.
+        f"[ALERT] Data Staleness Detected at {datetime.now(timezone.utc).isoformat()}",
         "",
         "Stale Tables:",
     ]
