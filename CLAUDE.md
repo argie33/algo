@@ -4,16 +4,14 @@
 
 ## Start Here
 
-1. **Dashboard "data not available"?** → `DASHBOARD_TROUBLESHOOTING.md` (Auto-detect works - no flag needed)
+1. **Dashboard "data not available"?** → `DASHBOARD_TROUBLESHOOTING.md`
 2. **Local dev setup?** → `QUICKSTART_LOCAL.md`
 3. **Architecture & rules?** → `steering/GOVERNANCE.md`
 4. **AWS/deployment?** → `steering/OPERATIONS.md`
 5. **Data loading system?** → `steering/DATA_LOADERS.md`
-6. **Data is stale (prices old)?** → `steering/LOADER_RECOVERY_GUIDE.md` + `python scripts/monitor_data_staleness.py`
-7. **Lambda 503 errors?** → `steering/AWS_LAMBDA_503_FIX.md`
-8. **AWS credentials rotation & cleanup?** → `IaC_CLEANUP_STATUS.md` (Automated via GitHub Actions + Terraform)
-9. **AWS billing emails & cost controls?** → `BILLING_QUICK_REFERENCE.md` (or `steering/AWS_BILLING_AND_COST_CONTROLS.md`)
-10. **Troubleshooting?** → `steering/COMMON_OPERATIONS.md`
+6. **Data stale or broken?** → `python scripts/monitor_data_staleness.py` + `steering/LOADER_RECOVERY_GUIDE.md`
+7. **AWS billing?** → `BILLING_QUICK_REFERENCE.md`
+8. **General troubleshooting?** → `steering/COMMON_OPERATIONS.md`
 
 ## Quick Setup - AWS or LOCAL
 
@@ -106,6 +104,11 @@ This checks:
 
 ## Running Orchestrator
 
+**CRITICAL: Understand the difference between data loaders and orchestrator**
+- **Data loaders** (2 AM, 4 PM, 7 PM) → fetch fresh prices/technicals/metrics from external sources
+- **Orchestrator** (9:30 AM, 1 PM, 3 PM) → executes trades based on signals from data already in database
+- You CANNOT trade until market opens (9:30 AM). Phase 8 rejects entries outside 9:30 AM - 4:00 PM ET.
+
 **Local/dev:** Use the local runner for development (no AWS Lambda/EventBridge needed).
 This is the *trading* orchestrator (signal generation, risk gates, reconciliation) - it
 reads whatever prices/technicals/fundamentals are already in the DB, it does not fetch
@@ -113,22 +116,18 @@ them. For stale data, run `scripts/local_loader_scheduler.py` instead (see "Data
 System" below / `steering/DATA_LOADERS.md`); run the orchestrator afterward if you also
 want to exercise signal generation against the now-fresh data.
 ```bash
-python3 scripts/run_local_orchestrator.py              # morning run (default)
+python3 scripts/run_local_orchestrator.py              # morning run (default) - will skip Phase 8 if before 9:30 AM
 python3 scripts/run_local_orchestrator.py --afternoon  # afternoon run
-python3 scripts/run_local_orchestrator.py --evening    # evening run
+python3 scripts/run_local_orchestrator.py --evening    # evening run (Phase 8 skipped, after hours)
 python3 scripts/run_local_orchestrator.py --run-all    # all three runs
 ```
 
-**AWS/Production - Manual Triggers (Session 186+):** When EventBridge Scheduler not deployed
-```bash
-# Trigger morning data pipeline (prices + technical indicators)
-python3 scripts/trigger_morning_pipeline.py
+**AWS/Production - Automatic Orchestrator Schedules** (enabled via Terraform):
+- **9:30 AM ET** → Morning execution at market open (PRIMARY)
+- **1:00 PM ET** → Afternoon rebalance (mid-day)
+- **3:00 PM ET** → Pre-close execution (before 4 PM market close)
 
-# Trigger EOD data pipeline (metrics + scores)
-python3 scripts/trigger_eod_pipeline.py
-```
-
-**AWS/Production - Automatic (Requires Admin Deployment):** Configured in `terraform/modules/pipeline/main.tf`, runs via EventBridge Scheduler (2 AM & 4:05 PM ET MON-FRI).
+All three are protected by Phase 8 market-hours guards - entries rejected if market closed.
 
 **Check status:**
 ```sql
@@ -143,7 +142,7 @@ WHERE started_at > NOW() - INTERVAL '1 hour';
 |-------|-----------|-----|
 | **Dashboard: "Data not available" on all panels** | Dashboard running WITHOUT `--local` flag, trying AWS Lambda | Use: `python3 -m dashboard --local` (requires Terminal 1: dev_server running) |
 | **Dashboard: "Data not available" on all panels (v2)** | dev_server not running when dashboard starts | Start Terminal 1: `python3 lambda/api/dev_server.py` FIRST, wait for "running on http://localhost:3001", THEN start Terminal 2: dashboard |
-| **AWS Mode: Lambda 503 "Service Unavailable"** | VPC cold-start (15-40s) exceeds API Gateway 29s timeout | See `steering/AWS_LAMBDA_503_FIX.md` - enable provisioned concurrency (5 units) to keep Lambda warm |
+| **AWS Mode: Lambda 503 "Service Unavailable"** | VPC cold-start (15-40s) exceeds API Gateway 29s timeout | Enable provisioned concurrency (5 units) via Terraform to keep Lambda warm |
 | **Dev server "Connection refused"** | dev_server not listening on localhost:3001 | Check Terminal 1 is running: `python3 lambda/api/dev_server.py` and wait for startup message |
 | **PostgreSQL "connection refused"** | Database not running or wrong credentials | Verify: `python3 -c "import psycopg2; psycopg2.connect('dbname=stocks user=stocks host=localhost')"` |
 | **Code fails pre-commit hooks** | Type errors or formatting issues | Run: `make format && make type-check` |
@@ -164,12 +163,19 @@ python scripts/verify_eventbridge_scheduler.py        # Check morning/EOD pipeli
 python scripts/verify_eventbridge_scheduler.py --fix  # Auto-enable if disabled
 ```
 
-**Loader schedules:**
-- Morning: MON-FRI 2:00 AM ET (pre-market prices + technical indicators)
-- Signals/EOD: MON-FRI 4:05 PM ET (closing prices/technicals + stock scores/buy_sell_daily trading signals - verified 2026-07-21 against terraform's actual `eod_pipeline`, not quality/growth/value as previously stated here)
-- Metrics: MON-FRI 7:00 PM ET (slow SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, quality/growth/value - `computed_metrics_pipeline`)
+**DATA LOADER schedules** (fetch external data):
+- Morning: MON-FRI 2:00 AM ET (pre-market prices + technical indicators) - prepares data for 9:30 AM execution
+- Signals/EOD: MON-FRI 4:05 PM ET (closing prices/technicals + stock scores/buy_sell_daily trading signals)
+- Metrics: MON-FRI 7:00 PM ET (slow SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning, quality/growth/value)
 - Weekends/holidays: No loaders run (expected behavior)
-- Local dev: `scripts/local_loader_scheduler.py` mirrors this 3-pipeline split (`morning`/`signals`/`metrics`); `start_dashboard_dev.py` always runs `morning` then `signals`, and conditionally runs `metrics` only when fundamentals are incomplete
+- Local dev: `scripts/local_loader_scheduler.py` mirrors this 3-pipeline split (`morning`/`signals`/`metrics`)
+
+**ORCHESTRATOR (TRADING) schedules** (execute trades during market hours only):
+- 9:30 AM ET: Morning execution at market open (PRIMARY)
+- 1:00 PM ET: Afternoon rebalance (mid-day)
+- 3:00 PM ET: Pre-close execution (before 4 PM close)
+- All protected by Phase 8 market-hours guard (9:30 AM - 4:00 PM ET)
+- Local dev: `scripts/run_local_orchestrator.py` - only Phase 8 executes if within market hours
 
 **If data is stale during trading hours:**
 1. Run: `python scripts/monitor_data_staleness.py` (diagnose)

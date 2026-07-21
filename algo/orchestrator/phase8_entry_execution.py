@@ -27,6 +27,7 @@ import os
 import time
 from collections.abc import Callable
 from datetime import date as _date
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, cast
 
@@ -38,6 +39,8 @@ from algo.trading.executor import TradeExecutor
 from algo.trading.position_sizer import PositionSizer
 from algo.trading.pretrade_checks import PreTradeChecks
 from utils.db.context import DatabaseContext
+from utils.infrastructure import EASTERN_TZ
+from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
 
 logger = logging.getLogger(__name__)
 
@@ -381,6 +384,65 @@ def run(
 
     logger.info("[PHASE 8] Starting entry execution")
 
+    # CRITICAL GUARD: Enforce market hours (9:30 AM - 4:00 PM ET)
+    # Entries executed outside market hours will be queued as pre-market/after-hours orders
+    # and may fill at unexpected prices or not fill at all. Risk: duplicate orders on next run.
+    now_et = datetime.now(EASTERN_TZ).time()
+    if not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
+        msg = (
+            f"[PHASE 8 MARKET HOURS GUARD] Cannot execute entries outside market hours. "
+            f"Current time: {now_et.strftime('%H:%M:%S')} ET, "
+            f"market hours: 9:30 AM - 4:00 PM ET. Skipping Phase 8."
+        )
+        logger.warning(msg)
+        log_phase_result_fn(8, "entry_execution", "skipped", msg)
+        return PhaseResult(
+            8,
+            "entry_execution",
+            "skipped",
+            {"entered": 0},
+            False,
+            msg,
+        )
+
+    # CRITICAL GUARD: Check for pending/recent orders that may still be filling
+    # If orders from prior run are still pending, executing new entries risks duplicates
+    try:
+        with DatabaseContext("read") as cur:
+            # Check for positions created in the last 10 minutes (indicates recent fills or pending orders)
+            # If we just created positions very recently, the orders may still be in flight
+            cur.execute(
+                """
+                SELECT COUNT(*) as recent_position_count
+                FROM algo_positions
+                WHERE entry_date = %s
+                AND created_at > NOW() - INTERVAL '10 minutes'
+                AND is_open = true
+                """,
+                (run_date,),
+            )
+            result = cur.fetchone()
+            recent_count = result[0] if result else 0
+
+            if recent_count > 0:
+                msg = (
+                    f"[PHASE 8 PENDING ORDERS GUARD] Blocking Phase 8: {recent_count} positions "
+                    f"created in last 10 min (orders may still be pending/filling). Re-run in 5 minutes."
+                )
+                logger.warning(msg)
+                log_phase_result_fn(8, "entry_execution", "blocked", msg)
+                return PhaseResult(
+                    8,
+                    "entry_execution",
+                    "blocked",
+                    {"entered": 0},
+                    False,
+                    msg,
+                )
+    except Exception as e:
+        logger.error(f"[PHASE 8] Error checking for pending orders: {e}")
+        # Don't halt on this check - log and continue
+
     # EXPLICIT DEPENDENCY RESOLUTION: Use executor if available (preferred pattern)
     if executor is not None:
         try:
@@ -446,7 +508,10 @@ def run(
         _persisted = _persist_signals_to_database(qualified_trades, run_date, dry_run)
         logger.info(f"[PHASE 8] Persisted {_persisted}/{len(qualified_trades)} signals to database")
     except Exception as e:
-        logger.critical(f"[PHASE 8] CRITICAL: Failed to persist signals to database: {e}. Dashboard will not show trades.", exc_info=True)
+        logger.critical(
+            f"[PHASE 8] CRITICAL: Failed to persist signals to database: {e}. Dashboard will not show trades.",
+            exc_info=True,
+        )
         raise RuntimeError(f"Signal persistence failed (dashboard sync broken): {e}") from e
 
     # Halt flag check before any trades
@@ -1056,7 +1121,9 @@ def run(
                 # both persist to algo_signal_rejections, but "stop too tight" only logged to
                 # the application log, silently dropping this rejection reason from the audit
                 # table the signal-funnel/rejection-reason analytics query.
-                _log_signal_rejection(symbol, "stop_too_tight", f"Risk {risk_pct:.1f}% < 1.5%", run_date, entry_price, risk_pct)
+                _log_signal_rejection(
+                    symbol, "stop_too_tight", f"Risk {risk_pct:.1f}% < 1.5%", run_date, entry_price, risk_pct
+                )
 
                 skipped_count += 1
 
@@ -1064,7 +1131,9 @@ def run(
 
             if risk_pct > 12.0:
                 logger.info(f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}%), skipping")
-                _log_signal_rejection(symbol, "stop_too_wide", f"Risk {risk_pct:.1f}% > 12%", run_date, entry_price, risk_pct)
+                _log_signal_rejection(
+                    symbol, "stop_too_wide", f"Risk {risk_pct:.1f}% > 12%", run_date, entry_price, risk_pct
+                )
 
                 skipped_count += 1
 

@@ -21,22 +21,20 @@ cloudfront_enabled = false
 # API CORS: development allows localhost origins
 # In production: use prod.tfvars (empty list, requires TF_VAR_api_cors_allowed_origins from CI/CD)
 api_cors_allowed_origins = []  # Computed by locals to include localhost for dev
-# ORCHESTRATOR SCHEDULE: 2X DAILY (TESTING PHASE)
-# Goal: Minimize execution until system is fully verified and stable
-# Current configuration: Morning (9:30 AM ET) + Evening (5:30 PM ET)
-# Testing phase: No afternoon/pre-close runs (reduce costs and operational complexity)
+# ORCHESTRATOR SCHEDULE: 3X DAILY DURING MARKET HOURS (FIXED)
+# All schedules now enforce market-hours checks via Phase 8 guards
 #
-# Pre-market (4:30 AM ET): DISABLED - not during market hours
+# Pre-market (4:30 AM ET): DISABLED - before market hours
 # Morning (9:30 AM ET): PRIMARY execution at market open [ENABLED]
-# Afternoon (1:00 PM ET): Mid-day rebalance [DISABLED for testing]
-# Pre-close (3:00 PM ET): Before market close [DISABLED for testing]
-# Evening (5:30 PM ET): After close - signal prep for next day [ENABLED]
-algo_schedule_enabled         = false                       # DISABLED: personal use, run manually only
-algo_schedule_expression      = "cron(30 17 ? * MON-FRI *)" # 5:30 PM ET (signal prep for next trading day)
-enable_premarket_orchestrator = false                       # Disabled: not during market hours
-enable_morning_orchestrator   = false                       # DISABLED: personal use, run manually only
-enable_afternoon_orchestrator = false                       # DISABLED
-enable_preclose_orchestrator  = false                       # DISABLED
+# Afternoon (1:00 PM ET): Mid-day rebalance [ENABLED]
+# Pre-close (3:00 PM ET): Before market close [ENABLED]
+# Evening (5:30 PM ET): DISABLED - after market hours, only data prep
+algo_schedule_enabled         = false                       # Evening disabled (after hours)
+algo_schedule_expression      = "cron(30 17 ? * MON-FRI *)" # 5:30 PM ET (not for trading)
+enable_premarket_orchestrator = false                       # Disabled: before market hours
+enable_morning_orchestrator   = true                        # 9:30 AM ET - market open execution
+enable_afternoon_orchestrator = true                        # 1:00 PM ET - mid-day rebalance
+enable_preclose_orchestrator  = true                        # 3:00 PM ET - before 4 PM close
 # Cognito disabled: personal dashboard only, no auth needed
 cognito_enabled               = false                       # Personal use, dashboard runs locally
 cognito_test_user_email       = "argeropolos@gmail.com"     # (unused)
