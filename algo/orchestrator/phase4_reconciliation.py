@@ -128,8 +128,23 @@ def run(
             # Log reconciliation result to database for audit trail
             # CRITICAL: Audit trail persistence is non-negotiable per GOVERNANCE (data integrity).
             with DatabaseContext("write") as cur:
-                # Calculate match percentage (all positions reconciled = 100%)
-                match_pct = 100.0 if positions_count >= 0 else 0.0
+                # match_pct previously hardcoded 100.0 whenever positions_count >= 0 - true for
+                # every realistic value (counts can't be negative), so this was effectively a
+                # constant "100% match" written to algo_reconciliation_log on every successful
+                # run, regardless of actual reconciliation quality. result["success"] only means
+                # the reconciliation process completed without raising - DailyReconciliation
+                # returns success=True unconditionally (see reconciliation.py lines ~576/1304)
+                # even when partial-fill mismatches were detected and corrected, or when
+                # broker-vs-DB position value drift exceeded 1% (drift_pct check, log-only,
+                # never flips success to False). The mismatches count from check_partial_fills
+                # above (already used for errors_found below) was sitting right here unused.
+                # This audit table exists specifically so an operator can see reconciliation
+                # health over time - a constant 100% defeats that purpose.
+                mismatches_count = partial_fill_result.get("mismatches", 0)
+                if positions_count > 0:
+                    match_pct = max(0.0, 100.0 * (1 - (mismatches_count / positions_count)))
+                else:
+                    match_pct = 100.0  # No positions to reconcile - vacuously fully matched
 
                 try:
                     cur.execute(
