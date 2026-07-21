@@ -171,10 +171,24 @@ def handle(
             if not check_admin_access(jwt_claims):
                 raise_api_error(403, "forbidden", "Admin access required")
             cur.execute("SET LOCAL statement_timeout = '4000ms'")
+            # winning_trades previously compared exit_price > entry_price with no status
+            # filter - counting open trades (exit_price typically NULL, so this evaluates to
+            # NULL/false and silently excludes them, but doesn't remove them from
+            # total_trades either) and using a cruder signal than profit_loss_pct, the
+            # canonical field every other win-rate calculation in this codebase uses
+            # (LivePerformance.win_rate(), MetricsCalculator.calculate_win_rate, CB9's
+            # get_trade_win_loss_stats). Anyone dividing winning_trades/total_trades from
+            # this endpoint got a win rate diluted by every open/pending trade in the
+            # denominator - same dilution bug class fixed elsewhere this session, just for
+            # a different denominator (all trades vs. breakeven trades). Now scoped to
+            # closed trades and profit_loss_pct, with losing_trades added symmetrically so a
+            # correct win rate (winning_trades / (winning_trades + losing_trades)) is
+            # computable directly from this response.
             cur.execute("""
                     SELECT
                         COUNT(*) as total_trades,
-                        SUM(CASE WHEN exit_price > entry_price THEN 1 ELSE 0 END) as winning_trades,
+                        SUM(CASE WHEN status = 'closed' AND profit_loss_pct > 0 THEN 1 ELSE 0 END) as winning_trades,
+                        SUM(CASE WHEN status = 'closed' AND profit_loss_pct < 0 THEN 1 ELSE 0 END) as losing_trades,
                         COUNT(DISTINCT symbol) as unique_symbols,
                         SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed_trades
                     FROM algo_trades
