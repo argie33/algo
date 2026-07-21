@@ -287,18 +287,22 @@ VALIDATION_SCHEMA = {
     # migrations/versions/111_add_yfinance_market_close_timeout_config.sql)
     "yfinance_market_close_timeout_eod_sec": ("int", 1, 1800, False, 30),
     "yfinance_market_close_timeout_morning_sec": ("int", 1, 600, False, 30),
-    # Signal and Score Thresholds
-    "signal_score_threshold": ("int", 1, 100, False, 60),
-    "swing_score_threshold": ("int", 1, 100, False, 55),
-    "data_completeness_threshold": ("float", 0.0, 1.0, False, 0.70),
     # Data Coverage Thresholds
-    "buy_sell_daily_coverage_threshold": ("float", 0.0, 1.0, False, 0.70),
-    "technical_data_coverage_threshold": ("float", 0.0, 1.0, False, 0.70),
+    # NOTE: signal_score_threshold, swing_score_threshold, data_completeness_threshold,
+    # buy_sell_daily_coverage_threshold, technical_data_coverage_threshold, and
+    # orchestrator_halt_enabled were removed here (2026-07-20) - each existed only in this
+    # validation schema (some also had seeded rows in algo_config) but was never read by any
+    # gating code anywhere in the codebase (confirmed via full-repo grep). The real, actually-
+    # enforced equivalents live under different keys: min_signal_quality_score and
+    # min_completeness_score (algo/infrastructure/config/main.py DEFAULTS), and
+    # phase1_min_coverage_pct (algo/orchestrator/phase1_data_freshness.py). swing_score itself
+    # was formally retired in migration 103 (composite_score-only trading logic) - Governance's
+    # "swing score >=55" entry-quality bullet predates that and has been corrected. Editable-
+    # looking dead config that shadows a real gate under a different name is exactly the kind of
+    # thing that gives an operator false confidence they've changed live trading behavior.
     "price_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 70.0),
     "technical_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 70.0),
     "buy_sell_daily_coverage_threshold_pct": ("float", 0.0, 100.0, False, 70.0),
-    # Orchestrator Control
-    "orchestrator_halt_enabled": ("bool", None, None, False, True),
     # Grade Override Configuration
     "grade_override_enabled": ("bool", None, None, False, False),
     "grade_override_max_duration_minutes": ("int", 1, 10000, False, 60),

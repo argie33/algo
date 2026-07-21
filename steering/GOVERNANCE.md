@@ -94,7 +94,7 @@ All fail-fast patterns are enforced. See git log for remediation commits: `git l
 
 **Three layers of gates** (all hot-reloadable via `algo_config` table):
 
-1. **Entry quality:** Signal score ≥60, swing score ≥55, completeness ≥70%, volume ≥300k, dollar volume ≥$500k
+1. **Entry quality:** Signal quality score ≥60 (`min_signal_quality_score`), completeness ≥70% (`min_completeness_score`), volume ≥300k (`min_volume_ma_50d`), dollar volume ≥$500k (`min_avg_daily_dollar_volume`). Swing score is retired (migration 103) - trading logic is composite_score-only.
 2. **Earnings blackout:** 7 days before, 3 days after
 3. **Quality gates (warn-only):** RS slope, volume decay
 
