@@ -177,8 +177,40 @@ class PipelineHealth:
             "market_cap_computed",  # ORPHANED per DEPRECATED_LOADERS.md - load_market_cap_computed.py removed
             "yfinance_snapshot",  # DEPRECATED per DEPRECATED_LOADERS.md - frozen at Session 275
             "fear_greed_index",  # Standalone legacy table; superseded by market_sentiment.fear_greed_index column
+            # Confirmed live 2026-07-20 via full-repo search: zero INSERT/UPDATE writer exists
+            # for any of the following, in loaders/ or anywhere else - only read call sites
+            # (API routes, sql_safety allowlist, schema_definitions). They are not "stale",
+            # they are frozen at whatever data they held when their (never-built, or removed)
+            # loader last ran, indistinguishable on the health panel from a genuine same-day
+            # loader failure without this exclusion - same noise class as the four tables above.
+            "ttm_income_statement",  # loaders/load_financial_statements.py: "ttm" period combos
+            "ttm_cash_flow",  # explicitly removed 2026-07-13 (SecEdgarStatementLoader never
+            # supported period='ttm'; both combos crashed on init every run) - see
+            # get_all_statement_configs() docstring in that file.
+            "buy_sell_weekly",  # No loader ever existed for weekly/monthly buy_sell aggregates -
+            "buy_sell_monthly",  # load_buy_sell_daily.py is the only buy_sell_* loader, and it
+            "buy_sell_daily_etf",  # deliberately excludes ETFs (exclude_etfs_from_symbols=True,
+            "buy_sell_weekly_etf",  # "Trading signals for stocks only, not ETFs").
+            "buy_sell_monthly_etf",
+            "seasonality_monthly_stats",  # No writer found anywhere in the codebase.
+            "analyst_upgrade_downgrade",  # No writer found anywhere in the codebase.
+            "portfolio_holdings",  # No writer found anywhere in the codebase.
+            "algo_trades_archive",  # No writer found anywhere in the codebase.
         }
     )
+
+    # Tables with a real, active loader whose intended cadence is longer than the 7-day
+    # default applied to every table outside CRITICAL_TABLES (see the "second sweep" in
+    # get_pipeline_status()). Without this, a monthly-refresh table would show
+    # STALE/VERY_STALE every single day of its normal life, indistinguishable from an
+    # actually-broken daily table - the same false-positive-noise problem
+    # KNOWN_DEPRECATED_TABLES solves for tables with no writer at all, but for tables that
+    # ARE being written, just less often than daily.
+    SECONDARY_TABLE_SLA_OVERRIDES: dict[str, int] = {
+        # loaders/load_prices.py resamples this from etf_price_daily once a month
+        # (targets = (("etf_price_weekly", "week", 28), ("etf_price_monthly", "month", 92))).
+        "etf_price_monthly": 35,
+    }
 
     @staticmethod
     def _trading_day_gap_days(today: _date) -> int:
@@ -382,7 +414,7 @@ class PipelineHealth:
                                 cur,
                                 table_name,
                                 date_column,
-                                default_sla_days,
+                                self.SECONDARY_TABLE_SLA_OVERRIDES.get(table_name, default_sla_days),
                             )
                             status.tables[table_name] = health
                         except (ValueError, ZeroDivisionError, TypeError) as e:
