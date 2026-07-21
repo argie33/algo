@@ -24,6 +24,7 @@ from routes.utils import (
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
+from utils.db.sql_split_guard import split_guard_sql
 
 logger = logging.getLogger(__name__)
 
@@ -140,12 +141,19 @@ def _industry_list(cur: cursor, params: dict[str, Any]) -> Any:
                 -- this endpoint's performance_1d/5d/20d fields were simply hardcoded to None below
                 -- and never wired up, leaving the Industries page's 1-day/5-day/20-day percent
                 -- columns blank for every row.
+                -- Split-ratio guards (utils/db/sql_split_guard.py) exclude a stock's return for a
+                -- window from the average if its two closes look like a clean split - price_daily
+                -- is raw/unadjusted, so a single recently-split stock would otherwise silently drag
+                -- this industry's reported performance far off its real value.
                 SELECT cp.industry AS industry,
                        ROUND((AVG(CASE WHEN p1.close IS NOT NULL AND p1.close != 0
+                            AND {split_guard_sql("p1.close", "pnow.close")}
                             THEN (pnow.close - p1.close) / p1.close * 100 END))::numeric, 2) AS perf_1d,
                        ROUND((AVG(CASE WHEN p5.close IS NOT NULL AND p5.close != 0
+                            AND {split_guard_sql("p5.close", "pnow.close")}
                             THEN (pnow.close - p5.close) / p5.close * 100 END))::numeric, 2) AS perf_5d,
                        ROUND((AVG(CASE WHEN p20.close IS NOT NULL AND p20.close != 0
+                            AND {split_guard_sql("p20.close", "pnow.close")}
                             THEN (pnow.close - p20.close) / p20.close * 100 END))::numeric, 2) AS perf_20d
                 FROM company_profile cp
                 JOIN LATERAL (

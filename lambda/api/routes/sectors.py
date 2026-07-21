@@ -25,6 +25,7 @@ from routes.utils import (
 
 from algo.infrastructure.config.sql_intervals import get_interval_sql
 from shared_contracts.response_validator import ResponseValidator
+from utils.db.sql_split_guard import split_guard_sql
 
 logger = logging.getLogger(__name__)
 
@@ -216,12 +217,25 @@ def handle(  # noqa: C901
                     -- latest/prior always resolved to the same stale snapshot and perf_1d/5d/20d
                     -- rounded to ~0.00 for nearly every sector on every run since the loader switch.
                     sector_perf AS (
+                        -- The split-ratio guards below exclude a stock's return for a window from the
+                        -- sector average if its two closes look like a clean stock split (e.g. a 2-for-1
+                        -- reads as a fake single-stock loss of half its value) - see
+                        -- utils/db/sql_split_guard.py. price_daily stores raw/unadjusted prices, so
+                        -- without this a single recently-split stock can silently drag an entire
+                        -- sector's reported performance far off its real value.
+                        -- CAUTION: no SQL comment in this psycopg2-parameterized query string may
+                        -- contain the percent-sign character - psycopg2 scans the whole query text,
+                        -- including comments, for placeholder markers, and one stray percent sign
+                        -- anywhere throws IndexError at execute() time (see git history on this line).
                         SELECT cp.sector AS sector,
                                ROUND((AVG(CASE WHEN p1.close IS NOT NULL AND p1.close != 0
+                                    AND {split_guard_sql("p1.close", "pnow.close")}
                                     THEN (pnow.close - p1.close) / p1.close * 100 END))::numeric, 2) AS perf_1d,
                                ROUND((AVG(CASE WHEN p5.close IS NOT NULL AND p5.close != 0
+                                    AND {split_guard_sql("p5.close", "pnow.close")}
                                     THEN (pnow.close - p5.close) / p5.close * 100 END))::numeric, 2) AS perf_5d,
                                ROUND((AVG(CASE WHEN p20.close IS NOT NULL AND p20.close != 0
+                                    AND {split_guard_sql("p20.close", "pnow.close")}
                                     THEN (pnow.close - p20.close) / p20.close * 100 END))::numeric, 2) AS perf_20d
                         FROM company_profile cp
                         JOIN LATERAL (
