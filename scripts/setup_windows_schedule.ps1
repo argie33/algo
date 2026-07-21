@@ -7,6 +7,29 @@ $taskFolder = "\algo"
 Write-Host "Setting up Windows Task Scheduler for algo data loaders..."
 Write-Host "================================"
 
+# BUG FIX (2026-07-21): New-ScheduledTaskTrigger -At fires at the machine's LOCAL wall-clock
+# time - there is no timezone parameter. This script previously hardcoded "02:00"/"16:05"/
+# "19:00" directly as -At values as if they were already local, but those are the *Eastern*
+# times from the header comment above. Confirmed live on this dev machine (Windows timezone:
+# Central Standard Time, `Get-TimeZone`): morning-pipeline's registered NextRunTime was
+# 2:00 AM Central = 3:00 AM ET, a full hour later than the intended 2 AM ET - and every
+# other trigger below was off by the same hour. Compute each trigger's correct LOCAL time
+# from the intended ET wall-clock time instead of hardcoding one machine's offset, so this
+# stays correct on any dev machine's timezone (and across DST, since both zones move
+# together for any US timezone).
+$easternTz = [System.TimeZoneInfo]::FindSystemTimeZoneById("Eastern Standard Time")
+function Convert-EasternTimeToLocal {
+    param([int]$Hour, [int]$Minute)
+    $easternWallClock = [DateTime]::SpecifyKind([DateTime]::Today.AddHours($Hour).AddMinutes($Minute), [DateTimeKind]::Unspecified)
+    $utc = [System.TimeZoneInfo]::ConvertTimeToUtc($easternWallClock, $easternTz)
+    return $utc.ToLocalTime().ToString("HH:mm")
+}
+$morningLocalTime = Convert-EasternTimeToLocal -Hour 2 -Minute 0
+$signalsLocalTime = Convert-EasternTimeToLocal -Hour 16 -Minute 5
+$metricsLocalTime = Convert-EasternTimeToLocal -Hour 19 -Minute 0
+Write-Host "[INFO] Local machine timezone: $((Get-TimeZone).Id)"
+Write-Host "[INFO] ET 02:00 -> local $morningLocalTime | ET 16:05 -> local $signalsLocalTime | ET 19:00 -> local $metricsLocalTime"
+
 # Resolve a fully-qualified python.exe path. Task Scheduler's execution context does
 # NOT inherit the interactive user's PATH, so a bare "python" action fails immediately
 # with ERROR_FILE_NOT_FOUND (0x80070002) - this silently broke the daily 2 AM/4:05 PM
@@ -54,7 +77,7 @@ $morningAction = New-ScheduledTaskAction `
 # since the failure wasn't checked before printing "[OK] ... scheduled".
 $morningTrigger = New-ScheduledTaskTrigger `
     -Weekly `
-    -At "02:00" `
+    -At $morningLocalTime `
     -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
 
 $morningSettings = New-ScheduledTaskSettingsSet `
@@ -101,7 +124,7 @@ $signalsAction = New-ScheduledTaskAction `
 
 $signalsTrigger = New-ScheduledTaskTrigger `
     -Weekly `
-    -At "16:05" `
+    -At $signalsLocalTime `
     -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
 
 $signalsSettings = New-ScheduledTaskSettingsSet `
@@ -143,7 +166,7 @@ $metricsAction = New-ScheduledTaskAction `
 
 $metricsTrigger = New-ScheduledTaskTrigger `
     -Weekly `
-    -At "19:00" `
+    -At $metricsLocalTime `
     -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday
 
 $metricsSettings = New-ScheduledTaskSettingsSet `
