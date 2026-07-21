@@ -44,8 +44,6 @@ from utils.db.advisory_locks import (
     acquire_advisory_lock,
     release_advisory_lock,
 )
-from utils.db.retry import OptimisticLockRetry
-from utils.trading.status import PositionStatus
 from utils.validation import AlpacaResponseValidator
 
 """
@@ -788,89 +786,21 @@ class TradeExecutor:
     ) -> tuple[bool, str | None]:
         """Update position with retry logic for race condition safety.
 
-        Handles concurrent updates by re-reading position before each retry.
-        Returns: (success: bool, message: str or None)
+        Delegates to self.position_tracker.update_position_with_retry(), which was
+        already instantiated (self.position_tracker = PositionTracker(...) above) but never
+        actually called anywhere in this codebase - this method was an independent, drifted
+        duplicate of the exact same logic that was still live-wired into HandlerContext
+        (update_position_with_retry_fn=self._update_position_with_retry) and used by
+        ExitHandler for every real exit. The duplicate used float(result[1]) for the stop
+        price instead of Decimal - directly contradicting PositionTracker's own comment
+        ("Keep stop price as Decimal to avoid floating-point rounding errors in financial
+        calculations") - and had no NULL guard on current_stop_price (would raise a bare
+        TypeError instead of a clear ValueError). PositionTracker's version was the
+        already-fixed one; it just was never wired in.
         """
-
-        def do_update() -> bool:
-            cur.execute(
-                "SELECT quantity, current_stop_price FROM algo_positions WHERE position_id = %s",
-                (position_id,),
-            )
-            result = cur.fetchone()
-            if not result:
-                raise ValueError(f"Position {position_id} not found")
-
-            current_qty = result[0]
-            current_stop = float(result[1])
-
-            effective_stop = new_stop_price
-            if new_stop_price and current_stop >= new_stop_price:
-                effective_stop = current_stop
-
-            if full_exit or new_qty <= 0:
-                cur.execute(
-                    """UPDATE algo_positions
-                       SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP
-                       WHERE position_id = %s AND quantity = %s""",
-                    (PositionStatus.CLOSED.value, position_id, current_qty),
-                )
-            else:
-                # Validate target_levels_hit is populated (critical for exit sequencing)
-                cur.execute(
-                    "SELECT target_levels_hit FROM algo_positions WHERE position_id = %s",
-                    (position_id,),
-                )
-                th_row = cur.fetchone()
-                if th_row is None:
-                    raise ValueError(f"Position {position_id} not found during partial exit update")
-                target_levels_hit = th_row[0]
-                if target_levels_hit is None:
-                    raise ValueError(
-                        f"Position {position_id} has NULL target_levels_hit. "
-                        "Cannot safely record target exit without exit history."
-                    )
-
-                increment_targets = 1 if (exit_stage and "target" in exit_stage.lower()) else 0
-                new_target_levels = target_levels_hit + increment_targets
-                update_sql = """UPDATE algo_positions
-                               SET quantity = %s,
-                                   position_value = %s * current_price,
-                                   target_levels_hit = %s,
-                                   current_stop_price = %s"""
-                params = [new_qty, new_qty, new_target_levels, effective_stop]
-
-                if exit_stage == "target_1":
-                    update_sql += ", target_1_hit_time = CURRENT_TIMESTAMP"
-                elif exit_stage == "target_2":
-                    update_sql += ", target_2_hit_time = CURRENT_TIMESTAMP"
-                elif exit_stage == "target_3":
-                    update_sql += ", target_3_hit_time = CURRENT_TIMESTAMP"
-
-                update_sql += " WHERE position_id = %s AND quantity = %s"
-                params.extend([position_id, current_qty])
-
-                cur.execute(update_sql, params)
-
-            return bool(cur.rowcount > 0)
-
-        success = OptimisticLockRetry.retry_on_race_condition(
-            do_update,
-            operation_name=f"update_position_{position_id}",
-            max_attempts=3,
-            base_delay_ms=100,
-            query="UPDATE algo_positions SET ... WHERE position_id=%s AND quantity=%s",
-            params=(new_qty, position_id, new_qty),
-            context={"position_id": position_id, "new_quantity": new_qty},
+        return self.position_tracker.update_position_with_retry(
+            cur, position_id, new_qty, new_stop_price, full_exit, exit_stage
         )
-
-        if success:
-            return True, None
-        else:
-            return (
-                False,
-                "Position quantity changed before update (race condition, retries exhausted)",
-            )
 
     def exit_trade(
         self,
