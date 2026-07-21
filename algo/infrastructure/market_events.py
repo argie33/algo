@@ -5,7 +5,18 @@ Detects and responds to market anomalies:
 - Single-stock halts (trading paused, then resumed)
 - Market circuit breakers (L1: 7%, L2: 13%, L3: 20% down)
 - Early close days (market closes 3 hours early)
-- Corporate actions (stock splits, dividends, delisting)
+- Corporate actions: stock splits (loaders/technical_indicators.py::detect_and_adjust_splits,
+  in-memory only, not this class) and delisting (check_delisting below).
+
+Dividends are NOT handled anywhere in this codebase despite an earlier version of this
+docstring claiming otherwise - no ex-dividend price adjustment, no cash crediting on
+payment, no dividend-specific check in this class. A position held through an ex-dividend
+date will show an unrealized-P&L dip roughly equal to the dividend amount with no
+offsetting cash credit anywhere, and could in principle contribute to (though rarely
+solely cause) a stop-loss trigger for high-yield names. Likely low real-world impact for
+this system's typically short holding periods, but flagging honestly rather than leaving
+the docstring's claim uncorrected - implementing this is a real feature (dividend data
+source + ex-div tracking + adjustment/crediting logic), not attempted here.
 
 Implements fail-safe protocols that override strategy logic.
 """

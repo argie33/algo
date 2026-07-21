@@ -555,10 +555,13 @@ class EntryHandler:
             if "alert" in tca_result:
                 try:
                     alert_data = tca_result["alert"]
+                    # strict=True: without it, notify() never raises NotificationError at
+                    # all, making the except clause below dead code - see notify()'s docstring.
                     notify(
                         alert_data["severity"].lower(),
                         title=f"TCA Alert: {alert_data['severity']}",
                         message=alert_data["message"],
+                        strict=True,
                     )
                 except NotificationError as e:
                     raise RuntimeError(
@@ -678,10 +681,13 @@ class EntryHandler:
             # Check for order rejection/cancellation
             if order_status in ("rejected", "cancelled", "expired"):
                 try:
+                    # strict=True: without it, notify() never raises NotificationError at
+                    # all, making the except clause below dead code - see notify()'s docstring.
                     notify(
                         "critical",
                         title=f"Order {order_status.upper()}: {symbol}",
                         message=f"Trade {trade_id}: {shares}sh @ ${entry_price:.2f}",
+                        strict=True,
                     )
                 except NotificationError as e:
                     raise RuntimeError(
@@ -939,6 +945,13 @@ class EntryHandler:
         try:
             config_dict = self.config.to_dict() if hasattr(self.config, "to_dict") else self.config
             notif_service = TradeNotificationService(config_dict)
+            # This calls _send_notification() directly (not notify()), which already
+            # raises on failure (RuntimeError from a DB write failure, or the email
+            # channel's own exception type on send failure) rather than swallowing -
+            # but never as NotificationError specifically, so `except NotificationError`
+            # below could never actually match what this call produces. Broadened to
+            # Exception to match the method's own "FAIL-FAST if notification system
+            # unavailable" docstring contract.
             notif_service._send_notification(
                 subject=f"ENTRY: {symbol}",
                 message=f"{shares:.2f} sh {symbol} @ ${float(executed_price):.2f}",
@@ -954,7 +967,7 @@ class EntryHandler:
                     "trade_id": trade_id,
                 },
             )
-        except NotificationError as e:
+        except Exception as e:
             raise RuntimeError(
                 f"CRITICAL: Failed to send entry notification for {symbol} (trade {trade_id}): {e}. "
                 f"Cannot complete entry without confirming trader notification. "

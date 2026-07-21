@@ -306,6 +306,16 @@ def notify(
     blocks, making that fail-fast safety net structurally dead code regardless of
     what it caught. Pass strict=True at any call site where a notification not
     reaching the operator must be treated as a hard failure, not a log line.
+
+    On strict failure, raises algo.trading.exceptions.NotificationError (imported
+    locally to avoid a circular import - algo.trading.executor imports from
+    algo.reporting at module level, so a top-level import here of anything under
+    algo.trading would cycle back). Several callers already catch this exact type
+    expecting it from notify() (e.g. executor_entry_handler.py's order-rejection
+    and TCA-alert notifications) - those except clauses were dead code twice over
+    before this fix: notify() never raised at all by default, and even the raw
+    exception it did produce was never NotificationError, so an `except
+    NotificationError` there could never have matched it either way.
     """
     try:
         # Use minimal valid config to satisfy validation requirements
@@ -321,7 +331,9 @@ def notify(
     except Exception as e:
         logger.error(f"notify() failed: {e}")
         if strict:
-            raise
+            from algo.trading.exceptions import NotificationError
+
+            raise NotificationError(str(e)) from e
 
 
 def notify_signal_staleness(stale_tables: list[str], details: dict[str, Any] | None = None) -> None:

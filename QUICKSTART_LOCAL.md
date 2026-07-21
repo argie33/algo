@@ -416,26 +416,30 @@ git push origin main
 ## Common Configuration
 
 ### Change Trading Thresholds
+**Corrected 2026-07-20:** `signal_score_threshold` and `max_open_positions` don't exist as
+keys any code reads (confirmed via full-repo grep) - the real keys are
+`min_signal_quality_score` and `max_positions`.
 ```sql
 UPDATE algo_config 
 SET value = '75' 
-WHERE key = 'signal_score_threshold';
+WHERE key = 'min_signal_quality_score';
 
 -- Takes effect on next orchestrator run
 ```
 
 ### Disable Circuit Breakers (Emergency Only)
-```sql
-UPDATE algo_config 
-SET value = 'false' 
-WHERE key = 'orchestrator_halt_enabled';
-```
+**Corrected 2026-07-20:** this never worked - no code reads `orchestrator_halt_enabled`
+(removed from `algo/infrastructure/config_schema.py` the same day this was found). There is
+no config flag that bypasses circuit breakers, by design (see `steering/GOVERNANCE.md`'s
+"no bypasses" principle). If a breaker fires on data later proven wrong, see
+`steering/OPERATIONS.md`'s "Manual CB Override" section for the actual, audited correction
+path.
 
 ### Adjust Positions Limit
 ```sql
 UPDATE algo_config 
 SET value = '10' 
-WHERE key = 'max_open_positions';
+WHERE key = 'max_positions';
 ```
 
 See `steering/OPERATIONS.md` for all configurable parameters.

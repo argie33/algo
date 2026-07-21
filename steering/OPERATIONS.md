@@ -259,23 +259,32 @@ For full loader details, see `steering/DATA_LOADERS.md`.
 
 **Hot-Reloadable Parameters:**
 
-**Corrected 2026-07-20:** every key below was verified live against `algo_config`.
-6 of the original 10 keys in this table did not exist at all (`cb_drawdown_threshold`,
-`enable_earnings_blackout`, `entry_volume_threshold`, `entry_dollar_volume`,
-`price_loader_batch_size`, `metric_loader_parallelism`) - the `UPDATE ... WHERE key=...`
-examples below them would have silently matched zero rows (Postgres doesn't error on a
-no-op UPDATE), giving a false impression that a safety threshold had changed.
+**Corrected 2026-07-20 (superseded same day):** the previous version of this table verified
+every key existed as a row in `algo_config` and stopped there - it never checked whether any
+code actually *reads* the key to gate behavior. Four of the eight listed keys
+(`signal_score_threshold`, `swing_score_threshold`, `data_completeness_threshold`,
+`orchestrator_halt_enabled`) turned out to be exactly that: seeded rows with no reader
+anywhere in the codebase (confirmed via full-repo grep) - editing them via the `UPDATE`
+examples below was a real SQL statement that succeeded, changed a real row, and had **zero
+effect on trading behavior**, which is worse than a no-op UPDATE because nothing signals the
+mistake. Removed from `algo/infrastructure/config_schema.py` the same day (they were also
+misleading anyone auditing the schema directly, not just this table). The real, actually-
+enforced keys are listed below in their place; swing-score has no live equivalent - that
+gating mechanism was formally retired in migration 103 (composite_score-only trading logic).
 
 | Parameter | Type | Live value | Effect |
 |-----------|------|---------|--------|
-| `signal_score_threshold` | int | 60 | Min score to enter trade |
-| `swing_score_threshold` | int | 55 | Min swing score filter |
-| `data_completeness_threshold` | float | 0.70 | Min % data available |
+| `min_signal_quality_score` | int | 60 | Min score to enter trade (was documented as `signal_score_threshold` - that key is dead, never read) |
+| `min_completeness_score` | int | 70 | Min % data available (was documented as `data_completeness_threshold` - dead, never read) |
 | `earnings_blackout_days_before` / `_after` | int | 7 / 3 | Block entries N days before / after earnings (replaces the nonexistent `enable_earnings_blackout` bool - this gate can't be disabled with a single flag, only widened/narrowed) |
 | `min_daily_volume_shares` | int | 500000 | Min daily volume (replaces nonexistent `entry_volume_threshold`) |
 | `min_avg_daily_dollar_volume` | int | 500000 | Min $ volume (replaces nonexistent `entry_dollar_volume`) |
-| `orchestrator_halt_enabled` | bool | true | Circuit breaker active - change to false only for testing |
 | `halt_drawdown_pct` | float | -20.0 | Max drawdown before halt (replaces nonexistent `cb_drawdown_threshold` - note the value is negative) |
+
+**There is no live "disable circuit breakers" flag.** `orchestrator_halt_enabled` was
+documented as one (see "Manual CB Override" below, also corrected) but no code anywhere
+reads it - `CircuitBreaker.check_all()` runs all 8 checks unconditionally, every run. This
+matches `steering/GOVERNANCE.md`'s "no bypasses" principle; it is not a gap to fill.
 
 `price_loader_batch_size` and `metric_loader_parallelism` have no equivalent live config
 key - loader concurrency is governed by `LoaderConfigManager` (DynamoDB
@@ -285,11 +294,11 @@ key - loader concurrency is governed by `LoaderConfigManager` (DynamoDB
 ```sql
 UPDATE algo_config
 SET value = '75'
-WHERE key = 'signal_score_threshold';
+WHERE key = 'min_signal_quality_score';
 
 -- Verify
-SELECT * FROM algo_config WHERE key = 'signal_score_threshold';
--- Result: signal_score_threshold | 75 | (timestamp)
+SELECT * FROM algo_config WHERE key = 'min_signal_quality_score';
+-- Result: min_signal_quality_score | 75 | (timestamp)
 ```
 
 **When does change take effect?**
@@ -297,18 +306,17 @@ SELECT * FROM algo_config WHERE key = 'signal_score_threshold';
 - Example: Change at 2:00 PM → Takes effect at 3 PM orchestrator run
 
 **Validation (prevents bad configs):**
-- Type must match (int for `signal_score_threshold`, not string)
-- Bounds enforced (signal_score: 40-100, data_completeness: 0.50-1.00)
+- Type must match (int for `min_signal_quality_score`, not string)
+- Bounds enforced per `algo/infrastructure/config_schema.py` (e.g. `min_completeness_score`: 1-100)
 - Invalid config rejected, old value persists
-- Error logged: `Config validation failed: signal_score_threshold=200 exceeds max 100`
+- Error logged: `Config validation failed: min_signal_quality_score=200 exceeds max 100`
 
 **Example: Emergency Threshold Tightening**
 
 Market spike, want to reduce risk:
 ```sql
-UPDATE algo_config SET value = '75' WHERE key = 'signal_score_threshold';
-UPDATE algo_config SET value = '65' WHERE key = 'swing_score_threshold';
-UPDATE algo_config SET value = '0.85' WHERE key = 'data_completeness_threshold';
+UPDATE algo_config SET value = '75' WHERE key = 'min_signal_quality_score';
+UPDATE algo_config SET value = '85' WHERE key = 'min_completeness_score';
 
 -- Next 3 PM orchestrator run uses new thresholds
 -- Result: Fewer entries (higher signal score required), higher data quality requirement
@@ -353,7 +361,8 @@ Overall:          🔴 HALTED (1 circuit breaker active)
 Reason: Maximum drawdown (21.5%) exceeded threshold (20%)
 Halted: All new position entries blocked
 Allowed: Exits, rebalancing, portfolio reconciliation
-Re-engagement: Will resume when drawdown recovers to 15% (80% of threshold)
+Re-engagement: See "Re-Engagement Logic" below (drawdown recovery is a 3-part gate, not a
+single recovery percentage)
 ```
 
 **Alert Configuration:**
@@ -364,34 +373,42 @@ Slack webhook to `#trading-alerts` when CB triggers:
 Breaker: Drawdown (21.5% > 20% threshold)
 Time: 2026-06-29 14:45 ET
 Action: All new entries halted
-Manual Recovery: Update `orchestrator_halt_enabled` to false in algo_config table OR wait for drawdown to recover to 15%
+Manual Recovery: See "Re-Engagement Logic" below - there is no config flag that bypasses
+this (see "Manual CB Override" note)
 ```
 
 **Re-Engagement Logic:**
 
-Circuit breakers auto-recover when condition improves:
-- Drawdown breach (20%) → Auto-resumes when drawdown recovers to 15% (75% recovery)
-- Daily loss (2%) → Auto-resumes at next day (midnight ET)
-- Loss streak (3 days) → Auto-resumes at next winning day
-- Other metrics → Auto-resumes when metric improves below threshold
+**Corrected 2026-07-20:** the drawdown re-engagement gate (`algo/risk/circuit_breaker.py::
+_check_drawdown_re_engagement`) is a 3-part AND, not a single recovery percentage - all three
+must pass before new entries resume:
+1. Recovered to within `re_engage_recovery_pct` of peak (live default **8.0%**, not 15%/20%*0.75
+   as a previous version of this doc claimed)
+2. At least `re_engage_min_days` (live default **5**) days elapsed since the halt fired
+3. If `require_ftd_to_re_engage` is set, market must be in Stage 2 uptrend (Follow-Through Day)
+
+Other breakers are stateless and simply re-evaluate current conditions each run - if the
+underlying metric (VIX, daily loss, weekly loss, open risk, market stage) is no longer past
+threshold on the next run, they clear on their own; there is no separate "re-engagement"
+gate for them like drawdown has.
 
 **Manual CB Override (Emergency Only):**
 
-If CB falsely triggered (bad data, calculation error):
-```sql
--- Disable halt (allows new entries despite active CB)
-UPDATE algo_config
-SET value = 'false'
-WHERE key = 'orchestrator_halt_enabled';
+**Corrected 2026-07-20:** the SQL below (setting `orchestrator_halt_enabled=false`) was
+never functional - no code reads that key (confirmed via full-repo grep; also removed from
+`config_schema.py` the same day). There is currently **no config flag that bypasses circuit
+breakers**, and per `steering/GOVERNANCE.md`'s "no bypasses" principle, adding one back is
+not the intended fix if a breaker fires on genuinely bad/stale data.
 
--- Verify next orchestrator run ignores CB (dangerous, use cautiously)
-SELECT value FROM algo_config WHERE key = 'orchestrator_halt_enabled';
-
--- Re-enable when safe
-UPDATE algo_config
-SET value = 'true'
-WHERE key = 'orchestrator_halt_enabled';
-```
+If a circuit breaker fires on data later proven wrong (a since-fixed calculation bug, a bad
+upstream data point), the correct, auditable path - already used and documented in prior
+sessions - is to annotate the specific triggering row in `algo_audit_log`
+(`action_type='circuit_breaker_halt'`) with `details->>'corrected'=true` plus a
+`correction_reason` and evidence, via a direct, reviewed `UPDATE`. This never deletes or
+alters the original recorded check (the halt stays fully visible in history) and only
+affects the drawdown re-engagement gate's `WHERE ... NOT corrected` clause - it does not
+touch the other 7 breakers, which self-clear as described above once their underlying data
+is fixed and the next run re-evaluates.
 
 **Testing Circuit Breakers (Paper Trading):**
 
