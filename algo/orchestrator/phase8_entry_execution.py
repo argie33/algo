@@ -1051,6 +1051,12 @@ def run(
 
             if risk_pct < 1.5:
                 logger.info(f"[PHASE 8] {symbol}: stop too tight ({risk_pct:.1f}%), skipping")
+                # Was the only rejection branch in this function not calling
+                # _log_signal_rejection - "invalid_stop_loss" above and "stop_too_wide" below
+                # both persist to algo_signal_rejections, but "stop too tight" only logged to
+                # the application log, silently dropping this rejection reason from the audit
+                # table the signal-funnel/rejection-reason analytics query.
+                _log_signal_rejection(symbol, "stop_too_tight", f"Risk {risk_pct:.1f}% < 1.5%", run_date, entry_price, risk_pct)
 
                 skipped_count += 1
 
