@@ -256,6 +256,49 @@ class TestPanelPortfolio:
         assert result is not None
         print("✓ Portfolio panel handles minimal data")
 
+    def test_portfolio_panel_uses_data_age_seconds_not_midnight_of_snapshot_date(self) -> None:
+        """Panel must show real elapsed time, not hours-since-midnight of a DATE-only field.
+
+        snapshot_date is a DATE column (no time component) and, after a round-trip through
+        the API's plain resp.json(), always arrives as a str - never a datetime. Deriving the
+        displayed age from it (fmt_age(snapshot_date)) reports time-since-midnight instead of
+        time-since-last-write, e.g. a snapshot written 5 minutes ago at 4:15pm would show
+        "16h ago". data_age_seconds is computed server-side from the real updated_at write
+        timestamp and must be what the panel displays.
+        """
+        from dashboard.panels.portfolio import panel_portfolio
+        from tests.test_helpers.assertions import render_panel_to_text
+
+        port = {
+            "total_portfolio_value": 100000.0,
+            "total_cash": 50000.0,
+            "position_count": 0,
+            "snapshot_date": "2024-01-01",  # DATE-only, far from "now" at midnight
+            "data_age_seconds": 300,  # real age: 5 minutes
+        }
+        text = render_panel_to_text(panel_portfolio(port, {"max_pos_n": 12}))
+        assert "5m ago" in text, f"expected accurate '5m ago' from data_age_seconds, got: {text!r}"
+        assert "STALE" not in text, "5-minute-old data must not be flagged stale"
+
+    def test_portfolio_panel_flags_stale_from_data_age_seconds(self) -> None:
+        """The >24h STALE warning must actually fire when data_age_seconds says it's stale.
+
+        Previously this warning only fired when snapshot_date was a datetime instance, which
+        never happens after a JSON round-trip (always a str) - so it could never fire at all.
+        """
+        from dashboard.panels.portfolio import panel_portfolio
+        from tests.test_helpers.assertions import render_panel_to_text
+
+        port = {
+            "total_portfolio_value": 100000.0,
+            "total_cash": 50000.0,
+            "position_count": 0,
+            "snapshot_date": "2024-01-01",
+            "data_age_seconds": 25 * 3600,  # 25 hours - genuinely stale
+        }
+        text = render_panel_to_text(panel_portfolio(port, {"max_pos_n": 12}))
+        assert "STALE" in text, f"expected STALE warning for 25h-old data, got: {text!r}"
+
 
 class TestPanelPositions:
     """Positions panel tests."""
@@ -383,6 +426,22 @@ class TestPanelScores:
         result_expanded = panel_scores_expanded(scores)
         assert result_expanded is not None
         print("✓ Scores panel handles sector=None without crashing")
+
+    def test_scores_panel_handles_top_level_list(self) -> None:
+        """Regression: if the scores payload is a bare list instead of the
+        expected {"top": [...]} dict (e.g. malformed/legacy API response),
+        _error_panel's has_error() check silently passed it through (has_error()
+        returns False for non-dict data), and the panel then crashed with
+        'TypeError: Expected dict but got list' inside safe_get_dict() instead
+        of rendering a graceful error panel."""
+        from dashboard.panels.scores import panel_scores_compact, panel_scores_expanded
+
+        malformed_scores = [{"symbol": "AAPL", "composite_score": 85.0}]
+        result = panel_scores_compact(malformed_scores)
+        assert result is not None
+        result_expanded = panel_scores_expanded(malformed_scores)
+        assert result_expanded is not None
+        print("✓ Scores panel handles top-level list without crashing")
 
 
 class TestPanelIntegration:

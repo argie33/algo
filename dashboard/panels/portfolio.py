@@ -61,7 +61,7 @@ from rich.text import Text
 
 from dashboard.data_validation import safe_float, safe_int
 
-from ..formatters import fmt_age, fmt_money, fmt_money_short, mini_bar, sign, sparkline
+from ..formatters import fmt_age, fmt_age_seconds, fmt_money, fmt_money_short, mini_bar, sign, sparkline
 from ..utilities import DIM, G, R, Y, normalize_positions_data
 from ._helpers import _error_panel
 
@@ -200,6 +200,7 @@ def panel_portfolio(
 
     lgpos = port.get("largest_position_pct")
     snap = port.get("snapshot_date")
+    age_seconds_val = port.get("data_age_seconds")
     # max_pos_n is a UI display limit (how many position slots to show), not financial
     # data -- raising here would blank the entire portfolio panel (including real $ P&L)
     # over a missing display threshold. Default it, same as the rest of this panel's
@@ -214,28 +215,34 @@ def panel_portfolio(
         logger.error(f"Config max_pos_n is invalid: {max_n_val}, using fallback default value of 12")
         max_n = 12
 
-    # GOVERNANCE FIX: Check data freshness and warn if stale (>24h old)
+    # GOVERNANCE FIX: Check data freshness and warn if stale (>24h old).
+    # Prefer data_age_seconds (computed server-side from algo_portfolio_snapshots.updated_at,
+    # the real last-write time - see lambda/api/routes/algo_handlers/metrics.py's own
+    # "CRITICAL: snapshot_date is a DATE column (midnight)" comment) over snapshot_date/snap
+    # itself. snapshot_date is DATE-only (no time component), so fmt_age(snap) reported
+    # "hours ago" measured from midnight of that date rather than the real write time - e.g.
+    # a snapshot written at 4:15pm displayed as "16h ago" a minute later. It also never
+    # round-trips through JSON as a datetime (api_call() does a plain resp.json(), so snap is
+    # always a str here), so the `isinstance(snap, datetime)` check below was permanently
+    # False and this ">24h STALE" warning could never actually fire, no matter how stale.
     stale_warning = ""
-    if snap is not None:
-        from datetime import datetime as dt_cls
-        from datetime import timezone as tz_cls
-
+    age_display: str | None = None
+    if age_seconds_val is not None:
         try:
-            now = dt_cls.now(tz_cls.utc)
-            if isinstance(snap, dt_cls):
-                # Ensure both are timezone-aware for comparison
-                if snap.tzinfo is None:
-                    snap_aware = snap.replace(tzinfo=tz_cls.utc)
-                else:
-                    snap_aware = snap
-                age_hours = (now - snap_aware).total_seconds() / 3600
-                if age_hours > 24:
-                    stale_warning = " [yellow]⚠ STALE[/]"
-                    logger.warning(f"[PORTFOLIO] Portfolio snapshot stale ({age_hours:.0f}h old)")
-        except (ValueError, TypeError, AttributeError):
-            logger.debug("[PORTFOLIO] Could not calculate staleness")
+            age_seconds = float(age_seconds_val)
+            age_display = fmt_age_seconds(age_seconds)
+            if age_seconds > 24 * 3600:
+                stale_warning = " [yellow]⚠ STALE[/]"
+                logger.warning(f"[PORTFOLIO] Portfolio snapshot stale ({age_seconds / 3600:.0f}h old)")
+        except (ValueError, TypeError):
+            logger.debug("[PORTFOLIO] Could not parse data_age_seconds")
 
-    snap_s = f"  [dim]{fmt_age(snap)}[/]{stale_warning}" if snap is not None else ""
+    if age_display is None and snap is not None:
+        # Fallback for responses that omit data_age_seconds - less precise (midnight-relative)
+        # but still better than showing no age at all.
+        age_display = fmt_age(snap)
+
+    snap_s = f"  [dim]{age_display}[/]{stale_warning}" if age_display else ""
     # Header: portfolio value + age
     header = Text.from_markup(f"[bold white]{fmt_money(pv)}[/]{snap_s}")
 

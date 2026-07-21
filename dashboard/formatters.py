@@ -41,6 +41,21 @@ def fmt_age(ts: Any) -> str:
     return _age_formatter.format(ts)
 
 
+def fmt_age_seconds(seconds: float) -> str:
+    """Format a pre-computed age in seconds as an age string: '5m ago', '2h10m ago', '3d ago'.
+
+    Use this over fmt_age() when the caller already has an accurate elapsed-seconds value
+    (e.g. server-computed from a real write timestamp) rather than a raw timestamp to diff
+    against "now" - avoids re-deriving age from a coarser source (like a DATE-only column).
+    """
+    m = max(int(seconds / 60), 0)
+    if m < 60:
+        return f"{m}m ago"
+    if m < 1440:
+        return f"{m // 60}h{m % 60:02d}m ago"
+    return f"{m // 1440}d ago"
+
+
 def fmt_money(v: Any) -> str:
     """Format value as currency: $1.23, $12.34K, $1.23M."""
     return _money_formatter.format(v)
