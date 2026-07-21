@@ -331,6 +331,26 @@ def _get_algo_positions(cur: cursor, user_id: str | None = None) -> Any:  # noqa
             d["ladder_unavailable"] = True
             d["ladder_unavailable_reason"] = error_msg
 
+        # distance_to_stop_pct / distance_to_t1_pct: how far (in %) the current price is
+        # from the stop / first profit target. Distinct from ladder_pct_* above (a 0-100
+        # normalized position across the full stop-to-target range) - these are simple,
+        # direct risk-distance metrics the CLI dashboard panel (dashboard/panels/positions.py)
+        # has always expected under these exact field names, but nothing ever produced them
+        # (no such DB column, no prior computation here) - the "Dist%"/"T1->" columns on the
+        # live TUI dashboard have always rendered blank. entry/cur_price are already validated
+        # non-None above; stop/t1 are optional per-position (not every position has both set).
+        try:
+            d["distance_to_stop_pct"] = (
+                round((cur_price - float(stop_raw)) / cur_price * 100, 2) if stop_raw is not None else None
+            )
+            d["distance_to_t1_pct"] = (
+                round((float(t1_raw) - cur_price) / cur_price * 100, 2) if t1_raw is not None else None
+            )
+        except (ValueError, TypeError, ZeroDivisionError) as e:
+            logger.warning(f"[POSITION DATA QUALITY] {symbol}: distance-to-stop/t1 calculation failed: {e}")
+            d["distance_to_stop_pct"] = None
+            d["distance_to_t1_pct"] = None
+
         # Enrich with technical scores (weinstein_stage/minervini_trend_score live only in
         # trend_template_data, never on algo_positions itself)
         if d.get("weinstein_stage") is None and symbol in technical_map:
