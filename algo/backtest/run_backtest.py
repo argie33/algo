@@ -182,7 +182,19 @@ def run_backtest(  # noqa: C901
     position_size_pct: float = 10.0,
     strategy_name: str = "composite_score_signals",
 ) -> dict[str, Any]:
-    """Run backtest and return results dict."""
+    """Run backtest and return results dict.
+
+    KNOWN SIMPLIFICATION - no intraday data: _get_prices_batch() only fetches `close` from
+    price_daily, so a stop-loss or profit-target exit is priced as if filled at exactly the
+    theoretical stop/target level (entry_price * (1 +/- pct/100)), never at a worse price on a
+    day the close gapped through that level (e.g. an overnight gap-down past the stop). Real
+    stop-loss orders are typically stop-market, which fill at the actual (worse) price on a
+    gap-through day, not the trigger price - so this systematically slightly overstates
+    backtested performance during volatile/gapping periods relative to live execution. This is
+    an inherent limitation of daily-bar-only backtesting (no code fix possible without loading
+    intraday price data), not a calculation bug - noted here so backtest results aren't read as
+    more precise than the underlying data supports.
+    """
     # CRITICAL: Validate initial capital is positive (required for all P&L calculations)
     if initial_capital is None or initial_capital <= 0:
         raise ValueError(
