@@ -384,12 +384,19 @@ def panel_trades_expanded(trades: Any) -> Any:
     total = len(displayed_trades)
     truncation_indicator = f" [dim](showing {total} of {total_all})[/]" if total_all > display_limit else ""
 
-    # Count wins: only trades with profit_loss_pct data
+    # Count wins/losses: only trades with profit_loss_pct data. `losses = total - wins` (previous
+    # code) silently counted breakeven trades and trades with missing profit_loss_pct as losses,
+    # inflating the displayed "L" count and diluting win rate (wins/total instead of
+    # wins/(wins+losses)) - same class of bug already fixed in LivePerformance.win_rate()
+    # (algo/reporting/performance.py) and MetricsCalculator.calculate_win_rate.
     wins = sum(
         1 for t in displayed_trades if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) > 0
     )
-    losses = total - wins
-    wr = wins / total * 100 if total else None
+    losses = sum(
+        1 for t in displayed_trades if (pnl := safe_get_field(t, "profit_loss_pct")) is not None and float(pnl) < 0
+    )
+    decisive = wins + losses
+    wr = wins / decisive * 100 if decisive else None
     # Sum P&L only from trades with profit_loss_dollars data
     total_pnl = sum(
         float(pnl_d) for t in displayed_trades if (pnl_d := safe_get_field(t, "profit_loss_dollars")) is not None

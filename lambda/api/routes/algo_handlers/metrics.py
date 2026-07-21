@@ -311,8 +311,12 @@ def _get_algo_performance(cur: cursor) -> Any:  # noqa: C901
                 if open_losses_count > 0 and wr is not None:
                     win_count = winning if winning is not None else 0
                     lose_count = losing if losing is not None else 0
-                    break_count = breakeven if breakeven is not None else 0
-                    total_adj = win_count + lose_count + open_losses_count + break_count
+                    # Decisive trades only - breakeven trades excluded from the denominator,
+                    # same convention as win_rate_pct_live above (winning/win_loss_total).
+                    # Including them here (previous code: + break_count) would have diluted
+                    # this "adjusted" win rate the same way LivePerformance.win_rate() and
+                    # MetricsCalculator.calculate_win_rate did before those were fixed.
+                    total_adj = win_count + lose_count + open_losses_count
                     # Adjusted win rate with open losses: (win_count / total_adj * 100)
                     # Currently unused; computed for future analytics panel enhancement
                     _ = round((win_count / total_adj * 100) if total_adj > 0 else wr, 1)
