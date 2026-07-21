@@ -24,7 +24,7 @@ import psycopg2
 # load_market_health_daily.py -> load_market_status_daily.py). Those stale entries
 # checked tables that no longer exist or are no longer written, producing false
 # CRITICAL/STALE noise on every run regardless of real system health.
-LOADERS = {
+LOADERS: dict[str, dict[str, Any]] = {
     "load_prices.py": {
         "output_table": "price_daily",
         "date_column": "date",
@@ -185,6 +185,35 @@ LOADERS = {
         "note": "Consolidated loader: writes FRED + DXY to economic_data",
     },
 }
+
+# Guard against this file's output_table entries silently drifting from reality
+# again (the exact bug this whole LOADERS dict was rebuilt to fix - see comment
+# above). loaders/loader_registry.py is the single shared source of truth,
+# independently cross-referenced from scripts/audit_all_loaders.py and
+# scripts/refresh_stale_loaders.py too; failing loudly here at import time means
+# a future loader rename/consolidation that updates the registry but not this
+# file's per-entry thresholds gets caught immediately instead of silently
+# producing false health signals again.
+def _validate_against_registry() -> None:
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from loaders.loader_registry import all_tables
+
+    for loader_name, cfg in LOADERS.items():
+        registry_tables = all_tables(loader_name)
+        if not registry_tables:
+            continue  # Not in the registry (e.g. the market_exposure_daily pseudo-entry lives there too, so this only skips genuinely unknown names)
+        if cfg["output_table"] not in registry_tables:
+            raise AssertionError(
+                f"[LOADERS] {loader_name}'s output_table={cfg['output_table']!r} not in "
+                f"loaders/loader_registry.py's known tables {registry_tables} - one of these "
+                f"two mappings has drifted from the other, fix before trusting this script's output."
+            )
+
+
+_validate_against_registry()
 
 
 def verify_loader(conn: Any, loader_name: str, config: dict) -> dict[str, Any]:

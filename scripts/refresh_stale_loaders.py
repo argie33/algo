@@ -48,6 +48,33 @@ LOADERS_TO_REFRESH = [
     ('loaders/load_sec_valuations.py', 'sec_valuations', 2, 3),
 ]
 
+
+def _validate_against_registry() -> None:
+    """Fail loudly if this list drifts from loaders/loader_registry.py again.
+
+    Same guard as scripts/verify_loaders_health.py - see that module for why:
+    this exact list independently accumulated the same wrong-table/dead-loader
+    drift the registry was built to eliminate, so both check against it rather
+    than trusting hand-maintained entries indefinitely.
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from loaders.loader_registry import all_tables
+
+    for loader_path, table_name, _priority, _threshold_days in LOADERS_TO_REFRESH:
+        loader_name = Path(loader_path).name
+        registry_tables = all_tables(loader_name)
+        if not registry_tables:
+            continue
+        if table_name not in registry_tables:
+            raise AssertionError(
+                f"[LOADERS_TO_REFRESH] {loader_name}'s configured table={table_name!r} not in "
+                f"loaders/loader_registry.py's known tables {registry_tables} - fix before trusting "
+                f"this script's refresh decisions."
+            )
+
+
+_validate_against_registry()
+
 def get_data_age(table_name: str) -> dict:
     """Get table data age from database."""
     conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')

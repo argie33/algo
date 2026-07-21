@@ -21,10 +21,13 @@ from pathlib import Path
 
 import psycopg2
 
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+from loaders.loader_registry import LOADER_TABLES  # noqa: E402
+
 logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).parent.parent
 LOADERS_DIR = PROJECT_ROOT / 'loaders'
 
 def load_module_from_file(file_path):
@@ -53,46 +56,14 @@ def check_loader_imports(loader_file):
 def get_loader_table_mapping():
     """Map loader files to their output tables.
 
-    Kept in sync with the active loader list in scripts/local_loader_scheduler.py
-    (see scripts/verify_loaders_health.py for the same reconciliation, done first).
-    Previous version pointed load_earnings_calendar_sec.py at 'earnings_history' -
-    a different, permanently-empty (0 rows) legacy table - instead of the table the
-    loader actually writes to ('earnings_calendar_sec', 353k rows, updated daily).
-    That misdirection made a healthy loader report as EMPTY/critical while the table
-    it really populates was never checked at all. Also referenced load_growth_metrics.py
-    and load_market_health_daily.py, neither of which exists as a file anymore (renamed/
-    dead since Session 275) - those entries were silently unreachable since this script
-    iterates real files in loaders/, so they never fired, but a dozen real active loaders
-    (SEC filings, sentiment, positioning, etc.) had no mapping entry at all and were
-    silently skipped with "[?] No table mapping found".
+    Sourced from loaders/loader_registry.py, the single shared mapping extracted
+    after this exact same hand-maintained-copy-drifts-from-reality bug was found
+    and fixed independently in this script, scripts/verify_loaders_health.py, and
+    scripts/refresh_stale_loaders.py - see that module's docstring for the full
+    history (wrong table for load_earnings_calendar_sec.py, dead loader-file
+    references, missing entries for a dozen active loaders).
     """
-    return {
-        'load_prices.py': ['price_daily', 'price_weekly', 'price_monthly', 'etf_price_daily', 'etf_price_weekly', 'etf_price_monthly'],
-        'load_technical_indicators.py': ['technical_data_daily'],
-        'load_trend_analysis.py': ['trend_template_data'],
-        'load_market_status_daily.py': ['market_sentiment'],
-        'load_naaim.py': ['naaim'],
-        'load_aaii_sentiment.py': ['aaii_sentiment'],
-        'load_short_interest_finra.py': ['short_interest_finra'],
-        'load_company_info_sec.py': ['company_info_sec'],
-        'load_earnings_calendar_sec.py': ['earnings_calendar_sec'],
-        'load_market_constituents.py': ['stock_symbols', 'etf_symbols'],
-        'load_financial_statements.py': ['annual_income_statement', 'annual_balance_sheet'],
-        'load_sec_valuations.py': ['sec_valuations'],
-        'load_sec_cash_flow_metrics.py': ['sec_cash_flow_metrics'],
-        'load_institutional_holdings_13f.py': ['institutional_holdings_13f'],
-        'load_insider_holdings_sec.py': ['insider_holdings_sec'],
-        'load_positioning_metrics.py': ['positioning_metrics'],
-        'load_value_quality_growth_metrics.py': ['growth_metrics', 'quality_metrics', 'value_metrics'],
-        'load_risk_metrics_daily.py': ['momentum_metrics', 'stability_metrics'],
-        'load_stock_scores.py': ['stock_scores'],
-        'load_buy_sell_daily.py': ['buy_sell_daily'],
-        'load_signal_quality_scores.py': ['signal_quality_scores'],
-        'load_algo_metrics_daily.py': ['algo_metrics_daily'],
-        'load_sector_industry_daily.py': ['sector_ranking', 'industry_ranking', 'sector_performance'],
-        'load_market_exposure_daily.py': ['market_exposure_daily'],
-        'load_economic_data.py': ['economic_data'],
-    }
+    return dict(LOADER_TABLES)
 
 def check_table_exists(table_name):
     """Check if table exists in database."""
