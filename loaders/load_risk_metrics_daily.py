@@ -362,8 +362,15 @@ class RiskMetricsLoader(OptimalLoader):
         if not returns or len(returns) < 2:
             return None
 
+        # Sample variance (Bessel's correction, N-1), not population variance (N): this is
+        # a sample of returns used to estimate the population's true volatility, and N-1 is
+        # the standard unbiased estimator convention for financial volatility - matches
+        # _get_beta_from_db's np.var(..., ddof=1)/np.cov() a few lines below in this same
+        # file. N alone systematically understates volatility (~1.7% low at the 30-day
+        # minimum window this is normally called with, i.e. sqrt(30/29)), the same direction
+        # of error as computing risk too optimistically.
         mean_return = sum(returns) / len(returns)
-        variance = sum((r - mean_return) ** 2 for r in returns) / len(returns)
+        variance = sum((r - mean_return) ** 2 for r in returns) / (len(returns) - 1)
         daily_std = math.sqrt(variance)
         return daily_std * math.sqrt(252)
 
