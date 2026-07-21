@@ -579,19 +579,39 @@ def _update_daily_metrics(run_date: _date, log_phase_result_fn: Callable[..., An
     try:
         row_data = None
         with DatabaseContext("read") as cur:
+            # CRITICAL: entries/exits used to be counted via algo_audit_log.action_type =
+            # 'BUY'/'SELL' - those literal values are never written anywhere in this codebase
+            # (confirmed live: 0 rows, ever, out of the whole table's history; real trade
+            # actions log under names like 'phase_8_entry_execution'/'exit_stop'), so this
+            # column pair has been silently 0 since the table's inception regardless of real
+            # trading activity - the health panel has displayed "0 entries, 0 exits" every
+            # day even on days with dozens of real trades. Count from algo_trades directly
+            # instead (same source dashboard/panels/health.py's phase 6/8 rows already use).
             cur.execute(
                 """
                 SELECT
                     COUNT(*) as total_actions,
-                    SUM(CASE WHEN action_type = 'BUY' THEN 1 ELSE 0 END) as entries,
-                    SUM(CASE WHEN action_type = 'SELL' THEN 1 ELSE 0 END) as exits,
                     AVG(CAST(details->>'score' AS FLOAT)) as avg_signal_score
                 FROM algo_audit_log
                 WHERE DATE(created_at) = %s
             """,
                 (run_date,),
             )
-            row_data = cur.fetchone()
+            audit_row = cur.fetchone()
+
+            cur.execute(
+                """
+                SELECT
+                    COUNT(*) FILTER (WHERE entry_date = %s) as entries,
+                    COUNT(*) FILTER (WHERE exit_date = %s) as exits
+                FROM algo_trades
+            """,
+                (run_date, run_date),
+            )
+            trade_row = cur.fetchone()
+            row_data = (
+                (audit_row[0], trade_row[0], trade_row[1], audit_row[1]) if audit_row and trade_row else None
+            )
 
         if row_data:
             total_actions, entries, exits, avg_score = row_data
