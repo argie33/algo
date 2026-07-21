@@ -21,7 +21,7 @@ US_HOLIDAYS = {
     _date(2025, 1, 1): "New Year's Day",
     _date(2025, 1, 20): "MLK Jr. Day",
     _date(2025, 2, 17): "Presidents' Day",
-    _date(2025, 3, 28): "Good Friday",
+    _date(2025, 4, 18): "Good Friday",
     _date(2025, 5, 26): "Memorial Day",
     _date(2025, 6, 19): "Juneteenth",
     _date(2025, 7, 4): "Independence Day",
@@ -32,7 +32,7 @@ US_HOLIDAYS = {
     _date(2026, 1, 1): "New Year's Day",
     _date(2026, 1, 19): "MLK Jr. Day",
     _date(2026, 2, 16): "Presidents' Day",
-    _date(2026, 4, 10): "Good Friday",
+    _date(2026, 4, 3): "Good Friday",
     _date(2026, 5, 25): "Memorial Day",
     _date(2026, 6, 19): "Juneteenth",
     _date(2026, 7, 3): "Independence Day (observed)",
@@ -43,7 +43,7 @@ US_HOLIDAYS = {
     _date(2027, 1, 1): "New Year's Day",
     _date(2027, 1, 18): "MLK Jr. Day",
     _date(2027, 2, 15): "Presidents' Day",
-    _date(2027, 4, 2): "Good Friday",
+    _date(2027, 3, 26): "Good Friday",
     _date(2027, 5, 31): "Memorial Day",
     _date(2027, 6, 18): "Juneteenth (observed)",  # Jun 19 is Saturday
     _date(2027, 7, 5): "Independence Day (observed)",  # Jul 4 is Sunday
