@@ -434,6 +434,39 @@ class ExitHandler:
             position_status,
         )
 
+    # Ordered (checked top-down) prefix match against exit_engine.py's actual reason strings
+    # (see exit_engine.py's "reason" fields - these are the only exit_reason values this
+    # system's exit logic ever produces). Bucketed into stable rule names for
+    # algo_exit_rules_distribution, which stores a free-text exit_reason column alongside
+    # this categorical one specifically so the dashboard can group "how did positions exit"
+    # without doing text matching downstream.
+    _EXIT_RULE_PATTERNS: tuple[tuple[str, str], ...] = (
+        ("STOP hit", "stop_loss"),
+        ("Minervini trend break", "trend_break"),
+        ("RS line broke", "relative_strength_break"),
+        ("TIME exit", "time_exit"),
+        ("T1 exit", "profit_target_t1"),
+        ("T2 exit", "profit_target_t2"),
+        ("T3 target hit", "profit_target_t3"),
+        ("Chandelier", "trailing_stop"),
+        ("TD Combo", "td_exhaustion"),
+        ("TD Sequential", "td_exhaustion"),
+        ("First Red Day", "first_red_day"),
+        ("Climax run exhaustion", "climax_exhaustion"),
+        ("Market distribution", "distribution_days"),
+        ("Minimum holding period", "min_holding_period"),
+    )
+
+    @classmethod
+    def _classify_exit_rule(cls, exit_reason: str) -> str:
+        """Bucket a free-text exit_reason into a stable exit_rule category. Falls back to
+        "other" for reasons that don't match a known pattern (e.g. manual/API-triggered
+        exits) rather than guessing - "other" is itself informative in the distribution."""
+        for prefix, rule in cls._EXIT_RULE_PATTERNS:
+            if prefix in exit_reason:
+                return rule
+        return "other"
+
     def _calculate_exit_shares(self, current_qty: float, exit_fraction: float) -> tuple[float, bool]:
         """Calculate number of shares to exit with proper rounding.
 
@@ -735,8 +768,37 @@ class ExitHandler:
                         trade_id,
                     ),
                 )
-            if cur.rowcount != 1:
-                raise DatabaseError(f"Trade update failed: expected 1 row updated, got {cur.rowcount}")
+            trade_update_rowcount = cur.rowcount
+            if trade_update_rowcount != 1:
+                raise DatabaseError(f"Trade update failed: expected 1 row updated, got {trade_update_rowcount}")
+
+            if not is_estimated_price:
+                # algo_exit_rules_distribution's schema was added by migration but never
+                # written to - it sat permanently empty, which made
+                # lambda/api/routes/risk_dashboard.py's comprehensive risk dashboard 503
+                # unconditionally (raises when the table has zero rows). Only recorded here
+                # (real-fill P&L branch), not the estimated-price branch above, matching
+                # this table's consumer expecting real, reconciled P&L - not a placeholder
+                # pending fill-price confirmation. Part of the same transaction as the
+                # algo_trades update above: a failure here rolls back the whole exit, same
+                # as this function's other transaction-safety guarantees.
+                cur.execute(
+                    """INSERT INTO algo_exit_rules_distribution (
+                        symbol, position_id, exit_rule, exit_reason,
+                        entry_price, exit_price, pnl_dollars, pnl_pct, r_multiple
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        symbol,
+                        position_id if position_id is not None else str(trade_id),
+                        self._classify_exit_rule(exit_reason),
+                        exit_reason,
+                        float(entry_price),
+                        final_exit_price,
+                        pnl_dollars,
+                        pnl_pct,
+                        r_multiple,
+                    ),
+                )
         else:
             cur.execute(
                 """UPDATE algo_trades
