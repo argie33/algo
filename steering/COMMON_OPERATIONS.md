@@ -521,7 +521,7 @@ See [OPERATIONS.md](OPERATIONS.md) for full deployment details.
 |-------|-------|
 | Database/AWS setup | [QUICKSTART_LOCAL.md](../QUICKSTART_LOCAL.md) (local DB) / [GOVERNANCE.md](GOVERNANCE.md#credentials--deployment) (AWS) |
 | Data flow & loader issues | [DATA_LOADERS.md](DATA_LOADERS.md) |
-| Code quality | [LINT_POLICY.md](LINT_POLICY.md) |
+| Code quality | `LINT_POLICY.md` does not exist (dead link, found 2026-07-21) - see `make lint`/`make type-check` in the `Makefile` and [GOVERNANCE.md](GOVERNANCE.md)'s "Code Cleanliness" section |
 | Architecture questions | [GOVERNANCE.md](GOVERNANCE.md) |
 | Configuration & monitoring | [OPERATIONS.md](OPERATIONS.md) |
 | Deployment | [OPERATIONS.md](OPERATIONS.md) |

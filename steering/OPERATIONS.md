@@ -447,6 +447,6 @@ UPDATE algo_config SET value = '-20' WHERE key = 'halt_drawdown_pct';
 
 See:
 - `steering/GOVERNANCE.md` — Architecture, safety rules, system map, fail-fast principles
-- `steering/LINT_POLICY.md` — Code quality, pre-commit enforcement
+- `steering/LINT_POLICY.md` does not exist (dead link, found 2026-07-21). Code quality/pre-commit enforcement is `make lint`/`make type-check`/`make ci-local` (see `Makefile`) plus the pre-commit hooks described in `steering/GOVERNANCE.md`'s "Code Cleanliness" section - no separate lint-policy doc or automated weekly audit currently exists despite being referenced from here and `GOVERNANCE.md`/`COMMON_OPERATIONS.md`
 - `steering/DATA_LOADERS.md` — Loader orchestration, batch sizing, freshness thresholds
 - `steering/DATABASE_AND_ENVIRONMENTS.md` does not exist (dead link, found 2026-07-20). For database setup see `QUICKSTART_LOCAL.md`; for AWS credentials see `steering/GOVERNANCE.md`'s "Credentials & Deployment" section
