@@ -765,7 +765,7 @@ class CircuitBreaker:
 
                 # Accept data from current trading day OR previous trading day
                 min_acceptable_date = prev_trading_day
-                is_acceptable_age = (data_date >= min_acceptable_date)
+                is_acceptable_age = data_date >= min_acceptable_date
             else:
                 # Today is weekend/holiday: find most recent trading day and require that date
                 most_recent_trading_day = current_date - timedelta(days=1)
@@ -775,7 +775,7 @@ class CircuitBreaker:
                     most_recent_trading_day -= timedelta(days=1)
 
                 min_acceptable_date = most_recent_trading_day
-                is_acceptable_age = (data_date >= min_acceptable_date)
+                is_acceptable_age = data_date >= min_acceptable_date
 
             if not is_acceptable_age:
                 calendar_age = (current_date - data_date).days
@@ -871,7 +871,13 @@ class CircuitBreaker:
         if row is None:
             return None, "unknown", "Market health data missing - fail-closed"
 
-        data_date, market_stage_val, market_trend_val, data_unavailable_flag, reason_msg = row[0], row[1], row[2], row[3], row[4]
+        data_date, market_stage_val, market_trend_val, data_unavailable_flag, reason_msg = (
+            row[0],
+            row[1],
+            row[2],
+            row[3],
+            row[4],
+        )
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using any data from this row
         if data_unavailable_flag is True:
@@ -974,12 +980,12 @@ class CircuitBreaker:
             "SELECT date, data_unavailable, data_unavailable_reason FROM price_daily WHERE symbol = 'SPY' ORDER BY date DESC LIMIT 1"
         )
         row = cur.fetchone()
-        if row is None or len(row) < 1 or row[0] is None:
-            return {"halted": True, "reason": "No SPY data at all"}
+        if row is None or len(row) != 3 or row[0] is None:
+            return {"halted": True, "reason": f"SPY data query malformed (expected 3 columns, got {len(row) if row else 0})"}
 
         latest = row[0]
-        data_unavailable_flag = row[1] if len(row) > 1 else False
-        reason_msg = row[2] if len(row) > 2 else None
+        data_unavailable_flag = bool(row[1]) if row[1] is not None else False
+        reason_msg = row[2] if row[2] is not None else None
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using price data
         if data_unavailable_flag is True:

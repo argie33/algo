@@ -84,10 +84,14 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                     # GOVERNANCE COMPLIANCE: Check data_unavailable flag for each price
                     for row in price_rows:
+                        if len(row) != 4:
+                            raise RuntimeError(
+                                f"[PHASE 3] Price query returned {len(row)} columns, expected 4. Schema drift detected."
+                            )
                         symbol = row[0]
                         close_price = row[1]
-                        data_unavailable_flag = row[2] if len(row) > 2 else False
-                        reason_msg = row[3] if len(row) > 3 else None
+                        data_unavailable_flag = bool(row[2]) if row[2] is not None else False
+                        reason_msg = row[3] if row[3] is not None else None
 
                         # FAIL-FAST: Cannot use prices marked unavailable for position monitoring
                         if data_unavailable_flag is True:
@@ -256,7 +260,9 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 try:
                     halt_check = meh.check_single_stock_halt(symbol)
                     if halt_check is None:
-                        logger.error(f"[PHASE 3 CRITICAL] {symbol}: halt check returned None - cannot verify if position is halted")
+                        logger.error(
+                            f"[PHASE 3 CRITICAL] {symbol}: halt check returned None - cannot verify if position is halted"
+                        )
                         halt_check_errors.append((symbol, "halt_check_returned_None"))
                     elif "error" in halt_check:
                         error_reason = halt_check.get("reason", "unknown")
@@ -383,9 +389,7 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 "Check algo_config table has this key."
             ) from e
         if config["is_paper_trading"]:
-            logger.error(
-                f"[PHASE 3 PAPER MODE] Position monitor crashed - cannot proceed: {type(e).__name__}: {e}"
-            )
+            logger.error(f"[PHASE 3 PAPER MODE] Position monitor crashed - cannot proceed: {type(e).__name__}: {e}")
             # Even in paper mode, if position monitor crashes, we must halt.
             # Can't safely trade without being able to monitor positions.
             return PhaseResult(

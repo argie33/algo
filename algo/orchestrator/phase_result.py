@@ -29,12 +29,19 @@ class PhaseResult:
         phase_number: int | str | None = None,
         is_error: bool | None = None,
     ) -> None:
-        """Initialize phase result, accepting both naming conventions."""
+        """Initialize phase result, accepting both naming conventions.
+
+        NOTE: is_error parameter is deprecated. Use halted= instead.
+        is_error and halted are SEMANTICALLY DISTINCT:
+        - is_error: an error occurred in phase execution
+        - halted: trading was halted (may occur with or without error)
+        The is_error parameter is IGNORED; only halted parameter affects behavior.
+        """
         self.phase_num = phase_num or phase_number
         self.phase_name = phase_name
         self.status = status
         self.data = data if data is not None else {}
-        self.halted = is_error if is_error is not None else halted
+        self.halted = halted
         self.error = error
         self.dependencies = dependencies if dependencies is not None else []
 

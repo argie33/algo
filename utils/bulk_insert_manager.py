@@ -66,9 +66,7 @@ class BulkInsertManager:
             if e.pgcode == "42P07":  # relation already exists
                 try:
                     cur.execute(
-                        psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(
-                            psycopg2.sql.Identifier(staging)
-                        )
+                        psycopg2.sql.SQL("DROP TABLE IF EXISTS {} CASCADE").format(psycopg2.sql.Identifier(staging))
                     )
                 except psycopg2.Error as drop_err:
                     logger.warning(f"Failed to drop staging table {staging}: {drop_err}")
@@ -142,14 +140,11 @@ class BulkInsertManager:
                     or c.endswith(("_unavailable", "_data_unavailable", "_unavailable_reason"))
                 ]
                 if marker_like:
-                    logger.error(
-                        "Loader %s: GOVERNANCE MARKER DROPPED - column(s) %s look like data_unavailable/reason "
-                        "markers but don't exist on the target table, so they were silently discarded instead "
-                        "of recording why this row is unavailable. Add the column(s) via migration (see "
-                        "steering/DATA_LOADERS.md for the pattern) - this is very likely a bug, not an "
-                        "intentionally optional field.",
-                        self.table_name,
-                        marker_like,
+                    raise RuntimeError(
+                        f"GOVERNANCE VIOLATION: Loader {self.table_name}: governance marker columns {marker_like} "
+                        f"do not exist on the target table. Cannot record data_unavailable flags for integrity tracking. "
+                        f"Add these columns via migration (see steering/DATA_LOADERS.md for the pattern). "
+                        f"Failing instead of silently dropping audit trail."
                     )
                 non_marker = [c for c in skipped if c not in marker_like]
                 if non_marker:

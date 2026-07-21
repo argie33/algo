@@ -373,15 +373,15 @@ class APIHandler(BaseHTTPRequestHandler):
 
             # Debug: Log actual response from lambda_function
             status = response.get("statusCode")
-            if status and status >= 400:
+            if status is not None and status >= 400:
                 logger.debug(f"[HANDLER_RESPONSE] {method} {path}: status={status}")
 
             # Parse response
             status_code = response.get("statusCode")
-            if status_code is None:
+            if status_code is None or not isinstance(status_code, int) or status_code <= 0 or status_code > 599:
                 raise RuntimeError(
-                    "[DEV_SERVER] Lambda handler returned response without statusCode. "
-                    "All responses must include explicit statusCode. "
+                    "[DEV_SERVER] Lambda handler returned invalid statusCode. "
+                    f"Expected integer 1-599, got {status_code!r} (type {type(status_code).__name__}). "
                     f"Response: {response}"
                 )
             response_body = response.get("body", "{}")

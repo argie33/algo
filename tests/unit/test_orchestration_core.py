@@ -145,13 +145,13 @@ class TestOrchestrationPhaseContract:
             phase_name="data_freshness",
             status="completed",
             data={"result": "success"},
-            is_error=False,
+            halted=False,
             error=None,
         )
 
         assert result.phase_number == 1
         assert result.status == "completed"
-        assert result.is_error is False
+        assert result.halted is False
 
     def test_phase_result_error_state(self):
         """Test that phase result correctly represents error state."""
@@ -162,11 +162,11 @@ class TestOrchestrationPhaseContract:
             phase_name="circuit_breaker",
             status="halted",
             data={},
-            is_error=True,
+            halted=True,
             error="Circuit breaker triggered",
         )
 
-        assert result.is_error is True
+        assert result.halted is True
         assert result.error == "Circuit breaker triggered"
 
     def test_phase_result_data_serializable(self):
@@ -180,7 +180,7 @@ class TestOrchestrationPhaseContract:
             phase_name="position_monitor",
             status="completed",
             data={"positions": 5, "margin": 10000},
-            is_error=False,
+            halted=False,
             error=None,
         )
 
@@ -200,11 +200,11 @@ class TestOrchestrationErrorPropagation:
         from algo.orchestrator.phase_result import PhaseResult
 
         error_result = PhaseResult(
-            phase_number=1, phase_name="data_freshness", status="halted", data={}, is_error=True, error="Data not fresh"
+            phase_number=1, phase_name="data_freshness", status="halted", data={}, halted=True, error="Data not fresh"
         )
 
         # Next phase should check this and not execute
-        should_execute_phase_2 = not error_result.is_error
+        should_execute_phase_2 = not error_result.halted
         assert should_execute_phase_2 is False
 
     def test_error_message_preserved(self):
@@ -213,7 +213,7 @@ class TestOrchestrationErrorPropagation:
 
         original_error = "Critical: Cannot connect to database"
         result = PhaseResult(
-            phase_number=1, phase_name="test", status="halted", data={}, is_error=True, error=original_error
+            phase_number=1, phase_name="test", status="halted", data={}, halted=True, error=original_error
         )
 
         assert result.error == original_error
@@ -247,11 +247,11 @@ class TestOrchestrationStateTransitions:
 
         # Phase 2 result
         phase2_result = PhaseResult(
-            phase_number=2, phase_name="circuit_breaker", status="completed", data={}, is_error=False, error=None
+            phase_number=2, phase_name="circuit_breaker", status="completed", data={}, halted=False, error=None
         )
 
         # Phase 3 should only execute if phase 2 succeeded
-        should_execute_phase3 = not phase2_result.is_error
+        should_execute_phase3 = not phase2_result.halted
         assert should_execute_phase3 is True
 
     def test_halt_prevents_all_subsequent_phases(self):
@@ -263,13 +263,13 @@ class TestOrchestrationStateTransitions:
             phase_name="position_monitor",
             status="halted",
             data={},
-            is_error=True,
+            halted=True,
             error="Position limits exceeded",
         )
 
         # All subsequent phases (4-9) should not execute
         for _phase_num in range(4, 10):
-            should_execute = not halt_phase.is_error
+            should_execute = not halt_phase.halted
             assert should_execute is False
 
 
@@ -329,7 +329,7 @@ class TestOrchestrationDataIntegrity:
         # Phase 1 output
         phase1_data = {"market_regime": "uptrend", "exposure_pct": 100}
         phase1_result = PhaseResult(
-            phase_number=1, phase_name="test", status="completed", data=phase1_data, is_error=False, error=None
+            phase_number=1, phase_name="test", status="completed", data=phase1_data, halted=False, error=None
         )
 
         # Phase 2 should receive this data
@@ -346,7 +346,7 @@ class TestOrchestrationDataIntegrity:
             phase_name="signal_generation",
             status="completed",
             data=bad_data,
-            is_error=False,
+            halted=False,
             error=None,
         )
 
@@ -366,12 +366,12 @@ class TestOrchestrationExitConditions:
             phase_name="circuit_breaker",
             status="halted",
             data={"level": 3, "pct_down": 20.5},
-            is_error=True,
+            halted=True,
             error="Circuit breaker L3 (20%+ down)",
         )
 
         assert halt_result.status == "halted"
-        assert halt_result.is_error is True
+        assert halt_result.halted is True
 
     def test_data_quality_halt_halts_orchestration(self):
         """Test that data quality issues halt orchestration."""
@@ -382,11 +382,11 @@ class TestOrchestrationExitConditions:
             phase_name="data_freshness",
             status="halted",
             data={},
-            is_error=True,
+            halted=True,
             error="No fresh data available",
         )
 
-        assert halt_result.is_error is True
+        assert halt_result.halted is True
 
     def test_position_limit_halt_prevents_entries(self):
         """Test that position limits halt new entries."""
@@ -397,11 +397,11 @@ class TestOrchestrationExitConditions:
             phase_name="position_monitor",
             status="halted",
             data={"positions": 15},
-            is_error=True,
+            halted=True,
             error="Max positions (15) reached",
         )
 
-        assert halt_result.is_error is True
+        assert halt_result.halted is True
 
 
 class TestOrchestrationLogging:
@@ -423,7 +423,7 @@ class TestOrchestrationLogging:
         """Test that phase results are timestamped."""
         from algo.orchestrator.phase_result import PhaseResult
 
-        result = PhaseResult(phase_number=1, phase_name="test", status="completed", data={}, is_error=False, error=None)
+        result = PhaseResult(phase_number=1, phase_name="test", status="completed", data={}, halted=False, error=None)
 
         # Should have timestamp or created_at
         assert hasattr(result, "timestamp") or hasattr(result, "created_at") or True
@@ -441,7 +441,7 @@ class TestOrchestrationRecovery:
             phase_name="exposure_policy",
             status="failed",
             data={},
-            is_error=True,
+            halted=True,
             error="Transient DB error",
         )
 
@@ -457,12 +457,12 @@ class TestOrchestrationRecovery:
             phase_name="signal_generation",
             status="halted",
             data={},
-            is_error=True,
+            halted=True,
             error="Data validation failed (no buy_sell_daily signals)",
         )
 
         # Should not retry on data validation errors
-        assert permanent_error.is_error is True
+        assert permanent_error.halted is True
 
 
 class TestSkippedPhasesReachAuditTrail:

@@ -960,22 +960,27 @@ class PositionMonitor:
 
         cur.execute(
             """
-            SELECT MAX(close), data_unavailable, data_unavailable_reason FROM price_daily
+            SELECT MAX(close), bool_or(data_unavailable), MAX(data_unavailable_reason)
+            FROM price_daily
             WHERE symbol = %s AND date >= %s AND date <= %s
-            GROUP BY data_unavailable, data_unavailable_reason
-            ORDER BY data_unavailable ASC LIMIT 1
+            AND close IS NOT NULL
             """,
             (symbol, trade_date, current_date),
         )
         row = cur.fetchone()
-        if row is None or len(row) < 1 or row[0] is None:
+        if row is None or len(row) != 3:
+            raise PositionValidationError(
+                f"[VALIDATION] Price query returned malformed result for {symbol} (expected 3 columns, got {len(row) if row else 0}). Schema drift detected."
+            )
+        if row[0] is None:
             raise PositionValidationError(
                 f"No price data available for {symbol} from {trade_date} to {current_date}. Cannot calculate peak unrealized gain."
             )
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using prices
-        data_unavailable_flag = row[1] if len(row) > 1 else False
-        reason_msg = row[2] if len(row) > 2 else None
+        max_close = float(row[0])
+        data_unavailable_flag = bool(row[1]) if row[1] is not None else False
+        reason_msg = row[2] if row[2] is not None else None
         if data_unavailable_flag is True:
             raise PositionValidationError(
                 f"Price data marked unavailable for {symbol}: {reason_msg or 'no reason provided'}. "
@@ -1069,10 +1074,14 @@ class PositionMonitor:
             raise ValueError(
                 f"Market distribution days not available for {current_date} - market_exposure_daily table missing or empty"
             )
+        if len(row) != 3:
+            raise ValueError(
+                f"[VALIDATION] Market exposure query returned {len(row)} columns, expected 3. Schema drift detected."
+            )
 
         # GOVERNANCE COMPLIANCE: Check data_unavailable flag before using distribution days
-        data_unavailable_flag = row[1] if len(row) > 1 else False
-        reason_msg = row[2] if len(row) > 2 else None
+        data_unavailable_flag = bool(row[1]) if row[1] is not None else False
+        reason_msg = row[2] if row[2] is not None else None
         if data_unavailable_flag is True:
             raise ValueError(
                 f"Market exposure data marked unavailable for {current_date}: {reason_msg or 'no reason provided'}. "
