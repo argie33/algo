@@ -5,7 +5,7 @@ from datetime import datetime
 
 from utils.db import DatabaseContext
 
-demo_positions = [
+demo_positions: list[dict[str, str | float]] = [
     {"symbol": "AAPL", "quantity": 100, "avg_entry_price": 150.0, "current_price": 185.0},
     {"symbol": "MSFT", "quantity": 50, "avg_entry_price": 380.0, "current_price": 420.0},
     {"symbol": "TSLA", "quantity": 25, "avg_entry_price": 250.0, "current_price": 280.0},
@@ -21,10 +21,13 @@ try:
 
         # Insert new demo positions
         for i, pos in enumerate(demo_positions, 1):
+            quantity = float(pos["quantity"])
+            avg_entry_price = float(pos["avg_entry_price"])
+            current_price = float(pos["current_price"])
             position_id = f"DEMO_{i}_{pos['symbol']}"
-            position_value = pos["quantity"] * pos["current_price"]
-            unrealized_pnl = position_value - (pos["quantity"] * pos["avg_entry_price"])
-            unrealized_pnl_pct = (unrealized_pnl / (pos["quantity"] * pos["avg_entry_price"])) * 100
+            position_value = quantity * current_price
+            unrealized_pnl = position_value - (quantity * avg_entry_price)
+            unrealized_pnl_pct = (unrealized_pnl / (quantity * avg_entry_price)) * 100
 
             cur.execute(
                 """INSERT INTO algo_positions
@@ -32,8 +35,8 @@ try:
                     position_value, unrealized_pnl, unrealized_pnl_pct, status,
                     entry_date, created_at, updated_at)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-                (position_id, pos["symbol"], pos["quantity"], pos["avg_entry_price"],
-                 pos["current_price"], position_value, unrealized_pnl, unrealized_pnl_pct,
+                (position_id, pos["symbol"], quantity, avg_entry_price,
+                 current_price, position_value, unrealized_pnl, unrealized_pnl_pct,
                  "open", datetime.now().date(), datetime.now(), datetime.now()),
             )
         print(f"Created {len(demo_positions)} demo positions")

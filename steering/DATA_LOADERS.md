@@ -358,6 +358,45 @@ the normal `terraform plan`/`apply` + CI flow before trusting it in production.
 
 ---
 
+## GAP (documented, not fixed) 2026-07-21: analyst_upgrade_downgrade / analyst_sentiment_analysis has no live writer
+
+Continuation of the loader-review goal (factor-input completeness audit). `analyst_upgrade_downgrade`
+(consumed by `algo/signals/advanced_filters.py::_analyst_score()` as the "catalyst" subscore's analyst
+input) and `analyst_sentiment_analysis` (consumed by `lambda/api/routes/sentiment.py`'s
+`/api/sentiment/analyst/*` endpoints) have **zero writers anywhere in the current codebase** - their
+only historical writer, `load_yfinance_snapshot.py`, was deleted in Session 275 alongside the rest of
+the yfinance-snapshot deprecation (see the "Session 275+" note near the top of this doc) and never
+replaced. Confirmed live against the local DB: `analyst_upgrade_downgrade` is frozen at 50 rows, all
+dated 2026-05-22 (the loader's last run before deletion) - not zero rows, just permanently stale and
+covering a tiny fraction of the universe.
+
+**This does NOT crash** (worth stating precisely, since it initially looked like it might):
+`_analyst_score()`'s query is a bare `COUNT(*) FILTER (...)` aggregate with no `GROUP BY`, which always
+returns exactly one row with integer counts (0, not NULL, when nothing matches) - so its two
+`row is None` / `row[0] is None` guard clauses are unreachable dead code, not a live crash path. The
+real effect is quieter and arguably worse per this codebase's own governance principle ("explicit
+`data_unavailable` flags, no silent fallbacks"): for the ~99.99% of symbols with zero rows in the
+table, this silently computes `net=0` ("no upgrades or downgrades") indistinguishably from a symbol
+that genuinely has zero recent analyst activity - there is no signal anywhere that this input is
+running on a 2-month-stale, 50-symbol residual table with no active data source, not real current
+analyst sentiment.
+
+**Same architectural class as `institutional_holdings_13f` and `sec_segment_metrics` above**: fixing
+it for real needs a live analyst-ratings data source (SEC/EDGAR doesn't publish analyst
+ratings/upgrades - this is proprietary data, typically a paid feed), not a code fix. Correctly modeled
+as `AUXILIARY_DATA`/`AUXILIARY_INCOMPLETE_LOADERS` in `utils/data_tiers.py` /
+`algo/orchestrator/phase1_failsafe_retry.py` (degrade gracefully, don't block trading, don't retry) -
+that part of the design is right and not being questioned here. What's missing is any staleness/
+coverage signal for this specific input, and this doc simply didn't record the gap. Not fixed in this
+pass (would need a product decision on a paid data source, or on how "insufficient analyst coverage"
+should propagate through the composite catalyst score - a bigger design call than a drive-by patch).
+`lambda/api/routes/algo_handlers/market.py`, `utils/loaders/sla_monitor.py`, and
+`terraform/modules/monitoring/loader-monitoring.tf` also reference this table name for
+priority/SLA config - none of that is wrong, it's just monitoring a data source that hasn't had a
+writer in ~2 months.
+
+---
+
 ## Pipelines (Step Functions, EventBridge Scheduler, America/New_York)
 
 **Morning (2:00 AM):** prices (1d, FAIL-CLOSED) → market health ∥ trend template →
