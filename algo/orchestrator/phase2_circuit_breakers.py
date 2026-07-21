@@ -43,6 +43,19 @@ def run(
         cb = CircuitBreaker(config)
         result = cb.check_all(run_date)
 
+        # Surface the per-check metrics the health dashboard (dashboard/panels/health.py,
+        # Phase 2 detail row) already expects under these exact keys - every PhaseResult(2,
+        # ...) below previously returned {} or a bare status/reason, so these values were
+        # computed here (visible in logs/CloudWatch) but never reached the dashboard, which
+        # silently rendered nothing for Drawdown/Daily Loss/VIX regardless of state.
+        checks = result.get("checks", {})
+        risk_snapshot = {
+            "drawdown_pct": checks.get("drawdown", {}).get("value"),
+            "daily_loss_pct": checks.get("daily_loss", {}).get("value"),
+            "vix_level": checks.get("vix_spike", {}).get("value"),
+            "any_triggered": result.get("halted", False),
+        }
+
         if verbose:
             for name, state in result["checks"].items():
                 flag = "[HALT]" if state.get("halted") else "[OK]  "
@@ -106,7 +119,7 @@ def run(
                     2,
                     "circuit_breakers",
                     "halted",
-                    {},
+                    risk_snapshot,
                     True,
                     f"Market circuit breaker L{halt_level}: {halt_reason}",
                 )
@@ -143,7 +156,7 @@ def run(
                     2,
                     "circuit_breakers",
                     "halted",
-                    {},
+                    risk_snapshot,
                     True,
                     "Circuit breaker halt: halt_reasons missing (data contract violation)",
                 )
@@ -170,13 +183,20 @@ def run(
                 2,
                 "circuit_breakers",
                 "halted",
-                {},
+                risk_snapshot,
                 True,
                 f"Halted: {'; '.join(halt_reasons)}",
             )
 
         log_phase_result_fn(2, "circuit_breakers", "success", "all clear")
-        return PhaseResult(2, "circuit_breakers", "ok", {"status": "ok", "reason": "all circuit breaker checks passed"}, False, None)
+        return PhaseResult(
+            2,
+            "circuit_breakers",
+            "ok",
+            {**risk_snapshot, "status": "ok", "reason": "all circuit breaker checks passed"},
+            False,
+            None,
+        )
 
     except Exception as e:
         error = PhaseError(

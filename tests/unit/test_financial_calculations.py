@@ -234,6 +234,36 @@ class TestPerformanceMetrics:
         win_rate = (wins / total) * 100 if total > 0 else 0
         assert win_rate == 60.0
 
+    def test_win_rate_excludes_breakeven_from_denominator(self, performance_calc):
+        """Regression: LivePerformance.win_rate() divided win_count by `total`
+        (COUNT(*) over the lookback window), which includes breakeven trades
+        (r_multiple == 0) and trades where r_multiple couldn't be computed (NULL).
+        Neither is a win or a loss, so including them in the denominator silently
+        deflated win_rate_pct relative to the CB9 circuit breaker's win-rate query
+        (utils/data_queries.py get_trade_win_loss_stats), which correctly divides by
+        decisive trades only (wins + losses). Same underlying trades should not
+        produce two different win rates depending which code path computed it.
+
+        10 trades: 5 wins, 2 losses, 3 breakeven/unclassifiable -> decisive = 7.
+        Correct win_rate_pct = 5/7*100 ~= 71.43, not 5/10*100 = 50.0.
+        """
+        from unittest.mock import MagicMock
+
+        total, win_count, loss_count = 10, 5, 2
+        mock_row = (total, win_count, loss_count, 2.5, -1.0, 3.0, -1.5)
+
+        mock_cur = MagicMock()
+        mock_cur.fetchone.return_value = mock_row
+        mock_ctx = MagicMock()
+        mock_ctx.__enter__.return_value = mock_cur
+
+        with patch("algo.reporting.performance.DatabaseContext", return_value=mock_ctx):
+            result = performance_calc.win_rate(lookback_trades=10)
+
+        assert result["win_count"] == 5
+        assert result["loss_count"] == 2
+        assert result["win_rate_pct"] == pytest.approx(5 / 7 * 100, abs=0.01)
+
     def test_expectancy_calculation(self):
         """Verify expectancy (E = WR x AvgWin - LR x AvgLoss)."""
         win_rate = 0.6

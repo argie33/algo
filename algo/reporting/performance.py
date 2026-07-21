@@ -127,11 +127,11 @@ class LivePerformance:
                     SELECT
                         COUNT(*) as total,
                         SUM(CASE WHEN r_multiple > 0 THEN 1 ELSE 0 END) as win_count,
-                        SUM(CASE WHEN r_multiple <= 0 THEN 1 ELSE 0 END) as loss_count,
+                        SUM(CASE WHEN r_multiple < 0 THEN 1 ELSE 0 END) as loss_count,
                         AVG(CASE WHEN r_multiple > 0 THEN r_multiple ELSE NULL END) as avg_win_r,
-                        AVG(CASE WHEN r_multiple <= 0 THEN r_multiple ELSE NULL END) as avg_loss_r,
+                        AVG(CASE WHEN r_multiple < 0 THEN r_multiple ELSE NULL END) as avg_loss_r,
                         AVG(CASE WHEN profit_loss_pct > 0 THEN profit_loss_pct ELSE NULL END) as avg_win_pct,
-                        AVG(CASE WHEN profit_loss_pct <= 0 THEN profit_loss_pct ELSE NULL END) as avg_loss_pct
+                        AVG(CASE WHEN profit_loss_pct < 0 THEN profit_loss_pct ELSE NULL END) as avg_loss_pct
                     FROM (
                         SELECT
                             profit_loss_pct,
@@ -185,7 +185,22 @@ class LivePerformance:
 
             if total <= 0:
                 raise ValueError(f"CRITICAL: No trades for expectancy calculation (total={total})")
-            win_rate_pct = win_count / total * 100
+            # win_rate_pct must be win_count / decisive_trades, NOT win_count / total: `total`
+            # (COUNT(*) over the lookback window) includes breakeven trades (r_multiple == 0,
+            # now excluded from both win_count and loss_count above) and trades where r_multiple
+            # couldn't be computed (NULL stop/entry data, in neither count) - dividing by `total`
+            # silently deflated win_rate_pct by counting those rows against the win rate without
+            # them ever being a loss. Matches the decisive=wins+losses convention already used by
+            # the CB9 circuit breaker's "single source of truth" query (utils/data_queries.py
+            # get_trade_win_loss_stats), so the two win-rate numbers shown across the dashboard
+            # no longer diverge on identical underlying trade data.
+            decisive = win_count + loss_count
+            if decisive <= 0:
+                raise ValueError(
+                    f"Cannot calculate win rate: no decisive (non-breakeven) trades in window "
+                    f"(total={total}, all breakeven or unclassifiable)."
+                )
+            win_rate_pct = win_count / decisive * 100
 
             return {
                 "win_rate_pct": _dec_round(win_rate_pct, 2),
