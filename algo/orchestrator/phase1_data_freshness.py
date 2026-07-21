@@ -653,6 +653,13 @@ def run(  # noqa: C901
 
             halt_stale = []  # pipeline-loaded tables - stale = HALT
             warn_stale = []  # auxiliary tables - stale = WARNING only
+            # Structured (table_name, age) pairs mirroring halt_stale/warn_stale, kept separate
+            # so the human-readable message strings above stay unchanged for existing callers
+            # (notify_signal_staleness, log messages). This feeds the dashboard's PHASE EXECUTION
+            # DETAILS panel (dashboard/panels/health.py, phase_num==1 branch), which reads
+            # tables_validated/tables_fresh/tables_stale/stale_tables from PhaseResult.data - keys
+            # this function never populated, so that panel section always rendered nothing.
+            stale_table_details: list[dict[str, Any]] = []
 
             # Tables checked by MAX(date) vs price_daily latest date
             # Note: earnings_calendar uses earnings_date instead of date
@@ -766,6 +773,7 @@ def run(  # noqa: C901
                             else:
                                 logger.warning(f"[PHASE 1] {msg}")
                                 warn_stale.append(msg)
+                            stale_table_details.append({"table_name": table_name, "age": "empty"})
                             continue
 
                         if table_max_date < ref_date:
@@ -779,6 +787,7 @@ def run(  # noqa: C901
                                 else:
                                     logger.warning(f"[PHASE 1] {msg}")
                                     warn_stale.append(msg)
+                                stale_table_details.append({"table_name": table_name, "age": f"{days_behind}d"})
                             else:
                                 msg = f"{description} is {days_behind} day(s) behind (within 1-day tolerance)"
                                 logger.info(f"[PHASE 1] {msg}")
@@ -791,6 +800,7 @@ def run(  # noqa: C901
                         else:
                             logger.warning(f"[PHASE 1] {msg}")
                             warn_stale.append(msg)
+                        stale_table_details.append({"table_name": table_name, "age": "check failed"})
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.critical(
                     f"[PHASE 1] CRITICAL: Failed to check table freshness - cannot verify data integrity: {e}",
@@ -831,11 +841,18 @@ def run(  # noqa: C901
                 from algo.reporting.notifications import notify_signal_staleness
 
                 notify_signal_staleness(halt_stale)
+                tables_validated = 1 + len(date_checked_tables)
                 return PhaseResult(
                     1,
                     "signal_tables_stale",
                     "halted",
-                    {},
+                    {
+                        "tables_validated": tables_validated,
+                        "tables_fresh": tables_validated - len(stale_table_details),
+                        "tables_stale": len(stale_table_details),
+                        "stale_tables": stale_table_details,
+                        "validation_status": "HALTED",
+                    },
                     True,
                     f"Critical pipeline tables stale/missing: {halt_stale[0]}",
                 )
@@ -1020,6 +1037,7 @@ def run(  # noqa: C901
                 )
 
             # Return with ok status when all data is complete
+            tables_validated = 1 + len(date_checked_tables)
             return PhaseResult(
                 1,
                 "all_tables_fresh",
@@ -1029,6 +1047,11 @@ def run(  # noqa: C901
                     "price_date": str(max_date),
                     "symbols_loaded": symbols_loaded,
                     "coverage_pct": coverage_pct,
+                    "tables_validated": tables_validated,
+                    "tables_fresh": tables_validated - len(stale_table_details),
+                    "tables_stale": len(stale_table_details),
+                    "stale_tables": stale_table_details,
+                    "validation_status": "PASS" if not stale_table_details else "PASS (with warnings)",
                 },
                 False,  # Not halted
                 "All critical data fresh and complete",
