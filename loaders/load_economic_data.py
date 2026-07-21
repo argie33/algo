@@ -199,9 +199,25 @@ def store_economic_data(series_id: str, records: list[dict[str, Any]]) -> int:
     if not records:
         return 0
 
+    # Scope the delete to exactly the date range being re-inserted, not the whole series.
+    # load() only fetches a 365-day window each run, so an unscoped
+    # "DELETE FROM economic_data WHERE series_id = %s" wiped ALL history for that series
+    # every single run - the table could never hold more than 365 days of history no matter
+    # how long this loader had been running, silently destroying accumulated history each
+    # time (e.g. the actual 2022-2024 T10Y2Y yield curve inversion ran ~623 days - longer
+    # than this loader could ever retain - directly undermining the "inversion duration
+    # matters" logic in algo/risk/market_exposure.py's docstring). Deleting only [min_date,
+    # max_date] of the current fetch keeps this idempotent for FRED revisions within that
+    # window while preserving any older history already accumulated.
+    dates = [r["date"] for r in records]
+    min_date, max_date = min(dates), max(dates)
+
     try:
         with DatabaseContext("write") as cur:
-            cur.execute("DELETE FROM economic_data WHERE series_id = %s", (series_id,))
+            cur.execute(
+                "DELETE FROM economic_data WHERE series_id = %s AND date >= %s AND date <= %s",
+                (series_id, min_date, max_date),
+            )
             for record in records:
                 cur.execute(
                     """INSERT INTO economic_data (series_id, date, value, data_unavailable, reason)
