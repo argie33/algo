@@ -404,7 +404,6 @@ class DailyReconciliation:
                     daily_return_pct = (
                         (portfolio_value - baseline_equity) / baseline_equity * 100 if baseline_equity > 0 else 0.0
                     )
-                    cumulative_return_pct = (portfolio_value - float(initial_capital)) / float(initial_capital) * 100
 
                     # Cash-flow-adjusted equity/peak/drawdown (migration 1134): this LOCAL_MODE/paper
                     # branch computed its own raw running_peak/drawdown_pct above but never called this
@@ -415,6 +414,17 @@ class DailyReconciliation:
                         cur, reconcile_date, portfolio_value
                     )
                     adjusted_equity = portfolio_value - net_capital_flow_cum
+
+                    # Cumulative return against adjusted_equity (cash-flow-adjusted), NOT raw
+                    # portfolio_value: "total return since inception" should reflect trading
+                    # performance (realized + unrealized) relative to starting capital, not be
+                    # inflated/deflated by deposits and withdrawals along the way - the same
+                    # migration 1134 rationale already applied to drawdown/daily-loss elsewhere
+                    # in this codebase (circuit_breaker.py, position_sizer.py). Also fixes a
+                    # second divergence: the non-LOCAL_MODE path below computed this from
+                    # realized-trades-only cumulative_pnl, excluding unrealized gains entirely -
+                    # "total return" should include both.
+                    cumulative_return_pct = (adjusted_equity - float(initial_capital)) / float(initial_capital) * 100
 
                     snapshot_params = (
                         reconcile_date,
@@ -1013,7 +1023,6 @@ class DailyReconciliation:
                         COUNT(*) FILTER (WHERE profit_loss_dollars > 0) as wins,
                         COUNT(*) FILTER (WHERE profit_loss_dollars < 0) as losses,
                         SUM(profit_loss_dollars) FILTER (WHERE DATE(exit_date) = %s::date) as realized_pnl_today,
-                        SUM(profit_loss_dollars) as cumulative_pnl,
                         COUNT(*) FILTER (WHERE profit_loss_dollars IS NULL) as null_pnl_count
                     FROM algo_trades
                     WHERE status = %s
@@ -1026,8 +1035,7 @@ class DailyReconciliation:
                 win_count = result[0]
                 loss_count = result[1]
                 realized_pnl_today = result[2]
-                cumulative_pnl = result[3]
-                null_pnl_count = result[4]
+                null_pnl_count = result[3]
 
                 # Log but don't fail if some trades have missing PnL
                 # (incomplete test trades or partial exits can have missing P&L calculations)
@@ -1042,19 +1050,16 @@ class DailyReconciliation:
                     raise ValueError(f"Trade counts missing from database: wins={win_count}, losses={loss_count}")
 
                 # realized_pnl_today can legitimately be None when no trades closed today.
-                # cumulative_pnl is None only when there are zero closed trades ever.
-                if cumulative_pnl is None:
-                    cumulative_pnl = 0.0
-                    logger.info("No closed trades found - cumulative PnL is 0")
                 if realized_pnl_today is None:
                     realized_pnl_today = 0.0
                     logger.info("No trades closed today - daily realized PnL is 0")
                 win_count = int(win_count)
                 loss_count = int(loss_count)
                 realized_pnl_today = float(realized_pnl_today)
-                cumulative_pnl = float(cumulative_pnl)
 
-                # Get cumulative return (normalize to actual initial capital from Alpaca account history)
+                # initial_capital is fetched here (normalize to actual initial capital from Alpaca
+                # account history) but cumulative_return_pct itself is computed further below,
+                # once adjusted_equity is available - see that comment for why.
                 try:
                     initial_capital = self._fetch_initial_capital(cur)
                     if initial_capital <= 0:
@@ -1062,10 +1067,6 @@ class DailyReconciliation:
                             f"CRITICAL: Invalid initial_capital={initial_capital} - cannot calculate cumulative return. "
                             "Check Alpaca account initialization and capital history."
                         )
-                    cumulative_return_pct = cumulative_pnl / initial_capital * 100
-                    logger.info(
-                        f"   Cumulative Return: {cumulative_return_pct:+.2f}% (on initial capital ${initial_capital:,.2f})"
-                    )
                 except ValueError as e:
                     logger.error(f"CRITICAL: {e} - cannot calculate cumulative return")
                     raise
@@ -1105,6 +1106,18 @@ class DailyReconciliation:
                     cur, reconcile_date, float(total_equity_dec)
                 )
                 adjusted_equity = float(total_equity_dec) - net_capital_flow_cum
+
+                # Cumulative return against adjusted_equity (cash-flow-adjusted), NOT the
+                # realized-trades-only cumulative_pnl this used previously: "total return since
+                # inception" should reflect trading performance (realized + unrealized) relative
+                # to starting capital, not be inflated/deflated by deposits and withdrawals, and
+                # should include unrealized gains on open positions rather than excluding them
+                # entirely. Mirrors the LOCAL_MODE/paper path above and the migration 1134
+                # rationale already applied to drawdown/daily-loss elsewhere in this codebase.
+                cumulative_return_pct = (adjusted_equity - initial_capital) / initial_capital * 100
+                logger.info(
+                    f"   Cumulative Return: {cumulative_return_pct:+.2f}% (on initial capital ${initial_capital:,.2f})"
+                )
 
                 # Calculate Sharpe ratio: mean_return / std_dev * sqrt(252)
                 sharpe_ratio = None
