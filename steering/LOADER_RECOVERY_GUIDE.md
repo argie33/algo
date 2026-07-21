@@ -1,6 +1,13 @@
 # Loader Recovery Guide
 
-**Quick Fix:** Data is stale when prices are > 30 minutes old during trading hours.
+**Quick Fix:** price_daily/technical_data_daily/market_exposure_daily are once-daily batch
+loaders (2:00 AM ET morning run) - not continuous intraday polling. Data is stale when it's
+more than ~24h old since the last load (36h/48h for the WARNING/CRITICAL tiers), not simply
+"more than 30 minutes old". A `monitor_data_staleness.py`/`check_system_health.py` bug that
+measured age from midnight of the trading date (instead of the real load timestamp) used to
+report these tables as stale/DEAD for most of every day even when the loader ran exactly on
+schedule - fixed 2026-07-21; if you see that behavior again it's a regression, not real
+staleness.
 
 ---
 
@@ -22,7 +29,8 @@ python scripts/monitor_data_staleness.py
 | Schedule | Time ET | Days | Status |
 |----------|---------|------|--------|
 | Morning | 2:00 AM | MON-FRI | ENABLED |
-| EOD | 4:05 PM | MON-FRI | ENABLED |
+| Signals/EOD (closing prices/technicals + scores/buy_sell_daily) | 4:05 PM | MON-FRI | ENABLED |
+| Metrics (SEC/EDGAR fundamentals) | 7:00 PM | MON-FRI | ENABLED |
 
 **Today is Sunday → Loaders won't run until Monday 2 AM.**
 
@@ -33,10 +41,17 @@ python scripts/monitor_data_staleness.py
 ### Option A: Local Dev (Recommended)
 
 ```bash
-# Refresh prices + technical data (actual data-refresh loaders)
+# Refresh pre-market prices + technical data
 python scripts/local_loader_scheduler.py --now morning
 
-# Refresh quality/growth/value/scores/signals (EOD loaders)
+# Refresh CLOSING prices/technicals + recompute stock scores/buy_sell_daily/signals
+# (2026-07-21: split out of "metrics" - it was being silently skipped once fundamentals
+# were already >=75% complete, which froze trading signals indefinitely. See "signals"
+# pipeline in scripts/local_loader_scheduler.py.)
+python scripts/local_loader_scheduler.py --now signals
+
+# Refresh slow SEC/EDGAR fundamentals: financial statements, 13F, insider, positioning,
+# value/quality/growth (rarely needed - these change slowly; only run if genuinely stale)
 python scripts/local_loader_scheduler.py --now metrics
 ```
 
@@ -358,10 +373,11 @@ Dashboard shows data freshness on the main panel:
 # orchestrator's morning+afternoon+evening PHASES, it does not fetch data (same
 # distinction as Fix #1 above). Use the loader scheduler to actually force loaders:
 python scripts/local_loader_scheduler.py --now morning
+python scripts/local_loader_scheduler.py --now signals
 python scripts/local_loader_scheduler.py --now metrics
 
 # AWS (full pipeline)
-for pipeline in morning eod; do
+for pipeline in morning eod computed-metrics; do
   aws stepfunctions start-execution \
     --state-machine-arn "arn:aws:states:us-east-1:xxx:stateMachine:algo-${pipeline}-pipeline" \
     --name "emergency-refresh-$(date +%s)" \
