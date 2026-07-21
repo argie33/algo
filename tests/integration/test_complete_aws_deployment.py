@@ -80,11 +80,14 @@ class TestCompleteAWSDeployment:
 
     def test_growth_metrics_marked_enrichment(self):
         """Verify growth_metrics is enrichment-only (not critical for core trading)."""
-        from algo.orchestrator.phase1_failsafe_retry import CRITICAL_INCOMPLETE_LOADERS
+        from utils.data_tiers import CRITICAL_DATA
 
         # growth_metrics is an enrichment (Session 221): needed for website display,
         # not for core trading signals. Phase 1 halts only on price/market regime data.
-        assert "growth_metrics" not in CRITICAL_INCOMPLETE_LOADERS, "growth_metrics should be enrichment-only"
+        # (utils.data_tiers.CRITICAL_DATA is the set phase1_failsafe_retry.py's is_critical()
+        # actually reads at retry-decision time - see that module's history for a duplicate,
+        # unused set that drifted from this one and was removed 2026-07-21.)
+        assert "growth_metrics" not in CRITICAL_DATA, "growth_metrics should be enrichment-only"
 
     def test_growth_score_coverage_requirement(self):
         """Verify stock_scores requires growth_metrics coverage validation."""

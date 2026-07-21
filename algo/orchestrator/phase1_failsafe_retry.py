@@ -36,42 +36,17 @@ from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
-# Loaders that are critical for downstream phases (halt if incomplete after retry)
-# These use data_loader_status.table_name values, not logical loader names
-# (PriceLoader produces multiple table_name entries: price_daily, price_weekly, etc.)
-# CRITICAL: Only core trading data - signals don't need enrichment metrics. See Session 221.
-CRITICAL_INCOMPLETE_LOADERS = {
-    # Price tables (any incomplete price table means stock_prices_daily is critical)
-    "price_daily",
-    "price_weekly",
-    "price_monthly",
-    "etf_price_daily",
-    "etf_price_weekly",
-    "etf_price_monthly",
-    # Market regime tables (halt if stale - must run on FARGATE, not SPOT)
-    "market_health_daily",
-    "market_exposure_daily",
-    # Other critical loaders
-    "stock_scores",
-    "technical_data_daily",
-    # Metric loaders (Session 257 / 2026-07-05): Essential for stock scoring.
-    # Phase 1 requires these fresh; stock_scores requires minimum 3/6 metrics per GOVERNANCE.md.
-    # NOTE: growth_metrics is enrichment-only (Session 221), not critical for trading.
-    # Moved to auxiliary since core signals don't need it.
-    "quality_metrics",
-    "value_metrics",
-    "positioning_metrics",
-    "stability_metrics",
-}
-
-# Loaders that are auxiliary (warn if incomplete after retry, but allow proceeding)
-# NOTE: These loaders are nice-to-have enrichments; failing to load them should NOT
-# trigger retry since they don't block trading. Phase 1 only retries CRITICAL loaders.
-AUXILIARY_INCOMPLETE_LOADERS = {
-    "analyst_sentiment_analysis",
-    "sector_ranking",
-    "trend_template_data",
-}
+# Critical vs. auxiliary classification for retry decisions below comes from
+# utils.data_tiers.is_critical() (backed by CRITICAL_DATA/AUXILIARY_DATA there) - this
+# module previously duplicated that classification in two local sets
+# (CRITICAL_INCOMPLETE_LOADERS/AUXILIARY_INCOMPLETE_LOADERS) that were never actually
+# read by any retry logic here (is_critical(table_name) at the actual decision point
+# below has always been the live source), had already drifted from data_tiers.py (e.g.
+# listed a stale "economic_metrics_daily" name that has never matched the real loader's
+# table_name, "economic_data"), and were only referenced by one test asserting their own
+# static content. Removed 2026-07-21 (loader-review audit); see
+# tests/integration/test_complete_aws_deployment.py::test_growth_metrics_marked_enrichment,
+# repointed at the real utils.data_tiers.CRITICAL_DATA set.
 
 # Time to wait before retrying. Retries now trigger an independent ECS task
 # (see invoke_loader_retry) instead of making API calls in-process, so there's
