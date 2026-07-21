@@ -170,6 +170,16 @@ class PreTradeChecks:
                     (symbol,),
                 )
                 row = cur.fetchone()
+                if not row:
+                    # GOVERNANCE: no silent fallback - sector/industry concentration limits
+                    # cannot be evaluated for this symbol (~5% of the active universe lacks
+                    # a company_profile row) and the trade proceeds without that check. Make
+                    # the gap visible in logs rather than passing quietly, so it's traceable
+                    # if concentration risk builds up in symbols missing this data.
+                    logger.warning(
+                        f"[PRE-TRADE] {symbol}: no company_profile row - sector/industry "
+                        f"concentration limits NOT evaluated for this trade."
+                    )
                 if row:
                     sector, industry = row
 
