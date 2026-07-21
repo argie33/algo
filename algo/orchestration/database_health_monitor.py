@@ -20,6 +20,7 @@ from typing import Any
 import psycopg2
 
 from algo.infrastructure import MarketCalendar
+from algo.infrastructure.constants import DB_STATEMENT_TIMEOUT_MS
 from utils.db import DatabaseContext, assert_safe_table
 from utils.infrastructure import (
     EASTERN_TZ,
@@ -74,8 +75,8 @@ class DatabaseHealthMonitor:
         try:
             with DatabaseContext("read") as cur:
                 cur.execute(
-                    "SET statement_timeout = 30000"
-                )  # 30s timeout (increased from 10s to handle large table scans)
+                    f"SET statement_timeout = {DB_STATEMENT_TIMEOUT_MS}"
+                )  # Configurable timeout for large table scans
 
                 tables_to_check = [
                     ("price_daily", "Prices"),

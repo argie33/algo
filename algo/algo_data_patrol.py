@@ -13,6 +13,7 @@ from pathlib import Path
 
 from algo.monitoring.data_patrol import DataPatrol
 from algo.monitoring.data_patrol.config import PatrolConfig
+from algo.infrastructure.constants import EXECUTION_TIMEOUT_SEC
 from utils.infrastructure.timeout import ExecutionTimeout, ExecutionTimeoutError
 
 root = Path(__file__).parent.parent
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 if __name__ == "__main__":
     try:
-        with ExecutionTimeout(max_seconds=600, label="data_patrol"):
+        with ExecutionTimeout(max_seconds=EXECUTION_TIMEOUT_SEC, label="data_patrol"):
             parser = argparse.ArgumentParser(description="Data integrity patrol")
             parser.add_argument("--quick", action="store_true", help="Critical checks only")
             parser.add_argument(

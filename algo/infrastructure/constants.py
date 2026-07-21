@@ -36,6 +36,7 @@ RETRY_JITTER_MAX_FACTOR = 1.25  # Max multiplier for jitter
 DB_MAX_CONNECTIONS = 100  # db.t4g.small safety threshold
 DB_POOL_ALERT_THRESHOLD_PCT = 80  # Alert when pool usage > 80%
 DB_POOL_TIMEOUT_SEC = 300
+DB_STATEMENT_TIMEOUT_MS = 30000  # 30s timeout for large table scans (increased from 10s)
 
 # ── Portfolio & Risk Management ─────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ REGIME_WEIGHT_UPDATE_ALPHA_CORRECTION = 0.0  # Freeze weights in correction
 # Data Patrol check performance thresholds
 PATROL_SLOW_CHECK_THRESHOLD_SEC = 5.0  # Alert if any check takes > 5 seconds
 PATROL_OVERALL_SLOW_THRESHOLD_SEC = 120.0  # Alert if patrol takes > 120 seconds
+EXECUTION_TIMEOUT_SEC = 600  # 10 minutes - maximum execution time for data patrol
 
 # Data staleness windows (days) - defaults, configurable via algo_config
 STALENESS_WINDOW_PRICE_DAILY = 7
