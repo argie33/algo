@@ -308,3 +308,42 @@ class TestWinRateFloorSampleSize:
         cb._check_win_rate_floor(current_date=None, cur=mock_cur)
         executed_sql = mock_cur.execute.call_args[0][0]
         assert "LIMIT 30" in executed_sql
+
+
+class TestCircuitBreakerTotalRisk:
+    """_check_total_risk's algo_trades JOIN can silently drop open positions whose
+    trade_ids_arr doesn't resolve to a real algo_trades row (empty array, orphaned/stale
+    ids) - both the risk SUM and its own COUNT(*) are computed from that same INNER JOIN,
+    so a dropped position vanishes from total risk with no error. Must fail-closed by
+    cross-checking against a direct COUNT of open positions.
+    """
+
+    def test_halts_when_joined_position_count_undercounts_open_positions(self, mock_config):
+        """16 open positions but only 15 resolve via the trade_ids_arr join - must halt."""
+        config = dict(mock_config, max_total_risk_pct=4.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        mock_cur.fetchone.side_effect = [
+            (0,),  # missing current_stop_price count
+            (5000.0, 15),  # risk SUM/COUNT via trade_ids_arr join - only 15 matched
+            (16,),  # direct COUNT of open positions - the real number is 16
+            (100000.0,),  # portfolio value (unreached if halted above)
+        ]
+        result = cb._check_total_risk(current_date=None, cur=mock_cur)
+        assert result["halted"] is True
+        assert "1" in result["reason"]
+
+    def test_proceeds_when_joined_count_matches_open_positions(self, mock_config):
+        """Joined count matches the direct open-position count - no false halt."""
+        config = dict(mock_config, max_total_risk_pct=4.0)
+        cb = CircuitBreaker(config=config)
+        mock_cur = Mock()
+        mock_cur.fetchone.side_effect = [
+            (0,),  # missing current_stop_price count
+            (1000.0, 5),  # risk SUM/COUNT via trade_ids_arr join
+            (5,),  # direct COUNT of open positions matches
+            (100000.0,),  # portfolio value
+        ]
+        result = cb._check_total_risk(current_date=None, cur=mock_cur)
+        assert result["halted"] is False
+        assert result["value"] == 1.0  # 1000 / 100000 * 100

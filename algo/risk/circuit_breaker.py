@@ -619,6 +619,33 @@ class CircuitBreaker:
         total_open_risk_raw = result[0]
         position_count = result[1]
 
+        # CRITICAL: the SUM/COUNT above is an INNER JOIN against algo_trades via
+        # trade_ids_arr - any open position whose trade_ids_arr doesn't resolve to a real
+        # algo_trades row (empty array, stale/orphaned ids) silently drops out of BOTH the
+        # SUM and this COUNT, understating total open risk with no error raised. Verify
+        # against a direct count of open positions and fail-closed on any mismatch, since a
+        # position risk calculation silently ignores is exactly the "blind risk-taking" this
+        # check exists to prevent.
+        cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = %s", (PositionStatus.OPEN.value,))
+        actual_open_row = cur.fetchone()
+        actual_open_count = actual_open_row[0] if actual_open_row else None
+        if actual_open_count is None:
+            raise RuntimeError("Cannot verify open position count - query failed. Position monitoring unsafe.")
+        if actual_open_count != position_count:
+            logger.critical(
+                f"[TOTAL_RISK_CHECK] {actual_open_count} open positions exist but risk calculation only "
+                f"matched {position_count} via trade_ids_arr join - {actual_open_count - position_count} "
+                "position(s) have no resolvable algo_trades row and were silently excluded from total risk. "
+                "Halting to prevent blind risk-taking."
+            )
+            return {
+                "halted": True,
+                "reason": (
+                    f"{actual_open_count - position_count} open position(s) missing from risk calculation "
+                    "(orphaned trade_ids_arr) - fail-closed halt"
+                ),
+            }
+
         # If there are open positions but SUM returns NULL, that's data corruption
         if position_count > 0 and total_open_risk_raw is None:
             logger.critical(
