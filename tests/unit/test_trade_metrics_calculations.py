@@ -10,6 +10,7 @@ from utils.trade_metrics import (
     calculate_mae_pct,
     calculate_mfe_pct,
     calculate_trade_duration_days,
+    update_trade_metrics,
 )
 
 
@@ -292,6 +293,51 @@ class TestTradeMetricsIntegration(unittest.TestCase):
         # High R-multiple from tight stop loss
         self.assertIsNotNone(r_multiple)
         self.assertAlmostEqual(float(r_multiple), 5.0, places=1)
+
+
+class TestUpdateTradeMetricsBreakeven(unittest.TestCase):
+    """Regression: update_trade_metrics() used `if exit_r else None` (and the same
+    pattern for mfe/mae) to build its return dict. Decimal("0") is falsy in Python,
+    so a legitimate breakeven trade (exit price == entry price, or price never moved
+    favorably/adversely) had its real 0.0 metric silently reported as None - even
+    though the DB UPDATE itself always wrote the correct 0 value. Downstream,
+    scripts/backfill_trade_metrics.py formats this dict's exit_r_multiple with
+    `:.2f}R`, which raises TypeError on None - turning a successful backfill of a
+    breakeven trade into a reported failure."""
+
+    def _mock_trade_row(self, entry_price, exit_price, stop_loss_price):
+        return {
+            "trade_id": "T1",
+            "symbol": "TEST",
+            "entry_price": Decimal(str(entry_price)),
+            "entry_date": date(2026, 7, 10),
+            "entry_time": None,
+            "exit_price": Decimal(str(exit_price)),
+            "exit_date": date(2026, 7, 11),
+            "exit_time": None,
+            "stop_loss_price": Decimal(str(stop_loss_price)),
+            "status": "closed",
+        }
+
+    def test_breakeven_trade_reports_zero_not_none(self):
+        mock_cursor = MagicMock()
+        trade_row = self._mock_trade_row(100, 100, 95)
+        # First fetchone() call returns the trade; MFE/MAE queries also hit fetchone()
+        # via calculate_mfe_pct/calculate_mae_pct - price never left entry, so both are 0.
+        mock_cursor.fetchone.side_effect = [
+            trade_row,
+            {"max_price": Decimal("100")},
+            {"min_price": Decimal("100")},
+        ]
+
+        result = update_trade_metrics(mock_cursor, "T1")
+
+        self.assertEqual(result["exit_r_multiple"], 0.0)
+        self.assertEqual(result["mfe_pct"], 0.0)
+        self.assertEqual(result["mae_pct"], 0.0)
+        self.assertIsNotNone(result["exit_r_multiple"])
+        self.assertIsNotNone(result["mfe_pct"])
+        self.assertIsNotNone(result["mae_pct"])
 
 
 if __name__ == "__main__":

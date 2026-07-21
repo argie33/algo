@@ -33,7 +33,7 @@ def _minimal_good_data() -> dict[str, object]:
         "cb": {"n": 0, "any": False},
         "trades": {"items": []},
         "risk": None,
-        "scores": [],
+        "scores": {"top": []},
         "srank": {"items": []},
         "exp_factors": None,
         "eco": None,

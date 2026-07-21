@@ -207,10 +207,13 @@ def update_trade_metrics(cur: cursor, trade_id: str) -> dict[str, Any]:
 
     return {
         "trade_id": trade_id,
-        "exit_r_multiple": float(exit_r) if exit_r else None,
+        # `if exit_r else None` would treat a legitimate 0 (breakeven exit_r_multiple,
+        # or MFE/MAE of exactly 0%) as falsy and silently report it as None - check
+        # `is not None` instead so a real zero isn't mistaken for "not calculated".
+        "exit_r_multiple": float(exit_r) if exit_r is not None else None,
         "trade_duration_days": duration,
-        "mfe_pct": float(mfe) if mfe else None,
-        "mae_pct": float(mae) if mae else None,
+        "mfe_pct": float(mfe) if mfe is not None else None,
+        "mae_pct": float(mae) if mae is not None else None,
         "exit_time": str(exit_time) if exit_time else None,
     }
 

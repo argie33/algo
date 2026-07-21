@@ -100,9 +100,11 @@ def backfill_metrics(dry_run: bool = False, force: bool = False) -> bool:
                 results = result["results"]
                 for i, trade_result in enumerate(results[:3]):
                     if "error" not in trade_result:
+                        r_mult = trade_result.get("exit_r_multiple")
+                        r_mult_str = f"{r_mult:.2f}R" if r_mult is not None else "N/A"
                         logger.info(
                             f"  Trade {i+1}: {trade_result.get('trade_id')} "
-                            f"R={trade_result.get('exit_r_multiple'):.2f}R, "
+                            f"R={r_mult_str}, "
                             f"Duration={trade_result.get('trade_duration_days')}d"
                         )
                 if len(results) > 3:
