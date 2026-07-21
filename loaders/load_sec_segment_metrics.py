@@ -31,6 +31,31 @@ from utils.type_conversion import safe_float
 logger = logging.getLogger(__name__)
 
 
+def _unavailable_marker(symbol: str, reason: str) -> dict[str, Any]:
+    """Build a data_unavailable row for a symbol with no usable segment disclosure.
+
+    Was previously called as self._unavailable_marker(...), a method that was never
+    defined on this class or OptimalLoader (same bug already found and fixed in
+    load_sec_cash_flow_metrics.py) - every symbol hitting either "no segment_row" or
+    "unavailable or not has_data" raised AttributeError instead of getting a clean
+    marker row. handle_exception() classifies AttributeError as "unexpected" and
+    re-raises rather than returning a marker, so this wasn't silently swallowed - it
+    failed the symbol outright, the same failure-rate-threshold risk documented in the
+    cash_flow fix. Segment disclosure is genuinely sparse (most companies report a
+    single segment), so this was likely hit for a large fraction of symbols.
+    """
+    return {
+        "symbol": symbol,
+        "segment_count": None,
+        "largest_segment_revenue_pct": None,
+        "revenue_concentration_hhi": None,
+        "is_diversified": None,
+        "data_unavailable": True,
+        "reason": reason,
+        "computed_at": date.today(),
+    }
+
+
 class SecSegmentMetricsLoader(OptimalLoader):
     """Extract segment metrics from SEC 10-K/10-Q filings.
 
@@ -90,17 +115,17 @@ class SecSegmentMetricsLoader(OptimalLoader):
             # Check data availability
             if not segment_row:
                 # No segment information available - mark unavailable
-                return [self._unavailable_marker(symbol, "no_segment_disclosure")]
+                return [_unavailable_marker(symbol, "no_segment_disclosure")]
 
             segment_count, largest_segment_pct, hhi, has_data, unavailable, reason = segment_row
 
             if unavailable or not has_data:
-                return [self._unavailable_marker(symbol, reason or "segment_data_unavailable")]
+                return [_unavailable_marker(symbol, reason or "segment_data_unavailable")]
 
             # Parse metrics
             seg_count = int(segment_count) if segment_count else None
-            largest_pct = safe_float(largest_segment_pct)
-            diversification_hhi = safe_float(hhi)
+            largest_pct = safe_float(largest_segment_pct, f"{symbol}.largest_segment_revenue_pct")
+            diversification_hhi = safe_float(hhi, f"{symbol}.revenue_concentration_hhi")
 
             # Validate minimum data
             all_missing = all([seg_count is None, largest_pct is None, diversification_hhi is None])
