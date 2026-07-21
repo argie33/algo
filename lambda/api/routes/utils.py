@@ -8,7 +8,10 @@ import time
 from collections.abc import Callable
 from datetime import date, datetime, timezone
 from functools import wraps
-from typing import Any, NoReturn, ParamSpec, TypeVar, cast
+from typing import TYPE_CHECKING, Any, NoReturn, ParamSpec, TypeVar, cast
+
+if TYPE_CHECKING:
+    from zoneinfo import ZoneInfo
 
 import psycopg2
 import psycopg2.errors
@@ -74,17 +77,32 @@ def set_query_timeout(cur: Any, timeout_ms: int | None = None, timeout_name: str
     cur.execute(f"SET LOCAL statement_timeout = '{timeout_ms}ms'")
 
 
-def normalize_to_utc_datetime(dt: date | datetime | None) -> dict[str, Any] | datetime:
+def normalize_to_utc_datetime(
+    dt: date | datetime | None, naive_tz: "ZoneInfo | None" = None
+) -> dict[str, Any] | datetime:
     """Convert date or naive/aware datetime to UTC-aware datetime.
 
     Handles three cases:
     - date: converted to datetime at 00:00 UTC
-    - naive datetime: assumed to be UTC, tzinfo added
+    - naive datetime: interpreted per `naive_tz` (see below), tzinfo added
     - aware datetime: returned as-is
     - None: returns explicit unavailability marker
 
     Args:
             dt: datetime, date, or None
+            naive_tz: timezone a naive `dt` should be interpreted in before converting to
+                UTC. Naive timestamp columns in this codebase are written by
+                utils/bulk_insert_manager.py's session-local convention (`SHOW timezone`,
+                not UTC - see that module's docstring: COPY into a `timestamp without time
+                zone` column silently drops any UTC offset, so tz-aware datetimes are
+                converted to the session's wall-clock before insert). Treating a naive
+                value as UTC when it's actually e.g. America/Chicago silently inflates any
+                "age" computed against it by the zone's UTC offset (4-6h) - confirmed live
+                for data_loader_status.last_updated via /api/algo/data-status, which showed
+                age_hours=5.2 for a table updated 9 minutes earlier. Pass the DB session's
+                actual timezone (`SHOW timezone`, resolved once by the caller - not per
+                call, to avoid re-querying it for every row) whenever the source column
+                follows that convention; omit to keep the old UTC-assumed default.
 
     Returns:
             UTC-aware datetime or {"data_unavailable": True, "reason": "input_is_none"}
@@ -97,8 +115,8 @@ def normalize_to_utc_datetime(dt: date | datetime | None) -> dict[str, Any] | da
 
     if isinstance(dt, datetime):
         if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt
+            dt = dt.replace(tzinfo=naive_tz or timezone.utc)
+        return dt.astimezone(timezone.utc)
 
     return {"data_unavailable": True, "reason": f"invalid_type_{type(dt).__name__}"}
 

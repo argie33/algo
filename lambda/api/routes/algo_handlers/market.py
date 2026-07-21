@@ -453,6 +453,16 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
         summary = {"ok": 0, "stale": 0, "empty": 0, "error": 0}
         critical_stale = []
 
+        # Resolved once (not per row) - see normalize_to_utc_datetime's docstring: naive
+        # timestamp columns here (e.g. data_loader_status.last_updated) are written in the
+        # DB session's local wall-clock (utils/bulk_insert_manager.py's convention), not
+        # UTC. Without this, age_hours was inflated by the session's UTC offset (4-6h) -
+        # confirmed live: a table updated 9 minutes ago showed age_hours=5.2.
+        from zoneinfo import ZoneInfo
+
+        cur.execute("SHOW timezone")
+        naive_tz = ZoneInfo(cur.fetchone()[0])
+
         for row in rows:
             last_updated = row["last_updated"]
             row_count = row.get("row_count")
@@ -484,7 +494,7 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
                     status = "stale" if (today - data_date).days > max_age else "ok"
 
             # Calculate age in hours for display
-            utc_result = normalize_to_utc_datetime(last_updated)
+            utc_result = normalize_to_utc_datetime(last_updated, naive_tz)
             if isinstance(utc_result, datetime):
                 age_h = (datetime.now(timezone.utc) - utc_result).total_seconds() / 3600
             else:
