@@ -43,6 +43,7 @@ from typing import Any
 import psycopg2
 
 from algo.orchestrator.phase1_failsafe_retry import check_and_retry_incomplete_loaders
+from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 from utils.db.context import DatabaseContext
@@ -1027,35 +1028,39 @@ def run(  # noqa: C901
                     f"Fix: Ensure all metric loaders complete with >70% symbol coverage before trading."
                 )
                 log_phase_result_fn(1, "degraded_data_halt", "halt", degraded_reason)
+                phase_data = {
+                    "status": "halted",
+                    "reason": degraded_reason,
+                }
+                validate_phase_data(1, phase_data)
                 return PhaseResult(
                     1,
                     "degraded_data_halt",
                     "halted",
-                    {
-                        "status": "halted",
-                        "reason": degraded_reason,
-                    },
+                    phase_data,
                     True,  # HALT on degraded data
                     degraded_reason,
                 )
 
             # Return with ok status when all data is complete
             tables_validated = 1 + len(date_checked_tables)
+            phase_data = {
+                "status": "ok",
+                "price_date": str(max_date),
+                "symbols_loaded": symbols_loaded,
+                "coverage_pct": coverage_pct,
+                "tables_validated": tables_validated,
+                "tables_fresh": tables_validated - len(stale_table_details),
+                "tables_stale": len(stale_table_details),
+                "stale_tables": stale_table_details,
+                "validation_status": "PASS" if not stale_table_details else "PASS (with warnings)",
+            }
+            validate_phase_data(1, phase_data)
             return PhaseResult(
                 1,
                 "all_tables_fresh",
                 "ok",
-                {
-                    "status": "ok",
-                    "price_date": str(max_date),
-                    "symbols_loaded": symbols_loaded,
-                    "coverage_pct": coverage_pct,
-                    "tables_validated": tables_validated,
-                    "tables_fresh": tables_validated - len(stale_table_details),
-                    "tables_stale": len(stale_table_details),
-                    "stale_tables": stale_table_details,
-                    "validation_status": "PASS" if not stale_table_details else "PASS (with warnings)",
-                },
+                phase_data,
                 False,  # Not halted
                 "All critical data fresh and complete",
             )
@@ -1067,6 +1072,8 @@ def run(  # noqa: C901
         error_summary = f"{exception_type}: {exception_msg}"[:200]
         logger.error(f"[PHASE 1] ERROR: {error_summary}", exc_info=True)
         log_phase_result_fn(1, "error", "error", error_summary)
+        phase_data = {"status": "error", "reason": f"Phase 1 failed: {error_summary}"}
+        validate_phase_data(1, phase_data)
         return PhaseResult(
-            1, "error", "error", {"status": "error", "reason": f"Phase 1 failed: {error_summary}"}, True, error_summary
+            1, "error", "error", phase_data, True, error_summary
         )

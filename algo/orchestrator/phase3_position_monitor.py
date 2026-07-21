@@ -6,6 +6,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_error_handling import (
     ErrorCategory,
     PhaseError,
@@ -351,18 +352,20 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
         days_held_vals = [r["days_held"] for r in recommendations if r.get("days_held") is not None]
         unrealized_pct_vals = [r["unrealized_pct"] for r in recommendations if r.get("unrealized_pct") is not None]
         unrealized_pnl_vals = [r["unrealized_pnl"] for r in recommendations if r.get("unrealized_pnl") is not None]
+        phase_data = {
+            "recommendations": recommendations,
+            "count": len(recommendations),
+            "open_positions": len(recommendations),
+            "oldest_days": max(days_held_vals) if days_held_vals else None,
+            "max_loss_pct": min(unrealized_pct_vals) if unrealized_pct_vals else None,
+            "total_unrealized_pnl": sum(unrealized_pnl_vals) if unrealized_pnl_vals else None,
+        }
+        validate_phase_data(3, phase_data)
         return PhaseResult(
             3,
             "position_monitor",
             "ok",
-            {
-                "recommendations": recommendations,
-                "count": len(recommendations),
-                "open_positions": len(recommendations),
-                "oldest_days": max(days_held_vals) if days_held_vals else None,
-                "max_loss_pct": min(unrealized_pct_vals) if unrealized_pct_vals else None,
-                "total_unrealized_pnl": sum(unrealized_pnl_vals) if unrealized_pnl_vals else None,
-            },
+            phase_data,
             False,
             None,
         )

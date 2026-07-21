@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_error_handling import (
     ErrorCategory,
     PhaseError,
@@ -189,11 +190,13 @@ def run(
             )
 
         log_phase_result_fn(2, "circuit_breakers", "success", "all clear")
+        phase_data = {**risk_snapshot, "status": "ok", "reason": "all circuit breaker checks passed"}
+        validate_phase_data(2, phase_data)
         return PhaseResult(
             2,
             "circuit_breakers",
             "ok",
-            {**risk_snapshot, "status": "ok", "reason": "all circuit breaker checks passed"},
+            phase_data,
             False,
             None,
         )

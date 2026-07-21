@@ -154,7 +154,7 @@ class PreTradeChecks:
                         minutes_since_close = (
                             datetime.now(timezone.utc) - closed_at.replace(tzinfo=timezone.utc)
                         ).total_seconds() / 60
-                        reentry_cooldown_minutes = 30  # Configurable minimum; prevents rapid flip-flop
+                        reentry_cooldown_minutes = self.config.get("reentry_cooldown_minutes", 30) if isinstance(self.config, dict) else getattr(self.config, "reentry_cooldown_minutes", 30)
 
                         if minutes_since_close < reentry_cooldown_minutes:
                             return (

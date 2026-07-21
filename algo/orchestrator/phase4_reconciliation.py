@@ -8,6 +8,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_error_handling import (
     ErrorCategory,
     PhaseError,
@@ -189,6 +190,7 @@ def run(
             result["sync_count"] = positions_count
             result["avg_match_pct"] = match_pct
             result["errors_found"] = partial_fill_result.get("mismatches", 0)
+            validate_phase_data(4, result)
             return PhaseResult(4, "reconciliation", "ok", result, False, None)
         else:
             # Reconciliation failed - return error status with appropriate logging

@@ -5,6 +5,7 @@ from collections.abc import Callable
 from datetime import date as _date
 from typing import Any
 
+from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
 
@@ -184,11 +185,13 @@ def run(
             f"{counts['force_exit']} force_exit",
         )
 
+        phase_data = {"constraints": constraints, "actions": actions, **_health_panel_fields(constraints)}
+        validate_phase_data(5, phase_data)
         return PhaseResult(
             5,
             "exposure_policy",
             "ok",
-            {"constraints": constraints, "actions": actions, **_health_panel_fields(constraints)},
+            phase_data,
             False,
             None,
         )

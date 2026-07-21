@@ -63,6 +63,7 @@ from typing import Any
 
 import psycopg2
 
+from algo.orchestrator.phase_data_contract import validate_phase_data
 from algo.orchestrator.phase_result import PhaseResult
 from algo.risk import LiquidityChecks
 from utils.db.context import DatabaseContext
@@ -859,7 +860,9 @@ def run(  # noqa: C901
         )
         logger.critical(msg)
         log_phase_result_fn(7, "signal_generation", "halt", msg)
-        return PhaseResult(7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, msg)
+        phase_data = {"qualified_trades": [], "liquidity_passed": 0}
+        validate_phase_data(7, phase_data)
+        return PhaseResult(7, "signal_generation", "halted", phase_data, True, msg)
 
     # VALIDATION: Detect if Phase 5 failed and we're using fallback defaults (fail-safe mode)
     if (
@@ -1060,23 +1063,25 @@ def run(  # noqa: C901
     # WHERE signal = 'BUY' (this system is long-only), so every qualified trade here is
     # necessarily a buy signal by construction.
     strength_vals = [float(s["composite_score"]) for s in liq_passed if s.get("composite_score") is not None]
+    phase_data = {
+        "qualified_trades": liq_passed,
+        "total_candidates": len(raw_candidates),
+        "pre_liquidity_check": len(quality_filtered),
+        "liquidity_passed": len(liq_passed),
+        "regime": regime,
+        "signal_source": signal_source,
+        "signals_generated": len(liq_passed),
+        "buy_signals": len(liq_passed),
+        "sell_signals": 0,
+        "avg_strength": (sum(strength_vals) / len(strength_vals)) if strength_vals else None,
+        "symbols_with_signals": [s["symbol"] for s in liq_passed if s.get("symbol")],
+    }
+    validate_phase_data(7, phase_data)
     return PhaseResult(
         7,
         "signal_generation",
         "ok",
-        {
-            "qualified_trades": liq_passed,
-            "total_candidates": len(raw_candidates),
-            "pre_liquidity_check": len(quality_filtered),
-            "liquidity_passed": len(liq_passed),
-            "regime": regime,
-            "signal_source": signal_source,
-            "signals_generated": len(liq_passed),
-            "buy_signals": len(liq_passed),
-            "sell_signals": 0,
-            "avg_strength": (sum(strength_vals) / len(strength_vals)) if strength_vals else None,
-            "symbols_with_signals": [s["symbol"] for s in liq_passed if s.get("symbol")],
-        },
+        phase_data,
         False,
         f"Generated {len(liq_passed)} signals in {elapsed:.1f}s (source={signal_source})",
     )
