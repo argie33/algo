@@ -183,6 +183,8 @@ SAFE_COLUMNS = {
     "date",
     "created_at",
     "updated_at",
+    "last_updated_at",
+    "date_added",
     "executed_at",
     "timestamp",
     "signal_date",

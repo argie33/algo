@@ -116,6 +116,90 @@ class TestPositionSizer:
                 pass
 
 
+class TestPositionSizingAudit:
+    """algo_position_sizing_audit's schema (base_shares/final_shares/cascade_multiplier/
+    multipliers_json/reasons_json) was added by migration but the risk-multiplier cascade
+    _calculate_with_external_cursor already computes (risk_adjustment/exposure_mult/
+    phase_mult/vix_mult/regime_mult) was never persisted to it - the table sat permanently
+    empty, which made lambda/api/routes/risk_dashboard.py's comprehensive dashboard 503
+    unconditionally. _record_sizing_audit fixes that; these tests cover it directly since
+    exercising the full calculate_position_size cascade requires mocking ~6 DB-touching
+    helper methods.
+    """
+
+    @pytest.fixture
+    def config(self):
+        return {
+            "base_risk_pct": 0.75,
+            "max_position_size_pct": 6.3,
+            "max_positions": 15,
+            "max_concentration_pct": 50.0,
+            "risk_reduction_at_minus_5": 0.75,
+            "risk_reduction_at_minus_10": 0.5,
+            "risk_reduction_at_minus_15": 0.25,
+            "risk_reduction_at_minus_20": 0.0,
+            "vix_caution_threshold": 20.0,
+            "vix_max_threshold": 30.0,
+            "vix_caution_risk_reduction": 0.5,
+        }
+
+    @pytest.fixture
+    def position_sizer(self, config):
+        from algo.trading.position_sizer import PositionSizer
+
+        return PositionSizer(config)
+
+    @patch("algo.trading.position_sizer.DatabaseContext")
+    def test_record_sizing_audit_inserts_cascade_breakdown(self, mock_db_ctx, position_sizer):
+        mock_cur = mock_db_ctx.return_value.__enter__.return_value
+
+        position_sizer._record_sizing_audit(
+            symbol="AAPL",
+            signal_date=date(2026, 7, 21),
+            entry_price=150.0,
+            stop_loss_price=145.0,
+            base_shares=120,
+            final_shares=100,
+            position_size_pct=Decimal("4.5"),
+            cascade_multiplier=Decimal("0.75"),
+            multipliers={"vix_mult": 0.5, "regime_mult": 1.0},
+            reasons={"vix_mult": "VIX caution multiplier: 0.50x"},
+        )
+
+        assert mock_cur.execute.called
+        sql_text, params = mock_cur.execute.call_args[0]
+        assert "INSERT INTO algo_position_sizing_audit" in sql_text
+        assert params[0] == "AAPL"
+        # base_shares (pre-cap) and final_shares (post-cap) must both be recorded distinctly,
+        # not collapsed to the same value - that's the whole point of the audit trail.
+        assert params[4] == 120
+        assert params[5] == 100
+        assert params[7] == 0.75
+        import json
+
+        assert json.loads(params[8]) == {"vix_mult": 0.5, "regime_mult": 1.0}
+        assert json.loads(params[9]) == {"vix_mult": "VIX caution multiplier: 0.50x"}
+
+    @patch("algo.trading.position_sizer.DatabaseContext")
+    def test_record_sizing_audit_failure_does_not_raise(self, mock_db_ctx, position_sizer):
+        """Best-effort: a DB/logging failure here must never block a real sizing decision
+        or trade entry - this is an audit trail, not a gating check."""
+        mock_db_ctx.side_effect = RuntimeError("connection refused")
+
+        position_sizer._record_sizing_audit(
+            symbol="AAPL",
+            signal_date=date(2026, 7, 21),
+            entry_price=150.0,
+            stop_loss_price=145.0,
+            base_shares=100,
+            final_shares=100,
+            position_size_pct=Decimal("4.5"),
+            cascade_multiplier=Decimal("1.0"),
+            multipliers={"vix_mult": 1.0},
+            reasons={"vix_mult": "VIX caution multiplier: 1.00x"},
+        )  # must not raise
+
+
 class TestValueAtRisk:
     """Tests for Value at Risk calculations."""
 

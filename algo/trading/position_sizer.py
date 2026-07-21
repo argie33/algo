@@ -783,6 +783,7 @@ class PositionSizer:
                 f"Cannot size position with invalid stop price. This indicates corrupted position data."
             )
         shares = int((risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+        base_shares = shares  # pre-cap share count from risk-based sizing alone, for algo_position_sizing_audit
 
         if shares < 1:
             return {
@@ -856,6 +857,36 @@ class PositionSizer:
                 "reason": f"Total invested would be {(total_invested / Decimal(str(portfolio_value)) * Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
             }
 
+        cascade_multiplier = (
+            risk_adjustment * exposure_mult * Decimal(str(phase_mult)) * vix_mult * Decimal(str(regime_mult))
+        )
+        multipliers = {
+            "risk_adjustment": float(risk_adjustment),
+            "exposure_mult": float(exposure_mult),
+            "phase_mult": float(phase_mult),
+            "vix_mult": float(vix_mult),
+            "regime_mult": float(regime_mult),
+        }
+        multiplier_reasons = {
+            "risk_adjustment": f"drawdown-based risk adjustment: {multipliers['risk_adjustment']:.2f}x",
+            "exposure_mult": f"market exposure multiplier: {multipliers['exposure_mult']:.2f}x",
+            "phase_mult": f"stage/phase multiplier: {multipliers['phase_mult']:.2f}x",
+            "vix_mult": f"VIX caution multiplier: {multipliers['vix_mult']:.2f}x",
+            "regime_mult": f"market regime multiplier: {multipliers['regime_mult']:.2f}x",
+        }
+        self._record_sizing_audit(
+            symbol=symbol,
+            signal_date=signal_date,
+            entry_price=entry_price,
+            stop_loss_price=stop_loss_price,
+            base_shares=base_shares,
+            final_shares=shares,
+            position_size_pct=position_pct_of_portfolio,
+            cascade_multiplier=cascade_multiplier,
+            multipliers=multipliers,
+            reasons=multiplier_reasons,
+        )
+
         return {
             "shares": shares,
             "position_size_pct": position_pct_of_portfolio,
@@ -864,3 +895,58 @@ class PositionSizer:
             "status": "ok",
             "reason": f"{shares} shares @ ${entry_price:.2f} = ${float(position_value):.2f} ({float(position_pct_of_portfolio):.1f}%)",
         }
+
+    def _record_sizing_audit(
+        self,
+        symbol: str,
+        signal_date: _date | None,
+        entry_price: Any,
+        stop_loss_price: Any,
+        base_shares: int,
+        final_shares: int,
+        position_size_pct: Decimal,
+        cascade_multiplier: Decimal,
+        multipliers: dict[str, float],
+        reasons: dict[str, str],
+    ) -> None:
+        """Persist the risk-multiplier cascade behind a sizing decision to algo_position_sizing_audit.
+
+        This table's schema (base_shares/final_shares/cascade_multiplier/reasons_json) was added
+        by migration but never written to - the exact multiplier cascade it exists to capture
+        (risk_adjustment/exposure_mult/phase_mult/vix_mult/regime_mult, computed above) was always
+        computed here, just never persisted. Left the table permanently empty, which made
+        lambda/api/routes/risk_dashboard.py's comprehensive risk dashboard 503 unconditionally
+        (its position_sizing_stats section raises when the table has zero rows) and the dedicated
+        /position-sizing-audit forensics endpoint return nothing. Fires on every "ok" sizing
+        decision (not just executed trades), matching algo_signal_rejections' convention of
+        auditing every real decision the pipeline makes, not only ones a downstream check later acts on.
+        Best-effort: a logging failure must not block position sizing or trade entry.
+        """
+        try:
+            import json
+
+            with DatabaseContext("write") as cur:
+                cur.execute(
+                    """
+                    INSERT INTO algo_position_sizing_audit (
+                        symbol, signal_date, entry_price, stop_loss_price,
+                        base_shares, final_shares, position_size_pct,
+                        cascade_multiplier, multipliers_json, reasons_json
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        symbol,
+                        signal_date,
+                        float(entry_price),
+                        float(stop_loss_price),
+                        base_shares,
+                        final_shares,
+                        float(position_size_pct),
+                        float(cascade_multiplier),
+                        json.dumps(multipliers),
+                        json.dumps(reasons),
+                    ),
+                )
+        except Exception as e:
+            logger.warning(f"[POSITION_SIZER] Failed to record sizing audit for {symbol}: {e}")

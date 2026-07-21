@@ -443,19 +443,27 @@ class PipelineHealth:
     def _infer_date_column(self, cur: Any, table_name: str) -> str | None:
         """Infer the date column for a table by checking column existence AND content.
 
-        Tries in order: date, updated_at, created_at, date_added. A column that exists
-        but is NULL for every row (e.g. value_metrics.date, analyst_upgrade_downgrade.date -
+        Tries in order: date, updated_at, last_updated_at, created_at, date_added. A column
+        that exists but is NULL for every row (e.g. value_metrics.date, analyst_upgrade_downgrade.date -
         dead/unused columns left over from an old schema, with the real timestamp actually
         in updated_at/action_date) used to be picked anyway since only existence was checked,
         making check_table_health()'s "SELECT col ORDER BY col DESC LIMIT 1" return NULL and
         report a table with fresh, real data as HealthStatus.MISSING. Requiring at least one
         non-null value before accepting a candidate column fixes that false positive and falls
         through to the next candidate instead.
+
+        last_updated_at added 2026-07-21: algo_runtime_state (the RDS-fallback halt-flag state
+        table, actively upserted on every orchestrator run) was falling through to created_at,
+        which PostgreSQL sets once at row creation and never touches again on UPDATE - so a
+        single-row state table updated seconds ago read as VERY_STALE (32 days) forever after
+        its first insert. Confirmed live: last_updated_at=today, created_at=2026-06-19.
+        Tried before created_at since, like updated_at, it tracks real per-row freshness rather
+        than row-creation time.
         Returns None if no populated date-like column is found.
         """
         try:
             safe_table = assert_safe_table(table_name)
-            for col in ["date", "updated_at", "created_at", "date_added"]:
+            for col in ["date", "updated_at", "last_updated_at", "created_at", "date_added"]:
                 safe_col = assert_safe_column(col)
                 cur.execute(
                     "SELECT 1 FROM information_schema.columns WHERE table_name = %s AND column_name = %s LIMIT 1",

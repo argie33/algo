@@ -105,6 +105,47 @@ class TestPipelineHealthMonitoring:
         assert last_updated_by_table["aaii_sentiment"] == stale_date
         assert last_updated_by_table["price_daily"] != last_updated_by_table["aaii_sentiment"]
 
+    def test_infer_date_column_prefers_last_updated_at_over_created_at(self):
+        """algo_runtime_state (RDS-fallback halt-flag state, actively upserted on every
+        orchestrator run) has last_updated_at (tracks real per-row freshness) AND created_at
+        (Postgres sets once at row creation, never touched again on UPDATE). Before
+        last_updated_at was added as a candidate, this table fell through to created_at and
+        read as VERY_STALE (32 days) even seconds after a real upsert - confirmed live.
+        """
+        from algo.monitoring.pipeline_health import PipelineHealth
+
+        mock_cur = Mock()
+
+        def fake_execute(sql, params=None):
+            fake_execute.last_sql = sql
+            fake_execute.last_params = params
+
+        mock_cur.execute = Mock(side_effect=fake_execute)
+
+        # "date" and "updated_at" don't exist on this table; "last_updated_at" exists and is
+        # populated; "created_at" also exists and is populated (would be picked if
+        # last_updated_at weren't tried first).
+        column_exists = {"date": False, "updated_at": False, "last_updated_at": True, "created_at": True}
+        populated = {"last_updated_at": True, "created_at": True}
+
+        call_state = {"col": None}
+
+        def fetchone_side_effect():
+            # First call in the loop iteration checks information_schema (existence),
+            # second call checks non-null content - track which column we're on via execute().
+            sql = mock_cur.execute.call_args[0][0]
+            if "information_schema.columns" in sql:
+                col = mock_cur.execute.call_args[0][1][1]
+                call_state["col"] = col
+                return (1,) if column_exists.get(col) else None
+            return (1,) if populated.get(call_state["col"]) else None
+
+        mock_cur.fetchone = Mock(side_effect=fetchone_side_effect)
+
+        monitor = PipelineHealth()
+        result = monitor._infer_date_column(mock_cur, "algo_runtime_state")
+        assert result == "last_updated_at"
+
 
 class TestConnectionMonitoring:
     """Test database and service connection monitoring."""
