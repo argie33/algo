@@ -106,13 +106,24 @@ class TradeExecutor:
         self.alpaca_key = None
         self.alpaca_secret = None
 
+        # CRITICAL: "auto" is this system's real live-trading mode (the only mode that
+        # actually sends orders to Alpaca - see _submit_and_validate_order). The four checks
+        # below originally grouped it with "paper", meaning a credential-fetch failure in
+        # live trading either silently didn't re-raise (misleadingly logged as "paper trading
+        # mode without live broker") or, worse, got backfilled with literal placeholder
+        # strings ("paper_trading_key"/"paper_trading_secret") a few lines down instead of
+        # failing loudly - live orders would then be attempted with garbage credentials and
+        # fail deep inside the HTTP call with a confusing 401/403 instead of a clear
+        # "credentials missing" error at startup. Same bug class, same fix, as
+        # position_sizer.py's _fetch_live_alpaca_equity and executor_entry_handler.py's
+        # order-rejection handling (both fixed earlier this session) - scope to paper only.
         try:
             alpaca_creds = get_alpaca_credentials()
             self.alpaca_key = alpaca_creds.get("key")
             self.alpaca_secret = alpaca_creds.get("secret")
         except ValueError as e:
             logger.debug(f"[EXECUTOR] Alpaca credentials not found (ValueError): {e}")
-            if self.execution_mode not in ("paper", "auto"):
+            if self.execution_mode != "paper":
                 logger.critical(
                     f"[EXECUTOR_INIT] Non-paper mode requires Alpaca credentials, but got ValueError: {e}"
                 )
@@ -123,7 +134,7 @@ class TradeExecutor:
                 f"[EXECUTOR] Failed to extract credentials from manager response: "
                 f"{type(e).__name__}: {e}. Response structure may be invalid."
             )
-            if self.execution_mode not in ("paper", "auto"):
+            if self.execution_mode != "paper":
                 raise ValueError(
                     f"Credential manager returned invalid structure: {type(e).__name__}: {e}"
                 ) from e
@@ -132,7 +143,7 @@ class TradeExecutor:
             logger.exception(
                 f"[EXECUTOR] Unexpected error during credential retrieval: {type(e).__name__}: {e}"
             )
-            if self.execution_mode not in ("paper", "auto"):
+            if self.execution_mode != "paper":
                 raise
             logger.warning("[EXECUTOR] Credential retrieval failed - paper trading mode without live broker")
 
@@ -140,8 +151,8 @@ class TradeExecutor:
         configured_url = os.getenv("APCA_API_BASE_URL")
         self.alpaca_base_url = self.execution_mode_strategy.resolve_base_url(configured_url)
 
-        # For paper/auto mode, allow missing credentials (will not execute real trades)
-        if self.execution_mode in ("paper", "auto"):
+        # For paper mode only, allow missing credentials (will not execute real trades)
+        if self.execution_mode == "paper":
             if not self.alpaca_key or not self.alpaca_secret:
                 logger.info("[EXECUTOR] Running in paper trading mode without live Alpaca credentials")
                 self.alpaca_key = self.alpaca_key or "paper_trading_key"

@@ -215,8 +215,22 @@ class PositionSizer:
     def _fetch_live_alpaca_equity(self) -> Decimal:
         execution_mode = self.config.get("execution_mode", "paper")
 
-        # In paper mode, skip Alpaca API and use database portfolio value
-        if execution_mode in ("paper", "auto"):
+        # CRITICAL: "auto" is this system's real live-trading mode (the only mode that
+        # actually contacts the Alpaca API - confirmed via executor.py/_submit_and_validate_order,
+        # which never sends real orders for paper/dry/review). Including "auto" here meant this
+        # function - whose entire purpose is fetching LIVE Alpaca equity, and whose caller
+        # (get_portfolio_value) documents "Priority 1: Live Alpaca account (most accurate, for
+        # live trading)" - unconditionally skipped the real API call below (lines further down,
+        # a fully-implemented retry-hardened /v2/account fetch) for every live trade and used a
+        # potentially stale algo_portfolio_snapshots row instead (last written whenever Phase 9
+        # reconciliation last ran, not reflecting same-day trading activity or capital flows).
+        # Position sizing for real money was computed off stale data on every single live trade.
+        # Same bug class, same fix, as executor_entry_handler.py's order-rejection fix this
+        # session - scope the DB-snapshot fallback to execution_mode == "paper" only. Auto mode
+        # now correctly reaches the real Alpaca API call below regardless of whether the
+        # configured Alpaca account itself is live or Alpaca's own paper-trading endpoint (that
+        # is controlled by credentials/base URL, a separate concern from execution_mode).
+        if execution_mode == "paper":
             try:
                 from utils.db.context import DatabaseContext
 
