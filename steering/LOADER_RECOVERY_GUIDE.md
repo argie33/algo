@@ -227,6 +227,65 @@ need a true backfill (not just watermark catch-up), it currently requires callin
 `PriceLoader.run(symbols, backfill_days=N)` directly from a Python shell, or deleting the
 affected `loader_watermarks` rows so the next incremental run re-fetches from scratch.
 
+### Per-Symbol Staleness: `monitor_data_staleness.py` and Phase 1's own coverage check are blind to this
+
+**Symptom:** Phase 1 halts intermittently with "Price data coverage insufficient: symbols
+N < min X" even though `monitor_data_staleness.py`/`check_system_health.py` report
+`price_daily` as FRESH. Both staleness checks only look at `MAX(date)` across the *whole*
+table - if 90%+ of symbols have today's row, the table looks perfectly fresh even while a
+meaningful chunk of individual symbols have been silently stuck for days.
+
+**Root cause (confirmed live 2026-07-20):** a `loadpricedaily` run can hit a genuinely
+fatal, correctly-fail-closed error mid-run (e.g. `load_prices.py`'s cache-invalidation
+step failing in a way not covered by its DynamoDB-unavailable allowlist - see
+`invalidate_price_cache()`'s final `RuntimeError`) and crash before finishing every batch.
+Whichever symbols hadn't been processed yet stay frozen at their last successful date
+indefinitely - there is no automatic retry or per-symbol staleness alert, so the gap
+persists silently until someone happens to look. Confirmed: 497 active symbols (including
+ordinary liquid stocks like ASTS/ATR/AVB/BFAM/BHF, not just illiquid rights/warrants)
+were stuck 3+ trading days behind after exactly this kind of crash on 2026-07-17, with
+`loader_watermarks.last_error` empty the whole time (the crash killed the run before any
+per-symbol error was ever recorded for them).
+
+**Diagnose:**
+
+```sql
+-- Symbols missing today's price despite being active
+SELECT COUNT(*) FROM stock_symbols ss
+LEFT JOIN price_daily pd ON pd.symbol = ss.symbol AND pd.date = CURRENT_DATE
+WHERE ss.active = true AND pd.symbol IS NULL;
+
+-- How stale are they, and is it concentrated on one date (crash-recovery gap) or
+-- scattered/None (normal small residual of genuinely dead/new tickers)?
+SELECT (SELECT MAX(date) FROM price_daily WHERE symbol = ss.symbol) AS last_price_date,
+       COUNT(*)
+FROM stock_symbols ss
+LEFT JOIN price_daily pd ON pd.symbol = ss.symbol AND pd.date = CURRENT_DATE
+WHERE ss.active = true AND pd.symbol IS NULL
+GROUP BY 1 ORDER BY 2 DESC;
+```
+
+**Fix (safe, targeted, no code changes needed):** force just the stuck symbols through
+the normal loader path via `LOADER_SYMBOLS` (comma-separated, bypasses `get_active_symbols`
+entirely so nothing else is affected):
+
+```bash
+python -c "
+import psycopg2
+conn = psycopg2.connect('dbname=stocks user=stocks host=localhost')
+cur = conn.cursor()
+cur.execute('''SELECT ss.symbol FROM stock_symbols ss
+    LEFT JOIN price_daily pd ON pd.symbol = ss.symbol AND pd.date = CURRENT_DATE
+    WHERE ss.active = true AND pd.symbol IS NULL ORDER BY ss.symbol''')
+print(','.join(r[0] for r in cur.fetchall()))
+" > /tmp/stuck.txt
+LOADER_SYMBOLS="$(cat /tmp/stuck.txt)" python loaders/load_prices.py
+```
+
+Verified live 2026-07-20: this recovered 507/497 requested symbols (coverage 4974 → 5367
+of 5466 active), leaving only the genuine ~104-symbol residual (tickers with `last_price_date`
+= NULL - never had any price history, a normal small gap, not a crash artifact).
+
 ---
 
 ## Monitoring Setup (Prevent Future Issues)
