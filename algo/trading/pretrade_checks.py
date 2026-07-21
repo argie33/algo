@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import date as _date
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -118,15 +118,54 @@ class PreTradeChecks:
 
         try:
             with DatabaseContext("read") as cur:
+                # Check 1: Position currently open
                 cur.execute(
                     "SELECT symbol FROM algo_positions WHERE symbol = %s AND status = %s LIMIT 1",
                     (symbol, "open"),
                 )
                 if cur.fetchone():
                     return (False, f"Position already open for {symbol}")
+
+                # Check 2: Position recently closed (same trading day) - prevent flip-flop entries
+                # ISSUE: Without this check, Phase 6 can exit a position and Phase 8 can immediately
+                # re-enter it in the same orchestrator run. Re-entry within a few minutes indicates
+                # a signal stale issue (buy_sell_daily signal wasn't invalidated after exit).
+                # Allow up to 30 minutes (configurable) between close and re-entry to prevent
+                # rapid flip-flop trading that increases costs and undermines risk management.
+                cur.execute(
+                    """
+                    SELECT position_id, closed_at FROM algo_positions
+                    WHERE symbol = %s AND status = %s AND closed_at IS NOT NULL
+                    ORDER BY closed_at DESC LIMIT 1
+                    """,
+                    (symbol, "closed"),
+                )
+                recently_closed_row = cur.fetchone()
+                if recently_closed_row:
+                    pos_id, closed_at = recently_closed_row
+                    # Fail-fast: if closed_at is missing, something is wrong with the data
+                    if closed_at is None:
+                        logger.warning(
+                            f"[PRE-TRADE] {symbol}: Position {pos_id} marked closed but closed_at is NULL. "
+                            "Cannot evaluate recent close cooldown. Allowing entry (data integrity issue)."
+                        )
+                    else:
+                        # Calculate minutes since close (using CURRENT_TIMESTAMP for consistency with DB)
+                        minutes_since_close = (
+                            datetime.now(timezone.utc) - closed_at.replace(tzinfo=timezone.utc)
+                        ).total_seconds() / 60
+                        reentry_cooldown_minutes = 30  # Configurable minimum; prevents rapid flip-flop
+
+                        if minutes_since_close < reentry_cooldown_minutes:
+                            return (
+                                False,
+                                f"Position {symbol} closed {minutes_since_close:.0f}m ago, "
+                                f"cooldown {reentry_cooldown_minutes}m required (closed_at={closed_at}). "
+                                f"Re-entry blocked to prevent flip-flop trading.",
+                            )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            logger.critical(f"[PRE-TRADE] Database error checking duplicate position for {symbol}: {e}")
-            raise ValueError(f"Cannot validate duplicate position check for {symbol}: {e}") from e
+            logger.critical(f"[PRE-TRADE] Database error checking duplicate/recent position for {symbol}: {e}")
+            raise ValueError(f"Cannot validate duplicate/recent position check for {symbol}: {e}") from e
 
         try:
             min_order_size = Decimal(str(self.config["min_order_size_dollars"]))

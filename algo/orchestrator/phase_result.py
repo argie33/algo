@@ -38,7 +38,16 @@ class PhaseResult:
         The is_error parameter is IGNORED; only halted parameter affects behavior.
         """
         self.phase_num = phase_num or phase_number
-        self.phase_name = phase_name
+        # Auto-populate canonical phase name from registry if not provided
+        if phase_name is None and self.phase_num is not None:
+            try:
+                from algo.orchestrator.phase_registry import PhaseRegistry
+                self.phase_name = PhaseRegistry.get_phase_name(self.phase_num)
+            except Exception:
+                # Fallback: use provided phase_name or None if retrieval fails
+                self.phase_name = phase_name
+        else:
+            self.phase_name = phase_name
         self.status = status
         self.data = data if data is not None else {}
         self.halted = halted

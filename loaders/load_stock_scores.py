@@ -103,21 +103,22 @@ class StockScoresLoader(OptimalLoader):
                     try:
                         # Get both available and total counts in one query for consistency
                         # COUNT FILTER is atomic and prevents row count changes between queries
-                        cur.execute(
-                            f"""
+                        cur.execute(f"""
                             SELECT
                                 COUNT(*) FILTER (WHERE data_unavailable = false OR data_unavailable IS NULL) as available_count,
                                 COUNT(*) as total_count
                             FROM {table_name}
-                            """
-                        )
-                    except psycopg2.ProgrammingError:
-                        # Column doesn't exist; assume all rows are available (no data_unavailable markers yet)
-                        logger.critical(
-                            f"[STOCK_SCORES CRITICAL] {table_name} missing data_unavailable column; schema mismatch detected. "
-                            f"Migration {table_name} may not have been applied yet."
-                        )
-                        cur.execute(f"SELECT COUNT(*) as available_count, COUNT(*) as total_count FROM {table_name}")
+                            """)
+                    except psycopg2.ProgrammingError as e:
+                        # CRITICAL: Schema mismatch is a fail-fast failure (GOVERNANCE compliance)
+                        # Cannot proceed with scoring when data_unavailable column is missing
+                        raise RuntimeError(
+                            f"[STOCK_SCORES] CRITICAL: {table_name} missing data_unavailable column. "
+                            f"Database schema is out of sync with application code. "
+                            f"Migration for {table_name} has not been applied. "
+                            f"ACTION: Apply pending database migrations before running stock scores loader. "
+                            f"Cannot proceed with potentially incomplete/corrupt metric data."
+                        ) from e
 
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
@@ -154,21 +155,22 @@ class StockScoresLoader(OptimalLoader):
                 for table_name in optional_sec_metric_tables:
                     # RACE CONDITION FIX: Use single query to get both counts atomically
                     try:
-                        cur.execute(
-                            f"""
+                        cur.execute(f"""
                             SELECT
                                 COUNT(*) FILTER (WHERE data_unavailable = false OR data_unavailable IS NULL) as available_count,
                                 COUNT(*) as total_count
                             FROM {table_name}
-                            """
-                        )
-                    except psycopg2.ProgrammingError:
-                        # Column doesn't exist; assume all rows are available
-                        logger.critical(
-                            f"[STOCK_SCORES CRITICAL] {table_name} missing data_unavailable column; schema mismatch detected. "
-                            f"Migration for {table_name} may not have been applied yet."
-                        )
-                        cur.execute(f"SELECT COUNT(*) as available_count, COUNT(*) as total_count FROM {table_name}")
+                            """)
+                    except psycopg2.ProgrammingError as e:
+                        # CRITICAL: Schema mismatch is a fail-fast failure (GOVERNANCE compliance)
+                        # Cannot proceed with scoring when data_unavailable column is missing
+                        raise RuntimeError(
+                            f"[STOCK_SCORES] CRITICAL: {table_name} missing data_unavailable column. "
+                            f"Database schema is out of sync with application code. "
+                            f"Migration for {table_name} has not been applied. "
+                            f"ACTION: Apply pending database migrations before running stock scores loader. "
+                            f"Cannot proceed with potentially incomplete/corrupt metric data."
+                        ) from e
 
                     row = cur.fetchone()
                     available_count = row[0] if row else 0
@@ -239,7 +241,7 @@ class StockScoresLoader(OptimalLoader):
 
             cur.execute(
                 "SELECT symbol, institutional_ownership_pct, insider_ownership_pct, short_interest_pct, "
-                "short_interest_trend, data_unavailable FROM positioning_metrics"
+                "data_unavailable FROM positioning_metrics"
             )
             self._positioning_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -264,8 +266,7 @@ class StockScoresLoader(OptimalLoader):
             # double-weight that signal; RSI/MACD are qualitatively different (oscillator /
             # trend-confirmation) so they add real incremental information.
             cur.execute(
-                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd "
-                "FROM technical_data_daily ORDER BY symbol, date DESC"
+                "SELECT DISTINCT ON (symbol) symbol, rsi_14, macd FROM technical_data_daily ORDER BY symbol, date DESC"
             )
             self._technical_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -282,7 +283,7 @@ class StockScoresLoader(OptimalLoader):
         Callers MUST initialize caches OR fail-fast with clear error message.
         """
         # CRITICAL: Check that batch context was prepared (caches initialized)
-        if not hasattr(self, '_quality_cache'):
+        if not hasattr(self, "_quality_cache"):
             raise RuntimeError(
                 f"[STOCK_SCORES] CRITICAL: Batch context not initialized for {symbol}. "
                 "The _prepare_batch_context() method must be called before fetch_incremental(). "
@@ -834,9 +835,9 @@ class StockScoresLoader(OptimalLoader):
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 5 columns (institutional_ownership, insider_ownership,
-          short_interest_percent, short_interest_trend, data_unavailable)
-        - Schema mismatch (len(row) < 5) → raises ValueError immediately
+        - Row length validation: Must have 4 columns (institutional_ownership, insider_ownership,
+          short_interest_percent, data_unavailable)
+        - Schema mismatch (len(row) < 4) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_positioning_metrics_found"
@@ -845,23 +846,18 @@ class StockScoresLoader(OptimalLoader):
         preferreds, depositary shares) have rows marked data_unavailable=True with NULL values.
         Previously returned NULLs instead of marker; now properly returns marker dict.
 
-        CRITICAL FIX 2026-07-20: short_interest_trend added. Column existed on
-        positioning_metrics but no loader ever wrote it and stock_scores never read it -
-        load_positioning_metrics.py now derives it from short_interest_finra's two most
-        recent settlement periods.
-
-        MINIMUM DATA REQUIREMENT: Row must have exactly 5 columns. Missing columns causes immediate
+        MINIMUM DATA REQUIREMENT: Row must have exactly 4 columns. Missing columns causes immediate
         fail-fast ValueError. Not available for REITs/special securities (expected, handled gracefully).
         """
         row = self._positioning_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 5 columns before accessing indices
-            if len(row) < 5:
+            # CRITICAL: Validate row has expected 4 columns before accessing indices
+            if len(row) < 4:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 5. "
+                    f"[STOCK_SCORES] {symbol}: positioning_metrics row has {len(row)} columns, expected 4. "
                     f"Schema mismatch detected - cannot safely access data. Failing fast."
                 )
-            data_unavailable = row[4]
+            data_unavailable = row[3]
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -874,7 +870,6 @@ class StockScoresLoader(OptimalLoader):
                 "institutional_ownership": safe_float(row[0], f"{symbol}.institutional_ownership"),
                 "insider_ownership": safe_float(row[1], f"{symbol}.insider_ownership"),
                 "short_interest": safe_float(row[2], f"{symbol}.short_interest"),
-                "short_interest_trend": row[3],
             }
         # No row exists at all
         logger.debug(
@@ -1017,7 +1012,9 @@ class StockScoresLoader(OptimalLoader):
                     "macd": macd,
                 }
 
-            logger.warning(f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - momentum_metrics not populated")
+            logger.warning(
+                f"[LOAD_STOCK_SCORES] No momentum data available for {symbol} - momentum_metrics not populated"
+            )
             logger.warning(f"[LOAD_STOCK_SCORES] Returning data_unavailable marker for momentum_metrics({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_momentum_data_available"}
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
@@ -1385,11 +1382,7 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += min(100, ins_score) * 0.20
             total_weight += 0.20
 
-        # Short interest: lower is better (target <5%). Trend is a directional qualifier
-        # of the same signal (shares covering vs. building), not an independent metric, so
-        # it nudges this component's score rather than getting its own weight bucket.
-        # Column existed on positioning_metrics since inception but no loader populated it
-        # until 2026-07-20 (derived from short_interest_finra's last 2 settlement periods).
+        # Short interest: lower is better (target <5%)
         if metrics.get("short_interest") is not None:
             si = metrics["short_interest"]
             if si < 5:
@@ -1398,11 +1391,6 @@ class StockScoresLoader(OptimalLoader):
                 score = 50 - ((si - 5) * 2)
             else:
                 score = 30
-            trend = metrics.get("short_interest_trend")
-            if trend == "decreasing":
-                score += 10  # shares covering: bullish
-            elif trend == "increasing":
-                score -= 10  # shares building: bearish
             weighted_sum += max(0, min(100, score)) * 0.25
             total_weight += 0.25
 

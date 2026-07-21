@@ -202,6 +202,7 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
     elif period == "ttm":
         return {
             "table_name": "ttm_income_statement",
+            "field_mapping": dict(_INCOME_FIELD_MAPPING),
             "primary_key": ("symbol", "report_date"),
             "schema_cols": frozenset(
                 [
@@ -269,6 +270,7 @@ def get_balance_sheet_config(period: str) -> dict[str, Any]:
     elif period == "ttm":
         return {
             "table_name": "ttm_balance_sheet",
+            "field_mapping": dict(_BALANCE_FIELD_MAPPING),
             "primary_key": ("symbol", "report_date"),
             "schema_cols": frozenset(
                 [
@@ -339,6 +341,7 @@ def get_cash_flow_config(period: str) -> dict[str, Any]:
     elif period == "ttm":
         return {
             "table_name": "ttm_cash_flow",
+            "field_mapping": dict(_CASHFLOW_FIELD_MAPPING),
             "primary_key": ("symbol", "report_date"),
             "schema_cols": frozenset(
                 [
@@ -466,10 +469,11 @@ def load_all_statements() -> int:
                 f"Cannot proceed without distributed locking. Fix DynamoDB access or AWS credentials."
             )
             from algo.exceptions import LockAcquisitionError
+
             raise LockAcquisitionError(
                 lock_key="financial_statements_all_mode",
                 reason=f"DynamoDB lock manager unavailable: {ddb_err}",
-                context={"loader": "financial_statements"}
+                context={"loader": "financial_statements"},
             ) from ddb_err
 
         # get_lock_manager() either returns a real lock manager or raises RuntimeError
