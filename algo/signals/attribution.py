@@ -197,7 +197,13 @@ class SignalAttributionEngine:
                     """,
                     (component, days),
                 )
-                return [(row[0], float(row[1])) for row in cur.fetchall()]
+                rows = cur.fetchall()
+                result = []
+                for row in rows:
+                    if len(row) < 2:
+                        raise RuntimeError(f"[ATTRIBUTION] Query returned {len(row)} columns, expected 2 (date, value)")
+                    result.append((row[0], float(row[1])))
+                return result
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Cannot retrieve trailing IC for attribution analysis: {e}") from e
 

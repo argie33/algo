@@ -106,6 +106,9 @@ class AdvancedFilters:
                 (eval_date,),
             )
             sectors = cur.fetchall()
+            for row in sectors:
+                if len(row) < 3:
+                    raise ValueError(f"[ADVANCED_FILTERS] Sector query returned {len(row)} columns, expected 3")
             self._sector_full_ranking = {row[0]: int(row[1]) for row in sectors}
             self._strong_sectors = {
                 row[0]: float(row[2]) for row in sectors[: self.strong_sector_top_n] if row[2] is not None
@@ -137,6 +140,9 @@ class AdvancedFilters:
                     f"No industry ranking data available for {eval_date} - "
                     f"cannot proceed without industry ranking for signal evaluation"
                 )
+            for row in industries:
+                if len(row) < 2:
+                    raise ValueError(f"[ADVANCED_FILTERS] Industry query returned {len(row)} columns, expected 2")
             cutoff_idx = max(1, len(industries) // 4)
             self._strong_industries = {row[0]: float(row[1]) for row in industries[:cutoff_idx]}
 
@@ -145,12 +151,15 @@ class AdvancedFilters:
                 (eval_date,),
             )
             sent = cur.fetchone()
-            if sent and sent[0] is not None and sent[1] is not None:
-                self._market_breadth = {
-                    "bullish": float(sent[0]),
-                    "bearish": float(sent[1]),
-                    "bull_bear_spread": float(sent[0]) - float(sent[1]),
-                }
+            if sent:
+                if len(sent) < 3:
+                    raise ValueError(f"[ADVANCED_FILTERS] Sentiment query returned {len(sent)} columns, expected 3")
+                if sent[0] is not None and sent[1] is not None:
+                    self._market_breadth = {
+                        "bullish": float(sent[0]),
+                        "bearish": float(sent[1]),
+                        "bull_bear_spread": float(sent[0]) - float(sent[1]),
+                    }
 
             return {
                 "strong_sectors": list(self._strong_sectors.keys()),
