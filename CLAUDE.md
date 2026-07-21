@@ -10,8 +10,7 @@
 4. **AWS/deployment?** → `steering/OPERATIONS.md`
 5. **Data loading system?** → `steering/DATA_LOADERS.md`
 6. **Data stale or broken?** → `python scripts/monitor_data_staleness.py` + `steering/LOADER_RECOVERY_GUIDE.md`
-7. **AWS billing?** → `BILLING_QUICK_REFERENCE.md`
-8. **General troubleshooting?** → `steering/COMMON_OPERATIONS.md`
+7. **Troubleshooting (deep dive)?** → `steering/COMMON_OPERATIONS.md`
 
 ## Quick Setup - AWS or LOCAL
 
@@ -100,7 +99,7 @@ This checks:
 - **Dashboard Startup:** ✅ Defaults to AWS (if configured), respects `--local` flag, auto-detects localhost
 - **Circuit Breaker:** ✅ All 9 circuit breaker metrics available, auto-reset on dashboard startup
 - **Dev Server:** ✅ Startup validation included - fails fast with clear instructions
-- **Production Orchestrator:** ✅ Fully operational (43 runs in 24h), manual triggers work. EventBridge Scheduler awaiting admin deployment for automatic scheduling.
+- **Production Orchestrator:** ✅ Fully operational, manual triggers work. AWS EventBridge Scheduler setup pending.
 
 ## Running Orchestrator
 
