@@ -424,7 +424,10 @@ class PositionSizer:
         dd = self.get_current_drawdown()
 
         if dd >= 20:
-            risk_mult = Decimal(str(self.config.get("risk_reduction_at_minus_20", 0.0)))
+            val = self.config.get("risk_reduction_at_minus_20")
+            if val is None:
+                raise KeyError("[POSITION_SIZER] Config missing 'risk_reduction_at_minus_20'")
+            risk_mult = Decimal(str(val))
             if risk_mult == 0:
                 logger.critical(
                     "CIRCUIT BREAKER TRIGGERED: Portfolio drawdown >= 20%. "
