@@ -23,7 +23,6 @@ os.environ["ENVIRONMENT"] = "dev"
 
 from utils.data_queries import get_open_positions  # noqa: E402
 from utils.db import get_db_connection  # noqa: E402
-from utils.infrastructure import EASTERN_TZ  # noqa: E402
 
 
 class APIHandler(BaseHTTPRequestHandler):
@@ -445,6 +444,19 @@ class APIHandler(BaseHTTPRequestHandler):
             conn = get_db_connection()
             cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
+            # data_loader_status.last_updated is naive (timestamp without time zone), written
+            # in the DB session's local wall-clock time (utils/bulk_insert_manager.py's
+            # convention), not UTC and not necessarily Eastern - hardcoding EASTERN_TZ here
+            # previously assumed the session timezone always matches market hours, but this
+            # session's actual `SHOW timezone` can be anything (e.g. America/Chicago, a full
+            # hour off Eastern during DST) depending on the deployment/OS. Same fix already
+            # applied to lambda/api/routes/algo_handlers/market.py's equivalent endpoint -
+            # resolve the real session timezone dynamically instead of guessing.
+            from zoneinfo import ZoneInfo
+
+            cur.execute("SHOW timezone")
+            naive_tz = ZoneInfo(cur.fetchone()["TimeZone"])
+
             # Fetch loader status from database
             cur.execute("""
                 SELECT table_name, status, last_updated, row_count
@@ -495,14 +507,14 @@ class APIHandler(BaseHTTPRequestHandler):
 
                 # Mark as failed if status is error or stale
                 if status_bucket != "ok" or (
-                    last_updated and (now - last_updated.replace(tzinfo=EASTERN_TZ).astimezone(timezone.utc)).total_seconds() > 86400
+                    last_updated and (now - last_updated.replace(tzinfo=naive_tz).astimezone(timezone.utc)).total_seconds() > 86400
                 ):
                     ready_to_trade = False
 
                 # Calculate age in hours (None if last_updated is missing)
                 age_hours = None
                 if last_updated:
-                    last_updated_utc = last_updated.replace(tzinfo=EASTERN_TZ).astimezone(timezone.utc)
+                    last_updated_utc = last_updated.replace(tzinfo=naive_tz).astimezone(timezone.utc)
                     age_hours = (now - last_updated_utc).total_seconds() / 3600
 
                 # Determine role (criticality level)
