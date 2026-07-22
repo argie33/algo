@@ -505,11 +505,11 @@ class LivePerformance:
                 )
             else:
                 logger.debug(f"  Win rate: {wr['win_rate_pct']}%")
-            expectancy = self.expectancy(50)
+            expectancy = self.expectancy(50) if wr else None
             if expectancy is None:
                 logger.warning(
-                    "  Expectancy unavailable: lookback window doesn't yet contain both a winning "
-                    "and a losing trade (needs both sides to compute)."
+                    "  Expectancy unavailable: no closed trades or lookback window doesn't contain both a win and loss. "
+                    "Expected during account ramp-up phase."
                 )
             else:
                 logger.debug(f"  Expectancy: {expectancy}")

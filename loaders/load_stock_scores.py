@@ -164,7 +164,10 @@ class StockScoresLoader(OptimalLoader):
                         if max_update_row and max_update_row[0]:
                             max_update_ts = max_update_row[0]
                             from datetime import datetime, timezone
-                            stale_days = (datetime.now(timezone.utc) - max_update_ts).days
+                            now_utc = datetime.now(timezone.utc)
+                            if max_update_ts.tzinfo is None:
+                                max_update_ts = max_update_ts.replace(tzinfo=timezone.utc)
+                            stale_days = (now_utc - max_update_ts).days
                             max_staleness_days = 14  # Metrics older than 2 weeks are stale
                             if stale_days > max_staleness_days:
                                 logger.warning(
