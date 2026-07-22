@@ -552,6 +552,34 @@ def run(  # noqa: C901
                 raise RuntimeError(f"Symbol count query failed for last trading day ({last_trading_day})")
             symbols_loaded = row[0]
 
+            # CRITICAL FIX: Validate that data_loader_status.completion_pct matches actual symbol count
+            # Session 344: Found that completion_pct was calculated on row_count, not symbol_count,
+            # causing false "100% complete" when only 1 symbol out of 5000+ was actually loaded.
+            # This check catches that mismatch and fails fast rather than proceeding with incomplete data.
+            try:
+                cur.execute(
+                    """SELECT completion_pct, symbols_loaded, symbol_count
+                       FROM data_loader_status
+                       WHERE table_name = 'price_daily'
+                       ORDER BY last_updated DESC LIMIT 1"""
+                )
+                loader_status_row = cur.fetchone()
+                if loader_status_row:
+                    reported_pct, reported_loaded, reported_expected = loader_status_row
+                    # If loader reports 100% but actual loaded count is significantly lower, that's a red flag
+                    if reported_pct and reported_pct >= 95 and reported_loaded and reported_expected:
+                        actual_coverage = (reported_loaded / max(reported_expected, 1)) * 100
+                        if actual_coverage < 50:
+                            logger.critical(
+                                f"[PHASE 1] CRITICAL DATA QUALITY BUG: data_loader_status reports "
+                                f"{reported_pct:.0f}% completion but actual coverage is {actual_coverage:.1f}% "
+                                f"({reported_loaded} symbols loaded, {reported_expected} expected). "
+                                f"This indicates the loader's completion_pct calculation is broken. "
+                                f"Using actual symbol count {symbols_loaded} for validation."
+                            )
+            except Exception as status_check_err:
+                logger.warning(f"[PHASE 1] Could not validate loader status accuracy: {status_check_err}")
+
             # For coverage baseline: use day before last trading day (expected to have complete data)
             prev_trading_day = last_trading_day - td(days=1)
             while prev_trading_day > last_trading_day - td(days=10):

@@ -124,6 +124,27 @@ class Orchestrator:
                 "Orchestrator requires explicit config parameter (dependency injection). "
                 "Remove fallback to get_config() - get config at entry point and pass it explicitly."
             )
+
+        # CRITICAL FIX 2026-07-22: Session 344 - validate required config keys at startup
+        # This catches configuration issues early, not at phase execution time
+        required_config_keys = [
+            "phase1_min_coverage_pct",
+            "phase1_min_symbol_count",
+            "min_win_rate_pct",
+            "max_daily_loss_pct",
+            "max_weekly_loss_pct",
+        ]
+        missing_keys = [k for k in required_config_keys if k not in config]
+        if missing_keys:
+            logger.critical(
+                f"[ORCHESTRATOR STARTUP] CRITICAL: Configuration missing required keys: {missing_keys}. "
+                f"Cannot proceed without these critical trading safety thresholds. "
+                f"Verify all keys exist in algo_config table."
+            )
+            raise RuntimeError(
+                f"[ORCHESTRATOR] Required config keys missing: {missing_keys}. "
+                f"Check algo_config table for: {', '.join(required_config_keys)}"
+            )
         self.config = config
 
         env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
