@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 # CRITICAL: Loader timeout enforcement (prevents hung processes from blocking orchestrator)
 # Session 278 audit found 2 hung loaders (4.6h, 2.0h stuck) that prevented orchestrator from proceeding
 # Set process-level timeout to 45 minutes - should be sufficient for any large data load
-LOADER_TIMEOUT_SECONDS = 45 * 60  # 45 minutes
+LOADER_TIMEOUT_SECONDS = 120 * 60  # 2 hours (to accommodate slow SEC API fetches like earnings_calendar_sec)
 
 
 def _timeout_handler(signum: int, frame: object) -> None:
