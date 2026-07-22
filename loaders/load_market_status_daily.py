@@ -177,7 +177,14 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "breadth_momentum_10d": health_data.get("breadth_momentum_10d"),
                 "up_volume_percent": health_data.get("up_volume_percent"),
                 "yield_curve_slope": health_data.get("yield_10y_2y_spread"),
+                "yield_curve_data_unavailable": health_data.get("yield_curve_data_unavailable", False),
+                "yield_curve_unavailable_reason": health_data.get("yield_curve_unavailable_reason"),
                 "put_call_ratio": health_data.get("put_call_ratio"),
+                "put_call_ratio_data_unavailable": health_data.get("put_call_ratio_data_unavailable", False),
+                "put_call_ratio_unavailable_reason": health_data.get("put_call_ratio_unavailable_reason"),
+                "fed_rate_environment": health_data.get("fed_rate_environment"),
+                "fed_rate_data_unavailable": health_data.get("fed_rate_data_unavailable", True),
+                "fed_rate_unavailable_reason": health_data.get("fed_rate_unavailable_reason"),
                 "market_stage": stage_data.get("market_stage"),
                 "market_trend": stage_data.get("market_trend"),
 
@@ -284,17 +291,23 @@ class MarketStatusDailyLoader(OptimalLoader):
 
             # Fetch yield curve (10Y-2Y spread) - use same date range as VIX
             yield_data = self._yield_curve_fetcher.fetch(fetch_start, last_trading_day)
+            yield_curve_unavailable = False
+            yield_curve_reason = None
             if not yield_data or yield_data.get("data_unavailable"):
-                return {"data_unavailable": True, "reason": "yield_curve_unavailable"}
-
-            # yield_data is keyed by ISO date string (see YieldCurveFetcher._fetch_yield_curve_data),
-            # e.g. {"2026-07-17": {"yield_spread": ..., ...}} - not a flat dict, and the field is
-            # named "yield_spread" not "yield_10y_2y_spread".
-            latest_yield_date = max(yield_data.keys())
-            yield_spread = yield_data[latest_yield_date].get("yield_spread")
+                yield_spread = None
+                yield_curve_unavailable = True
+                yield_curve_reason = yield_data.get("reason", "unknown") if isinstance(yield_data, dict) else "unknown"
+            else:
+                # yield_data is keyed by ISO date string (see YieldCurveFetcher._fetch_yield_curve_data),
+                # e.g. {"2026-07-17": {"yield_spread": ..., ...}} - not a flat dict, and the field is
+                # named "yield_spread" not "yield_10y_2y_spread".
+                latest_yield_date = max(yield_data.keys())
+                yield_spread = yield_data[latest_yield_date].get("yield_spread")
 
             # Fetch put/call ratio (optional market sentiment indicator)
             put_call = None
+            put_call_unavailable = False
+            put_call_reason = None
             try:
                 put_call_result = self._put_call_fetcher.fetch(eval_date)
                 # FAIL-FAST: Explicitly check for data_unavailable flag (missing = error, not "data OK")
@@ -302,12 +315,18 @@ class MarketStatusDailyLoader(OptimalLoader):
                     put_call = put_call_result.get("put_call_ratio")
                 elif isinstance(put_call_result, dict) and put_call_result.get("data_unavailable") is True:
                     # Put/call data unavailable - log at WARNING for visibility (not DEBUG)
+                    put_call_unavailable = True
+                    put_call_reason = put_call_result.get('reason', 'unknown')
                     logger.warning(
-                        f"[MARKET_STATUS] Put/call ratio unavailable for {eval_date}: "
-                        f"{put_call_result.get('reason', 'unknown')}"
+                        f"[MARKET_STATUS] Put/call ratio unavailable for {eval_date}: {put_call_reason}"
                     )
+                else:
+                    put_call_unavailable = True
+                    put_call_reason = "unexpected_response_format"
             except Exception as e:
                 # Exception catch is now explicit with WARNING log - not silent DEBUG
+                put_call_unavailable = True
+                put_call_reason = f"fetcher_error: {str(e)[:100]}"
                 logger.warning(f"[MARKET_STATUS] Put/call ratio fetcher failed: {e}")
                 # put_call remains None - optional indicator
 
@@ -318,7 +337,14 @@ class MarketStatusDailyLoader(OptimalLoader):
                 "new_highs": new_highs,
                 "new_lows": new_lows,
                 "yield_10y_2y_spread": yield_spread,
+                "yield_curve_data_unavailable": yield_curve_unavailable,
+                "yield_curve_unavailable_reason": yield_curve_reason,
                 "put_call_ratio": put_call,
+                "put_call_ratio_data_unavailable": put_call_unavailable,
+                "put_call_ratio_unavailable_reason": put_call_reason,
+                "fed_rate_environment": None,
+                "fed_rate_data_unavailable": True,
+                "fed_rate_unavailable_reason": "fed_rate_fetcher_not_implemented",
                 "breadth_momentum_10d": breadth_momentum_10d,
                 "up_volume_percent": up_volume_percent,
             }
