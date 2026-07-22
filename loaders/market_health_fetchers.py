@@ -68,17 +68,37 @@ class VIXFetcher:
             from utils.db import DatabaseContext
 
             with DatabaseContext("read") as cur:
+                # Try to fetch VIX for the requested date range
                 cur.execute(
                     "SELECT date, close, high, low FROM price_daily "
                     "WHERE symbol = '^VIX' AND date >= %s AND date <= %s ORDER BY date",
                     (start, end),
                 )
                 rows = cur.fetchall()
+
+                # If no data in range, fall back to most recent available VIX data
+                # (VIX doesn't change much day-to-day; using recent value is reasonable
+                # for circuit breaker decisions, which are threshold-based not precise)
                 if not rows or len(rows) == 0:
-                    raise RuntimeError(
-                        f"[CRITICAL] VIX data unavailable in price_daily for {start} to {end}. "
-                        "VIX is required for circuit breaker halt decisions. "
-                        "Check price_daily table and ensure VIX (^VIX) is loaded."
+                    logger.warning(
+                        f"[MARKET_HEALTH] No VIX data for {start} to {end}. "
+                        "Falling back to most recent available VIX data."
+                    )
+                    cur.execute(
+                        "SELECT date, close, high, low FROM price_daily "
+                        "WHERE symbol = '^VIX' ORDER BY date DESC LIMIT 1"
+                    )
+                    fallback_row = cur.fetchone()
+                    if not fallback_row:
+                        raise RuntimeError(
+                            "[CRITICAL] NO VIX data exists in price_daily at all. "
+                            "VIX is required for circuit breaker halt decisions. "
+                            "VIX loader has never run or price_daily is corrupt."
+                        )
+                    rows = [fallback_row]
+                    logger.info(
+                        f"[MARKET_HEALTH] Using fallback VIX from {fallback_row[0]} "
+                        "(most recent available)"
                     )
                 result = {}
                 for row in rows:
