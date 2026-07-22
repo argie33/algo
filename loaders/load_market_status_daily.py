@@ -532,6 +532,15 @@ class MarketStatusDailyLoader(OptimalLoader):
         drops columns that don't exist in the target table, so exposure_pct/regime/factors
         never reach market_exposure_daily. This explicit persist ensures the table stays fresh.
         """
+        import json
+
+        # JSON-serialize halt_reasons and factors for database storage
+        halt_reasons_val = exposure.get("halt_reasons")
+        halt_reasons_json = json.dumps(halt_reasons_val) if halt_reasons_val is not None else None
+
+        factors_val = exposure.get("factors")
+        factors_json = json.dumps(factors_val) if factors_val is not None else None
+
         with DatabaseContext("write") as cur:
             cur.execute(
                 """
@@ -554,9 +563,9 @@ class MarketStatusDailyLoader(OptimalLoader):
                     exposure.get("regime"),
                     exposure.get("exposure_pct"),
                     exposure.get("raw_score"),
-                    exposure.get("halt_reasons"),
+                    halt_reasons_json,
                     exposure.get("distribution_days"),
-                    exposure.get("factors"),
+                    factors_json,
                     bool(exposure.get("data_unavailable", False)),
                     exposure.get("reason"),
                 ),
