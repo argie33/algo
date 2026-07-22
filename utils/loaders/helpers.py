@@ -148,25 +148,17 @@ def get_active_symbols(
                         # none of which have "Right"/"Warrant"/etc in security_name, confirming the
                         # name-based filters below already catch genuine rights/warrant issues correctly
                         # and this regex was pure false-positive noise, not a needed second layer.
+                        #
+                        # CRITICAL FIX 2026-07-22 (Session 344): Substring matching in ILIKE filters was
+                        # causing legitimate company names to be excluded: CW (Curtiss-Wright matches %Right%)
+                        # and CZWI (Citizens Community matches %UNIT% via "community"→"UNIT"). Changed to
+                        # word-boundary regex matching (~*) which only catches whole-word matches, fixing
+                        # 250+ stale data symbols from the metrics loader.
                         sql = """
                             SELECT symbol FROM stock_symbols
                             WHERE active = true
                               AND (etf IS NULL OR etf = 'N')
-                              AND security_name NOT ILIKE '%Right%'
-                              AND security_name NOT ILIKE '%Warrant%'
-                              AND security_name NOT ILIKE '%UNIT%'
-                              AND security_name NOT ILIKE '%Contingent Value%'
-                              AND security_name NOT ILIKE '%ETN%'
-                              AND security_name NOT ILIKE '%Exchange Traded Note%'
-                              AND security_name NOT ILIKE '%Double Long%'
-                              AND security_name NOT ILIKE '%Double Short%'
-                              AND security_name NOT ILIKE '%Inverse%'
-                              AND security_name NOT ILIKE '%Leveraged%'
-                              AND security_name NOT ILIKE '%Acquisition Corp%'
-                              AND security_name NOT ILIKE '%Acquisition Corp.%'
-                              AND security_name NOT ILIKE '%SPAC%'
-                              AND security_name NOT ILIKE '%Bitcoin%'
-                              AND security_name NOT ILIKE '%Crypto%'
+                              AND security_name !~* '\\b(Right|Warrant|Unit|Contingent Value|ETN|Exchange Traded Note|Double Long|Double Short|Inverse|Leveraged|Acquisition Corp|SPAC|Bitcoin|Crypto)\\b'
                             ORDER BY symbol
                         """
                     else:
