@@ -169,7 +169,13 @@ class DailyFinanceReport:
             raise RuntimeError(f"Database error fetching strategy metrics for {report_date}: {e}") from e
 
     def _fetch_components(self, cur: Any, report_date: _date) -> dict[str, Any]:
-        """IC and weight for each component."""
+        """IC and weight for each component.
+
+        SignalAttributionEngine is deprecated (swing_scores removed), so component attribution
+        data may not be available early in the day. Returns empty dict when unavailable - the report
+        can still be generated without component analysis. Component attribution is populated by
+        end-of-day loaders, not available during morning/afternoon orchestrator runs.
+        """
         try:
             cur.execute(
                 """
@@ -182,7 +188,12 @@ class DailyFinanceReport:
             rows = cur.fetchall()
 
             if not rows:
-                raise RuntimeError(f"No component attribution data available for {report_date}")
+                logger.warning(
+                    f"[DAILY_REPORT] No component attribution data available for {report_date}. "
+                    f"This is expected if running before end-of-day loaders complete. "
+                    f"SignalAttributionEngine is deprecated. Returning empty components dict."
+                )
+                return {}
 
             components = {}
             for comp, ic, pval in rows:
@@ -290,9 +301,8 @@ class DailyFinanceReport:
         regime = report["regime"]
         if not regime:
             raise ValueError("Report missing required field: regime")
-        components = report["components"]
-        if not components:
-            raise ValueError("Report missing required field: components")
+        components = report.get("components", {})
+        # components can be empty dict when SignalAttributionEngine is deprecated or data not yet available
         portfolio = report["portfolio"]
         if not portfolio:
             raise ValueError("Report missing required field: portfolio")
