@@ -993,13 +993,12 @@ class PositionMonitor:
         return ((max_close - entry_price) / entry_price) * 100.0
 
     def _days_to_earnings(self, symbol: str, current_date: _date | datetime, cur: PsycopgCursor[Any]) -> int:
-        """Get days until next earnings from earnings_calendar or earnings_history.
+        """Get days until next earnings from earnings_calendar.
 
         Raises:
-            ValueError: If earnings data unavailable (no calendar, estimates, or history)
+            ValueError: If earnings data unavailable (stock excluded from universe)
         """
         try:
-            # Primary: use earnings_calendar (populated by earnings loader)
             cur.execute(
                 """SELECT earnings_date FROM earnings_calendar
                    WHERE symbol = %s AND earnings_date >= %s
@@ -1007,42 +1006,12 @@ class PositionMonitor:
                 (symbol, current_date),
             )
             row = cur.fetchone()
-            if row is not None and row[0] is not None:
-                return int((row[0] - current_date).days)
-
-            # Fallback: estimate from last reported quarter using quarterly cycle math
-            cur.execute(
-                "SELECT MAX(earnings_date) FROM earnings_history WHERE symbol = %s",
-                (symbol,),
-            )
-            row = cur.fetchone()
-            if row is None or len(row) < 1 or row[0] is None:
-                raise ValueError(f"Earnings data unavailable for {symbol}: no calendar, estimates, or history found")
-
-            last_report = row[0]
-            month = last_report.month
-            year = last_report.year
-
-            if month < 4:
-                next_q = _date(year, 4, 15)
-            elif month < 7:
-                next_q = _date(year, 7, 15)
-            elif month < 10:
-                next_q = _date(year, 10, 15)
-            else:
-                next_q = _date(year + 1, 1, 15)
-
-            while next_q <= current_date:
-                if next_q.month == 1:
-                    next_q = _date(next_q.year, 4, 15)
-                elif next_q.month == 4:
-                    next_q = _date(next_q.year, 7, 15)
-                elif next_q.month == 7:
-                    next_q = _date(next_q.year, 10, 15)
-                else:
-                    next_q = _date(next_q.year + 1, 1, 15)
-
-            return int((next_q - current_date).days)
+            if row is None or row[0] is None:
+                raise ValueError(
+                    f"Earnings data unavailable for {symbol}: "
+                    f"stock excluded from universe (no SEC filings or earnings calendar entry)"
+                )
+            return int((row[0] - current_date).days)
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             raise RuntimeError(f"Earnings query failed for {symbol}: {e}") from e
 

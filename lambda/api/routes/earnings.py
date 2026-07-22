@@ -50,8 +50,7 @@ def handle(
             # contract stability (existing consumers key off this field name), but callers
             # correlating this with price action around an earnings reaction should not treat
             # it as the announcement date. algo/signals/advanced_filters.py's earnings-blackout
-            # gate deliberately does NOT use this table for exactly this reason - it reads
-            # earnings_calendar/earnings_estimates/earnings_history instead.
+            # gate uses earnings_calendar for actual earnings announcement dates.
             rows = execute_with_timeout(
                 cur,
                 """

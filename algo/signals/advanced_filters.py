@@ -888,12 +888,11 @@ class AdvancedFilters:
         return float(row[0])
 
     def _estimate_days_to_earnings(self, symbol: str, signal_date: _date, cur: PsycopgCursor[Any]) -> int:
-        """Estimate days until next earnings. Tries calendar -> estimates -> quarterly estimate.
+        """Get days until next earnings from earnings_calendar.
 
         Raises:
-            ValueError: If no earnings data available through any method
+            ValueError: If no earnings data available (stock excluded from universe)
         """
-        # First, try to get actual estimated earnings date from earnings_calendar or earnings_estimates
         cur.execute(
             """
             SELECT earnings_date FROM earnings_calendar
@@ -903,65 +902,11 @@ class AdvancedFilters:
             (symbol, signal_date),
         )
         row = cur.fetchone()
-        if row is not None and row[0] is not None:
-            earnings_date: _date = row[0]
-            return int((earnings_date - signal_date).days)
-
-        # Fallback: try earnings_estimates table
-        cur.execute(
-            """
-            SELECT earnings_date FROM earnings_estimates
-            WHERE symbol = %s AND earnings_date > %s AND estimated = true
-            ORDER BY earnings_date ASC LIMIT 1
-            """,
-            (symbol, signal_date),
-        )
-        row = cur.fetchone()
-        if row is not None and row[0] is not None:
-            earnings_date = row[0]
-            return int((earnings_date - signal_date).days)
-
-        # Fallback: estimate based on last reported earnings using proper quarter math
-        cur.execute(
-            """
-            SELECT earnings_date FROM earnings_history
-            WHERE symbol = %s AND estimated = false ORDER BY earnings_date DESC LIMIT 1
-            """,
-            (symbol,),
-        )
-        row = cur.fetchone()
-        if row is None or len(row) < 1 or row[0] is None:
+        if row is None or row[0] is None:
             raise ValueError(
-                f"Earnings date not available for {symbol} on {signal_date} - no calendar, estimates, or history found"
+                f"Earnings data unavailable for {symbol}: "
+                f"stock excluded from universe (no SEC filings or earnings calendar entry)"
             )
 
-        last_report = row[0] if isinstance(row[0], _date) else row[0].date()
-
-        # Standard quarterly spacing: Q1 (Apr), Q2 (Jul), Q3 (Oct), Q4 (Jan)
-        # Find which quarter the last report was and estimate next
-        month = last_report.month
-        year = last_report.year
-
-        # Estimate next earnings based on standard calendar
-        if month < 4:
-            next_q_date = _date(year, 4, 15)  # Q1
-        elif month < 7:
-            next_q_date = _date(year, 7, 15)  # Q2
-        elif month < 10:
-            next_q_date = _date(year, 10, 15)  # Q3
-        else:  # month >= 10 (Q4)
-            next_q_date = _date(year + 1, 1, 15)  # Q4
-
-        # If next quarter estimate is in past, advance to following quarter
-        signal_d = signal_date
-        while next_q_date <= signal_d:
-            if next_q_date.month == 1:
-                next_q_date = _date(next_q_date.year, 4, 15)
-            elif next_q_date.month == 4:
-                next_q_date = _date(next_q_date.year, 7, 15)
-            elif next_q_date.month == 7:
-                next_q_date = _date(next_q_date.year, 10, 15)
-            else:
-                next_q_date = _date(next_q_date.year + 1, 1, 15)
-
-        return int((next_q_date - signal_d).days)
+        earnings_date: _date = row[0]
+        return int((earnings_date - signal_date).days)
