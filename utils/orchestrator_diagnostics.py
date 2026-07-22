@@ -79,7 +79,7 @@ class OrchestratorDiagnostics:
 
                 # Check circuit breaker status
                 cur.execute(
-                    "SELECT COUNT(*) FROM circuit_breaker_status WHERE status = 'TRIGGERED' AND check_date >= %s",
+                    "SELECT COUNT(*) FROM circuit_breaker_status WHERE any_triggered = TRUE AND check_date >= %s",
                     (run_date,),
                 )
                 cb_row = cur.fetchone()
