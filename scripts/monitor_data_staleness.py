@@ -30,7 +30,9 @@ if sys.platform.startswith("win"):
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    except Exception:
+    except (AttributeError, TypeError, OSError):
+        # Non-critical: Ignore if stdout/stderr redirection fails (Windows console encoding issue)
+        # The script will continue with system default encoding
         pass
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

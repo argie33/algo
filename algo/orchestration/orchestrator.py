@@ -145,6 +145,34 @@ class Orchestrator:
                 f"[ORCHESTRATOR] Required config keys missing: {missing_keys}. "
                 f"Check algo_config table for: {', '.join(required_config_keys)}"
             )
+
+        # CRITICAL FIX Session 345: Validate config value ranges, not just key existence
+        # Config values set to 0 or None would disable all trading (fatal misconfiguration)
+        value_range_checks = [
+            ("min_win_rate_pct", 0, 100),  # Must be 0-100% (usually 30-50%)
+            ("max_daily_loss_pct", 0, 100),  # Must be 0-100% (usually 2-5%)
+            ("max_weekly_loss_pct", 0, 100),  # Must be 0-100% (usually 5-10%)
+            ("phase1_min_coverage_pct", 0, 100),  # Must be 0-100% (usually 80-95%)
+            ("phase1_min_symbol_count", 10, 10000),  # Must be 10+ symbols (usually 4500+)
+        ]
+
+        for key, min_val, max_val in value_range_checks:
+            if key in config and config[key] is not None:
+                val = config[key]
+                try:
+                    val_float = float(val)
+                    if val_float < min_val or val_float > max_val:
+                        raise RuntimeError(
+                            f"[ORCHESTRATOR STARTUP] CRITICAL: {key}={val} outside valid range [{min_val}, {max_val}]. "
+                            f"This is a fatal misconfiguration that would disable trading. "
+                            f"Verify algo_config table has correct values."
+                        )
+                except (ValueError, TypeError) as e:
+                    raise RuntimeError(
+                        f"[ORCHESTRATOR STARTUP] CRITICAL: {key}={val} is not a valid number: {e}. "
+                        f"Check algo_config table value type and format."
+                    ) from e
+
         self.config = config
 
         env_execution_mode = os.getenv("ORCHESTRATOR_EXECUTION_MODE", "").strip().lower()
