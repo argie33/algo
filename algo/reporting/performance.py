@@ -238,10 +238,7 @@ class LivePerformance:
         try:
             wr = self.win_rate(lookback_trades)
             if not wr:
-                raise ValueError(
-                    "Expectancy calculation failed: win_rate returned empty result. "
-                    "Cannot compute expectancy without valid win rate metrics."
-                )
+                return None
 
             avg_win_r = wr["avg_win_r"]
             avg_loss_r = wr["avg_loss_r"]
