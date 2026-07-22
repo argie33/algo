@@ -1528,6 +1528,29 @@ class Orchestrator:
             }
         logger.info(f"[OK] {self.run_date.strftime('%A')} is a trading day - proceeding with orchestration")
 
+        # CRITICAL FIX: Market hours guard at orchestrator entry point
+        # Prevents manual test runs outside market hours (9:30 AM - 4:00 PM ET) from corrupting production state
+        # Phase 8 also has this guard, but adding it here stops pre-market runs much earlier
+        # dry_run=True bypasses this to allow safe testing at any time
+        from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TIME
+        now_et = datetime.now(EASTERN_TZ).time()
+        if not self.dry_run and not (MARKET_OPEN_TIME <= now_et < MARKET_CLOSE_TIME):
+            logger.warning(
+                f"[MARKET_HOURS_GUARD] Orchestrator run attempted outside market hours ({now_et.strftime('%H:%M:%S')} ET). "
+                f"Market hours: {MARKET_OPEN_TIME.strftime('%H:%M')} - {MARKET_CLOSE_TIME.strftime('%H:%M')} ET. "
+                f"This prevents pre-market manual testing from corrupting production state. "
+                f"Use dry_run=True to test outside market hours safely."
+            )
+            return {
+                "run_id": self.run_id,
+                "run_date": self.run_date.isoformat(),
+                "phases": [],
+                "success": False,
+                "halted": False,
+                "skipped": True,
+                "reason": f"outside_market_hours: {now_et.strftime('%H:%M:%S')} ET",
+            }
+
         logger.info("[CRITICAL] Running critical data checks...")
         try:
             logger.debug("[PREFLIGHT] Opening database context (timeout=10s)")
