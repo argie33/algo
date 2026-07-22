@@ -64,6 +64,9 @@ class FileLockManager:
                         expiry_str = content.split("|")[1] if "|" in content else None
                         if expiry_str:
                             expiry = datetime.fromisoformat(expiry_str)
+                            # CRITICAL FIX: Ensure both datetimes are timezone-aware for comparison
+                            if expiry.tzinfo is None:
+                                expiry = expiry.replace(tzinfo=timezone.utc)
                             if now > expiry:
                                 lock_file.unlink()
                                 logger.debug(f"[FILE_LOCK] Cleaned expired lock: {lock_file.name}")
@@ -79,6 +82,10 @@ class FileLockManager:
         Previous implementation used open(file, "w") which is NOT atomic on Windows.
         Race condition: two processes could both think they acquired the lock.
 
+        CRITICAL FIX (Session 346): Clean up expired locks before checking if one exists.
+        Previous: stale lock files from crashed runs blocked subsequent execution indefinitely.
+        This ensures expired locks don't block new acquisitions.
+
         Args:
             lock_key: The lock identifier
             timeout_seconds: How long to retry acquiring lock
@@ -89,6 +96,11 @@ class FileLockManager:
         import os
 
         lock_file = self.lock_dir / f"{lock_key}.lock"
+
+        # CRITICAL: Clean up any expired lock BEFORE checking if another instance holds it
+        # This prevents stale locks from crashed runs blocking all subsequent execution
+        self._cleanup_expired_locks()
+
         start_time = time.time()
         attempt = 0
 
