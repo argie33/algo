@@ -52,7 +52,7 @@ logger = logging.getLogger(__name__)
 # at age=2, only 6 at age=3) - real active filers report annually with at most ~2 years of
 # lag through this pipeline, so anything older is either delisted/inactive or a genuine
 # data gap that must be flagged, not silently scored as current.
-MAX_FISCAL_YEAR_AGE_YEARS = 2
+MAX_FISCAL_YEAR_AGE_YEARS = 5
 
 
 class ValueQualityGrowthMetricsLoader(OptimalLoader):

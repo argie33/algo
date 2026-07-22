@@ -64,8 +64,14 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch institutional holdings for a symbol.
 
-        Currently: Returns data_unavailable (implementation complete when
-        SEC 13F XML parsing is added to fetch_global).
+        Currently: Returns data_unavailable (implementation blocked by CUSIP→ticker crosswalk).
+
+        Full implementation requires:
+        - SEC bulk quarterly 13F-HR structured datasets (INFOTABLE.tsv)
+        - CUSIP to ticker mapping (requires paid data source)
+        - Institutional manager CIK lookup and XML parsing
+
+        See: utils/sec_form13f_aggregator.py (incomplete) and utils/sec_form13f_parser.py
 
         Args:
             symbol: Stock ticker symbol
@@ -77,6 +83,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         now_et = datetime.now(EASTERN_TZ)
 
         # Placeholder: Mark as unavailable until SEC 13F parsing is implemented
+        # (yfinance fallback attempted but rate-limited)
         return self._unavailable_record(
             symbol,
             now_et,
