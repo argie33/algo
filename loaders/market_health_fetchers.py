@@ -129,55 +129,109 @@ class VIXFetcher:
 
 
 class PutCallRatioFetcher:
-    """Put/call ratio data unavailable - no official free source.
+    """Fetch put/call ratio from yfinance SPY options data.
 
-    GOVERNANCE (Session 291+): Put/call data removed from yfinance dependency.
-    Marked as OPTIONAL (DataImportance.OPTIONAL) because:
-    - No official government source publishes put/call ratios
-    - yfinance (proprietary, now deprecated) was sole source
-    - Risk factors using put_call_ratio gracefully degrade when unavailable
-    - Trading logic does not depend on this enrichment
-
-    Returns explicit data_unavailable marker instead of attempting yfinance.
+    Calculates ratio from options chain open interest. While not official CBOE data,
+    it provides reasonable market sentiment indicator. Gracefully falls back to
+    unavailable if yfinance options data fails.
     """
 
     def __init__(self) -> None:
         self.breaker = CircuitBreaker(
             name="put_call_ratio",
-            failure_threshold=1,
+            failure_threshold=2,
             recovery_timeout_sec=300,
             importance=DataImportance.OPTIONAL,
         )
         self._cache: dict[str, dict[str, Any]] = {}
 
     def fetch(self, eval_date: date) -> dict[str, Any]:
-        """Return explicit data_unavailable marker.
-
-        Put/call ratio data is not available from official sources.
-        This is OPTIONAL enrichment; trading proceeds without it.
+        """Fetch put/call ratio from yfinance SPY options data.
 
         Returns:
-            dict: Data unavailable marker
-                {"data_unavailable": True, "reason": str, "eval_date": str}
+            dict: {"put_call_ratio": float, "data_unavailable": False} or
+                  {"data_unavailable": True, "reason": str}
         """
         eval_date_iso = eval_date.isoformat()
 
         if eval_date_iso in self._cache:
             return self._cache[eval_date_iso]
 
-        unavailable_marker = {
-            "data_unavailable": True,
-            "reason": "put_call_ratio removed - no official free source available. Use market health indicators instead.",
-            "eval_date": eval_date_iso,
-        }
+        try:
+            result = self.breaker.execute(
+                fetch_func=lambda: self._fetch_from_yfinance(),
+                importance=DataImportance.OPTIONAL,
+                fallback_value=None,
+            )
 
-        self._cache[eval_date_iso] = unavailable_marker
-        logger.info(
-            f"[PUT_CALL_RATIO] Explicitly unavailable for {eval_date}. "
-            f"No official source (yfinance dependency removed per governance). "
-            f"Risk factors handle gracefully."
-        )
-        return unavailable_marker
+            if result is None:
+                unavailable_marker = {
+                    "data_unavailable": True,
+                    "reason": "Circuit breaker: put/call options data temporarily unavailable",
+                }
+            else:
+                unavailable_marker = {
+                    "data_unavailable": False,
+                    "put_call_ratio": result,
+                }
+
+            self._cache[eval_date_iso] = unavailable_marker
+            return unavailable_marker
+        except Exception as e:
+            logger.warning(f"[PUT_CALL_RATIO] Fetch failed: {e}")
+            unavailable_marker = {
+                "data_unavailable": True,
+                "reason": f"yfinance fetch error: {str(e)[:100]}",
+            }
+            self._cache[eval_date_iso] = unavailable_marker
+            return unavailable_marker
+
+    def _fetch_from_yfinance(self) -> float | None:
+        """Calculate put/call ratio from SPY options chain.
+
+        Returns:
+            float: Put/call open interest ratio, or None if unavailable
+        """
+        try:
+            import yfinance as yf
+
+            spy = yf.Ticker("SPY")
+            # Get the nearest expiration (soonest options)
+            expirations = spy.options
+            if not expirations:
+                logger.warning("[PUT_CALL_RATIO] No SPY option expirations available")
+                return None
+
+            # Get options chain for nearest expiration
+            nearest_exp = expirations[0]
+            try:
+                options_chain = spy.option_chain(nearest_exp)
+                calls = options_chain.calls
+                puts = options_chain.puts
+
+                # Sum open interest
+                calls_oi = calls["openInterest"].sum() if "openInterest" in calls.columns else 0
+                puts_oi = puts["openInterest"].sum() if "openInterest" in puts.columns else 0
+
+                if calls_oi == 0:
+                    logger.warning("[PUT_CALL_RATIO] No call open interest data available")
+                    return None
+
+                ratio = float(puts_oi) / float(calls_oi)
+                logger.info(
+                    f"[PUT_CALL_RATIO] Calculated from SPY {nearest_exp}: "
+                    f"puts_OI={puts_oi:.0f}, calls_OI={calls_oi:.0f}, ratio={ratio:.3f}"
+                )
+                return ratio
+            except Exception as chain_err:
+                logger.warning(f"[PUT_CALL_RATIO] Failed to parse options chain: {chain_err}")
+                return None
+        except ImportError:
+            logger.warning("[PUT_CALL_RATIO] yfinance not installed - put/call ratio unavailable")
+            return None
+        except Exception as e:
+            logger.warning(f"[PUT_CALL_RATIO] yfinance fetch error: {e}")
+            return None
 
 
 class YieldCurveFetcher:
