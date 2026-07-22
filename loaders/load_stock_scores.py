@@ -245,6 +245,21 @@ class StockScoresLoader(OptimalLoader):
         all NULL momentum values despite momentum_metrics being populated.
         """
         self._batch_context = {}
+        # Load configurable completeness threshold
+        try:
+            with DatabaseContext("read") as config_cur:
+                config_cur.execute("SELECT value FROM algo_config WHERE key = 'min_completeness_score'")
+                config_row = config_cur.fetchone()
+                if config_row and config_row[0]:
+                    self._min_completeness_threshold = float(config_row[0])
+                    logger.debug(f"[STOCK_SCORES] Using configurable completeness threshold: {self._min_completeness_threshold}%")
+                else:
+                    self._min_completeness_threshold = 70.0
+                    logger.debug("[STOCK_SCORES] No config found, using default completeness threshold: 70%")
+        except Exception as config_err:
+            self._min_completeness_threshold = 70.0
+            logger.warning(f"[STOCK_SCORES] Could not load min_completeness_score config, using default 70%: {config_err}")
+
         with DatabaseContext("read") as cur:
             cur.execute(
                 "SELECT symbol, roe, roa, operating_margin, net_margin, debt_to_equity, "
@@ -605,13 +620,17 @@ class StockScoresLoader(OptimalLoader):
                     return round(score_result, 2)
                 return None  # Markers and None return as None
 
-            # CRITICAL FIX: Enforce >= 70% completeness per GOVERNANCE.md
+            # CRITICAL FIX: Enforce completeness threshold per GOVERNANCE.md + config
             # Session 297 assumed "trading gates will filter", but no downstream filters exist.
             # Database audit found 851 scores with 50-70% completeness marked available=FALSE.
             # This violates fail-fast governance: incomplete data must be marked unavailable.
-            score_available = data_completeness >= 70.0
+            # Threshold is now configurable via algo_config.min_completeness_score (default: 70%)
+            # Read threshold from cache that was loaded in _prepare_batch_context()
+            min_completeness_threshold = getattr(self, '_min_completeness_threshold', 70.0)
+
+            score_available = data_completeness >= min_completeness_threshold
             if not score_available:
-                reason_text = f"Completeness {data_completeness}% < 70% threshold (missing metrics: {', '.join(unavailable_metrics.keys())})"
+                reason_text = f"Completeness {data_completeness:.2f}% < {min_completeness_threshold}% threshold (missing metrics: {', '.join(unavailable_metrics.keys())})"
             else:
                 reason_text = None
 

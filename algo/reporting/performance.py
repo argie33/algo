@@ -158,10 +158,11 @@ class LivePerformance:
                 row = cur.fetchone()
 
             if row is None or len(row) < 1 or row[0] == 0:
-                raise ValueError(
-                    "Cannot calculate win rate: no closed trades found in past 365 days. "
-                    "Win rate is critical for performance evaluation - cannot use default zero."
+                logger.info(
+                    "Insufficient trade history: no closed trades found in past 365 days. "
+                    "Win rate cannot be calculated. Returning None for insufficient data."
                 )
+                return None
 
             (
                 total,
