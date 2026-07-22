@@ -152,6 +152,31 @@ class StockScoresLoader(OptimalLoader):
                             f"Typical causes: SEC API limits (quality/growth), yfinance throttling (value/positioning), price history gaps (stability)."
                         )
 
+                    # CRITICAL FIX Session 345: Check data freshness, not just availability
+                    # Coverage check passes even if data is 30+ days old (historical filings from slow SEC APIs)
+                    # Add staleness check to prevent stale metrics from poisoning score rankings
+                    try:
+                        cur.execute(f"""
+                            SELECT MAX(updated_at) FROM {table_name}
+                            WHERE data_unavailable = false OR data_unavailable IS NULL
+                        """)
+                        max_update_row = cur.fetchone()
+                        if max_update_row and max_update_row[0]:
+                            max_update_ts = max_update_row[0]
+                            from datetime import datetime, timezone
+                            stale_days = (datetime.now(timezone.utc) - max_update_ts).days
+                            max_staleness_days = 14  # Metrics older than 2 weeks are stale
+                            if stale_days > max_staleness_days:
+                                logger.warning(
+                                    f"[STOCK_SCORES] {table_name}: Data is {stale_days} days old "
+                                    f"(max_update_ts={max_update_ts}). "
+                                    f"Exceeds staleness threshold of {max_staleness_days} days. "
+                                    f"Scores computed from outdated metrics may misrank stocks."
+                                )
+                    except Exception as staleness_check_err:
+                        # Non-fatal: log but don't halt if staleness check fails
+                        logger.warning(f"[STOCK_SCORES] Could not validate {table_name} staleness: {staleness_check_err}")
+
                 for table_name in optional_sec_metric_tables:
                     # RACE CONDITION FIX: Use single query to get both counts atomically
                     try:

@@ -114,8 +114,16 @@ class SignalsDailyLoader(OptimalLoader):
                         WHERE symbol_count >= %s
                         ORDER BY date DESC
                         LIMIT 1""",
-                        (target_date, int(len(symbols) * 0.90))  # Need 90% of scored symbols with prices
+                        (target_date, max(1, int(len(symbols) * 0.90)))  # CRITICAL: >= 1 even if symbols empty
                     )
+
+                    # CRITICAL FIX Session 345: Validate symbols list before using in calculations
+                    if not symbols or len(symbols) == 0:
+                        logger.warning(
+                            "[LOAD_BUY_SELL_DAILY] Symbols list is empty. "
+                            "Upstream filter (stock_scores or market regime) may have failed. "
+                            "Using threshold of 1 instead of 0 to avoid matching all historical dates."
+                        )
                     date_result = cur.fetchone()
                     if date_result:
                         price_data_date = date_result[0]

@@ -50,10 +50,19 @@ def run(
         # computed here (visible in logs/CloudWatch) but never reached the dashboard, which
         # silently rendered nothing for Drawdown/Daily Loss/VIX regardless of state.
         checks = result.get("checks", {})
+
+        # CRITICAL FIX Session 345: Validate dict structure before chaining .get() calls
+        # If checks["drawdown"] is None (not a dict), .get("value") crashes on None
+        def safe_get_check_value(checks_dict: dict, check_name: str) -> float | None:
+            check_result = checks_dict.get(check_name)
+            if check_result is None or not isinstance(check_result, dict):
+                return None
+            return check_result.get("value")
+
         risk_snapshot = {
-            "drawdown_pct": checks.get("drawdown", {}).get("value"),
-            "daily_loss_pct": checks.get("daily_loss", {}).get("value"),
-            "vix_level": checks.get("vix_spike", {}).get("value"),
+            "drawdown_pct": safe_get_check_value(checks, "drawdown"),
+            "daily_loss_pct": safe_get_check_value(checks, "daily_loss"),
+            "vix_level": safe_get_check_value(checks, "vix_spike"),
             "any_triggered": result.get("halted", False),
         }
 
