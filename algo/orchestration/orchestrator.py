@@ -1088,6 +1088,12 @@ class Orchestrator:
             self.log_phase_result,
         )
         self._phase2_result = result
+        # CRITICAL FIX: Set halt flag when circuit breaker fires so Phase 8 respects it
+        # Previously only Phase 1 called set_halt_flag, leaving Phase 2 halts unheeded by later phases
+        if result.halted:
+            halt_reason = result.error or "Circuit breaker check failed"
+            logger.info(f"[PHASE 2] Setting halt flag due to circuit breaker: {halt_reason}")
+            self.halt_manager.set_halt_flag(halt_reason)
         return not result.halted
 
     def phase_3_position_monitor(self) -> bool:

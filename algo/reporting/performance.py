@@ -198,10 +198,11 @@ class LivePerformance:
             # no longer diverge on identical underlying trade data.
             decisive = win_count + loss_count
             if decisive <= 0:
-                raise ValueError(
-                    f"Cannot calculate win rate: no decisive (non-breakeven) trades in window "
-                    f"(total={total}, all breakeven or unclassifiable)."
+                logger.info(
+                    f"Insufficient decisive trades: no decisive (non-breakeven) trades in window "
+                    f"(total={total}, all breakeven or unclassifiable). Returning None."
                 )
+                return None
             win_rate_pct = win_count / decisive * 100
 
             return {
