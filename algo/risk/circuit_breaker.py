@@ -551,6 +551,26 @@ class CircuitBreaker:
         # Win rate based on wins vs (wins + losses), excluding break-even trades
         # This avoids dilution where many break-even trades inflate the denominator
         decisive_trades = wins + losses
+
+        # CRITICAL FIX: Check if this is a NEW account (no closed trades yet).
+        # Applying win_rate_floor to open positions before ANY closed trades were
+        # executed halts trading indefinitely if those positions are underwater.
+        # Grace period: don't apply win_rate_floor until at least 10 CLOSED trades exist.
+        cur.execute("""
+            SELECT COUNT(*) FROM algo_trades
+            WHERE status = %s AND exit_date IS NOT NULL
+              AND exit_r_multiple IS NOT NULL
+        """, (TradeStatus.CLOSED.value,))
+        closed_row = cur.fetchone()
+        closed_count = closed_row[0] if closed_row and closed_row[0] is not None else 0
+
+        if closed_count < 10:
+            return {
+                "halted": False,
+                "reason": f"New account bootstrap period - insufficient closed trades ({closed_count} < 10 required)",
+                "trades_sampled": total,
+            }
+
         # The sample-size guard must gate on decisive_trades (the actual win_rate
         # denominator below), not on total (which also counts breakeven placeholder
         # rows - e.g. Phase 9 "pending fill price confirmation" reconciliation exits
@@ -560,7 +580,7 @@ class CircuitBreaker:
         if decisive_trades < 10:
             return {
                 "halted": False,
-                "reason": f"Insufficient decisive trades ({decisive_trades} < 10)",
+                "reason": f"Insufficient decisive trades in window ({decisive_trades} < 10)",
                 "trades_sampled": total,
             }
         win_rate = wins / decisive_trades * 100.0
