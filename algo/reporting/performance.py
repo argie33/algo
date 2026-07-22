@@ -502,8 +502,12 @@ class LivePerformance:
                 calmar = None
             wr = self.win_rate(50)
             if wr is None:
-                raise ValueError("Win rate is critical for strategy evaluation - cannot proceed with None")
-            logger.debug(f"  Win rate: {wr['win_rate_pct']}%")
+                logger.warning(
+                    "  Win rate unavailable: no closed trades in lookback window. "
+                    "Expected during account ramp-up phase."
+                )
+            else:
+                logger.debug(f"  Win rate: {wr['win_rate_pct']}%")
             expectancy = self.expectancy(50)
             if expectancy is None:
                 logger.warning(

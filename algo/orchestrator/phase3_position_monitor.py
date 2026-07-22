@@ -76,11 +76,17 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 if open_symbols:
                     cur.execute(
                         """
-                        SELECT symbol, close, data_unavailable, data_unavailable_reason FROM price_daily
-                        WHERE symbol = ANY(%s)
-                        AND date = (SELECT MAX(date) FROM price_daily WHERE symbol = ANY(%s))
+                        WITH latest_prices AS (
+                            SELECT symbol, close, data_unavailable, data_unavailable_reason,
+                                   ROW_NUMBER() OVER (PARTITION BY symbol ORDER BY date DESC) as rn
+                            FROM price_daily
+                            WHERE symbol = ANY(%s)
+                        )
+                        SELECT symbol, close, data_unavailable, data_unavailable_reason
+                        FROM latest_prices
+                        WHERE rn = 1
                         """,
-                        (open_symbols, open_symbols),
+                        (open_symbols,),
                     )
                     price_rows = cur.fetchall()
 
