@@ -26,14 +26,10 @@ from datetime import date, datetime
 from typing import Any
 
 from loaders.runner import run_loader
-from loaders.timeout_config import configure_socket_timeout
-from utils.external.sec_edgar_client import SecEdgarClient
 from utils.infrastructure.timezone import EASTERN_TZ
 from utils.optimal_loader import OptimalLoader
-from utils.sec_form13f_aggregator import Form13FAggregator
 
 logger = logging.getLogger(__name__)
-configure_socket_timeout(30)
 
 
 class InstitutionalHoldings13FLoader(OptimalLoader):
@@ -56,14 +52,12 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
-        self.sec_client = SecEdgarClient()
-        self.form13f_aggregator = Form13FAggregator()
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
         """Fetch institutional holdings from SEC Form 13F filings.
 
         GOVERNANCE: No yfinance fallback. Only official SEC sources.
-        Session 298: Attempts Form 13F aggregation for real institutional data.
+        NOT FUNCTIONAL: This loader always returns data_unavailable.
 
         Args:
             symbol: Stock ticker symbol
@@ -74,46 +68,11 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        try:
-            # Step 1: Convert symbol to CIK
-            try:
-                cik = self.sec_client.symbol_to_cik(symbol)
-            except ValueError:
-                logger.debug(f"[{symbol}] CIK not found")
-                return self._unavailable_record(symbol, now_et, "cik_not_found")
-
-            # Step 2: Attempt Form 13F aggregation (Session 298)
-            logger.debug(f"[{symbol}] Attempting Form 13F aggregation for {symbol}...")
-            form13f_result = self.form13f_aggregator.get_institutional_ownership_pct(symbol, cik)
-
-            if form13f_result.get("data_unavailable") is False:
-                # SUCCESS: Form 13F data found
-                inst_pct = form13f_result.get("institutional_ownership_pct")
-                if inst_pct is not None:
-                    logger.debug(f"[{symbol}] Form 13F: {inst_pct:.1f}%")
-                    return [{
-                        "symbol": symbol,
-                        "filing_date": now_et.date(),
-                        "institutional_ownership_pct": min(float(inst_pct), 100.0),
-                        "number_of_institutional_holders": None,  # Would need to parse all 13F filings
-                        "data_unavailable": False,
-                        "reason": None,
-                        "sec_filing_url": None,
-                        "most_recent_filing_date": form13f_result.get("filing_date"),
-                        "data_source": "sec_form13f",
-                    }]
-
-            # Step 3: Form 13F not available or not yet implemented
-            reason = form13f_result.get("coverage_reason", "form13f_data_unavailable")
-            logger.debug(f"[{symbol}] Form 13F unavailable: {reason}")
-
-            return self._unavailable_record(symbol, now_et, reason)
-
-        except Exception as e:
-            logger.debug(f"[{symbol}] Exception fetching institutional holdings: {e}")
-            return self._unavailable_record(
-                symbol, now_et, f"fetch_error: {str(e)[:50]}"
-            )
+        # NOT IMPLEMENTED: Form 13F lookup requires CUSIP->ticker crosswalk (not available free).
+        # See module docstring for details. Return unavailable immediately to avoid slow SEC API calls.
+        return self._unavailable_record(
+            symbol, now_et, "form13f_not_implemented_requires_cusip_crosswalk"
+        )
 
     def _unavailable_record(self, symbol: str, now_et: datetime, reason: str) -> list[dict[str, Any]]:
         """Helper to create a data_unavailable record."""

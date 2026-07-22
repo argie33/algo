@@ -427,6 +427,8 @@ def panel_trades_expanded(trades: Any) -> Any:
         "manual": "man",
         "time_exit": "time",
         "time": "time",
+        "closed position recorded during reconciliation - pending fill price confirmation": "recon",
+        "closed position recorded during reconciliation": "recon",
     }
 
     tbl = Table(
