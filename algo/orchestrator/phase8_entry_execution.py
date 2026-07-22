@@ -121,14 +121,15 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                 cur.execute(
                     """
                     INSERT INTO algo_signals (
-                        signal_date, symbol, source_table, source_timeframe,
+                        signal_date, symbol, source_table, source_timeframe, raw_signal,
                         entry_price, entry_stage, signal_active,
                         signal_quality_score, risk_score, created_at, updated_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW()
                     )
                     ON CONFLICT (signal_date, symbol, source_timeframe) DO UPDATE SET
                         updated_at = NOW(),
+                        raw_signal = EXCLUDED.raw_signal,
                         entry_price = EXCLUDED.entry_price,
                         signal_quality_score = EXCLUDED.signal_quality_score,
                         risk_score = EXCLUDED.risk_score
@@ -138,6 +139,7 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                         symbol,
                         "phase7_signal_generation",
                         "daily",
+                        "BUY",
                         entry_price,
                         "entry",
                         True,

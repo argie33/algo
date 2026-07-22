@@ -172,6 +172,22 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 f"{value_inserts} value, {quality_inserts} quality, {growth_inserts} growth"
             )
 
+            # Update watermarks for all processed symbols (Session 337 fix)
+            # CRITICAL: This loader overrides run() completely, so watermark updates don't happen
+            # automatically via OptimalLoader base class. Must call explicitly here.
+            # Update watermarks in bulk to mark successful run for ALL symbols.
+            try:
+                if symbols:
+                    # Build bulk updates: symbol -> (today, count)
+                    updates = {sym: (date.today(), 1) for sym in symbols}
+                    self._watermark.advance_watermarks_bulk(updates)
+                    logger.info(f"[VALUE_QUALITY_GROWTH] Watermarks updated for {len(symbols)} symbols to {date.today()}")
+                else:
+                    logger.warning("[VALUE_QUALITY_GROWTH] No symbols processed - watermark update skipped")
+            except Exception as e:
+                logger.error(f"[VALUE_QUALITY_GROWTH] Failed to update watermarks: {e}")
+                # Don't fail the entire loader if watermark update fails - data was written successfully
+
             return {
                 "symbols_succeeded": symbols_succeeded,
                 "symbols_failed": symbols_failed,
