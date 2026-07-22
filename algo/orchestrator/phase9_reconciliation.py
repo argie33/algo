@@ -1127,6 +1127,16 @@ def run(
         # Validate schema contract before returning
         from algo.orchestrator.phase_data_contract import validate_phase_data
         validate_phase_data(9, data)
+
+        # CRITICAL: Log final consolidated phase result (not a sub-step)
+        # Phase 9 logs multiple sub-steps (reconciliation, portfolio_snapshot, weight_optimization, etc.)
+        # but the orchestrator's phase_results[9] must contain the OVERALL phase status, not the last sub-step.
+        # This ensures the halt_reason accurately reports Phase 9's overall outcome, not a specific sub-step.
+        # Without this, when Phase 1 fails, the halt_reason incorrectly shows the last Phase 9 sub-step message
+        # instead of the Phase 1 error - a governance violation (inaccurate error reporting).
+        phase_summary = f"Portfolio state: {data.get('portfolio_value', 'N/A')} | Status: {phase_status}"
+        log_phase_result_fn(9, "reconciliation", phase_status, phase_summary)
+
         return PhaseResult(9, "reconciliation", phase_status, data, False, None)
 
     except Exception as e:
