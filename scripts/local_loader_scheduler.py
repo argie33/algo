@@ -64,9 +64,10 @@ LOADERS = {
         "target_minute": 0,
     },
     "reference": {
-        "description": "Reference data (9:15 AM ET): SEC company info + earnings calendar",
+        "description": "Reference data (9:15 AM ET): SEC company info, sector mapping, earnings calendar",
         "loaders": [
             "load_company_info_sec.py",  # Phase 3: Replaces ~15% yfinance (company info)
+            "load_company_profile.py",  # Consolidates company_info_sec into company_profile with SIC→GICS mapping (required for sector rotation + dashboard enrichment)
             "load_earnings_calendar_sec.py",  # Phase 3: Replaces ~10% yfinance (earnings dates)
         ],
         "interval_hours": 24,

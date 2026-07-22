@@ -38,7 +38,8 @@ VALID_LOADER_NAMES = frozenset(
         "value_metrics",
         "positioning_metrics",
         "company_profile",
-        "earnings_history",
+        # DEPRECATED (Session 349): earnings_history is orphaned (no writer, never populated)
+        # "earnings_history",
         "earnings_calendar",
         "stability_metrics",
         "momentum_metrics",
