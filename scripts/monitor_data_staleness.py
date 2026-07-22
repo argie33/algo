@@ -4,6 +4,14 @@
 Monitors key data tables for freshness and alerts when data is getting stale.
 Runs on a schedule or manually to catch gaps in loader execution.
 
+This script monitors ONLY the tables that have active loaders and are critical for trading.
+It does NOT monitor:
+- 6 abandoned dashboard/reporting tables with no writers (algo_daily_return_histogram,
+  algo_data_patrol, algo_holding_period_histogram, earnings_history, equity_curve_daily,
+  portfolio_holdings)
+- 2 deprecated tables from removed loaders (price_extremes_52week, market_cap_computed)
+These are known design debt and will not cause false staleness alerts.
+
 Usage:
   python scripts/monitor_data_staleness.py                 # Check current staleness
   python scripts/monitor_data_staleness.py --watch 60      # Poll every 60 seconds
