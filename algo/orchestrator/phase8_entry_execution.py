@@ -101,12 +101,29 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                     logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing entry_price")
                     skipped_count += 1
                     continue
-                entry_price = float(signal_data["entry_price"])
+                # CRITICAL FIX: Session 345 - Validate type conversion (handles NaN/Infinity/non-numeric)
+                try:
+                    from utils.type_conversion import safe_float
+                    entry_price = safe_float(signal_data["entry_price"], f"{symbol}.entry_price", allow_none=False)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid entry_price: {e}")
+                    skipped_count += 1
+                    continue
 
                 if "composite_score" in signal_data and signal_data["composite_score"] is not None:
-                    signal_quality_score = float(signal_data["composite_score"])
+                    try:
+                        signal_quality_score = safe_float(signal_data["composite_score"], f"{symbol}.composite_score", allow_none=False)
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid composite_score: {e}")
+                        skipped_count += 1
+                        continue
                 elif "signal_quality_score" in signal_data and signal_data["signal_quality_score"] is not None:
-                    signal_quality_score = float(signal_data["signal_quality_score"])
+                    try:
+                        signal_quality_score = safe_float(signal_data["signal_quality_score"], f"{symbol}.signal_quality_score", allow_none=False)
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid signal_quality_score: {e}")
+                        skipped_count += 1
+                        continue
                 else:
                     logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing signal quality score")
                     skipped_count += 1
@@ -116,7 +133,12 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                     logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing risk_score")
                     skipped_count += 1
                     continue
-                risk_score = float(signal_data["risk_score"])
+                try:
+                    risk_score = safe_float(signal_data["risk_score"], f"{symbol}.risk_score", allow_none=False)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid risk_score: {e}")
+                    skipped_count += 1
+                    continue
 
                 cur.execute(
                     """
@@ -349,12 +371,22 @@ def _batch_fetch_technical_data(
                         f"INNER JOIN should have excluded incomplete rows. Check technical data loader."
                     )
 
+                # CRITICAL FIX: Session 345 - Validate type conversions (handles NaN/Infinity)
+                try:
+                    from utils.type_conversion import safe_float
+                    atr_float = safe_float(atr, f"{symbol}.atr", allow_none=False)
+                    sma_50_float = safe_float(sma_50, f"{symbol}.sma_50", allow_none=False)
+                    close_float = safe_float(close, f"{symbol}.close", allow_none=False)
+                except (ValueError, TypeError) as e:
+                    logger.error(f"[ENTRY EXECUTION] {symbol}: Technical data type conversion failed: {e}")
+                    raise ValueError(f"Technical data validation failed for {symbol}: {e}") from e
+
                 result[symbol] = cast(
                     dict[str, float | None],
                     {
-                        "atr": float(atr),
-                        "sma_50": float(sma_50),
-                        "close": float(close),
+                        "atr": atr_float,
+                        "sma_50": sma_50_float,
+                        "close": close_float,
                     },
                 )
 

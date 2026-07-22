@@ -142,7 +142,16 @@ def run(
                 # This audit table exists specifically so an operator can see reconciliation
                 # health over time - a constant 100% defeats that purpose.
                 mismatches_count = partial_fill_result.get("mismatches", 0)
-                if positions_count > 0:
+
+                # CRITICAL FIX: Session 345 - If auth was unavailable, reconciliation didn't actually run.
+                # Don't record 100% match when check was skipped. Use NULL to indicate check was skipped.
+                auth_unavailable = partial_fill_result.get("auth_unavailable", False)
+                if auth_unavailable:
+                    match_pct = None  # NULL to indicate check was not performed
+                    logger.info(
+                        "[PHASE 4] Recording NULL match_pct in audit (auth unavailable, check skipped)"
+                    )
+                elif positions_count > 0:
                     match_pct = max(0.0, 100.0 * (1 - (mismatches_count / positions_count)))
                 else:
                     match_pct = 100.0  # No positions to reconcile - vacuously fully matched

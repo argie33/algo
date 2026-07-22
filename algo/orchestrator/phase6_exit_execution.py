@@ -82,7 +82,9 @@ def run(
         # executor_entry_handler.py) - scope to paper only; alpaca_paper_trading is a
         # separate, legitimate flag (the configured Alpaca account itself being a paper
         # account) left untouched.
-        is_paper_mode = execution_mode_check == "paper" or alpaca_paper_trading
+        # CRITICAL FIX Session 345: Only check execution_mode_check, not alpaca_paper_trading
+        # The Alpaca account paper flag should not override orchestrator execution mode setting
+        is_paper_mode = execution_mode_check == "paper"
 
         # In paper mode, skip all position_recs validation - Phase 3 intentionally returns empty
         if is_paper_mode:

@@ -286,7 +286,17 @@ def run(  # noqa: C901
     try:
         with DatabaseContext("read") as pre_check_cur:
             pre_check_cur.execute("SELECT COUNT(*) FROM stock_symbols WHERE active = true")
-            symbol_count = pre_check_cur.fetchone()[0]
+            # CRITICAL FIX: Check if query returned results before indexing
+            result = pre_check_cur.fetchone()
+            if result is None:
+                error_msg = (
+                    "[PHASE 1 CRITICAL] stock_symbols COUNT query failed (no results). "
+                    "Database connectivity or schema issue. Check database logs."
+                )
+                logger.critical(error_msg)
+                log_phase_result_fn(1, "data_freshness", "error", error_msg)
+                return False
+            symbol_count = result[0]
             if not symbol_count or symbol_count == 0:
                 error_msg = (
                     "[PHASE 1 CRITICAL] stock_symbols table has no active symbols. "
