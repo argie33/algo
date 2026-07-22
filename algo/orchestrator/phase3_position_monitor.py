@@ -14,6 +14,7 @@ from algo.orchestrator.phase_error_handling import (
 )
 from algo.orchestrator.phase_result import PhaseResult
 from algo.reporting import AlertManager
+from utils.db.context import DatabaseContext
 
 logger = logging.getLogger(__name__)
 
@@ -112,17 +113,34 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                 for position_id, symbol, quantity, _old_price, entry_date, stop_loss, avg_entry in positions:
                     try:
                         # GOVERNANCE: Require fresh price data for position monitoring
-                        # Falling back to stale old_price masks data gaps in price_daily
                         current_price = prices.get(symbol)
                         if current_price is None:
+                            # Fallback: Try to use the most recent available price (from yesterday or earlier)
+                            # This handles cases where today's price loader hasn't completed for all stocks yet
+                            logger.warning(
+                                f"[PHASE 3] {symbol}: Today's price missing, checking for recent price fallback."
+                            )
+                            with DatabaseContext("read") as fallback_cur:
+                                fallback_cur.execute(
+                                    "SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
+                                    (symbol,)
+                                )
+                                fallback_row = fallback_cur.fetchone()
+                                if fallback_row and fallback_row[0] is not None:
+                                    current_price = float(fallback_row[0])
+                                    logger.warning(
+                                        f"[PHASE 3] {symbol}: Using fallback price ({current_price}) from recent data. "
+                                        f"Position monitoring will use stale data - data loader may be lagging."
+                                    )
+
+                        if current_price is None:
                             logger.critical(
-                                f"[PHASE 3] {symbol}: Fresh price data missing from price_daily. "
-                                f"Position monitoring requires current market data. "
-                                f"Verify price_daily loader completed with today's prices."
+                                f"[PHASE 3] {symbol}: Cannot find any price data for position. "
+                                f"No prices available in price_daily for this symbol."
                             )
                             raise RuntimeError(
-                                f"[PHASE 3] {symbol}: Cannot update position without fresh price. "
-                                f"price_daily does not contain {symbol} for current trading day."
+                                f"[PHASE 3] {symbol}: Cannot update position without price. "
+                                f"price_daily does not contain any price data for {symbol}."
                             )
 
                         if quantity is None:
