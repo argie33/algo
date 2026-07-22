@@ -441,7 +441,7 @@ class OptimalLoader:
             # enforcement self-kills at this same limit, and the finally-release below
             # frees the lock immediately on any normal exit; the TTL only backstops
             # hard-killed tasks (OOM, StopTask).
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "1800")  # 30 min (was 10800/3 hours))
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             except RuntimeError as ddb_err:
@@ -535,7 +535,7 @@ class OptimalLoader:
             parallelism, _ = self._infrastructure.should_reduce_parallelism(parallelism)
             logger.info(f"[{self.table_name}] Starting load: {len(symbols)} symbols (parallelism={parallelism})")
 
-            sla_timeout_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+            sla_timeout_seconds = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "1800")  # 30 min (was 10800/3 hours))
 
             try:
                 if parallelism == 1:
@@ -614,7 +614,7 @@ class OptimalLoader:
             # enforcement self-kills at this same limit, and the finally-release below
             # frees the lock immediately on any normal exit; the TTL only backstops
             # hard-killed tasks (OOM, StopTask).
-            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+            lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "1800")  # 30 min (was 10800/3 hours))
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
             except RuntimeError as ddb_err:
@@ -744,7 +744,7 @@ class OptimalLoader:
     def _run_serial(self, symbols: list[str]) -> None:
         failed_symbols: list[str] = []
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "600"))
-        max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+        max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "1800")  # 30 min (was 10800/3 hours))
         batch_start = time.time()
 
         for i, symbol in enumerate(symbols, 1):
@@ -802,7 +802,7 @@ class OptimalLoader:
         from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 
         per_symbol_timeout = int(os.getenv("LOADER_PER_SYMBOL_TIMEOUT_SECONDS", "120"))
-        max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "10800"))
+        max_batch_time = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "1800")  # 30 min (was 10800/3 hours))
         batch_start = time.time()
 
         # Track when each symbol ACTUALLY STARTS executing (not when it's dispatched/queued).
