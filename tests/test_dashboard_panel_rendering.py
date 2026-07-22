@@ -394,19 +394,19 @@ class TestPanelTrades:
 
     def test_trades_panel_renders(self) -> None:
         """Trades panel should render."""
-        from dashboard.panels.trades import panel_recent_trades
+        from dashboard.panels.trades import panel_completed_trades
 
         data = _mock_panel_data()
-        result = panel_recent_trades(data["trades"])
+        result = panel_completed_trades(data["trades"])
         assert result is not None
         print("✓ Trades panel renders")
 
     def test_trades_panel_handles_no_trades(self) -> None:
         """Trades panel should handle no trades."""
-        from dashboard.panels.trades import panel_recent_trades
+        from dashboard.panels.trades import panel_completed_trades
 
         empty = {"items": []}
-        result = panel_recent_trades(empty)
+        result = panel_completed_trades(empty)
         assert result is not None
         print("✓ Trades panel handles no trades")
 

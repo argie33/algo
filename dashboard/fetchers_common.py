@@ -25,7 +25,7 @@ FETCHER_METADATA = {
     "port": {"endpoint": "/api/algo/portfolio", "desc": "Portfolio snapshot"},
     "perf": {"endpoint": "/api/algo/performance", "desc": "Performance metrics"},
     "pos": {"endpoint": "/api/algo/positions", "desc": "Open positions"},
-    "trades": {"endpoint": "/api/algo/trades", "desc": "Recent trades"},
+    "trades": {"endpoint": "/api/algo/trades", "desc": "Completed trades"},
     "sig": {"endpoint": "/api/algo/dashboard-signals", "desc": "Dashboard signals"},
     "health": {"endpoint": "/api/algo/data-status", "desc": "Data loader health"},
     "cb": {"endpoint": "/api/algo/circuit-breakers", "desc": "Circuit breakers"},

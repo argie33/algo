@@ -1,4 +1,4 @@
-"""Recent trades and expanded trades panel functions."""
+"""Completed trades and expanded trades panel functions."""
 
 import logging
 from collections.abc import Callable
@@ -188,15 +188,15 @@ def _validate_trades_structure(trades: Any) -> tuple[list[Any], float | None]:
     "trades",
     endpoint_deps=["trades"],
     optional=True,
-    description="Recent Trades",
+    description="Completed Trades",
 )
-def panel_recent_trades(trades: Any) -> Any:
+def panel_completed_trades(trades: Any) -> Any:
     """Closed trade history (open positions are in the POSITIONS panel)."""
     if error_boundary.has_error(trades):
         error_msg = error_boundary.get_error_message(trades)
         return Panel(
             Text(error_msg or "Data unavailable", style="red"),
-            title="[bold cyan]RECENT TRADES[/]  [dim][t] expand[/]",
+            title="[bold cyan]COMPLETED TRADES[/]  [dim][t] expand[/]",
             border_style="red",
             padding=(0, 1),
         )
@@ -238,7 +238,7 @@ def panel_recent_trades(trades: Any) -> Any:
         stale_indicator = "[yellow]⚠[/] " if stale_style == "yellow" else ""
         return Panel(
             Text("no closed trades yet", style="dim"),
-            title=f"[bold cyan]{stale_indicator}RECENT TRADES[/]{age_s}  [dim][t] expand[/]",
+            title=f"[bold cyan]{stale_indicator}COMPLETED TRADES[/]{age_s}  [dim][t] expand[/]",
             border_style="cyan" if stale_style != "yellow" else "yellow",
             padding=(0, 1),
         )
@@ -328,7 +328,7 @@ def panel_recent_trades(trades: Any) -> Any:
     age_s = f"  [dim]{fmt_age(trades_timestamp)}[/]" if trades_timestamp is not None else ""
     return Panel(
         t,
-        title=f"[bold cyan]RECENT TRADES ({len(closed_trades)}){truncation_note}[/]{age_s}  [dim][t] expand[/]",
+        title=f"[bold cyan]COMPLETED TRADES ({len(closed_trades)}){truncation_note}[/]{age_s}  [dim][t] expand[/]",
         border_style="cyan",
         padding=(0, 0),
     )
@@ -559,6 +559,6 @@ def panel_trades_expanded(trades: Any) -> Any:
 
 __all__ = [
     "_extract_items",
-    "panel_recent_trades",
+    "panel_completed_trades",
     "panel_trades_expanded",
 ]

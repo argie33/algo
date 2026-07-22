@@ -46,7 +46,7 @@ try:
         "risk": ("Risk Metrics", data.get("risk")),
         "srank": ("Sector Ranking", data.get("srank")),
         "cb": ("Circuit Breakers", data.get("cb")),
-        "trades": ("Recent Trades", data.get("trades")),
+        "trades": ("Completed Trades", data.get("trades")),
         "econ_cal": ("Economic Calendar", data.get("econ_cal")),
         "sentiment": ("Market Sentiment", data.get("sentiment")),
         "perf_anl": ("Performance Analysis", data.get("perf_anl")),

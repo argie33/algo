@@ -272,58 +272,40 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
 
     attr_result = {}
     available_components = 0
-    try:
-        attribution = SignalAttributionEngine()
-        attr_result = attribution.compute_ic(run_date, lookback_trades=40)
-        logger.info(f"Signal attribution: IC computed for {len(attr_result)} components")
-        for comp, ic_data in attr_result.items():
-            ic_value = ic_data.get("ic_value")
-            ic_pvalue = ic_data.get("ic_pvalue")
-            if ic_value is None or ic_pvalue is None:
-                if ic_data.get("data_unavailable"):
-                    reason = ic_data.get("reason", "unknown")
-                    logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} - skipping")
-                    continue
-                logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
-                raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
-            available_components += 1
-            logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
-        # SignalAttributionEngine is fully deprecated (see algo/signals/attribution.py's own
-        # module docstring: "swing scores have been removed; this module ... returns
-        # unavailable data") - compute_ic() always returns every component marked
-        # data_unavailable=True, never a real ic_value. Without this guard, persist() wrote
-        # 7 new all-NULL rows into algo_component_attribution on every single Phase 9 run,
-        # forever, and the phase result below unconditionally reported "success, N
-        # components analyzed" even though nothing was actually analyzed - a misleading
-        # status for a fully dead feature, not just wasted writes.
-        if available_components > 0:
-            attribution.persist(run_date, attr_result)
-    except ImportError as e:
-        error_msg = (
-            f"CRITICAL: Signal attribution requires scipy/numpy (not available): {e}. "
-            f"Cannot validate signal quality without these dependencies. "
-            f"Install: pip install scipy numpy"
-        )
-        logger.critical(error_msg)
-        raise RuntimeError(error_msg) from e
-    except ValueError as e:
-        error_msg = (
-            f"CRITICAL: Signal attribution validation failed: {e}. "
-            f"Cannot proceed with trading without signal quality validation. "
-            f"Insufficient trades or invalid signal data indicates a system error."
-        )
-        logger.critical(error_msg)
-        raise ValueError(error_msg) from e
-    except Exception as e:
-        error_msg = f"CRITICAL: Signal attribution failed unexpectedly: {e}"
-        logger.critical(error_msg, exc_info=True)
-        raise RuntimeError(error_msg) from e
+
+    # SignalAttributionEngine is fully deprecated (see algo/signals/attribution.py's own
+    # module docstring: "swing scores have been removed; this module ... returns
+    # unavailable data") - compute_ic() always returns every component marked
+    # data_unavailable=True, never a real ic_value. Calling it only generates noise
+    # warnings. Gracefully skip and return empty result.
+    logger.info("[ATTRIBUTION] Signal attribution is deprecated (swing scores removed). Skipping.")
+    return {}
+
+    # --- DEPRECATED CODE BELOW (kept for reference; do not use) ---
+    # try:
+    #     attribution = SignalAttributionEngine()
+    #     attr_result = attribution.compute_ic(run_date, lookback_trades=40)
+    #     logger.info(f"Signal attribution: IC computed for {len(attr_result)} components")
+    #     for comp, ic_data in attr_result.items():
+    #         ic_value = ic_data.get("ic_value")
+    #         ic_pvalue = ic_data.get("ic_pvalue")
+    #         if ic_value is None or ic_pvalue is None:
+    #             if ic_data.get("data_unavailable"):
+    #                 reason = ic_data.get("reason", "unknown")
+    #                 logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} - skipping")
+    #                 continue
+    #             logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
+    #             raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
+    #         available_components += 1
+    #         logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
+    #     if available_components > 0:
+    #         attribution.persist(run_date, attr_result)
 
     log_phase_result_fn(
         9,
         "ic_computation",
-        "success" if available_components > 0 else "warn",
-        f"{available_components}/{len(attr_result)} components analyzed" if attr_result else "0 components analyzed",
+        "warn",
+        "Signal attribution feature deprecated - no IC computed",
     )
     return attr_result
 

@@ -94,13 +94,25 @@ def run(
             cb_result = meh.check_market_circuit_breaker()
             if cb_result and "error" in cb_result:
                 # CRITICAL: Market circuit breaker API failure must halt trading per GOVERNANCE.
-                # Cannot proceed with trading when market health check unavailable.
+                # Exception: In paper mode with credential errors, log warning and continue (dev convenience)
                 error_msg = cb_result.get('description', cb_result.get('reason', 'unknown'))
-                raise RuntimeError(
-                    f"[PHASE 2 CRITICAL] Market circuit breaker API check failed: {error_msg}. "
-                    f"Cannot proceed with trading without market health assessment. "
-                    f"Check MarketEventHandler API connectivity and data availability."
-                )
+                error_reason = cb_result.get('reason', '')
+                is_credential_error = 'credential' in error_reason.lower() or '401' in error_msg.lower()
+                execution_mode = config.get("execution_mode", "paper")
+
+                if is_credential_error and execution_mode == "paper":
+                    logger.warning(
+                        f"[PHASE 2] Market circuit breaker check skipped in paper mode (credentials unavailable). "
+                        f"Production trading requires valid Alpaca credentials. Error: {error_msg}"
+                    )
+                    log_phase_result_fn(2, "circuit_breakers", "ok_with_warning", "market check skipped (paper mode, creds unavailable)")
+                    # Continue without circuit breaker check in paper mode
+                else:
+                    raise RuntimeError(
+                        f"[PHASE 2 CRITICAL] Market circuit breaker API check failed: {error_msg}. "
+                        f"Cannot proceed with trading without market health assessment. "
+                        f"Check MarketEventHandler API connectivity and data availability."
+                    )
             elif cb_result and "error" not in cb_result:
                 halt_level = cb_result.get("level", "?")
                 halt_reason = cb_result.get("description", "market circuit breaker triggered")

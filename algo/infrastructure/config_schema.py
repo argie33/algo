@@ -347,4 +347,23 @@ VALIDATION_SCHEMA = {
     "retry_count_fred_api": ("int", 1, 10, False, 5),  # FRED API rate-limit retries
     "retry_count_aaii_sentiment": ("int", 1, 10, False, 2),  # AAII sentiment fetch retries
     "retry_count_db_migration": ("int", 1, 10, False, 3),  # Database migration cleanup retries
+    # Data Quality Patrol Thresholds
+    "patrol_new_zero_symbols_error": ("int", 0, 1000, False, 100),  # Error threshold for symbol drop
+    "patrol_new_zero_symbols_warn": ("int", 0, 1000, False, 50),  # Warning threshold for symbol drop
+    "patrol_identical_ohlc_threshold": ("int", 0, 100000, False, 100),  # Max identical OHLC bars
+    "patrol_price_xval_mismatch_pct": ("float", 0.0, 100.0, False, 5.0),  # Cross-validation mismatch tolerance
+    "patrol_xval_top_n_symbols": ("int", 1, 10000, False, 100),  # Symbols to validate
+    "patrol_market_exposure_daily_min": ("float", 0.0, 100.0, False, 10.0),  # Min market exposure for daily check
+    "patrol_technical_daily_14d_min": ("int", 0, 100, False, 90),  # Min technical data coverage 14d
+    "patrol_trend_14d_min": ("int", 0, 100, False, 90),  # Min trend data coverage 14d
+    # Data Coverage Thresholds
+    "technical_data_coverage_threshold": ("float", 0.0, 100.0, False, 80.0),  # Min technical data coverage
+    "buy_sell_daily_coverage_threshold": ("float", 0.0, 100.0, False, 60.0),  # Min buy/sell signal coverage
+    # Orchestrator Control
+    "orchestrator_halt_enabled": ("bool", None, None, False, True),  # Enable halt flag checks
+    # Alpaca Credentials (alternative naming)
+    "alpaca_api_key": ("string", None, None, False, None),  # Alpaca API key (alias for alpaca_api_key_id)
+    "alpaca_api_secret": ("string", None, None, False, None),  # Alpaca API secret (alias for alpaca_api_secret_key)
+    # Risk Thresholds
+    "max_risk_per_trade_pct": ("float", 0.1, 100.0, False, 2.0),  # Max risk per individual trade
 }

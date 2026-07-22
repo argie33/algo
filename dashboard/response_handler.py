@@ -24,7 +24,7 @@ CRITICAL_FETCHERS = {
     "port",  # Portfolio data
     "perf",  # Performance data
     "pos",  # Positions
-    "trades",  # Recent trades
+    "trades",  # Completed trades
     "sig",  # Signals
     "health",  # Health check
     "cb",  # Circuit breaker status

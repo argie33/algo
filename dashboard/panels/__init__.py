@@ -65,7 +65,7 @@ from .signals import (
 )
 from .trades import (
     _extract_items,
-    panel_recent_trades,
+    panel_completed_trades,
     panel_trades_expanded,
 )
 
@@ -107,7 +107,7 @@ __all__ = [
     # Position panels
     "panel_positions",
     # Trade panels
-    "panel_recent_trades",
+    "panel_completed_trades",
     # Score panels
     "panel_scores_compact",
     "panel_scores_expanded",

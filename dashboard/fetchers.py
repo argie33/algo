@@ -50,7 +50,7 @@ from .fetchers_portfolio import (
     fetch_perf_analytics,
     fetch_portfolio,
     fetch_positions,
-    fetch_recent_trades,
+    fetch_completed_trades,
 )
 from .fetchers_signals import (
     fetch_scores,
@@ -80,7 +80,7 @@ __all__ = [
     "fetch_perf_analytics",
     "fetch_portfolio",
     "fetch_positions",
-    "fetch_recent_trades",
+    "fetch_completed_trades",
     "fetch_risk_metrics",
     "fetch_run",
     "fetch_scores",
@@ -100,7 +100,7 @@ FETCHERS = {
     "port": fetch_portfolio,
     "perf": fetch_perf,
     "pos": fetch_positions,
-    "trades": fetch_recent_trades,
+    "trades": fetch_completed_trades,
     "sig": fetch_signals,
     "health": fetch_health,
     "cb": fetch_circuit,

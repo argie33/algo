@@ -381,7 +381,7 @@ DASHBOARD_ENDPOINTS = {
         "path": "/api/algo/trades",
         "method": "GET",
         "params": {"limit": 10, "status": "closed"},
-        "description": "Recent trades",
+        "description": "Completed trades",
         "response_schema": ResponseSchema(
             required_fields=["items"],
             optional_fields=["timestamp", "data_freshness", "pagination"],
@@ -390,7 +390,7 @@ DASHBOARD_ENDPOINTS = {
                 "data_freshness": (dict, type(None)),
                 "pagination": (dict, type(None)),
             },
-            description="List of recent trades",
+            description="List of completed trades (closed/settled)",
         ),
         "freshness_max_age_seconds": 300,
         "strict_fields": ["items"],

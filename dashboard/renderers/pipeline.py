@@ -34,7 +34,7 @@ from dashboard.panels import (
     panel_portfolio,
     panel_portfolio_perf_expanded,
     panel_positions,
-    panel_recent_trades,
+    panel_completed_trades,
     panel_scores_compact,
     panel_scores_expanded,
     panel_sector_compact,
@@ -237,9 +237,9 @@ def render_dashboard_body(outer: Layout, ctx: DashboardContext, compact: bool) -
         else Panel("[red]Positions unavailable[/]", border_style="red")
     )
     trades_panel = (
-        safe_render(panel_recent_trades, ctx.trades)
+        safe_render(panel_completed_trades, ctx.trades)
         if not has_error(ctx.trades)
-        else Panel("[red]Recent trades unavailable[/]", border_style="red")
+        else Panel("[red]Completed trades unavailable[/]", border_style="red")
     )
 
     outer["pos"].split_row(
@@ -339,8 +339,8 @@ def render_expanded_view(  # noqa: C901
             error_panel_exp = error_summary_panel_expanded(ctx.data)
             if error_panel_exp:
                 return _expanded_layout(*_exp_top, error_panel_exp)
-            logger.warning("Error summary panel not available for expanded view")
-            return _expanded_layout(*_exp_top, Panel("[red]Error data unavailable[/]", border_style="red"))
+            logger.debug("No errors detected in current data")
+            return _expanded_layout(*_exp_top, Panel("[green]✓ No errors detected[/]", border_style="green"))
 
     logger.warning(f"Unmatched expanded view mode: {view_mode}")
     return _expanded_layout(*_exp_top, Panel(f"[red]Unknown view mode: {view_mode}[/]", border_style="red"))

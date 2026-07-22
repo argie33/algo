@@ -321,10 +321,10 @@ def fetch_positions(c: None) -> dict[str, Any]:
         return FetcherValidator.build_error_response(error_msg)
 
 
-def fetch_recent_trades(c: None) -> dict[str, Any]:
-    """AWS-only trades data. Fail-fast: error only on failure.
+def fetch_completed_trades(c: None) -> dict[str, Any]:
+    """AWS-only completed trades data. Fail-fast: error only on failure.
 
-    Returns closed trades only - open positions are in the positions panel.
+    Returns closed/completed trades only - open positions are in the positions panel.
     Note: 503 means no closed trades yet (algo just started) - treat as no data.
     """
     from dashboard.fetcher_validator import FetcherValidator
