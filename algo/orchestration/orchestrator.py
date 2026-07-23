@@ -638,7 +638,7 @@ class Orchestrator:
                             SELECT table_name, status, completion_pct, symbols_loaded, symbol_count
                             FROM data_loader_status
                             WHERE table_name = ANY(%s)
-                            AND (status = 'running' OR completion_pct < 95.0)
+                            AND (status = 'running' OR completion_pct < 90.0)
                             ORDER BY completion_pct ASC
                             """,
                             (list(critical_loaders),),
@@ -646,7 +646,7 @@ class Orchestrator:
 
                         incomplete_loaders = cur.fetchall()
                         if not incomplete_loaders:
-                            logger.info("[PROACTIVE WAIT] All critical loaders are at 95%+ completion")
+                            logger.info("[PROACTIVE WAIT] All critical loaders are at 90%+ completion")
                             return True
 
                         # Still running - log progress and wait
@@ -800,7 +800,7 @@ class Orchestrator:
                             "Treating as incomplete until next status update."
                         )
                     else:
-                        is_complete = completion_pct >= 95.0
+                        is_complete = completion_pct >= 90.0
 
                     loader_status[table_name] = {
                         "status": status,

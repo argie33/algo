@@ -303,7 +303,7 @@ def check_and_retry_incomplete_loaders(dry_run: bool = False) -> dict[str, Any]:
                     execution_started,
                     last_updated
                 FROM data_loader_status
-                WHERE (completion_pct < 95.0 OR UPPER(status) IN ('ERROR', 'FAILED'))
+                WHERE (completion_pct < 90.0 OR UPPER(status) IN ('ERROR', 'FAILED'))
                     AND last_updated >= CURRENT_TIMESTAMP - INTERVAL '1 hour'
                 ORDER BY completion_pct ASC, table_name
             """)
@@ -662,12 +662,12 @@ def monitor_loader_retry(loader_name: str, timeout_seconds: int) -> tuple[bool, 
                         logger.debug(
                             f"[PHASE 1 FAILSAFE] {loader_name} status unknown, still running (will check again in 10s)"
                         )
-                    elif completion_pct >= 95.0:
+                    elif completion_pct >= 90.0:
                         logger.info(f"[PHASE 1 FAILSAFE] Loader recovered: {loader_name} {completion_pct:.1f}%")
                         return True, completion_pct, "success"
 
                     elif status == "COMPLETED":
-                        # Completed but still below 95% (unlikely but handle it)
+                        # Completed but still below 90% (unlikely but handle it)
                         logger.warning(
                             f"[PHASE 1 FAILSAFE] Loader completed but incomplete: {loader_name} {completion_pct:.1f}%"
                         )
