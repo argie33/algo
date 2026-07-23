@@ -107,7 +107,8 @@ def run(
                         f"Production trading requires valid Alpaca credentials. Error: {error_msg}"
                     )
                     log_phase_result_fn(2, "circuit_breakers", "ok_with_warning", "market check skipped (paper mode, creds unavailable)")
-                    # Continue without circuit breaker check in paper mode
+                    # Continue without circuit breaker check in paper mode - explicitly skip market check
+                    cb_result = None  # Skip market circuit breaker processing below
                 elif is_transient_error:
                     # Transient network errors (timeout, connection refused) are temporary
                     # Log warning and continue - if market is truly down, other phases will detect it
@@ -116,7 +117,8 @@ def run(
                         f"Continuing with trading - if market is down, other data quality checks will catch it."
                     )
                     log_phase_result_fn(2, "circuit_breakers", "ok_with_warning", "transient network error, proceeding with caution")
-                    # Continue without circuit breaker check on transient failure
+                    # Continue without circuit breaker check on transient failure - explicitly skip market check
+                    cb_result = None  # Skip market circuit breaker processing below
                 else:
                     raise RuntimeError(
                         f"[PHASE 2 CRITICAL] Market circuit breaker API check failed: {error_msg}. "
