@@ -43,7 +43,7 @@
     "@anthropic-ai/sdk": "^0.71.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.840.0",
     "@aws-sdk/client-secrets-manager": "^3.893.0",
-    "@aws-sdk/client-ses": "^3.840.0",
+    "@aws-sdk/client-ses": "^3.1073.0",
     "aws-jwt-verify": "^5.1.0",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
