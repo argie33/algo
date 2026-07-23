@@ -1883,27 +1883,28 @@ class Orchestrator:
         try:
             if any_error:
                 overall_status = "error"
+                # Look for error/fail status phases first, then halted (some phases use "halted" for errors)
                 halt_reason = next(
-                    (p["summary"] for p in self.phase_results.values() if p["status"] in ("error", "fail")),
-                    None,
+                    (p["summary"] for p in self.phase_results.values() if p["status"] in ("error", "fail", "halted")),
+                    "Unknown error - no phase summary available",
                 )
             elif any_halt:
                 overall_status = "halted"
                 halt_reason = next(
                     (p["summary"] for p in self.phase_results.values() if p["status"] == "halted"),
-                    None,
+                    "Halted - reason unknown",
                 )
             elif any_degraded:
                 overall_status = "degraded"
                 halt_reason = next(
                     (p["summary"] for p in self.phase_results.values() if p["status"] == "degraded"),
-                    None,
+                    "Degraded - reason unknown",
                 )
             elif any_skipped:
                 overall_status = "degraded"
                 halt_reason = next(
                     (p["summary"] for p in self.phase_results.values() if p["status"] == "skipped"),
-                    None,
+                    "Skipped - reason unknown",
                 )
             else:
                 overall_status = "success"
