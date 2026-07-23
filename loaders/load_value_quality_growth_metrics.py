@@ -214,27 +214,45 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         """
         try:
             with DatabaseContext("read") as cur:
-                # Get value metrics from sec_valuations (primary source)
+                # Get value metrics from sec_valuations (primary source) - as tuple for backward compatibility
                 cur.execute(
                     "SELECT * FROM sec_valuations WHERE symbol = %s",
                     (symbol,),
                 )
                 sec_val_row = cur.fetchone()
 
+                # Also fetch EV metrics by column name to avoid index confusion
+                if sec_val_row:
+                    cur.execute(
+                        "SELECT total_debt, total_cash, ebitda FROM sec_valuations WHERE symbol = %s",
+                        (symbol,),
+                    )
+                    ev_metrics = cur.fetchone()
+                else:
+                    ev_metrics = None
+
                 # Get quality from SEC financials (annual balance sheet + income statement latest year)
+                # Also fetch prior year EPS/revenue for YoY growth calculation
                 cur.execute(
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
                            ais.net_income, ais.revenue, ais.operating_income,
                            abs.current_assets, abs.current_liabilities, abs.fiscal_year,
-                           abs.inventory, ais.interest_expense
+                           abs.inventory, ais.interest_expense, abs.shares_outstanding,
+                           ais.cost_of_revenue, acf.operating_cash_flow, acf.free_cash_flow,
+                           acf.payments_of_dividends, ais.earnings_per_share,
+                           (SELECT earnings_per_share FROM annual_income_statement
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_eps,
+                           (SELECT revenue FROM annual_income_statement
+                            WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_revenue
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
+                    LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year
                     WHERE abs.symbol = %s
                     ORDER BY abs.fiscal_year DESC
                     LIMIT 1
                     """,
-                    (symbol,),
+                    (symbol, symbol, symbol),
                 )
                 quality_row_db = cur.fetchone()
 
@@ -256,7 +274,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
             # Construct value metrics from sec_valuations only (Session 271 - yfinance-free)
             value_dict = self._build_value_metrics(symbol, sec_val_row)
-            quality_dict = self._compute_quality_metrics(symbol, quality_row_db)
+            quality_dict = self._compute_quality_metrics(symbol, quality_row_db, ev_metrics)
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
 
@@ -349,8 +367,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             return None
         return value
 
-    def _compute_quality_metrics(self, symbol: str, quality_row: Any) -> dict[str, Any]:
-        """Compute quality_metrics from SEC financials (balance sheet + income statement)."""
+    def _compute_quality_metrics(self, symbol: str, quality_row: Any, ev_metrics: Any = None) -> dict[str, Any]:
+        """Compute quality_metrics from SEC financials (balance sheet + income statement + cash flow + EV data).
+
+        ev_metrics: tuple of (total_debt, total_cash, ebitda) from sec_valuations
+        """
         if not quality_row:
             return self._unavailable_marker("quality_metrics", symbol)
 
@@ -369,6 +390,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             interest_expense = self._nan_to_none(
                 safe_float(quality_row[10], f"{symbol}.interest_expense", allow_none=True)
             )
+            shares_outstanding = self._nan_to_none(safe_float(quality_row[11], f"{symbol}.shares_outstanding", allow_none=True))
+            cost_of_revenue = self._nan_to_none(safe_float(quality_row[12], f"{symbol}.cost_of_revenue", allow_none=True))
+            operating_cash_flow = self._nan_to_none(safe_float(quality_row[13], f"{symbol}.operating_cash_flow", allow_none=True))
+            free_cash_flow = self._nan_to_none(safe_float(quality_row[14], f"{symbol}.free_cash_flow", allow_none=True))
+            dividends_paid = self._nan_to_none(safe_float(quality_row[15], f"{symbol}.dividends_paid", allow_none=True))
+            earnings_per_share = self._nan_to_none(safe_float(quality_row[16], f"{symbol}.earnings_per_share", allow_none=True))
+            prior_year_eps = self._nan_to_none(safe_float(quality_row[17], f"{symbol}.prior_year_eps", allow_none=True))
+            prior_year_revenue = self._nan_to_none(safe_float(quality_row[18], f"{symbol}.prior_year_revenue", allow_none=True))
 
             metrics: dict[str, Any] = {
                 "symbol": symbol,
@@ -475,6 +504,116 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 metrics["interest_coverage"] = float(operating_income / interest_expense)
             else:
                 failed_metrics.append("interest_coverage")
+
+            # Extract EV metrics from sec_valuations if available
+            total_debt_ev = None
+            total_cash_ev = None
+            ebitda_ev = None
+            if ev_metrics:
+                total_debt_ev = self._nan_to_none(safe_float(ev_metrics[0], f"{symbol}.total_debt", allow_none=True))
+                total_cash_ev = self._nan_to_none(safe_float(ev_metrics[1], f"{symbol}.total_cash", allow_none=True))
+                ebitda_ev = self._nan_to_none(safe_float(ev_metrics[2], f"{symbol}.ebitda", allow_none=True))
+
+            # Phase 3 Expansion Metrics (Session 357+)
+            # Gross Margin = (Revenue - COGS) / Revenue
+            if cost_of_revenue is not None and revenue is not None and revenue != 0:
+                gross_profit = revenue - cost_of_revenue
+                metrics["gross_margin"] = float((gross_profit / revenue) * 100)
+            else:
+                failed_metrics.append("gross_margin")
+
+            # EBITDA Margin = EBITDA / Revenue
+            if ebitda_ev is not None and revenue is not None and revenue != 0:
+                metrics["ebitda_margin"] = float((ebitda_ev / revenue) * 100)
+            else:
+                failed_metrics.append("ebitda_margin")
+
+            # ROIC: (EBIT * (1 - tax_rate)) / Invested Capital
+            # Using approximation: (Operating Income * 0.75) / (Total Assets - Current Liabilities)
+            # (assuming 25% effective tax rate as industry average)
+            if operating_income is not None and total_assets is not None and current_liabilities is not None:
+                try:
+                    ebit_after_tax = operating_income * 0.75
+                    invested_capital = total_assets - current_liabilities
+                    if invested_capital != 0:
+                        metrics["roic_pct"] = float((ebit_after_tax / invested_capital) * 100)
+                    else:
+                        failed_metrics.append("roic_pct")
+                except (ValueError, TypeError):
+                    failed_metrics.append("roic_pct")
+            else:
+                failed_metrics.append("roic_pct")
+
+            # FCF to Net Income = Free Cash Flow / Net Income
+            if free_cash_flow is not None and net_income is not None and net_income != 0:
+                metrics["fcf_to_net_income"] = float(free_cash_flow / net_income)
+            else:
+                failed_metrics.append("fcf_to_net_income")
+
+            # OCF to Net Income = Operating Cash Flow / Net Income
+            if operating_cash_flow is not None and net_income is not None and net_income != 0:
+                metrics["ocf_to_net_income"] = float(operating_cash_flow / net_income)
+            else:
+                failed_metrics.append("ocf_to_net_income")
+
+            # Payout Ratio = Dividends / Net Income (% of earnings paid out)
+            if dividends_paid is not None and net_income is not None and net_income > 0:
+                metrics["payout_ratio"] = float((dividends_paid / net_income) * 100)
+            else:
+                failed_metrics.append("payout_ratio")
+
+            # Absolute cash flow values
+            if free_cash_flow is not None:
+                metrics["free_cash_flow"] = float(free_cash_flow)
+            else:
+                failed_metrics.append("free_cash_flow")
+
+            if operating_cash_flow is not None:
+                metrics["operating_cash_flow"] = float(operating_cash_flow)
+            else:
+                failed_metrics.append("operating_cash_flow")
+
+            # Absolute balance sheet values from sec_valuations
+            if total_debt_ev is not None:
+                metrics["total_debt"] = float(total_debt_ev)
+            else:
+                failed_metrics.append("total_debt")
+
+            if total_cash_ev is not None:
+                metrics["total_cash"] = float(total_cash_ev)
+            else:
+                failed_metrics.append("total_cash")
+
+            if ebitda_ev is not None:
+                metrics["ebitda"] = float(ebitda_ev)
+            else:
+                failed_metrics.append("ebitda")
+
+            # Cash per Share = Total Cash / Shares Outstanding
+            if total_cash_ev is not None and shares_outstanding is not None and shares_outstanding > 0:
+                metrics["cash_per_share"] = float(total_cash_ev / shares_outstanding)
+            else:
+                failed_metrics.append("cash_per_share")
+
+            # Earnings Growth YoY = (Current EPS - Prior Year EPS) / Prior Year EPS * 100
+            if earnings_per_share is not None and prior_year_eps is not None and prior_year_eps != 0:
+                try:
+                    yoy_growth = ((earnings_per_share - prior_year_eps) / abs(prior_year_eps)) * 100
+                    metrics["earnings_growth_yoy"] = float(round(yoy_growth, 2))
+                except (ValueError, TypeError):
+                    failed_metrics.append("earnings_growth_yoy")
+            else:
+                failed_metrics.append("earnings_growth_yoy")
+
+            # Revenue Growth YoY = (Current Revenue - Prior Year Revenue) / Prior Year Revenue * 100
+            if revenue is not None and prior_year_revenue is not None and prior_year_revenue != 0:
+                try:
+                    yoy_growth = ((revenue - prior_year_revenue) / abs(prior_year_revenue)) * 100
+                    metrics["revenue_growth_yoy"] = float(round(yoy_growth, 2))
+                except (ValueError, TypeError):
+                    failed_metrics.append("revenue_growth_yoy")
+            else:
+                failed_metrics.append("revenue_growth_yoy")
 
             # Mark unavailable if all metrics are None
             if all(
@@ -703,8 +842,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO quality_metrics
-            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, current_ratio, quick_ratio, interest_coverage, quality_score, data_unavailable, reason, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, current_ratio, quick_ratio, interest_coverage, quality_score, data_unavailable, reason, data_source, updated_at,
+             gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
+             free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share, ebitda,
+             earnings_growth_yoy, revenue_growth_yoy)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -716,6 +858,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 quick_ratio = EXCLUDED.quick_ratio,
                 interest_coverage = EXCLUDED.interest_coverage,
                 quality_score = EXCLUDED.quality_score,
+                gross_margin = EXCLUDED.gross_margin,
+                ebitda_margin = EXCLUDED.ebitda_margin,
+                roic_pct = EXCLUDED.roic_pct,
+                fcf_to_net_income = EXCLUDED.fcf_to_net_income,
+                ocf_to_net_income = EXCLUDED.ocf_to_net_income,
+                payout_ratio = EXCLUDED.payout_ratio,
+                free_cash_flow = EXCLUDED.free_cash_flow,
+                operating_cash_flow = EXCLUDED.operating_cash_flow,
+                total_debt = EXCLUDED.total_debt,
+                total_cash = EXCLUDED.total_cash,
+                cash_per_share = EXCLUDED.cash_per_share,
+                ebitda = EXCLUDED.ebitda,
+                earnings_growth_yoy = EXCLUDED.earnings_growth_yoy,
+                revenue_growth_yoy = EXCLUDED.revenue_growth_yoy,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -724,7 +880,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             (row["symbol"], row["roe"], row.get("roa"), row["operating_margin"],
              row["net_margin"], row["debt_to_equity"], row.get("debt_to_assets"), row.get("current_ratio"),
              row.get("quick_ratio"), row.get("interest_coverage"), row.get("quality_score"), row["data_unavailable"],
-             row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"]),
+             row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"],
+             row.get("gross_margin"), row.get("ebitda_margin"), row.get("roic_pct"), row.get("fcf_to_net_income"),
+             row.get("ocf_to_net_income"), row.get("payout_ratio"),
+             row.get("free_cash_flow"), row.get("operating_cash_flow"), row.get("total_debt"), row.get("total_cash"),
+             row.get("cash_per_share"), row.get("ebitda"), row.get("earnings_growth_yoy"), row.get("revenue_growth_yoy")),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -789,7 +949,24 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "debt_to_equity": None,
                 "debt_to_assets": None,
                 "current_ratio": None,
+                "quick_ratio": None,
+                "interest_coverage": None,
                 "quality_score": None,
+                # Phase 3 fields
+                "gross_margin": None,
+                "ebitda_margin": None,
+                "roic_pct": None,
+                "fcf_to_net_income": None,
+                "ocf_to_net_income": None,
+                "payout_ratio": None,
+                "free_cash_flow": None,
+                "operating_cash_flow": None,
+                "total_debt": None,
+                "total_cash": None,
+                "cash_per_share": None,
+                "ebitda": None,
+                "earnings_growth_yoy": None,
+                "revenue_growth_yoy": None,
                 "data_unavailable": True,
                 "data_source": "none",
                 "updated_at": date.today().isoformat(),
