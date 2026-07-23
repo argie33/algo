@@ -335,14 +335,16 @@ def _get_stock_scores(
             }
 
             # Momentum Inputs: Price momentum, technical indicators
+            # Note: momentum_12_3 represents 12-minus-3-month momentum (Jegadeesh-Titman effect);
+            # API returns individual period returns; may need computation for accuracy
             d["momentum_inputs"] = {
                 "current_price": d.get("current_price"),
                 "price_vs_52w_high": d.get("price_vs_52w_high_val"),
                 "price_vs_sma_50": d.get("price_vs_sma_50"),
                 "price_vs_sma_200": d.get("price_vs_sma_200"),
-                "momentum_3m": d.get("momentum_1m_val"),  # 1m momentum = 1-month return
-                "momentum_6m": d.get("momentum_3m_val"),  # 3m momentum = 3-month return
-                "momentum_12_3": d.get("momentum_6m_val"),  # 12-3 momentum = 6-month return
+                "momentum_3m": d.get("momentum_3m_val"),  # 3-month return
+                "momentum_6m": d.get("momentum_6m_val"),  # 6-month return
+                "momentum_12_3": d.get("momentum_12m_val"),  # 12-month return (proxy for 12-3)
                 "rsi": d.get("tdd_rsi"),
                 "macd": d.get("tdd_macd"),
             }
