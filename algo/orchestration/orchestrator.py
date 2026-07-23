@@ -1884,7 +1884,7 @@ class Orchestrator:
             if any_error:
                 overall_status = "error"
                 halt_reason = next(
-                    (p["summary"] for p in self.phase_results.values() if p["status"] == "error"),
+                    (p["summary"] for p in self.phase_results.values() if p["status"] in ("error", "fail")),
                     None,
                 )
             elif any_halt:
