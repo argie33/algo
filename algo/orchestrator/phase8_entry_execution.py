@@ -1290,6 +1290,15 @@ def run(
                 except Exception as e:
                     logger.warning(f"[PHASE 8] {symbol}: Could not fetch signal quality scores: {e}. Proceeding with available data.")
 
+            # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
+            min_sqs = self.config.get("min_signal_quality_score", 75)
+            if sqs is not None and sqs < min_sqs:
+                rejection_reason = f"Signal quality score {int(sqs)} below minimum {min_sqs}"
+                logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
+                _log_signal_rejection(symbol, "quality_gate", rejection_reason, run_date, entry_price, risk_pct)
+                skipped_count += 1
+                continue
+
             logger.info(
                 f"[PHASE 8] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
                 f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
