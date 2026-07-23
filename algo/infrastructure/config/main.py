@@ -728,7 +728,7 @@ class AlgoConfig:
             "Dashboard Configuration",
         ),
         # Execution Mode
-        "execution_mode": ("auto", "string", "paper|dry|review|auto", "Execution Mode"),
+        "execution_mode": ("paper", "string", "paper|dry|review|auto", "Execution Mode"),
         "alpaca_paper_trading": ("true", "bool", "Use Alpaca paper account", "Execution Mode"),
         "initial_capital_paper_trading": (
             "100000.0",
