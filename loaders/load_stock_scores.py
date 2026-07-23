@@ -1575,12 +1575,19 @@ class StockScoresLoader(OptimalLoader):
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_positioning_scores_computed"}
 
     def _score_stability(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
-        """Score stability metrics on 0-100 scale. Returns marker dict if no real data.
+        """Score stability metrics on 0-100 scale using price volatility + financial stability (Phase 8).
 
-        Uses weighted scoring: Volatility 252d (40%) + Volatility 60d (20%) + Volatility 30d (15%)
-        + Beta (15%) + Debt-to-assets (10%). Lower volatility and beta closer to 1.0 indicate
-        stable, market-correlated stocks. Lower debt-to-assets indicates stronger financial
-        stability.
+        Uses weighted scoring: Volatility 252d (35%) + Volatility 60d (18%) + Volatility 30d (12%)
+        + Beta (15%) + Financial Stability (20%, Phase 3 metrics). Lower volatility and beta closer
+        to 1.0 indicate stable, market-correlated stocks. Financial stability combines debt ratios,
+        liquidity (current/quick ratios), and cash position for solvency assessment.
+
+        Phase 3 Enhancement: Financial Stability component now uses:
+        - Debt-to-equity ratio (leverage alternative)
+        - Current ratio (working capital adequacy)
+        - Quick ratio (more conservative liquidity)
+        - Cash per share (absolute cash cushion)
+        - Debt-to-assets (solvency) as fallback
 
         RETURN TYPES (STRICT):
         - metrics available with ≥1 stability field → returns float (0-100)
@@ -1592,9 +1599,9 @@ class StockScoresLoader(OptimalLoader):
         - Type conversion errors → RuntimeError (via _safe_float)
         - Negative volatility → treated as 0 (impossible case, but defensive)
 
-        MINIMUM DATA REQUIREMENT: At least one of volatility_252d/volatility_60d/beta/
-        debt_to_assets metrics must be non-NULL. If all stability metrics are None,
-        returns data_unavailable marker. Critical metric for stock scoring (high priority upstream loader).
+        MINIMUM DATA REQUIREMENT: At least one of volatility/beta/financial_stability metrics
+        must be non-NULL. If all stability metrics are None, returns data_unavailable marker.
+        Critical metric for stock scoring (high priority upstream loader).
         """
         if not metrics or metrics.get("data_unavailable") is True:
             logger.warning(f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol})")
@@ -1655,12 +1662,12 @@ class StockScoresLoader(OptimalLoader):
             weighted_sum += beta_score * 0.15
             total_weight += 0.15
 
-        # Debt-to-assets: lower is better (target < 0.5)
-        if metrics.get("debt_to_assets") is not None and metrics["debt_to_assets"] >= 0:
-            dta = min(metrics["debt_to_assets"], 1.0)
-            dta_score = max(0, 100 - (dta * 100))
-            weighted_sum += dta_score * 0.10
-            total_weight += 0.10
+        # Financial Stability (Phase 3 enhancement): Combines debt ratios + liquidity + cash position
+        # Uses debt_to_equity, current_ratio, quick_ratio, cash_per_share, debt_to_assets
+        fin_stability_score = self._score_financial_stability(metrics, symbol)
+        if fin_stability_score is not None:
+            weighted_sum += fin_stability_score * 0.20
+            total_weight += 0.20
 
         if total_weight > 0:
             return weighted_sum / total_weight
@@ -1668,6 +1675,90 @@ class StockScoresLoader(OptimalLoader):
             f"[STOCK_SCORES] Returning data_unavailable marker for stability_score({symbol}) - no scoreable fields"
         )
         return {"symbol": symbol, "data_unavailable": True, "reason": "no_stability_scores_computed"}
+
+    def _score_financial_stability(self, metrics: dict[str, Any], symbol: str) -> float | None:
+        """Score financial stability using Phase 3 debt/liquidity metrics.
+
+        Combines: Debt-to-equity (30%) + Debt-to-assets (25%) + Liquidity (current/quick ratio, 30%)
+        + Cash position (15%). Returns None if no financial metrics available (use price volatility/beta only).
+
+        Session 359: Phase 8 enhancement - adds financial solvency scoring to complement price volatility.
+        """
+        components: list[tuple[float, float]] = []  # (score, weight) pairs
+
+        # 1. Leverage: Debt-to-equity (target D/E < 1.0, lower is better)
+        if metrics.get("debt_to_equity") is not None:
+            dte = max(0, metrics["debt_to_equity"])
+            # Target < 1.0 (equal debt and equity); >2.0 is high leverage
+            if dte <= 0.5:
+                dte_score = 100.0
+            elif dte <= 1.0:
+                dte_score = 100.0 - ((dte - 0.5) / 0.5) * 30  # 100→70 in [0.5, 1.0]
+            elif dte <= 2.0:
+                dte_score = 70.0 - ((dte - 1.0) / 1.0) * 40   # 70→30 in [1.0, 2.0]
+            else:
+                dte_score = max(0, 30 - (dte - 2.0) * 15)     # Below 30 for dte > 2.0
+            components.append((dte_score, 0.30))
+
+        # 2. Solvency: Debt-to-assets (target D/A < 0.5, lower is better)
+        if metrics.get("debt_to_assets") is not None and metrics["debt_to_assets"] >= 0:
+            dta = min(metrics["debt_to_assets"], 1.0)
+            dta_score = max(0, 100.0 - (dta * 100.0))  # 100 at 0%, 0 at 100%
+            components.append((dta_score, 0.25))
+
+        # 3. Liquidity: Current ratio (target > 1.5) + Quick ratio (target > 1.0)
+        liquidity_scores = []
+        if metrics.get("current_ratio") is not None:
+            cr = max(0, metrics["current_ratio"])
+            if cr >= 2.0:
+                cr_score = 100.0
+            elif cr >= 1.5:
+                cr_score = 80.0 + ((cr - 1.5) / 0.5) * 20  # 80→100 in [1.5, 2.0]
+            elif cr >= 1.0:
+                cr_score = 50.0 + ((cr - 1.0) / 0.5) * 30  # 50→80 in [1.0, 1.5]
+            elif cr >= 0.5:
+                cr_score = (cr / 0.5) * 50                 # 0→50 in [0, 0.5]
+            else:
+                cr_score = 0.0
+            liquidity_scores.append(cr_score)
+
+        if metrics.get("quick_ratio") is not None:
+            qr = max(0, metrics["quick_ratio"])
+            if qr >= 1.5:
+                qr_score = 100.0
+            elif qr >= 1.0:
+                qr_score = 70.0 + ((qr - 1.0) / 0.5) * 30   # 70→100 in [1.0, 1.5]
+            elif qr >= 0.5:
+                qr_score = 35.0 + ((qr - 0.5) / 0.5) * 35   # 35→70 in [0.5, 1.0]
+            else:
+                qr_score = (qr / 0.5) * 35                  # 0→35 in [0, 0.5]
+            liquidity_scores.append(qr_score)
+
+        if liquidity_scores:
+            avg_liquidity_score = sum(liquidity_scores) / len(liquidity_scores)
+            components.append((avg_liquidity_score, 0.30))
+
+        # 4. Cash Position: Cash per share (target > $10, cap at $50)
+        if metrics.get("cash_per_share") is not None and metrics["cash_per_share"] > 0:
+            cps = metrics["cash_per_share"]
+            if cps >= 50:
+                cps_score = 100.0
+            elif cps >= 10:
+                cps_score = 60.0 + ((cps - 10) / 40) * 40   # 60→100 in [$10, $50]
+            else:
+                cps_score = (cps / 10) * 60                 # 0→60 in [$0, $10]
+            components.append((cps_score, 0.15))
+
+        # Compute weighted average if we have any components
+        if not components:
+            return None
+
+        total_weight = sum(w for _, w in components)
+        if total_weight == 0:
+            return None
+
+        weighted_score = sum(s * w for s, w in components) / total_weight
+        return float(max(0, min(100, weighted_score)))
 
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
