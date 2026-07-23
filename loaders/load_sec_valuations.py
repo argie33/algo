@@ -169,6 +169,36 @@ class SecValuationsLoader(OptimalLoader):
                 ocf, capex, dividends_paid = cash_row if cash_row else (None, None, None)
                 # Note: None values here mean FCF yield/dividend yield will be NULL (not available)
 
+                # Get debt and cash from balance sheet (for Enterprise Value)
+                cur.execute(
+                    """
+                    SELECT
+                        total_liabilities,
+                        cash_and_equivalents
+                    FROM annual_balance_sheet
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                    ORDER BY fiscal_year DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                debt_row = cur.fetchone()
+                total_debt, total_cash = debt_row if debt_row else (None, None)
+                # Note: None values mean EV metrics won't be computed
+
+                # Get EBITDA from income statement (for EV/EBITDA)
+                cur.execute(
+                    """
+                    SELECT ebitda
+                    FROM annual_income_statement
+                    WHERE symbol = %s AND data_unavailable = FALSE
+                    ORDER BY fiscal_year DESC LIMIT 1
+                    """,
+                    (symbol,),
+                )
+                ebitda_row = cur.fetchone()
+                ebitda = ebitda_row[0] if ebitda_row else None
+                # Note: None means EV/EBITDA won't be computed
+
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
             # If revenue is None, _compute_valuations will skip PS ratio (but that's OK)
@@ -184,6 +214,9 @@ class SecValuationsLoader(OptimalLoader):
                     float(capex) if capex else 0.0,
                     float(prior_year_eps) if prior_year_eps else None,
                     float(dividends_paid) if dividends_paid else None,
+                    float(total_debt) if total_debt else None,
+                    float(total_cash) if total_cash else None,
+                    float(ebitda) if ebitda else None,
                 )
             ]
 
@@ -219,6 +252,9 @@ class SecValuationsLoader(OptimalLoader):
         capex: float,
         prior_year_eps: float | None,
         dividends_paid: float | None,
+        total_debt: float | None,
+        total_cash: float | None,
+        ebitda: float | None,
     ) -> dict[str, Any]:
         """Compute all valuation ratios from SEC data."""
         result: dict[str, Any] = {
