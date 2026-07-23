@@ -277,9 +277,14 @@ class TestEndToEndTradingWorkflow:
             assert hasattr(Orchestrator, "run"), "Orchestrator must have run() method"
             assert hasattr(Orchestrator, "__init__"), "Orchestrator must be instantiable"
 
-            # Verify it can be initialized
-            config = Mock()
-            config.override = Mock()
+            # Verify it can be initialized with minimal required config keys
+            config = {
+                "phase1_min_coverage_pct": "75",
+                "phase1_min_symbol_count": "5000",
+                "min_win_rate_pct": "40",
+                "max_daily_loss_pct": "2",
+                "max_weekly_loss_pct": "5",
+            }
             orch = Orchestrator(config=config, dry_run=True)
             assert orch is not None
         except Exception as e:

@@ -267,31 +267,36 @@ class TestCircuitBreakerWithMalformedData:
 
 
 class TestWinRateFloorSampleSize:
-    """_check_win_rate_floor's sample-size guard must gate on decisive_trades (wins+losses),
-    not on total (which also counts breakeven placeholder rows - e.g. Phase 9's "pending fill
-    price confirmation" reconciliation exits recorded at exactly 0.00% before their real fill
-    price is known). A live run hit total=26/decisive_trades=8: the old total-based guard let
-    an 8-trade sample compute a real halt.
+    """_check_win_rate_floor has two gates:
+    1. Bootstrap period: Don't apply win_rate_floor until at least 10 CLOSED trades exist
+    2. Decisive trades check: Gate on wins+losses, not total (which includes breakeven placeholders)
+
+    A live run hit total=26/decisive_trades=8 during bootstrap period: the old logic
+    would compute win rate on insufficient data. Now it correctly defers the gate.
     """
 
-    def test_below_threshold_decisive_sample_does_not_halt_despite_high_total(self, mock_config):
-        """total=26 (mostly breakeven placeholders) but only 8 decisive trades - must not halt."""
+    def test_bootstrap_period_blocks_floor_check_during_new_account(self, mock_config):
+        """During bootstrap (< 10 closed trades), win_rate_floor doesn't apply even if negative."""
         config = dict(mock_config, min_win_rate_pct=40.0)
         cb = CircuitBreaker(config=config)
         mock_cur = Mock()
-        # wins=3, losses=5, breakeven=18, total=26 -> decisive_trades=8 < 10
-        mock_cur.fetchone.return_value = (3, 5, 18, 26)
+        # wins=3, losses=5, breakeven=18, total=26 -> decisive_trades=8
+        # First query: rolling 30-trade window result (wins, losses, breakeven, total)
+        # Second query: closed_count check - returns 3 (< 10, so bootstrap)
+        mock_cur.fetchone.side_effect = [(3, 5, 18, 26), (3,)]
         result = cb._check_win_rate_floor(current_date=None, cur=mock_cur)
         assert result["halted"] is False
-        assert "8" in result["reason"]
+        assert "bootstrap" in result["reason"].lower()
 
-    def test_at_threshold_decisive_sample_does_halt_on_low_win_rate(self, mock_config):
-        """decisive_trades=10 (>= minimum) with a real floor breach must still halt."""
+    def test_past_bootstrap_decisive_sample_does_halt_on_low_win_rate(self, mock_config):
+        """After bootstrap (>= 10 closed trades), win_rate_floor applies to decisive sample."""
         config = dict(mock_config, min_win_rate_pct=40.0)
         cb = CircuitBreaker(config=config)
         mock_cur = Mock()
         # wins=3, losses=7 -> decisive_trades=10, win_rate=30% < 40% floor
-        mock_cur.fetchone.return_value = (3, 7, 0, 10)
+        # First query: rolling 30-trade window result
+        # Second query: closed_count check - returns 15 (>= 10, so past bootstrap)
+        mock_cur.fetchone.side_effect = [(3, 7, 0, 10), (15,)]
         result = cb._check_win_rate_floor(current_date=None, cur=mock_cur)
         assert result["halted"] is True
         assert result["value"] == 30.0
@@ -304,9 +309,11 @@ class TestWinRateFloorSampleSize:
         config = dict(mock_config, min_win_rate_pct=40.0)
         cb = CircuitBreaker(config=config)
         mock_cur = Mock()
-        mock_cur.fetchone.return_value = (3, 7, 0, 10)
+        # Set up return values for both queries (rolling 30-trade, then bootstrap check)
+        mock_cur.fetchone.side_effect = [(3, 7, 0, 10), (15,)]
         cb._check_win_rate_floor(current_date=None, cur=mock_cur)
-        executed_sql = mock_cur.execute.call_args[0][0]
+        # Check that the first execute call (the rolling window query) has LIMIT 30
+        executed_sql = mock_cur.execute.call_args_list[0][0][0]
         assert "LIMIT 30" in executed_sql
 
 
