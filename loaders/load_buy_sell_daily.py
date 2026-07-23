@@ -49,9 +49,25 @@ class SignalsDailyLoader(OptimalLoader):
         Some stock_scores symbols don't have price_daily data (e.g., delisted, halted).
         This caused foreign key constraint violations when inserting signals.
         Solution: Intersect stock_scores universe with symbols that have actual price data.
+
+        CRITICAL FIX (Session 357): Signals were stale because OptimalLoader watermark prevented
+        re-processing dates already in buy_sell_daily. Solution: Delete signals for current trading
+        date BEFORE regeneration to force watermark reset.
         """
         try:
             logger.info(f"[RUN] Starting with {len(symbols)} symbols")
+
+            # Session 357 fix: Delete signals for today to force regeneration (watermark will allow re-process)
+            now_et = datetime.now(EASTERN_TZ)
+            current_date = now_et.date()
+            with DatabaseContext("write") as cur:
+                cur.execute("DELETE FROM buy_sell_daily WHERE date = %s", (current_date,))
+                deleted_count = cur.rowcount
+                if deleted_count > 0:
+                    logger.info(f"[SESSION 357 FIX] Deleted {deleted_count} stale signals for {current_date} to force regeneration")
+
+            # Reset watermark so loader will regenerate current date
+            self._watermark.set_watermark(current_date - timedelta(days=1))
 
             # Only filter if symbols came from get_active_symbols() (not from explicit --symbols arg)
             # If user specified symbols explicitly, respect their choice
@@ -129,18 +145,32 @@ class SignalsDailyLoader(OptimalLoader):
                         price_data_date = date_result[0]
                         price_data_count = date_result[1]
                     else:
-                        # Fallback: use most recent date regardless of coverage
-                        cur.execute("SELECT MAX(date) FROM price_daily WHERE date <= %s", (target_date,))
-                        date_row = cur.fetchone()
-                        if date_row and date_row[0]:
-                            price_data_date = date_row[0]
-                            cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (price_data_date,))
-                            price_count_row = cur.fetchone()
-                            if not price_count_row:
-                                raise RuntimeError(f"CRITICAL: No result from symbol count query for date {price_data_date}")
-                            price_data_count = price_count_row[0]
+                        # Fallback: use most recent date regardless of coverage, BUT prefer current date if it has any price data
+                        cur.execute(
+                            "SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s",
+                            (target_date,)
+                        )
+                        current_date_row = cur.fetchone()
+                        current_date_count = current_date_row[0] if current_date_row else 0
+
+                        if current_date_count >= max(1, int(len(symbols) * 0.80)):
+                            # Current date has acceptable coverage (80%+) - use it even if not the highest
+                            price_data_date = target_date
+                            price_data_count = current_date_count
+                            logger.info(f"[PRICE_FILTER] Using current date {target_date} with {current_date_count} symbols (80%+ threshold met)")
                         else:
-                            raise RuntimeError("CRITICAL: No price_daily data found. Cannot generate signals.")
+                            # Fall back to most recent date with any coverage
+                            cur.execute("SELECT MAX(date) FROM price_daily WHERE date <= %s", (target_date,))
+                            date_row = cur.fetchone()
+                            if date_row and date_row[0]:
+                                price_data_date = date_row[0]
+                                cur.execute("SELECT COUNT(DISTINCT symbol) FROM price_daily WHERE date = %s", (price_data_date,))
+                                price_count_row = cur.fetchone()
+                                if not price_count_row:
+                                    raise RuntimeError(f"CRITICAL: No result from symbol count query for date {price_data_date}")
+                                price_data_count = price_count_row[0]
+                            else:
+                                raise RuntimeError("CRITICAL: No price_daily data found. Cannot generate signals.")
 
                     # Get symbols that have price data on this date
                     cur.execute(
