@@ -1529,13 +1529,10 @@ class DailyReconciliation:
         genuine market data (not fabricated), consistent with governance's real-data-only rule,
         unlike the fixed bug where a stale current_price silently produced a fake $0.00 P&L.
 
-        For same-day trades (exit_date = today) where entry_price = exit_price, resolves immediately
-        using the known estimated_exit_price rather than waiting for today's market close, since no
-        actual price movement occurred.
-
-        For other trades, only resolves those whose exit_date has an actual close on file (i.e.
-        strictly before today, since today's close doesn't exist until market close) - if not yet
-        available, leaves the trade pending for a future run rather than guessing early.
+        Resolves trades whose exit_date has an actual close on file (today or earlier). If price_daily
+        close is available for exit_date, uses it to calculate P&L. For same-day trades where
+        entry_price = estimated_exit_price (no price movement), can use the estimate if price_daily
+        data hasn't loaded yet. Otherwise leaves trade pending for next run.
         """
         cur.execute(
             """
@@ -1545,10 +1542,7 @@ class DailyReconciliation:
             WHERE status = 'closed'
               AND profit_loss_dollars IS NULL
               AND estimated_exit_price IS NOT NULL
-              AND (
-                exit_date < CURRENT_DATE
-                OR (exit_date = CURRENT_DATE AND entry_price = estimated_exit_price)
-              )
+              AND exit_date <= CURRENT_DATE
             """
         )
         pending = cur.fetchall()
