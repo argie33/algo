@@ -82,7 +82,7 @@ _HISTORICAL_SIGNAL_MEDIAN_MIN = 300  # Typical trading day has 300+ BUY signals 
 _SIGNAL_COUNT_ANOMALY_THRESHOLD = 50
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 30  # Minimum composite_score to qualify (0-100 scale). Median=32.75, so this filters ~60% of universe to top performers
-_BUYSELL_LOOKBACK_DAYS = 7  # Calendar days; covers full prior week including weekends and missed EOD runs
+_BUYSELL_LOOKBACK_DAYS = 0  # Only use TODAY's signals - stale signals from prior days cause losses
 
 
 def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
