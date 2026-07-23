@@ -451,7 +451,7 @@ def run(
                 FROM algo_positions
                 WHERE entry_date = %s
                 AND created_at > NOW() - INTERVAL '10 minutes'
-                AND is_open = true
+                AND status = 'open'
                 """,
                 (run_date,),
             )

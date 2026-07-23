@@ -125,7 +125,7 @@ class OrchestratorDiagnostics:
                 result["signals_available"] = sig_row[0] if sig_row else 0
 
                 # Check open positions count
-                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE is_open = TRUE")
+                cur.execute("SELECT COUNT(*) FROM algo_positions WHERE status = 'open'")
                 pos_row = cur.fetchone()
                 open_positions = pos_row[0] if pos_row else 0
 
