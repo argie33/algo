@@ -4,7 +4,6 @@ Each factor implements MarketFactorStrategy and computes one component
 of the overall market exposure score independently.
 """
 
-from algo.risk.factors.aaii_sentiment_factor import AAIISentimentFactor
 from algo.risk.factors.ad_line_factor import ADLineFactor
 from algo.risk.factors.breadth_50dma_factor import Breadth50DMAFactor
 from algo.risk.factors.breadth_200dma_factor import Breadth200DMAFactor
@@ -27,7 +26,6 @@ from algo.risk.factors.yield_curve_factor import YieldCurveFactor
 
 __all__ = [
     # Core 12 factors
-    "AAIISentimentFactor",
     "ADLineFactor",
     "Breadth50DMAFactor",
     "Breadth200DMAFactor",

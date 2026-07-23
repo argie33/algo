@@ -530,7 +530,12 @@ class MarketFactorCalculator:
             ) from e
 
     def aaii(self, eval_date: _date, cur: PsycopgCursor[Any]) -> dict[str, Any]:
-        """AAII sentiment (contrarian at extremes, critical).
+        """AAII sentiment factor - contrarian at extremes (Session 361 fix).
+
+        Proper contrarian scoring:
+        - Extreme bearish (spread < -15) = many bears scared = bullish signal = HIGH score
+        - Extreme bullish (spread > 15) = many bulls greedy = bearish signal = LOW score
+        - Neutral (-15 to +15) = indecision = middle score
 
         Raises RuntimeError if data unavailable - sentiment extremes are key contrarian signals.
         AAII is a 3pt factor. Missing sentiment data is a data error, not a skip condition.
@@ -545,7 +550,23 @@ class MarketFactorCalculator:
                 bull = float(row[0])
                 bear = float(row[1])
                 spread = bull - bear
-                score = min(100, max(0, (abs(spread) - 15) * 5))
+
+                # Contrarian scoring: opposite of consensus
+                if spread < -15:
+                    # Extreme bearish: many bears = contrarian bullish signal
+                    # Scale: spread -15 → score 75, spread -30 → score 85, spread -50+ → score 95
+                    score = 75 + min(20, abs(spread + 15) / 2)
+                elif spread > 15:
+                    # Extreme bullish: many bulls = contrarian bearish signal
+                    # Scale: spread +15 → score 25, spread +30 → score 15, spread +50+ → score 5
+                    score = 25 - min(20, (spread - 15) / 2)
+                else:
+                    # Neutral range: -15 to +15 = indecision, neither bullish nor bearish
+                    score = 50
+
+                # Clamp to 0-100 range
+                score = min(100, max(0, score))
+
                 return {
                     "bullish": round(bull, 1),
                     "bearish": round(bear, 1),
