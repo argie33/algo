@@ -1637,9 +1637,23 @@ class DailyReconciliation:
         A row that stays unreconciled too long means P&L/exit_r_multiple are still computed from
         a guess, not the broker's actual fill - this audit surfaces that before it goes unnoticed.
 
+        In paper trading mode, reconciliation never happens (no real broker fills), so estimated
+        prices are expected to remain unreconciled indefinitely. Skip audit in paper mode.
+
         Returns dict: {'status': 'OK'|'ALERT'|'CRITICAL', 'message': str, 'stale_trade_count': int,
         'stale_trades': list[dict]}.
         """
+        # Skip audit in paper trading mode - broker reconciliation never happens, so unreconciled
+        # estimated prices are expected and harmless. Only audit in live mode where real fills matter.
+        is_paper_mode = self.config.get("execution_mode") == "paper"
+        if is_paper_mode:
+            return {
+                "status": "OK",
+                "message": "Paper trading mode: exit price reconciliation skipped (no real broker fills)",
+                "stale_trade_count": 0,
+                "stale_trades": [],
+            }
+
         stale_threshold = timedelta(hours=2)
         critical_threshold = timedelta(hours=24)
 
