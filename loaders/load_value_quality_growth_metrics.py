@@ -233,12 +233,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
 
                 # Get quality from SEC financials (annual balance sheet + income statement latest year)
                 # Also fetch prior year EPS/revenue for YoY growth calculation
+                # shares_outstanding is in sec_valuations, not annual_balance_sheet
                 cur.execute(
                     """
                     SELECT abs.stockholders_equity, abs.total_liabilities, abs.total_assets,
                            ais.net_income, ais.revenue, ais.operating_income,
                            abs.current_assets, abs.current_liabilities, abs.fiscal_year,
-                           abs.inventory, ais.interest_expense, abs.shares_outstanding,
+                           abs.inventory, ais.interest_expense, sv.shares_outstanding,
                            ais.cost_of_revenue, acf.operating_cash_flow, acf.free_cash_flow,
                            acf.payments_of_dividends, ais.earnings_per_share,
                            (SELECT earnings_per_share FROM annual_income_statement
@@ -248,6 +249,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     FROM annual_balance_sheet abs
                     LEFT JOIN annual_income_statement ais ON abs.symbol = ais.symbol AND abs.fiscal_year = ais.fiscal_year
                     LEFT JOIN annual_cash_flow acf ON abs.symbol = acf.symbol AND abs.fiscal_year = acf.fiscal_year
+                    LEFT JOIN sec_valuations sv ON abs.symbol = sv.symbol
                     WHERE abs.symbol = %s
                     ORDER BY abs.fiscal_year DESC
                     LIMIT 1
