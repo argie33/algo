@@ -1068,93 +1068,23 @@ class StockScoresLoader(OptimalLoader):
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
 
     def _score_quality(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
-        """Score quality metrics on 0-100 scale. Returns marker dict if no real data.
+        """Score quality metrics on 0-100 scale. Uses pre-computed quality_score only.
 
-        Internal function: caller (_compute_stock_score) converts marker dicts to None.
-
-        RETURN TYPES (STRICT):
-        - metrics available with quality_score → returns float (0-100)
-        - metrics available with component fields → returns float (0-100)
-        - metrics marked data_unavailable=True → returns marker dict (never None)
-        - metrics is None or missing → returns marker dict (never None)
-
-        ERROR HANDLING:
-        - Type conversion errors → RuntimeError (via _safe_float)
-        - No scoreable fields → returns marker dict with reason="no_quality_scores_computed"
-
-        CRITICAL FIX 2026-07-01: Use pre-computed quality_score from load_quality_metrics.py
-        when available (quality_score in metrics dict). This ensures consistency and avoids
-        discrepancies between the two scoring algorithms. Now uses safe_float() for
-        robust error handling.
-
-        MINIMUM DATA REQUIREMENT: At least one of ROE/ROA/margin/ratio metrics must be
-        non-NULL. If all component metrics are None, returns data_unavailable marker.
+        Returns pre-computed quality_score from load_quality_metrics.py or unavailable marker.
+        No fallback calculations - if data isn't available, it's unavailable.
         """
-        # FAIL-FAST: Explicitly check for data_unavailable flag (not just falsy)
         if not metrics or metrics.get("data_unavailable") is True:
             logger.warning(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
-            logger.debug(f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol})")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_metrics_data"}
 
-        # Use pre-computed quality_score from load_quality_metrics.py if available
         if metrics.get("quality_score") is not None:
             quality_score_value = safe_float(metrics["quality_score"], f"{symbol}.quality_score")
             if quality_score_value is not None:
                 logger.debug(f"[STOCK_SCORES] Using pre-computed quality_score for {symbol}: {quality_score_value}")
                 return quality_score_value
-            # Should not reach here (quality_score is not None so _safe_float won't return None)
-            # but type-safe fallback in case of unexpected state
-            logger.warning(f"[STOCK_SCORES] quality_score was present but converted to None for {symbol}")
-            return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_conversion_failed"}
 
-        scores = []
-
-        # ROE: higher is better (target 15%+, cap at 40%)
-        # Use `is not None` to correctly handle ROE=0 (break-even) as a real data point.
-        if metrics.get("roe") is not None:
-            roe = min(metrics["roe"], 40)
-            scores.append(min(100, max(0, (roe / 40) * 100)))
-
-        # ROA: higher is better (target 5%+, cap at 20%)
-        if metrics.get("roa") is not None:
-            roa = min(max(0, metrics["roa"]), 20)
-            scores.append(min(100, (roa / 20) * 100))
-
-        # Net margin: higher is better (target 10%+, cap at 30%)
-        if metrics.get("net_margin") is not None:
-            nm = min(max(0, metrics["net_margin"]), 30)
-            scores.append(min(100, (nm / 30) * 100))
-
-        # Operating margin: higher is better (target 10%+, cap at 30%)
-        if metrics.get("operating_margin") is not None:
-            om = min(max(0, metrics["operating_margin"]), 30)
-            scores.append(min(100, (om / 30) * 100))
-
-        # Debt-to-equity: lower is better (target <1.0)
-        if metrics.get("debt_to_equity") is not None and metrics["debt_to_equity"] >= 0:
-            de = min(metrics["debt_to_equity"], 5)
-            score = max(0, 100 - (de * 20))
-            scores.append(min(100, score))
-
-        # Current ratio: above 1.5 is good, above 2.0 is excellent
-        if metrics.get("current_ratio") is not None:
-            cr = max(0, metrics["current_ratio"])
-            if cr >= 2.0:
-                scores.append(100)
-            elif cr >= 1.5:
-                scores.append(80)
-            elif cr >= 1.0:
-                scores.append(60)
-            else:
-                scores.append(max(0, cr * 60))
-
-        if scores:
-            return float(sum(scores) / len(scores))
-        logger.debug(f"[STOCK_SCORES] No quality metrics found to score for {symbol}")
-        logger.debug(
-            f"[STOCK_SCORES] Returning data_unavailable marker for quality_score({symbol}) - no scoreable fields"
-        )
-        return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_scores_computed"}
+        logger.warning(f"[STOCK_SCORES] Quality score unavailable for {symbol}")
+        return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_unavailable"}
 
     def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.

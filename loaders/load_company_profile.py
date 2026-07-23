@@ -190,36 +190,16 @@ class CompanyProfileLoader(OptimalLoader):
             reason,
         ) = row
 
-        # Map SIC code to GICS sector (4-digit lookup first, then fallback to division)
+        # Map SIC code to GICS sector (4-digit lookup only, no generic fallback)
         if not sic_code:
-            sector = "Unknown"
+            sector = None
         else:
             sic_code_int = int(sic_code)
             sector = SIC_TO_GICS.get(sic_code_int)
             if sector is None:
-                # Fallback to 2-digit division if 4-digit mapping not found
-                sic_division = sic_code_int // 100
-                # Map division to sector (generic fallback)
-                if sic_division in (30, 31, 32, 33):
-                    sector = "Materials"
-                elif sic_division in (20, 21):
-                    sector = "Consumer Defensive"
-                elif sic_division in (35, 36, 37, 38, 39):
-                    sector = "Technology"
-                elif sic_division in (48, 49):
-                    sector = "Utilities"
-                elif sic_division in (60, 61, 62, 63, 64, 66, 67):
-                    sector = "Financial Services"
-                elif sic_division in (52, 53, 54, 55, 56, 57, 58, 59):
-                    sector = "Consumer Cyclical"
-                elif sic_division in (70, 72, 75, 76, 78, 79):
-                    sector = "Consumer Cyclical"
-                elif sic_division in (80, 81, 82):
-                    sector = "Healthcare"
-                elif sic_division in (13,):
-                    sector = "Energy"
-                else:
-                    sector = "Industrials"
+                # SIC code not in mapping - mark as unavailable
+                logger.warning(f"[{symbol}] SIC code {sic_code} not in SIC_TO_GICS mapping")
+                sector = None
 
         return [
             {
