@@ -1020,6 +1020,26 @@ def run(  # noqa: C901
         f"{len(quality_filtered) - liq_checked} unchecked candidates dropped."
     )
 
+    # Filter out inactive symbols (symbols not available in Alpaca/trading platforms)
+    if liq_passed:
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    f"""SELECT symbol FROM stock_symbols WHERE symbol = ANY(%s) AND active = false""",
+                    ([sig.get("symbol") for sig in liq_passed],),
+                )
+                inactive_set = set(row[0] for row in cur.fetchall())
+
+            inactive_removed = [sig for sig in liq_passed if sig.get("symbol") in inactive_set]
+            if inactive_removed:
+                logger.warning(
+                    f"[PHASE 7] Filtering {len(inactive_removed)} inactive symbols: "
+                    f"{', '.join(sig['symbol'] for sig in inactive_removed)}"
+                )
+            liq_passed = [sig for sig in liq_passed if sig.get("symbol") not in inactive_set]
+        except Exception as e:
+            logger.warning(f"[PHASE 7] Could not filter inactive symbols: {e}. Continuing with current list.")
+
     # Final ranking by composite_score (already validated by quality_filtered sort, but re-validate for safety)
     if liq_passed:
         for sig in liq_passed:
