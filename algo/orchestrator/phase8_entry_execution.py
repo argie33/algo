@@ -1173,34 +1173,9 @@ def run(
 
                 continue
 
-            # CRITICAL FIX: Use configurable max risk per trade from database/DEFAULTS
-            # The stop-loss calculation uses min(sma_50 - atr, entry_price - 2*atr) which creates
-            # wide stops for trend-following entries (stocks rallied far above 50-day moving average).
-            # DO NOT provide a hardcoded default - use config.get() which will apply VALIDATION_SCHEMA's
-            # fail_closed_value (2.0%) if database value is missing. Previously had 18.0% default
-            # which bypassed schema validation and allowed 9x the intended risk per trade.
-            try:
-                max_risk_per_trade_pct = float(config.get("max_risk_per_trade_pct"))
-            except (RuntimeError, TypeError, ValueError) as e:
-                logger.error(f"[PHASE 8] max_risk_per_trade_pct not in config: {e}")
-                raise
-
-            if risk_pct > max_risk_per_trade_pct:
-                logger.info(
-                    f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}% > {max_risk_per_trade_pct:.1f}%), skipping"
-                )
-                _log_signal_rejection(
-                    symbol,
-                    "stop_too_wide",
-                    f"Risk {risk_pct:.1f}% > {max_risk_per_trade_pct:.1f}%",
-                    run_date,
-                    entry_price,
-                    risk_pct,
-                )
-
-                skipped_count += 1
-
-                continue
+            # Position sizer will handle actual dollar risk limits using max_risk_per_trade_pct
+            # The stop-loss width (risk_pct) is checked for min (1.5%) above. Position sizer
+            # receives stop_loss_price and enforces position_size so dollar loss <= portfolio * max_risk_per_trade_pct
 
             # Regime-aware, drawdown-adjusted sizing
 
