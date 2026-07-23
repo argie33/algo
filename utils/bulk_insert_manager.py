@@ -215,6 +215,25 @@ class BulkInsertManager:
 
             cur.execute(psycopg2.sql.SQL("DROP TABLE {}").format(psycopg2.sql.Identifier(staging)))
 
+        # CRITICAL FIX (Session 351): Validate inserted row count matches expected
+        # Previously, only 4,890/8,905 rows persisted due to partial bulk insert,
+        # but loader reported success. Now we verify data integrity before updating watermark.
+        if not rows:
+            return 0
+
+        expected_rows = len(rows)
+        if inserted < expected_rows:
+            # Partial insert detected - this is a critical data integrity issue
+            loss_pct = ((expected_rows - inserted) / expected_rows) * 100
+            error_msg = (
+                f"CRITICAL DATA LOSS: {self.table_name} bulk insert lost {expected_rows - inserted}/{expected_rows} rows ({loss_pct:.1f}%). "
+                f"Attempted: {expected_rows}, Persisted: {inserted}. "
+                f"This indicates database transaction failure, connection pool exhaustion, or timeout during bulk insert. "
+                f"Failing hard to prevent silent data corruption and forcing retry at orchestration level."
+            )
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
+
         # Update watermark if provided (OUTSIDE transaction to avoid nested DatabaseContext)
         if symbol and new_watermark and watermark_mgr:
             try:

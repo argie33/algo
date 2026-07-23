@@ -444,6 +444,17 @@ class OptimalLoader:
             lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))  # 2 hours (from 10800/3h, reduced to 1800/30m, now back to 7200/2h for slow loaders)
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+                # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
+                # Previously, if a loader crashed without releasing its lock, subsequent
+                # loaders would be blocked for 2 hours (lock TTL). Now cleanup expired
+                # locks automatically so we can recover from stuck loader scenarios.
+                if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
+                    try:
+                        cleaned = lock_manager.cleanup_expired_locks(lock_key=self.table_name, max_age_seconds=1800)
+                        if cleaned > 0:
+                            logger.warning(f"[{self.table_name}] Cleaned {cleaned} expired lock(s) from previous crashed loader")
+                    except Exception as cleanup_err:
+                        logger.warning(f"[{self.table_name}] Failed to cleanup expired locks: {cleanup_err}")
             except RuntimeError as ddb_err:
                 # CRITICAL (Session 282, updated Session 290): get_lock_manager() itself already
                 # falls back from DynamoDB to RDS - this RuntimeError only reaches here when BOTH
@@ -480,9 +491,27 @@ class OptimalLoader:
                         context={"table_name": self.table_name}
                     )
                 else:
-                    # Lock timeout - another instance running, skip gracefully
-                    logger.warning(f"[{self.table_name}] Skipping: another instance already running")
-                    return self._stats.to_dict()
+                    # Lock timeout - another instance running, RETRY with exponential backoff
+                    # CRITICAL FIX (Session 351): Afternoon loaders blocked by stale morning locks
+                    # now retry instead of skipping silently. This was the root cause of
+                    # missing EOD signals when morning loader crashed without releasing lock.
+                    logger.warning(f"[{self.table_name}] Another instance already running, retrying with backoff...")
+                    import time
+                    import random
+                    max_retries = 3
+                    for retry_attempt in range(1, max_retries + 1):
+                        base_wait = min(30, 2 ** (retry_attempt - 1) * 5)
+                        jitter = random.uniform(0.9, 1.1)
+                        wait_time = base_wait * jitter
+                        logger.info(f"[{self.table_name}] Retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s before next lock attempt")
+                        time.sleep(wait_time)
+                        if lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
+                            logger.info(f"[{self.table_name}] Lock acquired on retry {retry_attempt}")
+                            break
+                    else:
+                        # Final failure after retries
+                        logger.error(f"[{self.table_name}] Failed to acquire lock after {max_retries} retries. Skipping this run.")
+                        return self._stats.to_dict()
         except Exception as _lock_err:
             logger.critical(f"[{self.table_name}] Lock initialization failed: {_lock_err}")
             from algo.exceptions import LockAcquisitionError
@@ -617,6 +646,15 @@ class OptimalLoader:
             lock_ttl = int(os.getenv("LOADER_SLA_TIMEOUT_SECONDS", "7200"))  # 2 hours (from 10800/3h, reduced to 1800/30m, now back to 7200/2h for slow loaders)
             try:
                 lock_manager = get_lock_manager(table_name=lock_table, lock_duration_seconds=lock_ttl)
+                # CRITICAL FIX (Session 351): Auto-cleanup expired locks at startup
+                # Same as in run() method - prevents stale locks from blocking subsequent loaders
+                if lock_manager and hasattr(lock_manager, 'cleanup_expired_locks'):
+                    try:
+                        cleaned = lock_manager.cleanup_expired_locks(lock_key=self.table_name, max_age_seconds=1800)
+                        if cleaned > 0:
+                            logger.warning(f"[{self.table_name}] Cleaned {cleaned} expired lock(s) from previous crashed loader")
+                    except Exception as cleanup_err:
+                        logger.warning(f"[{self.table_name}] Failed to cleanup expired locks: {cleanup_err}")
             except RuntimeError as ddb_err:
                 # CRITICAL (Session 282, updated Session 290): get_lock_manager() itself already
                 # falls back from DynamoDB to RDS - this RuntimeError only reaches here when BOTH
@@ -653,9 +691,25 @@ class OptimalLoader:
                         context={"table_name": self.table_name}
                     )
                 else:
-                    # Lock timeout - another instance running, skip gracefully
-                    logger.warning(f"[{self.table_name}] Skipping global load: another instance already running")
-                    return 0
+                    # Lock timeout - another instance running, RETRY with exponential backoff
+                    # CRITICAL FIX (Session 351): Same retry logic as run() method
+                    logger.warning(f"[{self.table_name}] Another instance already running (global load), retrying with backoff...")
+                    import time
+                    import random
+                    max_retries = 3
+                    for retry_attempt in range(1, max_retries + 1):
+                        base_wait = min(30, 2 ** (retry_attempt - 1) * 5)
+                        jitter = random.uniform(0.9, 1.1)
+                        wait_time = base_wait * jitter
+                        logger.info(f"[{self.table_name}] Global load retry {retry_attempt}/{max_retries}: waiting {wait_time:.1f}s")
+                        time.sleep(wait_time)
+                        if lock_manager.acquire(lock_key=self.table_name, timeout_seconds=5):
+                            logger.info(f"[{self.table_name}] Lock acquired on retry {retry_attempt}")
+                            break
+                    else:
+                        # Final failure after retries
+                        logger.error(f"[{self.table_name}] Failed to acquire lock (global load) after {max_retries} retries. Skipping.")
+                        return 0
         except Exception as _lock_err:
             logger.critical(f"[{self.table_name}] Lock initialization failed: {_lock_err}")
             from algo.exceptions import LockAcquisitionError
