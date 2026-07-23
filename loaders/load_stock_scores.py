@@ -745,8 +745,8 @@ class StockScoresLoader(OptimalLoader):
                     f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 24. "
                     f"Schema mismatch detected - Phase 3 fields missing. Failing fast."
                 )
-            data_unavailable = row[10]
-            quality_score = safe_float(row[9], f"{symbol}.quality_score")
+            data_unavailable = row[9]
+            quality_score = safe_float(row[8], f"{symbol}.quality_score")
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
