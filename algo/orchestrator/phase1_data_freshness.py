@@ -596,27 +596,21 @@ def run(  # noqa: C901
             except Exception as status_check_err:
                 logger.warning(f"[PHASE 1] Could not validate loader status accuracy: {status_check_err}")
 
-            # For coverage baseline: use day before last trading day (expected to have complete data)
-            prev_trading_day = last_trading_day - td(days=1)
-            while prev_trading_day > last_trading_day - td(days=10):
-                if MarketCalendar.is_trading_day(prev_trading_day):
-                    break
-                prev_trading_day -= td(days=1)
-
+            # For coverage baseline: use CURRENT ACTIVE SYMBOL COUNT from stock_symbols
+            # (not prior day's count, which can be lower/higher due to symbol list changes)
+            # CRITICAL FIX (Session 365): Using prior_count instead of active_symbol_count
+            # caused coverage > 100% when new symbols started trading. Changed to use
+            # current active symbols as denominator to get true coverage percentage.
             cur.execute(
-                """SELECT COUNT(DISTINCT pd.symbol)
-                   FROM price_daily pd
-                   JOIN stock_symbols ss ON ss.symbol = pd.symbol AND ss.active = true
-                   WHERE pd.date = %s AND pd.close IS NOT NULL AND pd.open IS NOT NULL""",
-                (prev_trading_day,),
+                """SELECT COUNT(*) FROM stock_symbols WHERE active = true"""
             )
             row = cur.fetchone()
             if row is None or row[0] is None:
-                prior_count = 0
+                total_active_symbols = 0
             else:
-                prior_count = row[0]
+                total_active_symbols = row[0]
 
-            coverage_pct = (symbols_loaded / max(prior_count, 1)) * 100
+            coverage_pct = (symbols_loaded / max(total_active_symbols, 1)) * 100
 
             if symbols_loaded < min_symbol_count or coverage_pct < min_coverage_pct:
                 from algo.orchestrator.phase_error_handling import (
