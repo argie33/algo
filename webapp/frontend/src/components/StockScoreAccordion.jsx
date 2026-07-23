@@ -586,7 +586,6 @@ const VALUE_SCHEMA = [
     collected: false,
     note: "Added 2026-07-20: was fetched/displayed but carried 0% weight. Live DB was 0% populated because the upstream growth-rate computation always came out to exactly 0 (comparing TTM EPS to itself) — that bug is fixed in load_sec_valuations.py but needs a fresh loader run to backfill.",
   },
-  { key: "market_cap", label: "Market Cap", fmt: money, used: false, collected: true },
 ];
 
 const GROWTH_SCHEMA = [

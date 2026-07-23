@@ -22,7 +22,7 @@ class DailyFinanceReport:
             report_date = _date.today()
 
         with DatabaseContext("read") as cur:
-            report = {
+            report: dict[str, Any] = {
                 "date": str(report_date),
             }
 

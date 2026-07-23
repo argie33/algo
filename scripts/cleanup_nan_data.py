@@ -46,7 +46,7 @@ def main() -> int:
     print("\n[Quality/Growth/Value Metrics]")
     total += cleanup_nan("quality_metrics", ["roe", "roa", "operating_margin", "net_margin", "debt_to_equity", "quality_score"])
     total += cleanup_nan("growth_metrics", ["revenue_growth_1y", "revenue_growth_3y", "revenue_growth_5y", "eps_growth_1y", "eps_growth_3y", "eps_growth_5y"])
-    total += cleanup_nan("value_metrics", ["pe_ratio", "pb_ratio", "ps_ratio", "peg_ratio", "dividend_yield", "fcf_yield", "market_cap"])
+    total += cleanup_nan("value_metrics", ["pe_ratio", "pb_ratio", "ps_ratio", "peg_ratio", "dividend_yield", "fcf_yield"])
 
     print(f"\nTotal NaN->NULL conversions: {total}")
     print("\nNote: Quality/growth scores may need recalculation after upstream data fixes.")

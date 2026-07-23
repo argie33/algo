@@ -116,7 +116,6 @@ class KeyMetrics(BaseModel):
     profit_margin: float | None = None
     current_ratio: float | None = None
     quick_ratio: float | None = None
-    market_cap: float | None = None
     held_percent_insiders: float | None = None
     held_percent_institutions: float | None = None
 

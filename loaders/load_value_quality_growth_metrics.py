@@ -13,9 +13,9 @@ Data Flow (SEC-only, no yfinance):
   Phase 1: load_financial_statements.py fetches SEC data
   Phase 1: load_sec_valuations.py computes PE/PB/PS/PEG/FCF from SEC
   Phase 2: load_value_quality_growth_metrics.py (THIS LOADER) - SEC ONLY
-    ├─ Reads: sec_valuations (PE, PB, PS, PEG, FCF, market_cap)
+    ├─ Reads: sec_valuations (PE, PB, PS, PEG, FCF, dividend yield)
     ├─ Reads: financial_statements (ROE, margins, EPS growth)
-    ├─ Computes: value_metrics (PE, PB, PS, PEG, FCF, market_cap - no yfinance)
+    ├─ Computes: value_metrics (PE, PB, PS, PEG, FCF, dividend yield - no yfinance)
     ├─ Computes: quality_metrics (ROE, margins, debt ratios)
     ├─ Computes: growth_metrics (revenue/EPS growth)
     └─ Writes: value_metrics, quality_metrics, growth_metrics (3 tables)
@@ -56,10 +56,10 @@ MAX_FISCAL_YEAR_AGE_YEARS = 5
 
 
 class ValueQualityGrowthMetricsLoader(OptimalLoader):
-    """Consolidated value + quality + growth metrics from SEC + valuations + yfinance.
+    """Consolidated value + quality + growth metrics from SEC + valuations.
 
     Writes to 3 output tables in single per-symbol transaction:
-    - value_metrics (PE, PB, PS, PEG, FCF from sec_valuations + yfinance dividend)
+    - value_metrics (PE, PB, PS, PEG, FCF, dividend yield from SEC)
     - quality_metrics (ROE, margins, debt ratios from SEC)
     - growth_metrics (revenue/EPS growth from SEC)
     """
@@ -322,7 +322,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         ps = sec_val_row[9]  # ps_ratio
         peg = sec_val_row[10]  # peg_ratio
         fcf_yield = sec_val_row[11]  # fcf_yield
-        market_cap = sec_val_row[6]  # market_cap
         dividend_yield = sec_val_row[15]  # dividend_yield (migration 1146)
 
         # Validate: at least one core metric must be non-None
@@ -338,7 +337,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "peg_ratio": peg,
             "dividend_yield": dividend_yield,
             "fcf_yield": fcf_yield,
-            "market_cap": market_cap,
             "data_unavailable": False,
             "data_source": "sec_audited",
             "updated_at": date.today().isoformat(),
@@ -667,8 +665,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO value_metrics
-            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, market_cap, data_unavailable, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, data_unavailable, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -676,13 +674,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 peg_ratio = EXCLUDED.peg_ratio,
                 dividend_yield = EXCLUDED.dividend_yield,
                 fcf_yield = EXCLUDED.fcf_yield,
-                market_cap = EXCLUDED.market_cap,
                 data_unavailable = EXCLUDED.data_unavailable,
                 data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
             (row["symbol"], row["pe_ratio"], row["pb_ratio"], row["ps_ratio"],
-             row["peg_ratio"], row["dividend_yield"], row["fcf_yield"], row["market_cap"],
+             row["peg_ratio"], row["dividend_yield"], row["fcf_yield"],
              row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
@@ -763,7 +760,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "peg_ratio": None,
                 "dividend_yield": None,
                 "fcf_yield": None,
-                "market_cap": None,
                 "data_unavailable": True,
                 "data_source": "none",
                 "updated_at": date.today().isoformat(),

@@ -201,7 +201,6 @@ def handle(  # noqa: C901
                     -- CRITICAL FIX: Return NULL for missing sector (don't hide with 'Unknown')
                     cp.sector,
                     cp.industry,
-                    vm.market_cap,
                     lp.current_price,
                     (lp.current_price IS NULL OR s52.high_52w IS NULL
                      OR s52.low_52w IS NULL) AS _is_fallback,

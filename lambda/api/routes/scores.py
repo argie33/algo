@@ -174,7 +174,6 @@ def _get_stock_scores(
                         WHEN pp.close IS NOT NULL THEN ((pl.close - pp.close) / NULLIF(pp.close, 0)) * 100
                         ELSE NULL
                     END, 2) AS change_percent,
-                    vm.market_cap,
                     vm.pe_ratio AS trailing_pe,
                     vm.pb_ratio AS price_to_book,
                     vm.ps_ratio AS ps_ratio_val,

@@ -72,7 +72,6 @@ def handle(  # noqa: C901
                     qm.net_margin AS profit_margin,
                     qm.current_ratio,
                     qm.quick_ratio,
-                    vm.market_cap,
                     pm.insider_ownership_pct AS held_percent_insiders,
                     pm.institutional_ownership_pct AS held_percent_institutions
                 FROM value_metrics vm
