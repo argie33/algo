@@ -14,60 +14,66 @@
 
 ## Quick Setup - AWS or LOCAL
 
+### Local Development Mode (RECOMMENDED - Use This!)
+
+**THIS IS THE ONLY CORRECT WAY TO RUN LOCAL DEVELOPMENT**
+
+```bash
+# Run this ONE command - handles everything automatically:
+python start_dashboard_dev.py
+
+# Optional: auto-refresh dashboard every 30 seconds
+python start_dashboard_dev.py -w 30
+```
+
+**What it does (all automatic):**
+1. Runs morning pipeline (fetches prices, technicals, market status) 
+2. Checks if stock scores (fundamentals) need refresh
+3. Runs metrics pipeline only if needed (first run or stale fundamentals)
+4. **CRITICAL FIX:** ALWAYS re-fetches closing prices + regenerates buy/sell signals (2026-07-21 bug fix)
+5. Starts dev_server on localhost:3001
+6. Starts dashboard with fresh data
+7. On exit (Ctrl+C), cleans up all processes
+
+**First run:** 20-30 minutes (includes metrics pipeline for 5000+ stocks)  
+**Subsequent runs:** 5-10 minutes (skips metrics if fundamentals already fresh)
+
+**Why this is the ONLY correct way:**
+- Pre-2026-07-21: Buy/sell signals were FROZEN after first metrics run (signals pipeline was buried inside metrics, skipped by completeness gate). Dashboard showed stale signals.
+- Post-2026-07-21: Signals pipeline always runs separately, guarantees fresh trading signals every launch.
+- Manual setups inevitably skip a pipeline or run them out of order.
+
 ### AWS Mode (Production/Cloud)
 
 ```bash
-# Simplest: Just run it (AWS by default if credentials set; auto-fetches
-# Cognito/API creds from Secrets Manager via dashboard/credentials_provider.py)
+# Auto-detects AWS credentials and uses Lambda API
 python dashboard.py
 python dashboard.py -w 30    # Auto-refresh every 30s
 ```
 
-AWS mode requires these credentials (auto-fetched from Secrets Manager):
+AWS mode auto-fetches from Secrets Manager:
 - `DASHBOARD_API_URL` - Lambda API Gateway endpoint
-- `COGNITO_USER_POOL_ID` - Cognito pool ID
-- `COGNITO_CLIENT_ID` - Cognito app client ID
-- `COGNITO_USERNAME` - User email
-- `COGNITO_PASSWORD` - User password (from AWS Secrets Manager)
+- `COGNITO_USER_POOL_ID`, `COGNITO_CLIENT_ID`, `COGNITO_USERNAME`, `COGNITO_PASSWORD`
 
-### Local Development Mode
+### Manual Setup (NOT RECOMMENDED - Only if start_dashboard_dev.py fails)
 
-**COMPLETE: Unified startup script auto-runs full loader pipeline + dev_server + dashboard**
-
-```bash
-# Recommended: Start with this ONE command (first run takes 10-20 min)
-python start_dashboard_dev.py
-
-# Or with auto-refresh every 30s
-python start_dashboard_dev.py -w 30
-```
-
-This handles **everything** automatically:
-- ✅ **Runs morning pipeline** (prices, technicals, market status) - 5-10 min
-- ✅ **Runs metrics pipeline** (financial data, quality/growth/value scores) - 5-10 min (only if needed)
-- ✅ Detects if dev_server is running (localhost:3001)
-- ✅ Starts dev_server if needed
-- ✅ Waits for dev_server to be ready
-- ✅ Starts dashboard with fresh data
-- ✅ Cleans up when you exit (Ctrl+C)
-
-**First run**: 10-20 minutes (metrics pipeline refreshes financial statements for 4,800+ stocks)  
-**Subsequent runs**: 1-2 minutes (if stock_scores already complete, skips metrics pipeline)
-
-**Manual Setup (if preferred)**
+If `start_dashboard_dev.py` doesn't work, you can manually orchestrate, but this is error-prone:
 
 ```bash
 # Terminal 1: Run backend API
 python lambda/api/dev_server.py
 # Wait for: [INFO] Starting API dev server on http://localhost:3001
 
-# Terminal 2: Run dashboard (auto-detects localhost)
-python dashboard.py              # Auto-connects to localhost
-python dashboard.py -w 30        # Auto-refresh every 30s
+# Terminal 2: Fetch fresh data (MUST run before dashboard)
+python scripts/local_loader_scheduler.py --now morning
+python scripts/local_loader_scheduler.py --now signals
 
-# Or force local mode explicitly:
-python dashboard.py --local      # Forces localhost:3001 (ignores AWS config)
+# Terminal 3: Run dashboard
+python dashboard.py --local       # Forces localhost:3001
+python dashboard.py -w 30         # With auto-refresh
 ```
+
+⚠️ **Risk:** If signals pipeline doesn't run, dashboard shows stale buy/sell signals.
 
 ## System Health Check
 
@@ -103,50 +109,55 @@ This checks:
 
 ## Running Orchestrator
 
-**CRITICAL: Understand the difference between data loaders and orchestrator**
-- **Data loaders** (2 AM, 4 PM, 7 PM) → fetch fresh prices/technicals/metrics from external sources
-- **Orchestrator** (9:30 AM, 1 PM, 3 PM) → executes trades based on signals from data already in database
-- You CANNOT trade until market opens (9:30 AM). Phase 8 rejects entries outside 9:30 AM - 4:00 PM ET.
+**CRITICAL CONCEPTS:**
+- **Data loaders** → Fetch prices/technicals/metrics from external sources (2 AM, 4:05 PM, 7 PM ET)
+- **Orchestrator** → Executes trades USING already-loaded data (9:30 AM, 1 PM, 3 PM ET)
+- **Both must be fresh:** Orchestrator won't trade on stale prices (Phase 1 guard)
 
-**Local/dev:** Use the local runner for development (no AWS Lambda/EventBridge needed).
-This is the *trading* orchestrator (signal generation, risk gates, reconciliation) - it
-reads whatever prices/technicals/fundamentals are already in the DB, it does not fetch
-them. For stale data, run `scripts/local_loader_scheduler.py` instead (see "Data Loading
-System" below / `steering/DATA_LOADERS.md`); run the orchestrator afterward if you also
-want to exercise signal generation against the now-fresh data.
+**FOR LOCAL DEVELOPMENT:**
+The unified launcher `start_dashboard_dev.py` runs everything in the right order:
+1. Load fresh data (morning + signals pipelines)
+2. Start API server
+3. Start dashboard
+4. Dashboard shows fresh signals
+
+If you want to manually test orchestrator AFTER `start_dashboard_dev.py` has loaded fresh data:
 ```bash
-python3 scripts/run_local_orchestrator.py              # morning run (default) - will skip Phase 8 if before 9:30 AM
-python3 scripts/run_local_orchestrator.py --afternoon  # afternoon run
-python3 scripts/run_local_orchestrator.py --evening    # evening run (Phase 8 skipped, after hours)
-python3 scripts/run_local_orchestrator.py --run-all    # all three runs
+python scripts/run_local_orchestrator.py              # morning run
+python scripts/run_local_orchestrator.py --afternoon  # afternoon run
+python scripts/run_local_orchestrator.py --evening    # evening run
 ```
 
-**AWS/Production - Automatic Orchestrator Schedules** (enabled via Terraform):
-- **9:30 AM ET** → Morning execution at market open (PRIMARY)
-- **1:00 PM ET** → Afternoon rebalance (mid-day)
-- **3:00 PM ET** → Pre-close execution (before 4 PM market close)
+**FOR PRODUCTION (AWS):**
+Automatic schedules via Terraform EventBridge:
+- **9:30 AM ET** → Morning execution at market open
+- **1:00 PM ET** → Afternoon rebalance
+- **3:00 PM ET** → Pre-close execution
 
-All three are protected by Phase 8 market-hours guards - entries rejected if market closed.
+All protected by Phase 8 market-hours guard (9:30 AM - 4:00 PM ET only).
 
-**Check status:**
+**Check orchestrator status:**
 ```sql
-SELECT COUNT(*) as runs_last_hour, MAX(started_at) as latest
+SELECT overall_status, COUNT(*) as count, MAX(started_at) as latest
 FROM algo_orchestrator_runs
-WHERE started_at > NOW() - INTERVAL '1 hour';
+WHERE started_at > NOW() - INTERVAL '24 hours'
+GROUP BY overall_status
+ORDER BY latest DESC;
 ```
 
 ## Common Fixes
 
 | Issue | Root Cause | Fix |
 |-------|-----------|-----|
-| **Dashboard: "Data not available" on all panels** | Dashboard running WITHOUT `--local` flag, trying AWS Lambda | Use: `python3 -m dashboard --local` (requires Terminal 1: dev_server running) |
-| **Dashboard: "Data not available" on all panels (v2)** | dev_server not running when dashboard starts | Start Terminal 1: `python3 lambda/api/dev_server.py` FIRST, wait for "running on http://localhost:3001", THEN start Terminal 2: dashboard |
-| **AWS Mode: Lambda 503 "Service Unavailable"** | VPC cold-start (15-40s) exceeds API Gateway 29s timeout | Enable provisioned concurrency (5 units) via Terraform to keep Lambda warm |
-| **Dev server "Connection refused"** | dev_server not listening on localhost:3001 | Check Terminal 1 is running: `python3 lambda/api/dev_server.py` and wait for startup message |
-| **PostgreSQL "connection refused"** | Database not running or wrong credentials | Verify: `python3 -c "import psycopg2; psycopg2.connect('dbname=stocks user=stocks host=localhost')"` |
+| **Dashboard: "Data not available" on all panels** | Manual setup with incomplete loader pipeline | Use: `python start_dashboard_dev.py` (unified launcher runs ALL pipelines) |
+| **Buy/sell signals frozen/stale** | Only morning pipeline ran, signals pipeline skipped (pre-2026-07-21 bug) | Use: `python start_dashboard_dev.py` (guarantees signals pipeline always runs) |
+| **Prices loaded but technicals missing** | Ran `load_prices.py` separately without running technicals loader | Use: `python start_dashboard_dev.py` (handles entire morning pipeline) |
+| **"Data not available" after running manual loaders** | dev_server not running when dashboard started | Always start `start_dashboard_dev.py` (includes dev_server auto-startup) |
+| **AWS Mode: Lambda 503 "Service Unavailable"** | VPC cold-start (15-40s) exceeds API Gateway 29s timeout | Enable provisioned concurrency (5 units) via Terraform |
+| **PostgreSQL "connection refused"** | Database not running or wrong credentials | Verify: `psql -d stocks -c "SELECT 1"` |
+| **Orchestrator halted with "data_incomplete"** | Not all stock prices/technicals loaded for the day | Run: `python start_dashboard_dev.py` to load complete dataset |
 | **Code fails pre-commit hooks** | Type errors or formatting issues | Run: `make format && make type-check` |
-| **Orchestrator not executing** | Step Functions not triggered or EventBridge broken | Check: `aws stepfunctions describe-execution` + EventBridge Scheduler logs |
-| **Data older than 4 hours** | Loaders not running per schedule | Check EventBridge Scheduler + CloudWatch logs for loader tasks |
+| **Only VIX price in database** | Loader crashed/hung mid-execution | Restart: `python start_dashboard_dev.py` (retry with fresh process) |
 
 ## Data Monitoring (Session 110+)
 
@@ -182,11 +193,51 @@ python scripts/verify_eventbridge_scheduler.py --fix  # Auto-enable if disabled
 3. Fix: `python scripts/local_loader_scheduler.py --now morning` (manual refresh - see note above, `run_local_orchestrator.py` does not fetch data)
 4. See: `steering/LOADER_RECOVERY_GUIDE.md` (detailed recovery steps)
 
+## Critical Architecture: Why start_dashboard_dev.py is THE ONLY correct way
+
+**The Problem (Pre 2026-07-21):**
+
+Buy/sell signals were FROZEN if you ran loaders manually or out of order:
+1. First time you run `python start_dashboard_dev.py`: Signals pipeline regenerates signals ✓
+2. If you then manually run `python scripts/local_loader_scheduler.py --now morning` a second time
+   → Signals pipeline is skipped (it's only in the unified launcher)
+   → Prices refresh but signals DON'T
+   → Dashboard shows fresh prices but stale buy/sell signals ✗
+
+**Why `start_dashboard_dev.py` is the only solution:**
+
+Loader pipelines have dependencies:
+```
+morning (prices, technicals)
+    ↓
+signals (ALWAYS run - regenerates buy/sell from fresh prices)
+    ↓
+metrics (slow SEC data - conditional, skipped if already complete)
+```
+
+Running them individually breaks the invariant: **signals must regenerate whenever prices refresh**.
+
+**The `start_dashboard_dev.py` fix (2026-07-21):**
+- Moved signals pipeline OUT of metrics
+- Made signals ALWAYS run (never skipped)
+- Consolidated into unified launcher with explicit ordering
+- Dashboard now guarantees fresh signals on every launch
+
+**If you bypass the unified launcher, you risk:**
+- Stale buy/sell signals (most common issue)
+- Incomplete price data (if morning pipeline fails)
+- Corrupted reconciliation (if orchestrator runs on partial data)
+
+**Safe way forward:** Always use `python start_dashboard_dev.py` for local dev.
+
+---
+
 ## Non-Negotiable Rules
 
 - **Type safety:** `mypy strict` enforced (pre-commit blocks all type errors)
 - **Code cleanliness:** No `.env`, `pdb`, or `print()` in library code
 - **Data integrity:** Explicit `data_unavailable` flags (no silent fallbacks)
 - **Safety:** Circuit breakers enforce risk limits
+- **Loader dependencies:** Always use `start_dashboard_dev.py` - never run pipelines separately in local dev
 
 See steering docs for architecture, policy details, and deployment procedures.
