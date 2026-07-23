@@ -1476,13 +1476,11 @@ class StockScoresLoader(OptimalLoader):
     def _score_momentum(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score momentum metrics on 0-100 scale. Returns marker dict if no real data.
 
-        Uses weighted scoring: Momentum 1m (22%) + 3m (22%) + 6m (19%) + 12m (12%)
-        + RSI(14) (15%) + MACD sign (10%).
+        Uses weighted scoring: Momentum 1m (16%) + 3m (16%) + 6m (14%) + 12m (9%)
+        + RSI(14) (15%) + MACD sign (10%) + ROC composite (12%) + SMA positioning (8%).
         Weights favor recent price-return momentum (1m/3m) over longer-term (12m) for swing
-        trading. RSI/MACD were added because they were previously fetched and displayed but
-        had zero influence on momentum_score, which was 100% price-return based; ROC is
-        deliberately excluded since it measures the same thing as the price-return windows
-        already used here and would just double-weight that signal.
+        trading. Technical indicators (RSI, MACD, ROC, SMA) were added to complement
+        price-return momentum with mean-reversion and trend-following signals.
         Normalizes by total weight of available components so partial data doesn't deflate
         the score.
 
@@ -1496,7 +1494,7 @@ class StockScoresLoader(OptimalLoader):
         - Weak price-return momentum (±3%) → returns None for that timeframe (insufficient signal)
         - Missing historical prices → timeframe momentum is None (not guessed)
 
-        MINIMUM DATA REQUIREMENT: At least one of 1m/3m/6m/12m momentum, RSI, or MACD must be
+        MINIMUM DATA REQUIREMENT: At least one of 1m/3m/6m/12m momentum, RSI, MACD, or ROC must be
         available (not None). If everything is None/missing, returns data_unavailable marker.
         """
         if not metrics or metrics.get("data_unavailable") is True:
@@ -1505,10 +1503,10 @@ class StockScoresLoader(OptimalLoader):
 
         # Named weights - recent timeframes matter more for swing trading
         weights = {
-            "momentum_1m": 0.22,
-            "momentum_3m": 0.22,
-            "momentum_6m": 0.19,
-            "momentum_12m": 0.12,
+            "momentum_1m": 0.16,
+            "momentum_3m": 0.16,
+            "momentum_6m": 0.14,
+            "momentum_12m": 0.09,
         }
 
         weighted_sum = 0.0
@@ -1530,12 +1528,36 @@ class StockScoresLoader(OptimalLoader):
         # MACD: sign only, not magnitude. MACD's raw value scales with the stock's price
         # level (a MACD of 2 means something different for a $10 stock vs a $500 stock), so
         # magnitude isn't comparable across symbols - use it purely as a bull/bear trend
-        # confirmation signal.
-        if metrics.get("macd") is not None:
-            macd = metrics["macd"]
+        # confirmation signal. Use macd_line (added Phase 1).
+        macd = metrics.get("macd_line") or metrics.get("macd")  # Fallback for backward compat
+        if macd is not None:
             macd_score = 70.0 if macd > 0 else 30.0 if macd < 0 else 50.0
             weighted_sum += macd_score * 0.10
             total_weight += 0.10
+
+        # ROC (Rate of Change) composite: average of 20d/60d/120d/252d windows
+        roc_scores = []
+        for roc_field in ["roc_20d", "roc_60d", "roc_120d", "roc_252d"]:
+            roc_val = metrics.get(roc_field)
+            if roc_val is not None:
+                roc_scores.append(self._pct_to_score(roc_val))
+        if roc_scores:
+            roc_scores = [s for s in roc_scores if s is not None]
+            if roc_scores:
+                weighted_sum += (sum(roc_scores) / len(roc_scores)) * 0.12
+                total_weight += 0.12
+
+        # Price vs Moving Averages: premium over SMAs indicates uptrend
+        sma_scores = []
+        for sma_field in ["price_vs_sma_50", "price_vs_sma_200"]:
+            sma_val = metrics.get(sma_field)
+            if sma_val is not None:
+                # Price above SMA = bullish: +5% above = 75, +10% above = 100, -5% below = 25
+                sma_score = 50 + (sma_val / 0.2) * 50  # ±10% range maps to 0-100
+                sma_scores.append(min(100, max(0, sma_score)))
+        if sma_scores:
+            weighted_sum += (sum(sma_scores) / len(sma_scores)) * 0.08
+            total_weight += 0.08
 
         if total_weight > 0:
             return weighted_sum / total_weight
