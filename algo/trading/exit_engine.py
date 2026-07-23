@@ -596,9 +596,9 @@ class ExitEngine:
                                     (current_date, exit_price, "delisted_or_unavailable", symbol)
                                 )
                                 cur.execute(
-                                    """UPDATE algo_positions SET is_open = false, closed_at = CURRENT_TIMESTAMP,
+                                    """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                        updated_at = CURRENT_TIMESTAMP
-                                       WHERE symbol = %s AND is_open = true""",
+                                       WHERE symbol = %s AND status = 'open'""",
                                     (symbol,)
                                 )
                                 exits_executed += 1

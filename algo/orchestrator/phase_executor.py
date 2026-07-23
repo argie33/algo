@@ -98,10 +98,21 @@ class OrchestratorPhaseExecutor:
 
         result = self.phase_results.get(phase_num)
         if result is None:
-            raise MissingPhaseDataError(f"Phase {phase_num} not executed. Available: {list(self.phase_results.keys())}")
+            raise MissingPhaseDataError(
+                f"Phase {phase_num} not executed. Available: {list(self.phase_results.keys())}",
+                context={"phase_num": phase_num, "available_phases": list(self.phase_results.keys())},
+            )
 
         if not result.ok:
-            raise MissingPhaseDataError(f"Phase {phase_num} failed: {result.status} - {result.error}")
+            raise MissingPhaseDataError(
+                f"Phase {phase_num} failed: {result.status} - {result.error}",
+                context={
+                    "phase_num": phase_num,
+                    "phase_status": result.status,
+                    "phase_error": result.error,
+                    "phase_halted": result.halted,
+                },
+            )
 
         data = extract_required_data(phase_num, result.data, *keys)
 

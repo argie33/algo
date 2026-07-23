@@ -155,13 +155,22 @@ class PhaseDataSchema:
             DataContractError: If validation fails
         """
         if not isinstance(data, dict):
-            raise DataContractError(f"Phase {self.phase_num} data must be dict, got {type(data).__name__}")
+            raise DataContractError(
+                f"Phase {self.phase_num} data must be dict, got {type(data).__name__}",
+                context={"phase_num": self.phase_num, "data_type": type(data).__name__},
+            )
 
         missing = [k for k in self.required_keys if k not in data]
         if missing:
             raise DataContractError(
                 f"Phase {self.phase_num} ({self.phase_name}) data missing required keys: {missing}. "
-                f"Available: {list(data.keys())}"
+                f"Available: {list(data.keys())}",
+                context={
+                    "phase_num": self.phase_num,
+                    "phase_name": self.phase_name,
+                    "missing_keys": missing,
+                    "available_keys": list(data.keys()),
+                },
             )
 
 
@@ -229,10 +238,16 @@ def validate_phase_5_constraints(constraints: dict[str, Any]) -> None:
         DataContractError: If constraints are missing required fields
     """
     if not isinstance(constraints, dict):
-        raise DataContractError(f"Phase 5 constraints must be dict, got {type(constraints).__name__}")
+        raise DataContractError(
+            f"Phase 5 constraints must be dict, got {type(constraints).__name__}",
+            context={"constraints_type": type(constraints).__name__},
+        )
 
     if not constraints:
-        raise DataContractError("Phase 5 constraints is empty. Cannot proceed with signal generation.")
+        raise DataContractError(
+            "Phase 5 constraints is empty. Cannot proceed with signal generation.",
+            context={"constraints": constraints},
+        )
 
     required_fields = ["tier_name", "risk_multiplier", "max_new_positions_today"]
     missing = [f for f in required_fields if f not in constraints]
@@ -240,7 +255,12 @@ def validate_phase_5_constraints(constraints: dict[str, Any]) -> None:
         raise DataContractError(
             f"Phase 5 constraints missing required fields: {missing}. "
             f"Available: {list(constraints.keys())}. "
-            f"Phase 5 must provide all constraint fields for Phase 7/8 to execute."
+            f"Phase 5 must provide all constraint fields for Phase 7/8 to execute.",
+            context={
+                "missing_fields": missing,
+                "available_fields": list(constraints.keys()),
+                "required_fields": required_fields,
+            },
         )
 
 
@@ -313,13 +333,22 @@ def extract_required_data(phase_num: int | str, data: dict[str, Any], *keys: str
         DataContractError: If any required key is missing or data is invalid
     """
     if not isinstance(data, dict):
-        raise MissingPhaseDataError(f"Phase {phase_num} data must be dict, got {type(data).__name__}")
+        raise MissingPhaseDataError(
+            f"Phase {phase_num} data must be dict, got {type(data).__name__}",
+            context={"phase_num": phase_num, "data_type": type(data).__name__},
+        )
 
     missing = [k for k in keys if k not in data]
     if missing:
         raise MissingPhaseDataError(
             f"Phase {phase_num} missing required keys: {missing}. "
-            f"Expected: {list(keys)}. Available: {list(data.keys())}"
+            f"Expected: {list(keys)}. Available: {list(data.keys())}",
+            context={
+                "phase_num": phase_num,
+                "missing_keys": missing,
+                "required_keys": list(keys),
+                "available_keys": list(data.keys()),
+            },
         )
 
     result: tuple[Any, ...] = tuple(data[k] for k in keys)
