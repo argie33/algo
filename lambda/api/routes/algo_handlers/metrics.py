@@ -856,28 +856,21 @@ def _get_performance_analytics(cur: cursor) -> Any:
         avg_loss_r: Any = data.get("avg_loss_r")
         expectancy_val: Any = data.get("expectancy")
 
-        # FAIL-FAST only for metrics generate_daily_report guarantees are non-null whenever
-        # a row exists at all (it raises before insert if either is unavailable - see
-        # algo/reporting/performance.py). Everything else below is honestly nullable by
-        # documented design (sortino/calmar need enough snapshot history; avg_win_r/
-        # avg_loss_r/expectancy need both a winning AND a losing trade in the lookback
-        # window - an expected early-sample state, not a pipeline failure) and must be
-        # passed through as None rather than treated as missing data.
-        missing_metrics = []
+        # FAIL-FAST only for sharpe_ratio - generate_daily_report guarantees it's non-null
+        # whenever a row exists at all (see algo/reporting/performance.py).
+        # Everything else is honestly nullable by documented design (win_rate_50t/sortino/
+        # calmar need enough snapshot history; avg_win_r/avg_loss_r/expectancy need both
+        # a winning AND a losing trade in the lookback window - expected early-sample
+        # states, not pipeline failures) and must be passed through as None.
         if sharpe is None:
-            missing_metrics.append("sharpe_ratio")
-        if wr_pct is None:
-            missing_metrics.append("win_rate_pct")
-
-        if missing_metrics:
-            logger.error(f"Performance metrics missing from database: {missing_metrics}")
-            raise RuntimeError(f"Performance data incomplete: {', '.join(missing_metrics)} are missing")
+            logger.error("Performance analytics unavailable: sharpe_ratio missing from database")
+            raise RuntimeError("Performance data incomplete: sharpe_ratio is missing")
 
         response_dict_final: dict[str, float | None] = {
             "rolling_sharpe_252d": float(sharpe),
             "rolling_sortino_252d": float(sortino) if sortino is not None else None,
             "calmar_ratio": float(calmar) if calmar is not None else None,
-            "win_rate_50t": float(wr_pct),
+            "win_rate_50t": float(wr_pct) if wr_pct is not None else None,
             "avg_win_r_50t": float(avg_win_r) if avg_win_r is not None else None,
             "avg_loss_r_50t": float(avg_loss_r) if avg_loss_r is not None else None,
             "expectancy": float(expectancy_val) if expectancy_val is not None else None,

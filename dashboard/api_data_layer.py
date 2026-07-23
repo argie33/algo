@@ -232,8 +232,7 @@ _validate_api_url_at_startup()
 def set_api_url(url: str) -> None:
     """Set API base URL at runtime (used by -local mode and other dynamic scenarios).
 
-    Logs explicit warning if switching from AWS_CONFIG to localhost without explicit flag,
-    to ensure users understand the API source change.
+    Logs explicit warning only if URL actually changes (not if source changes to same URL).
     """
     global API_BASE_URL, _api_base_url_cache, _api_base_url_source_cache
 
@@ -244,11 +243,13 @@ def set_api_url(url: str) -> None:
     _api_base_url_cache = url
     _api_base_url_source_cache = "RUNTIME_SET"
 
-    logger.warning(
-        f"[API_RUNTIME_CHANGE] API URL changed at runtime. "
-        f"Old: {old_url} (source: {old_source}), "
-        f"New: {url} (source: RUNTIME_SET)"
-    )
+    # Only warn if URL actually changed, not if just source changed
+    if old_url != url:
+        logger.warning(
+            f"[API_RUNTIME_CHANGE] API URL changed at runtime. "
+            f"Old: {old_url} (source: {old_source}), "
+            f"New: {url} (source: RUNTIME_SET)"
+        )
 
 
 def get_api_url() -> str:
