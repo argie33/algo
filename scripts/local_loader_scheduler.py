@@ -75,7 +75,7 @@ LOADERS = {
         "target_minute": 15,
     },
     "metrics": {
-        "description": "Metrics pipeline (7:00 PM ET): slow SEC/EDGAR fundamentals refresh - stock universe, financial statements, valuations, positioning, value/quality/growth. Safe to skip on days fundamentals are already complete (see start_dashboard_dev.py's completeness gate) since SEC filings change rarely.",
+        "description": "Metrics pipeline (7:00 PM ET): slow SEC/EDGAR fundamentals refresh - stock universe, financial statements, valuations, positioning, value/quality/growth. In start_dashboard_dev.py, skips only if growth_metrics/quality_metrics tables are <24h old (staleness gate, not completeness gate).",
         "loaders": [
             # Found+fixed 2026-07-20 (data-loading audit): market_constituents and economic_data
             # are wired into the AWS EOD Step Functions pipeline (terraform/modules/pipeline/main.tf)

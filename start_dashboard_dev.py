@@ -129,6 +129,61 @@ def check_stock_scores_completeness() -> float:
         return 0
 
 
+def check_metrics_tables_staleness() -> tuple[bool, str]:
+    """Check if key metrics tables are stale (>24 hours old).
+
+    Uses created_at to reflect batch load time (like monitor_data_staleness.py does).
+
+    Returns: (is_stale: bool, reason: str)
+    - True if growth_metrics or quality_metrics batches are >24h old (created_at)
+    - False if fresh or no data to check
+    """
+    try:
+        from utils.db import DatabaseContext
+        from datetime import datetime, timedelta, timezone
+
+        with DatabaseContext("read") as cur:
+            # Check growth_metrics and quality_metrics batch staleness (created_at = batch load time)
+            cur.execute("""
+                SELECT
+                    COALESCE(MAX(created_at), NOW() - INTERVAL '48 hours') as latest_growth,
+                    (SELECT COALESCE(MAX(created_at), NOW() - INTERVAL '48 hours')
+                     FROM quality_metrics) as latest_quality
+                FROM growth_metrics
+            """)
+            row = cur.fetchone()
+            if row:
+                now = datetime.now(timezone.utc)
+                latest_growth = row[0] if isinstance(row[0], datetime) else now
+                latest_quality = row[1] if isinstance(row[1], datetime) else now
+
+                # Ensure tz-aware comparison
+                if latest_growth.tzinfo is None:
+                    latest_growth = latest_growth.replace(tzinfo=timezone.utc)
+                if latest_quality.tzinfo is None:
+                    latest_quality = latest_quality.replace(tzinfo=timezone.utc)
+
+                staleness_threshold = now - timedelta(hours=24)
+
+                if latest_growth < staleness_threshold or latest_quality < staleness_threshold:
+                    hours_old = min(
+                        (now - latest_growth).total_seconds() / 3600,
+                        (now - latest_quality).total_seconds() / 3600
+                    )
+                    return True, f"growth_metrics/quality_metrics batches {hours_old:.1f}h stale (>24h)"
+                else:
+                    hours_old = min(
+                        (now - latest_growth).total_seconds() / 3600,
+                        (now - latest_quality).total_seconds() / 3600
+                    )
+                    return False, f"metrics batches fresh ({hours_old:.1f}h old)"
+
+            return False, "no metrics data found"
+    except Exception as e:
+        print(f"[STARTUP] [WARN] Could not check metrics staleness: {e}", flush=True)
+        return False, f"staleness check failed: {e}"
+
+
 def run_loader_pipeline(pipeline_name: str, timeout: int = 3600) -> bool:
     """Run a loader pipeline using local_loader_scheduler.
 
@@ -213,11 +268,14 @@ def run_complete_loader_pipeline() -> bool:
     if not morning_ok:
         print("[STARTUP] [WARN] Morning pipeline failed - proceeding with stale data", flush=True)
 
-    # Step 2: Check if the slow fundamentals pipeline is needed (stock_scores completeness)
-    completeness = check_stock_scores_completeness()
-    print(f"[STARTUP] Stock scores completeness: {completeness:.1f}%", flush=True)
+    # Step 2: Check if the slow fundamentals pipeline is needed (metrics table staleness)
+    # Don't use stock_scores completeness as gate - that gate was too aggressive and caused
+    # metrics tables to become stale even when scores were complete. Instead, check if the
+    # actual metrics tables (growth_metrics, quality_metrics) are stale (>24h old).
+    is_stale, staleness_reason = check_metrics_tables_staleness()
+    print(f"[STARTUP] Metrics table staleness check: {staleness_reason}", flush=True)
 
-    if completeness < 75:
+    if is_stale:
         print("[STARTUP] Step 2/3: Metrics pipeline (SEC fundamentals: financials, 13F, insider, value/quality/growth)...", flush=True)
         print("[STARTUP]          (This may take 10-20 minutes on first run)", flush=True)
         metrics_ok = run_loader_pipeline("metrics", timeout=1800)  # 30 min for metrics
@@ -225,7 +283,7 @@ def run_complete_loader_pipeline() -> bool:
         if not metrics_ok:
             print("[STARTUP] [WARN] Metrics pipeline failed - fundamentals may be stale", flush=True)
     else:
-        print("[STARTUP] Stock scores fundamentals already complete - skipping metrics pipeline", flush=True)
+        print(f"[STARTUP] Metrics tables are fresh - skipping metrics pipeline ({staleness_reason})", flush=True)
 
     # Step 3: ALWAYS re-fetch closing prices/technicals and regenerate scores/signals from them.
     # Must run every launch so the dashboard's buy/sell signals reflect today's prices, not
