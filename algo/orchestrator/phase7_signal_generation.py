@@ -509,6 +509,43 @@ def _get_candidates_from_buysell(
             f"SQL filters: trend & close_quality applied at query level)"
         )
 
+        # Fetch signal quality scores (composite_sqs & trend_template_score) computed by loader
+        # and merge into candidate dictionaries for Phase 8 to apply quality gates
+        if candidates:
+            try:
+                with DatabaseContext("read") as cur_sqs:
+                    symbols = [c["symbol"] for c in candidates]
+                    cur_sqs.execute(
+                        f"""
+                        SELECT symbol, composite_sqs, trend_template_score
+                        FROM signal_quality_scores
+                        WHERE symbol IN ({','.join(['%s']*len(symbols))}) AND date = %s
+                        """,
+                        symbols + [run_date],
+                    )
+                    sqs_rows = cur_sqs.fetchall()
+                    sqs_map = {row[0]: (row[1], row[2]) for row in sqs_rows}
+
+                    # Merge signal quality scores into candidates
+                    for candidate in candidates:
+                        symbol = candidate["symbol"]
+                        if symbol in sqs_map:
+                            composite_sqs, trend_score = sqs_map[symbol]
+                            candidate["signal_quality_score"] = composite_sqs
+                            candidate["trend_template_score"] = trend_score
+                        else:
+                            candidate["signal_quality_score"] = None
+                            candidate["trend_template_score"] = None
+
+                    missing_scores = sum(1 for c in candidates if c.get("signal_quality_score") is None)
+                    if missing_scores > 0:
+                        logger.warning(
+                            f"[PHASE 7] {missing_scores}/{len(candidates)} candidates missing signal quality scores. "
+                            f"Check signal_quality_scores table for date={run_date}"
+                        )
+            except Exception as e:
+                logger.warning(f"[PHASE 7] Could not fetch signal quality scores: {e}. Proceeding with NULL scores.")
+
         complete_candidates, _ = _validate_signal_completeness(candidates, "buy_sell_daily path")
         return complete_candidates
     except (ValueError, ZeroDivisionError, TypeError) as e:
