@@ -588,7 +588,6 @@ def fetch_perf_analytics(c: None) -> dict[str, Any]:
         critical_fields = {
             "rolling_sharpe_252d": "sharpe252",
             "rolling_sortino_252d": "sortino",
-            "expectancy": "expectancy",
         }
 
         # Check if at least one metric exists (not in ramp-up)
