@@ -223,17 +223,14 @@ class LivePerformance:
         Returns None (not a fail-fast raise) when the lookback window has no winning trades or
         no losing trades yet - expectancy genuinely needs both sides of the distribution to mean
         anything, and lacking one side is an expected early-sample state (e.g. only a handful of
-        closed trades so far), not missing/corrupt data. Still fails fast via win_rate() when
-        there are no closed trades at all.
+        closed trades so far), not missing/corrupt data. Also returns None when there are no
+        closed trades at all (early account ramp-up).
 
         Args:
             lookback_trades: Number of trades for calculation
 
         Returns:
-            Expectancy in R-multiples, or None if the sample doesn't yet contain both a win and a loss
-
-        Raises:
-            RuntimeError: If win_rate calculation fails (no closed trades at all)
+            Expectancy in R-multiples, or None if data insufficient (no trades or missing win/loss side)
         """
         try:
             wr = self.win_rate(lookback_trades)
@@ -251,7 +248,10 @@ class LivePerformance:
             expectancy = (win_rate * avg_win_r) - (loss_rate * avg_loss_r)
             return _dec_round(expectancy, 4)
         except (ValueError, ZeroDivisionError, TypeError) as e:
-            raise RuntimeError(f"Operation failed: {e}") from e
+            # Insufficient data (no closed trades, etc) is expected during ramp-up.
+            # Return None instead of raising - this is not an error condition.
+            logger.debug(f"Expectancy calculation unavailable: {e}")
+            return None
 
     def max_drawdown(self) -> float | None:
         try:

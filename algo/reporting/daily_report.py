@@ -24,16 +24,46 @@ class DailyFinanceReport:
         with DatabaseContext("read") as cur:
             report = {
                 "date": str(report_date),
-                "portfolio": self._fetch_portfolio(cur, report_date),
-                "risk": self._fetch_risk(cur, report_date),
-                "strategy": self._fetch_strategy(cur, report_date),
-                "components": self._fetch_components(cur, report_date),
-                "regime": self._fetch_regime(report_date),
-                "signals": self._fetch_signals(cur, report_date),
-                "warnings": [],
             }
 
-            # Check thresholds
+            # Fetch core sections - fail if unavailable
+            try:
+                report["portfolio"] = self._fetch_portfolio(cur, report_date)
+            except RuntimeError as e:
+                logger.error(f"Daily report generation failed: {e}")
+                raise
+
+            try:
+                report["risk"] = self._fetch_risk(cur, report_date)
+            except RuntimeError as e:
+                logger.error(f"Daily report generation failed: {e}")
+                raise
+
+            # Fetch optional sections - return empty data if unavailable
+            try:
+                report["strategy"] = self._fetch_strategy(cur, report_date)
+            except RuntimeError as e:
+                logger.warning(f"Strategy data unavailable: {e}")
+                report["strategy"] = {}
+
+            try:
+                report["components"] = self._fetch_components(cur, report_date)
+            except (RuntimeError, ValueError) as e:
+                logger.warning(f"Component data unavailable: {e}")
+                report["components"] = {}
+
+            try:
+                report["regime"] = self._fetch_regime(report_date)
+            except RuntimeError as e:
+                logger.warning(f"Regime data unavailable: {e}")
+                report["regime"] = {"current": "unknown"}
+
+            try:
+                report["signals"] = self._fetch_signals(cur, report_date)
+            except RuntimeError as e:
+                logger.warning(f"Signal data unavailable: {e}")
+                report["signals"] = {}
+
             report["warnings"] = self._check_thresholds(report)
 
             logger.info(f"Daily report generated for {report_date}")

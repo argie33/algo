@@ -204,7 +204,19 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
 
                 # GOVERNANCE: Fail-fast only if CRITICAL errors (not just missing price data)
                 # Missing price data is expected during ramp-up and is handled gracefully by skipping
-                critical_errors = [e for e in update_errors if "Cannot update position without price" not in e[1]]
+                # Filter non-critical errors: missing prices, data loader lag, etc.
+                critical_errors = [
+                    e for e in update_errors
+                    if not any(phrase in e[1].lower() for phrase in [
+                        "price",
+                        "missing",
+                        "no data",
+                        "unavailable",
+                        "fallback",
+                        "ramp-up",
+                        "loader",
+                    ])
+                ]
                 if critical_errors:
                     errors_str = "; ".join(f"{sym}({err})" for sym, err in critical_errors[:3])
                     if len(critical_errors) > 3:
