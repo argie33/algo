@@ -185,6 +185,10 @@ class Orchestrator:
             self.execution_mode = "paper"
             logger.info(f"[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var not set, defaulting to: {self.execution_mode}")
 
+        # CRITICAL: Add execution_mode to config so phases can access it via config.get("execution_mode")
+        # This is essential for Phase 2's graceful handling of credential errors in paper mode
+        self.config["execution_mode"] = self.execution_mode
+
         # Explicitly default run_date to today if not provided
         self.run_date = run_date if run_date is not None else datetime.now(EASTERN_TZ).date()
         self.dry_run = dry_run
