@@ -583,7 +583,7 @@ def run(  # noqa: C901
                 if loader_status_row:
                     reported_pct, reported_loaded, reported_expected = loader_status_row
                     # If loader reports 100% but actual loaded count is significantly lower, that's a red flag
-                    if reported_pct and reported_pct >= 95 and reported_loaded and reported_expected:
+                    if reported_pct and reported_pct >= 90 and reported_loaded and reported_expected:
                         actual_coverage = (reported_loaded / max(reported_expected, 1)) * 100
                         if actual_coverage < 50:
                             logger.critical(

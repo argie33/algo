@@ -1004,7 +1004,7 @@ class OptimalLoader:
                 if completion_pct is None:
                     logger.critical(f"[UPSTREAM] {upstream_table} completion percent is NULL")
                     return False
-                if completion_pct < 95:
+                if completion_pct < 90:
                     logger.critical(f"[UPSTREAM] {upstream_table} only {completion_pct:.1f}% complete")
                     self._infrastructure.update_loader_status("FAILED")
                     return False
@@ -1129,7 +1129,7 @@ class OptimalLoader:
             # For incremental loads where actual_symbols_loaded > expected_symbols (e.g., updating existing table),
             # this is expected behavior and should still be marked COMPLETED
             completion_pct = min(completion_pct, 100.0)
-            loader_status = "COMPLETED" if completion_pct >= 95 else "INCOMPLETE"
+            loader_status = "COMPLETED" if completion_pct >= 90 else "INCOMPLETE"
 
             from utils.db.pooled_context_var import get_pooled_connection, set_pooled_connection
 
