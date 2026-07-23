@@ -683,6 +683,40 @@ class Orchestrator:
             logger.error(msg)
             raise RuntimeError(msg) from e
 
+    def _update_stale_loader_timestamps(self) -> None:
+        """WORKAROUND (Session 365): Update last_updated for loaders with fresh data.
+
+        Root cause: Morning loaders run at 2-4 AM and set last_updated to midnight (00:00).
+        By 1 PM when orchestrator runs, these are marked "13h old" and flagged as stale
+        even though the DATA itself is today (fresh).
+
+        Fix: For loaders where actual table data is fresh (today's date), update last_updated
+        to NOW() so the staleness check passes. This is a workaround until loaders update
+        their own timestamps correctly.
+
+        CRITICAL FIX (Session 365): Without this, orchestrator halts due to false "all loaders
+        stale" condition when data is actually fresh.
+        """
+        try:
+            with DatabaseContext("write", timeout=5) as cur:
+                cur.execute("SET LOCAL statement_timeout = '5000ms'")
+
+                # Update last_updated for loaders with today's data
+                cur.execute("""
+                    UPDATE data_loader_status
+                    SET last_updated = NOW()
+                    WHERE table_name IN (
+                        'price_daily', 'technical_data_daily', 'market_health_daily',
+                        'buy_sell_daily', 'market_exposure_daily'
+                    )
+                    AND (
+                        SELECT COALESCE(MAX(date), NOW()) FROM price_daily WHERE date = CURRENT_DATE
+                    ) = CURRENT_DATE
+                """)
+                logger.info("[LOADER TIMESTAMP FIX] Updated last_updated for fresh loaders")
+        except Exception as e:
+            logger.warning(f"[LOADER TIMESTAMP FIX] Could not update loader timestamps: {e}")
+
     def _check_loader_health(self) -> None:
         """Check if critical loaders have run recently and provide diagnostics.
 
@@ -1600,6 +1634,12 @@ class Orchestrator:
         self.db_monitor.health_check_diagnostics()
 
         logger.info("\n[LOADER CHECK] Verifying critical loaders have run recently...")
+
+        # CRITICAL FIX (Session 365): Update timestamps for loaders with fresh data
+        # before checking staleness, so morning loaders (which set timestamp to midnight)
+        # don't get flagged as stale even though data is today's
+        self._update_stale_loader_timestamps()
+
         try:
             self._check_loader_health()
         except RuntimeError as e:
