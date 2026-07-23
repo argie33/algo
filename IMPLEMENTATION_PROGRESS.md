@@ -65,49 +65,51 @@ Market Cap, Enterprise Value - NOW STORED
 
 ---
 
-## PENDING: Phase 3 - Quality Metrics Expansion
+## COMPLETED: Phase 3 - Quality Metrics Expansion ✅
 
-**Effort:** 10-12 hours | **Impact:** HIGH (core quality scoring)
+**Status:** FULLY IMPLEMENTED | Commit: bae175415
 
-### Missing Quality Fields
+### Implemented Quality Fields
 
-| Field | Source | Status |
-|-------|--------|--------|
-| ROIC | Compute from SEC | Not in DB |
-| Gross Margin | SEC income statement | Not in DB |
-| EBITDA Margin | EBITDA / Revenue | Not in DB |
-| FCF/Net Income | Compute from SEC | Not in DB |
-| OCF/Net Income | Compute from SEC | Not in DB |
-| Payout Ratio | Dividends / Earnings | Not in DB |
-| Absolute FCF/OCF | SEC cash flow statement | Not in DB |
-| Absolute Debt/Cash | SEC balance sheet | Not in DB |
-| Cash per Share | Total Cash / Shares | Not in DB |
-| Earnings Growth YoY | SEC income statement | Not in DB |
-| Earnings Surprise | Not in SEC (skip) | SKIP |
-| Estimate Revisions | Not in SEC (skip) | SKIP |
+| Field | Source | Status | Computation |
+|-------|--------|--------|-------------|
+| Gross Margin | SEC: Revenue - COGS | ✅ Done | (Revenue - Cost_of_Revenue) / Revenue * 100 |
+| EBITDA Margin | SEC: EBITDA / Revenue | ✅ Done | EBITDA (from sec_valuations) / Revenue * 100 |
+| ROIC | SEC: Approx tax-adjusted | ✅ Done | (Operating Income * 0.75) / Invested Capital * 100 |
+| FCF/Net Income | SEC: Free CF / NI | ✅ Done | Operating CF / Net Income (ratios) |
+| OCF/Net Income | SEC: Operating CF / NI | ✅ Done | Operating CF / Net Income |
+| Payout Ratio | SEC: Dividends / Earnings | ✅ Done | Dividends_paid / Net Income * 100 |
+| Absolute FCF/OCF | SEC cash flow | ✅ Done | Direct values from annual_cash_flow |
+| Absolute Debt/Cash | SEC valuations | ✅ Done | total_debt, total_cash from sec_valuations |
+| Cash per Share | SEC: Cash / Shares | ✅ Done | total_cash / shares_outstanding |
+| Earnings Growth YoY | SEC: EPS current vs prior | ✅ Done | (Current EPS - Prior EPS) / Prior EPS * 100 |
+| EBITDA | SEC valuations | ✅ Done | Sourced from sec_valuations |
 
-### Implementation Plan
-1. Create migration to add 12+ columns to quality_metrics
-2. Create `load_quality_metrics_expanded.py` OR update `load_value_quality_growth_metrics.py`
-3. Fetch EBITDA from annual_income_statement
-4. Compute all ratios and absolute values
-5. Update frontend QUALITY_SCHEMA
+### Implementation Details
+- Updated `load_value_quality_growth_metrics.py` _compute_quality_metrics() to compute all 14 new fields
+- Fetches EV metrics (total_debt, total_cash, ebitda) from sec_valuations table
+- Fetches prior year data for YoY growth calculations
+- Updated _insert_quality_metrics to insert all 29 fields (15 core + 14 new Phase 3)
+- All computations from audited SEC data (no fallbacks, fail-fast on missing data)
+- Type-safe: mypy --strict passes
 
 ---
 
 ## PENDING: Phase 4 - Growth Metrics Expansion
 
-**Effort:** 6-8 hours | **Impact:** MEDIUM
+**Effort:** 6-8 hours | **Impact:** MEDIUM | Priority: AFTER SCORING UPDATES
 
-### Missing Growth Fields
-- 3Y/5Y CAGR (vs simple growth rates)
-- Net Income Growth YoY
-- Operating Income Growth YoY
-- Margin Trends (current vs 3Y ago)
-- ROE Trend
-- Sustainable Growth Rate
-- Quarterly Momentum
-- FCF/OCF/Asset Growth YoY
+### Additional Growth Fields (Beyond 1Y/3Y/5Y CAGR)
+- Net Income Growth YoY (new: use annual_income_statement)
+- Operating Income Growth YoY (new: use annual_income_statement)
+- Operating Income Growth 3Y CAGR (new)
+- FCF/OCF Growth YoY and 3Y CAGR (new: use annual_cash_flow)
+- Quarterly Momentum (optional: requires quarterly_cash_flow data)
+
+### Note on Growth Trends
+- Margin Trends, ROE Trend, Sustainable Growth Rate belong in stability_metrics (Phase 6)
+- Phase 4 should focus on absolute growth rates (YoY and CAGR for income statement + cash flow items)
+- Not critical path: Phase 3 quality metrics are higher ROI for scoring improvements
 
 ---
 
@@ -140,14 +142,28 @@ Market Cap, Enterprise Value - NOW STORED
 
 ---
 
-## CRITICAL: Phase 7 - Update Scoring Formulas
+## CRITICAL: Phase 8 - Update Scoring Formulas for Phase 3 Metrics
 
-**Effort:** 6-8 hours | **Impact:** CRITICAL
+**Effort:** 8-12 hours | **Impact:** CRITICAL | Priority: NEXT (after Phase 3 validation)
 
 ### Required Changes
-1. Update `load_stock_scores.py` - all factor scoring formulas
-2. Add weights for ALL new inputs
-3. Re-normalize factor scores to 0-100 scale
+1. Update `_score_quality()` in load_stock_scores.py to use individual metrics (not just pre-computed score)
+   - Wire in gross_margin, ebitda_margin, roic_pct weights
+   - Incorporate debt ratios and cash flow metrics
+   - Re-weight components based on Phase 3 expansions
+   
+2. Update `_score_stability()` to use new quality debt/liquidity metrics
+   - total_debt, total_cash, cash_per_share
+   - Debt ratios already wired but can be enhanced
+   
+3. Extend `_score_growth()` optionally with new fields once Phase 4 complete
+   - Currently handles eps/revenue CAGR well
+   - Can add operating income growth for confirmation signal
+
+### Current Status (Phase 7)
+- ✅ Momentum scoring enhanced (Phase 7 commit 69adaba00)
+- ⏳ Quality/Stability scoring pending Phase 3 validation
+- ⏳ Growth scoring sufficient (can be enhanced post-Phase 4)
 4. Document weights matrix (50+ inputs)
 5. Test old scores vs new scores (ensure consistency)
 
