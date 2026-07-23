@@ -587,11 +587,19 @@ class ExitEngine:
                                     f"[EXIT ENGINE] {symbol}: Symbol appears delisted or unavailable. "
                                     f"Force-closing position without evaluation. Error: {fetch_err}"
                                 )
+                                exit_price = float(Decimal(str(entry_price))) if entry_price else None
                                 cur.execute(
-                                    """UPDATE algo_positions SET is_open = false, exit_date = %s,
-                                       exit_price = COALESCE(current_price, entry_price), exit_reason = %s
+                                    """UPDATE algo_trades SET status = 'closed', exit_date = %s,
+                                       exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                                       WHERE symbol = %s AND status = 'open'
+                                       ORDER BY trade_date DESC LIMIT 1""",
+                                    (current_date, exit_price, "delisted_or_unavailable", symbol)
+                                )
+                                cur.execute(
+                                    """UPDATE algo_positions SET is_open = false, closed_at = CURRENT_TIMESTAMP,
+                                       updated_at = CURRENT_TIMESTAMP
                                        WHERE symbol = %s AND is_open = true""",
-                                    (current_date, "delisted_or_unavailable", symbol)
+                                    (symbol,)
                                 )
                                 exits_executed += 1
                                 cur.execute(f"RELEASE SAVEPOINT {_sp}")
@@ -604,11 +612,19 @@ class ExitEngine:
                                 f"[EXIT ENGINE] {symbol}: No price data available. "
                                 f"Force-closing position with last known price."
                             )
+                            exit_price = float(Decimal(str(entry_price))) if entry_price else None
                             cur.execute(
-                                """UPDATE algo_positions SET is_open = false, exit_date = %s,
-                                   exit_price = COALESCE(current_price, entry_price), exit_reason = %s
+                                """UPDATE algo_trades SET status = 'closed', exit_date = %s,
+                                   exit_price = %s, exit_reason = %s, updated_at = CURRENT_TIMESTAMP
+                                   WHERE symbol = %s AND status = 'open'
+                                   ORDER BY trade_date DESC LIMIT 1""",
+                                (current_date, exit_price, "no_price_data", symbol)
+                            )
+                            cur.execute(
+                                """UPDATE algo_positions SET is_open = false, closed_at = CURRENT_TIMESTAMP,
+                                   updated_at = CURRENT_TIMESTAMP
                                    WHERE symbol = %s AND is_open = true""",
-                                (current_date, "no_price_data", symbol)
+                                (symbol,)
                             )
                             exits_executed += 1
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
