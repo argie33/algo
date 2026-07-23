@@ -7,7 +7,6 @@ Usage: python dev_server.py
 
 from __future__ import annotations
 
-import importlib
 import json
 import logging
 import os
@@ -183,8 +182,6 @@ import setup_imports  # noqa: E402, F401
 
 # setup_imports already set up the correct paths, so we can now import lambda_function
 import lambda_function  # noqa: E402
-
-importlib.reload(lambda_function)  # Force fresh reload in case module was cached
 
 # Validate and create log file directory
 log_dir = os.environ.get("TEMP", "/tmp")
@@ -448,11 +445,11 @@ class APIHandler(BaseHTTPRequestHandler):
 class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
     """Threaded HTTP server to handle multiple concurrent requests."""
 
-    daemon_threads = True
+    daemon_threads = False
 
 
 def run_dev_server(port: int = 3001) -> None:
-    """Run the development server."""
+    """Run the development server with graceful shutdown."""
     # Safeguard: Check if port is already in use before starting
     import socket as sock_module
     test_sock = sock_module.socket(sock_module.AF_INET, sock_module.SOCK_STREAM)
@@ -476,6 +473,7 @@ def run_dev_server(port: int = 3001) -> None:
 
     server_address = ("", port)
     httpd = ThreadingHTTPServer(server_address, APIHandler)
+    httpd.timeout = 2  # Set timeout so shutdown() returns quickly
     logger.info(f"Starting API dev server on http://localhost:{port}")
     logger.info("Press Ctrl+C to stop")
 
@@ -483,7 +481,10 @@ def run_dev_server(port: int = 3001) -> None:
         httpd.serve_forever()
     except KeyboardInterrupt:
         logger.info("Shutting down...")
+        # Non-daemon threads require explicit shutdown to ensure cleanup
         httpd.shutdown()
+        httpd.server_close()
+        logger.info("Server closed and all threads cleaned up")
 
 
 if __name__ == "__main__":
