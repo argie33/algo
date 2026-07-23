@@ -496,7 +496,6 @@ class OptimalLoader:
                     # now retry instead of skipping silently. This was the root cause of
                     # missing EOD signals when morning loader crashed without releasing lock.
                     logger.warning(f"[{self.table_name}] Another instance already running, retrying with backoff...")
-                    import time
                     import random
                     max_retries = 3
                     for retry_attempt in range(1, max_retries + 1):
@@ -694,7 +693,6 @@ class OptimalLoader:
                     # Lock timeout - another instance running, RETRY with exponential backoff
                     # CRITICAL FIX (Session 351): Same retry logic as run() method
                     logger.warning(f"[{self.table_name}] Another instance already running (global load), retrying with backoff...")
-                    import time
                     import random
                     max_retries = 3
                     for retry_attempt in range(1, max_retries + 1):
