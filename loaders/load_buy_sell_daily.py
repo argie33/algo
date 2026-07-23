@@ -57,7 +57,7 @@ class SignalsDailyLoader(OptimalLoader):
         try:
             logger.info(f"[RUN] Starting with {len(symbols)} symbols")
 
-            # Session 357 fix: Delete signals for today to force regeneration (watermark will allow re-process)
+            # Session 357 fix: Delete signals for today to force regeneration
             now_et = datetime.now(EASTERN_TZ)
             current_date = now_et.date()
             with DatabaseContext("write") as cur:
@@ -65,9 +65,6 @@ class SignalsDailyLoader(OptimalLoader):
                 deleted_count = cur.rowcount
                 if deleted_count > 0:
                     logger.info(f"[SESSION 357 FIX] Deleted {deleted_count} stale signals for {current_date} to force regeneration")
-
-            # Reset watermark so loader will regenerate current date
-            self._watermark.set_watermark(current_date - timedelta(days=1))
 
             # Only filter if symbols came from get_active_symbols() (not from explicit --symbols arg)
             # If user specified symbols explicitly, respect their choice
