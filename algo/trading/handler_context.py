@@ -39,6 +39,7 @@ class HandlerContext:
         get_order_filled_quantity_fn: Callable[..., Any],
         send_alpaca_exit_fn: Callable[..., Any],
         update_position_with_retry_fn: Callable[..., Any],
+        wait_for_order_fill_fn: Callable[..., Any] | None = None,
     ):
         """Initialize context with handler dependencies.
 
@@ -74,3 +75,4 @@ class HandlerContext:
         self._get_order_filled_quantity = get_order_filled_quantity_fn
         self._send_alpaca_exit = send_alpaca_exit_fn
         self._update_position_with_retry = update_position_with_retry_fn
+        self._wait_for_order_fill = wait_for_order_fill_fn or (lambda *args, **kwargs: (False, None, "not configured"))

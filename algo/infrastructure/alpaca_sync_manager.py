@@ -386,28 +386,53 @@ class AlpacaSyncManager:
                 logger.error(f"[POSITION_SYNC] Failed to update position {symbol}: {e}")
                 raise RuntimeError(f"[POSITION_SYNC] Database error updating position {symbol}: {e}") from e
 
-        # Mark positions as closed if they exist in DB but not in Alpaca.
-        # BUG FIX: `symbol NOT IN %s` with the empty-set placeholder `(None,)` is a SQL
-        # NULL-trap -- `x NOT IN (NULL)` is never TRUE (it's UNKNOWN) for any x, so this
-        # silently closed zero rows every time Alpaca legitimately had zero open
-        # positions, leaving stale "open" rows in algo_positions forever (confirmed live:
-        # a position closed at the broker weeks ago was still "open" in our DB, 7+ days
-        # stale). Use `!= ALL(%s)` with a real list instead -- psycopg2 adapts a list to
-        # a SQL array, and `col != ALL(ARRAY[])` correctly matches every row when the
-        # array is empty.
+        # CRITICAL FIX: Do NOT automatically close positions not found at Alpaca.
+        # The old behavior was:
+        #   - If a position exists in DB but not in Alpaca → automatically close it
+        # This caused mass closures when:
+        #   - Order fill confirmation was still pending (position not yet at broker)
+        #   - Alpaca API lag/timeouts returned incomplete position list
+        #   - Network issues between broker sync and position creation
+        #
+        # New behavior: Audit and alert instead of silently closing
+        # Positions should only be closed when we have proof they were actually closed:
+        # - Alpaca explicitly returned a closed position
+        # - Exit order was confirmed filled
+        # - NOT just because Alpaca didn't list it (could be sync lag)
+
         try:
-            cur.execute(
-                """
-                UPDATE algo_positions
-                SET status = 'closed', closed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
-                WHERE symbol != ALL(%s) AND status = 'open'
-            """,
-                (list(alpaca_symbols),),
-            )
-            closed_count = cur.rowcount
+            cur.execute("""
+                SELECT DISTINCT symbol FROM algo_positions
+                WHERE status = 'open' AND symbol != ALL(%s)
+            """, (list(alpaca_symbols),))
+            missing_positions = [row[0] for row in cur.fetchall()]
+
+            if missing_positions:
+                # ALERT but do NOT close - log for manual operator review
+                logger.warning(
+                    f"[POSITION_SYNC] ALERT: {len(missing_positions)} positions in DB but not in Alpaca: "
+                    f"{', '.join(missing_positions[:10])}{'...' if len(missing_positions) > 10 else ''}. "
+                    f"NOT automatically closing - may be fill-pending, API lag, or network sync issue. "
+                    f"Manual review required if these should actually be closed."
+                )
+                try:
+                    from algo.reporting import notify
+                    notify(
+                        severity="warning",
+                        title="Position Sync Alert - Missing at Broker",
+                        message=f"{len(missing_positions)} positions in DB but not found at Alpaca. "
+                        f"May indicate fill-pending orders or broker sync lag. "
+                        f"Review: {', '.join(missing_positions[:5])}{'...' if len(missing_positions) > 5 else ''}",
+                        details={"missing_positions": missing_positions},
+                    )
+                except Exception as notify_err:
+                    logger.error(f"[POSITION_SYNC] Failed to send alert: {notify_err}")
+
+            closed_count = 0  # No longer auto-closing, only alerting
+
         except Exception as e:
-            logger.error(f"[POSITION_SYNC] Failed to mark closed positions: {e}")
-            raise RuntimeError(f"[POSITION_SYNC] Database error marking closed positions: {e}") from e
+            logger.error(f"[POSITION_SYNC] Failed to audit missing positions: {e}")
+            raise RuntimeError(f"[POSITION_SYNC] Database error auditing positions: {e}") from e
 
         # Remove stale Alpaca-imported rows that have no algo trade association.
         # These were created by a prior sync bug that INSERTed positions using Alpaca's

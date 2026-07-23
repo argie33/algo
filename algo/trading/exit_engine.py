@@ -621,9 +621,9 @@ class ExitEngine:
                                 (current_date, exit_price, "no_price_data", symbol)
                             )
                             cur.execute(
-                                """UPDATE algo_positions SET is_open = false, closed_at = CURRENT_TIMESTAMP,
+                                """UPDATE algo_positions SET status = 'closed', closed_at = CURRENT_TIMESTAMP,
                                    updated_at = CURRENT_TIMESTAMP
-                                   WHERE symbol = %s AND is_open = true""",
+                                   WHERE symbol = %s AND status = 'open'""",
                                 (symbol,)
                             )
                             exits_executed += 1
@@ -937,11 +937,11 @@ class ExitEngine:
                 raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
 
             elif response.status_code == 404:
-                # Symbol is delisted/unavailable in Alpaca - raise exception for caller to handle
-                raise RuntimeError(
+                logger.warning(
                     f"[EXIT_ENGINE] Alpaca quote API returned 404 for {symbol} - "
-                    f"symbol unavailable (possibly delisted or not in paper trading)"
+                    f"symbol unavailable in paper trading. Using fallback pricing from database."
                 )
+                return None
 
             else:
                 raise RuntimeError(f"Alpaca quote API error for {symbol}: status {response.status_code}")
@@ -957,22 +957,12 @@ class ExitEngine:
     ) -> tuple[float | None, float | None]:
         """Return (current_price, previous_close) with intraday support.
 
-
-
         Strategy:
-
         1. Try to fetch real-time quote from Alpaca (for intraday stop checking)
+        2. If market closed or symbol unavailable (404), fall back to daily closes
+        3. If critical API error (not 404), propagate to caller for halt
 
-        2. If market closed (quote returns None), fall back to daily closes
-
-        3. If API fails (raises exception), propagate to caller for immediate halt
-
-
-
-        This ensures stop losses execute on current prices during market hours.
-
-        On API failure, exit engine halts rather than using stale daily closes.
-
+        For 404 (delisted symbols in paper trading), use database fallback instead.
         """
 
         # Try real-time quote first (intraday pricing, raises on API failure)

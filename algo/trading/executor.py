@@ -220,6 +220,7 @@ class TradeExecutor:
             get_order_filled_quantity_fn=self._get_order_filled_quantity,
             send_alpaca_exit_fn=self._send_alpaca_exit,
             update_position_with_retry_fn=self._update_position_with_retry,
+            wait_for_order_fill_fn=self._wait_for_order_fill,
         )
 
         # Initialize entry handler with context (not whole executor)
@@ -606,6 +607,15 @@ class TradeExecutor:
 
     def _get_order_filled_quantity(self, alpaca_order_id: str) -> float | None:
         return self.order_manager.get_order_filled_quantity(alpaca_order_id)
+
+    def _wait_for_order_fill(
+        self, symbol: str, alpaca_order_id: str, max_wait_seconds: int = 30
+    ) -> tuple[bool, float | None, str]:
+        """Wait for order to fill at broker before recording trade in DB.
+
+        CRITICAL: Do not write to database until this confirms fill.
+        """
+        return self.order_manager.wait_for_order_fill(symbol, alpaca_order_id, max_wait_seconds)
 
     def _send_alpaca_exit(self, symbol: str, shares: float) -> dict[str, Any]:
         return self.order_manager.send_market_exit(symbol, shares, self.execution_mode)
