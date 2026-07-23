@@ -261,6 +261,11 @@ def _get_data_status(cur: cursor) -> Any:  # noqa: C901
             "portfolio_holdings",  # Manual/enrichment table (very stale)
             "positions_using_stale_fallback",  # Deprecated - empty
             "algo_untracked_positions",  # Empty from this morning's error run
+            # Deprecated loaders (removed per DEPRECATED_LOADERS.md)
+            "market_cap_computed",  # ORPHANED - load_market_cap_computed.py removed
+            "price_extremes_52week",  # ORPHANED - load_price_extremes.py removed
+            # Earnings table name mismatch (config calls it earnings_history_daily, actual table is earnings_history; loader writes to earnings_calendar_sec)
+            "earnings_history",  # Legacy empty table - no loader writes to it (loader→earnings_calendar_sec)
             # Financeals (supplementary)
             "annual_balance_sheet",
             "annual_cash_flow",
