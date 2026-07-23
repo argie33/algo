@@ -395,6 +395,100 @@ class OrderManager:
             "Alpaca API unreachable. Cannot proceed without status confirmation."
         )
 
+    def wait_for_order_fill(
+        self, symbol: str, alpaca_order_id: str, max_wait_seconds: int = 30
+    ) -> tuple[bool, float | None, str]:
+        """Wait for Alpaca order to fill.
+
+        CRITICAL: Do not write trade to DB until this confirms the order is filled.
+
+        Args:
+            symbol: Stock symbol
+            alpaca_order_id: Order ID returned from send_bracket_order
+            max_wait_seconds: Max time to wait for fill (paper mode is instant)
+
+        Returns:
+            (success: bool, filled_price: float | None, error_message: str)
+            - success=True, filled_price=<price>: Order filled, record to DB
+            - success=False, filled_price=None, error_message=<reason>: Order failed/timeout
+
+        For paper mode (LOCAL-/PENDING- prefixes), returns immediately with success.
+        """
+        if alpaca_order_id.startswith(("LOCAL-", "PENDING-")):
+            logger.info(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: Paper mode - instant fill")
+            return (True, None, "")
+
+        if not self.alpaca_key or not self.alpaca_secret:
+            return (False, None, "Alpaca credentials not configured")
+
+        start_time = time.time()
+        poll_interval = 0.5  # 500ms between polls
+        attempt = 0
+
+        while time.time() - start_time < max_wait_seconds:
+            attempt += 1
+            try:
+                resp = requests.get(
+                    f"{self.alpaca_base_url}/v2/orders/{alpaca_order_id}",
+                    headers={
+                        "APCA-API-KEY-ID": self.alpaca_key,
+                        "APCA-API-SECRET-KEY": self.alpaca_secret,
+                    },
+                    timeout=get_api_timeout(),
+                )
+
+                if resp.status_code == 200:
+                    data = resp.json()
+                    status = data.get("status")
+                    filled_price = data.get("filled_avg_price")
+
+                    if status == "filled":
+                        elapsed = time.time() - start_time
+                        logger.info(
+                            f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: FILLED @ ${filled_price:.2f} "
+                            f"after {elapsed:.1f}s ({attempt} polls)"
+                        )
+                        return (True, float(filled_price), "")
+
+                    elif status in ("cancelled", "rejected", "expired"):
+                        reason = data.get("cancel_reason", status)
+                        error_msg = f"Order {status}: {reason}"
+                        logger.error(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {error_msg}")
+                        return (False, None, error_msg)
+
+                    elif status in ("pending", "pending_new", "accepted", "new"):
+                        # Still waiting
+                        logger.debug(
+                            f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: status={status} (attempt {attempt})"
+                        )
+                        time.sleep(poll_interval)
+                        continue
+
+                    else:
+                        error_msg = f"Unknown order status: {status}"
+                        logger.error(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {error_msg}")
+                        return (False, None, error_msg)
+
+                else:
+                    logger.warning(
+                        f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: HTTP {resp.status_code} "
+                        f"(attempt {attempt}), retrying..."
+                    )
+                    time.sleep(poll_interval)
+                    continue
+
+            except (requests.RequestException, requests.Timeout) as e:
+                logger.warning(
+                    f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: API error (attempt {attempt}): {e}"
+                )
+                time.sleep(poll_interval)
+                continue
+
+        elapsed = time.time() - start_time
+        error_msg = f"Order fill timeout after {elapsed:.1f}s ({attempt} polls). Order may still fill asynchronously."
+        logger.error(f"[ORDER_FILL_WAIT] {symbol} {alpaca_order_id}: {error_msg}")
+        return (False, None, error_msg)
+
     def send_market_exit(self, symbol: str, shares: float, execution_mode: str) -> dict[str, Any]:  # noqa: C901
         """Send a market sell order to Alpaca.
 

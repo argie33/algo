@@ -435,6 +435,12 @@ def _get_stock_scores(
             # Build factor input objects for UI display (Session 302+ fix)
             _build_factor_inputs(d)
 
+            # Debug: Log if factor inputs were added
+            if "quality_inputs" in d:
+                logger.debug(f"Factor inputs added for {d.get('symbol')}")
+            else:
+                logger.warning(f"Factor inputs NOT added for {d.get('symbol')} - quality_inputs missing after _build_factor_inputs call")
+
             # Note: We include scores even if current prices are missing
             # Scores are computed from other factors; current price is optional for display
             items.append(d)

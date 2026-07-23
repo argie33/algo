@@ -695,6 +695,34 @@ class EntryHandler:
                     rejection_reason,
                 )
 
+            # CRITICAL FIX: Wait for order to actually fill before writing to DB
+            # Do NOT trust the order submission response alone - verify fill with broker
+            logger.info(f"[ENTRY_HANDLER] {symbol} {alpaca_order_id}: Waiting for order fill confirmation...")
+            fill_ok, confirmed_fill_price, fill_error = self.context._wait_for_order_fill(
+                symbol, alpaca_order_id, max_wait_seconds=30
+            )
+            if not fill_ok:
+                # Order did not fill - do NOT write to DB
+                logger.critical(
+                    f"[ENTRY_HANDLER CRITICAL] {symbol} {alpaca_order_id}: Order failed to fill: {fill_error}. "
+                    f"Will NOT create trade record (position does not exist at broker)."
+                )
+                try:
+                    self.context._cancel_bracket_orders(alpaca_order_id)
+                except (
+                    OrderExecutionError,
+                    DatabaseError,
+                    requests.RequestException,
+                    requests.Timeout,
+                ) as e:
+                    logger.warning(f"Failed to cancel failed order {alpaca_order_id}: {e}")
+                return (False, fill_error, "", "", None, None)
+
+            # Order filled - use actual fill price from broker
+            if confirmed_fill_price is not None:
+                executed_price = Decimal(str(confirmed_fill_price))
+                logger.info(f"[ENTRY_HANDLER] {symbol}: Order confirmed filled @ ${executed_price}")
+
             # Check for order rejection/cancellation
             if order_status in ("rejected", "cancelled", "expired"):
                 try:
