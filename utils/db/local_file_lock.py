@@ -6,6 +6,7 @@ Used in LOCAL_MODE to avoid AWS DynamoDB permissions issues.
 """
 
 import logging
+import os
 import tempfile
 import time
 from datetime import datetime, timedelta, timezone
@@ -205,7 +206,7 @@ def get_lock_manager(
 ) -> "DynamoDBLockManager | RDSLockManager":
     """Factory function that returns a distributed lock manager.
 
-    CRITICAL: Tries DynamoDB first (preferred for distributed safety), falls back to RDS.
+    CRITICAL: When LOCAL_MODE=true, skip DynamoDB entirely. Otherwise, try DynamoDB first (preferred for distributed safety), falls back to RDS.
 
     LOCAL_MODE ("run orchestrator directly instead of via Lambda") is NOT the
     same thing as "isolated sandbox with no shared state": LOCAL_MODE runs still
@@ -220,35 +221,43 @@ def get_lock_manager(
     - Fall back to RDS when AWS credentials missing (works in local dev mode)
     - If BOTH unavailable, fail fast with clear error
     - This maintains safety while enabling local development without AWS credentials
+
+    FIXED (Session 351): Skip DynamoDB entirely when LOCAL_MODE=true to avoid
+    wasteful AWS credential validation errors during local development.
     """
 
     from utils.db.dynamo_lock import DynamoDBLockManager
     from utils.db.rds_lock import RDSLockManager
 
-    # Try DynamoDB first (preferred for production AWS Lambda)
-    try:
-        logger.info("[LOCK_FACTORY] Trying DynamoDB locks (preferred for production)")
-        lock_mgr: DynamoDBLockManager | RDSLockManager = DynamoDBLockManager(
-            table_name=table_name,
-            lock_duration_seconds=lock_duration_seconds,
-            enable_auto_cleanup=enable_auto_cleanup,
-        )
-        # Test DynamoDB availability by attempting a dummy acquire (with short timeout)
-        # This will catch credential issues that don't surface during __init__
-        test_acquired = lock_mgr.acquire(lock_key="__lock_test__", timeout_seconds=1)
-        if test_acquired:
-            lock_mgr.release(lock_key="__lock_test__")
-            logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available")
-            return lock_mgr
-        elif lock_mgr.is_available:
-            # Timeout acquiring lock (contention) but DynamoDB is reachable
-            logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available (contention on test lock)")
-            return lock_mgr
-    except Exception as e:
-        logger.debug(f"[LOCK_FACTORY] DynamoDB initialization/test failed: {e}")
+    # Check if running in LOCAL_MODE (development with direct database access)
+    local_mode = os.environ.get("LOCAL_MODE", "").lower() == "true"
 
-    # DynamoDB unavailable, try RDS fallback (works without AWS credentials)
-    logger.info("[LOCK_FACTORY] DynamoDB unavailable, falling back to RDS locks")
+    # Skip DynamoDB when running locally (LOCAL_MODE=true)
+    if not local_mode:
+        # Try DynamoDB first (preferred for production AWS Lambda)
+        try:
+            logger.info("[LOCK_FACTORY] Trying DynamoDB locks (preferred for production)")
+            lock_mgr: DynamoDBLockManager | RDSLockManager = DynamoDBLockManager(
+                table_name=table_name,
+                lock_duration_seconds=lock_duration_seconds,
+                enable_auto_cleanup=enable_auto_cleanup,
+            )
+            # Test DynamoDB availability by attempting a dummy acquire (with short timeout)
+            # This will catch credential issues that don't surface during __init__
+            test_acquired = lock_mgr.acquire(lock_key="__lock_test__", timeout_seconds=1)
+            if test_acquired:
+                lock_mgr.release(lock_key="__lock_test__")
+                logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available")
+                return lock_mgr
+            elif lock_mgr.is_available:
+                # Timeout acquiring lock (contention) but DynamoDB is reachable
+                logger.info("[LOCK_FACTORY] ✅ DynamoDB lock manager available (contention on test lock)")
+                return lock_mgr
+        except Exception as e:
+            logger.debug(f"[LOCK_FACTORY] DynamoDB initialization/test failed: {e}")
+
+    # DynamoDB unavailable (or LOCAL_MODE=true), try RDS fallback (works without AWS credentials)
+    logger.info("[LOCK_FACTORY] Skipping DynamoDB (LOCAL_MODE=%s), falling back to RDS locks" % local_mode)
     try:
         lock_mgr = RDSLockManager(
             table_name=table_name,
