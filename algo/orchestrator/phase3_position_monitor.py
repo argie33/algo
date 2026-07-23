@@ -140,14 +140,13 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                                     )
 
                         if current_price is None:
-                            logger.critical(
-                                f"[PHASE 3] {symbol}: Cannot find any price data for position. "
-                                f"No prices available in price_daily for this symbol."
+                            logger.warning(
+                                f"[PHASE 3] {symbol}: Skipping position update - no price data available. "
+                                f"This is expected during ramp-up or before morning price loader completes."
                             )
-                            raise RuntimeError(
-                                f"[PHASE 3] {symbol}: Cannot update position without price. "
-                                f"price_daily does not contain any price data for {symbol}."
-                            )
+                            # Skip this position; don't fail the entire phase
+                            # It will be updated in a later run when price data arrives
+                            continue
 
                         if quantity is None:
                             logger.warning(
@@ -203,14 +202,23 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         logger.error(f"[PHASE 3 CRITICAL] Failed to update {symbol}: {type(e).__name__}: {e}")
                         update_errors.append((symbol, str(e)[:100]))
 
-                # GOVERNANCE: Fail-fast if ANY position update failed
-                if update_errors:
-                    errors_str = "; ".join(f"{sym}({err})" for sym, err in update_errors[:3])
-                    if len(update_errors) > 3:
-                        errors_str += f"... and {len(update_errors) - 3} more"
-                    error_msg = f"[PHASE 3 CRITICAL] {len(update_errors)} position price updates failed: {errors_str}"
+                # GOVERNANCE: Fail-fast only if CRITICAL errors (not just missing price data)
+                # Missing price data is expected during ramp-up and is handled gracefully by skipping
+                critical_errors = [e for e in update_errors if "Cannot update position without price" not in e[1]]
+                if critical_errors:
+                    errors_str = "; ".join(f"{sym}({err})" for sym, err in critical_errors[:3])
+                    if len(critical_errors) > 3:
+                        errors_str += f"... and {len(critical_errors) - 3} more"
+                    error_msg = f"[PHASE 3 CRITICAL] {len(critical_errors)} position updates failed: {errors_str}"
                     logger.critical(error_msg)
                     raise RuntimeError(error_msg)
+                elif update_errors:
+                    # Non-critical errors (e.g. missing price data during ramp-up)
+                    skipped_count = len(update_errors)
+                    logger.warning(
+                        f"[PHASE 3] Skipped {skipped_count} positions due to missing data (expected during ramp-up). "
+                        f"Successfully updated {updated} positions."
+                    )
 
                 return updated
 
