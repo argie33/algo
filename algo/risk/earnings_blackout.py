@@ -60,26 +60,37 @@ class EarningsBlackout:
                        AND earnings_date >= %s
                        AND earnings_date <= %s
                        AND (data_unavailable IS FALSE OR data_unavailable IS NULL)
-                       ORDER BY earnings_date LIMIT 1""",
-                    (symbol, lookback_date, lookahead_date),
+                       ORDER BY CASE
+                                  WHEN earnings_date >= %s THEN 0
+                                  ELSE 1
+                                END,
+                                ABS(earnings_date - %s::date) ASC
+                       LIMIT 1""",
+                    (symbol, lookback_date, lookahead_date, eval_date, eval_date),
                 )
                 row = cur.fetchone()
 
             if row:
                 earnings_date = row[0]
                 # Count trading days between eval_date and earnings_date
+                # Don't count the earnings date itself - only days between
                 trading_days_away = 0
                 current = eval_date
                 direction = 1 if earnings_date >= eval_date else -1
                 while current != earnings_date:
                     current += timedelta(days=direction)
+                    # Stop before reaching earnings_date to avoid counting it
+                    if current == earnings_date:
+                        break
                     if MarketCalendar.is_trading_day(current):
                         trading_days_away += 1
 
                 # Check if within blackout window (in trading days, not calendar days).
                 # direction > 0 means earnings is still upcoming (pre-earnings window, days_before);
                 # direction < 0 means earnings already happened (post-earnings window, days_after).
-                if trading_days_away <= (self.days_before if direction > 0 else self.days_after):
+                # When on earnings day itself (trading_days_away == 0), always block.
+                is_earnings_day = (eval_date == earnings_date)
+                if is_earnings_day or trading_days_away <= (self.days_before if direction > 0 else self.days_after):
                     return {
                         "pass": False,
                         "reason": f"Earnings on {earnings_date} ({trading_days_away} trading days away)",
