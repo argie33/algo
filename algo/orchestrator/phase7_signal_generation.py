@@ -811,6 +811,28 @@ def run(  # noqa: C901
             7, "signal_generation", "halted", {"qualified_trades": [], "liquidity_passed": 0}, True, dep_error
         )
 
+    # SESSION 367 FIX: Compute signal quality scores BEFORE Phase 8 entry
+    # CRITICAL: Signal quality scores must be available for Phase 8 to apply quality gates
+    # This prevents trades from entering without SQS >= 75 validation (root cause of 38.5% win rate)
+    try:
+        from loaders.load_signal_quality_scores import SignalQualityScoresLoader
+
+        logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
+        loader = SignalQualityScoresLoader()
+        # Run for today only (lookahead: 1 day to capture end-of-day signals)
+        score_result = loader.run(
+            symbols=[],  # All symbols
+            parallelism=8,
+            backfill_days=1  # Today + yesterday for signals
+        )
+        if not score_result.get("success", False):
+            logger.warning(f"[PHASE 7] Signal quality score computation returned non-success: {score_result}")
+        else:
+            logger.info(f"[PHASE 7] Signal quality scores computed: {score_result.get('processed', 0)} symbols")
+    except Exception as e:
+        logger.warning(f"[PHASE 7] Signal quality score computation failed (non-critical): {e}")
+        # Don't halt - Phase 8 will proceed with NULL scores but will apply fallback
+
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
         logger.critical(

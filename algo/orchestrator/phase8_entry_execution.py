@@ -1264,16 +1264,43 @@ def run(
                     f"[PHASE 8] Signal for {symbol} missing required 'rs_percentile' field - "
                     f"cannot execute trade without relative strength validation."
                 )
+
+            # SESSION 367 FIX: Fetch signal quality scores (SQS & trend score) from signal_quality_scores table
+            # These are computed by Phase 7's signal quality scorer and used for position validation
+            sqs = signal.get("signal_quality_score")
+            trend_score = signal.get("trend_template_score")
+
+            # If not in signal dict, fetch from database (fallback for earlier Signal 7 runs)
+            if sqs is None or trend_score is None:
+                try:
+                    with DatabaseContext("read") as cur_sqs:
+                        cur_sqs.execute(
+                            """
+                            SELECT composite_sqs, trend_template_score
+                            FROM signal_quality_scores
+                            WHERE symbol = %s AND date = %s
+                            LIMIT 1
+                            """,
+                            (symbol, run_date),
+                        )
+                        sqs_row = cur_sqs.fetchone()
+                        if sqs_row:
+                            sqs = sqs_row[0] if sqs is None else sqs
+                            trend_score = sqs_row[1] if trend_score is None else trend_score
+                except Exception as e:
+                    logger.warning(f"[PHASE 8] {symbol}: Could not fetch signal quality scores: {e}. Proceeding with available data.")
+
             logger.info(
                 f"[PHASE 8] {symbol}: BUY entry=${entry_price:.2f} stop=${stop_loss:.2f} "
                 f"risk={risk_pct:.1f}% shares={shares} value=${position_value:,.0f} "
-                f"composite={composite_score} rs_pct={rs_pct}"
+                f"composite={composite_score} rs_pct={rs_pct} sqs={sqs} trend={trend_score}"
             )
 
             if not dry_run:
                 try:
                     # REQUIRED: symbol, entry_price, shares, stop_loss_price, signal_date, entry_date
                     # OPTIONAL: sector, industry (enrichment data, may be None if data unavailable)
+                    # SESSION 367 FIX: Pass signal quality scores for trade entry validation
                     result = trade_executor.execute_trade(
                         symbol=symbol,
                         entry_price=entry_price,
@@ -1285,6 +1312,8 @@ def run(
                         sector=signal.get("sector"),
                         industry=signal.get("industry"),
                         rs_percentile=signal.get("rs_percentile"),
+                        sqs=sqs,
+                        trend_score=trend_score,
                     )
 
                     if "success" not in result or result["success"] is None:

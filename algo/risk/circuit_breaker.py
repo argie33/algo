@@ -523,9 +523,9 @@ class CircuitBreaker:
                     WHERE status = %s AND exit_date IS NOT NULL
                       AND exit_r_multiple IS NOT NULL
                       AND trade_id NOT LIKE 'EXT-%%'
-                      AND exit_reason NOT LIKE '%reconciliation%'
-                      AND exit_reason NOT LIKE '%force%close%'
-                      AND exit_reason NOT LIKE '%delisted%'
+                      AND exit_reason NOT LIKE %s
+                      AND exit_reason NOT LIKE %s
+                      AND exit_reason NOT LIKE %s
                     ORDER BY exit_date DESC, exit_time DESC NULLS LAST
                     LIMIT 30
                 ) recent_closed
@@ -537,7 +537,7 @@ class CircuitBreaker:
                   AND quantity > 0
             ) all_trades
             """,
-            (TradeStatus.CLOSED.value,),
+            (TradeStatus.CLOSED.value, '%reconciliation%', '%force%close%', '%delisted%'),
         )
         row = cur.fetchone()
         if row is None:
@@ -564,10 +564,10 @@ class CircuitBreaker:
             SELECT COUNT(*) FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
               AND exit_r_multiple IS NOT NULL
-              AND exit_reason NOT LIKE '%reconciliation%'
-              AND exit_reason NOT LIKE '%force%close%'
-              AND exit_reason NOT LIKE '%delisted%'
-        """, (TradeStatus.CLOSED.value,))
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
+              AND exit_reason NOT LIKE %s
+        """, (TradeStatus.CLOSED.value, '%reconciliation%', '%force%close%', '%delisted%'))
         closed_row = cur.fetchone()
         closed_count = closed_row[0] if closed_row and closed_row[0] is not None else 0
 
