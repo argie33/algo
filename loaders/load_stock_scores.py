@@ -1542,9 +1542,9 @@ class StockScoresLoader(OptimalLoader):
             if roc_val is not None:
                 roc_scores.append(self._pct_to_score(roc_val))
         if roc_scores:
-            roc_scores = [s for s in roc_scores if s is not None]
-            if roc_scores:
-                weighted_sum += (sum(roc_scores) / len(roc_scores)) * 0.12
+            roc_scores_filtered: list[float] = [s for s in roc_scores if s is not None]
+            if roc_scores_filtered:
+                weighted_sum += (sum(roc_scores_filtered) / len(roc_scores_filtered)) * 0.12
                 total_weight += 0.12
 
         # Price vs Moving Averages: premium over SMAs indicates uptrend
