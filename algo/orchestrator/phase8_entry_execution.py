@@ -1291,8 +1291,18 @@ def run(
                     logger.warning(f"[PHASE 8] {symbol}: Could not fetch signal quality scores: {e}. Proceeding with available data.")
 
             # CRITICAL GATE: Enforce min_signal_quality_score threshold for entry validation
+            # CRITICAL FIX (Session 372): Reject NULL signal quality scores
+            # - NULL means signal quality was never computed (upstream data incomplete)
+            # - Accepting NULL bypasses the entire quality gate, causing losses
+            # - Require explicit quality score for all entries (fail-closed principle)
             min_sqs = self.config.get("min_signal_quality_score", 75)
-            if sqs is not None and sqs < min_sqs:
+            if sqs is None:
+                rejection_reason = f"Signal quality score unavailable (NULL) - cannot trade without quality validation"
+                logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
+                _log_signal_rejection(symbol, "quality_gate_null", rejection_reason, run_date, entry_price, risk_pct)
+                skipped_count += 1
+                continue
+            if sqs < min_sqs:
                 rejection_reason = f"Signal quality score {int(sqs)} below minimum {min_sqs}"
                 logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
                 _log_signal_rejection(symbol, "quality_gate", rejection_reason, run_date, entry_price, risk_pct)
