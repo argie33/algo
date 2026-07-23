@@ -839,14 +839,15 @@ def _get_performance_analytics(cur: cursor) -> Any:
             LIMIT 1
         """)
         row = cur.fetchone()
-        cur.execute("RELEASE SAVEPOINT perf_analytics")
         if row is None:
             logger.error(
                 "Performance analytics unavailable: algo_performance_daily table empty. "
                 "Phase 9 (LivePerformance.generate_daily_report) should populate it every orchestrator run."
             )
             raise RuntimeError("Performance metrics data unavailable - table is empty")
+        # CRITICAL: Convert row to dict BEFORE releasing savepoint (RELEASE clears cursor.description)
         data = safe_dict_convert(row)
+        cur.execute("RELEASE SAVEPOINT perf_analytics")
         sharpe: Any = data.get("sharpe_ratio")
         sortino: Any = data.get("sortino_ratio")
         calmar: Any = data.get("calmar_ratio")

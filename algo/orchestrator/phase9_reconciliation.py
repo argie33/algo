@@ -270,7 +270,7 @@ def _populate_signal_trade_performance(log_phase_result_fn: Callable[..., Any]) 
 def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[..., Any]) -> dict[str, Any]:
     from algo.signals.attribution import SignalAttributionEngine
 
-    attr_result = {}
+    attr_result: dict[str, Any] = {}
     available_components = 0
 
     # SignalAttributionEngine is fully deprecated (see algo/signals/attribution.py's own

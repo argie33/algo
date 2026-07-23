@@ -295,7 +295,13 @@ def run(  # noqa: C901
                 )
                 logger.critical(error_msg)
                 log_phase_result_fn(1, "data_freshness", "error", error_msg)
-                return False
+                return PhaseResult(
+                    phase_num=1,
+                    phase_name="data_freshness",
+                    status="error",
+                    halted=True,
+                    error=error_msg,
+                )
             symbol_count = result[0]
             if not symbol_count or symbol_count == 0:
                 error_msg = (
@@ -1066,7 +1072,7 @@ def run(  # noqa: C901
                     f"Fix: Ensure all metric loaders complete with >70% symbol coverage before trading."
                 )
                 log_phase_result_fn(1, "degraded_data_halt", "halt", degraded_reason)
-                phase_data = {
+                phase_data: dict[str, Any] = {
                     "status": "halted",
                     "reason": degraded_reason,
                 }
@@ -1082,7 +1088,7 @@ def run(  # noqa: C901
 
             # Return with ok status when all data is complete
             tables_validated = 1 + len(date_checked_tables)
-            phase_data = {
+            phase_data: dict[str, Any] = {  # type: ignore[no-redef]
                 "status": "ok",
                 "price_date": str(max_date),
                 "symbols_loaded": symbols_loaded,

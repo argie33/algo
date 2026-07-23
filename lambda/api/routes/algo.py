@@ -19,6 +19,7 @@ from routes.utils import (
     safe_days,
     safe_limit,
     safe_offset,
+    set_current_cursor,
 )
 
 from utils.rate_limiting import (
@@ -117,6 +118,8 @@ def handle(
     try:
         # Wrap cursor in DatabaseQueryService to decouple handlers from direct psycopg2 access
         db = DatabaseQueryService(cur)
+        # Set thread-local cursor for safe_dict_convert to use when converting tuple rows
+        set_current_cursor(db)
         return _dispatch(db, path, method, params, body, jwt_claims, idempotency_key)
     except Exception as e:
         # Re-raise APIException so api_router can format it properly

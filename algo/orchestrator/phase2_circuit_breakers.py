@@ -53,7 +53,7 @@ def run(
 
         # CRITICAL FIX Session 345: Validate dict structure before chaining .get() calls
         # If checks["drawdown"] is None (not a dict), .get("value") crashes on None
-        def safe_get_check_value(checks_dict: dict, check_name: str) -> float | None:
+        def safe_get_check_value(checks_dict: dict[str, Any], check_name: str) -> float | None:
             check_result = checks_dict.get(check_name)
             if check_result is None or not isinstance(check_result, dict):
                 return None
