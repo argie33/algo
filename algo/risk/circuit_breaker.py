@@ -523,6 +523,9 @@ class CircuitBreaker:
                     WHERE status = %s AND exit_date IS NOT NULL
                       AND exit_r_multiple IS NOT NULL
                       AND trade_id NOT LIKE 'EXT-%%'
+                      AND exit_reason NOT LIKE '%reconciliation%'
+                      AND exit_reason NOT LIKE '%force%close%'
+                      AND exit_reason NOT LIKE '%delisted%'
                     ORDER BY exit_date DESC, exit_time DESC NULLS LAST
                     LIMIT 30
                 ) recent_closed
@@ -555,11 +558,15 @@ class CircuitBreaker:
         # CRITICAL FIX: Check if this is a NEW account (no closed trades yet).
         # Applying win_rate_floor to open positions before ANY closed trades were
         # executed halts trading indefinitely if those positions are underwater.
-        # Grace period: don't apply win_rate_floor until at least 10 CLOSED trades exist.
+        # Grace period: don't apply win_rate_floor until at least 10 STRATEGIC CLOSED trades exist.
+        # Exclude reconciliation and force-close exits as these are not strategic outcomes.
         cur.execute("""
             SELECT COUNT(*) FROM algo_trades
             WHERE status = %s AND exit_date IS NOT NULL
               AND exit_r_multiple IS NOT NULL
+              AND exit_reason NOT LIKE '%reconciliation%'
+              AND exit_reason NOT LIKE '%force%close%'
+              AND exit_reason NOT LIKE '%delisted%'
         """, (TradeStatus.CLOSED.value,))
         closed_row = cur.fetchone()
         closed_count = closed_row[0] if closed_row and closed_row[0] is not None else 0
