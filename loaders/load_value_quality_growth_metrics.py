@@ -241,7 +241,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                            abs.current_assets, abs.current_liabilities, abs.fiscal_year,
                            abs.inventory, ais.interest_expense, sv.shares_outstanding,
                            ais.cost_of_revenue, acf.operating_cash_flow, acf.free_cash_flow,
-                           acf.payments_of_dividends, ais.earnings_per_share,
+                           acf.dividends_paid, ais.earnings_per_share,
                            (SELECT earnings_per_share FROM annual_income_statement
                             WHERE symbol = %s AND fiscal_year = abs.fiscal_year - 1) as prior_year_eps,
                            (SELECT revenue FROM annual_income_statement
