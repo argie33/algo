@@ -1,0 +1,1061 @@
+INFO:scripts.load_credentials:[CREDS] Alpaca credentials already in environment
+INFO:algo.infrastructure.config.main:[AlgoConfig] __init__ starting
+INFO:algo.infrastructure.config.main:[AlgoConfig] defaults loaded in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] _load_from_database() starting
+INFO:utils.db.connection:[DB_POOL] Connection pool initialized (minconn=2, maxconn=10) with idle connection cleanup (max_idle=300s, check every 60s)
+INFO:algo.infrastructure.config.main:[AlgoConfig] database connection took 0.14s
+INFO:algo.infrastructure.config.main:[AlgoConfig] loaded 244 config rows from DB
+INFO:algo.infrastructure.config.main:[AlgoConfig] _load_from_database() completed in 0.15s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.infrastructure.config.main:[AlgoConfig] database loaded in 0.15s, total 0.15s
+INFO:algo.infrastructure.config.main:[AlgoConfig] Config load summary: 244 from database, 10 defaults, total 254
+INFO:algo.infrastructure.config.main:[AlgoConfig] critical threshold validation completed in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] Interdependency validation passed
+INFO:algo.infrastructure.config.main:[AlgoConfig] interdependency validation completed in 0.00s
+INFO:algo.infrastructure.config.main:[AlgoConfig] SOURCES: 244 from database, 10 using defaults, 0 fallback-to-default (invalid DB values), 0 fail-closed-defaults (critical safety gates)
+INFO:algo.infrastructure.config.main:[AlgoConfig] CRITICAL SAFETY THRESHOLDS (startup verification):
+INFO:algo.infrastructure.config.main:  base_risk_pct                            =            0.75 [0.01, 5.0] (source: database        safe_default: 0.5)
+INFO:algo.infrastructure.config.main:  earnings_blackout_days_after             =               3 [1, 30] (source: database        safe_default: 3)
+INFO:algo.infrastructure.config.main:  earnings_blackout_days_before            =               7 [1, 30] (source: database        safe_default: 7)
+INFO:algo.infrastructure.config.main:  halt_drawdown_pct                        =           -10.0 [-100.0, -5.0] (source: database        safe_default: -20.0)
+INFO:algo.infrastructure.config.main:  max_daily_loss_pct                       =             2.0 [0.1, 50.0] (source: database        safe_default: 2.0)
+INFO:algo.infrastructure.config.main:  max_position_size_pct                    =             6.0 [0.1, 15.0] (source: database        safe_default: 5.0)
+INFO:algo.infrastructure.config.main:  min_avg_daily_dollar_volume              =        500000.0 [1.0, 100000000.0] (source: database        safe_default: 500000.0)
+INFO:algo.infrastructure.config.main:  min_completeness_score                   =              66 [1, 100] (source: database        safe_default: 70)
+INFO:algo.infrastructure.config.main:  min_signal_quality_score                 =              75 [1, 100] (source: database        safe_default: 60)
+INFO:algo.infrastructure.config.main:  min_volume_ma_50d                        =          300000 [1, 10000000] (source: database        safe_default: 300000)
+INFO:algo.infrastructure.config.main:  sector_drawdown_halt_pct                 =           -12.0 [-100.0, -1.0] (source: database        safe_default: -12.0)
+INFO:algo.infrastructure.config.main:  vix_max_threshold                        =            35.0 [20.0, 100.0] (source: database        safe_default: 35.0)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.infrastructure.config.main:[CONFIG SET] execution_mode = paper (was paper), actor=system
+WARNING:algo.config.environment_validation:[ORCHESTRATOR] Optional environment variables not set: ['LOG_LEVEL', 'BACKFILL_DAYS', 'MAX_RUNTIME_SECONDS', 'DATA_FRESHNESS_THRESHOLD_MINUTES']. Using defaults.
+INFO:algo.orchestration.orchestrator:[STARTUP] ORCHESTRATOR_EXECUTION_MODE env var set: paper
+INFO:utils.db.local_file_lock:[LOCK_FACTORY] Skipping DynamoDB (LOCAL_MODE=True), falling back to RDS locks
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.rds_lock:[RDS_LOCK] RDS lock manager initialized
+WARNING:utils.db.local_file_lock:[LOCK_FACTORY] \u26a0\ufe0f  Using RDS fallback for distributed locking (no AWS credentials)
+WARNING:algo.reporting.alerts:[ALERT CONFIG] No alert channels configured. Running in no-op mode. Configure ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS) for production alerts.
+INFO:algo.orchestration.orchestrator:[STARTUP] Orchestrator ready. Alpaca credentials will be validated in Phase 4.
+INFO:algo.orchestration.orchestrator:
+######################################################################
+INFO:algo.orchestration.orchestrator:#   ALGO ORCHESTRATOR - 2026-07-23  (LIVE)
+INFO:algo.orchestration.orchestrator:#   run_id: LOCAL-MORNING-20260723-142536-298942
+INFO:algo.orchestration.orchestrator:#   START TIME: 2026-07-23T18:25:36.917806+00:00
+INFO:algo.orchestration.orchestrator:######################################################################
+INFO:utils.db.rds_lock:[RDS_LOCK] Acquired lock orchestrator-run-lock on attempt 1
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PRE-FLIGHT CHECKS (before Phase 1)
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:algo.orchestration.orchestrator:[CRITICAL] Checking market calendar...
+INFO:algo.orchestration.orchestrator:[OK] Thursday is a trading day - proceeding with orchestration
+INFO:algo.orchestration.orchestrator:[CRITICAL] Running critical data checks...
+INFO:algo.orchestration.orchestrator:[TABLE-CHECK] All 6 required tables exist [OK]
+INFO:algo.orchestration.orchestrator:[OK] All pre-flight checks passed
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:
+[CHECK] Database connectivity...
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[OK] Database connectivity check passed
+INFO:algo.orchestration.orchestrator:
+[CHECK] Monitoring RDS connection pool...
+INFO:algo.orchestration.orchestrator:
+[CHECK] Validating startup configuration...
+INFO:algo.orchestration.orchestrator:[STARTUP VALIDATION] Checking required configuration...
+INFO:algo.orchestration.orchestrator:[OK] execution_mode validated: paper
+INFO:algo.orchestration.orchestrator:[OK] Paper trading mode - Alpaca credentials not required
+INFO:algo.orchestration.orchestrator:[OK] All critical config keys present
+INFO:algo.orchestration.orchestrator:[OK] Database schema validation passed: algo_positions table exists
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:
+[CHECK] Killing long-running analytics loaders...
+INFO:botocore.credentials:Found credentials in shared credentials file: ~/.aws/credentials
+WARNING:algo.orchestration.orchestrator:[OOM_PREVENTION] Could not check/kill long-running loaders: An error occurred (UnrecognizedClientException) when calling the ListTasks operation: The security token included in the request is invalid.
+INFO:algo.orchestration.orchestrator:
+[HEALTH CHECK] System diagnostics before Phase 1:
+INFO:algo.orchestration.database_health_monitor:  Table Freshness Status:
+INFO:algo.orchestration.database_health_monitor:    [0d old] Prices              : 2026-07-23
+INFO:algo.orchestration.database_health_monitor:    [0d old] Market health       : 2026-07-23
+INFO:algo.orchestration.database_health_monitor:    [0d old] Market exposure     : 2026-07-23
+INFO:algo.orchestration.database_health_monitor:    [0d old] Buy/sell signals (Phase 5): 2026-07-23
+INFO:algo.orchestration.database_health_monitor:    [0d old] Trend template      : 2026-07-23
+INFO:algo.orchestration.database_health_monitor:    [0d old] Sector ranking      : 2026-07-23
+INFO:algo.orchestration.database_health_monitor:  Loader Status:
+INFO:algo.orchestration.database_health_monitor:    buy_sell_daily           : HEALTHY    (updated 2026-07-23 00:00:00)
+INFO:algo.orchestration.database_health_monitor:    market_exposure_daily    : HEALTHY    (updated 2026-07-23 00:00:00)
+INFO:algo.orchestration.database_health_monitor:    market_health_daily      : HEALTHY    (updated 2026-07-23 00:00:00)
+INFO:algo.orchestration.database_health_monitor:    price_daily              : HEALTHY    (updated 2026-07-23 00:00:00)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:
+[LOADER CHECK] Verifying critical loaders have run recently...
+INFO:algo.orchestration.orchestrator:[LOADER TIMESTAMP FIX] Updated last_updated for fresh loaders
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] price_daily is INCOMPLETE (94.3%, 5151/5463 symbols)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] market_health_daily OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] technical_data_daily OK (100.0%)
+INFO:algo.orchestration.orchestrator:[LOADER HEALTH] market_exposure_daily OK (100.0%)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] etf_price_daily is STALE (last run 14.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] earnings_calendar is STALE (last run 14.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] value_metrics is STALE (last run 14.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] growth_metrics is STALE (last run 14.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] stability_metrics is STALE (last run 14.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] quality_metrics is STALE (last run 38.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] positioning_metrics is STALE (last run 38.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] etf_price_weekly is STALE (last run 86.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] price_weekly is STALE (last run 86.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] etf_price_monthly is STALE (last run 542.4h ago)
+WARNING:algo.orchestration.orchestrator:[LOADER HEALTH] price_monthly is STALE (last run 542.4h ago)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:
+[PIPELINE MONITORING] Computing health for all 94 data tables...
+WARNING:algo.monitoring.pipeline_health:Could not infer date column for algo_untracked_positions, skipping age check
+WARNING:algo.monitoring.pipeline_health:Could not infer date column for equity_curve_daily, skipping age check
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:[PIPELINE MONITORING] Health check complete: 76/79 tables healthy
+INFO:algo.orchestration.orchestrator:
+[PROACTIVE WAIT] Waiting for critical loaders to complete before Phase 1...
+INFO:algo.orchestration.orchestrator:
+[PROACTIVE WAIT] Checking for running critical loaders (max wait: 300s)...
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 0s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 5s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 10s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 15s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 20s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 25s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 30s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 35s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 40s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 45s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 50s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 55s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.monitoring.connection_monitor:[RDS_POOL] Status: 1/100 connections (1%)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 60s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 65s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 70s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 75s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 80s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 85s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 90s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 95s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 100s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 105s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 110s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 115s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.monitoring.connection_monitor:[RDS_POOL] Status: 1/100 connections (1%)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 120s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 125s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 130s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 135s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 140s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 145s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 150s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 155s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 160s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 165s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 170s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 175s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.monitoring.connection_monitor:[RDS_POOL] Status: 1/100 connections (1%)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 180s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 185s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 190s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 195s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 200s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 205s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 210s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 215s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 220s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 225s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 230s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 235s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.monitoring.connection_monitor:[RDS_POOL] Status: 1/100 connections (1%)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 240s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 245s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 250s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 255s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 260s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 265s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 270s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 275s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 280s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 285s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 290s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PROACTIVE WAIT] 1 loader(s) still running. Slowest: price_daily (94.3%, 5151/5463 symbols). Elapsed: 295s/300s
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+WARNING:algo.orchestration.orchestrator:[PROACTIVE WAIT] Timeout after 300s waiting for critical loaders. Proceeding to Phase 1 (may detect degraded mode). Check EventBridge rules and ECS cluster health if loaders are perpetually incomplete.
+WARNING:algo.orchestration.orchestrator:[WARNING] Critical loaders did not complete within timeout. Phase 1 will check data freshness.
+INFO:algo.orchestration.orchestrator:
+[DEADLOCK PREVENTION] Checking if halt flag needs proactive clear...
+INFO:algo.monitoring.connection_monitor:[RDS_POOL] Status: 1/100 connections (1%)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:monitoring.metrics_context:[START] orchestrator_executor
+INFO:algo.orchestrator.phase_executor:
+######################################################################
+INFO:algo.orchestrator.phase_executor:#   ORCHESTRATOR EXECUTOR START
+INFO:algo.orchestrator.phase_executor:#   Executing 9 phases
+INFO:algo.orchestrator.phase_executor:######################################################################
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 1: DATA FRESHNESS CHECK
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 1: DATA FRESHNESS CHECK
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Starting comprehensive freshness check (Pipeline: INTRADAY, Time: 14:30:38 ET)
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE] LOCAL_MODE enabled - triggering local loader refresh for stale data
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] INTRADAY - expecting previous trading day (2026-07-22)
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] price_daily fresh: 2026-07-23
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] technical_data_daily fresh: 2026-07-23
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] stock_scores fresh: 2026-07-23
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] market_health_daily fresh: 2026-07-23
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase1_failsafe_retry:[PHASE 1 FAILSAFE LOCAL] All data current (market-aware check) - no refresh needed
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Failsafe retry check: incomplete=0 retried=0 recovered=0 still_failing=0 halt_required=False
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Pre-flight: stock_symbols table OK (5,464 active symbols)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Symbol list verified: 5464 active symbols
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Positioning metrics (enrichment only) is 1 day(s) stale
+WARNING:algo.orchestrator.phase1_data_freshness:[PHASE 1] Non-critical staleness (auxiliary tables, trading continues): Positioning metrics (enrichment only) is 1 day(s) stale
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] PASS - PIPELINE DATA FRESH (1 auxiliary warnings)
+INFO:algo.orchestrator.phase1_data_freshness:  - Prices: 2026-07-23 (5407 symbols, 99.0%)
+INFO:algo.orchestrator.phase1_data_freshness:  - Critical pipeline tables (market_health, market_exposure) fresh; auxiliary warnings above
+INFO:algo.orchestrator.phase1_data_freshness:  - Check completed in 0.0s
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Validating upstream metric loaders ready for stock_scores...
+WARNING:utils.loader_infrastructure:[CONFIG] LOADER_PARALLELISM not set in environment. Using default.
+INFO:utils.optimal_loader:[CONFIG] Batch size set to 50000 (AWS=False)
+INFO:loaders.load_stock_scores:[STOCK_SCORES] Pre-flight validation passed: upstream metric loaders ready. Proceeding with stock score computation.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Metric loaders validation: PASS - All metric loaders ready
+INFO:algo.orchestrator.phase1_data_freshness:[PHASE 1] Stock scores completeness: 97.9% avg (4818/4905 available symbols >= 70%)
+INFO:algo.orchestration.orchestrator:
+-> Phase 1 success: All critical tables fresh: prices=2026-07-23, coverage=99.0%
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:[PHASE1_DYNAMODB] LOCAL_MODE=True, env=true
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.halt_flag_manager:[HALT_FLAG_CLEARED] Phase 1 verified data is fresh at 2026-07-23T18:30:38.981920+00:00 (via RDS fallback)
+INFO:algo.orchestrator.phase_executor:
+-> Phase 1 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 2: CIRCUIT BREAKERS
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 2: CIRCUIT BREAKERS
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Daily Loss Limit Exceeded               : Daily +0.01%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Portfolio Drawdown Limit                : Drawdown 5.08%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Drawdown Recovery Period                : Re-engagement approved: recovered to 5.1%, 8d elapsed, market Stage 2
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Consecutive Losses Limit                : 0 losses
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Total Open Risk Limit                   : Risk 2.48%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Market Volatility Spike                 : VIX 19.5
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Market Stage Break                      : Stage 2 (sideways)
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Weekly Loss Limit Exceeded              : Weekly -0.03%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Sector Concentration Warning            : All sectors within limits (max 8 per sector)
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Market Instability (Prior-Day Drop)     : SPY prior day -1.16%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Win Rate Floor Breached                 : New account bootstrap period - insufficient closed trades (0 < 10 required)
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Daily Profit Target Reached             : Daily profit +0.01% vs cap 2.0%
+INFO:algo.orchestrator.phase2_circuit_breakers:  [OK]   Data Staleness Check                    : 0d old
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'daily_loss'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'drawdown'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'drawdown_re_engagement'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'consecutive_losses'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'total_risk'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'vix_spike'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'market_stage'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'weekly_loss'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'sector_concentration'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'intraday_market_health'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'win_rate_floor'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'daily_profit_cap'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=CircuitBreakerFired value=0 unit=Count dims={'Breaker': 'data_freshness'}
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.orchestration.orchestrator:
+-> Phase 2 success: all clear
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 2 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 3: POSITION MONITOR
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 3: POSITION MONITOR
+INFO:algo.orchestration.orchestrator:======================================================================
+INFO:algo.orchestrator.phase3_position_monitor:[PHASE 3] Paper mode: updating position prices only
+INFO:algo.orchestrator.phase3_position_monitor:[PHASE 3] Found 10 open positions to update
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 3 success: 10 positions updated with current prices
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 3 ok: check logs for details
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 4: RECONCILIATION
+INFO:algo.orchestrator.phase_executor:======================================================================
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] execution_mode='paper' does not submit orders to Alpaca (only 'auto' does). Reconciliation will use database-only state regardless of Alpaca credential/API availability, so it never treats the unrelated real broker account as ground truth for locally-simulated positions.
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] Broker not available - using database portfolio state (paper trading mode). Orchestrator will continue with signal generation and exit execution.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION PAPER MODE] Found 10 open positions, baseline: $71988.47, realized P&L today: $0.00, unrealized P&L change: $+10.40 (now $-20.99), portfolio value: $71998.87
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: About to write snapshot for 2026-07-23 with 10 positions
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: DatabaseContext opened, role=write
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT params - date=2026-07-23, positions=10, portfolio_value=71998.87, cash=52505.56999999999
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT executed successfully
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] VERIFICATION: position_count=10 (expected=10) - MATCH=True
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Exiting DatabaseContext to trigger COMMIT
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] FINAL VERIFICATION SUCCESS: Snapshot persisted with position_count=10
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 4 success: 10 positions verified
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 4 ok: check logs for details
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 5: EXPOSURE POLICY ACTIONS
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 5: EXPOSURE POLICY ACTIONS
+INFO:algo.orchestration.orchestrator:======================================================================
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase5_exposure_policy:  Exposure: 58.9% (uptrend_under_pressure)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase5_exposure_policy:  Tier: uptrend_under_pressure - Uptrend intact but weakening - reduced position size
+INFO:algo.orchestrator.phase5_exposure_policy:    risk_mult=0.65, max_new/day=3, min_composite=60.0, halt_entries=False
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase5_exposure_policy:  No exposure-policy actions
+INFO:algo.orchestration.orchestrator:
+-> Phase 5 success: tier=uptrend_under_pressure, no actions
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 5 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 6: EXIT EXECUTION
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestrator.phase6_exit_execution:[PHASE 6] Paper trading mode active - skipping position monitor validation
+INFO:algo.orchestrator.phase6_exit_execution:[PHASE 6] Paper trading mode active (execution_mode=paper, alpaca_paper_trading=True). Exit orders will execute against paper account.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+WARNING:algo.reporting.alerts:[ALERT CONFIG] No alert channels configured. Running in no-op mode. Configure ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS) for production alerts.
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+WARNING:algo.reporting.alerts:[ALERT CONFIG] No alert channels configured. Running in no-op mode. Configure ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS) for production alerts.
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.trading.exit_engine:
+======================================================================
+INFO:algo.trading.exit_engine:EXIT ENGINE CHECK - 2026-07-23
+INFO:algo.trading.exit_engine:======================================================================
+
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for LTH (trade TRD-F85C9F8771): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for LTH - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for EAT (trade TRD-38D0D8A0AF): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for EAT - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for TRP (trade TRD-03CE780D53): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for TRP - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for V (trade TRD-2D55C27212): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for V - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for LPG (trade TRD-9B3BDAF706): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for LPG - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for LNG (trade TRD-4D67E3D825): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for LNG - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for FMS (trade TRD-A906AEB005): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for FMS - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for ORRF (trade TRD-6F1BA815FF): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for ORRF - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for LTC (trade TRD-9841BA17B9): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for LTC - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+ERROR:algo.trading.exit_engine:Exit check failed for GSL (trade TRD-9701D67C7F): RuntimeError: [EXIT_ENGINE] Alpaca quote API returned 404 for GSL - symbol unavailable (possibly delisted or not in paper trading). Cannot proceed with exit execution without valid symbol.
+INFO:algo.trading.exit_engine:
+======================================================================
+INFO:algo.trading.exit_engine:Exits executed: 0/10 positions
+INFO:algo.trading.exit_engine:======================================================================
+
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 6 success: 0 exits, 0 stop-raises, 0 errors
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 6 ok: check logs for details
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 7: SIGNAL GENERATION & RANKING
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Starting signal generation
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] buy_sell_daily freshness OK: latest from 2026-07-23 (21931 signals in table)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Market regime: uptrend_under_pressure exposure=59% entry_allowed=True
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] 100 candidates from buy_sell_daily + stock_scores (lookback: 2026-07-16 to 2026-07-23, SQL filters: trend & close_quality applied at query level)
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] DATA QUALITY ALERT: 2 symbols missing composite_score coverage (source=buysell_breakout, date=2026-07-23). Check stock_scores loader.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] Upstream data quality drift detected: 2 symbols missing composite_score coverage (source=buysell_breakout, date=2026-07-23). Check stock_scores loader.. This may suppress valid candidates.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Liquidity check: 20 checked, 18 passed. 80 unchecked candidates dropped.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+WARNING:algo.orchestrator.phase7_signal_generation:[PHASE 7] Filtering 9 inactive symbols: TGS, PDLB, TRNO, ING, HG, JCAP, CNA, NVDA, INCY
+INFO:algo.orchestrator.phase7_signal_generation:[PHASE 7] Top 10 qualified signals (source=buysell_breakout):
+INFO:algo.orchestrator.phase7_signal_generation:  1. EAT    composite=65.2 quality=52.9 momentum=82.4 rs_pct=92.1 stage=Stage 2 buylevel=192.20 signal_date=2026-07-21
+INFO:algo.orchestrator.phase7_signal_generation:  2. ORRF   composite=64.5 quality=39.5 momentum=76.3 rs_pct=84.2 stage=Stage 2 buylevel=42.42 signal_date=2026-07-16
+INFO:algo.orchestrator.phase7_signal_generation:  3. LPG    composite=63.5 quality=44.4 momentum=87.8 rs_pct=97.2 stage=Stage 2 buylevel=41.23 signal_date=2026-07-23
+INFO:algo.orchestrator.phase7_signal_generation:  4. GSL    composite=63.0 quality=49.0 momentum=82.6 rs_pct=92.3 stage=Stage 2 buylevel=40.47 signal_date=2026-07-23
+INFO:algo.orchestrator.phase7_signal_generation:  5. LTH    composite=62.9 quality=18.8 momentum=86.2 rs_pct=96.1 stage=Stage 2 buylevel=41.79 signal_date=2026-07-21
+INFO:algo.orchestrator.phase7_signal_generation:  6. TRP    composite=62.9 quality=29.6 momentum=84.8 rs_pct=94.7 stage=Stage 2 buylevel=70.57 signal_date=2026-07-17
+INFO:algo.orchestrator.phase7_signal_generation:  7. V      composite=62.9 quality=47.1 momentum=69.0 rs_pct=73.1 stage=Stage 2 buylevel=365.02 signal_date=2026-07-16
+INFO:algo.orchestrator.phase7_signal_generation:  8. FMS    composite=62.9 quality=41.4 momentum=65.4 rs_pct=68.1 stage=None buylevel=24.55 signal_date=2026-07-22
+INFO:algo.orchestrator.phase7_signal_generation:  9. LNG    composite=62.7 quality=41.0 momentum=84.3 rs_pct=94.3 stage=Stage 2 buylevel=267.35 signal_date=2026-07-23
+INFO:algo.orchestration.orchestrator:
+-> Phase 7 success: 9 signals qualified from 100 candidates
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 7 ok: check logs for details
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 8: ENTRY EXECUTION
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Starting entry execution
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8 CONTRACTS] [OK] Retrieved validated data from Phase 7 & 5
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase8_entry_execution:[PERSIST SIGNALS] Inserted 9 signals for 2026-07-23
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Persisted 9/9 signals to database
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Processing 9 qualified signals (cap: 3/day)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Paper trading mode active (execution_mode=paper, alpaca_paper_trading=True). Trades will execute against paper account.
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+WARNING:algo.reporting.alerts:[ALERT CONFIG] No alert channels configured. Running in no-op mode. Configure ALERT_EMAIL_TO + ALERT_SMTP_* (email) or ALERTS_SNS_TOPIC (SNS) for production alerts.
+INFO:algo.trading.executor_strategies:[EXECUTOR] mode=paper (sandbox) | key_set=True secret_set=True
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Position sizer: max_concentration_pct=16% (from tier)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Portfolio value: $71,999 (from database snapshot)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:config.credential_manager:[CREDENTIALS] Alpaca credentials loaded from environment variables
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Alpaca credentials loaded successfully
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Technical data: 9/9 symbols validated. Merged from Phase 7 precomputed + batch fetch.
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] EAT: pre-trade check - Position already open for EAT
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] ORRF: pre-trade check - Position already open for ORRF
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] LPG: pre-trade check - Position already open for LPG
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] GSL: pre-trade check - Position already open for GSL
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] LTH: pre-trade check - Position already open for LTH
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] TRP: pre-trade check - Position already open for TRP
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] V: pre-trade check - Position already open for V
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] FMS: pre-trade check - Position already open for FMS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestration.halt_flag_manager:[HALT_FLAG] DynamoDB unavailable, falling back to RDS
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] LNG: pre-trade check - Position already open for LNG
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase8_entry_execution:[PHASE 8] Done in 0.1s: 0 executed, 9 skipped, 0 failed
+WARNING:algo.orchestrator.phase8_entry_execution:[PHASE 8] High execution rejection rate: 100.0% (9/9 signals rejected)
+INFO:algo.orchestration.orchestrator:
+-> Phase 8 success: 0 trades executed
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 8 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+======================================================================
+INFO:algo.orchestrator.phase_executor:PHASE 9: RECONCILIATION & SNAPSHOT
+INFO:algo.orchestrator.phase_executor:======================================================================
+INFO:algo.orchestration.orchestrator:
+======================================================================
+INFO:algo.orchestration.orchestrator:PHASE 9: RECONCILIATION & SNAPSHOT
+INFO:algo.orchestration.orchestrator:======================================================================
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] execution_mode='paper' does not submit orders to Alpaca (only 'auto' does). Reconciliation will use database-only state regardless of Alpaca credential/API availability, so it never treats the unrelated real broker account as ground truth for locally-simulated positions.
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] execution_mode='paper' does not submit orders to Alpaca (only 'auto' does). Reconciliation will use database-only state regardless of Alpaca credential/API availability, so it never treats the unrelated real broker account as ground truth for locally-simulated positions.
+WARNING:algo.infrastructure.reconciliation:[RECONCILIATION] Broker not available - using database portfolio state (paper trading mode). Orchestrator will continue with signal generation and exit execution.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION PAPER MODE] Found 10 open positions, baseline: $71988.47, realized P&L today: $0.00, unrealized P&L change: $+10.40 (now $-20.99), portfolio value: $71998.87
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: About to write snapshot for 2026-07-23 with 10 positions
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: DatabaseContext opened, role=write
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT params - date=2026-07-23, positions=10, portfolio_value=71998.87, cash=52505.56999999999
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Paper mode: INSERT executed successfully
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] VERIFICATION: position_count=10 (expected=10) - MATCH=True
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] Exiting DatabaseContext to trigger COMMIT
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.infrastructure.reconciliation:[RECONCILIATION] FINAL VERIFICATION SUCCESS: Snapshot persisted with position_count=10
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: Portfolio $71,998.87, 10 positions, unrealized P&L $-20.99
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestrator.phase9_reconciliation:[PHASE 9 P&L] Paper mode: broker unavailable, skipping P&L validation
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warn: Paper mode - no broker account
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+CRITICAL:algo.orchestrator.phase9_reconciliation:[PHASE 9 AUDIT] Stale estimated prices detected: [STALE_PRICE_AUDIT] 15 trade(s) still on estimated exit price past the 2:00:00 threshold: TRNO(24.0h), JCAP(24.0h), BCAL(24.0h), XNET(24.0h), CNA(24.0h), PDLB(24.0h), INCY(24.0h), HG(24.0h), GAIN(24.0h), ING(24.0h)...
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warn: [STALE_PRICE_AUDIT] 15 trade(s) still on estimated exit price past the 2:00:00 threshold: TRNO(24.0h), JCAP(24.0h), BCAL(24.0h), XNET(24.0h), CNA(24.0h), PDLB(24.0h), INCY(24.0h), HG(24.0h), GAIN(24.0h), ING(24.0h)...
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Portfolio snapshot created by DailyReconciliation (reconciliation_succeeded=True)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: snapshot created by reconciliation
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: PDLB 153sh @ ~$19.84 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: INCY 14sh @ ~$116.69 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: JCAP 84sh @ ~$18.89 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: BCAL 110sh @ ~$20.79 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: XNET 342sh @ ~$5.58 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: CNA 24sh @ ~$52.19 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: TRNO 19sh @ ~$72.37 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: ING 60sh @ ~$32.48 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: CP 38sh @ ~$92.00 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: HG 59sh @ ~$34.92 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: GAIN 235sh @ ~$16.08 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: TD 25sh @ ~$119.12 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: NVDA 12sh @ ~$208.62 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: TGS 75sh @ ~$31.66 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded exit: ESEA 24sh @ ~$73.55 (estimated) on 2026-07-23 - P&L pending broker fill reconciliation
+INFO:algo.orchestrator.phase9_reconciliation:Recorded 15 exits in trade history
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 418 (TRNO) has NULL price/PnL data. Skipping: entry=74.8000, exit=72.3700, pnl=None, qty=19
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 421 (JCAP) has NULL price/PnL data. Skipping: entry=19.1750, exit=18.8908, pnl=None, qty=84
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 416 (BCAL) has NULL price/PnL data. Skipping: entry=20.9300, exit=20.7900, pnl=None, qty=110
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 417 (XNET) has NULL price/PnL data. Skipping: entry=5.7800, exit=5.5800, pnl=None, qty=342
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 414 (CNA) has NULL price/PnL data. Skipping: entry=52.6200, exit=52.1900, pnl=None, qty=24
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 422 (PDLB) has NULL price/PnL data. Skipping: entry=19.9000, exit=19.8400, pnl=None, qty=153
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 428 (INCY) has NULL price/PnL data. Skipping: entry=115.3100, exit=116.6874, pnl=None, qty=14
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 423 (HG) has NULL price/PnL data. Skipping: entry=34.3650, exit=34.9200, pnl=None, qty=59
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 426 (GAIN) has NULL price/PnL data. Skipping: entry=16.2050, exit=16.0850, pnl=None, qty=235
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 420 (ING) has NULL price/PnL data. Skipping: entry=33.3600, exit=32.4800, pnl=None, qty=60
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 415 (CP) has NULL price/PnL data. Skipping: entry=91.5000, exit=92.0000, pnl=None, qty=38
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 424 (TD) has NULL price/PnL data. Skipping: entry=120.9350, exit=119.1250, pnl=None, qty=25
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 427 (NVDA) has NULL price/PnL data. Skipping: entry=209.9997, exit=208.6250, pnl=None, qty=12
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 419 (TGS) has NULL price/PnL data. Skipping: entry=31.0200, exit=31.6650, pnl=None, qty=75
+ERROR:algo.signals.trade_performance:CRITICAL: Trade 425 (ESEA) has NULL price/PnL data. Skipping: entry=73.5895, exit=73.5500, pnl=None, qty=24
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.signals.trade_performance:Populated 0 closed trades to signal_trade_performance
+INFO:algo.orchestrator.phase9_reconciliation:Signal trade performance: Inserted 0 trades, computed IC for 0 components
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 0 trades processed
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:[ATTRIBUTION] Signal attribution is deprecated (swing scores removed). Skipping.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+WARNING:algo.signals.attribution:[ATTRIBUTION] Swing score components are deprecated. Signal attribution analysis is no longer available.
+INFO:algo.orchestration.weight_optimizer:Insufficient trades (0 < 20) for weight optimization on 2026-07-23 - skipping optimization, keeping current weights.
+INFO:algo.orchestration.weight_optimizer:Weight optimization skipped for 2026-07-23: insufficient trade history. Keeping current weights unchanged.
+INFO:algo.orchestrator.phase9_reconciliation:Weight optimization: no changes (insufficient trades or weights stable)
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 0 weight changes
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.reporting.daily_report:[DAILY_REPORT] No component attribution data available for 2026-07-23. This is expected if running before end-of-day loaders complete. SignalAttributionEngine is deprecated. Returning empty components dict.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+WARNING:algo.reporting.daily_report:VaR 95% unavailable for 2026-07-23 - not yet computed by pipeline
+INFO:algo.reporting.daily_report:Daily report generated for 2026-07-23
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.orchestrator.phase9_reconciliation:
+======================================================================
+DAILY FINANCE REPORT - 2026-07-23 | Regime: uptrend_under_pressure
+======================================================================
+Portfolio: $71,999 | Daily P&L: +0.01% | YTD: -4.56%
+Risk: VaR N/A | Beta N/A | Sharpe -1.0
+
+Strategy (last 50 trades):
+  Win rate: N/A | Profit factor: N/A | Expectancy: N/A
+
+Component IC (alpha contribution):
+  setup_quality        r=N/A        MISSING
+  trend_quality        r=N/A        MISSING
+  momentum_rs          r=N/A        MISSING
+  volume               r=N/A        MISSING
+  fundamentals         r=N/A        MISSING
+  sector_industry      r=N/A        MISSING
+  multi_timeframe      r=N/A        MISSING
+
+Today: 235 BUY signals -> 37 tier-passed -> 13 entries
+======================================================================
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: Portfolio $71,999, P&L +0.01%
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.reporting.performance:Generating daily performance report for 2026-07-23
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.reporting.performance:Insufficient decisive trades: no decisive (non-breakeven) trades in window (total=15, all breakeven or unclassifiable). Returning None.
+WARNING:algo.reporting.performance:  Win rate unavailable: no closed trades in lookback window. Expected during account ramp-up phase.
+WARNING:algo.reporting.performance:  Expectancy unavailable: no closed trades or lookback window doesn't contain both a win and loss. Expected during account ramp-up phase.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.reporting.performance:Insufficient decisive trades: no decisive (non-breakeven) trades in window (total=15, all breakeven or unclassifiable). Returning None.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.reporting.performance:Insufficient decisive trades: no decisive (non-breakeven) trades in window (total=15, all breakeven or unclassifiable). Returning None.
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.reporting.performance:[OK] Performance report persisted: sharpe=-0.969, sortino=-1.188, calmar=-0.713, wr=None%, max_dd=7.35%
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+WARNING:algo.orchestrator.phase9_reconciliation:Performance metrics unavailable: ['win_rate_50t', 'expectancy']. Portfolio history may be too short.
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 warn: incomplete: win_rate_50t, expectancy
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.risk.var:Generating daily risk report for 2026-07-23
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:algo.risk.var:[OK] Risk report persisted: var=0.682%, cvar=0.867%, svar=1.886%, beta=-0.02, conc=18.1%
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: VaR 0.682%, Conc 18.1%, beta=-0.02
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: ROLLBACK (role=read, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:Updated algo_metrics_daily: 354 actions, 13 entries, 15 exits
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 354 actions, 13 entries, 15 exits
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: no sync needed
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Refreshed algo_positions_with_risk materialized view
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: algo_positions_with_risk refreshed
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:loaders.compute_circuit_breakers:Computing circuit breaker metrics for 2026-07-23
+INFO:loaders.compute_circuit_breakers:[CB9] No closed trades yet - win rate not applicable, defaulting to 0
+INFO:loaders.compute_circuit_breakers:Circuit breaker metrics computed for 2026-07-23: 0 triggered, any_triggered=False
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase9_reconciliation:[PHASE 9] Circuit breaker metrics written: 0 triggered, any_triggered=False
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 success: 0 circuit breakers triggered
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestration.orchestrator:
+-> Phase 9 ok: Portfolio state: 71998.87 | Status: ok
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.orchestrator.phase_executor:
+-> Phase 9 ok: check logs for details
+INFO:algo.orchestrator.phase_executor:
+######################################################################
+INFO:algo.orchestrator.phase_executor:#   ORCHESTRATOR EXECUTOR COMPLETE
+INFO:algo.orchestrator.phase_executor:#   9/9 phases succeeded
+INFO:algo.orchestrator.phase_executor:######################################################################
+WARNING:monitoring.metrics_context:[SLOW] orchestrator_executor          |  5756.9ms
+WARNING:monitoring.metrics_context:[METRICS] AWS credentials unavailable; CloudWatch metrics skipped
+INFO:monitoring.metrics_context:================================================================================
+INFO:monitoring.metrics_context:PERFORMANCE METRICS SUMMARY
+INFO:monitoring.metrics_context:================================================================================
+INFO:monitoring.metrics_context:orchestrator_executor          | count=  1 | avg= 5756.9ms | min= 5756.9ms | max= 5756.9ms | slow= 1/1 (100.0%)
+INFO:monitoring.metrics_context:================================================================================
+INFO:algo.orchestration.orchestrator:
+[TOTAL] Orchestrator run completed in 308.27s
+INFO:algo.orchestration.orchestrator:[END TIME] 2026-07-23T18:30:45.184309+00:00
+INFO:algo.reporting.metrics:metrics.dry_run metric=LoaderDurationSeconds value=308.2665021419525 unit=Seconds dims={'Loader': 'orchestrator_run'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=eod_pipeline_seconds value=308.2665021419525 unit=Seconds dims=None
+INFO:algo.orchestration.orchestrator:
+######################################################################
+INFO:algo.orchestration.orchestrator:#   FINAL REPORT - LOCAL-MORNING-20260723-142536-298942
+INFO:algo.orchestration.orchestrator:######################################################################
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 1: all_tables_fresh       - All critical tables fresh: prices=2026-07-23, coverage=99.0%
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 2: circuit_breakers       - all clear
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 3: position_monitor       - 10 positions updated with current prices
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 4: reconciliation         - 10 positions verified
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 5: exposure_policy        - tier=uptrend_under_pressure, no actions
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 6: exit_execution         - 0 exits, 0 stop-raises, 0 errors
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 7: signal_generation      - 9 signals qualified from 100 candidates
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 8: entry_execution        - 0 trades executed
+INFO:algo.orchestration.orchestrator:  [OK]  Phase 9: reconciliation         - Portfolio state: 71998.87 | Status: ok
+INFO:algo.orchestration.orchestrator:######################################################################
+
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:utils.logging.execution_tracker:[EXECUTION_LOG] Saved run LOCAL-MORNING-20260723-142536-298942: success
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+INFO:algo.reporting.metrics:metrics.dry_run metric=OrchestratorSuccess value=1 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=OrchestratorFailure value=0 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '1'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '1'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '2'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '2'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '3'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '3'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '4'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '4'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '5'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '5'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '6'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '6'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '7'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '7'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '8'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '8'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseSuccess value=1 unit=Count dims={'Phase': '9'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=PhaseFailure value=0 unit=Count dims={'Phase': '9'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=SignalsGenerated value=9 unit=Count dims={'SignalType': 'BUY'}
+INFO:algo.reporting.metrics:metrics.dry_run metric=TradesExecuted value=0 unit=Count dims=None
+INFO:algo.reporting.metrics:metrics.dry_run metric=OpenPositions value=10 unit=Count dims=None
+INFO:utils.db.rds_lock:[RDS_LOCK] Released lock orchestrator-run-lock
+INFO:utils.db.context:[DB_CONTEXT] __exit__: COMMITTING write (managed=False, role=write, exc_type=None)
+INFO:utils.db.context:[DB_CONTEXT] __exit__: WRITE COMMIT COMPLETE
+======================================================================
+LOCAL ORCHESTRATOR RUNNER
+======================================================================
+Current time (ET): 2026-07-23 14:25:36.298942-04:00
+Runs to execute: morning
+
+Starting MORNING orchestrator run...
+  Run ID: LOCAL-MORNING-20260723-142536-298942
+  Mode: paper (local development)
+  Status: OK - COMPLETED
+
+======================================================================
+Orchestrator execution complete. Check database for updated data.
+======================================================================
