@@ -1145,7 +1145,7 @@ class AlgoConfig:
         "lookback_ranking_long": ("84", "int", "Ranking long window (days)", "System"),
         "lookback_ranking_medium": ("28", "int", "Ranking medium window (days)", "System"),
         "lookback_ranking_short": ("7", "int", "Ranking short window (days)", "System"),
-        "max_risk_per_trade_pct": ("2.0", "float", "Maximum risk per trade %", "Risk Management"),
+        "max_risk_per_trade_pct": ("18.0", "float", "Maximum risk per trade %", "Risk Management"),
         "orchestrator_halt_enabled": ("true", "bool", "Enable orchestrator halt on circuit breaker", "System"),
         "patrol_corporate_action_drop_ratio": (
             "-0.3",
