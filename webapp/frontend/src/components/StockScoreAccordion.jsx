@@ -430,26 +430,33 @@ const QUALITY_SCHEMA = [
 ];
 
 const MOMENTUM_SCHEMA = [
-  { key: 'price_vs_sma_50',  label: 'Price vs 50-SMA',  fmt: v => pct(v, 2) },
+  { key: 'momentum_1m', label: 'Momentum (1M)', fmt: v => pct(v, 2) },
+  { key: 'momentum_3m', label: 'Momentum (3M)', fmt: v => pct(v, 2) },
+  { key: 'momentum_6m', label: 'Momentum (6M)', fmt: v => pct(v, 2) },
+  { key: 'momentum_12m', label: 'Momentum (12M)', fmt: v => pct(v, 2) },
+  { key: 'rsi_14', label: 'RSI (14)', fmt: v => num(v, 1) },
+  { key: 'macd_line', label: 'MACD Line', fmt: v => num(v, 3) },
+  { key: 'macd_signal', label: 'MACD Signal', fmt: v => num(v, 3) },
+  { key: 'price_vs_sma_50', label: 'Price vs 50-SMA', fmt: v => pct(v, 2) },
   { key: 'price_vs_sma_200', label: 'Price vs 200-SMA', fmt: v => pct(v, 2) },
-  { key: 'momentum_3m',      label: '3-Month Return',   fmt: v => pct(v, 2) },
-  { key: 'momentum_6m',      label: '6-Month Return',   fmt: v => pct(v, 2) },
-  { key: 'momentum_12_3',    label: '12-3 Momentum',    fmt: v => pct(v, 2) },
-  { key: 'price_vs_52w_high',label: 'Price vs 52w High',fmt: v => pct(v, 2) },
-  { key: 'current_price',    label: 'Current Price',    fmt: v => `$${num(v, 2)}` },
-  { key: 'rsi',              label: 'RSI (14)',         fmt: v => num(v, 1) },
-  { key: 'macd',             label: 'MACD',             fmt: v => num(v, 3) },
+  { key: 'roc_20d', label: '20-Day ROC', fmt: v => pct(v, 2) },
+  { key: 'roc_60d', label: '60-Day ROC', fmt: v => pct(v, 2) },
+  { key: 'roc_120d', label: '120-Day ROC', fmt: v => pct(v, 2) },
+  { key: 'roc_252d', label: '252-Day ROC', fmt: v => pct(v, 2) },
 ];
 
 const VALUE_SCHEMA = [
-  { key: 'stock_pe',            label: 'P/E',          fmt: v => num(v, 2) },
-  { key: 'stock_forward_pe',    label: 'Forward P/E',  fmt: v => num(v, 2) },
-  { key: 'stock_pb',            label: 'P/B',          fmt: v => num(v, 2) },
-  { key: 'stock_ps',            label: 'P/S',          fmt: v => num(v, 2) },
-  { key: 'stock_ev_ebitda',     label: 'EV / EBITDA',  fmt: v => num(v, 2) },
-  { key: 'stock_ev_revenue',    label: 'EV / Revenue', fmt: v => num(v, 2) },
-  { key: 'peg_ratio',           label: 'PEG',          fmt: v => num(v, 2) },
-  { key: 'stock_dividend_yield',label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2) },
+  { key: 'trailing_pe', label: 'P/E', fmt: v => num(v, 2) },
+  { key: 'forward_pe', label: 'Forward P/E', fmt: v => num(v, 2) },
+  { key: 'price_to_book', label: 'P/B', fmt: v => num(v, 2) },
+  { key: 'ps_ratio_val', label: 'P/S', fmt: v => num(v, 2) },
+  { key: 'ev_ebitda', label: 'EV / EBITDA', fmt: v => num(v, 2) },
+  { key: 'ev_revenue', label: 'EV / Revenue', fmt: v => num(v, 2) },
+  { key: 'peg_ratio_val', label: 'PEG', fmt: v => num(v, 2) },
+  { key: 'dividend_yield', label: 'Dividend Yield', fmt: v => pct(v == null ? null : v * 100, 2) },
+  { key: 'fcf_yield_val', label: 'FCF Yield', fmt: v => pct(v, 2) },
+  { key: 'market_cap', label: 'Market Cap', fmt: money },
+  { key: 'enterprise_value', label: 'Enterprise Value', fmt: money },
 ];
 
 const GROWTH_SCHEMA = [
