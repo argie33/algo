@@ -115,6 +115,9 @@ class DailyFinanceReport:
         28.75% drawdown - see algo/reporting/performance.py LivePerformance for the
         live computation and lambda/api/routes/algo_handlers/metrics.py for the same
         fix applied to the dashboard API).
+
+        Returns empty dict if metrics not yet available (expected during ramp-up or before
+        first orchestrator run completes).
         """
         try:
             cur.execute(
@@ -128,7 +131,11 @@ class DailyFinanceReport:
             row = cur.fetchone()
 
             if row is None:
-                raise RuntimeError(f"No performance metrics available for {report_date}")
+                logger.warning(
+                    f"[DAILY_REPORT] No performance metrics available for {report_date}. "
+                    f"Expected during initial ramp-up phase. Returning empty dict."
+                )
+                return {}
 
             return {
                 "sharpe_ytd": round(float(row[0]), 4) if row[0] is not None else None,
@@ -137,7 +144,8 @@ class DailyFinanceReport:
                 "calmar": round(float(row[3]), 4) if row[3] is not None else None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Database error fetching risk metrics for {report_date}: {e}") from e
+            logger.warning(f"Database error fetching risk metrics for {report_date}: {e}. Returning empty dict.")
+            return {}
 
     def _fetch_strategy(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """Win rate, profit factor, performance metrics from pre-computed daily metrics.
@@ -145,6 +153,9 @@ class DailyFinanceReport:
         Reads algo_performance_daily (see _fetch_risk above for why). profit_factor,
         avg_trade_pct and best_trade_pct aren't populated there (nothing in the current
         pipeline writes them) - reported as None rather than a weeks-stale number.
+
+        Returns empty dict if metrics not yet available (expected during ramp-up or before
+        first orchestrator run completes).
         """
         try:
             cur.execute(
@@ -157,7 +168,11 @@ class DailyFinanceReport:
             row = cur.fetchone()
 
             if row is None:
-                raise RuntimeError(f"No strategy performance data available for {report_date}")
+                logger.warning(
+                    f"[DAILY_REPORT] No strategy performance data available for {report_date}. "
+                    f"Expected during initial ramp-up phase. Returning empty dict."
+                )
+                return {}
 
             return {
                 "win_rate_pct": round(float(row[0]), 2) if row[0] is not None else None,
@@ -166,7 +181,8 @@ class DailyFinanceReport:
                 "best_trade_pct": None,
             }
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
-            raise RuntimeError(f"Database error fetching strategy metrics for {report_date}: {e}") from e
+            logger.warning(f"Database error fetching strategy metrics for {report_date}: {e}. Returning empty dict.")
+            return {}
 
     def _fetch_components(self, cur: Any, report_date: _date) -> dict[str, Any]:
         """IC and weight for each component.
