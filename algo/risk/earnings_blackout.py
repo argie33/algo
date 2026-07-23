@@ -72,24 +72,32 @@ class EarningsBlackout:
 
             if row:
                 earnings_date = row[0]
-                # Count trading days between eval_date and earnings_date
-                # Don't count the earnings date itself - only days between
-                trading_days_away = 0
-                current = eval_date
-                direction = 1 if earnings_date >= eval_date else -1
-                while current != earnings_date:
-                    current += timedelta(days=direction)
-                    # Stop before reaching earnings_date to avoid counting it
-                    if current == earnings_date:
-                        break
-                    if MarketCalendar.is_trading_day(current):
-                        trading_days_away += 1
+                # Count trading days between eval_date and earnings_date (excluding earnings date itself)
+                is_earnings_day = (eval_date == earnings_date)
+                direction = 1 if earnings_date >= eval_date else -1  # 1=future, -1=past
+
+                # Count TDs from the day AFTER earnings (if in future) or
+                # from earnings FORWARD (if in past), up to eval_date
+                if direction > 0:
+                    # Pre-earnings: count from eval to the day before earnings
+                    trading_days_away = 0
+                    current = eval_date
+                    while current < earnings_date:
+                        current += timedelta(days=1)
+                        if current < earnings_date and MarketCalendar.is_trading_day(current):
+                            trading_days_away += 1
+                else:
+                    # Post-earnings: count from day after earnings forward to eval_date
+                    trading_days_away = 0
+                    current = earnings_date
+                    while current < eval_date:
+                        current += timedelta(days=1)
+                        if MarketCalendar.is_trading_day(current) and current != earnings_date:
+                            trading_days_away += 1
 
                 # Check if within blackout window (in trading days, not calendar days).
                 # direction > 0 means earnings is still upcoming (pre-earnings window, days_before);
                 # direction < 0 means earnings already happened (post-earnings window, days_after).
-                # When on earnings day itself (trading_days_away == 0), always block.
-                is_earnings_day = (eval_date == earnings_date)
                 if is_earnings_day or trading_days_away <= (self.days_before if direction > 0 else self.days_after):
                     return {
                         "pass": False,
