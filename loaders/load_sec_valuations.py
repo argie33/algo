@@ -267,6 +267,11 @@ class SecValuationsLoader(OptimalLoader):
             "current_price": current_price,
             "shares_outstanding": shares_out,
             "market_cap": None,
+            # Balance sheet metrics
+            "total_debt": total_debt,
+            "total_cash": total_cash,
+            "enterprise_value": None,
+            "ebitda": ebitda,
             # Valuation ratios
             "pe_ratio": None,
             "pb_ratio": None,
@@ -274,6 +279,9 @@ class SecValuationsLoader(OptimalLoader):
             "peg_ratio": None,
             "fcf_yield": None,
             "dividend_yield": None,
+            "ev_ebitda": None,
+            "ev_revenue": None,
+            "forward_pe": None,
         }
 
         if current_price <= 0:
@@ -369,6 +377,32 @@ class SecValuationsLoader(OptimalLoader):
             else:
                 logger.debug(f"[{symbol}] Dividend yield out of bounds ({div_yield:.2%}), marking as NULL")
 
+        # Enterprise Value = Market Cap + Total Debt - Cash & Equivalents
+        if result["market_cap"] is not None:
+            debt_val = total_debt if total_debt else 0
+            cash_val = total_cash if total_cash else 0
+            ev = result["market_cap"] + debt_val - cash_val
+            if ev > 0:
+                result["enterprise_value"] = round(ev, 2)
+            else:
+                logger.debug(f"[{symbol}] Enterprise value non-positive ({ev:.0f}), marking as NULL")
+
+        # EV / EBITDA Ratio
+        if result["enterprise_value"] and ebitda and ebitda > 0:
+            ev_ebitda = result["enterprise_value"] / ebitda
+            if 0 < ev_ebitda <= 10000:  # Reasonable bounds
+                result["ev_ebitda"] = round(ev_ebitda, 2)
+            else:
+                logger.debug(f"[{symbol}] EV/EBITDA out of bounds ({ev_ebitda:.0f}), marking as NULL")
+
+        # EV / Revenue Ratio
+        if result["enterprise_value"] and ttm_revenue and ttm_revenue > 0:
+            ev_revenue = result["enterprise_value"] / ttm_revenue
+            if 0 < ev_revenue <= 10000:  # Reasonable bounds
+                result["ev_revenue"] = round(ev_revenue, 2)
+            else:
+                logger.debug(f"[{symbol}] EV/Revenue out of bounds ({ev_revenue:.0f}), marking as NULL")
+
         return result
 
     def _unavailable_marker(self, symbol: str, reason: str) -> dict[str, Any]:
@@ -383,12 +417,19 @@ class SecValuationsLoader(OptimalLoader):
             "current_price": None,
             "shares_outstanding": None,
             "market_cap": None,
+            "total_debt": None,
+            "total_cash": None,
+            "enterprise_value": None,
+            "ebitda": None,
             "pe_ratio": None,
             "pb_ratio": None,
             "ps_ratio": None,
             "peg_ratio": None,
             "fcf_yield": None,
             "dividend_yield": None,
+            "ev_ebitda": None,
+            "ev_revenue": None,
+            "forward_pe": None,
         }
 
 
