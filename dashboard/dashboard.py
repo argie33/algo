@@ -153,7 +153,7 @@ from rich.text import Text
 # Support both: direct execution (python dashboard/dashboard.py) and module execution (python -m dashboard)
 try:
     # Try relative imports first (module execution)
-    from .api_data_layer import reset_circuit_breaker, set_api_url, set_cognito_auth
+    from .api_data_layer import get_api_url, reset_circuit_breaker, set_api_url, set_cognito_auth
     from .cognito_auth import get_cognito_auth as get_cognito_auth_instance
     from .cognito_auth import save_tokens
     from .core import DashboardContext, ViewMode
@@ -173,7 +173,7 @@ try:
     from .watch import WatchModeController, WatchState
 except ImportError:
     # Fall back to absolute imports (direct script execution)
-    from dashboard.api_data_layer import reset_circuit_breaker, set_api_url, set_cognito_auth
+    from dashboard.api_data_layer import get_api_url, reset_circuit_breaker, set_api_url, set_cognito_auth
     from dashboard.cognito_auth import get_cognito_auth as get_cognito_auth_instance
     from dashboard.cognito_auth import save_tokens
     from dashboard.core import DashboardContext, ViewMode
@@ -733,7 +733,9 @@ def _setup_local_api() -> str:
     except Exception as e:
         logger.warning(f"Failed to check dev_server availability: {e}")
 
-    set_api_url(local_url)
+    # Only call set_api_url() if URL actually changed (avoid spurious [API_RUNTIME_CHANGE] warnings)
+    if get_api_url() != local_url:
+        set_api_url(local_url)
     # Clear Cognito auth for local dev mode so dashboard injects dev-admin token
     set_cognito_auth(None)
     logger.info("[DASHBOARD] ✓ LOCAL MODE: Using localhost:3001 dev server")
