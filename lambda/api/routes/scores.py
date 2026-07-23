@@ -287,6 +287,130 @@ def _get_stock_scores(
         def _f(v: Any) -> float | None:
             return float(v) if v is not None else None
 
+        def _build_factor_inputs(d: dict[str, Any]) -> None:
+            """Build factor input objects from flat response fields.
+
+            Maps API field names to schema keys for UI display. Adds objects:
+            - quality_inputs: ROE, margins, debt ratios, growth metrics
+            - momentum_inputs: price momentum, technical indicators
+            - value_inputs: valuation ratios (PE, PB, PS, etc.)
+            - growth_inputs: revenue/EPS growth rates
+            - positioning_inputs: institutional/insider ownership, short interest
+            - stability_inputs: volatility, beta
+            """
+            # Quality Inputs: ROE, ROA, ROIC, margins, debt, ratios
+            d["quality_inputs"] = {
+                "return_on_equity_pct": d.get("roe_pct"),
+                "return_on_assets_pct": d.get("roa_val"),
+                "return_on_invested_capital_pct": d.get("roic"),  # May be None if not in response
+                "gross_margin_pct": d.get("gross_margin"),  # May be None if not in response
+                "operating_margin_pct": d.get("operating_margin_val"),
+                "profit_margin_pct": d.get("net_margin_val"),
+                "ebitda_margin_pct": d.get("ebitda_margin"),  # May be None
+                "fcf_to_net_income": d.get("fcf_to_ni"),  # May be None
+                "operating_cf_to_net_income": d.get("ocf_to_ni"),  # May be None
+                "debt_to_equity": d.get("debt_to_equity"),
+                "current_ratio": d.get("current_ratio_val"),
+                "quick_ratio": d.get("quick_ratio_val"),
+                "earnings_surprise_avg": d.get("earnings_surprise"),  # May be None
+                "eps_growth_stability": d.get("eps_growth_stability"),  # May be None
+                "earnings_beat_rate": d.get("earnings_beat_rate"),  # May be None
+                "consecutive_positive_quarters": d.get("consecutive_pos_q"),  # May be None
+                "estimate_revision_direction": d.get("revision_direction"),  # May be None
+                "revision_activity_30d": d.get("revision_activity_30d"),  # May be None
+                "estimate_momentum_60d": d.get("estimate_momentum_60d"),  # May be None
+                "estimate_momentum_90d": d.get("estimate_momentum_90d"),  # May be None
+                "revision_trend_score": d.get("revision_trend_score"),  # May be None
+                "payout_ratio": d.get("payout_ratio"),  # May be None
+                "free_cashflow": d.get("free_cashflow"),  # May be None
+                "operating_cashflow": d.get("operating_cashflow"),  # May be None
+                "total_debt": d.get("total_debt"),  # May be None
+                "total_cash": d.get("total_cash"),  # May be None
+                "cash_per_share": d.get("cash_per_share"),  # May be None
+                "earnings_growth_pct": d.get("earnings_growth"),  # May be None
+                "revenue_growth_pct": d.get("revenue_growth"),  # May be None
+                "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),  # May be None
+                "interest_coverage": d.get("interest_coverage_val"),
+                "debt_to_assets": d.get("debt_to_assets_val"),
+            }
+
+            # Momentum Inputs: Price momentum, technical indicators
+            d["momentum_inputs"] = {
+                "current_price": d.get("current_price"),
+                "price_vs_52w_high": d.get("price_vs_52w_high_val"),
+                "price_vs_sma_50": d.get("price_vs_sma_50"),
+                "price_vs_sma_200": d.get("price_vs_sma_200"),
+                "momentum_3m": d.get("momentum_1m_val"),  # 1m momentum = 1-month return
+                "momentum_6m": d.get("momentum_3m_val"),  # 3m momentum = 3-month return
+                "momentum_12_3": d.get("momentum_6m_val"),  # 12-3 momentum = 6-month return
+                "rsi": d.get("tdd_rsi"),
+                "macd": d.get("tdd_macd"),
+            }
+
+            # Value Inputs: Valuation ratios
+            d["value_inputs"] = {
+                "stock_pe": d.get("trailing_pe"),
+                "stock_forward_pe": d.get("forward_pe"),  # May be None
+                "stock_pb": d.get("price_to_book"),
+                "stock_ps": d.get("ps_ratio_val"),
+                "peg_ratio": d.get("peg_ratio_val"),
+                "stock_ev_ebitda": d.get("ev_ebitda"),  # May be None
+                "stock_ev_revenue": d.get("ev_revenue"),  # May be None
+                "fcf_yield": d.get("fcf_yield_val"),
+                "stock_dividend_yield": d.get("dividend_yield"),
+            }
+
+            # Growth Inputs: Revenue and EPS growth
+            d["growth_inputs"] = {
+                "revenue_growth_1y_pct": d.get("rev_growth_1y_val"),
+                "eps_growth_1y_pct": d.get("eps_growth_1y_val"),
+                "revenue_growth_3y_cagr": d.get("rev_growth_3y_val"),
+                "eps_growth_3y_cagr": d.get("eps_growth_3y_val"),
+                "revenue_growth_5y_cagr": d.get("rev_growth_5y_val"),
+                "eps_growth_5y_cagr": d.get("eps_growth_5y_val"),
+                "net_income_growth_yoy": d.get("net_income_growth_yoy"),  # May be None
+                "operating_income_growth_yoy": d.get("op_income_growth_yoy"),  # May be None
+                "gross_margin_trend": d.get("gross_margin_trend"),  # May be None
+                "operating_margin_trend": d.get("op_margin_trend"),  # May be None
+                "net_margin_trend": d.get("net_margin_trend"),  # May be None
+                "roe_trend": d.get("roe_trend"),  # May be None
+                "sustainable_growth_rate": d.get("sustainable_growth_rate"),  # May be None
+                "quarterly_growth_momentum": d.get("quarterly_growth_momentum"),  # May be None
+                "fcf_growth_yoy": d.get("fcf_growth_yoy"),  # May be None
+                "ocf_growth_yoy": d.get("ocf_growth_yoy"),  # May be None
+                "asset_growth_yoy": d.get("asset_growth_yoy"),  # May be None
+            }
+
+            # Positioning Inputs: Ownership and short interest
+            d["positioning_inputs"] = {
+                "institutional_ownership_pct": d.get("inst_own_val"),
+                "top_10_institutions_pct": d.get("top_10_inst_pct"),  # May be None
+                "institutional_holders_count": d.get("inst_holders_count"),  # May be None
+                "insider_ownership_pct": d.get("insider_own_val"),
+                "short_interest_pct": d.get("short_pct_val"),
+                "short_percent_of_float": d.get("short_pct_float"),  # May be None
+                "short_interest_trend": d.get("short_interest_trend_val"),
+                "shares_short_prior_month": d.get("shares_short_prior_month_val"),
+                "short_ratio": d.get("days_to_cover"),  # May be None
+                "ad_rating": d.get("ad_rating"),  # May be None
+            }
+
+            # Stability Inputs: Volatility, beta, drawdown
+            d["stability_inputs"] = {
+                "volatility_12m": d.get("volatility_12m_val"),
+                "volatility_60d": d.get("volatility_60d_val"),
+                "volatility_30d": d.get("volatility_30d_val"),
+                "beta": d.get("beta_val"),
+                "debt_to_assets": d.get("debt_to_assets_val"),
+                "downside_volatility": d.get("downside_volatility"),  # May be None
+                "max_drawdown_52w": d.get("max_drawdown_52w"),  # May be None
+                "volatility_risk_component": d.get("vol_risk_score"),  # May be None
+                "volume_consistency": d.get("volume_consistency"),  # May be None
+                "turnover_velocity": d.get("turnover_velocity"),  # May be None
+                "volatility_volume_ratio": d.get("vol_vol_ratio"),  # May be None
+                "daily_spread": d.get("daily_spread"),  # May be None
+            }
+
         items = []
         prices_missing_count = 0
         for row in scores:
@@ -305,6 +429,9 @@ def _get_stock_scores(
                 d["quality_score"] = None
             if d.get("_value_data_unavailable"):
                 d["value_score"] = None
+
+            # Build factor input objects for UI display (Session 302+ fix)
+            _build_factor_inputs(d)
 
             # Note: We include scores even if current prices are missing
             # Scores are computed from other factors; current price is optional for display
