@@ -1836,12 +1836,13 @@ class PriceLoader(OptimalLoader):
             # CRITICAL FIX 2026-07-22: Session 344 found loader reporting "ok" with only 1 symbol loaded.
             # Add explicit sanity check: if we loaded almost NO symbols but finished load, that's an error.
             # This catches early-exit or crash scenarios where the loader partial-writes then marks complete.
+            # FIX SESSION 352: Changed from max(100, 10%) to 80% minimum to avoid breaking small loaders like etf_price_daily (5 symbols)
             if symbols_successfully_loaded > 0 and symbols_expected > 0:
-                min_acceptable_symbols = max(100, int(symbols_expected * 0.1))  # At least 10% or 100 symbols
-                if symbols_successfully_loaded < min_acceptable_symbols:
+                min_acceptable_pct = 80.0  # Require at least 80% of expected symbols
+                if completion_pct < min_acceptable_pct:
                     logger.critical(
                         f"[{self.table_name}] CRITICAL: Load finished with only {symbols_successfully_loaded} symbols "
-                        f"({completion_pct:.2f}%), below minimum acceptable threshold of {min_acceptable_symbols}. "
+                        f"({completion_pct:.2f}%), below minimum acceptable threshold of {min_acceptable_pct}%. "
                         f"This suggests loader crashed partway through or external API failure. "
                         f"Marking as FAILED (not ok) to prevent Phase 1 from proceeding with incomplete data."
                     )

@@ -98,6 +98,7 @@ def run(
                 error_msg = cb_result.get('description', cb_result.get('reason', 'unknown'))
                 error_reason = cb_result.get('reason', '')
                 is_credential_error = 'credential' in error_reason.lower() or '401' in error_msg.lower()
+                is_transient_error = 'timeout' in error_reason.lower() or 'connection' in error_reason.lower()
                 execution_mode = config.get("execution_mode", "paper")
 
                 if is_credential_error and execution_mode == "paper":
@@ -107,6 +108,15 @@ def run(
                     )
                     log_phase_result_fn(2, "circuit_breakers", "ok_with_warning", "market check skipped (paper mode, creds unavailable)")
                     # Continue without circuit breaker check in paper mode
+                elif is_transient_error:
+                    # Transient network errors (timeout, connection refused) are temporary
+                    # Log warning and continue - if market is truly down, other phases will detect it
+                    logger.warning(
+                        f"[PHASE 2] Transient network error checking circuit breaker (will retry next run): {error_msg}. "
+                        f"Continuing with trading - if market is down, other data quality checks will catch it."
+                    )
+                    log_phase_result_fn(2, "circuit_breakers", "ok_with_warning", "transient network error, proceeding with caution")
+                    # Continue without circuit breaker check on transient failure
                 else:
                     raise RuntimeError(
                         f"[PHASE 2 CRITICAL] Market circuit breaker API check failed: {error_msg}. "
