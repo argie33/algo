@@ -894,11 +894,13 @@ class ExitEngine:
                 raise RuntimeError(f"Alpaca quote API authentication failed for {symbol}")
 
             elif response.status_code == 404:
-                raise RuntimeError(
+                # CRITICAL FIX (Session 365): In paper trading, Alpaca may not have quotes
+                # for all symbols. Fall back to database price instead of halting.
+                logger.warning(
                     f"[EXIT_ENGINE] Alpaca quote API returned 404 for {symbol} - "
-                    f"symbol unavailable (possibly delisted or not in paper trading). "
-                    f"Cannot proceed with exit execution without valid symbol."
+                    f"symbol unavailable in paper trading. Using fallback pricing."
                 )
+                return None  # Return None to signal fallback needed (caller handles gracefully)
 
             else:
                 raise RuntimeError(f"Alpaca quote API error for {symbol}: status {response.status_code}")
