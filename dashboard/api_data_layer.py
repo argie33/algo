@@ -239,17 +239,20 @@ def set_api_url(url: str) -> None:
     old_url = API_BASE_URL
     old_source = _api_base_url_source_cache or "UNKNOWN"
 
+    # Early return if URL hasn't actually changed (suppress spurious warnings when only source changes)
+    if old_url == url:
+        logger.debug(f"[API_URL_SET] Ignoring redundant set_api_url() call - URL already {url}")
+        return
+
     API_BASE_URL = url
     _api_base_url_cache = url
     _api_base_url_source_cache = "RUNTIME_SET"
 
-    # Only warn if URL actually changed, not if just source changed
-    if old_url != url:
-        logger.warning(
-            f"[API_RUNTIME_CHANGE] API URL changed at runtime. "
-            f"Old: {old_url} (source: {old_source}), "
-            f"New: {url} (source: RUNTIME_SET)"
-        )
+    logger.warning(
+        f"[API_RUNTIME_CHANGE] API URL changed at runtime. "
+        f"Old: {old_url} (source: {old_source}), "
+        f"New: {url} (source: RUNTIME_SET)"
+    )
 
 
 def get_api_url() -> str:

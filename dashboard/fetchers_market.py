@@ -245,19 +245,19 @@ def fetch_market(c: None) -> dict[str, Any]:
         # Mark breadth metrics as unavailable if missing (critical for market exposure scoring)
         if upvol_val is None:
             result["upvol_unavailable"] = True
-            logger.warning("[MARKET BREADTH] Up volume percent unavailable")
+            logger.debug("[MARKET BREADTH] Up volume percent unavailable")
         if adr_val is None:
             result["adr_unavailable"] = True
-            logger.warning("[MARKET BREADTH] Advance/decline ratio unavailable")
+            logger.debug("[MARKET BREADTH] Advance/decline ratio unavailable")
         if nh_val is None or nl_val is None:
             if nh_val is None:
                 result["nh_unavailable"] = True
             if nl_val is None:
                 result["nl_unavailable"] = True
-            logger.warning("[MARKET BREADTH] New highs/lows data unavailable")
+            logger.debug("[MARKET BREADTH] New highs/lows data unavailable")
         if bmom_val is None:
             result["bmom_unavailable"] = True
-            logger.warning("[MARKET BREADTH] Breadth momentum unavailable")
+            logger.debug("[MARKET BREADTH] Breadth momentum unavailable")
 
         # Conditionally include optional fields only if available
         if not stage_unavailable:
