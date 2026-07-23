@@ -1068,23 +1068,203 @@ class StockScoresLoader(OptimalLoader):
             raise RuntimeError(f"Database operation failed fetching momentum metrics for {symbol}: {e}") from e
 
     def _score_quality(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
-        """Score quality metrics on 0-100 scale. Uses pre-computed quality_score only.
+        """Score quality metrics on 0-100 scale using Phase 3 expanded metrics.
 
-        Returns pre-computed quality_score from load_quality_metrics.py or unavailable marker.
-        No fallback calculations - if data isn't available, it's unavailable.
+        Computes quality_score dynamically from margins, profitability, leverage, liquidity,
+        and growth metrics (Phase 3 expansion). Falls back to pre-computed quality_score if
+        available (backward compatibility).
+
+        Components weighted: Margins 30% + Profitability 25% + Leverage/Liquidity 25% + Growth 20%
         """
         if not metrics or metrics.get("data_unavailable") is True:
             logger.warning(f"[STOCK_SCORES] Quality metrics unavailable for {symbol}")
             return {"symbol": symbol, "data_unavailable": True, "reason": "no_quality_metrics_data"}
 
+        # Try pre-computed quality_score first (if available - represents consensus of 6 base metrics)
         if metrics.get("quality_score") is not None:
             quality_score_value = safe_float(metrics["quality_score"], f"{symbol}.quality_score")
             if quality_score_value is not None:
                 logger.debug(f"[STOCK_SCORES] Using pre-computed quality_score for {symbol}: {quality_score_value}")
-                return quality_score_value
+                # Enhance with Phase 3 margin/growth if available
+                return self._enhance_quality_score(quality_score_value, metrics, symbol)
+
+        # Fallback: compute dynamic quality from individual Phase 3 metrics
+        dynamic_score = self._compute_dynamic_quality_score(metrics, symbol)
+        if dynamic_score is not None:
+            logger.debug(f"[STOCK_SCORES] Computed dynamic quality_score for {symbol}: {dynamic_score}")
+            return dynamic_score
 
         logger.warning(f"[STOCK_SCORES] Quality score unavailable for {symbol}")
         return {"symbol": symbol, "data_unavailable": True, "reason": "quality_score_unavailable"}
+
+    def _enhance_quality_score(self, base_score: float, metrics: dict[str, Any], symbol: str) -> float:
+        """Enhance pre-computed quality score with Phase 3 margin/growth signals.
+
+        Adjusts base score by ±10% based on margin trends and earnings growth (Phase 3).
+        Keeps existing quality_score as foundation; uses new metrics for refinement.
+        """
+        adjustment = 0.0
+
+        # Margin quality: Higher margins + improving margins = quality boost
+        gross_margin = safe_float(metrics.get("gross_margin"), f"{symbol}.gross_margin", allow_none=True)
+        ebitda_margin = safe_float(metrics.get("ebitda_margin"), f"{symbol}.ebitda_margin", allow_none=True)
+        net_margin = safe_float(metrics.get("net_margin"), f"{symbol}.net_margin", allow_none=True)
+
+        margins_available = [m for m in [gross_margin, ebitda_margin, net_margin] if m is not None]
+        if margins_available:
+            avg_margin = sum(margins_available) / len(margins_available)
+            # Premium for high-margin businesses (>25% net margin = quality companies)
+            if avg_margin > 25:
+                adjustment += 3.0
+            elif avg_margin < 5:
+                adjustment -= 5.0
+
+        # Growth signal: Positive earnings growth improves quality perception
+        earnings_growth = safe_float(metrics.get("earnings_growth_yoy"), f"{symbol}.earnings_growth_yoy", allow_none=True)
+        if earnings_growth is not None and earnings_growth > 0:
+            # Growth premium: +5 for 10%+ growth, +2 for 5%+ growth
+            adjustment += min(5.0, earnings_growth / 10.0)
+
+        # Cash flow signal: Strong FCF generation improves quality
+        fcf_to_ni = safe_float(metrics.get("fcf_to_net_income"), f"{symbol}.fcf_to_net_income", allow_none=True)
+        if fcf_to_ni is not None:
+            if fcf_to_ni > 1.0:  # FCF > Net Income = quality cash generation
+                adjustment += 2.0
+            elif fcf_to_ni < 0.5:  # Low FCF = cash burn risk
+                adjustment -= 3.0
+
+        # Clamp adjustment to ±10 points and apply to base score
+        adjustment = max(-10.0, min(10.0, adjustment))
+        enhanced = base_score + adjustment
+
+        return float(max(0, min(100, enhanced)))
+
+    def _compute_dynamic_quality_score(self, metrics: dict[str, Any], symbol: str) -> float | None:
+        """Compute quality score from individual Phase 3 metrics when pre-computed score unavailable.
+
+        Returns None if insufficient data; otherwise returns 0-100 score.
+        Weights: Margins 30% + Profitability 25% + Leverage 25% + Growth 20%
+        """
+        components: list[tuple[float, float]] = []  # (score, weight) pairs
+
+        # 1. Margins (30% weight): Gross + EBITDA + Net margins
+        margins_scores = []
+        if metrics.get("gross_margin") is not None:
+            gm = safe_float(metrics["gross_margin"], f"{symbol}.gross_margin", allow_none=True)
+            if gm is not None:
+                # Target 40%+ gross margin for quality
+                gm_score = min(100, max(0, (gm / 50) * 100))
+                margins_scores.append(gm_score)
+
+        if metrics.get("ebitda_margin") is not None:
+            em = safe_float(metrics["ebitda_margin"], f"{symbol}.ebitda_margin", allow_none=True)
+            if em is not None:
+                # Target 25%+ EBITDA margin
+                em_score = min(100, max(0, (em / 35) * 100))
+                margins_scores.append(em_score)
+
+        if metrics.get("net_margin") is not None:
+            nm = safe_float(metrics["net_margin"], f"{symbol}.net_margin", allow_none=True)
+            if nm is not None:
+                # Target 15%+ net margin
+                nm_score = min(100, max(0, (nm / 20) * 100))
+                margins_scores.append(nm_score)
+
+        if margins_scores:
+            avg_margin_score = sum(margins_scores) / len(margins_scores)
+            components.append((avg_margin_score, 0.30))
+
+        # 2. Profitability (25% weight): ROE + ROIC
+        profit_scores = []
+        if metrics.get("roe") is not None:
+            roe = safe_float(metrics["roe"], f"{symbol}.roe", allow_none=True)
+            if roe is not None:
+                # Target 15%+ ROE
+                roe_score = min(100, max(0, (roe / 20) * 100))
+                profit_scores.append(roe_score)
+
+        if metrics.get("roic_pct") is not None:
+            roic = safe_float(metrics["roic_pct"], f"{symbol}.roic_pct", allow_none=True)
+            if roic is not None:
+                # Target 12%+ ROIC
+                roic_score = min(100, max(0, (roic / 15) * 100))
+                profit_scores.append(roic_score)
+
+        if profit_scores:
+            avg_profit_score = sum(profit_scores) / len(profit_scores)
+            components.append((avg_profit_score, 0.25))
+
+        # 3. Leverage/Liquidity (25% weight): Debt ratios + Cash position
+        leverage_scores = []
+        if metrics.get("debt_to_equity") is not None:
+            dte = safe_float(metrics["debt_to_equity"], f"{symbol}.debt_to_equity", allow_none=True)
+            if dte is not None:
+                # Target D/E < 1.0 (lower is better)
+                dte_score = min(100, max(0, 100 - (dte * 50)))
+                leverage_scores.append(dte_score)
+
+        if metrics.get("current_ratio") is not None:
+            cr = safe_float(metrics["current_ratio"], f"{symbol}.current_ratio", allow_none=True)
+            if cr is not None:
+                # Target current ratio > 1.5
+                cr_score = min(100, max(0, (cr / 2.0) * 100))
+                leverage_scores.append(cr_score)
+
+        if metrics.get("cash_per_share") is not None:
+            cps = safe_float(metrics["cash_per_share"], f"{symbol}.cash_per_share", allow_none=True)
+            if cps is not None and cps > 0:
+                # Positive cash per share is always good (cap at 100 points)
+                cps_score = 100.0 if cps > 50 else (cps / 50) * 100
+                leverage_scores.append(cps_score)
+
+        if leverage_scores:
+            avg_leverage_score = sum(leverage_scores) / len(leverage_scores)
+            components.append((avg_leverage_score, 0.25))
+
+        # 4. Growth (20% weight): Revenue + Earnings growth YoY
+        growth_scores = []
+        if metrics.get("revenue_growth_yoy") is not None:
+            rg = safe_float(metrics["revenue_growth_yoy"], f"{symbol}.revenue_growth_yoy", allow_none=True)
+            if rg is not None:
+                # Positive growth is quality; target 10%+
+                if rg >= 10:
+                    rg_score = 90.0
+                elif rg >= 5:
+                    rg_score = 70.0
+                elif rg >= 0:
+                    rg_score = 50.0
+                else:
+                    rg_score = max(0, 50 + rg)  # Negative growth penalized
+                growth_scores.append(rg_score)
+
+        if metrics.get("earnings_growth_yoy") is not None:
+            eg = safe_float(metrics["earnings_growth_yoy"], f"{symbol}.earnings_growth_yoy", allow_none=True)
+            if eg is not None:
+                # Earnings growth valued highly; target 10%+
+                if eg >= 10:
+                    eg_score = 90.0
+                elif eg >= 5:
+                    eg_score = 70.0
+                elif eg >= 0:
+                    eg_score = 50.0
+                else:
+                    eg_score = max(0, 50 + eg)  # Negative earnings growth is concern
+                growth_scores.append(eg_score)
+
+        if growth_scores:
+            avg_growth_score = sum(growth_scores) / len(growth_scores)
+            components.append((avg_growth_score, 0.20))
+
+        # Compute weighted average if we have any components
+        if not components:
+            return None
+
+        total_weight = sum(w for _, w in components)
+        if total_weight == 0:
+            return None
+
+        weighted_score = sum(s * w for s, w in components) / total_weight
+        return float(max(0, min(100, weighted_score)))
 
     def _score_growth(self, metrics: dict[str, Any] | None, symbol: str) -> float | dict[str, Any]:
         """Score growth metrics on 0-100 scale. Returns marker dict if no real data.
