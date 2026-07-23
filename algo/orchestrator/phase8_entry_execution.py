@@ -1160,11 +1160,6 @@ def run(
 
             if risk_pct < 1.5:
                 logger.info(f"[PHASE 8] {symbol}: stop too tight ({risk_pct:.1f}%), skipping")
-                # Was the only rejection branch in this function not calling
-                # _log_signal_rejection - "invalid_stop_loss" above and "stop_too_wide" below
-                # both persist to algo_signal_rejections, but "stop too tight" only logged to
-                # the application log, silently dropping this rejection reason from the audit
-                # table the signal-funnel/rejection-reason analytics query.
                 _log_signal_rejection(
                     symbol, "stop_too_tight", f"Risk {risk_pct:.1f}% < 1.5%", run_date, entry_price, risk_pct
                 )
@@ -1172,6 +1167,21 @@ def run(
                 skipped_count += 1
 
                 continue
+
+            max_risk_val = config.get("max_risk_per_trade_pct")
+            if max_risk_val is not None:
+                try:
+                    max_risk_pct = float(max_risk_val)
+                    if risk_pct > max_risk_pct:
+                        logger.info(f"[PHASE 8] {symbol}: stop too wide ({risk_pct:.1f}% > {max_risk_pct:.1f}%), skipping")
+                        _log_signal_rejection(
+                            symbol, "stop_too_wide", f"Risk {risk_pct:.1f}% > {max_risk_pct:.1f}%", run_date, entry_price, risk_pct
+                        )
+                        skipped_count += 1
+                        continue
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"[PHASE 8] {symbol}: Could not parse max_risk_per_trade_pct ({max_risk_val}): {e}")
+
 
             # Position sizer will handle actual dollar risk limits using max_risk_per_trade_pct
             # The stop-loss width (risk_pct) is checked for min (1.5%) above. Position sizer

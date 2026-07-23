@@ -750,13 +750,17 @@ class PositionSizer:
             raise ValueError(f"[POSITION_SIZER] max_positions must be integer, got {type(max_positions_val).__name__}: {max_positions_val}") from e
         if max_positions <= 0:
             raise ValueError(f"[POSITION_SIZER] max_positions must be > 0, got {max_positions}")
-        if active_positions >= max_positions:
+
+        tolerance_buffer = max(1, int(max_positions * 0.15))
+        hard_limit = max_positions + tolerance_buffer
+
+        if active_positions >= hard_limit:
             return {
                 "shares": 0,
                 "position_size_pct": 0,
                 "risk_dollars": 0,
                 "status": "no_room",
-                "reason": f"{active_positions} open positions >= {max_positions} max",
+                "reason": f"{active_positions} open positions >= {hard_limit} hard limit (target {max_positions})",
             }
 
         if risk_adjustment == 0:
