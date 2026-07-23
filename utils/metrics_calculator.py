@@ -346,10 +346,12 @@ class MetricsCalculator:
             - If avg_loss_r_multiple is positive (shouldn't happen), takes absolute value
         """
         if win_rate_pct is None or avg_win_r_multiple is None or avg_loss_r_multiple is None:
-            raise ValueError(
-                "Cannot calculate expectancy: win_rate_pct, avg_win_r_multiple, "
-                "and avg_loss_r_multiple must all be provided"
+            logger.debug(
+                f"Expectancy calculation cannot proceed - insufficient data: "
+                f"win_rate_pct={win_rate_pct}, avg_win_r={avg_win_r_multiple}, avg_loss_r={avg_loss_r_multiple}. "
+                f"This is normal for ramp-up accounts without both winning and losing trades yet."
             )
+            return None
 
         try:
             wr_decimal = float(win_rate_pct) / 100

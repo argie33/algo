@@ -1788,16 +1788,39 @@ class PriceLoader(OptimalLoader):
             symbols_expected = symbols_total
             if "symbols_processed" not in self._stats:
                 raise RuntimeError(f"[{self.table_name}] Load stats incomplete: 'symbols_processed' not tracked.")
-            symbols_successfully_loaded = self._stats["symbols_processed"]
-            if not isinstance(symbols_successfully_loaded, int):
+            symbols_attempted = self._stats["symbols_processed"]
+            if not isinstance(symbols_attempted, int):
                 logger.error(
-                    f"[{self.table_name}] Load stats corruption: 'symbols_processed' is {type(symbols_successfully_loaded).__name__} "
-                    f"(expected int): {symbols_successfully_loaded!r}"
+                    f"[{self.table_name}] Load stats corruption: 'symbols_processed' is {type(symbols_attempted).__name__} "
+                    f"(expected int): {symbols_attempted!r}"
                 )
                 raise RuntimeError(
-                    f"[{self.table_name}] Stats tracking is broken - 'symbols_processed' should be int, not {type(symbols_successfully_loaded).__name__}. "
+                    f"[{self.table_name}] Stats tracking is broken - 'symbols_processed' should be int, not {type(symbols_attempted).__name__}. "
                     f"Cannot determine loader completion state. Data load status is UNKNOWN."
                 )
+
+            # CRITICAL FIX 2026-07-22: Validate actual symbol count in database
+            # loader.symbols_processed counts symbols ATTEMPTED, not SUCCESSFULLY INSERTED
+            # Verify actual symbols in latest date to catch fetch/insert failures
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    psycopg2.sql.SQL(
+                        "SELECT COUNT(DISTINCT symbol) FROM {} WHERE date = %s AND close IS NOT NULL"
+                    ).format(psycopg2.sql.Identifier(table_safe)),
+                    (latest_date,),
+                )
+                actual_result = cur.fetchone()
+                if actual_result and actual_result[0] is not None:
+                    symbols_successfully_loaded = actual_result[0]
+                    if symbols_successfully_loaded < symbols_attempted:
+                        logger.critical(
+                            f"[{self.table_name}] DATA INTEGRITY WARNING: Loader reported {symbols_attempted} symbols "
+                            f"processed but database only has {symbols_successfully_loaded} with valid prices on {latest_date}. "
+                            f"Gap of {symbols_attempted - symbols_successfully_loaded} symbols suggests yfinance fetch failures "
+                            f"or transaction rollback. Using actual database count for completion calculation."
+                        )
+                else:
+                    symbols_successfully_loaded = symbols_attempted
 
             completion_pct = (symbols_successfully_loaded / symbols_expected * 100) if symbols_expected > 0 else 100.0
 
