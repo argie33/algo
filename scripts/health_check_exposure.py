@@ -103,8 +103,15 @@ try:
             all_ok = False
             continue
 
-        pts = factor.get('pts', 0)
-        max_pts = factor.get('max', 0)
+        # CRITICAL: pts and max are required fields for all factors
+        # Defaulting to 0 masks incomplete factor data and makes the health check pass when it should fail
+        if 'pts' not in factor:
+            print(f"FAIL: {factor_name:20s}: MISSING PTS FIELD (required for all factors)")
+            all_ok = False
+            continue
+
+        pts = factor['pts']
+        max_pts = factor['max']
         score = factor.get('score')
 
         # Check for data_unavailable flag

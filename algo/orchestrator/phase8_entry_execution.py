@@ -1173,12 +1173,17 @@ def run(
 
                 continue
 
-            # CRITICAL FIX: Use configurable max risk per trade instead of hardcoded 12%
+            # CRITICAL FIX: Use configurable max risk per trade from database/DEFAULTS
             # The stop-loss calculation uses min(sma_50 - atr, entry_price - 2*atr) which creates
             # wide stops for trend-following entries (stocks rallied far above 50-day moving average).
-            # A 12% limit was too restrictive and rejecting most signals. Increase to 18% to allow
-            # proper trend-following entries while still enforcing risk discipline.
-            max_risk_per_trade_pct = float(config.get("max_risk_per_trade_pct", 18.0))
+            # DO NOT provide a hardcoded default - use config.get() which will apply VALIDATION_SCHEMA's
+            # fail_closed_value (2.0%) if database value is missing. Previously had 18.0% default
+            # which bypassed schema validation and allowed 9x the intended risk per trade.
+            try:
+                max_risk_per_trade_pct = float(config.get("max_risk_per_trade_pct"))
+            except (RuntimeError, TypeError, ValueError) as e:
+                logger.error(f"[PHASE 8] max_risk_per_trade_pct not in config: {e}")
+                raise
 
             if risk_pct > max_risk_per_trade_pct:
                 logger.info(
