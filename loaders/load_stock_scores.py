@@ -266,7 +266,10 @@ class StockScoresLoader(OptimalLoader):
         with DatabaseContext("read") as cur:
             cur.execute(
                 "SELECT symbol, roe, roa, operating_margin, net_margin, debt_to_equity, "
-                "current_ratio, quick_ratio, debt_to_assets, quality_score, data_unavailable FROM quality_metrics"
+                "current_ratio, quick_ratio, debt_to_assets, quality_score, data_unavailable, "
+                "gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, "
+                "payout_ratio, free_cash_flow, operating_cash_flow, total_debt, total_cash, "
+                "cash_per_share, ebitda, earnings_growth_yoy, revenue_growth_yoy FROM quality_metrics"
             )
             self._quality_cache: dict[str, tuple[Any, ...]] = {row[0]: tuple(row[1:]) for row in cur.fetchall()}
 
@@ -682,7 +685,7 @@ class StockScoresLoader(OptimalLoader):
     #
     # DATA VALIDATION (FAIL-FAST):
     # - All _get_* functions validate row length before accessing indices (6 bound checks)
-    #   * _get_quality_metrics: 9 columns (roe through data_unavailable)
+    #   * _get_quality_metrics: 24 columns (roe through revenue_growth_yoy, includes Phase 3 expansion fields)
     #   * _get_growth_metrics: 7 columns (revenue_growth_1y through data_unavailable)
     #   * _get_value_metrics: 7 columns (pe_ratio through data_unavailable)
     #   * _get_positioning_metrics: 4 columns (institutional_ownership through data_unavailable)
@@ -712,40 +715,38 @@ class StockScoresLoader(OptimalLoader):
     # ====================================================
 
     def _get_quality_metrics(self, cur: Any, symbol: str) -> dict[str, Any]:
-        """Fetch quality metrics for symbol.
+        """Fetch quality metrics for symbol including Phase 3 expansion metrics.
 
         Returns explicit marker dict if data is unavailable (either no row or data_unavailable=True).
         Raises RuntimeError on database errors or data type mismatches.
 
         VALIDATION RULES:
-        - Row length validation: Must have 10 columns (roe, roa, operating_margin, net_margin,
-          debt_to_equity, current_ratio, quick_ratio, debt_to_assets, quality_score, data_unavailable)
-        - Schema mismatch (len(row) < 10) → raises ValueError immediately
+        - Row length validation: Must have 24 columns (10 base + 14 Phase 3 expansion)
+        - Schema mismatch (len(row) < 24) → raises ValueError immediately
         - All numeric fields converted via safe_float() (detects data corruption)
         - data_unavailable=True flag → returns marker dict even if row exists
         - No row at all → returns marker dict with reason="no_quality_metrics_found"
 
-        CRITICAL FIX 2026-07-01: Now checks data_unavailable flag. Some securities (REITs, etc.)
-        have rows marked data_unavailable=True with NULL values. Previously returned NULLs instead
-        of marker; now properly returns marker dict.
+        CRITICAL FIX 2026-07-23 (Session 359): Now fetches all Phase 3 expansion fields
+        (gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
+        free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share, ebitda,
+        earnings_growth_yoy, revenue_growth_yoy). These are required for Phase 8 quality scoring
+        enhancement (_enhance_quality_score and _compute_dynamic_quality_score).
 
-        CRITICAL FIX 2026-07-01 (continued): Now fetches pre-computed quality_score from quality_metrics
-        table instead of re-computing from individual metrics. This ensures consistency between
-        load_quality_metrics.py (which computes the score) and load_stock_scores.py (which uses it).
-
-        MINIMUM DATA REQUIREMENT: Row must have exactly 10 columns. Missing columns causes immediate
+        MINIMUM DATA REQUIREMENT: Row must have exactly 24 columns. Missing columns causes immediate
         fail-fast ValueError to prevent silent data corruption.
         """
         row = self._quality_cache.get(symbol)
         if row:
-            # CRITICAL: Validate row has expected 10 columns before accessing indices
-            if len(row) < 10:
+            # CRITICAL: Validate row has expected 24 columns before accessing indices
+            # (10 original + 14 Phase 3 expansion + 1 data_unavailable flag = 25 total, minus symbol = 24)
+            if len(row) < 24:
                 raise ValueError(
-                    f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 10. "
-                    f"Schema mismatch detected - cannot safely access data. Failing fast."
+                    f"[STOCK_SCORES] {symbol}: quality_metrics row has {len(row)} columns, expected 24. "
+                    f"Schema mismatch detected - Phase 3 fields missing. Failing fast."
                 )
-            data_unavailable = row[9]
-            quality_score = safe_float(row[8], f"{symbol}.quality_score")
+            data_unavailable = row[10]
+            quality_score = safe_float(row[9], f"{symbol}.quality_score")
             # If marked unavailable, return marker even if row exists
             if data_unavailable:
                 logger.debug(
@@ -753,7 +754,7 @@ class StockScoresLoader(OptimalLoader):
                     f"(likely REIT or security with missing SEC filings)"
                 )
                 return marker_not_applicable(symbol, "quality_metrics")
-            # Row exists and data is available
+            # Row exists and data is available - return all fields including Phase 3 expansion
             return {
                 "roe": safe_float(row[0], f"{symbol}.roe"),
                 "roa": safe_float(row[1], f"{symbol}.roa"),
@@ -764,6 +765,21 @@ class StockScoresLoader(OptimalLoader):
                 "quick_ratio": safe_float(row[6], f"{symbol}.quick_ratio"),
                 "debt_to_assets": safe_float(row[7], f"{symbol}.debt_to_assets", allow_none=True),
                 "quality_score": quality_score,  # Pre-computed by load_quality_metrics.py
+                # Phase 3 expansion metrics (Session 358+)
+                "gross_margin": safe_float(row[10], f"{symbol}.gross_margin", allow_none=True),
+                "ebitda_margin": safe_float(row[11], f"{symbol}.ebitda_margin", allow_none=True),
+                "roic_pct": safe_float(row[12], f"{symbol}.roic_pct", allow_none=True),
+                "fcf_to_net_income": safe_float(row[13], f"{symbol}.fcf_to_net_income", allow_none=True),
+                "ocf_to_net_income": safe_float(row[14], f"{symbol}.ocf_to_net_income", allow_none=True),
+                "payout_ratio": safe_float(row[15], f"{symbol}.payout_ratio", allow_none=True),
+                "free_cash_flow": safe_float(row[16], f"{symbol}.free_cash_flow", allow_none=True),
+                "operating_cash_flow": safe_float(row[17], f"{symbol}.operating_cash_flow", allow_none=True),
+                "total_debt": safe_float(row[18], f"{symbol}.total_debt", allow_none=True),
+                "total_cash": safe_float(row[19], f"{symbol}.total_cash", allow_none=True),
+                "cash_per_share": safe_float(row[20], f"{symbol}.cash_per_share", allow_none=True),
+                "ebitda": safe_float(row[21], f"{symbol}.ebitda", allow_none=True),
+                "earnings_growth_yoy": safe_float(row[22], f"{symbol}.earnings_growth_yoy", allow_none=True),
+                "revenue_growth_yoy": safe_float(row[23], f"{symbol}.revenue_growth_yoy", allow_none=True),
             }
         # No row exists at all
         logger.warning(
