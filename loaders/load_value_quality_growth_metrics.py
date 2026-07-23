@@ -106,8 +106,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                         symbols_failed += 1
                         continue
 
+                    # Debug: check metrics structure before unpacking
+                    if not isinstance(metrics, list) or not metrics[0]:
+                        logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: metrics is {type(metrics)}, metrics[0] is {type(metrics[0]) if metrics else 'None'} (CRITICAL BUG)")
+                        symbols_failed += 1
+                        continue
+
+                    metric_tuple = metrics[0]
+                    if not isinstance(metric_tuple, tuple) or len(metric_tuple) != 3:
+                        logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: metric_tuple is {type(metric_tuple)}, len={len(metric_tuple) if hasattr(metric_tuple, '__len__') else 'unknown'} (expected tuple of 3)")
+                        symbols_failed += 1
+                        continue
+
                     # Extract metrics tuple
-                    value_row, quality_row, growth_row = metrics[0]
+                    value_row, quality_row, growth_row = metric_tuple
 
                     # Check if value metrics are available (CRITICAL - value metrics required for scoring)
                     if value_row and value_row.get("data_unavailable"):
@@ -151,7 +163,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     symbols_succeeded += 1
 
                 except Exception as e:
+                    import traceback
                     logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: {type(e).__name__}: {e}")
+                    logger.error(f"[TRACEBACK]\n{traceback.format_exc()}")
                     symbols_failed += 1
 
             # Mark all 3 tables as ok with their actual latest_date (not calendar date)
@@ -380,6 +394,15 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         ev_metrics: tuple of (total_debt, total_cash, ebitda) from sec_valuations
         """
         if not quality_row:
+            return self._unavailable_marker("quality_metrics", symbol)
+
+        # DEBUG: Check quality_row structure
+        if not isinstance(quality_row, (tuple, list)):
+            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row is {type(quality_row)}, not tuple/list. This is a CRITICAL BUG")
+            return self._unavailable_marker("quality_metrics", symbol)
+
+        if len(quality_row) < 19:
+            logger.error(f"[VALUE_QUALITY_GROWTH] {symbol}: quality_row has {len(quality_row)} columns, expected 19")
             return self._unavailable_marker("quality_metrics", symbol)
 
         try:
@@ -853,7 +876,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
              free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share, ebitda,
              earnings_growth_yoy, revenue_growth_yoy)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
