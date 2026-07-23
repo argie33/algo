@@ -579,13 +579,40 @@ class ExitEngine:
                                 f"Cannot evaluate exit checks for {symbol}: invalid price data  - {e}"
                             ) from e
 
-                        cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
+                        try:
+                            cur_price, prev_close = self._fetch_recent_prices(cur, symbol, current_date)
+                        except RuntimeError as fetch_err:
+                            if "unavailable" in str(fetch_err).lower() or "404" in str(fetch_err).lower():
+                                logger.warning(
+                                    f"[EXIT ENGINE] {symbol}: Symbol appears delisted or unavailable. "
+                                    f"Force-closing position without evaluation. Error: {fetch_err}"
+                                )
+                                cur.execute(
+                                    """UPDATE algo_positions SET is_open = false, exit_date = %s,
+                                       exit_price = COALESCE(current_price, entry_price), exit_reason = %s
+                                       WHERE symbol = %s AND is_open = true""",
+                                    (current_date, "delisted_or_unavailable", symbol)
+                                )
+                                exits_executed += 1
+                                cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                                continue
+                            else:
+                                raise
 
                         if cur_price is None:
-                            raise RuntimeError(
-                                f"[EXIT ENGINE] Critical: current price unavailable for {symbol} "
-                                " - cannot evaluate exits without market data"
+                            logger.warning(
+                                f"[EXIT ENGINE] {symbol}: No price data available. "
+                                f"Force-closing position with last known price."
                             )
+                            cur.execute(
+                                """UPDATE algo_positions SET is_open = false, exit_date = %s,
+                                   exit_price = COALESCE(current_price, entry_price), exit_reason = %s
+                                   WHERE symbol = %s AND is_open = true""",
+                                (current_date, "no_price_data", symbol)
+                            )
+                            exits_executed += 1
+                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                            continue
 
                         days_held = (current_date - trade_date).days
 
