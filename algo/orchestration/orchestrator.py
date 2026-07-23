@@ -2033,6 +2033,13 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
+    # CRITICAL: Detect local execution. When orchestrator.py is run directly
+    # (not via AWS Lambda), set LOCAL_MODE=true to skip DynamoDB and use RDS locks.
+    # This prevents unnecessary AWS credential validation errors in local development.
+    if "LAMBDA_TASK_ROOT" not in os.environ:
+        os.environ.setdefault("LOCAL_MODE", "true")
+        os.environ.setdefault("ENVIRONMENT", "development")
+
     logging.basicConfig(
         level=os.getenv("LOG_LEVEL", "INFO"),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

@@ -22,8 +22,8 @@ class EnvironmentValidator:
         #   1. AWS Lambda: DB_SECRET_ARN (Secrets Manager JSON blob with password field)
         #   2. Local dev: environment variable DB_PASSWORD
         # Credential validation happens at first database connection, not at startup
-        # AWS (always required)
-        "AWS_REGION": "AWS region for Lambda/RDS/Secrets Manager",
+        # AWS_REGION (conditionally required - skip for LOCAL_MODE)
+        "AWS_REGION": "AWS region for Lambda/RDS/Secrets Manager (skip if LOCAL_MODE=true)",
         # Execution Mode (optional if EXECUTION_MODE set, defaults to paper if neither set)
         # NOTE: Alpaca credentials (APCA_API_KEY_ID, APCA_API_SECRET_KEY) only required for live trading
         # For paper trading, credentials can be loaded from AWS Secrets Manager at runtime
@@ -59,8 +59,13 @@ class EnvironmentValidator:
     @classmethod
     def validate_required(cls) -> tuple[bool, list[str]]:
         missing = []
+        local_mode = os.getenv("LOCAL_MODE", "").lower() == "true"
 
         for var_name, description in cls.REQUIRED_VARS.items():
+            # Skip AWS_REGION requirement when running in LOCAL_MODE (uses RDS locks, not DynamoDB)
+            if var_name == "AWS_REGION" and local_mode:
+                continue
+
             value = os.getenv(var_name)
             if not value or value.strip() == "":
                 # Check for alternative names if primary not set
