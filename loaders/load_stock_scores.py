@@ -1688,7 +1688,7 @@ class StockScoresLoader(OptimalLoader):
 
         # 1. Leverage: Debt-to-equity (target D/E < 1.0, lower is better)
         if metrics.get("debt_to_equity") is not None:
-            dte = max(0, metrics["debt_to_equity"])
+            dte = float(max(0, metrics["debt_to_equity"]))
             # Target < 1.0 (equal debt and equity); >2.0 is high leverage
             if dte <= 0.5:
                 dte_score = 100.0
@@ -1702,14 +1702,14 @@ class StockScoresLoader(OptimalLoader):
 
         # 2. Solvency: Debt-to-assets (target D/A < 0.5, lower is better)
         if metrics.get("debt_to_assets") is not None and metrics["debt_to_assets"] >= 0:
-            dta = min(metrics["debt_to_assets"], 1.0)
+            dta = float(min(metrics["debt_to_assets"], 1.0))
             dta_score = max(0, 100.0 - (dta * 100.0))  # 100 at 0%, 0 at 100%
             components.append((dta_score, 0.25))
 
         # 3. Liquidity: Current ratio (target > 1.5) + Quick ratio (target > 1.0)
         liquidity_scores = []
         if metrics.get("current_ratio") is not None:
-            cr = max(0, metrics["current_ratio"])
+            cr = float(max(0, metrics["current_ratio"]))
             if cr >= 2.0:
                 cr_score = 100.0
             elif cr >= 1.5:
@@ -1723,7 +1723,7 @@ class StockScoresLoader(OptimalLoader):
             liquidity_scores.append(cr_score)
 
         if metrics.get("quick_ratio") is not None:
-            qr = max(0, metrics["quick_ratio"])
+            qr = float(max(0, metrics["quick_ratio"]))
             if qr >= 1.5:
                 qr_score = 100.0
             elif qr >= 1.0:
@@ -1740,7 +1740,7 @@ class StockScoresLoader(OptimalLoader):
 
         # 4. Cash Position: Cash per share (target > $10, cap at $50)
         if metrics.get("cash_per_share") is not None and metrics["cash_per_share"] > 0:
-            cps = metrics["cash_per_share"]
+            cps = float(metrics["cash_per_share"])
             if cps >= 50:
                 cps_score = 100.0
             elif cps >= 10:
