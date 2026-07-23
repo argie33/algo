@@ -112,12 +112,24 @@ class RiskMetricsLoader(OptimalLoader):
                 if all(v is None for v in momentum.values()):
                     raise RuntimeError("No momentum timeframe could be computed from available price history")
 
+                # Fetch latest technical indicators from technical_data_daily (already computed by load_technical_indicators.py)
+                technical = self._fetch_technical_indicators(symbol, today)
+
                 return {
                     "symbol": symbol,
                     "momentum_1m": momentum.get("momentum_1m"),
                     "momentum_3m": momentum.get("momentum_3m"),
                     "momentum_6m": momentum.get("momentum_6m"),
                     "momentum_12m": momentum.get("momentum_12m"),
+                    "rsi_14": technical.get("rsi_14"),
+                    "macd_line": technical.get("macd_line"),
+                    "macd_signal": technical.get("macd_signal"),
+                    "price_vs_sma_50": technical.get("price_vs_sma_50"),
+                    "price_vs_sma_200": technical.get("price_vs_sma_200"),
+                    "roc_20d": technical.get("roc_20d"),
+                    "roc_60d": technical.get("roc_60d"),
+                    "roc_120d": technical.get("roc_120d"),
+                    "roc_252d": technical.get("roc_252d"),
                     "data_unavailable": False,
                     "reason": None,
                     "created_at": datetime.now(timezone.utc).isoformat(),
@@ -131,6 +143,15 @@ class RiskMetricsLoader(OptimalLoader):
                 "momentum_3m": None,
                 "momentum_6m": None,
                 "momentum_12m": None,
+                "rsi_14": None,
+                "macd_line": None,
+                "macd_signal": None,
+                "price_vs_sma_50": None,
+                "price_vs_sma_200": None,
+                "roc_20d": None,
+                "roc_60d": None,
+                "roc_120d": None,
+                "roc_252d": None,
                 "data_unavailable": True,
                 "reason": str(e)[:150],
                 "created_at": datetime.now(timezone.utc).isoformat(),
@@ -143,9 +164,75 @@ class RiskMetricsLoader(OptimalLoader):
                 "momentum_3m": None,
                 "momentum_6m": None,
                 "momentum_12m": None,
+                "rsi_14": None,
+                "macd_line": None,
+                "macd_signal": None,
+                "price_vs_sma_50": None,
+                "price_vs_sma_200": None,
+                "roc_20d": None,
+                "roc_60d": None,
+                "roc_120d": None,
+                "roc_252d": None,
                 "data_unavailable": True,
                 "reason": f"unexpected_error: {type(e).__name__}",
                 "created_at": datetime.now(timezone.utc).isoformat(),
+            }
+
+    def _fetch_technical_indicators(self, symbol: str, date_val: Any) -> dict[str, float | None]:
+        """Fetch latest technical indicators from technical_data_daily table.
+
+        These are pre-computed by load_technical_indicators.py. Just copy them
+        into momentum_metrics so all momentum/technical data is in one place.
+        """
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT rsi_14, macd, macd_signal,
+                           (close - sma_50) / sma_50 * 100 as price_vs_sma_50,
+                           (close - sma_200) / sma_200 * 100 as price_vs_sma_200,
+                           roc_20d, roc_60d, roc_120d, roc_252d
+                    FROM technical_data_daily
+                    WHERE symbol = %s AND date = %s
+                    """,
+                    (symbol, date_val),
+                )
+                row = cur.fetchone()
+                if row:
+                    return {
+                        "rsi_14": safe_float(row[0], f"{symbol}.rsi_14", allow_none=True),
+                        "macd_line": safe_float(row[1], f"{symbol}.macd_line", allow_none=True),
+                        "macd_signal": safe_float(row[2], f"{symbol}.macd_signal", allow_none=True),
+                        "price_vs_sma_50": safe_float(row[3], f"{symbol}.price_vs_sma_50", allow_none=True),
+                        "price_vs_sma_200": safe_float(row[4], f"{symbol}.price_vs_sma_200", allow_none=True),
+                        "roc_20d": safe_float(row[5], f"{symbol}.roc_20d", allow_none=True),
+                        "roc_60d": safe_float(row[6], f"{symbol}.roc_60d", allow_none=True),
+                        "roc_120d": safe_float(row[7], f"{symbol}.roc_120d", allow_none=True),
+                        "roc_252d": safe_float(row[8], f"{symbol}.roc_252d", allow_none=True),
+                    }
+            return {
+                "rsi_14": None,
+                "macd_line": None,
+                "macd_signal": None,
+                "price_vs_sma_50": None,
+                "price_vs_sma_200": None,
+                "roc_20d": None,
+                "roc_60d": None,
+                "roc_120d": None,
+                "roc_252d": None,
+            }
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
+            logger.debug(f"[RISK_METRICS] {symbol}: technical indicators fetch failed: {e}")
+            return {
+                "rsi_14": None,
+                "macd_line": None,
+                "macd_signal": None,
+                "price_vs_sma_50": None,
+                "price_vs_sma_200": None,
+                "roc_20d": None,
+                "roc_60d": None,
+                "roc_120d": None,
+                "roc_252d": None,
             }
 
     def _get_debt_to_assets(self, symbol: str) -> float | None:
