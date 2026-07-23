@@ -2066,6 +2066,11 @@ class AlgoConfig:
             raise KeyError(f"Configuration key {key!r} not found")
         return value
 
+    def __setitem__(self, key: str, value: Any) -> None:
+        """Enable dict-like assignment: config[key] = value (in-memory only)."""
+        self._config[key] = value
+        self._sources[key] = "runtime_override"
+
     def __contains__(self, key: str) -> bool:
         """Enable membership testing: key in config."""
         return key in self._config
