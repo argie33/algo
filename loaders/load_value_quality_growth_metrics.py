@@ -351,17 +351,26 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         1144): load_sec_valuations.py now computes it from the SEC "PaymentsOfDividends"
         cash-flow concept / market_cap - was previously hardcoded None here because SEC
         had no dividend source wired up at all (dead 8%-weight bucket in value_score).
+
+        Session 385: Added enterprise value and EV ratio metrics from sec_valuations.
         """
         if not sec_val_row or sec_val_row[2]:  # data_unavailable flag at index 2
             return self._unavailable_marker("value_metrics", symbol)
 
         # Extract SEC-derived valuations (all from sec_valuations table)
-        pe = sec_val_row[7]  # pe_ratio index
-        pb = sec_val_row[8]  # pb_ratio
-        ps = sec_val_row[9]  # ps_ratio
-        peg = sec_val_row[10]  # peg_ratio
-        fcf_yield = sec_val_row[11]  # fcf_yield
-        dividend_yield = sec_val_row[15]  # dividend_yield (migration 1146)
+        # Using dict access instead of indices for clarity and robustness
+        row_dict = dict(sec_val_row) if hasattr(sec_val_row, '__getitem__') else {}
+
+        pe = row_dict.get("pe_ratio") or sec_val_row[7] if isinstance(sec_val_row, (tuple, list)) else None
+        pb = row_dict.get("pb_ratio") or sec_val_row[8] if isinstance(sec_val_row, (tuple, list)) else None
+        ps = row_dict.get("ps_ratio") or sec_val_row[9] if isinstance(sec_val_row, (tuple, list)) else None
+        peg = row_dict.get("peg_ratio") or sec_val_row[10] if isinstance(sec_val_row, (tuple, list)) else None
+        fcf_yield = row_dict.get("fcf_yield") or sec_val_row[11] if isinstance(sec_val_row, (tuple, list)) else None
+        dividend_yield = row_dict.get("dividend_yield") or sec_val_row[15] if isinstance(sec_val_row, (tuple, list)) else None
+        forward_pe = row_dict.get("forward_pe")
+        enterprise_value = row_dict.get("enterprise_value")
+        ev_ebitda = row_dict.get("ev_ebitda")
+        ev_revenue = row_dict.get("ev_revenue")
 
         # Validate: at least one core metric must be non-None
         core_metrics = [pe, pb, ps, fcf_yield]
@@ -376,6 +385,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "peg_ratio": peg,
             "dividend_yield": dividend_yield,
             "fcf_yield": fcf_yield,
+            "forward_pe": forward_pe,
+            "enterprise_value": enterprise_value,
+            "ev_ebitda": ev_ebitda,
+            "ev_revenue": ev_revenue,
             "data_unavailable": False,
             "data_source": "sec_audited",
             "updated_at": date.today().isoformat(),
@@ -849,8 +862,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO value_metrics
-            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, data_unavailable, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, data_unavailable, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -858,12 +871,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 peg_ratio = EXCLUDED.peg_ratio,
                 dividend_yield = EXCLUDED.dividend_yield,
                 fcf_yield = EXCLUDED.fcf_yield,
+                forward_pe = EXCLUDED.forward_pe,
+                enterprise_value = EXCLUDED.enterprise_value,
+                ev_ebitda = EXCLUDED.ev_ebitda,
+                ev_revenue = EXCLUDED.ev_revenue,
                 data_unavailable = EXCLUDED.data_unavailable,
                 data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
             """,
             (row["symbol"], row["pe_ratio"], row["pb_ratio"], row["ps_ratio"],
              row["peg_ratio"], row["dividend_yield"], row["fcf_yield"],
+             row.get("forward_pe"), row.get("enterprise_value"), row.get("ev_ebitda"), row.get("ev_revenue"),
              row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
