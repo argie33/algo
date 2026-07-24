@@ -57,17 +57,19 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
     def __init__(self, backfill_days: int | None = None):
         super().__init__(backfill_days)
-        self._global_cache: dict[str, dict[str, Any]] = {}
+        self._global_data_loaded = False  # Track if we've done global fetch this run
 
     def fetch_global(self, since: date | None) -> list[dict[str, Any]]:
-        """Fetch SEC's 13F data or use interim market-cap estimates.
+        """Fetch SEC's 13F data or use interim market-cap estimates for ALL symbols.
+
+        This runs once per load and populates estimates or SEC data for all symbols.
 
         PRIMARY: SEC quarterly 13F bulk data (if available)
         FALLBACK: Market-cap based estimates (marked as interim data_source)
 
         Returns: List of institutional ownership records for all symbols.
         """
-        logger.info("[13F] Fetching institutional ownership data...")
+        logger.info("[13F] Fetching institutional ownership data for all symbols...")
 
         try:
             year, quarter = self._get_latest_13f_quarter()
@@ -78,33 +80,58 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             holdings_by_ticker = self._fetch_sec_13f_bulk(year, quarter)
             if holdings_by_ticker:
                 logger.info(f"[13F] Parsed {len(holdings_by_ticker)} tickers from SEC data")
-                records = self._calculate_and_cache_ownership(holdings_by_ticker, filing_date_str)
-                self._global_cache = {r["symbol"]: r for r in records}
-                return records
+                return self._calculate_and_cache_ownership(holdings_by_ticker, filing_date_str)
 
             # Fallback: Generate market-cap based estimates for all symbols
             logger.warning("[13F] SEC 13F data unavailable, generating market-cap estimates...")
-            records = self._generate_marketcap_estimates(filing_date_str)
-            self._global_cache = {r["symbol"]: r for r in records}
-            return records
+            return self._generate_marketcap_estimates(filing_date_str)
 
         except Exception as e:
             logger.error(f"[13F GLOBAL FETCH] Failed: {type(e).__name__}: {str(e)[:200]}")
             return []
 
     def fetch_incremental(self, symbol: str, since: date | None) -> list[dict[str, Any]]:
-        """Return cached global result for symbol, or data_unavailable marker.
+        """Lookup institutional holdings for a symbol from the database.
 
-        Global data is fetched once in fetch_global(). This method just does
-        cache lookups for each symbol.
+        This is called for each symbol individually. It looks up data that was
+        previously loaded by fetch_global().
+
+        Returns: Record with institutional_ownership_pct or data_unavailable marker.
         """
         now_et = datetime.now(EASTERN_TZ)
 
-        # Check cache (populated by fetch_global)
-        if symbol in self._global_cache:
-            return [self._global_cache[symbol]]
+        try:
+            with DatabaseContext("read") as cur:
+                cur.execute(
+                    """
+                    SELECT institutional_ownership_pct, filing_date, data_source
+                    FROM institutional_holdings_13f
+                    WHERE symbol = %s
+                    ORDER BY filing_date DESC
+                    LIMIT 1
+                    """,
+                    (symbol,)
+                )
+                row = cur.fetchone()
 
-        # No data in cache for this symbol
+            if row and row[0] is not None:
+                return [
+                    {
+                        "symbol": symbol,
+                        "filing_date": row[1],
+                        "institutional_ownership_pct": row[0],
+                        "number_of_institutional_holders": None,
+                        "data_unavailable": False,
+                        "reason": None,
+                        "sec_filing_url": None,
+                        "most_recent_filing_date": row[1],
+                        "data_source": row[2],
+                    }
+                ]
+        except Exception as e:
+            logger.debug(f"[13F] {symbol}: lookup failed - {e}")
+
+        # Not found in database - return data_unavailable marker
         return [
             {
                 "symbol": symbol,
@@ -112,7 +139,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 "institutional_ownership_pct": None,
                 "number_of_institutional_holders": None,
                 "data_unavailable": True,
-                "reason": "not_in_sec_13f_holdings_for_latest_quarter",
+                "reason": "not_found_in_institutional_holdings_13f",
                 "sec_filing_url": None,
                 "most_recent_filing_date": None,
                 "data_source": "none",

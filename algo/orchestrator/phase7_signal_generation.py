@@ -575,6 +575,30 @@ def _get_candidates_from_buysell(
                         f"(insufficient technical data). These will be rejected by Phase 8 quality gate."
                     )
 
+            # CRITICAL FIX: Write computed signal_quality_scores back to buy_sell_daily
+            # so that backtest and other systems can access them. Only write non-NULL scores.
+            scores_to_write = [
+                (c.get("signal_quality_score"), c.get("signal_quality_score"), c.get("symbol"), c.get("signal_date"))
+                for c in candidates
+                if c.get("symbol") and c.get("signal_date") and c.get("signal_quality_score") is not None
+            ]
+
+            if scores_to_write:
+                try:
+                    with DatabaseContext("write") as cur_write:
+                        for sqs, entry_sqs, symbol, signal_date in scores_to_write:
+                            cur_write.execute(
+                                """
+                                UPDATE buy_sell_daily
+                                SET signal_quality_score = %s, entry_quality_score = %s
+                                WHERE symbol = %s AND date = %s
+                                """,
+                                (sqs, entry_sqs, symbol, signal_date),
+                            )
+                    logger.info(f"[PHASE 7] Wrote {len(scores_to_write)} signal_quality_scores to buy_sell_daily")
+                except Exception as write_e:
+                    logger.warning(f"[PHASE 7] Failed to write signal quality scores to buy_sell_daily: {write_e}")
+
         complete_candidates, _ = _validate_signal_completeness(candidates, "buy_sell_daily path")
         return complete_candidates
     except (ValueError, ZeroDivisionError, TypeError) as e:
