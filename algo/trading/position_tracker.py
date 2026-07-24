@@ -87,6 +87,17 @@ class PositionTracker:
 
             current_qty = result[0]
 
+            # CRITICAL FIX Session 391: Convert new_qty to integer
+            # The quantity column is INTEGER, so 0.5 gets cast to 1 (not 0), causing no-op UPDATE
+            # This was causing partial exits to fail silently: rowcount=1 but quantity unchanged
+            new_qty_int = int(round(new_qty))
+            if new_qty_int != new_qty:
+                logger.warning(
+                    f"[POSITION_UPDATE] Position {position_id}: new_qty {new_qty} rounded to integer {new_qty_int} "
+                    f"(quantity column is INTEGER type)"
+                )
+            new_qty = new_qty_int
+
             # CRITICAL FIX Session 391: Fail-fast if quantity changed unexpectedly
             # (indicates race condition or transaction isolation issue)
             if expected_current_qty is not None and current_qty != expected_current_qty:
