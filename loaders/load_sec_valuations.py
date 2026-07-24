@@ -185,19 +185,10 @@ class SecValuationsLoader(OptimalLoader):
                 total_debt, total_cash = debt_row if debt_row else (None, None)
                 # Note: None values mean EV metrics won't be computed
 
-                # Get EBITDA from income statement (for EV/EBITDA)
-                cur.execute(
-                    """
-                    SELECT ebitda
-                    FROM annual_income_statement
-                    WHERE symbol = %s AND data_unavailable = FALSE
-                    ORDER BY fiscal_year DESC LIMIT 1
-                    """,
-                    (symbol,),
-                )
-                ebitda_row = cur.fetchone()
-                ebitda = ebitda_row[0] if ebitda_row else None
-                # Note: None means EV/EBITDA won't be computed
+                # EBITDA not available in annual_income_statement
+                # TODO: Fetch from SEC tags if available; for now leave as None
+                # (EV/EBITDA won't be computed - acceptable trade-off)
+                ebitda = None
 
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation

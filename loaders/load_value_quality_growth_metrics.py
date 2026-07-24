@@ -367,10 +367,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         peg = row_dict.get("peg_ratio") or sec_val_row[10] if isinstance(sec_val_row, (tuple, list)) else None
         fcf_yield = row_dict.get("fcf_yield") or sec_val_row[11] if isinstance(sec_val_row, (tuple, list)) else None
         dividend_yield = row_dict.get("dividend_yield") or sec_val_row[15] if isinstance(sec_val_row, (tuple, list)) else None
-        forward_pe = row_dict.get("forward_pe")
-        enterprise_value = row_dict.get("enterprise_value")
-        ev_ebitda = row_dict.get("ev_ebitda")
-        ev_revenue = row_dict.get("ev_revenue")
+        forward_pe = row_dict.get("forward_pe") or sec_val_row[22] if isinstance(sec_val_row, (tuple, list)) else None
+        enterprise_value = row_dict.get("enterprise_value") or sec_val_row[18] if isinstance(sec_val_row, (tuple, list)) else None
+        ev_ebitda = row_dict.get("ev_ebitda") or sec_val_row[20] if isinstance(sec_val_row, (tuple, list)) else None
+        ev_revenue = row_dict.get("ev_revenue") or sec_val_row[21] if isinstance(sec_val_row, (tuple, list)) else None
 
         # Validate: at least one core metric must be non-None
         core_metrics = [pe, pb, ps, fcf_yield]
