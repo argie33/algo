@@ -494,6 +494,8 @@ def _get_candidates_from_buysell(
                     "atr_14": float(r[10]) if r[10] is not None else None,
                     "entry_price": close,
                     "signal_strength": raw_strength,
+                    "signal_quality_score": None,  # CRITICAL: Initialize to None to ensure key exists. Will be set by inline scorer.
+                    "trend_template_score": None,  # CRITICAL: Initialize to None. Will be set by inline scorer if available.
                     "sector": r[11],
                     "industry": r[12],
                     "buylevel": float(r[13]) if r[13] is not None else None,
