@@ -89,7 +89,7 @@ class SyncValueScoresLoader(OptimalLoader):
 
 def main() -> int:
     """Run the sync loader."""
-    return run_loader(SyncValueScoresLoader(), sys.argv[1:])
+    return run_loader(SyncValueScoresLoader)
 
 
 if __name__ == "__main__":

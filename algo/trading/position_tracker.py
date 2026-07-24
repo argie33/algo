@@ -63,10 +63,16 @@ class PositionTracker:
         new_stop_price: Decimal | float | None = None,
         full_exit: bool = False,
         exit_stage: str | None = None,
+        expected_current_qty: float | None = None,
     ) -> tuple[bool, str | None]:
         """Update position with retry logic for race condition safety.
 
         Handles concurrent updates by re-reading position before each retry.
+
+        Args:
+            expected_current_qty: Optional hint of current quantity (from FOR UPDATE read in exit_engine).
+                If provided and doesn't match actual quantity, raises error immediately (fail-fast).
+
         Returns: (success: bool, message: str or None)
         """
 
@@ -80,6 +86,17 @@ class PositionTracker:
                 raise ValueError(f"Position {position_id} not found")
 
             current_qty = result[0]
+
+            # CRITICAL FIX Session 391: Fail-fast if quantity changed unexpectedly
+            # (indicates race condition or transaction isolation issue)
+            if expected_current_qty is not None and current_qty != expected_current_qty:
+                raise ValueError(
+                    f"Position {position_id} quantity mismatch: expected {expected_current_qty}, "
+                    f"but found {current_qty}. This indicates another transaction modified the position "
+                    f"between our FOR UPDATE lock and update attempt (transaction isolation issue). "
+                    f"This should not occur with proper locking."
+                )
+
             # CRITICAL: Keep stop price as Decimal to avoid floating-point rounding errors
             # in financial calculations. Convert to float only for display/logging.
             current_stop = Decimal(str(result[1])) if result[1] is not None else None

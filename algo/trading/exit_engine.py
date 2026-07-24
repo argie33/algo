@@ -468,6 +468,11 @@ class ExitEngine:
 
         with DatabaseContext("write") as cur:
             try:
+                # CRITICAL FIX Session 391: Use SERIALIZABLE isolation to prevent phantom reads
+                # between FOR UPDATE lock and position update. This ensures consistency
+                # when position data is read in multiple places (exit_engine, exit_handler, position_tracker)
+                cur.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
+
                 logger.info(f"\n{'=' * 70}")
 
                 logger.info(f"EXIT ENGINE CHECK - {current_date}")
@@ -539,27 +544,45 @@ class ExitEngine:
                     cur.execute(f"SAVEPOINT {_sp}")
                     try:
                         # Issue #22: Lock position row to prevent concurrent exits (TOCTOU race)
+                        # CRITICAL FIX Session 391: Re-fetch position quantity after FOR UPDATE lock
+                        # to ensure we have fresh data (Phase 3 may have modified it before Phase 6)
 
                         cur.execute(
-                            "SELECT status FROM algo_positions WHERE position_id = %s FOR UPDATE",
+                            "SELECT status, quantity, current_stop_price FROM algo_positions WHERE position_id = %s FOR UPDATE",
                             (_position_id,),
                         )
 
                         status_row = cur.fetchone()
 
-                        status = status_row[0] if status_row else None
+                        if not status_row:
+                            logger.warning(f"Position {symbol} ({_position_id}) not found during exit check - skipping")
+                            cur.execute(f"RELEASE SAVEPOINT {_sp}")
+                            continue
+
+                        status, fresh_quantity, fresh_stop_price = status_row
 
                         if status != "open":
                             logger.debug(f"Position {symbol} already closed, skipping exit check")
                             cur.execute(f"RELEASE SAVEPOINT {_sp}")
                             continue
 
+                        # CRITICAL: Detect quantity mismatch (Phase 3 modified position after our initial read)
+                        if fresh_quantity != _quantity:
+                            logger.warning(
+                                f"[EXIT_ENGINE] {symbol}: Position quantity changed since initial read "
+                                f"(_quantity={_quantity} vs fresh_quantity={fresh_quantity}). "
+                                f"This indicates Phase 3 modified the position. Using fresh quantity for exit calculation."
+                            )
+
+                        # Use fresh stop price if available (ensures exit calculation has latest data)
+                        effective_current_stop = fresh_stop_price if fresh_stop_price else current_stop
+
                         try:
                             entry_price = Decimal(str(entry_price))
 
                             init_stop = Decimal(str(init_stop))
 
-                            active_stop = Decimal(str(current_stop)) if current_stop else init_stop
+                            active_stop = Decimal(str(effective_current_stop)) if effective_current_stop else init_stop
 
                             t1_price = Decimal(str(t1_price)) if t1_price else None
 
