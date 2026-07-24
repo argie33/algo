@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ SESSION 381 COMPLETE - CRITICAL FIX: put_call_ratio now gracefully optional in Phase 2 market exposure calculation. Two-part fix: (1) skip gracefully-unavailable factors from missing_factors check (commit 8c035ca06), (2) allow reduced avail_max for optional factors (commit c35603c8a). Enables Phase 2 to pass with put_call_ratio unavailable. Remaining: verify signal_quality_score storage in Phase 8 trades, price_daily loader stuck issue.
+**Status:** ✅ SESSION 383 COMPLETE - CRITICAL FIX: Phase 7 NOT computing signal_quality_score inline. All 20 recent trades had NULL SQS causing immediate halt ("Signal has None signal_quality_score"). Added scorer to phase7_signal_generation.py (commit 99fd43f96) - now computes RSI/MACD/Minervini/Weinstein for each candidate. Remaining issues: (1) Verify fix works with market-hours run, (2) Confirm put_call_ratio optional-factor handling from Session 381 still working, (3) Investigate price_daily loader hung on 2026-07-24 (only VIX prices, no stocks).
 
 ## Start Here
 
