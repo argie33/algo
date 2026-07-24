@@ -177,6 +177,27 @@ class RiskMetricsLoader(OptimalLoader):
                 "reason": f"unexpected_error: {type(e).__name__}",
                 "created_at": datetime.now(timezone.utc).isoformat(),
             }
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, Exception) as e:
+            logger.warning(f"[RISK_METRICS] Unexpected error for {symbol}: {type(e).__name__}: {e}")
+            return {
+                "symbol": symbol,
+                "momentum_1m": None,
+                "momentum_3m": None,
+                "momentum_6m": None,
+                "momentum_12m": None,
+                "rsi_14": None,
+                "macd_line": None,
+                "macd_signal": None,
+                "price_vs_sma_50": None,
+                "price_vs_sma_200": None,
+                "roc_20d": None,
+                "roc_60d": None,
+                "roc_120d": None,
+                "roc_252d": None,
+                "data_unavailable": True,
+                "reason": f"unexpected_error: {type(e).__name__}",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            }
 
     def _fetch_technical_indicators(self, symbol: str, date_val: Any) -> dict[str, float | None]:
         """Fetch latest technical indicators from technical_data_daily table.
@@ -310,6 +331,10 @@ class RiskMetricsLoader(OptimalLoader):
                     "volatility_252d": None,
                     "beta": None,
                     "debt_to_assets": debt_to_assets,
+                    "beta_unavailable_reason": "missing_price_data",
+                    "volatility_30d_unavailable_reason": "insufficient_history",
+                    "volatility_60d_unavailable_reason": "insufficient_history",
+                    "volatility_252d_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": debt_to_assets is None,
                     "reason": None if debt_to_assets is not None else reason,
@@ -339,6 +364,10 @@ class RiskMetricsLoader(OptimalLoader):
                     "volatility_252d": None,
                     "beta": None,
                     "debt_to_assets": debt_to_assets,
+                    "beta_unavailable_reason": "missing_price_data",
+                    "volatility_30d_unavailable_reason": "insufficient_history",
+                    "volatility_60d_unavailable_reason": "insufficient_history",
+                    "volatility_252d_unavailable_reason": "insufficient_history",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "data_unavailable": debt_to_assets is None,
                     "reason": None if debt_to_assets is not None else reason,
@@ -387,6 +416,11 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_252d": round(vol_252d, 4) if vol_252d else None,
                 "beta": round(beta, 4) if isinstance(beta, float) else None,
                 "debt_to_assets": debt_to_assets,
+                # Session 395+: Add unavailable_reason for each metric
+                "beta_unavailable_reason": "missing_price_data" if beta is None else None,
+                "volatility_30d_unavailable_reason": "insufficient_history" if vol_30d is None else None,
+                "volatility_60d_unavailable_reason": "insufficient_history" if vol_60d is None else None,
+                "volatility_252d_unavailable_reason": "insufficient_history" if vol_252d is None else None,
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": data_unavailable,
                 "reason": unavailability_reason,
@@ -416,6 +450,10 @@ class RiskMetricsLoader(OptimalLoader):
                 "volatility_252d": None,
                 "beta": None,
                 "debt_to_assets": debt_to_assets,
+                "beta_unavailable_reason": "missing_price_data",
+                "volatility_30d_unavailable_reason": "insufficient_history",
+                "volatility_60d_unavailable_reason": "insufficient_history",
+                "volatility_252d_unavailable_reason": "insufficient_history",
                 "created_at": datetime.now(timezone.utc).isoformat(),
                 "data_unavailable": debt_to_assets is None,
                 "reason": f"unexpected_error: {type(e).__name__}" if debt_to_assets is None else None,
@@ -436,8 +474,10 @@ class RiskMetricsLoader(OptimalLoader):
                     """
                     INSERT INTO stability_metrics
                     (symbol, volatility_30d, volatility_60d, volatility_252d, beta, debt_to_assets,
-                     created_at, data_unavailable, reason, reason_type)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     created_at, data_unavailable, reason, reason_type,
+                     beta_unavailable_reason, volatility_30d_unavailable_reason,
+                     volatility_60d_unavailable_reason, volatility_252d_unavailable_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (symbol) DO UPDATE SET
                       volatility_30d = EXCLUDED.volatility_30d,
                       volatility_60d = EXCLUDED.volatility_60d,
@@ -448,6 +488,10 @@ class RiskMetricsLoader(OptimalLoader):
                       data_unavailable = EXCLUDED.data_unavailable,
                       reason = EXCLUDED.reason,
                       reason_type = EXCLUDED.reason_type,
+                      beta_unavailable_reason = EXCLUDED.beta_unavailable_reason,
+                      volatility_30d_unavailable_reason = EXCLUDED.volatility_30d_unavailable_reason,
+                      volatility_60d_unavailable_reason = EXCLUDED.volatility_60d_unavailable_reason,
+                      volatility_252d_unavailable_reason = EXCLUDED.volatility_252d_unavailable_reason,
                       updated_at = CURRENT_TIMESTAMP
                     """,
                     (
@@ -461,6 +505,10 @@ class RiskMetricsLoader(OptimalLoader):
                         row["data_unavailable"],
                         row.get("reason"),
                         row.get("reason_type"),
+                        row.get("beta_unavailable_reason"),
+                        row.get("volatility_30d_unavailable_reason"),
+                        row.get("volatility_60d_unavailable_reason"),
+                        row.get("volatility_252d_unavailable_reason"),
                     ),
                 )
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:

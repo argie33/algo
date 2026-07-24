@@ -269,26 +269,31 @@ class OrchestratorPhaseExecutor:
                 return True, None
 
         # Check dependencies (after halt check, so skipped phases don't validate them)
-        dep_error = self._check_dependencies(phase_num)
-        if dep_error:
-            logger.critical(f"[DEP-CHECK FAILED] {dep_error}")
-            if phase.dependencies:
-                logger.critical(
-                    f"[PHASE {phase_num}] BLOCKING: Cannot execute phase with {len(phase.dependencies)} "
-                    f"unsatisfied dependencies. Dependency chain: {phase.dependencies}"
+        # SESSION 396 FIX: Skip dependency validation for always_run phases
+        # They execute regardless of whether dependencies succeeded and handle missing data gracefully
+        # Example: Phase 8 (always_run=True) needs signals from Phase 7, but if Phase 7 failed,
+        # Phase 8 still runs its proactive risk check and degrades gracefully (no entries, not an error)
+        if not phase.always_run:
+            dep_error = self._check_dependencies(phase_num)
+            if dep_error:
+                logger.critical(f"[DEP-CHECK FAILED] {dep_error}")
+                if phase.dependencies:
+                    logger.critical(
+                        f"[PHASE {phase_num}] BLOCKING: Cannot execute phase with {len(phase.dependencies)} "
+                        f"unsatisfied dependencies. Dependency chain: {phase.dependencies}"
+                    )
+                # CRITICAL FIX: Store error result so downstream phases see "dependency_failed" not "never executed"
+                # Without storing this, missing phase_results[N] looks like phase N never ran, causing cascading failures
+                result = PhaseResult(
+                    phase_num=phase_num,
+                    phase_name=phase.phase_name,
+                    status="error",
+                    data=self._get_default_skip_data(phase_num),
+                    error=dep_error,
+                    dependencies=phase.dependencies,
                 )
-            # CRITICAL FIX: Store error result so downstream phases see "dependency_failed" not "never executed"
-            # Without storing this, missing phase_results[N] looks like phase N never ran, causing cascading failures
-            result = PhaseResult(
-                phase_num=phase_num,
-                phase_name=phase.phase_name,
-                status="error",
-                data=self._get_default_skip_data(phase_num),
-                error=dep_error,
-                dependencies=phase.dependencies,
-            )
-            self.phase_results[phase_num] = result
-            return False, dep_error
+                self.phase_results[phase_num] = result
+                return False, dep_error
 
         # Execute phase
         try:

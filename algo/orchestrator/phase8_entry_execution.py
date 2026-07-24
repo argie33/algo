@@ -576,31 +576,19 @@ def run(
     if exposure_constraints_from_executor is not None:
         exposure_constraints = exposure_constraints_from_executor
 
-    # ISSUE #2 FIX: Validate Phase 7 data availability before processing
-    # Explicit check ensures we have valid signal data before attempting entry execution
+    # SESSION 396 FIX: Handle missing signals gracefully (Phase 7 may be halted)
+    # Phase 8 can still run proactive risk checks even without signals
     if qualified_trades is None:
-        msg = (
-            "[PHASE 8 CRITICAL] Phase 7 did not provide qualified_trades (None). "
-            "Cannot execute entries without signal data. "
-            "Verify Phase 7 (Signal Generation) completed successfully."
+        qualified_trades = []
+        logger.info(
+            "[PHASE 8] No qualified trades from Phase 7 (None). "
+            "Phase 8 will still run proactive risk check and proceed with market cleanup if needed."
         )
-        logger.critical(msg)
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     if not qualified_trades:
-        logger.info("[PHASE 8] No qualified trades from Phase 7")
-
-        log_phase_result_fn(8, "entry_execution", "skipped", "No qualified signals available (upstream failure)")
-
-        return PhaseResult(
-            8,
-            "entry_execution",
-            "skipped",
-            {"entered": 0},
-            False,
-            "No signals to execute (Phase 7 produced no qualified candidates)",
-        )
+        logger.info("[PHASE 8] No qualified trades from Phase 7 (empty list)")
+        # Don't return here - continue to run proactive risk check
+        # This allows Phase 8's proactive risk enforcement to run even without new signals
 
     # CRITICAL: Persist signals to database (previously missing - this caused zero signals in dashboard)
     # This is the essential link between Phase 7 signal generation and dashboard display
@@ -615,13 +603,15 @@ def run(
         raise RuntimeError(f"Signal persistence failed (dashboard sync broken): {e}") from e
 
     # Halt flag check before any trades
-
+    # SESSION 396 FIX: When halt flag is set (circuit breaker triggered), Phase 8 should
+    # gracefully skip entries without failing. This is expected behavior - it means the
+    # circuit breaker prevented new positions due to existing risk or market conditions.
+    # Report as "degraded" (success but suboptimal) not "halted" - Phase 8 ran but entries were blocked.
     if check_halt_flag and check_halt_flag():
-        logger.warning("[PHASE 8] Halt flag set - skipping all entries")
-
-        log_phase_result_fn(8, "entry_execution", "halt", "Halt flag active")
-
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, "Halt flag active")
+        msg = "[PHASE 8] Circuit breaker active (halt flag set) - entries blocked to protect portfolio"
+        logger.warning(msg)
+        log_phase_result_fn(8, "entry_execution", "degraded", msg)
+        return PhaseResult(8, "entry_execution", "degraded", {"entered": 0}, False, msg)
 
     # SESSION 396 FIX: GRACEFUL DEGRADATION WHEN DEPENDENCIES UNAVAILABLE
     # Phase 5 (exposure policy) may be unavailable due to earlier phase halts.
@@ -997,8 +987,8 @@ def run(
                 f"Cannot enter new positions - risk already at limit. Close positions to trade."
             )
             logger.warning(msg)
-            log_phase_result_fn(8, "entry_execution", "blocked", msg)
-            return PhaseResult(8, "entry_execution", "blocked", {"entered": 0}, False, msg)
+            log_phase_result_fn(8, "entry_execution", "degraded", msg)
+            return PhaseResult(8, "entry_execution", "degraded", {"entered": 0}, False, msg)
         elif available_capacity_pct < 1.0:
             logger.warning(
                 f"[PHASE 8 RISK GUARD] Current risk {current_risk_pct:.2f}%, "
