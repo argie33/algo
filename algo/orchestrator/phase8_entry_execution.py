@@ -698,6 +698,16 @@ def run(
 
     # Validate that exposure_constraints has all fields needed for position sizing
     # CRITICAL: All required fields must be present; no silent defaults allowed
+    if exposure_constraints is None:
+        msg = (
+            "[PHASE 8 CRITICAL] exposure_constraints is None. "
+            "Cannot execute trades without market exposure constraints from Phase 5. "
+            "Phase 5 (Exposure Policy) must complete and provide constraint data."
+        )
+        logger.critical(msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+
     required_fields = [
         "tier_name",
         "risk_multiplier",
