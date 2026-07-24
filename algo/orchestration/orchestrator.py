@@ -1955,7 +1955,9 @@ class Orchestrator:
                     p["status"] == "skipped" and "MARKET_HOURS_GUARD" in p.get("summary", "")
                     for p in self.phase_results.values()
                 )
-                phase_9_succeeded = self.phase_results.get("9", {}).get("status") in ("ok", "success")
+                # Phase 9 may be keyed as int 9 or string "9" depending on call context
+                phase_9_data = self.phase_results.get(9) or self.phase_results.get("9", {})
+                phase_9_succeeded = phase_9_data.get("status") in ("ok", "success")
 
                 if phase_8_market_hours_skip and phase_9_succeeded:
                     # Phase 8 skipped due to market hours but Phase 9 (always_run) succeeded - healthy run
