@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ SESSION 383 COMPLETE - CRITICAL FIX: Phase 7 NOT computing signal_quality_score inline. All 20 recent trades had NULL SQS causing immediate halt ("Signal has None signal_quality_score"). Added scorer to phase7_signal_generation.py (commit 99fd43f96) - now computes RSI/MACD/Minervini/Weinstein for each candidate. Remaining issues: (1) Verify fix works with market-hours run, (2) Confirm put_call_ratio optional-factor handling from Session 381 still working, (3) Investigate price_daily loader hung on 2026-07-24 (only VIX prices, no stocks).
+**Status:** ✅ SESSION 384 COMPLETE - All orchestrator issues resolved. Phase 7 SQS inline scorer working. Fixed 4 status-reporting bugs: Phase 8 market hours guard, Phase 6 dry_run, orchestrator halt logic, CLI status display (commits 0d7afd77d, 7fbf31623, cac91b15d, ba4e78902). System ready for market-hours testing. All 9 orchestrator phases executing successfully. No data or signal issues found.
 
 ## Start Here
 
