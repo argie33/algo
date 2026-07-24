@@ -402,6 +402,8 @@ CREATE TABLE IF NOT EXISTS annual_income_statement (
     net_income NUMERIC(18, 2),
     eps_basic NUMERIC(12, 4),
     eps_diluted NUMERIC(12, 4),
+    depreciation_expense NUMERIC(18, 2),
+    amortization_expense NUMERIC(18, 2),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (symbol, fiscal_year)
 );

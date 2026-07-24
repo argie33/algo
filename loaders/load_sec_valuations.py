@@ -186,10 +186,34 @@ class SecValuationsLoader(OptimalLoader):
                 total_debt, total_cash = debt_row if debt_row else (None, None)
                 # Note: None values mean EV metrics won't be computed
 
-                # EBITDA not available in annual_income_statement
-                # TODO: Fetch from SEC tags if available; for now leave as None
-                # (EV/EBITDA won't be computed - acceptable trade-off)
+                # Session 398: Calculate EBITDA from operating income + depreciation + amortization
                 ebitda = None
+                if operating_income is not None:
+                    # Fetch depreciation and amortization from annual_income_statement
+                    cur.execute(
+                        """
+                        SELECT depreciation_expense, amortization_expense
+                        FROM annual_income_statement
+                        WHERE symbol = %s AND data_unavailable = FALSE
+                        ORDER BY fiscal_year DESC LIMIT 1
+                        """,
+                        (symbol,),
+                    )
+                    dep_row = cur.fetchone()
+                    if dep_row:
+                        dep_exp = safe_float(dep_row[0], f"{symbol}.depreciation_expense", allow_none=True)
+                        amort_exp = safe_float(dep_row[1], f"{symbol}.amortization_expense", allow_none=True)
+
+                        # EBITDA = Operating Income + Depreciation + Amortization
+                        ebitda_val = operating_income
+                        if dep_exp:
+                            ebitda_val += dep_exp
+                        if amort_exp:
+                            ebitda_val += amort_exp
+
+                        # Only set if we added at least depreciation or amortization to operating income
+                        if dep_exp or amort_exp:
+                            ebitda = ebitda_val
 
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation

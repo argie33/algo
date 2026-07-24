@@ -46,6 +46,9 @@ _INCOME_IFRS_ALIASES = [
     ("ProfitLoss", "net_income_loss"),
     ("BasicEarningsLossPerShare", "earnings_per_share_basic"),
     ("DilutedEarningsLossPerShare", "earnings_per_share_diluted"),
+    # Session 398: EBITDA extraction from IFRS filers
+    ("DepreciationAndAmortisation", "depreciation_and_amortization"),
+    ("DepreciationExpense", "depreciation"),
 ]
 
 _CASHFLOW_IFRS_ALIASES = [
@@ -119,6 +122,10 @@ def get_income_statement(client: Any, symbol: str, period: str = "annual") -> li
         # leaving it unmapped means those symbols correctly get interest_coverage=NULL
         # instead of a wrong number.
         "InterestExpense",
+        # Session 398: For EBITDA calculation = OperatingIncomeLoss + Depreciation + Amortization
+        "DepreciationExpense",
+        "DepreciationAndAmortization",
+        "AmortizationOfIntangibles",
     ]
     return _aggregate_concepts(client, symbol, concepts, period, ifrs_aliases=_INCOME_IFRS_ALIASES)
 

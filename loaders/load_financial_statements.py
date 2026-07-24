@@ -97,6 +97,9 @@ _INCOME_FIELD_MAPPING = {
     "net_income_loss": "net_income",
     "earnings_per_share_basic": "earnings_per_share",
     "interest_expense": "interest_expense",
+    "depreciation": "depreciation_expense",  # Session 398: EBITDA extraction
+    "depreciation_and_amortization": "amortization_expense",  # Fallback if separate D/A not available
+    "amortization_of_intangibles": "amortization_expense",  # Alt source for amortization
     **_MARKER_FIELDS,
 }
 
@@ -170,6 +173,8 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "net_income",
                     "earnings_per_share",
                     "interest_expense",
+                    "depreciation_expense",
+                    "amortization_expense",
                     "created_at",
                     "data_unavailable",
                     "reason",
@@ -193,6 +198,8 @@ def get_income_statement_config(period: str) -> dict[str, Any]:
                     "net_income",
                     "earnings_per_share",
                     "interest_expense",
+                    "depreciation_expense",
+                    "amortization_expense",
                     "created_at",
                     "data_unavailable",
                     "reason",
