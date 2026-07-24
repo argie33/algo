@@ -520,14 +520,16 @@ def _get_candidates_from_buysell(
                 for candidate in candidates:
                     symbol = candidate["symbol"]
                     try:
-                        # Fetch technical data for this signal
+                        # Fetch technical data for this signal (CRITICAL FIX: use correct table for each metric)
+                        # RSI, MACD are in technical_data_daily; minervini, weinstein are in trend_template_data
                         cur_sqs.execute(
                             """
                             SELECT
-                                rsi, macd, macd_signal,
-                                minervini_score, weinstein_stage
-                            FROM technical_data_daily
-                            WHERE symbol = %s AND date = %s
+                                t.rsi, t.macd, t.macd_signal,
+                                tr.minervini_trend_score, tr.weinstein_stage
+                            FROM technical_data_daily t
+                            LEFT JOIN trend_template_data tr ON tr.symbol = t.symbol AND tr.date = t.date
+                            WHERE t.symbol = %s AND t.date = %s
                             """,
                             (symbol, run_date),
                         )
