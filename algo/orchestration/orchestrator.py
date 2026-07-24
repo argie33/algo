@@ -613,16 +613,17 @@ class Orchestrator:
         """
         try:
             with DatabaseContext("write") as cur:
-                # Delete expired locks OR locks held for > 1 hour (indicates hung loader)
+                # Delete expired locks OR locks held for > 30 minutes (indicates hung loader)
+                # 30 minutes is a reasonable upper bound for any loader's runtime.
                 cur.execute("""
                     DELETE FROM loader_execution_locks
                     WHERE expires_at <= CURRENT_TIMESTAMP
-                       OR EXTRACT(EPOCH FROM (NOW() - locked_at)) > 3600
+                       OR EXTRACT(EPOCH FROM (NOW() - locked_at)) > 1800
                 """)
                 deleted_count = cur.rowcount
 
                 if deleted_count > 0:
-                    logger.info(f"[LOCK_CLEANUP] Cleaned up {deleted_count} loader lock(s) (expired or held > 1hr)")
+                    logger.info(f"[LOCK_CLEANUP] Cleaned up {deleted_count} loader lock(s) (expired or held > 30min)")
 
                 # Log any active long-running locks (> 10 minutes)
                 cur.execute("""
