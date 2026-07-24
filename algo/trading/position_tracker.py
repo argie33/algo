@@ -90,13 +90,13 @@ class PositionTracker:
             # CRITICAL FIX Session 391: Convert new_qty to integer
             # The quantity column is INTEGER, so 0.5 gets cast to 1 (not 0), causing no-op UPDATE
             # This was causing partial exits to fail silently: rowcount=1 but quantity unchanged
-            new_qty_int = int(round(new_qty))
-            if new_qty_int != new_qty:
+            qty_for_db = int(round(new_qty))
+            if qty_for_db != new_qty:
                 logger.warning(
-                    f"[POSITION_UPDATE] Position {position_id}: new_qty {new_qty} rounded to integer {new_qty_int} "
+                    f"[POSITION_UPDATE] Position {position_id}: new_qty {new_qty} rounded to integer {qty_for_db} "
                     f"(quantity column is INTEGER type)"
                 )
-            new_qty = new_qty_int
+            effective_new_qty = qty_for_db
 
             # CRITICAL FIX Session 391: Fail-fast if quantity changed unexpectedly
             # (indicates race condition or transaction isolation issue)
@@ -121,7 +121,7 @@ class PositionTracker:
                 if current_stop >= new_stop_decimal:
                     effective_stop = current_stop
 
-            if full_exit or new_qty <= 0:
+            if full_exit or effective_new_qty <= 0:
                 cur.execute(
                     """UPDATE algo_positions
                        SET status = %s, quantity = 0, closed_at = CURRENT_TIMESTAMP
@@ -151,7 +151,7 @@ class PositionTracker:
                                    position_value = %s * current_price,
                                    target_levels_hit = %s,
                                    current_stop_price = %s"""
-                params = [new_qty, new_qty, new_target_levels, effective_stop]
+                params = [effective_new_qty, effective_new_qty, new_target_levels, effective_stop]
 
                 if exit_stage == "target_1":
                     update_sql += ", target_1_hit_time = CURRENT_TIMESTAMP"
@@ -165,7 +165,7 @@ class PositionTracker:
 
                 logger.debug(
                     f"[POSITION_UPDATE] partial exit: position={position_id}, "
-                    f"old_qty={current_qty}, new_qty={new_qty}, exit_stage={exit_stage}"
+                    f"old_qty={current_qty}, new_qty={effective_new_qty}, exit_stage={exit_stage}"
                 )
                 cur.execute(update_sql, params)
                 rows_updated = cur.rowcount
