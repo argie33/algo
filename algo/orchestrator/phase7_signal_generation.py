@@ -523,6 +523,14 @@ def _get_candidates_from_buysell(
                     try:
                         # Fetch technical data for this signal (CRITICAL FIX: use correct table for each metric)
                         # RSI, MACD are in technical_data_daily; minervini, weinstein are in trend_template_data
+                        # CRITICAL FIX (Session 384): Use candidate's signal_date, not run_date. Morning runs happen
+                        # before EOD pipeline completes, so today's technical data doesn't exist yet. Signal came from
+                        # yesterday, so query technical data from yesterday's date.
+                        signal_date = candidate.get("signal_date")
+                        if not signal_date:
+                            candidate["signal_quality_score"] = None
+                            candidate["trend_template_score"] = None
+                            continue
                         cur_sqs.execute(
                             """
                             SELECT
@@ -532,7 +540,7 @@ def _get_candidates_from_buysell(
                             LEFT JOIN trend_template_data tr ON tr.symbol = t.symbol AND tr.date = t.date
                             WHERE t.symbol = %s AND t.date = %s
                             """,
-                            (symbol, run_date),
+                            (symbol, signal_date),
                         )
                         tech_row = cur_sqs.fetchone()
 
@@ -1066,60 +1074,15 @@ def run(  # noqa: C901
     # This eliminates wasted I/O and ensures data quality drift is detected immediately.
     quality_filtered = raw_candidates
 
-    # CRITICAL FIX (Session 383): Compute signal_quality_score for all candidates
-    # _get_candidates_from_buysell() returns candidates without signal_quality_score
-    # Must compute inline using technical indicators (RSI, MACD, Minervini, Weinstein)
+    # CRITICAL FIX (Session 383): Signal quality scores already computed in _get_candidates_from_buysell()
+    # All candidates here already have signal_quality_score from technical data (RSI, MACD, Minervini, Weinstein)
+    # Removed redundant computation - just validate they exist
     if quality_filtered:
-        from loaders.signal_quality_scorer import get_signal_scorer
-
-        with DatabaseContext("read") as cur_sqs:
-            for candidate in quality_filtered:
-                symbol = candidate["symbol"]
-                try:
-                    # Fetch technical data for signal quality scoring
-                    cur_sqs.execute(
-                        """
-                        SELECT
-                            t.rsi, t.macd, t.macd_signal,
-                            tr.minervini_trend_score, tr.weinstein_stage
-                        FROM technical_data_daily t
-                        LEFT JOIN trend_template_data tr ON tr.symbol = t.symbol AND tr.date = t.date
-                        WHERE t.symbol = %s AND t.date = %s
-                        """,
-                        (symbol, run_date),
-                    )
-                    tech_row = cur_sqs.fetchone()
-
-                    if not tech_row:
-                        candidate["signal_quality_score"] = None
-                        candidate["trend_template_score"] = None
-                        logger.warning(f"[PHASE 7] {symbol}: No technical data for SQS computation")
-                        continue
-
-                    rsi, macd, macd_signal, minervini, weinstein = tech_row
-
-                    # Compute scores using strategy pattern (same as batch loader)
-                    scorer = get_signal_scorer("BUY")
-                    base_score = scorer.calculate_base_quality_score()
-                    volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
-                    trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
-
-                    # Composite SQS = sum of components (clamped to 100)
-                    composite_sqs = min(100, int(base_score + volume_score + trend_score))
-
-                    candidate["signal_quality_score"] = composite_sqs
-                    candidate["trend_template_score"] = trend_score
-
-                except Exception as score_e:
-                    logger.warning(f"[PHASE 7] {symbol}: Could not compute signal quality score: {score_e}")
-                    candidate["signal_quality_score"] = None
-                    candidate["trend_template_score"] = None
-
         missing_scores = sum(1 for c in quality_filtered if c.get("signal_quality_score") is None)
         if missing_scores > 0:
             logger.info(
                 f"[PHASE 7] {missing_scores}/{len(quality_filtered)} candidates missing signal quality scores "
-                f"(insufficient technical data). These will be rejected."
+                f"(insufficient technical data during candidate fetch). These will be rejected."
             )
             # Filter out signals without valid SQS (fail-fast validation)
             quality_filtered = [c for c in quality_filtered if c.get("signal_quality_score") is not None]
