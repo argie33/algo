@@ -89,12 +89,21 @@ class SignalTradePerformancePopulator:
                         holding_days,
                     ) = row
 
-                    if entry_price is None or exit_price is None or pnl_dollars is None or entry_qty is None:
+                    if entry_price is None or exit_price is None or entry_qty is None:
                         logger.error(
-                            f"CRITICAL: Trade {trade_id_int} ({symbol}) has NULL price/PnL data. "
-                            f"Skipping: entry={entry_price}, exit={exit_price}, pnl={pnl_dollars}, qty={entry_qty}"
+                            f"CRITICAL: Trade {trade_id_int} ({symbol}) has NULL price data. "
+                            f"Skipping: entry={entry_price}, exit={exit_price}, qty={entry_qty}"
                         )
                         continue
+
+                    # Calculate PnL from prices if profit_loss_dollars is NULL
+                    # (happens for estimated-price exits awaiting reconciliation)
+                    if pnl_dollars is None:
+                        pnl_dollars = (exit_price - entry_price) * entry_qty
+                        logger.info(
+                            f"Trade {trade_id_int} ({symbol}): calculated PnL from estimated exit "
+                            f"({exit_price - entry_price:.2f} * {entry_qty}) = {pnl_dollars:.2f}"
+                        )
 
                     if entry_price <= 0 or entry_qty <= 0:
                         logger.error(
