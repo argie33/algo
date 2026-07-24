@@ -1929,6 +1929,12 @@ class Orchestrator:
         any_degraded = any(p["status"] == "degraded" for p in self.phase_results.values())
         any_skipped = any(p["status"] == "skipped" for p in self.phase_results.values())
 
+        # CRITICAL FIX: If a phase has status="halted", it's a policy halt (e.g., circuit breaker),
+        # not an error. Don't mark overall as "error" just because a halt occurred.
+        # Priority: halted > error (a halt is a controlled stop, error is unexpected)
+        if any_halt:
+            any_error = False  # Halt takes precedence over error status
+
         # Determine reason for halt/skip if applicable
         skip_reason = None
         if any_error:
