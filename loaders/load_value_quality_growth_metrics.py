@@ -1069,7 +1069,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         )
 
     def _unavailable_marker(self, table: str, symbol: str) -> dict[str, Any]:
-        """Return data_unavailable marker for a table."""
+        """Return data_unavailable marker for a table.
+
+        CRITICAL: Include all *_unavailable_reason fields (even when data is fully unavailable)
+        so the database row has explicit reason codes explaining why metrics are NULL.
+        Previously these were omitted, causing 600+ rows to have NULL reason codes.
+        """
         if table == "value_metrics":
             return {
                 "symbol": symbol,
@@ -1079,6 +1084,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "peg_ratio": None,
                 "dividend_yield": None,
                 "fcf_yield": None,
+                "pe_ratio_unavailable_reason": "missing_sec_data",
+                "pb_ratio_unavailable_reason": "missing_sec_data",
+                "ps_ratio_unavailable_reason": "missing_sec_data",
+                "peg_ratio_unavailable_reason": "missing_sec_data",
+                "dividend_yield_unavailable_reason": "missing_sec_data",
+                "fcf_yield_unavailable_reason": "missing_sec_data",
+                "forward_pe_unavailable_reason": "analyst_estimates_not_in_sec_filings",
+                "ev_ebitda_unavailable_reason": "depreciation_amortization_not_loaded",
+                "market_cap_unavailable_reason": None,
+                "held_percent_insiders_unavailable_reason": None,
+                "held_percent_institutions_unavailable_reason": None,
                 "data_unavailable": True,
                 "data_source": "none",
                 "updated_at": date.today().isoformat(),
@@ -1111,6 +1127,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "ebitda": None,
                 "earnings_growth_yoy": None,
                 "revenue_growth_yoy": None,
+                # Reason codes for all metrics (Session 401 fix: were NULL before)
+                "roe_unavailable_reason": "missing_sec_data",
+                "roa_unavailable_reason": "missing_sec_data",
+                "operating_margin_unavailable_reason": "missing_sec_data",
+                "net_margin_unavailable_reason": "missing_sec_data",
+                "debt_to_equity_unavailable_reason": "missing_sec_data",
+                "current_ratio_unavailable_reason": "missing_sec_data",
+                "quick_ratio_unavailable_reason": "missing_sec_data",
+                "interest_coverage_unavailable_reason": "missing_sec_data",
+                "debt_to_assets_unavailable_reason": "missing_sec_data",
+                "quality_score_unavailable_reason": None,
                 "data_unavailable": True,
                 "data_source": "none",
                 "updated_at": date.today().isoformat(),
@@ -1124,6 +1151,13 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 "eps_growth_1y": None,
                 "eps_growth_3y": None,
                 "eps_growth_5y": None,
+                # Reason codes for all metrics (Session 401 fix: were NULL before)
+                "revenue_growth_1y_unavailable_reason": "insufficient_history",
+                "revenue_growth_3y_unavailable_reason": "insufficient_history",
+                "revenue_growth_5y_unavailable_reason": "insufficient_history",
+                "eps_growth_1y_unavailable_reason": "insufficient_history",
+                "eps_growth_3y_unavailable_reason": "insufficient_history",
+                "eps_growth_5y_unavailable_reason": "insufficient_history",
                 "data_unavailable": True,
                 "data_source": "none",
                 "reason": "Insufficient historical data",
