@@ -484,13 +484,9 @@ const POSITIONING_SCHEMA = [
 ];
 
 const STABILITY_SCHEMA = [
-  { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2) },
-  { key: 'downside_volatility',      label: 'Downside Volatility',  fmt: v => pct(v, 2) },
-  { key: 'max_drawdown_52w',         label: 'Max Drawdown (52W)',   fmt: v => pct(v, 2) },
-  { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2) },
-  { key: 'volatility_risk_component',label: 'Volatility Risk Score',fmt: v => num(v, 1) },
-  { key: 'volume_consistency',       label: 'Volume Consistency',   fmt: v => num(v, 1) },
-  { key: 'turnover_velocity',        label: 'Turnover Velocity',    fmt: v => num(v, 1) },
-  { key: 'volatility_volume_ratio',  label: 'Volatility / Volume',  fmt: v => num(v, 1) },
-  { key: 'daily_spread',             label: 'Daily Spread',         fmt: v => num(v, 1) },
+  { key: 'volatility_12m',           label: 'Volatility (12M)',     fmt: v => pct(v, 2), used: true, weight: '35%' },
+  { key: 'volatility_60d',           label: 'Volatility (60D)',     fmt: v => pct(v, 2), used: true, weight: '18%' },
+  { key: 'volatility_30d',           label: 'Volatility (30D)',     fmt: v => pct(v, 2), used: true, weight: '12%' },
+  { key: 'beta',                     label: 'Beta vs Market',       fmt: v => num(v, 2), used: true, weight: '15%' },
+  { key: 'debt_to_assets',           label: 'Debt to Assets',       fmt: v => pct(v, 1), used: true, weight: '10%' },
 ];

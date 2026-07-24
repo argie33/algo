@@ -1952,7 +1952,7 @@ class Orchestrator:
                 # If Phase 8 skipped for this reason and always-run Phase 9 succeeded, the run is healthy ("ok").
                 # Only mark as "degraded" if skip was due to upstream phase failure.
                 phase_8_market_hours_skip = any(
-                    p["status"] == "skipped" and "MARKET_HOURS_GUARD" in p.get("summary", "")
+                    p["status"] == "skipped" and "MARKET HOURS GUARD" in p.get("summary", "")
                     for p in self.phase_results.values()
                 )
                 # Phase 9 may be keyed as int 9 or string "9" depending on call context

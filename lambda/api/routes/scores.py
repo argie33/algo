@@ -397,20 +397,15 @@ def _get_stock_scores(
                 "ad_rating": d.get("ad_rating"),  # May be None
             }
 
-            # Stability Inputs: Volatility, beta, drawdown
+            # Stability Inputs: Volatility, beta, financial stability
+            # NOTE: Only fields computed by load_risk_metrics_daily.py are included
+            # (downside_volatility, max_drawdown_52w, volume_consistency, etc. are not computed by any loader)
             d["stability_inputs"] = {
                 "volatility_12m": d.get("volatility_12m_val"),
                 "volatility_60d": d.get("volatility_60d_val"),
                 "volatility_30d": d.get("volatility_30d_val"),
                 "beta": d.get("beta_val"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
-                "downside_volatility": d.get("downside_volatility"),  # May be None
-                "max_drawdown_52w": d.get("max_drawdown_52w"),  # May be None
-                "volatility_risk_component": d.get("vol_risk_score"),  # May be None
-                "volume_consistency": d.get("volume_consistency"),  # May be None
-                "turnover_velocity": d.get("turnover_velocity"),  # May be None
-                "volatility_volume_ratio": d.get("vol_vol_ratio"),  # May be None
-                "daily_spread": d.get("daily_spread"),  # May be None
             }
 
         items = []
