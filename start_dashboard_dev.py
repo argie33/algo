@@ -395,6 +395,76 @@ def start_dashboard(watch_interval: int | None = None) -> int:
         return 0
 
 
+def start_react_dev_server() -> subprocess.Popen | None:
+    """Start React dev server (Vite) for web UI on port 5173+."""
+    try:
+        react_dir = Path(__file__).parent / "webapp" / "frontend"
+        if not react_dir.exists():
+            logger.warning(f"[REACT] React directory not found: {react_dir}")
+            return None
+
+        logger.info("[REACT] Starting React dev server (Vite)...")
+        logger.info(f"[REACT] Working directory: {react_dir}")
+
+        # Start React dev server with npm run dev
+        # Vite will automatically find an available port (5173, 5174, 5175, etc.)
+        process = subprocess.Popen(
+            ["npm", "run", "dev"],
+            cwd=str(react_dir),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,
+        )
+
+        # Wait for React dev server to be ready
+        logger.info("[REACT] Waiting for React dev server to be ready (max 30s)...")
+        max_wait = 30
+        start_time = time.time()
+        react_port = None
+
+        # Read output to find the port
+        import threading
+
+        def read_output():
+            nonlocal react_port
+            if process.stdout:
+                for line in process.stdout:
+                    print(f"[REACT] {line.rstrip()}")
+                    if "Local:" in line and "http://localhost:" in line:
+                        try:
+                            port_str = line.split("localhost:")[1].split("/")[0]
+                            react_port = int(port_str)
+                        except (ValueError, IndexError):
+                            pass
+
+        reader = threading.Thread(target=read_output, daemon=True)
+        reader.start()
+
+        # Wait for port to be detected or timeout
+        while react_port is None and (time.time() - start_time) < max_wait:
+            time.sleep(1)
+
+        if react_port:
+            logger.info(f"[REACT] Dev server ready on http://localhost:{react_port}")
+        else:
+            logger.warning("[REACT] Could not detect port, checking if process is running...")
+            if process.poll() is not None:
+                stderr = process.stderr.read() if process.stderr else "unknown error"
+                logger.error(f"[REACT] Process exited: {stderr}")
+                return None
+
+        logger.info("[REACT] React web UI is available")
+        return process
+
+    except FileNotFoundError:
+        logger.error("[REACT] npm not found. Install Node.js to use React dev server.")
+        return None
+    except Exception as e:
+        logger.error(f"[REACT] Failed to start React dev server: {e}")
+        return None
+
+
 def main() -> int:
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -426,12 +496,23 @@ def main() -> int:
         # Start dev_server (if needed)
         dev_server_process = start_dev_server()
 
+        # Start React dev server for web UI
+        react_process = start_react_dev_server()
+
         # Start dashboard (blocks until user exits)
         dashboard_exit_code = start_dashboard(args.watch_interval)
 
-        # Clean up dev_server when dashboard exits
+        # Clean up processes when dashboard exits
+        if react_process:
+            print("\n[STARTUP] Shutting down React dev server...", flush=True)
+            react_process.terminate()
+            try:
+                react_process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                react_process.kill()
+
         if dev_server_process:
-            print("\n[STARTUP] Shutting down dev_server...", flush=True)
+            print("\n[STARTUP] Shutting down API dev_server...", flush=True)
             dev_server_process.terminate()
             try:
                 dev_server_process.wait(timeout=5)
