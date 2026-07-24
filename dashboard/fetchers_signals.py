@@ -345,20 +345,27 @@ def fetch_scores(c: None) -> dict[str, Any]:
             record_data_quality_issue("scores", "api_call", "api_error", cast(str, error_msg))
             return FetcherValidator.build_error_response(cast(str, error_msg))
 
-        # Validate response structure - fail-fast if missing top field
+        # Validate response structure - fail-fast if missing top/items field
         if not isinstance(top_data, dict):
             error_msg = f"Scores API response: expected dict, got {type(top_data).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("scores", "validation", "invalid_response_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        if "top" not in top_data:
-            error_msg = "Scores API response: missing required 'top' field"
+        # Handle both old format (top field) and wrapped standardized format (data.top)
+        # Session 379+ fix: API wraps responses in {statusCode, data: {...}}
+        if "data" in top_data and isinstance(top_data["data"], dict):
+            # Wrapped response format: {statusCode, data: {top, universe_total, ...}}
+            response_data = top_data["data"]
+            top = response_data.get("top", [])
+        elif "top" in top_data:
+            # Legacy direct format (for backward compatibility with mocked responses)
+            top = top_data["top"]
+        else:
+            error_msg = "Scores API response: missing required 'top' field in either root or data wrapper"
             logger.error(error_msg)
             record_data_quality_issue("scores", "validation", "missing_top_field")
             return FetcherValidator.build_error_response(error_msg)
-
-        top = top_data["top"]
         if not isinstance(top, list):
             error_msg = "Scores API response: 'top' field is not a list"
             logger.error(error_msg)
@@ -367,21 +374,23 @@ def fetch_scores(c: None) -> dict[str, Any]:
 
         # Summary metrics over the full filtered universe (not just this page) - optional,
         # since older API versions/mocks won't have them; the panel falls back to len(top).
-        universe_total = top_data.get("universe_total")
+        # Extract from either legacy top_data or new response_data format
+        response_data_dict = top_data.get("data", {}) if "data" in top_data else top_data
+        universe_total = response_data_dict.get("universe_total")
         if universe_total is not None and not isinstance(universe_total, int):
             error_msg = f"Scores response 'universe_total' must be int, got {type(universe_total).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("scores", "validation", "universe_total_invalid_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        avg_composite = top_data.get("avg_composite")
+        avg_composite = response_data_dict.get("avg_composite")
         if avg_composite is not None and not isinstance(avg_composite, (int, float)):
             error_msg = f"Scores response 'avg_composite' must be numeric, got {type(avg_composite).__name__}"
             logger.error(error_msg)
             record_data_quality_issue("scores", "validation", "avg_composite_invalid_type")
             return FetcherValidator.build_error_response(error_msg)
 
-        grades = top_data.get("grades")
+        grades = response_data_dict.get("grades")
         if grades is not None and not isinstance(grades, dict):
             error_msg = f"Scores response 'grades' must be dict, got {type(grades).__name__}"
             logger.error(error_msg)
