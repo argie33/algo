@@ -1140,12 +1140,24 @@ def run(  # noqa: C901
     # but doesn't predict short-term price movement. Signal_quality_score (based on RSI, MACD,
     # Minervini, Weinstein) is more predictive of 1-5 day price action. Switching to SQS-based
     # ranking should improve win rate from 33% to 50%+.
+
+    # Defensive: Filter out any candidates with None signal_quality_score (shouldn't happen but catch edge cases)
+    quality_filtered = [c for c in quality_filtered if c.get("signal_quality_score") is not None]
+    if not quality_filtered:
+        msg = "[PHASE 7] All candidates rejected due to missing signal quality scores (edge case after filtering)"
+        logger.warning(msg)
+        log_phase_result_fn(7, "signal_generation", "no_data", msg)
+        return PhaseResult(
+            7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
+        )
+
     for sig in quality_filtered:
         sqs = sig.get("signal_quality_score")
         if sqs is None:
+            # Should never reach here due to filter above, but fail-fast if it does
             raise ValueError(
                 f"Signal {sig.get('symbol')} has None signal_quality_score. "
-                f"Phase 7 inline scoring should have computed this from technical data."
+                f"This should have been filtered out - indicates a logic error in candidate processing."
             )
         if not isinstance(sqs, (int, float)):
             raise ValueError(f"Signal {sig.get('symbol')} signal_quality_score is {type(sqs).__name__}, expected float")
