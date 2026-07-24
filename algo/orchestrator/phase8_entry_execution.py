@@ -69,7 +69,7 @@ def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[
                 WHERE p.status = 'open'
             """)
             result = cur.fetchone()
-            total_risk_dollars = result[0] if result and result[0] else 0.0
+            total_risk_dollars = float(result[0]) if result and result[0] else 0.0
             open_count = result[1] if result and result[1] else 0
 
             # Get portfolio value
@@ -1385,7 +1385,7 @@ def run(
             # - NULL means signal quality was never computed (upstream data incomplete)
             # - Accepting NULL bypasses the entire quality gate, causing losses
             # - Require explicit quality score for all entries (fail-closed principle)
-            min_sqs = config.get("min_signal_quality_score", 75)
+            min_sqs = config.get("min_signal_quality_score", 60)
             if sqs is None:
                 rejection_reason = f"Signal quality score unavailable (NULL) - cannot trade without quality validation"
                 logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")

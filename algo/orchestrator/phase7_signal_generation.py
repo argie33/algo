@@ -950,10 +950,11 @@ def run(  # noqa: C901
             parallelism=8,
             backfill_days=60  # Recompute all symbols for last 60 days (overrides watermarks)
         )
-        if not score_result.get("success", False):
-            logger.warning(f"[PHASE 7] Signal quality score computation returned non-success: {score_result}")
+        symbols_failed = score_result.get("symbols_failed", 0)
+        if symbols_failed > 0:
+            logger.warning(f"[PHASE 7] Signal quality score computation had {symbols_failed} failures: {score_result}")
         else:
-            logger.info(f"[PHASE 7] Signal quality scores computed: {score_result.get('processed', 0)} symbols")
+            logger.info(f"[PHASE 7] Signal quality scores computed: {score_result.get('symbols_processed', 0)} symbols")
     except Exception as e:
         logger.warning(f"[PHASE 7] Signal quality score computation failed (non-critical): {e}")
         # Don't halt - Phase 8 will proceed with NULL scores but will apply fallback

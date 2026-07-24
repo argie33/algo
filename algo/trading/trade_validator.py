@@ -308,6 +308,10 @@ class TradeValidator:
     ) -> tuple[bool, str | None, str | None]:
         """Check if same signal already exists as OPEN or PENDING trade.
 
+        CRITICAL FIX: The database constraint algo_trades_symbol_open_positions_idx
+        only allows ONE open trade per symbol (regardless of signal_date).
+        This check MUST reject ANY open trade for the symbol, not just same-date duplicates.
+
         Returns:
             (is_duplicate: bool, error_message: str|None, existing_trade_id: str|None)
         """
@@ -318,23 +322,28 @@ class TradeValidator:
                 f"Cannot match trades without valid signal date - this is a data integrity requirement."
             )
 
+        # Check for ANY open/pending trade with this symbol (database constraint enforces 1 max)
         cur.execute(
             """
-            SELECT trade_id FROM algo_trades
-            WHERE symbol = %s AND signal_date = %s
+            SELECT trade_id, signal_date FROM algo_trades
+            WHERE symbol = %s
               AND status IN (%s, %s)
             LIMIT 1
             """,
-            (symbol, signal_date, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
+            (symbol, TradeStatus.OPEN.value, TradeStatus.PENDING.value),
         )
         result = cur.fetchone()
         if result:
-            trade_id = result[0]
+            trade_id, prior_signal_date = result[0], result[1]
             signal_fingerprint = f"{symbol}|{entry_price:.2f}|{stop_loss_price:.2f}|{signal_date}"
-            logger.warning(f"DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {trade_id})")
+            prior_fingerprint = f"{symbol}|{prior_signal_date}" if prior_signal_date else f"{symbol}|[no signal_date]"
+            logger.warning(
+                f"DUPLICATE SIGNAL: {signal_fingerprint} (prior trade: {trade_id}, prior_signal: {prior_fingerprint})"
+            )
             return (
                 True,
-                f"Trade already exists for {symbol} on {signal_date} (fingerprint: {signal_fingerprint})",
+                f"Already have open trade for {symbol} (trade_id: {trade_id}, prior signal_date: {prior_signal_date}). "
+                f"Cannot have multiple open positions in same symbol.",
                 trade_id,
             )
         return False, None, None
