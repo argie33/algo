@@ -121,6 +121,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     # Extract metrics tuple
                     value_row, quality_row, growth_row = metric_tuple
 
+                    # Fetch value_score from stock_scores to sync into value_metrics
+                    if value_row:
+                        try:
+                            with DatabaseContext("read") as cur:
+                                cur.execute("SELECT value_score FROM stock_scores WHERE symbol = %s", (symbol,))
+                                score_row = cur.fetchone()
+                                if score_row and score_row[0] is not None:
+                                    value_row["value_score"] = score_row[0]
+                        except Exception as e:
+                            logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Could not fetch value_score from stock_scores: {e}")
+
                     # Check if value metrics are available (CRITICAL - value metrics required for scoring)
                     if value_row and value_row.get("data_unavailable"):
                         logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: Value metrics unavailable: {value_row.get('reason')}")
