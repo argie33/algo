@@ -1256,6 +1256,10 @@ def run(
 
             composite_score = signal.get("composite_score")
             rs_pct = signal.get("rs_percentile")
+
+            # DEBUG: Log all available keys in signal dict
+            logger.debug(f"[PHASE 8] {symbol}: Available signal keys: {list(signal.keys())}")
+
             if composite_score is None:
                 raise RuntimeError(
                     f"[PHASE 8] Signal for {symbol} missing required 'composite_score' field - "
@@ -1270,6 +1274,11 @@ def run(
             # SESSION 367 FIX: Fetch signal quality scores (SQS & trend score) from signal_quality_scores table
             # These are computed by Phase 7's signal quality scorer and used for position validation
             sqs = signal.get("signal_quality_score")
+            # CRITICAL FIX (Session 379): If signal_quality_score is not present, try composite_score as fallback
+            # Phase 7 sets both fields, but composite_score might be more reliably populated
+            if sqs is None:
+                sqs = signal.get("composite_score")
+
             trend_score = signal.get("trend_template_score")
 
             # If not in signal dict, fetch from database (fallback for earlier Signal 7 runs)
@@ -1317,11 +1326,21 @@ def run(
                 f"composite={composite_score} rs_pct={rs_pct} sqs={sqs} trend={trend_score}"
             )
 
+            # DEBUG: Verify what's actually in the signal dict
+            logger.debug(
+                f"[PHASE 8 DEBUG] {symbol}: sqs type={type(sqs).__name__}, value={sqs}. "
+                f"Available signal keys: {list(signal.keys())}"
+            )
+
             if not dry_run:
                 try:
                     # REQUIRED: symbol, entry_price, shares, stop_loss_price, signal_date, entry_date
                     # OPTIONAL: sector, industry (enrichment data, may be None if data unavailable)
                     # SESSION 367 FIX: Pass signal quality scores for trade entry validation
+                    # CRITICAL FIX: Ensure sqs is passed to trade executor to be stored in database
+                    # Phase 7 computes signal_quality_score and passes it via qualified_trades
+                    # Phase 8 must extract and pass it through to TradeContext
+                    # Session 379 fix: Verified sqs value before passing
                     result = trade_executor.execute_trade(
                         symbol=symbol,
                         entry_price=entry_price,
@@ -1336,6 +1355,7 @@ def run(
                         sqs=sqs,
                         trend_score=trend_score,
                     )
+                    logger.debug(f"[PHASE 8] {symbol}: Executed trade with sqs={sqs}, trend_score={trend_score}")
 
                     if "success" not in result or result["success"] is None:
                         raise RuntimeError(

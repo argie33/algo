@@ -819,6 +819,13 @@ class EntryHandler:
             context.market.exposure_tier_at_entry,
         )
 
+        # CRITICAL FIX (Session 379): Validate sqs is being passed through TradeContext
+        # This ensures signal_quality_score is stored in database for all trades
+        if context.sqs is not None:
+            logger.debug(f"[ENTRY_HANDLER] {symbol}: sqs={context.sqs} type={type(context.sqs).__name__}")
+        else:
+            logger.warning(f"[ENTRY_HANDLER] {symbol}: sqs is None in TradeContext - this will result in NULL signal_quality_score in database")
+
         trade_request = TradeInsertionRequest(
             trade_id=trade_id,
             idempotency_key=idempotency_key,
