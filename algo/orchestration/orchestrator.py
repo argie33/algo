@@ -603,6 +603,40 @@ class Orchestrator:
             logger.warning(f"[OOM_PREVENTION] Could not check/kill long-running loaders: {e}")
             # Don't halt trading for this check - it's advisory
 
+    def _cleanup_expired_locks(self) -> None:
+        """Clean up expired loader locks from database.
+
+        Prevents stale locks from hung loaders from blocking future orchestrator runs.
+        Automatically called during preflight checks to maintain lock table health.
+        Session 391: Fixed stale signal_quality_scores lock that held 2-hour TTL.
+        """
+        try:
+            with DatabaseContext("write") as cur:
+                # Delete expired locks
+                cur.execute("DELETE FROM loader_execution_locks WHERE expires_at <= CURRENT_TIMESTAMP")
+                deleted_count = cur.rowcount
+
+                if deleted_count > 0:
+                    logger.info(f"[LOCK_CLEANUP] Cleaned up {deleted_count} expired loader lock(s)")
+
+                # Log any active long-running locks (> 10 minutes)
+                cur.execute("""
+                    SELECT loader_name, locked_at, expires_at,
+                           EXTRACT(EPOCH FROM (NOW() - locked_at)) as duration_sec
+                    FROM loader_execution_locks
+                    WHERE EXTRACT(EPOCH FROM (NOW() - locked_at)) > 600
+                    ORDER BY locked_at ASC
+                """)
+                long_locks = cur.fetchall()
+                if long_locks:
+                    logger.warning(
+                        f"[LOCK_CLEANUP] {len(long_locks)} loader lock(s) held > 10 minutes: "
+                        + ", ".join([f"{name}({dur:.0f}s)" for name, _, _, dur in long_locks])
+                    )
+        except Exception as e:
+            logger.warning(f"[LOCK_CLEANUP] Could not clean expired locks: {e}")
+            # Don't halt trading for lock cleanup - it's advisory
+
     def _wait_for_critical_loaders_proactive(self, max_wait_seconds: int = 300) -> bool:
         """Actively wait for critical loaders to complete before Phase 1.
 
@@ -1635,6 +1669,9 @@ class Orchestrator:
 
         logger.info("\n[CHECK] Killing long-running analytics loaders...")
         self._kill_long_running_loaders()
+
+        logger.info("\n[CHECK] Cleaning up expired loader locks...")
+        self._cleanup_expired_locks()
 
         logger.info("\n[HEALTH CHECK] System diagnostics before Phase 1:")
         self.db_monitor.health_check_diagnostics()

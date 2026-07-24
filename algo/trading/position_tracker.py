@@ -135,7 +135,15 @@ class PositionTracker:
                 update_sql += " WHERE position_id = %s AND quantity = %s"
                 params.extend([position_id, current_qty])
 
+                logger.debug(
+                    f"[POSITION_UPDATE] partial exit: position={position_id}, "
+                    f"old_qty={current_qty}, new_qty={new_qty}, exit_stage={exit_stage}"
+                )
                 cur.execute(update_sql, params)
+                rows_updated = cur.rowcount
+                logger.debug(
+                    f"[POSITION_UPDATE] update result: position={position_id}, rows_affected={rows_updated}"
+                )
 
             return bool(cur.rowcount > 0)
 
@@ -148,6 +156,15 @@ class PositionTracker:
             params=(new_qty, position_id, new_qty),
             context={"position_id": position_id, "new_quantity": new_qty},
         )
+
+        if not success:
+            # Log the race condition with more context
+            logger.error(
+                f"[POSITION_UPDATE] Race condition after 3 retries: position={position_id}, "
+                f"expected_new_qty={new_qty}. Possible causes: (1) another process is modifying the position "
+                f"(check Phase 3 position monitor concurrent timing), (2) failed optimistic lock, "
+                f"(3) data consistency issue in algo_positions table"
+            )
 
         if success:
             return True, None

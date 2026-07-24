@@ -946,7 +946,10 @@ class ExitHandler:
             if not full_exit and (final_status != "open" or final_qty != new_qty):
                 raise DatabaseError(
                     f"Position consistency error: partial exit expected {new_qty} shares and 'open' status, "
-                    f"got {final_qty} shares and '{final_status}'"
+                    f"got {final_qty} shares and '{final_status}'. "
+                    f"This indicates the UPDATE WHERE quantity={current_qty} clause failed to match (optimistic lock failure) "
+                    f"or another process modified the position between our calculation and verification. "
+                    f"Check Phase 3 position monitor execution timing and advisory lock status."
                 )
 
         # TRANSACTION GUARD 6: Audit log is part of atomic transaction
