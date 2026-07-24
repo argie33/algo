@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ SESSION 379 COMPLETE - CRITICAL FIX: Phase 8 now stores signal_quality_score in trades. Issue was SQS not being extracted from signal dict. Added fallback to composite_score. Quality gate restored. Current: 33% win rate (NULL SQS). Expected post-fix: 50%+ win rate (proper filtering). Commit 25f8997f4.
+**Status:** ✅ SESSION 381 COMPLETE - CRITICAL FIX: put_call_ratio now gracefully optional in Phase 2 market exposure calculation. Two-part fix: (1) skip gracefully-unavailable factors from missing_factors check (commit 8c035ca06), (2) allow reduced avail_max for optional factors (commit c35603c8a). Enables Phase 2 to pass with put_call_ratio unavailable. Remaining: verify signal_quality_score storage in Phase 8 trades, price_daily loader stuck issue.
 
 ## Start Here
 
