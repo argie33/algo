@@ -268,6 +268,8 @@ class MarketExposure:
 
             # CRITICAL: Validate that all 12 required factors are present with real scores
             # This prevents using stale cached data with default/missing factor values
+            # NOTE: put_call_ratio is OPTIONAL (Session 291+, no official source since yfinance removal)
+            # It's computed but not required for exposure calculation
             required_factors = {
                 "trend_30wk",
                 "spy_momentum",
@@ -275,7 +277,7 @@ class MarketExposure:
                 "breadth_50dma",
                 "distribution_days",
                 "vix_regime",
-                "put_call_ratio",
+                # "put_call_ratio",  # OPTIONAL - Session 291+, skipped if unavailable
                 "new_highs_lows",
                 "ad_line",
                 "credit_spread",
