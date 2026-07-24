@@ -512,6 +512,7 @@ class MarketExposure:
                 logger.debug(f"  Put/call ratio: {pc_pts:.1f} pts")
             except RuntimeError as e:
                 logger.info(f"[PUT_CALL_RATIO] Unavailable (optional factor skipped): {e}")
+                avail_max += self.W_PUT_CALL
                 factors["put_call_ratio"] = {
                     "data_unavailable": True,
                     "reason": str(e),
