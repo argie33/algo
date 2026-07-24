@@ -457,11 +457,25 @@ def _get_stock_scores(
                     f"Scores endpoint: {prices_missing_count} scores have missing price data (out of {len(items)})"
                 )
 
-        # CRITICAL FIX: Return scores with "top" field (not "items") for dashboard compatibility
-        # Dashboard expects {statusCode: 200, data: {top: [...]}} format
+        # CRITICAL FIX: Return scores in standard paginated format
+        # Dashboard/responseNormalizer expects {statusCode: 200, items: [...], pagination: {...}} format
+        # This matches other paginated endpoints and works with frontend schema validation
+        items_count = len(items) if items else 0
+        # If we got fewer items than requested, we've hit the end of results
+        # Otherwise, we estimate there might be more results
+        is_last_page = items_count < limit
+        estimated_total = offset + items_count if is_last_page else offset + limit + 1
+
         result = {
             "statusCode": 200,
-            "data": {"top": items},
+            "items": items,
+            "pagination": {
+                "total": estimated_total,
+                "limit": limit,
+                "offset": offset,
+                "page": (offset // limit) + 1 if limit > 0 else 1,
+                "totalPages": ((estimated_total - 1) // limit) + 1 if limit > 0 else 1,
+            }
         }
         if freshness:
             result["data_freshness"] = freshness

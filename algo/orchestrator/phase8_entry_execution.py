@@ -1297,7 +1297,7 @@ def run(
             # - NULL means signal quality was never computed (upstream data incomplete)
             # - Accepting NULL bypasses the entire quality gate, causing losses
             # - Require explicit quality score for all entries (fail-closed principle)
-            min_sqs = self.config.get("min_signal_quality_score", 75)
+            min_sqs = config.get("min_signal_quality_score", 75)
             if sqs is None:
                 rejection_reason = f"Signal quality score unavailable (NULL) - cannot trade without quality validation"
                 logger.info(f"[PHASE 8] {symbol}: REJECTED - {rejection_reason}")
