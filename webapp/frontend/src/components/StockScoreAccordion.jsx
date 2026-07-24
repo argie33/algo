@@ -50,6 +50,21 @@ const grade = (v) => {
   return "F";
 };
 
+const formatReasonDisplay = (reason) => {
+  if (!reason) return null;
+  const reasonMap = {
+    missing_sec_data: "No SEC data",
+    insufficient_history: "Insufficient history",
+    no_analyst_estimates: "Analyst data unavailable",
+    ebitda_not_extracted: "Not extracted",
+    non_dividend_paying_stock: "Non-dividend payer",
+    api_error: "Data fetch error",
+    unprofitable_stock: "Unprofitable stock",
+    missing_price_or_shares: "Missing price/shares",
+  };
+  return reasonMap[reason] || reason;
+};
+
 const FACTORS = [
   { key: "quality", label: "Quality", scoreKey: "quality_score", icon: Star },
   { key: "momentum", label: "Momentum", scoreKey: "momentum_score", icon: Activity },
@@ -210,6 +225,10 @@ function FactorCard({ factor, stock, sectorAvg, marketAvg }) {
 //   rather than the ambiguous "No data" used for a per-stock null.
 function InputRow({ row }) {
   const hasValue = row.value != null;
+  const reasonKey = row.key + "_unavailable_reason";
+  const reason = row.reason || row.stock?.[reasonKey];
+  const reasonDisplay = formatReasonDisplay(reason);
+
   return (
     <tr>
       <td className="t-xs" title={row.note || undefined}>
@@ -226,6 +245,10 @@ function InputRow({ row }) {
       <td className="num mono tnum t-xs">
         {hasValue ? (
           row.fmt(row.value)
+        ) : reasonDisplay ? (
+          <span className="muted" title={reason}>
+            {reasonDisplay}
+          </span>
         ) : row.collected === false ? (
           <span className="badge badge-amber" style={{ fontSize: "0.65rem" }}>
             Not yet available

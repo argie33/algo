@@ -176,41 +176,73 @@ def _get_stock_scores(
                         ELSE NULL
                     END, 2) AS change_percent,
                     vm.pe_ratio AS trailing_pe,
+                    vm.pe_ratio_unavailable_reason,
                     vm.forward_pe,
+                    vm.forward_pe_unavailable_reason,
                     vm.pb_ratio AS price_to_book,
+                    vm.pb_ratio_unavailable_reason,
                     vm.ps_ratio AS ps_ratio_val,
+                    vm.ps_ratio_unavailable_reason,
                     vm.peg_ratio AS peg_ratio_val,
+                    vm.peg_ratio_unavailable_reason,
                     vm.dividend_yield,
+                    vm.dividend_yield_unavailable_reason,
                     vm.fcf_yield AS fcf_yield_val,
+                    vm.fcf_yield_unavailable_reason,
                     vm.enterprise_value,
                     vm.ev_ebitda,
+                    vm.ev_ebitda_unavailable_reason,
                     vm.ev_revenue,
                     vm.held_percent_insiders AS vm_held_insiders,
                     vm.held_percent_institutions AS vm_held_institutions,
                     qm.roe AS roe_pct,
+                    qm.roe_unavailable_reason,
                     qm.roa AS roa_val,
+                    qm.roa_unavailable_reason,
                     qm.debt_to_equity,
+                    qm.debt_to_equity_unavailable_reason,
                     qm.current_ratio AS current_ratio_val,
+                    qm.current_ratio_unavailable_reason,
                     qm.quick_ratio AS quick_ratio_val,
+                    qm.quick_ratio_unavailable_reason,
                     qm.operating_margin AS operating_margin_val,
+                    qm.operating_margin_unavailable_reason,
                     qm.net_margin AS net_margin_val,
+                    qm.net_margin_unavailable_reason,
                     qm.interest_coverage AS interest_coverage_val,
+                    qm.interest_coverage_unavailable_reason,
                     qm.debt_to_assets AS debt_to_assets_val,
+                    qm.debt_to_assets_unavailable_reason,
                     gm.revenue_growth_1y AS rev_growth_1y_val,
+                    gm.revenue_growth_1y_unavailable_reason,
                     gm.eps_growth_1y AS eps_growth_1y_val,
+                    gm.eps_growth_1y_unavailable_reason,
                     gm.revenue_growth_3y AS rev_growth_3y_val,
+                    gm.revenue_growth_3y_unavailable_reason,
                     gm.eps_growth_3y AS eps_growth_3y_val,
+                    gm.eps_growth_3y_unavailable_reason,
                     gm.revenue_growth_5y AS rev_growth_5y_val,
+                    gm.revenue_growth_5y_unavailable_reason,
                     gm.eps_growth_5y AS eps_growth_5y_val,
+                    gm.eps_growth_5y_unavailable_reason,
                     sm.beta AS beta_val,
+                    sm.beta_unavailable_reason,
                     sm.volatility_252d AS volatility_12m_val,
+                    sm.volatility_252d_unavailable_reason,
                     sm.volatility_30d AS volatility_30d_val,
+                    sm.volatility_30d_unavailable_reason,
                     sm.volatility_60d AS volatility_60d_val,
+                    sm.volatility_60d_unavailable_reason,
                     pm.institutional_ownership_pct AS inst_own_val,
+                    pm.institutional_ownership_pct_unavailable_reason,
                     pm.insider_ownership_pct AS insider_own_val,
+                    pm.insider_ownership_pct_unavailable_reason,
                     pm.short_interest_pct AS short_pct_val,
+                    pm.short_interest_pct_unavailable_reason,
                     pm.shares_short_prior_month AS shares_short_prior_month_val,
+                    pm.shares_short_prior_month_unavailable_reason,
                     pm.short_interest_trend AS short_interest_trend_val,
+                    pm.short_interest_trend_unavailable_reason,
                     tl.rsi_14 AS tdd_rsi,
                     tl.macd AS tdd_macd,
                     tl.roc_20d AS tdd_roc_20d,
@@ -306,17 +338,24 @@ def _get_stock_scores(
             # Quality Inputs: ROE, ROA, ROIC, margins, debt, ratios
             d["quality_inputs"] = {
                 "return_on_equity_pct": d.get("roe_pct"),
+                "return_on_equity_unavailable_reason": d.get("roe_unavailable_reason"),
                 "return_on_assets_pct": d.get("roa_val"),
+                "return_on_assets_unavailable_reason": d.get("roa_unavailable_reason"),
                 "return_on_invested_capital_pct": d.get("roic"),  # May be None if not in response
                 "gross_margin_pct": d.get("gross_margin"),  # May be None if not in response
                 "operating_margin_pct": d.get("operating_margin_val"),
+                "operating_margin_unavailable_reason": d.get("operating_margin_unavailable_reason"),
                 "profit_margin_pct": d.get("net_margin_val"),
+                "profit_margin_unavailable_reason": d.get("net_margin_unavailable_reason"),
                 "ebitda_margin_pct": d.get("ebitda_margin"),  # May be None
                 "fcf_to_net_income": d.get("fcf_to_ni"),  # May be None
                 "operating_cf_to_net_income": d.get("ocf_to_ni"),  # May be None
                 "debt_to_equity": d.get("debt_to_equity"),
+                "debt_to_equity_unavailable_reason": d.get("debt_to_equity_unavailable_reason"),
                 "current_ratio": d.get("current_ratio_val"),
+                "current_ratio_unavailable_reason": d.get("current_ratio_unavailable_reason"),
                 "quick_ratio": d.get("quick_ratio_val"),
+                "quick_ratio_unavailable_reason": d.get("quick_ratio_unavailable_reason"),
                 "earnings_surprise_avg": d.get("earnings_surprise"),  # May be None
                 "eps_growth_stability": d.get("eps_growth_stability"),  # May be None
                 "earnings_beat_rate": d.get("earnings_beat_rate"),  # May be None
@@ -336,7 +375,9 @@ def _get_stock_scores(
                 "revenue_growth_pct": d.get("revenue_growth"),  # May be None
                 "earnings_growth_4q_avg": d.get("earnings_growth_4q_avg"),  # May be None
                 "interest_coverage": d.get("interest_coverage_val"),
+                "interest_coverage_unavailable_reason": d.get("interest_coverage_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
+                "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
             }
 
             # Momentum Inputs: Price momentum, technical indicators
@@ -357,24 +398,38 @@ def _get_stock_scores(
             # Value Inputs: Valuation ratios
             d["value_inputs"] = {
                 "stock_pe": d.get("trailing_pe"),
+                "stock_pe_unavailable_reason": d.get("pe_ratio_unavailable_reason"),
                 "stock_forward_pe": d.get("forward_pe"),  # May be None
+                "stock_forward_pe_unavailable_reason": d.get("forward_pe_unavailable_reason"),
                 "stock_pb": d.get("price_to_book"),
+                "stock_pb_unavailable_reason": d.get("pb_ratio_unavailable_reason"),
                 "stock_ps": d.get("ps_ratio_val"),
+                "stock_ps_unavailable_reason": d.get("ps_ratio_unavailable_reason"),
                 "peg_ratio": d.get("peg_ratio_val"),
+                "peg_ratio_unavailable_reason": d.get("peg_ratio_unavailable_reason"),
                 "stock_ev_ebitda": d.get("ev_ebitda"),  # May be None
+                "stock_ev_ebitda_unavailable_reason": d.get("ev_ebitda_unavailable_reason"),
                 "stock_ev_revenue": d.get("ev_revenue"),  # May be None
                 "fcf_yield": d.get("fcf_yield_val"),
+                "fcf_yield_unavailable_reason": d.get("fcf_yield_unavailable_reason"),
                 "stock_dividend_yield": d.get("dividend_yield"),
+                "stock_dividend_yield_unavailable_reason": d.get("dividend_yield_unavailable_reason"),
             }
 
             # Growth Inputs: Revenue and EPS growth
             d["growth_inputs"] = {
                 "revenue_growth_1y_pct": d.get("rev_growth_1y_val"),
+                "revenue_growth_1y_unavailable_reason": d.get("revenue_growth_1y_unavailable_reason"),
                 "eps_growth_1y_pct": d.get("eps_growth_1y_val"),
+                "eps_growth_1y_unavailable_reason": d.get("eps_growth_1y_unavailable_reason"),
                 "revenue_growth_3y_cagr": d.get("rev_growth_3y_val"),
+                "revenue_growth_3y_unavailable_reason": d.get("revenue_growth_3y_unavailable_reason"),
                 "eps_growth_3y_cagr": d.get("eps_growth_3y_val"),
+                "eps_growth_3y_unavailable_reason": d.get("eps_growth_3y_unavailable_reason"),
                 "revenue_growth_5y_cagr": d.get("rev_growth_5y_val"),
+                "revenue_growth_5y_unavailable_reason": d.get("revenue_growth_5y_unavailable_reason"),
                 "eps_growth_5y_cagr": d.get("eps_growth_5y_val"),
+                "eps_growth_5y_unavailable_reason": d.get("eps_growth_5y_unavailable_reason"),
                 "net_income_growth_yoy": d.get("net_income_growth_yoy"),  # May be None
                 "operating_income_growth_yoy": d.get("op_income_growth_yoy"),  # May be None
                 "gross_margin_trend": d.get("gross_margin_trend"),  # May be None
@@ -391,13 +446,18 @@ def _get_stock_scores(
             # Positioning Inputs: Ownership and short interest
             d["positioning_inputs"] = {
                 "institutional_ownership_pct": d.get("inst_own_val"),
+                "institutional_ownership_unavailable_reason": d.get("institutional_ownership_pct_unavailable_reason"),
                 "top_10_institutions_pct": d.get("top_10_inst_pct"),  # May be None
                 "institutional_holders_count": d.get("inst_holders_count"),  # May be None
                 "insider_ownership_pct": d.get("insider_own_val"),
+                "insider_ownership_unavailable_reason": d.get("insider_ownership_pct_unavailable_reason"),
                 "short_interest_pct": d.get("short_pct_val"),
+                "short_interest_unavailable_reason": d.get("short_interest_pct_unavailable_reason"),
                 "short_percent_of_float": d.get("short_pct_float"),  # May be None
                 "short_interest_trend": d.get("short_interest_trend_val"),
+                "short_interest_trend_unavailable_reason": d.get("short_interest_trend_unavailable_reason"),
                 "shares_short_prior_month": d.get("shares_short_prior_month_val"),
+                "shares_short_prior_month_unavailable_reason": d.get("shares_short_prior_month_unavailable_reason"),
                 "short_ratio": d.get("days_to_cover"),  # May be None
                 "ad_rating": d.get("ad_rating"),  # May be None
             }
@@ -407,10 +467,15 @@ def _get_stock_scores(
             # (downside_volatility, max_drawdown_52w, volume_consistency, etc. are not computed by any loader)
             d["stability_inputs"] = {
                 "volatility_12m": d.get("volatility_12m_val"),
+                "volatility_12m_unavailable_reason": d.get("volatility_252d_unavailable_reason"),
                 "volatility_60d": d.get("volatility_60d_val"),
+                "volatility_60d_unavailable_reason": d.get("volatility_60d_unavailable_reason"),
                 "volatility_30d": d.get("volatility_30d_val"),
+                "volatility_30d_unavailable_reason": d.get("volatility_30d_unavailable_reason"),
                 "beta": d.get("beta_val"),
+                "beta_unavailable_reason": d.get("beta_unavailable_reason"),
                 "debt_to_assets": d.get("debt_to_assets_val"),
+                "debt_to_assets_unavailable_reason": d.get("debt_to_assets_unavailable_reason"),
             }
 
         items = []
