@@ -1920,7 +1920,7 @@ class Orchestrator:
             "run_date": self.run_date.isoformat(),
             "phases": [{"phase": n, **info} for n, info in sorted(self.phase_results.items(), key=lambda x: str(x[0]))],
             "success": not (any_error or any_halt or any_degraded or any_skipped),
-            "halted": any_halt or any_degraded or any_skipped,
+            "halted": any_halt,  # Only actual halts (circuit breaker, errors) - not degraded/skipped
             "skipped": any_halt or any_degraded or any_skipped,  # Required by Lambda handler
             "reason": skip_reason or "none",  # Required by Lambda handler
         }
