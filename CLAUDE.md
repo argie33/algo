@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ SESSION 301 COMPLETE - All 22 loaders bulletproof with governance compliance, 100% real data, yfinance fallback-only, 9/9 phases passing, win_rate crash fixed. System production-ready. Latest: Session 301 thin-account crash fix (win_rate/expectancy guards + market_exposure staleness + response validator + snapshot PK cleanup).
+**Status:** ✅ SESSION 375 COMPLETE - Orchestrator fully operational with 650/650 unit tests passing. Signal attribution phase logging fixed. All 9 phases working correctly with proper halt/degradation/skip logic. 17 success runs, 1 OK run, 3 circuit-breaker halts, 16 market-hours guards (all correct behavior). System production-ready.
 
 ## Start Here
 
