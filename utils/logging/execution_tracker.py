@@ -136,6 +136,15 @@ class OrchestratorExecutionTracker:
                     (run_id, run_date, started_at, completed_at, overall_status, phase_results,
                      summary, halt_reason, phases_completed, phases_halted, phases_errored)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (run_id) DO UPDATE SET
+                      completed_at = EXCLUDED.completed_at,
+                      overall_status = EXCLUDED.overall_status,
+                      phase_results = EXCLUDED.phase_results,
+                      summary = EXCLUDED.summary,
+                      halt_reason = EXCLUDED.halt_reason,
+                      phases_completed = EXCLUDED.phases_completed,
+                      phases_halted = EXCLUDED.phases_halted,
+                      phases_errored = EXCLUDED.phases_errored
                     """,
                     (
                         self.run_id,
