@@ -276,37 +276,42 @@ def _compute_signal_attribution(run_date: _date, log_phase_result_fn: Callable[.
     # SignalAttributionEngine is fully deprecated (see algo/signals/attribution.py's own
     # module docstring: "swing scores have been removed; this module ... returns
     # unavailable data") - compute_ic() always returns every component marked
-    # data_unavailable=True, never a real ic_value. Calling it only generates noise
-    # warnings. Gracefully skip and return empty result.
-    logger.info("[ATTRIBUTION] Signal attribution is deprecated (swing scores removed). Skipping.")
-    return {}
+    # data_unavailable=True, never a real ic_value. Even though the feature is deprecated,
+    # we still run the computation and properly guard persist() to avoid writing all-NULL
+    # rows on every Phase 9 run when all components are unavailable.
+    try:
+        attribution = SignalAttributionEngine()
+        attr_result = attribution.compute_ic(run_date, lookback_trades=40)
+        total_components = len(attr_result)
+        logger.info(f"Signal attribution: IC computed for {total_components} components (deprecated feature)")
+        for comp, ic_data in attr_result.items():
+            ic_value = ic_data.get("ic_value")
+            ic_pvalue = ic_data.get("ic_pvalue")
+            if ic_value is None or ic_pvalue is None:
+                if ic_data.get("data_unavailable"):
+                    reason = ic_data.get("reason", "unknown")
+                    logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} - skipping")
+                    continue
+                logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
+                raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
+            available_components += 1
+            logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
 
-    # --- DEPRECATED CODE BELOW (kept for reference; do not use) ---
-    # try:
-    #     attribution = SignalAttributionEngine()
-    #     attr_result = attribution.compute_ic(run_date, lookback_trades=40)
-    #     logger.info(f"Signal attribution: IC computed for {len(attr_result)} components")
-    #     for comp, ic_data in attr_result.items():
-    #         ic_value = ic_data.get("ic_value")
-    #         ic_pvalue = ic_data.get("ic_pvalue")
-    #         if ic_value is None or ic_pvalue is None:
-    #             if ic_data.get("data_unavailable"):
-    #                 reason = ic_data.get("reason", "unknown")
-    #                 logger.warning(f"[ATTRIBUTION] {comp} IC unavailable: {reason} - skipping")
-    #                 continue
-    #             logger.critical(f"CRITICAL: IC value missing for component {comp}. Cannot validate signal quality.")
-    #             raise ValueError(f"IC calculation failed for {comp}: missing 'ic_value'. Signal validation incomplete.")
-    #         available_components += 1
-    #         logger.info(f"  {comp}: IC={ic_value:.3f}, pval={ic_pvalue:.3f}")
-    #     if available_components > 0:
-    #         attribution.persist(run_date, attr_result)
+        # Guard: only persist if at least one component has real data (not all unavailable)
+        if available_components > 0:
+            attribution.persist(run_date, attr_result)
+            status = "success"
+            summary = f"{available_components}/{total_components} components analyzed"
+        else:
+            # All components deprecated/unavailable - don't persist null rows
+            status = "warn"
+            summary = f"0/{total_components} components available (feature deprecated)"
+    except Exception as e:
+        logger.error(f"[ATTRIBUTION] Signal attribution computation failed: {e}")
+        status = "warn"
+        summary = f"Signal attribution failed: {e}"
 
-    log_phase_result_fn(
-        9,
-        "ic_computation",
-        "warn",
-        "Signal attribution feature deprecated - no IC computed",
-    )
+    log_phase_result_fn(9, "ic_computation", status, summary)
     return attr_result
 
 
