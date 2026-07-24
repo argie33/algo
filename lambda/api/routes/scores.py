@@ -482,6 +482,12 @@ def _get_stock_scores(
         prices_missing_count = 0
         for row in scores:
             d = dict(row)
+            # DEBUG: Log reason field presence for first item
+            if len(items) == 0:
+                reason_fields = [k for k in d.keys() if 'unavailable_reason' in k]
+                logger.critical(f"[SCORES_API_DEBUG_DICT] {len(d)} keys in dict, {len(reason_fields)} reason fields")
+                logger.critical(f"[SCORES_API_DEBUG_REASONS] {reason_fields[:10]}")
+                logger.critical(f"[SCORES_API_DEBUG_FWD_PE] forward_pe_unavailable_reason={d.get('forward_pe_unavailable_reason')}")
 
             # CRITICAL FIX: Explicit data_unavailable flags for each metric
             # If a score metric is marked unavailable, include it as None (not synthetic value)
