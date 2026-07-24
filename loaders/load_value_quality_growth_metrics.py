@@ -38,7 +38,6 @@ from datetime import date
 from math import isnan
 from typing import Any
 
-from loaders.load_analyst_estimates import fetch_forward_pe_estimates
 from loaders.runner import run_loader
 from utils.db.context import DatabaseContext
 from utils.optimal_loader import OptimalLoader
@@ -257,19 +256,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 else:
                     ev_metrics = None
 
-                # Session 397: Fetch current price for forward_pe calculation
-                current_price = None
-                try:
-                    cur.execute(
-                        "SELECT close FROM price_daily WHERE symbol = %s ORDER BY date DESC LIMIT 1",
-                        (symbol,),
-                    )
-                    price_row = cur.fetchone()
-                    if price_row:
-                        current_price = price_row[0]
-                except Exception as e:
-                    logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Could not fetch current price: {e}")
-
                 # Get quality from SEC financials (annual balance sheet + income statement latest year)
                 # Also fetch prior year EPS/revenue for YoY growth calculation
                 # shares_outstanding is in sec_valuations, not annual_balance_sheet
@@ -319,7 +305,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                     logger.warning(f"[VALUE_QUALITY_GROWTH] {symbol}: No income statement rows with revenue found - growth metrics will be unavailable")
 
             # Construct value metrics from sec_valuations only (Session 271 - yfinance-free)
-            value_dict = self._build_value_metrics(symbol, sec_val_row, current_price)
+            value_dict = self._build_value_metrics(symbol, sec_val_row)
             quality_dict = self._compute_quality_metrics(symbol, quality_row_db, ev_metrics)
             # Compute growth metrics from annual income statement history (not read from DB)
             growth_dict = self._compute_growth_metrics(symbol, income_rows)
@@ -369,7 +355,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 self._unavailable_marker("growth_metrics", symbol),
             )]
 
-    def _build_value_metrics(self, symbol: str, sec_val_row: Any, current_price: float | None = None) -> dict[str, Any]:
+    def _build_value_metrics(self, symbol: str, sec_val_row: Any) -> dict[str, Any]:
         """Build value_metrics from SEC valuations (yfinance-free, Session 271).
 
         All metrics from SEC-audited data. Dividend yield added 2026-07-20 (migration
@@ -378,7 +364,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         had no dividend source wired up at all (dead 8%-weight bucket in value_score).
 
         Session 385: Added enterprise value and EV ratio metrics from sec_valuations.
-        Session 397: Added forward_pe from Polygon API analyst estimates.
         """
         if not sec_val_row or sec_val_row[2]:  # data_unavailable flag at index 2
             return self._unavailable_marker("value_metrics", symbol)
@@ -397,23 +382,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         enterprise_value = row_dict.get("enterprise_value") or sec_val_row[18] if isinstance(sec_val_row, (tuple, list)) else None
         ev_ebitda = row_dict.get("ev_ebitda") or sec_val_row[20] if isinstance(sec_val_row, (tuple, list)) else None
         ev_revenue = row_dict.get("ev_revenue") or sec_val_row[21] if isinstance(sec_val_row, (tuple, list)) else None
-
-        # Session 397: Fetch forward P/E from Polygon API analyst estimates
-        forward_pe_reason = None
-        if forward_pe is None:
-            try:
-                analyst_data = fetch_forward_pe_estimates(symbol)
-                forward_eps = analyst_data.get("forward_eps")
-                forward_pe_reason = analyst_data.get("forward_pe_unavailable_reason")
-
-                # Calculate forward_pe if we have both forward_eps and current price
-                if forward_eps and forward_eps > 0 and current_price and current_price > 0:
-                    forward_pe = round(current_price / forward_eps, 2)
-                    forward_pe_reason = None  # Data available
-                    logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Calculated forward_pe={forward_pe} from forward_eps={forward_eps}")
-            except Exception as e:
-                logger.debug(f"[VALUE_QUALITY_GROWTH] {symbol}: Error fetching forward_pe from Polygon: {e}")
-                forward_pe_reason = "api_error"
 
         # Validate: at least one core metric must be non-None
         core_metrics = [pe, pb, ps, fcf_yield]
@@ -440,8 +408,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "peg_ratio_unavailable_reason": "missing_sec_data" if peg is None else None,
             "dividend_yield_unavailable_reason": "missing_sec_data" if dividend_yield is None else None,
             "fcf_yield_unavailable_reason": "missing_sec_data" if fcf_yield is None else None,
-            "forward_pe_unavailable_reason": forward_pe_reason if forward_pe is None else None,
-            "ev_ebitda_unavailable_reason": "ebitda_not_extracted" if ev_ebitda is None else None,
+            "forward_pe_unavailable_reason": "analyst_estimates_not_in_sec_filings" if forward_pe is None else None,
+            "ev_ebitda_unavailable_reason": "depreciation_amortization_not_loaded" if ev_ebitda is None else None,
             "market_cap_unavailable_reason": None,  # Market cap in stock_symbols, not here
             "held_percent_insiders_unavailable_reason": None,  # In positioning_metrics, not here
             "held_percent_institutions_unavailable_reason": None,  # In positioning_metrics, not here
