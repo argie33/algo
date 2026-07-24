@@ -73,18 +73,18 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
         try:
             year, quarter = self._get_latest_13f_quarter()
-            filing_date_str = f"{year}-Q{quarter}"
-            logger.info(f"[13F] Target quarter: {filing_date_str}")
+            filing_date = self._quarter_to_date(year, quarter)
+            logger.info(f"[13F] Target quarter: {year}-Q{quarter} (filing_date: {filing_date})")
 
             # Try SEC bulk data
             holdings_by_ticker = self._fetch_sec_13f_bulk(year, quarter)
             if holdings_by_ticker:
                 logger.info(f"[13F] Parsed {len(holdings_by_ticker)} tickers from SEC data")
-                return self._calculate_and_cache_ownership(holdings_by_ticker, filing_date_str)
+                return self._calculate_and_cache_ownership(holdings_by_ticker, filing_date)
 
             # Fallback: Generate market-cap based estimates for all symbols
             logger.warning("[13F] SEC 13F data unavailable, generating market-cap estimates...")
-            return self._generate_marketcap_estimates(filing_date_str)
+            return self._generate_marketcap_estimates(filing_date)
 
         except Exception as e:
             logger.error(f"[13F GLOBAL FETCH] Failed: {type(e).__name__}: {str(e)[:200]}")
@@ -165,6 +165,18 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 
         return year, quarter
 
+    def _quarter_to_date(self, year: int, quarter: int) -> date:
+        """Convert quarter (YYYY, Q) to end-of-quarter date (YYYY-MM-DD)."""
+        month = quarter * 3  # Q1→3, Q2→6, Q3→9, Q4→12
+        if month == 12:
+            # December 31
+            return date(year, 12, 31)
+        else:
+            # Last day of month: 31, 30, 30, 31 for Mar, Jun, Sep, Dec
+            # Use date arithmetic: first day of next month - 1 day
+            from datetime import timedelta
+            return date(year, month + 1, 1) - timedelta(days=1)
+
     def _fetch_sec_13f_bulk(self, year: int, quarter: int) -> dict[str, int]:
         """Fetch 13F holdings data from SEC bulk datasets or per-manager aggregation.
 
@@ -238,7 +250,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
             logger.debug(f"[13F] Bulk parse failed: {e}")
             return {}
 
-    def _generate_marketcap_estimates(self, filing_date_str: str) -> list[dict[str, Any]]:
+    def _generate_marketcap_estimates(self, filing_date: date) -> list[dict[str, Any]]:
         """Generate institutional ownership estimates based on company market cap.
 
         Used when SEC 13F data unavailable. Estimates are research-backed:
@@ -283,13 +295,13 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                 records.append(
                     {
                         "symbol": symbol,
-                        "filing_date": filing_date_str,
+                        "filing_date": filing_date,
                         "institutional_ownership_pct": est_pct,
                         "number_of_institutional_holders": None,
                         "data_unavailable": False,  # Data exists (estimate), not missing
                         "reason": None,
                         "sec_filing_url": None,
-                        "most_recent_filing_date": filing_date_str,
+                        "most_recent_filing_date": filing_date,
                         "data_source": "market_cap_estimate",  # Signals this is estimate, not real SEC data
                         "updated_at": now_et,
                     }
@@ -330,7 +342,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
         return holdings_by_ticker
 
     def _calculate_and_cache_ownership(
-        self, holdings_by_ticker: dict[str, int], filing_date_str: str
+        self, holdings_by_ticker: dict[str, int], filing_date: date
     ) -> list[dict[str, Any]]:
         """Calculate institutional ownership % for each ticker.
 
@@ -358,13 +370,13 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
                         records.append(
                             {
                                 "symbol": ticker,
-                                "filing_date": filing_date_str,
+                                "filing_date": filing_date,
                                 "institutional_ownership_pct": pct,
                                 "number_of_institutional_holders": None,  # Aggregate doesn't track manager count
                                 "data_unavailable": False,
                                 "reason": None,
                                 "sec_filing_url": None,
-                                "most_recent_filing_date": filing_date_str,
+                                "most_recent_filing_date": filing_date,
                                 "data_source": "sec_form13f_bulk",
                                 "updated_at": now_et,
                             }
@@ -384,7 +396,7 @@ class InstitutionalHoldings13FLoader(OptimalLoader):
 def main() -> int:
     """Entry point for load_institutional_holdings_13f.py."""
     try:
-        return run_loader(InstitutionalHoldings13FLoader)
+        return run_loader(InstitutionalHoldings13FLoader, global_mode=True)
     except Exception as e:
         logger.error(f"[INSTITUTIONAL_13F FATAL] Loader crashed: {type(e).__name__}: {str(e)[:500]}", exc_info=True)
         return 1
