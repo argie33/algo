@@ -398,6 +398,7 @@ def _get_candidates_from_buysell(
                       AND ((p.close - p.low) / (p.high - p.low)) > %s
                       AND bsd.strength IS NOT NULL
                       AND ss.symbol NOT IN (SELECT symbol FROM etf_symbols)
+                      AND bsd.symbol NOT IN (SELECT symbol FROM algo_positions WHERE status = 'open')
                 )
                 SELECT * FROM ranked
                 ORDER BY composite_score DESC
