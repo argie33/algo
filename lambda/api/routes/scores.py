@@ -466,6 +466,8 @@ def _get_stock_scores(
         is_last_page = items_count < limit
         estimated_total = offset + items_count if is_last_page else offset + limit + 1
 
+        logger.info(f"[SCORES_API_NEW_FORMAT] Returning {items_count} items in paginated format (Session 302 fix)")
+
         result = {
             "statusCode": 200,
             "items": items,
