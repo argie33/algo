@@ -1926,6 +1926,7 @@ class PriceLoader(OptimalLoader):
         if backfill_days is not None:
             self._backfill_days = backfill_days
 
+        import signal
         import time
 
         self._validate_schema_preflight()
@@ -1971,6 +1972,30 @@ class PriceLoader(OptimalLoader):
         # Fresh prices are essential for EOD reconciliation, risk calculations, and position sizing.
         # Price loading is fast (<5 min) and watermark system prevents redundant fetches.
 
+        # SESSION 382 FIX: Add overall timeout to prevent loader from hanging on large batches
+        # Confirmed issue: loader hangs when fetching 5000+ symbols via yfinance batch API
+        # Symptom: only VIX loads (~1.3s), stocks never complete. Timeout after 60s with no progress.
+        # Mitigation: Set 30min hard timeout, log progress every batch, fail-closed on timeout
+        overall_timeout_sec = 1800  # 30 minutes - more than enough for ~5000 symbols at 0.7s per symbol
+
+        def timeout_handler(signum, frame):
+            elapsed = time.time() - start
+            raise RuntimeError(
+                f"[PRICE_LOADER TIMEOUT] Loader exceeded {overall_timeout_sec}s timeout after {elapsed:.0f}s. "
+                f"Processed {self._stats.get('symbols_processed', 0)} symbols, {self._stats.get('rows_inserted', 0)} rows. "
+                f"Likely yfinance batch API hang on large symbol batches (5000+). "
+                f"Restart loader and check yfinance API health."
+            )
+
+        # Set timeout only if running in an environment that supports signals
+        old_handler = None
+        try:
+            old_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.alarm(overall_timeout_sec)
+        except (ValueError, AttributeError, OSError):
+            # Windows or environments that don't support SIGALRM - skip timeout protection
+            logger.warning("[PRICE_LOADER] Timeout protection unavailable on this platform (SIGALRM not supported)")
+
         self._validate_and_check_preconditions()
 
         batches = [symbols[i : i + self.batch_size] for i in range(0, len(symbols), self.batch_size)]
@@ -2000,6 +2025,15 @@ class PriceLoader(OptimalLoader):
             self._stats["source_distribution"],
             self._rate_limit_errors,
         )
+
+        # Cancel timeout alarm before returning
+        try:
+            import signal
+            signal.alarm(0)  # Cancel the alarm
+            if old_handler is not None:
+                signal.signal(signal.SIGALRM, old_handler)
+        except (ValueError, AttributeError, OSError):
+            pass  # Timeout protection not available on this platform
 
         return self._stats.to_dict()
 
