@@ -1093,10 +1093,12 @@ def run(
 
             # Stop loss: min() picks the LOWER (wider) stop, giving the trade more room.
             # SMA_50 - ATR = below moving-average support.
-            # entry - 2*ATR = volatility-based floor.
+            # entry - 1.2*ATR = volatility-based floor (SESSION 372 FIX: tighter than 2.0*ATR).
+            # REASON: 2.0*ATR was causing avg losses 1.57x larger than wins (risk/reward imbalance).
+            # Tighter stop = smaller loss if wrong, better risk/reward profile.
             stop_loss = min(
                 sma_50 - atr,
-                entry_price - 2.0 * atr,
+                entry_price - 1.2 * atr,
             )
 
             # AUDIT FIX (Session 276): Validate stop placement against recent support levels

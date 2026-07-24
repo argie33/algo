@@ -55,3 +55,56 @@ CP, EAT, EMA, EPR, ESEA, FMS, FRT, FVCB, GAIN, HG, HIW, INCY, ING, JCAP, KARO, K
 - After fix, re-run Phase 7-8 to verify signals pass quality gate
 - Check Phase 8 logs show entries being executed
 - Monitor first 3-5 entries for performance
+
+## ROOT CAUSE DEEP-DIVE
+
+### Why Signal Quality Loader Fails (Issue #1 Root Cause)
+
+**Phase 7 generates signals from multiple sources**, but only some symbols have buy_sell_daily signal data:
+
+```
+Phase 7 Generated Signals: 37
+  - With buy_sell_daily data: 6
+  - Without buy_sell_daily data: 31 (BLOCKING)
+
+SignalQualityScoresLoader Requirements:
+  - Needs buy_sell_daily signals to compute quality scores
+  - Missing buy_sell_daily → Can't compute → Returns None/NULL
+  - NULL scores → Phase 8 rejects per fail-closed policy
+```
+
+**DATA INTEGRITY BUG**: Phase 7 is generating signals for symbols that don't meet signal quality computation prerequisites.
+
+### Fix Required
+
+Phase 7 should implement either:
+
+**Option A (Recommended)**: Filter signals before returning - skip symbols without buy_sell_daily data
+```
+if symbol not in buy_sell_daily for today:
+    skip signal from candidates
+```
+
+**Option B**: Use fallback quality scoring for Phase 7-generated signals
+```
+if no buy_sell_daily data:
+    use composite_score from Phase 7 ranking as quality proxy
+    minimum score = 60 (default for unvalidated signals)
+```
+
+**Option C**: Lower quality threshold
+```
+min_signal_quality_score = 60 (current avg)
+Accept risk of lower-quality signals
+```
+
+**CURRENT STATE**: 0/37 signals can proceed → No entries possible
+
+## Summary of All Issues
+
+| Issue | Root Cause | Status | Severity |
+|-------|-----------|--------|----------|
+| Exit Engine 404s | Delisted symbols raise exceptions | FIXED (commit bf0af9e0c) | MEDIUM |
+| Signal Quality NULL | Phase 7 generates signals missing buy_sell data | NOT FIXED | CRITICAL |
+| Quality Threshold | Threshold 75 > computed scores 64.3 | IDENTIFIED | HIGH |
+| Win Rate Circuit Breaker | Win rate was 33.3% < 35% | Status improved to 36.8% | MEDIUM |
