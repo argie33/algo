@@ -528,6 +528,10 @@ def _get_candidates_from_buysell(
                         # yesterday, so query technical data from yesterday's date.
                         signal_date = candidate.get("signal_date")
                         if not signal_date:
+                            logger.debug(
+                                f"[PHASE 7 INLINE SCORER] {symbol}: signal_date missing or None - "
+                                f"cannot compute signal_quality_score"
+                            )
                             candidate["signal_quality_score"] = None
                             candidate["trend_template_score"] = None
                             continue
@@ -545,6 +549,10 @@ def _get_candidates_from_buysell(
                         tech_row = cur_sqs.fetchone()
 
                         if not tech_row:
+                            logger.debug(
+                                f"[PHASE 7 INLINE SCORER] {symbol}: No technical data found for date {signal_date} - "
+                                f"cannot compute signal_quality_score (RSI, MACD, Minervini/Weinstein data missing)"
+                            )
                             candidate["signal_quality_score"] = None
                             candidate["trend_template_score"] = None
                             continue
@@ -578,9 +586,10 @@ def _get_candidates_from_buysell(
 
                 missing_scores = sum(1 for c in candidates if c.get("signal_quality_score") is None)
                 if missing_scores > 0:
+                    missing_symbols = [c.get("symbol") for c in candidates if c.get("signal_quality_score") is None]
                     logger.info(
                         f"[PHASE 7] {missing_scores}/{len(candidates)} candidates missing signal quality scores "
-                        f"(insufficient technical data). Filtering out..."
+                        f"(insufficient technical data). Symbols: {missing_symbols[:10]}. Filtering out..."
                     )
                     # CRITICAL FIX (Session 391): REJECT candidates with None signal_quality_score IMMEDIATELY
                     # (not later in Phase 8 quality gate as previous comment claimed).
@@ -590,6 +599,7 @@ def _get_candidates_from_buysell(
                     if not candidates:
                         logger.warning(f"[PHASE 7] All candidates filtered out due to missing signal quality scores")
                         return []
+                    logger.info(f"[PHASE 7] After filtering: {len(candidates)} candidates remain")
 
             # CRITICAL FIX: Write computed signal_quality_scores back to buy_sell_daily
             # so that backtest and other systems can access them. Only write non-NULL scores.
@@ -1150,7 +1160,15 @@ def run(  # noqa: C901
     # ranking should improve win rate from 33% to 50%+.
 
     # Defensive: Filter out any candidates with None signal_quality_score (shouldn't happen but catch edge cases)
+    before_filter = len(quality_filtered)
     quality_filtered = [c for c in quality_filtered if c.get("signal_quality_score") is not None]
+    after_filter = len(quality_filtered)
+    if before_filter > after_filter:
+        logger.warning(
+            f"[PHASE 7] Filtered out {before_filter - after_filter}/{before_filter} candidates with None signal_quality_score. "
+            f"Remaining: {after_filter} candidates."
+        )
+
     if not quality_filtered:
         msg = "[PHASE 7] All candidates rejected due to missing signal quality scores (edge case after filtering)"
         logger.warning(msg)
@@ -1159,13 +1177,23 @@ def run(  # noqa: C901
             7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
         )
 
+    # Final validation: CRITICAL - ensure no None values made it through the filter
+    # This catches logic errors in the filtering code itself
+    none_sqs_candidates = [c for c in quality_filtered if c.get("signal_quality_score") is None]
+    if none_sqs_candidates:
+        error_symbols = [c.get("symbol") for c in none_sqs_candidates]
+        raise ValueError(
+            f"[PHASE 7 LOGIC ERROR] {len(none_sqs_candidates)} candidates with None signal_quality_score "
+            f"escaped the filter: {error_symbols}. Filter logic is broken - check lines 1152-1153."
+        )
+
     for sig in quality_filtered:
         sqs = sig.get("signal_quality_score")
         if sqs is None:
-            # Should never reach here due to filter above, but fail-fast if it does
+            # Should never reach here due to filter and validation above
             raise ValueError(
                 f"Signal {sig.get('symbol')} has None signal_quality_score. "
-                f"This should have been filtered out - indicates a logic error in candidate processing."
+                f"Multiple filters failed to catch this - indicates critical logic error in candidate processing."
             )
         if not isinstance(sqs, (int, float)):
             raise ValueError(f"Signal {sig.get('symbol')} signal_quality_score is {type(sqs).__name__}, expected float")
