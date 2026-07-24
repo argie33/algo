@@ -564,9 +564,17 @@ def _get_candidates_from_buysell(
                         candidate["trend_template_score"] = trend_score
 
                     except Exception as score_e:
-                        logger.warning(f"[PHASE 7] {symbol}: Could not compute signal quality score: {score_e}")
-                        candidate["signal_quality_score"] = None
-                        candidate["trend_template_score"] = None
+                        # CRITICAL: Log full exception details so operators know what went wrong
+                        logger.error(
+                            f"[PHASE 7] {symbol}: Failed to compute signal quality score. "
+                            f"Signal date: {signal_date}, tech data present: {tech_row is not None if tech_row else 'unknown'}. "
+                            f"Error: {type(score_e).__name__}: {score_e}"
+                        )
+                        # Fail-fast: raise to halt Phase 7 with clear error, don't silently set None
+                        raise ValueError(
+                            f"[PHASE 7] {symbol}: Signal quality score computation failed. "
+                            f"Cannot proceed with incomplete signal validation. Error: {score_e}"
+                        ) from score_e
 
                 missing_scores = sum(1 for c in candidates if c.get("signal_quality_score") is None)
                 if missing_scores > 0:

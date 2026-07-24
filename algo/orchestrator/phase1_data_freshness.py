@@ -750,6 +750,37 @@ def run(  # noqa: C901
                     )
                     raise RuntimeError("[PHASE 1] Market health data unavailable. Check market_health_daily loader.")
                 health_max_date = health_row[0]
+
+                # CRITICAL FIX: Verify market_health_daily has CRITICAL COLUMNS populated, not just the table exists
+                # Early morning: table might exist but put_call_ratio not loaded yet
+                cur.execute(
+                    """
+                    SELECT COUNT(*) as total_rows,
+                           SUM(CASE WHEN put_call_ratio IS NOT NULL THEN 1 ELSE 0 END) as pcr_rows,
+                           SUM(CASE WHEN vix_level IS NOT NULL THEN 1 ELSE 0 END) as vix_rows
+                    FROM market_health_daily
+                    WHERE date = %s
+                    """,
+                    (health_max_date,)
+                )
+                health_col_row = cur.fetchone()
+                total_rows, pcr_rows, vix_rows = health_col_row if health_col_row else (0, 0, 0)
+
+                if not total_rows:
+                    raise RuntimeError(f"[PHASE 1] market_health_daily has no rows for {health_max_date}")
+
+                if not pcr_rows:
+                    raise RuntimeError(
+                        f"[PHASE 1] CRITICAL: market_health_daily has no put_call_ratio data for {health_max_date}. "
+                        "Put/call ratio is required for market exposure calculation in Phase 2. "
+                        "Check market_health_daily loader completion status."
+                    )
+
+                if not vix_rows:
+                    logger.warning(
+                        f"[PHASE 1] WARNING: market_health_daily missing VIX data for {health_max_date}. "
+                        "VIX is optional if provided by other means, but check market_health_daily loader."
+                    )
             except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
                 logger.error(f"[PHASE 1] CRITICAL: Database error fetching VIX/health reference dates: {e}")
                 raise RuntimeError(f"[PHASE 1] Cannot fetch market reference dates from database: {e}") from e
