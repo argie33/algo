@@ -377,6 +377,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if all(m is None for m in core_metrics):
             return self._unavailable_marker("value_metrics", symbol)
 
+        # Track which fields are unavailable (Session 389)
         return {
             "symbol": symbol,
             "pe_ratio": pe,
@@ -389,6 +390,18 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             "enterprise_value": enterprise_value,
             "ev_ebitda": ev_ebitda,
             "ev_revenue": ev_revenue,
+            "value_score": None,  # Computed in load_stock_scores, copied here for convenience
+            "pe_ratio_unavailable_reason": "missing_sec_data" if pe is None else None,
+            "pb_ratio_unavailable_reason": "missing_sec_data" if pb is None else None,
+            "ps_ratio_unavailable_reason": "missing_sec_data" if ps is None else None,
+            "peg_ratio_unavailable_reason": "missing_sec_data" if peg is None else None,
+            "dividend_yield_unavailable_reason": "missing_sec_data" if dividend_yield is None else None,
+            "fcf_yield_unavailable_reason": "missing_sec_data" if fcf_yield is None else None,
+            "forward_pe_unavailable_reason": "no_analyst_estimates" if forward_pe is None else None,
+            "ev_ebitda_unavailable_reason": "ebitda_not_extracted" if ev_ebitda is None else None,
+            "market_cap_unavailable_reason": None,  # Market cap in stock_symbols, not here
+            "held_percent_insiders_unavailable_reason": None,  # In positioning_metrics, not here
+            "held_percent_institutions_unavailable_reason": None,  # In positioning_metrics, not here
             "data_unavailable": False,
             "data_source": "sec_audited",
             "updated_at": date.today().isoformat(),
@@ -856,6 +869,14 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         if not revenues and not eps_values:
             return self._unavailable_marker("growth_metrics", symbol)
 
+        # Initialize all *_unavailable_reason fields (Session 389)
+        metrics["revenue_growth_1y_unavailable_reason"] = "insufficient_history" if "revenue_growth_1y" in failed_metrics else None
+        metrics["revenue_growth_3y_unavailable_reason"] = "insufficient_history" if "revenue_growth_3y" in failed_metrics else None
+        metrics["revenue_growth_5y_unavailable_reason"] = "insufficient_history" if "revenue_growth_5y" in failed_metrics else None
+        metrics["eps_growth_1y_unavailable_reason"] = "insufficient_history" if "eps_growth_1y" in failed_metrics else None
+        metrics["eps_growth_3y_unavailable_reason"] = "insufficient_history" if "eps_growth_3y" in failed_metrics else None
+        metrics["eps_growth_5y_unavailable_reason"] = "insufficient_history" if "eps_growth_5y" in failed_metrics else None
+
         if failed_metrics:
             if len(failed_metrics) == 6:
                 return self._unavailable_marker("growth_metrics", symbol)
@@ -876,8 +897,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO value_metrics
-            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, value_score, data_unavailable, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, value_score, data_unavailable, data_source, updated_at,
+             pe_ratio_unavailable_reason, pb_ratio_unavailable_reason, ps_ratio_unavailable_reason, peg_ratio_unavailable_reason,
+             dividend_yield_unavailable_reason, fcf_yield_unavailable_reason, forward_pe_unavailable_reason, ev_ebitda_unavailable_reason,
+             market_cap_unavailable_reason, held_percent_insiders_unavailable_reason, held_percent_institutions_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -890,6 +914,17 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 ev_ebitda = EXCLUDED.ev_ebitda,
                 ev_revenue = EXCLUDED.ev_revenue,
                 value_score = EXCLUDED.value_score,
+                pe_ratio_unavailable_reason = EXCLUDED.pe_ratio_unavailable_reason,
+                pb_ratio_unavailable_reason = EXCLUDED.pb_ratio_unavailable_reason,
+                ps_ratio_unavailable_reason = EXCLUDED.ps_ratio_unavailable_reason,
+                peg_ratio_unavailable_reason = EXCLUDED.peg_ratio_unavailable_reason,
+                dividend_yield_unavailable_reason = EXCLUDED.dividend_yield_unavailable_reason,
+                fcf_yield_unavailable_reason = EXCLUDED.fcf_yield_unavailable_reason,
+                forward_pe_unavailable_reason = EXCLUDED.forward_pe_unavailable_reason,
+                ev_ebitda_unavailable_reason = EXCLUDED.ev_ebitda_unavailable_reason,
+                market_cap_unavailable_reason = EXCLUDED.market_cap_unavailable_reason,
+                held_percent_insiders_unavailable_reason = EXCLUDED.held_percent_insiders_unavailable_reason,
+                held_percent_institutions_unavailable_reason = EXCLUDED.held_percent_institutions_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
@@ -897,7 +932,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             (row["symbol"], row["pe_ratio"], row["pb_ratio"], row["ps_ratio"],
              row["peg_ratio"], row["dividend_yield"], row["fcf_yield"],
              row.get("forward_pe"), row.get("enterprise_value"), row.get("ev_ebitda"), row.get("ev_revenue"),
-             row.get("value_score"), row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"]),
+             row.get("value_score"), row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"],
+             row.get("pe_ratio_unavailable_reason"), row.get("pb_ratio_unavailable_reason"), row.get("ps_ratio_unavailable_reason"),
+             row.get("peg_ratio_unavailable_reason"), row.get("dividend_yield_unavailable_reason"), row.get("fcf_yield_unavailable_reason"),
+             row.get("forward_pe_unavailable_reason"), row.get("ev_ebitda_unavailable_reason"), row.get("market_cap_unavailable_reason"),
+             row.get("held_percent_insiders_unavailable_reason"), row.get("held_percent_institutions_unavailable_reason")),
         )
 
     def _insert_quality_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -972,8 +1011,10 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO growth_metrics
-            (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable, reason, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, revenue_growth_1y, revenue_growth_3y, revenue_growth_5y, eps_growth_1y, eps_growth_3y, eps_growth_5y, data_unavailable, reason, data_source, updated_at,
+             revenue_growth_1y_unavailable_reason, revenue_growth_3y_unavailable_reason, revenue_growth_5y_unavailable_reason,
+             eps_growth_1y_unavailable_reason, eps_growth_3y_unavailable_reason, eps_growth_5y_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 revenue_growth_1y = EXCLUDED.revenue_growth_1y,
                 revenue_growth_3y = EXCLUDED.revenue_growth_3y,
@@ -981,6 +1022,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 eps_growth_1y = EXCLUDED.eps_growth_1y,
                 eps_growth_3y = EXCLUDED.eps_growth_3y,
                 eps_growth_5y = EXCLUDED.eps_growth_5y,
+                revenue_growth_1y_unavailable_reason = EXCLUDED.revenue_growth_1y_unavailable_reason,
+                revenue_growth_3y_unavailable_reason = EXCLUDED.revenue_growth_3y_unavailable_reason,
+                revenue_growth_5y_unavailable_reason = EXCLUDED.revenue_growth_5y_unavailable_reason,
+                eps_growth_1y_unavailable_reason = EXCLUDED.eps_growth_1y_unavailable_reason,
+                eps_growth_3y_unavailable_reason = EXCLUDED.eps_growth_3y_unavailable_reason,
+                eps_growth_5y_unavailable_reason = EXCLUDED.eps_growth_5y_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -1001,6 +1048,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 row.get("reason"),
                 row.get("data_source", "sec_audited"),
                 row["updated_at"],
+                row.get("revenue_growth_1y_unavailable_reason"),
+                row.get("revenue_growth_3y_unavailable_reason"),
+                row.get("revenue_growth_5y_unavailable_reason"),
+                row.get("eps_growth_1y_unavailable_reason"),
+                row.get("eps_growth_3y_unavailable_reason"),
+                row.get("eps_growth_5y_unavailable_reason"),
             ),
         )
 
