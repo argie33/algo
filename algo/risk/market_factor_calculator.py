@@ -396,8 +396,14 @@ class MarketFactorCalculator:
             )
             row = cur.fetchone()
             if not row:
+                # DEBUG: Check if there's ANY put_call_ratio data at all
+                cur.execute("SELECT COUNT(*) FROM market_health_daily WHERE put_call_ratio IS NOT NULL")
+                total_count = cur.fetchone()[0]
+                cur.execute("SELECT COUNT(*) FROM market_health_daily WHERE date <= %s", (eval_date,))
+                date_limited_count = cur.fetchone()[0]
                 raise RuntimeError(
                     f"[PUT_CALL CRITICAL] No put/call ratio data available on or before {eval_date}. "
+                    f"Total rows with put_call_ratio: {total_count}, rows up to {eval_date}: {date_limited_count}. "
                     f"Put/call ratio is a critical 8pt factor for market sentiment. "
                     f"Check: (1) market_health_daily table freshness, (2) put_call_ratio column populated"
                 )
@@ -420,9 +426,9 @@ class MarketFactorCalculator:
             return {"value": round(pcr, 2), "score": score}
         except RuntimeError:
             raise
-        except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
+        except (psycopg2.DatabaseError, psycopg2.OperationalError, psycopg2.ProgrammingError) as e:
             raise RuntimeError(
-                f"[PUT_CALL CRITICAL] Put/call ratio query failed: {e}. "
+                f"[PUT_CALL CRITICAL] Put/call ratio query failed ({type(e).__name__}): {e}. "
                 f"Cannot proceed with position sizing without sentiment data."
             ) from e
 
