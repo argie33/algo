@@ -892,6 +892,21 @@ function FactorScoreCard({
   );
 }
 
+function _formatReasonDisplay(reason) {
+  if (!reason) return null;
+  const reasonMap = {
+    missing_sec_data: "No SEC data",
+    insufficient_history: "Insufficient history",
+    no_analyst_estimates: "Analyst data unavailable",
+    ebitda_not_extracted: "Not extracted",
+    non_dividend_paying_stock: "Non-dividend payer",
+    api_error: "Data fetch error",
+    unprofitable_stock: "Unprofitable stock",
+    missing_price_or_shares: "Missing price/shares",
+  };
+  return reasonMap[reason] || reason;
+}
+
 function FactorInputs({ title, inputs, schema }) {
   if (!inputs || typeof inputs !== "object" || Array.isArray(inputs)) {
     return (
@@ -926,7 +941,7 @@ function FactorInputs({ title, inputs, schema }) {
   const expectedKeys = schema.map((s) => s.key);
   const apiKeys = Object.keys(inputs);
   const rows = schema
-    .map((s) => ({ ...s, value: inputs[s.key] }))
+    .map((s) => ({ ...s, value: inputs[s.key], reason: inputs[s.key + "_unavailable_reason"] }))
     .filter((r) => r.fmt && typeof r.fmt === "function");
   if (rows.length === 0) {
     const missing = expectedKeys.filter((k) => !(k in inputs));
@@ -956,12 +971,26 @@ function FactorInputs({ title, inputs, schema }) {
       <div className="card-body" style={{ padding: 0 }}>
         <table className="data-table">
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.key}>
-                <td className="t-xs">{r.label}</td>
-                <td className="num mono tnum t-xs">{r.fmt(r.value)}</td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const hasValue = r.value != null;
+              const reasonDisplay = hasValue ? null : _formatReasonDisplay(r.reason);
+              return (
+                <tr key={r.key}>
+                  <td className="t-xs">{r.label}</td>
+                  <td className="num mono tnum t-xs">
+                    {hasValue ? (
+                      r.fmt(r.value)
+                    ) : reasonDisplay ? (
+                      <span className="muted" title={r.reason}>
+                        {reasonDisplay}
+                      </span>
+                    ) : (
+                      <span className="muted">No data</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
