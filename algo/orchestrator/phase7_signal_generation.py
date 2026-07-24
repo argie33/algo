@@ -510,79 +510,59 @@ def _get_candidates_from_buysell(
             f"SQL filters: trend & close_quality applied at query level)"
         )
 
-        # Fetch signal quality scores (composite_sqs & trend_template_score) for candidate signals.
-        # SESSION 372 FIX: Ensure scores exist for ALL candidates before Phase 8.
-        # If any candidates are missing scores, compute them via SignalQualityScoresLoader.
+        # Compute signal quality scores (composite_sqs & trend_template_score) for candidates.
+        # ARCHITECTURE FIX (Session 376): Batch loader fails for live signals. Compute inline instead.
         if candidates:
-            try:
-                from loaders.load_signal_quality_scores import SignalQualityScoresLoader
+            from loaders.signal_quality_scorer import get_signal_scorer
+            import pandas as pd
 
-                with DatabaseContext("read") as cur_sqs:
-                    candidate_symbols = [c["symbol"] for c in candidates]
-                    cur_sqs.execute(
-                        f"""
-                        SELECT symbol, composite_sqs, trend_template_score
-                        FROM signal_quality_scores
-                        WHERE symbol IN ({','.join(['%s']*len(candidate_symbols))}) AND date = %s
-                        """,
-                        candidate_symbols + [run_date],
-                    )
-                    sqs_rows = cur_sqs.fetchall()
-                    sqs_map = {row[0]: (row[1], row[2]) for row in sqs_rows}
+            with DatabaseContext("read") as cur_sqs:
+                for candidate in candidates:
+                    symbol = candidate["symbol"]
+                    try:
+                        # Fetch technical data for this signal
+                        cur_sqs.execute(
+                            """
+                            SELECT
+                                rsi, macd, macd_signal,
+                                minervini_score, weinstein_stage
+                            FROM technical_data_daily
+                            WHERE symbol = %s AND date = %s
+                            """,
+                            (symbol, run_date),
+                        )
+                        tech_row = cur_sqs.fetchone()
 
-                    # Find candidates missing signal quality scores
-                    missing_symbols = [s for s in candidate_symbols if s not in sqs_map]
-
-                    # If any are missing, compute them NOW (SESSION 372 FIX)
-                    if missing_symbols:
-                        logger.info(f"[PHASE 7] Computing signal quality scores for {len(missing_symbols)} missing candidates")
-                        try:
-                            loader = SignalQualityScoresLoader()
-                            loader_result = loader.run(
-                                symbols=missing_symbols,
-                                parallelism=4,
-                                backfill_days=0  # Today only
-                            )
-                            if loader_result.get("success"):
-                                logger.info(f"[PHASE 7] Signal quality scores computed for {len(missing_symbols)} symbols")
-
-                                # Re-query to get the newly computed scores
-                                cur_sqs.execute(
-                                    f"""
-                                    SELECT symbol, composite_sqs, trend_template_score
-                                    FROM signal_quality_scores
-                                    WHERE symbol IN ({','.join(['%s']*len(missing_symbols))}) AND date = %s
-                                    """,
-                                    missing_symbols + [run_date],
-                                )
-                                new_rows = cur_sqs.fetchall()
-                                for row in new_rows:
-                                    sqs_map[row[0]] = (row[1], row[2])
-                            else:
-                                logger.warning(f"[PHASE 7] Signal quality score computation failed for {len(missing_symbols)} symbols")
-                        except Exception as loader_e:
-                            logger.warning(f"[PHASE 7] Could not compute missing signal quality scores: {loader_e}")
-
-                    # Merge signal quality scores into candidates
-                    for candidate in candidates:
-                        symbol = candidate["symbol"]
-                        if symbol in sqs_map:
-                            composite_sqs, trend_score = sqs_map[symbol]
-                            candidate["signal_quality_score"] = composite_sqs
-                            candidate["trend_template_score"] = trend_score
-                        else:
-                            # Still missing after computation attempt
+                        if not tech_row:
                             candidate["signal_quality_score"] = None
                             candidate["trend_template_score"] = None
+                            continue
 
-                    missing_scores = sum(1 for c in candidates if c.get("signal_quality_score") is None)
-                    if missing_scores > 0:
-                        logger.warning(
-                            f"[PHASE 7] {missing_scores}/{len(candidates)} candidates still missing signal quality scores "
-                            f"after loader attempt. These will be rejected by Phase 8 quality gate."
-                        )
-            except Exception as e:
-                logger.warning(f"[PHASE 7] Could not fetch/compute signal quality scores: {e}. Proceeding with NULL scores.")
+                        rsi, macd, macd_signal, minervini, weinstein = tech_row
+
+                        # Compute scores using strategy pattern (same as batch loader)
+                        scorer = get_signal_scorer("BUY")
+                        base_score = scorer.calculate_base_quality_score()
+                        volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
+                        trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
+
+                        # Composite SQS = sum of components (clamped to 100)
+                        composite_sqs = min(100, int(base_score + volume_score + trend_score))
+
+                        candidate["signal_quality_score"] = composite_sqs
+                        candidate["trend_template_score"] = trend_score
+
+                    except Exception as score_e:
+                        logger.warning(f"[PHASE 7] {symbol}: Could not compute signal quality score: {score_e}")
+                        candidate["signal_quality_score"] = None
+                        candidate["trend_template_score"] = None
+
+                missing_scores = sum(1 for c in candidates if c.get("signal_quality_score") is None)
+                if missing_scores > 0:
+                    logger.info(
+                        f"[PHASE 7] {missing_scores}/{len(candidates)} candidates missing signal quality scores "
+                        f"(insufficient technical data). These will be rejected by Phase 8 quality gate."
+                    )
 
         complete_candidates, _ = _validate_signal_completeness(candidates, "buy_sell_daily path")
         return complete_candidates
@@ -897,11 +877,15 @@ def run(  # noqa: C901
         loader = SignalQualityScoresLoader()
         all_symbols = get_active_symbols(timeout_secs=30)
         logger.info(f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols")
-        # Run for today only (lookahead: 1 day to capture end-of-day signals)
+        # CRITICAL FIX: Signal quality scores must be recomputed every day for EVERY symbol.
+        # OptimalLoader uses watermarks to skip already-processed symbols, but signal quality
+        # scores depend on today's buy/sell signals, technical data, and trend templates which
+        # change daily. Passing backfill_days=60 forces re-processing of all symbols (watermarks
+        # are ignored for dates more than backfill_days in the past, so they're recomputed).
         score_result = loader.run(
             symbols=all_symbols,
             parallelism=8,
-            backfill_days=1  # Today + yesterday for signals
+            backfill_days=60  # Recompute all symbols for last 60 days (overrides watermarks)
         )
         if not score_result.get("success", False):
             logger.warning(f"[PHASE 7] Signal quality score computation returned non-success: {score_result}")
