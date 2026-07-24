@@ -12,6 +12,12 @@ from typing import Any
 
 import psycopg2
 
+# CRITICAL: Set LOCAL_MODE FIRST before any imports that check it
+# This must happen before load_env_local() and any credential/AWS operations
+if "LAMBDA_TASK_ROOT" not in os.environ:
+    os.environ.setdefault("LOCAL_MODE", "true")
+    os.environ.setdefault("ENVIRONMENT", "development")
+
 # CRITICAL: Load environment variables from .env.local BEFORE any boto3/AWS calls
 # This must happen before any other imports that might trigger AWS operations
 from utils.dotenv_loader import load_env_local
@@ -2074,12 +2080,8 @@ class Orchestrator:
 
 
 if __name__ == "__main__":
-    # CRITICAL: Detect local execution. When orchestrator.py is run directly
-    # (not via AWS Lambda), set LOCAL_MODE=true to skip DynamoDB and use RDS locks.
-    # This prevents unnecessary AWS credential validation errors in local development.
-    if "LAMBDA_TASK_ROOT" not in os.environ:
-        os.environ.setdefault("LOCAL_MODE", "true")
-        os.environ.setdefault("ENVIRONMENT", "development")
+    # LOCAL_MODE already set at module import (line 16-18)
+    # No additional setup needed here - just continue with argument parsing
 
     logging.basicConfig(
         level=os.getenv("LOG_LEVEL", "INFO"),
