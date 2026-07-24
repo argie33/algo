@@ -157,7 +157,7 @@ function StockDetailContent() {
     { enabled: !!symbol }
   );
   const scoreRow = !scoreError
-    ? (scoreData?.top?.[0] || scoreData?.items?.[0] || null)
+    ? (scoreData?.data?.top?.[0] || scoreData?.top?.[0] || scoreData?.data?.items?.[0] || scoreData?.items?.[0] || null)
     : null;
 
   // Key metrics (sector/industry + market cap + ownership %)

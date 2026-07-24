@@ -179,7 +179,7 @@ function ScoresDashboardPage() {
     error: dataError,
     refetch,
   } = queryResult;
-  const items = dataError ? [] : (rawData?.top || rawData?.items || []);
+  const items = dataError ? [] : (rawData?.data?.top || rawData?.top || rawData?.data?.items || rawData?.items || []);
 
   useEffect(() => {
     setPage(1);

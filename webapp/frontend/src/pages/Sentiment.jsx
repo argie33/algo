@@ -360,7 +360,7 @@ function SentimentContent() {
     const scoreMap = new Map();
     const scoresList = Array.isArray(scoresQ.data)
       ? scoresQ.data
-      : scoresQ.data?.top || scoresQ.data?.items || [];
+      : scoresQ.data?.data?.top || scoresQ.data?.top || scoresQ.data?.data?.items || scoresQ.data?.items || [];
     const scores = Array.isArray(scoresList) ? scoresList : [];
     scores.forEach((s) => {
       if (s && s.symbol) scoreMap.set(s.symbol, s);
