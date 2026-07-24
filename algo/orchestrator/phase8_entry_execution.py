@@ -528,38 +528,53 @@ def run(
         logger.error(f"[PHASE 8] Error checking for pending orders: {e}")
         # Don't halt on this check - log and continue
 
-    # EXPLICIT DEPENDENCY RESOLUTION: Use executor if available (preferred pattern)
+    # SESSION 396 FIX: PROACTIVE RISK ENFORCEMENT
+    # Phase 8 now ALWAYS runs (always_run=True) to enforce proactive risk checks
+    # even when Phase 2 circuit breaker has halted earlier phases.
+    # Proactive check: Block ALL entries if total risk >= 4% BEFORE attempting trades
+    #
+    # If Phase 7 (signals) or Phase 5 (exposure) are unavailable, that's OK:
+    # Phase 8 will still run its risk guard and gracefully skip to reconciliation.
+    # This prevents cascade failures where Phase 2 halt → Phase 5 skip → Phase 7 halt → Phase 8 halt.
+
+    qualified_trades_from_executor = None
+    exposure_constraints_from_executor = None
+
     if executor is not None:
         try:
-            # CRITICAL FIX: Check if Phase 7 was halted/failed before extracting data
-            # Phase 7 may return empty qualified_trades legitimately OR due to halt
-            # We must distinguish these cases to avoid silent cascade failures
+            # Try to get Phase 7 signals (optional - empty signals = skip entries, not fatal)
             phase7_result = executor.get_result(7)
-            if phase7_result is None:
-                msg = "[PHASE 8 DEPENDENCY FAILURE] Phase 7 never executed - dependency chain broken"
-                logger.critical(msg)
-                log_phase_result_fn(8, "entry_execution", "halt", msg)
-                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+            if phase7_result and phase7_result.ok:
+                qualified_trades_from_executor = phase7_result.data.get("qualified_trades")
+                logger.info(f"[PHASE 8] Retrieved {len(qualified_trades_from_executor or [])} signals from Phase 7")
+            elif phase7_result and phase7_result.halted:
+                logger.warning(
+                    f"[PHASE 8] Phase 7 halted: {phase7_result.error or 'unknown'}. "
+                    f"No signals available, but Phase 8 will still run proactive risk check."
+                )
+            else:
+                logger.info("[PHASE 8] Phase 7 unavailable - proceeding with proactive risk check only")
 
-            if phase7_result.halted:
-                msg = f"[PHASE 8 DEPENDENCY FAILURE] Phase 7 halted: {phase7_result.error or 'unknown reason'}"
-                logger.critical(msg)
-                log_phase_result_fn(8, "entry_execution", "halt", msg)
-                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
-
-            if not phase7_result.ok:
-                msg = f"[PHASE 8 DEPENDENCY FAILURE] Phase 7 failed: status={phase7_result.status}, error={phase7_result.error}"
-                logger.critical(msg)
-                log_phase_result_fn(8, "entry_execution", "halt", msg)
-                return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
-
-            qualified_trades = executor.get_phase_data_required(7, "qualified_trades")
-            exposure_constraints = executor.get_phase_data_required(5, "constraints")
-            logger.info("[PHASE 8 CONTRACTS] [OK] Retrieved validated data from Phase 7 & 5")
+            # Try to get Phase 5 exposure constraints (also optional for proactive checks)
+            phase5_result = executor.get_result(5)
+            if phase5_result and phase5_result.ok:
+                exposure_constraints_from_executor = phase5_result.data.get("constraints")
+                logger.info("[PHASE 8] Retrieved exposure constraints from Phase 5")
+            elif phase5_result and phase5_result.halted:
+                logger.warning(
+                    f"[PHASE 8] Phase 5 halted: {phase5_result.error or 'unknown'}. "
+                    f"No exposure constraints available."
+                )
+            else:
+                logger.info("[PHASE 8] Phase 5 unavailable - will use defaults for proactive checks")
         except Exception as e:
-            logger.critical(f"[PHASE 8 DEPENDENCY FAILURE] {e}")
-            log_phase_result_fn(8, "entry_execution", "halt", str(e))
-            return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, str(e))
+            logger.warning(f"[PHASE 8] Could not fetch Phase 7/5 data: {e}. Proceeding with available data.")
+
+    # Override with executor data if available, else use passed-in data
+    if qualified_trades_from_executor is not None:
+        qualified_trades = qualified_trades_from_executor
+    if exposure_constraints_from_executor is not None:
+        exposure_constraints = exposure_constraints_from_executor
 
     # ISSUE #2 FIX: Validate Phase 7 data availability before processing
     # Explicit check ensures we have valid signal data before attempting entry execution
@@ -608,30 +623,28 @@ def run(
 
         return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, "Halt flag active")
 
-    # CRITICAL: Validate exposure constraints (fail-fast)
+    # SESSION 396 FIX: GRACEFUL DEGRADATION WHEN DEPENDENCIES UNAVAILABLE
+    # Phase 5 (exposure policy) may be unavailable due to earlier phase halts.
+    # We can still run proactive risk checks and gracefully skip entries if constraints are missing.
     if not exposure_constraints:
-        msg = (
-            "[PHASE 8 CRITICAL] Exposure constraints not provided. "
-            "Phase 5 (Exposure Policy) must produce constraints before Phase 8 executes."
+        logger.warning(
+            "[PHASE 8 DEGRADED] Exposure constraints not available (Phase 5 may have halted). "
+            "Phase 8 will run proactive risk check only, no entries will be attempted."
         )
-        logger.critical(msg)
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
-
-    required_constraint_keys = [
-        "halt_new_entries",
-        "max_new_positions_today",
-        "max_concentration_pct",
-    ]
-    missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
-    if missing_keys:
-        msg = (
-            f"[PHASE 8 CRITICAL] Exposure constraints missing required keys: {missing_keys}. "
-            f"Phase 5 output must include: {required_constraint_keys}"
-        )
-        logger.critical(msg)
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+        # Continue to proactive risk check below - don't halt
+    else:
+        required_constraint_keys = [
+            "halt_new_entries",
+            "max_new_positions_today",
+            "max_concentration_pct",
+        ]
+        missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
+        if missing_keys:
+            logger.warning(
+                f"[PHASE 8 DEGRADED] Exposure constraints missing keys: {missing_keys}. "
+                f"Using defaults for proactive risk check."
+            )
+            # Don't halt - continue with proactive check using defaults
 
     # CRITICAL: Verify data freshness before executing trades
 

@@ -160,12 +160,17 @@ class PhaseRegistry:
         # Input: Qualified signals from Phase 7, exposure policy from Phase 5
         # Output: result={'entry_orders': list, 'entry_count': int} with executed orders
         # Contract: Executes entry orders respecting position sizing and exposure limits
+        # CRITICAL FIX Session 396: Phase 8 must ALWAYS RUN to execute proactive risk check
+        # Proactive risk check prevents new entries when total risk >= 4%, BEFORE entries are made
+        # (vs circuit breaker which halts AFTER risk is already high). Phase 8 can run without
+        # Phase 7 signals (no entries to execute) but MUST run to enforce risk limits proactively.
         PhaseRegistryEntry(
             phase_num=8,
             phase_name="ENTRY EXECUTION",
             dependencies=[7, 5],
             execute_fn=None,
-            skip_if_halted=True,
+            skip_if_halted=False,  # Changed: allow Phase 8 to run even if earlier phases halt
+            always_run=True,  # CRITICAL: Proactive risk enforcement must run regardless of halt
         ),
         # Phase 9: RECONCILIATION & SNAPSHOT
         # Input: Trade orders from Phases 6 and 8, portfolio state
