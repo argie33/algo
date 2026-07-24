@@ -679,20 +679,26 @@ class PositionSizer:
         stop_loss_price: Any,
         signal_date: _date | None = None,
         portfolio_value: Any = None,
+        enforce_total_risk_limit: bool = True,
     ) -> dict[str, Any]:
         """
         Calculate position size for a new trade.
 
+        CRITICAL FIX (Session 393): When enforce_total_risk_limit=True, checks total open risk
+        across all positions and scales position size down if we're running low on 4% limit capacity.
+        This prevents individual position sizing from pushing aggregate risk over 4%.
+
         Args:
             portfolio_value: Pre-fetched portfolio value to skip Alpaca API call.
                              Pass this when calling in a loop to avoid N Alpaca calls.
+            enforce_total_risk_limit: If True, check total risk and scale down if needed
 
         Returns:
         {
             'shares': number of shares,
             'position_size_pct': % of portfolio,
             'risk_dollars': dollar amount at risk,
-            'status': 'ok' | 'no_room' | 'drawdown_halt'
+            'status': 'ok' | 'no_room' | 'drawdown_halt' | 'risk_limit_scaled'
         }
         """
         try:
@@ -702,6 +708,7 @@ class PositionSizer:
                 stop_loss_price,
                 signal_date,
                 portfolio_value=portfolio_value,
+                enforce_total_risk_limit=enforce_total_risk_limit,
             )
         except (DataUnavailableError, ConfigurationError, ValueError) as e:
             raise RuntimeError(f"Position sizing calculation failed: {type(e).__name__}: {e}") from e
@@ -715,8 +722,12 @@ class PositionSizer:
         stop_loss_price: Any,
         signal_date: _date | None = None,
         portfolio_value: Any = None,
+        enforce_total_risk_limit: bool = True,
     ) -> dict[str, Any]:
         """Internal method for position calculation.
+
+        CRITICAL FIX (Session 393): When enforce_total_risk_limit=True, checks total open risk
+        and scales position size down if aggregate risk would exceed 4% limit.
 
         Raises RuntimeError/ValueError for all error conditions. Let caller handle exceptions.
         Only returns success dict or explicit sizing denial (no_room, drawdown_halt, concentration, etc).

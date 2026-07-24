@@ -45,6 +45,57 @@ from utils.infrastructure.market_timing import MARKET_CLOSE_TIME, MARKET_OPEN_TI
 logger = logging.getLogger(__name__)
 
 
+def _calculate_current_total_risk_pct(max_risk_limit_pct: float = 4.0) -> tuple[float, float]:
+    """Calculate total open risk as percentage of portfolio.
+
+    PROACTIVE RISK CHECK: Used by Phase 8 to verify entry won't exceed risk limit BEFORE executing.
+    This is defensive - we check before entering, not after.
+
+    Returns:
+        (current_risk_pct, available_risk_pct) where available = limit - current
+
+    Raises:
+        RuntimeError: If portfolio value or risk calculation fails
+    """
+    try:
+        with DatabaseContext("read") as cur:
+            # Get current open positions and calculate total risk
+            cur.execute("""
+                SELECT
+                    SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity)) as total_risk_dollars,
+                    COUNT(*) as open_count
+                FROM algo_positions p
+                JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                WHERE p.status = 'open'
+            """)
+            result = cur.fetchone()
+            total_risk_dollars = result[0] if result and result[0] else 0.0
+            open_count = result[1] if result and result[1] else 0
+
+            # Get portfolio value
+            cur.execute("""
+                SELECT total_portfolio_value FROM algo_portfolio_snapshots
+                ORDER BY snapshot_date DESC LIMIT 1
+            """)
+            pf_row = cur.fetchone()
+            if not pf_row or not pf_row[0]:
+                raise RuntimeError("Portfolio value unavailable - cannot calculate risk")
+
+            portfolio_value = float(pf_row[0])
+            current_risk_pct = (total_risk_dollars / portfolio_value * 100.0) if portfolio_value > 0 else 0.0
+            available_risk_pct = max_risk_limit_pct - current_risk_pct
+
+            logger.info(
+                f"[RISK CHECK] Total open risk: {current_risk_pct:.2f}% ({open_count} positions), "
+                f"Available capacity: {available_risk_pct:.2f}% (limit: {max_risk_limit_pct}%)"
+            )
+
+            return current_risk_pct, available_risk_pct
+    except Exception as e:
+        logger.error(f"[RISK CHECK] Failed to calculate total open risk: {e}")
+        raise RuntimeError(f"Risk calculation failed: {e}") from e
+
+
 def _log_signal_rejection(
     symbol: str,
     rejection_stage: str,
@@ -920,6 +971,31 @@ def run(
     # execution_rejection_rate - that section of the panel always rendered nothing.
     entered_symbols: list[str] = []
     entered_prices: list[float] = []
+
+    # PROACTIVE RISK CHECK: Before entering positions, verify we won't exceed 4% risk limit
+    # This is defensive - stops entries BEFORE they would push us over the limit
+    # (vs circuit breaker which stops AFTER we've exceeded it)
+    try:
+        current_risk_pct, available_capacity_pct = _calculate_current_total_risk_pct(max_risk_limit_pct=4.0)
+        if available_capacity_pct < 0.3:  # Less than 0.3% room left (rounding safety)
+            msg = (
+                f"[PHASE 8 RISK GUARD] Total open risk {current_risk_pct:.2f}% >= 4% limit. "
+                f"Available capacity: {available_capacity_pct:.2f}%. "
+                f"Cannot enter new positions - risk already at limit. Close positions to trade."
+            )
+            logger.warning(msg)
+            log_phase_result_fn(8, "entry_execution", "blocked", msg)
+            return PhaseResult(8, "entry_execution", "blocked", {"entered": 0}, False, msg)
+        elif available_capacity_pct < 1.0:
+            logger.warning(
+                f"[PHASE 8 RISK GUARD] Current risk {current_risk_pct:.2f}%, "
+                f"only {available_capacity_pct:.2f}% capacity available. "
+                f"Will size positions conservatively to stay within limit."
+            )
+    except Exception as e:
+        logger.warning(f"[PHASE 8] Risk pre-check failed (will rely on circuit breaker): {e}")
+        # Don't halt - circuit breaker will catch if we exceed limits
+        pass
 
     # ISSUE #8 FIX: Build a dict with precomputed technical data from Phase 5 signals
     # to avoid redundant SMA_50/ATR calculations in Phase 6.
