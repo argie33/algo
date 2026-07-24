@@ -68,8 +68,10 @@ SIC_TO_GICS = {
     6282: "Financial Services",  # Investment advice
     6311: "Financial Services",  # Life insurance
     6321: "Financial Services",  # Accident & health insurance
+    6324: "Healthcare",  # Hospital & medical service plans
     6331: "Financial Services",  # Fire, marine & casualty insurance
     # Consumer Cyclical
+    5141: "Consumer Cyclical",  # Grocery & related product wholesale
     5200: "Consumer Cyclical",  # Building material & garden supplies
     5300: "Consumer Cyclical",  # General merchandise stores
     5400: "Consumer Cyclical",  # Grocery stores
@@ -130,6 +132,8 @@ SIC_TO_GICS = {
     3550: "Industrials",  # Special industry machinery
     3600: "Industrials",  # Electric & electronic equipment (broad)
     4000: "Industrials",  # Railroad transportation
+    4011: "Industrials",  # Railroads, line-haul operating
+    4013: "Industrials",  # Railroad switching & terminal services
     4100: "Industrials",  # Local & interurban transportation
     4200: "Industrials",  # Trucking & warehousing
     4400: "Industrials",  # Water transportation
@@ -190,16 +194,16 @@ class CompanyProfileLoader(OptimalLoader):
             reason,
         ) = row
 
-        # Map SIC code to GICS sector (4-digit lookup only, no generic fallback)
+        # Map SIC code to GICS sector (4-digit lookup with generic fallback)
         if not sic_code:
-            sector = None
+            sector = "Other"  # Default for missing SIC code
         else:
             sic_code_int = int(sic_code)
             sector = SIC_TO_GICS.get(sic_code_int)
             if sector is None:
-                # SIC code not in mapping - mark as unavailable
-                logger.warning(f"[{symbol}] SIC code {sic_code} not in SIC_TO_GICS mapping")
-                sector = None
+                # SIC code not in mapping - use fallback to satisfy NOT NULL constraint
+                logger.warning(f"[{symbol}] SIC code {sic_code} not in SIC_TO_GICS mapping, defaulting to 'Other'")
+                sector = "Other"
 
         return [
             {
