@@ -170,6 +170,7 @@ class BuySignalGenerator:
                     "signal": signal_type,
                     "signal_type": signal_type,
                     "strength": float(strength),
+                    "signal_strength": float(strength),
                     "reason": reason,
                     "entry_quality_score": None,
                     "signal_quality_score": None,
