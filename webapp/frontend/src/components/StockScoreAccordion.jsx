@@ -268,11 +268,22 @@ function InputRow({ row }) {
 // ─── factor inputs card — always shows every field, grouped by tier ───────
 function InputsCard({ title, stock, schema, inputsKey = null }) {
   const inputsObj = inputsKey ? stock[inputsKey] : stock;
-  const rows = schema.map((s) => ({
-    ...s,
-    value: inputsObj?.[s.key],
-    reason: inputsObj?.[s.key + "_unavailable_reason"]
-  }));
+  const rows = schema.map((s) => {
+    const value = inputsObj?.[s.key];
+    // Handle inconsistent reason key naming from API: try exact match first,
+    // then try with common suffixes removed (_pct, _val, _12m, etc.)
+    let reason = inputsObj?.[s.key + "_unavailable_reason"];
+    if (!reason && s.key.endsWith("_pct")) {
+      reason = inputsObj?.[s.key.slice(0, -4) + "_unavailable_reason"];
+    }
+    if (!reason && s.key.endsWith("_val")) {
+      reason = inputsObj?.[s.key.slice(0, -4) + "_unavailable_reason"];
+    }
+    if (!reason && s.key.endsWith("_12m")) {
+      reason = inputsObj?.[s.key.slice(0, -4) + "_unavailable_reason"];
+    }
+    return { ...s, value, reason };
+  });
   const used = rows.filter((r) => r.used);
   const tracked = rows.filter((r) => !r.used);
 
