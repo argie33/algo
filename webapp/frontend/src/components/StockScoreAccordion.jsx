@@ -268,7 +268,11 @@ function InputRow({ row }) {
 // ─── factor inputs card — always shows every field, grouped by tier ───────
 function InputsCard({ title, stock, schema, inputsKey = null }) {
   const inputsObj = inputsKey ? stock[inputsKey] : stock;
-  const rows = schema.map((s) => ({ ...s, value: inputsObj?.[s.key] }));
+  const rows = schema.map((s) => ({
+    ...s,
+    value: inputsObj?.[s.key],
+    reason: inputsObj?.[s.key + "_unavailable_reason"]
+  }));
   const used = rows.filter((r) => r.used);
   const tracked = rows.filter((r) => !r.used);
 
