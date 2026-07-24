@@ -609,15 +609,20 @@ class Orchestrator:
         Prevents stale locks from hung loaders from blocking future orchestrator runs.
         Automatically called during preflight checks to maintain lock table health.
         Session 391: Fixed stale signal_quality_scores lock that held 2-hour TTL.
+        Session 398: Be more aggressive - delete locks held > 1 hour even if not expired.
         """
         try:
             with DatabaseContext("write") as cur:
-                # Delete expired locks
-                cur.execute("DELETE FROM loader_execution_locks WHERE expires_at <= CURRENT_TIMESTAMP")
+                # Delete expired locks OR locks held for > 1 hour (indicates hung loader)
+                cur.execute("""
+                    DELETE FROM loader_execution_locks
+                    WHERE expires_at <= CURRENT_TIMESTAMP
+                       OR EXTRACT(EPOCH FROM (NOW() - locked_at)) > 3600
+                """)
                 deleted_count = cur.rowcount
 
                 if deleted_count > 0:
-                    logger.info(f"[LOCK_CLEANUP] Cleaned up {deleted_count} expired loader lock(s)")
+                    logger.info(f"[LOCK_CLEANUP] Cleaned up {deleted_count} loader lock(s) (expired or held > 1hr)")
 
                 # Log any active long-running locks (> 10 minutes)
                 cur.execute("""
@@ -630,7 +635,7 @@ class Orchestrator:
                 long_locks = cur.fetchall()
                 if long_locks:
                     logger.warning(
-                        f"[LOCK_CLEANUP] {len(long_locks)} loader lock(s) held > 10 minutes: "
+                        f"[LOCK_CLEANUP] {len(long_locks)} loader lock(s) still held > 10 minutes: "
                         + ", ".join([f"{name}({dur:.0f}s)" for name, _, _, dur in long_locks])
                     )
         except Exception as e:
