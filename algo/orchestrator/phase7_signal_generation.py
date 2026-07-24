@@ -891,12 +891,15 @@ def run(  # noqa: C901
     # This prevents trades from entering without SQS >= 75 validation (root cause of 38.5% win rate)
     try:
         from loaders.load_signal_quality_scores import SignalQualityScoresLoader
+        from utils.loaders.helpers import get_active_symbols
 
         logger.info("[PHASE 7] Computing signal quality scores before Phase 8 entry execution")
         loader = SignalQualityScoresLoader()
+        all_symbols = get_active_symbols(timeout_secs=30)
+        logger.info(f"[PHASE 7] Computing scores for {len(all_symbols)} active symbols")
         # Run for today only (lookahead: 1 day to capture end-of-day signals)
         score_result = loader.run(
-            symbols=[],  # All symbols
+            symbols=all_symbols,
             parallelism=8,
             backfill_days=1  # Today + yesterday for signals
         )
