@@ -589,8 +589,13 @@ class MarketExposure:
 
             if avail_max < 100.0:
                 # Identify which factors returned None/0 score
+                # CRITICAL FIX: Skip optional factors marked as data_unavailable (e.g., put_call_ratio)
+                # Optional factors gracefully skip with data_unavailable=True, not an error condition
                 missing_factors = []
                 for factor_key, factor_data in factors.items():
+                    # Skip if explicitly marked as unavailable (graceful skip, not missing data)
+                    if factor_data.get("data_unavailable") is True:
+                        continue
                     if factor_data.get("pts") == 0.0 and factor_data.get("score") is None:
                         missing_factors.append(factor_key)
 
