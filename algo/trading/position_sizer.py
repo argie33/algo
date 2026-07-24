@@ -915,6 +915,71 @@ class PositionSizer:
                 "reason": f"Total invested would be {(total_invested / Decimal(str(portfolio_value)) * Decimal(100)):.0f}% > {max_invested_pct:.0f}%",
             }
 
+        # SESSION 393 IMPLEMENTATION: Enforce total risk limit BEFORE returning success
+        # Check if aggregate risk (current open + this new position) would exceed 4% limit
+        if enforce_total_risk_limit:
+            try:
+                with DatabaseContext("read") as cur:
+                    cur.execute("""
+                        SELECT SUM(GREATEST(0, (t.entry_price - p.current_stop_price) * p.quantity))
+                        FROM algo_positions p
+                        JOIN algo_trades t ON t.trade_id = ANY(p.trade_ids_arr)
+                        WHERE p.status = 'open'
+                    """)
+                    result = cur.fetchone()
+                    current_risk_dollars = float(result[0]) if result and result[0] else 0.0
+
+                    # Calculate aggregate risk after this position would be added
+                    new_position_risk = float(risk_dollars)
+                    total_risk_after_entry = current_risk_dollars + new_position_risk
+                    total_risk_pct = (total_risk_after_entry / float(portfolio_value)) * 100.0 if float(portfolio_value) > 0 else 0.0
+
+                    # Hard limit: 4% max total risk
+                    max_risk_pct = 4.0
+
+                    if total_risk_pct > max_risk_pct:
+                        # Risk limit would be exceeded - scale down position or block
+                        available_capacity_dollars = (max_risk_pct / 100.0 * float(portfolio_value)) - current_risk_dollars
+
+                        if available_capacity_dollars <= 0:
+                            # No room left - block entry entirely
+                            return {
+                                "shares": 0,
+                                "position_size_pct": 0,
+                                "risk_dollars": 0,
+                                "status": "risk_limit",
+                                "reason": f"Total open risk {(current_risk_dollars/float(portfolio_value)*100.0):.2f}% already at/exceeds 4% limit - no capacity for new position",
+                            }
+                        else:
+                            # Scale down position to fit within available capacity
+                            scaled_risk_dollars = Decimal(str(available_capacity_dollars))
+                            scaled_shares = int((scaled_risk_dollars / risk_per_share).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+                            if scaled_shares < 1:
+                                # Can't fit even minimum position
+                                return {
+                                    "shares": 0,
+                                    "position_size_pct": 0,
+                                    "risk_dollars": 0,
+                                    "status": "risk_limit_scaled_zero",
+                                    "reason": f"Total open risk {(current_risk_dollars/float(portfolio_value)*100.0):.2f}% - available capacity ${available_capacity_dollars:.2f} insufficient for minimum position",
+                                }
+
+                            # Use scaled size
+                            shares = scaled_shares
+                            risk_dollars = risk_per_share * Decimal(shares)
+                            position_value = Decimal(shares) * Decimal(str(entry_price))
+                            position_pct_of_portfolio = position_value / Decimal(str(portfolio_value)) * Decimal(100)
+
+                            logger.info(
+                                f"[POSITION_SIZER] {symbol}: Risk-limited sizing applied. "
+                                f"Current risk {(current_risk_dollars/float(portfolio_value)*100.0):.2f}%, "
+                                f"scaled from {base_shares} to {shares} shares to stay within 4% limit"
+                            )
+            except Exception as e:
+                logger.warning(f"[POSITION_SIZER] {symbol}: Could not enforce total risk limit: {e}. Proceeding with calculated size.")
+                # Don't fail - let the trade go through; circuit breaker will catch if aggregate risk is exceeded
+
         cascade_multiplier = (
             risk_adjustment * exposure_mult * Decimal(str(phase_mult)) * vix_mult * Decimal(str(regime_mult))
         )
