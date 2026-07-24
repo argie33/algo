@@ -429,11 +429,11 @@ def run(
             f"market hours: 9:30 AM - 4:00 PM ET. Skipping Phase 8."
         )
         logger.warning(msg)
-        log_phase_result_fn(8, "entry_execution", "skipped", msg)
+        log_phase_result_fn(8, "entry_execution", "degraded", msg)
         return PhaseResult(
             8,
             "entry_execution",
-            "skipped",
+            "degraded",
             {"entered": 0},
             False,
             msg,

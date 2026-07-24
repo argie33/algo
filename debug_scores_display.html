@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scores Data Debug</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #fff; }
+        .section { margin: 20px 0; padding: 15px; border: 1px solid #444; }
+        .ok { color: #00ff00; }
+        .error { color: #ff0000; }
+        .warn { color: #ffaa00; }
+        .info { color: #0099ff; }
+        pre { background: #000; padding: 10px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>Scores Data Debugging</h1>
+    <div id="output"></div>
+
+    <script>
+        const out = document.getElementById('output');
+
+        function log(level, msg) {
+            const div = document.createElement('div');
+            div.className = level;
+            div.textContent = msg;
+            out.appendChild(div);
+            console.log(`[${level}] ${msg}`);
+        }
+
+        function logCode(code) {
+            const pre = document.createElement('pre');
+            pre.textContent = JSON.stringify(code, null, 2);
+            out.appendChild(pre);
+        }
+
+        async function debug() {
+            log('info', 'Starting scores data debug...');
+
+            // Determine API URL
+            const localhost = 'http://localhost:3001';
+            const aws = 'https://2iqq1qhltj.execute-api.us-east-1.amazonaws.com';
+
+            try {
+                // Test localhost
+                const localhostResp = await fetch(localhost + '/api/health', {timeout: 2000});
+                if (localhostResp.ok) {
+                    log('ok', 'Dev server is running on localhost:3001');
+                } else {
+                    log('warn', 'Localhost responded but with status: ' + localhostResp.status);
+                }
+            } catch (e) {
+                log('error', 'Dev server not accessible: ' + e.message);
+            }
+
+            // Test the scores endpoint
+            log('info', '--- Testing /api/scores/stockscores ---');
+
+            const url = localhost + '/api/scores/stockscores?limit=10&offset=0&sortBy=composite_score&sp500Only=false';
+            try {
+                const resp = await fetch(url, { timeout: 10000 });
+                log('info', 'API Response Status: ' + resp.status);
+
+                if (!resp.ok) {
+                    log('error', 'API returned error ' + resp.status);
+                    const text = await resp.text();
+                    log('error', 'Response body: ' + text.substring(0, 200));
+                    return;
+                }
+
+                const data = await resp.json();
+                log('info', 'Response received');
+                logCode({
+                    statusCode: data.statusCode,
+                    hasData: 'data' in data,
+                    dataKeys: Object.keys(data.data || {}),
+                    itemsCount: data.data?.items?.length || 0,
+                    paginationTotal: data.data?.pagination?.total
+                });
+
+                // Simulate what React component extracts
+                log('info', '--- Simulating React extraction ---');
+                const extractedItems = data?.data?.items || data?.items || [];
+                log('info', `Extracted ${extractedItems.length} items`);
+
+                if (extractedItems.length === 0) {
+                    log('error', 'NO ITEMS EXTRACTED - React would show "No Data"');
+                    log('error', 'This means the API response structure does not match what React expects');
+                    log('warn', 'React looks for: rawData?.data?.top || rawData?.top || rawData?.data?.items || rawData?.items');
+                    log('info', 'Actual response structure:');
+                    logCode(data);
+                } else {
+                    log('ok', `First item: ${extractedItems[0].symbol} (composite: ${extractedItems[0].composite_score})`);
+                    log('ok', 'React SHOULD display these items');
+                }
+
+            } catch (e) {
+                log('error', 'Fetch failed: ' + e.message);
+            }
+        }
+
+        debug();
+    </script>
+</body>
+</html>
