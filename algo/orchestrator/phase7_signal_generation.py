@@ -82,7 +82,7 @@ _HISTORICAL_SIGNAL_MEDIAN_MIN = 300  # Typical trading day has 300+ BUY signals 
 _SIGNAL_COUNT_ANOMALY_THRESHOLD = 50
 _MAX_WORKERS = 4
 _MIN_COMPOSITE_SCORE = 30  # Minimum composite_score to qualify (0-100 scale). Median=32.75, so this filters ~60% of universe to top performers
-_BUYSELL_LOOKBACK_DAYS = 0  # Only use TODAY's signals - stale signals from prior days cause losses
+_BUYSELL_LOOKBACK_DAYS = 1  # Use TODAY's signals + yesterday's if today unavailable (EOD pipeline runs 4:05 PM)
 
 
 def _compute_risk_score(atr_14: float | None, close: float | None) -> float:
@@ -991,10 +991,10 @@ def run(  # noqa: C901
 
         if not raw_candidates:
             msg = (
-                f"[PHASE 7] buy_sell_daily has signals but NONE passed filters "
-                f"(checked {_BUYSELL_LOOKBACK_DAYS}-day window, min_composite_score={min_composite_score}). "
-                f"Possible causes: (1) all signals below min_score threshold, (2) market regime prevents entries, "
-                f"(3) no price_daily data for signal symbols. Check market_exposure_daily for regime/halt_entries."
+                f"[PHASE 7] No BUY signals found in lookback window ({_BUYSELL_LOOKBACK_DAYS}-day window, "
+                f"min_composite_score={min_composite_score}). Possible causes: (1) buy_sell_daily has no recent signals "
+                f"(EOD pipeline may not have run yet), (2) all signals below min_score threshold, "
+                f"(3) market regime prevents entries. Check market_exposure_daily for regime/halt_entries."
             )
             logger.warning(msg)
             log_phase_result_fn(7, "signal_generation", "no_signals", msg)

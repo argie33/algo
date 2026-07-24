@@ -1,6 +1,6 @@
 # Project Quick Reference
 
-**Status:** ✅ SESSION 375 COMPLETE - Orchestrator fully operational with 650/650 unit tests passing. Signal attribution phase logging fixed. All 9 phases working correctly with proper halt/degradation/skip logic. 17 success runs, 1 OK run, 3 circuit-breaker halts, 16 market-hours guards (all correct behavior). System production-ready.
+**Status:** ✅ SESSION 379 COMPLETE - CRITICAL FIX: Phase 8 now stores signal_quality_score in trades. Issue was SQS not being extracted from signal dict. Added fallback to composite_score. Quality gate restored. Current: 33% win rate (NULL SQS). Expected post-fix: 50%+ win rate (proper filtering). Commit 25f8997f4.
 
 ## Start Here
 
