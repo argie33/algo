@@ -719,6 +719,20 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             # Partial quality data is valid and should be scored with completeness tracking.
             # Session 297: Quality scores with 2-3 metrics are legitimate (with completeness % for filtering).
             # Do NOT mark partial data as unavailable - that violates GOVERNANCE "honest incomplete data" principle.
+
+            # Initialize all *_unavailable_reason fields (Session 389)
+            # These explain WHY a metric is NULL for users/operators
+            metrics["roe_unavailable_reason"] = "missing_sec_data" if "roe" in failed_metrics else None
+            metrics["roa_unavailable_reason"] = "missing_sec_data" if "roa" in failed_metrics else None
+            metrics["operating_margin_unavailable_reason"] = "missing_sec_data" if "operating_margin" in failed_metrics else None
+            metrics["net_margin_unavailable_reason"] = "missing_sec_data" if "net_margin" in failed_metrics else None
+            metrics["debt_to_equity_unavailable_reason"] = "missing_sec_data" if "debt_to_equity" in failed_metrics else None
+            metrics["current_ratio_unavailable_reason"] = "missing_sec_data" if "current_ratio" in failed_metrics else None
+            metrics["quick_ratio_unavailable_reason"] = "missing_sec_data" if "quick_ratio" in failed_metrics else None
+            metrics["interest_coverage_unavailable_reason"] = "missing_sec_data" if "interest_coverage" in failed_metrics else None
+            metrics["debt_to_assets_unavailable_reason"] = "missing_sec_data" if "debt_to_assets" in failed_metrics else None
+            metrics["quality_score_unavailable_reason"] = None  # Score can be partial; only mark if ALL metrics failed
+
             if failed_metrics:
                 # Log which metrics are incomplete (for debugging), but don't mark data_unavailable
                 logger.debug(
@@ -894,8 +908,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, current_ratio, quick_ratio, interest_coverage, quality_score, ebitda, ebitda_margin, data_unavailable, reason, data_source, updated_at,
              gross_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
              free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share,
-             earnings_growth_yoy, revenue_growth_yoy)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+             earnings_growth_yoy, revenue_growth_yoy,
+             roe_unavailable_reason, roa_unavailable_reason, operating_margin_unavailable_reason, net_margin_unavailable_reason,
+             debt_to_equity_unavailable_reason, current_ratio_unavailable_reason, quick_ratio_unavailable_reason,
+             interest_coverage_unavailable_reason, debt_to_assets_unavailable_reason, quality_score_unavailable_reason)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 roe = EXCLUDED.roe,
                 roa = EXCLUDED.roa,
@@ -921,6 +938,16 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 cash_per_share = EXCLUDED.cash_per_share,
                 earnings_growth_yoy = EXCLUDED.earnings_growth_yoy,
                 revenue_growth_yoy = EXCLUDED.revenue_growth_yoy,
+                roe_unavailable_reason = EXCLUDED.roe_unavailable_reason,
+                roa_unavailable_reason = EXCLUDED.roa_unavailable_reason,
+                operating_margin_unavailable_reason = EXCLUDED.operating_margin_unavailable_reason,
+                net_margin_unavailable_reason = EXCLUDED.net_margin_unavailable_reason,
+                debt_to_equity_unavailable_reason = EXCLUDED.debt_to_equity_unavailable_reason,
+                current_ratio_unavailable_reason = EXCLUDED.current_ratio_unavailable_reason,
+                quick_ratio_unavailable_reason = EXCLUDED.quick_ratio_unavailable_reason,
+                interest_coverage_unavailable_reason = EXCLUDED.interest_coverage_unavailable_reason,
+                debt_to_assets_unavailable_reason = EXCLUDED.debt_to_assets_unavailable_reason,
+                quality_score_unavailable_reason = EXCLUDED.quality_score_unavailable_reason,
                 data_unavailable = EXCLUDED.data_unavailable,
                 reason = EXCLUDED.reason,
                 data_source = EXCLUDED.data_source,
@@ -933,7 +960,11 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
              row.get("gross_margin"), row.get("roic_pct"), row.get("fcf_to_net_income"),
              row.get("ocf_to_net_income"), row.get("payout_ratio"),
              row.get("free_cash_flow"), row.get("operating_cash_flow"), row.get("total_debt"), row.get("total_cash"),
-             row.get("cash_per_share"), row.get("earnings_growth_yoy"), row.get("revenue_growth_yoy")),
+             row.get("cash_per_share"), row.get("earnings_growth_yoy"), row.get("revenue_growth_yoy"),
+             row.get("roe_unavailable_reason"), row.get("roa_unavailable_reason"), row.get("operating_margin_unavailable_reason"),
+             row.get("net_margin_unavailable_reason"), row.get("debt_to_equity_unavailable_reason"), row.get("current_ratio_unavailable_reason"),
+             row.get("quick_ratio_unavailable_reason"), row.get("interest_coverage_unavailable_reason"), row.get("debt_to_assets_unavailable_reason"),
+             row.get("quality_score_unavailable_reason")),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
