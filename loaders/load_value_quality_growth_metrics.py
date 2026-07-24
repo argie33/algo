@@ -862,8 +862,8 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO value_metrics
-            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, data_unavailable, data_source, updated_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            (symbol, pe_ratio, pb_ratio, ps_ratio, peg_ratio, dividend_yield, fcf_yield, forward_pe, enterprise_value, ev_ebitda, ev_revenue, value_score, data_unavailable, data_source, updated_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
                 pe_ratio = EXCLUDED.pe_ratio,
                 pb_ratio = EXCLUDED.pb_ratio,
@@ -875,6 +875,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 enterprise_value = EXCLUDED.enterprise_value,
                 ev_ebitda = EXCLUDED.ev_ebitda,
                 ev_revenue = EXCLUDED.ev_revenue,
+                value_score = EXCLUDED.value_score,
                 data_unavailable = EXCLUDED.data_unavailable,
                 data_source = EXCLUDED.data_source,
                 updated_at = EXCLUDED.updated_at
@@ -882,7 +883,7 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             (row["symbol"], row["pe_ratio"], row["pb_ratio"], row["ps_ratio"],
              row["peg_ratio"], row["dividend_yield"], row["fcf_yield"],
              row.get("forward_pe"), row.get("enterprise_value"), row.get("ev_ebitda"), row.get("ev_revenue"),
-             row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"]),
+             row.get("value_score"), row["data_unavailable"], row.get("data_source", "sec_audited"), row["updated_at"]),
         )
 
     def _insert_quality_metrics(self, cur: Any, row: dict[str, Any]) -> None:
@@ -890,9 +891,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
         cur.execute(
             """
             INSERT INTO quality_metrics
-            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, current_ratio, quick_ratio, interest_coverage, quality_score, data_unavailable, reason, data_source, updated_at,
-             gross_margin, ebitda_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
-             free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share, ebitda,
+            (symbol, roe, roa, operating_margin, net_margin, debt_to_equity, debt_to_assets, current_ratio, quick_ratio, interest_coverage, quality_score, ebitda, ebitda_margin, data_unavailable, reason, data_source, updated_at,
+             gross_margin, roic_pct, fcf_to_net_income, ocf_to_net_income, payout_ratio,
+             free_cash_flow, operating_cash_flow, total_debt, total_cash, cash_per_share,
              earnings_growth_yoy, revenue_growth_yoy)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (symbol) DO UPDATE SET
@@ -906,8 +907,9 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 quick_ratio = EXCLUDED.quick_ratio,
                 interest_coverage = EXCLUDED.interest_coverage,
                 quality_score = EXCLUDED.quality_score,
-                gross_margin = EXCLUDED.gross_margin,
+                ebitda = EXCLUDED.ebitda,
                 ebitda_margin = EXCLUDED.ebitda_margin,
+                gross_margin = EXCLUDED.gross_margin,
                 roic_pct = EXCLUDED.roic_pct,
                 fcf_to_net_income = EXCLUDED.fcf_to_net_income,
                 ocf_to_net_income = EXCLUDED.ocf_to_net_income,
@@ -917,7 +919,6 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
                 total_debt = EXCLUDED.total_debt,
                 total_cash = EXCLUDED.total_cash,
                 cash_per_share = EXCLUDED.cash_per_share,
-                ebitda = EXCLUDED.ebitda,
                 earnings_growth_yoy = EXCLUDED.earnings_growth_yoy,
                 revenue_growth_yoy = EXCLUDED.revenue_growth_yoy,
                 data_unavailable = EXCLUDED.data_unavailable,
@@ -927,12 +928,12 @@ class ValueQualityGrowthMetricsLoader(OptimalLoader):
             """,
             (row["symbol"], row["roe"], row.get("roa"), row["operating_margin"],
              row["net_margin"], row["debt_to_equity"], row.get("debt_to_assets"), row.get("current_ratio"),
-             row.get("quick_ratio"), row.get("interest_coverage"), row.get("quality_score"), row["data_unavailable"],
+             row.get("quick_ratio"), row.get("interest_coverage"), row.get("quality_score"), row.get("ebitda"), row.get("ebitda_margin"), row["data_unavailable"],
              row.get("reason"), row.get("data_source", "sec_audited"), row["updated_at"],
-             row.get("gross_margin"), row.get("ebitda_margin"), row.get("roic_pct"), row.get("fcf_to_net_income"),
+             row.get("gross_margin"), row.get("roic_pct"), row.get("fcf_to_net_income"),
              row.get("ocf_to_net_income"), row.get("payout_ratio"),
              row.get("free_cash_flow"), row.get("operating_cash_flow"), row.get("total_debt"), row.get("total_cash"),
-             row.get("cash_per_share"), row.get("ebitda"), row.get("earnings_growth_yoy"), row.get("revenue_growth_yoy")),
+             row.get("cash_per_share"), row.get("earnings_growth_yoy"), row.get("revenue_growth_yoy")),
         )
 
     def _insert_growth_metrics(self, cur: Any, row: dict[str, Any]) -> None:
