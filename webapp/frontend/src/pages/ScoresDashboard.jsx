@@ -927,15 +927,12 @@ function FactorInputs({ title, inputs, schema }) {
   const apiKeys = Object.keys(inputs);
   const rows = schema
     .map((s) => ({ ...s, value: inputs[s.key] }))
-    .filter((r) => r.value != null && r.fmt && typeof r.fmt === "function");
+    .filter((r) => r.fmt && typeof r.fmt === "function");
   if (rows.length === 0) {
     const missing = expectedKeys.filter((k) => !(k in inputs));
-    const allNull = expectedKeys.filter(
-      (k) => k in inputs && inputs[k] == null
-    );
     if (typeof console !== "undefined") {
       console.warn(
-        `[FactorInputs] ${title}: 0 renderable rows. API returned keys=${JSON.stringify(apiKeys)}, missing=${JSON.stringify(missing)}, all-null=${JSON.stringify(allNull)}`
+        `[FactorInputs] ${title}: 0 renderable rows. Schema has no formatters. API returned keys=${JSON.stringify(apiKeys)}, missing=${JSON.stringify(missing)}`
       );
     }
     return (
@@ -945,8 +942,7 @@ function FactorInputs({ title, inputs, schema }) {
         </div>
         <div className="card-body">
           <div className="t-xs muted">
-            No detailed metrics available — API returned {apiKeys.length} keys
-            but all values are null. See console for details.
+            Configuration error: schema missing formatters for {title.toLowerCase()}
           </div>
         </div>
       </div>
