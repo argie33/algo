@@ -79,7 +79,6 @@ def wrap_response(response: Any) -> dict[str, Any]:
                 "data_freshness",
                 "success",
                 "timestamp",
-                "pagination",
             )
         }
 
