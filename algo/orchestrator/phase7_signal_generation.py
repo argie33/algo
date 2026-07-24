@@ -128,6 +128,7 @@ _REQUIRED_SIGNAL_FIELDS = {
     "close": float,
     "sma_50": float,
     "signal_strength": float,
+    "signal_quality_score": float,
 }
 
 
