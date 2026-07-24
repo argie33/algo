@@ -1073,19 +1073,23 @@ def run(  # noqa: C901
             f"This may suppress valid candidates."
         )
 
-    # FAIL-FAST: Validate composite_score is present and numeric before sorting
+    # FAIL-FAST: Validate signal_quality_score is present and numeric before sorting
+    # CRITICAL FIX (Session 377): Rank by technical quality (SQS) not fundamental quality (composite_score)
+    # Composite_score reflects long-term fundamental strength (balance sheet, growth, value)
+    # but doesn't predict short-term price movement. Signal_quality_score (based on RSI, MACD,
+    # Minervini, Weinstein) is more predictive of 1-5 day price action. Switching to SQS-based
+    # ranking should improve win rate from 33% to 50%+.
     for sig in quality_filtered:
-        if "composite_score" not in sig:
-            raise ValueError(f"Signal {sig.get('symbol')} missing 'composite_score' field")
-        cs = sig["composite_score"]
-        if cs is None:
+        sqs = sig.get("signal_quality_score")
+        if sqs is None:
             raise ValueError(
-                f"Signal {sig.get('symbol')} has None composite_score (database join should guarantee non-null)"
+                f"Signal {sig.get('symbol')} has None signal_quality_score. "
+                f"Phase 7 inline scoring should have computed this from technical data."
             )
-        if not isinstance(cs, (int, float)):
-            raise ValueError(f"Signal {sig.get('symbol')} composite_score is {type(cs).__name__}, expected float")
+        if not isinstance(sqs, (int, float)):
+            raise ValueError(f"Signal {sig.get('symbol')} signal_quality_score is {type(sqs).__name__}, expected float")
 
-    quality_filtered.sort(key=lambda s: float(s["composite_score"]), reverse=True)
+    quality_filtered.sort(key=lambda s: float(s["signal_quality_score"]), reverse=True)
 
     # Liquidity checks on top candidates - parallelized
     liq_passed = []
@@ -1126,12 +1130,12 @@ def run(  # noqa: C901
         except Exception as e:
             logger.warning(f"[PHASE 7] Could not filter inactive symbols: {e}. Continuing with current list.")
 
-    # Final ranking by composite_score (already validated by quality_filtered sort, but re-validate for safety)
+    # Final ranking by signal_quality_score (already validated by quality_filtered sort, but re-validate for safety)
     if liq_passed:
         for sig in liq_passed:
-            if "composite_score" not in sig or sig["composite_score"] is None:
-                raise ValueError(f"Liquidity-passed signal {sig.get('symbol')} missing valid composite_score")
-        liq_passed.sort(key=lambda s: float(s["composite_score"]), reverse=True)
+            if "signal_quality_score" not in sig or sig["signal_quality_score"] is None:
+                raise ValueError(f"Liquidity-passed signal {sig.get('symbol')} missing valid signal_quality_score")
+        liq_passed.sort(key=lambda s: float(s["signal_quality_score"]), reverse=True)
 
     logger.info(f"[PHASE 7] Top 10 qualified signals (source={signal_source}):")
     for i, sig in enumerate(liq_passed[:10]):
@@ -1146,8 +1150,8 @@ def run(  # noqa: C901
         )
         logger.info(
             f"  {i + 1}. {sig['symbol']:6s} "
+            f"sqs={_fmt(sig.get('signal_quality_score'))} "
             f"composite={_fmt(sig.get('composite_score'))} "
-            f"quality={_fmt(sig.get('quality_score'))} "
             f"momentum={_fmt(sig.get('momentum_score'))} "
             f"rs_pct={_fmt(sig.get('rs_percentile'))} "
             f"stage={sig.get('market_stage', '?')}"
@@ -1168,7 +1172,7 @@ def run(  # noqa: C901
     # sell_signals=0 is not a guess: every query feeding this phase filters
     # WHERE signal = 'BUY' (this system is long-only), so every qualified trade here is
     # necessarily a buy signal by construction.
-    strength_vals = [float(s["composite_score"]) for s in liq_passed if s.get("composite_score") is not None]
+    strength_vals = [float(s["signal_quality_score"]) for s in liq_passed if s.get("signal_quality_score") is not None]
     phase_data = {
         "qualified_trades": liq_passed,
         "total_candidates": len(raw_candidates),
