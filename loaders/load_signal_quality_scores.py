@@ -781,30 +781,42 @@ class SignalQualityScoresLoader(OptimalLoader):
                 distribution_days_score = None
                 earnings_proximity_score = None
 
-                # Composite score: only include components with real data (non-None values)
+                # Composite score: normalize components to 0-100 scale, then average
+                # Each component has different max value, so normalize first before combining
                 all_components = {
-                    "base_quality": base_quality_score,
-                    "volume_confirmation": volume_confirmation_score,
-                    "trend_template": trend_template_score,
-                    "distance_from_high": distance_from_high_score,
-                    "institutional_ownership": institutional_ownership_score,
-                    "market_stage": market_stage_score,
-                    "vcp_pattern": vcp_pattern_score,
+                    "base_quality": base_quality_score,  # max 50
+                    "volume_confirmation": volume_confirmation_score,  # max 20
+                    "trend_template": trend_template_score,  # max 25
+                    "distance_from_high": distance_from_high_score,  # max 15
+                    "institutional_ownership": institutional_ownership_score,  # max 10
+                    "market_stage": market_stage_score,  # max 10
+                    "vcp_pattern": vcp_pattern_score,  # max 10
                 }
-                real_components = [v for v in all_components.values() if v is not None]
+                component_maxes = {
+                    "base_quality": 50,
+                    "volume_confirmation": 20,
+                    "trend_template": 25,
+                    "distance_from_high": 15,
+                    "institutional_ownership": 10,
+                    "market_stage": 10,
+                    "vcp_pattern": 10,
+                }
+
+                # Normalize each component to 0-100 scale
+                normalized_components = []
+                for key, value in all_components.items():
+                    if value is not None:
+                        max_val = component_maxes[key]
+                        normalized = (value / max_val * 100) if max_val > 0 else 0
+                        normalized_components.append(normalized)
+
                 unavailable_components = {k: v for k, v in all_components.items() if v is None}
 
-                composite_sqs = sum(real_components) if real_components else 0
-                data_completeness = min(99.99, round((len(real_components) / 7.0) * 100, 2))
-
-                unclamped_composite = int(composite_sqs)
-                if unclamped_composite > 100:
-                    log_date = row["date"] if "date" in row.index else "unknown"
-                    logger.warning(
-                        f"[SQS_CLAMP] {symbol} {log_date}: Composite quality score clamped from {unclamped_composite} to 100. "
-                        "Score exceeds design range: check individual component contributions."
-                    )
-                composite_sqs = min(100, unclamped_composite)
+                # Average the normalized components (all now on 0-100 scale)
+                composite_sqs = int(sum(normalized_components) / len(normalized_components)) if normalized_components else 0
+                data_completeness = min(99.99, round((len(normalized_components) / 7.0) * 100, 2))
+                # Composite score is now properly normalized to 0-100 via averaging normalized components
+                # No clamping needed since all components are pre-normalized
 
                 date_val = row["date"] if "date" in row.index else None
                 if date_val is not None:
