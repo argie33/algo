@@ -4,13 +4,12 @@
 
 ## Start Here
 
-1. **Dashboard "data not available"?** → `DASHBOARD_TROUBLESHOOTING.md`
+1. **Dashboard issues or "data not available"?** → `steering/COMMON_OPERATIONS.md`
 2. **Local dev setup?** → `QUICKSTART_LOCAL.md`
 3. **Architecture & rules?** → `steering/GOVERNANCE.md`
 4. **AWS/deployment?** → `steering/OPERATIONS.md`
 5. **Data loading system?** → `steering/DATA_LOADERS.md`
 6. **Data stale or broken?** → `python scripts/monitor_data_staleness.py` + `steering/LOADER_RECOVERY_GUIDE.md`
-7. **Troubleshooting (deep dive)?** → `steering/COMMON_OPERATIONS.md`
 
 ## Quick Setup - AWS or LOCAL
 
