@@ -263,6 +263,8 @@ def run(
                         if result["success"]:
                             exit_count += 1
                             logger.info(f"  EXPOSURE PARTIAL: {result['message']}")
+                        else:
+                            errors += 1
 
                 elif action["action"] == "tighten_stop":
                     try:

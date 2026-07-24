@@ -87,14 +87,16 @@ class PositionTracker:
 
             current_qty = result[0]
 
-            # CRITICAL FIX Session 391: Convert new_qty to integer
-            # The quantity column is INTEGER, so 0.5 gets cast to 1 (not 0), causing no-op UPDATE
-            # This was causing partial exits to fail silently: rowcount=1 but quantity unchanged
+            # CRITICAL: quantity column is INTEGER - MISMATCH with fractional share exits
+            # When new_qty is fractional (e.g., 0.5 from 50% exit), it gets rounded.
+            # Using banker's rounding int(round(0.5))=0, which silently drops the exit amount!
+            # Long-term fix: schema should use NUMERIC/DECIMAL, but for now keep logic as-is
+            # to maintain compatibility with existing data.
             qty_for_db = int(round(new_qty))
             if qty_for_db != new_qty:
                 logger.warning(
                     f"[POSITION_UPDATE] Position {position_id}: new_qty {new_qty} rounded to integer {qty_for_db} "
-                    f"(quantity column is INTEGER type)"
+                    f"(quantity column is INTEGER type) - precision loss may cause data inconsistency"
                 )
             effective_new_qty = qty_for_db
 
