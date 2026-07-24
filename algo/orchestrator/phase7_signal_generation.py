@@ -580,8 +580,16 @@ def _get_candidates_from_buysell(
                 if missing_scores > 0:
                     logger.info(
                         f"[PHASE 7] {missing_scores}/{len(candidates)} candidates missing signal quality scores "
-                        f"(insufficient technical data). These will be rejected by Phase 8 quality gate."
+                        f"(insufficient technical data). Filtering out..."
                     )
+                    # CRITICAL FIX (Session 391): REJECT candidates with None signal_quality_score IMMEDIATELY
+                    # (not later in Phase 8 quality gate as previous comment claimed).
+                    # Candidates without scores should never reach downstream phases where they cause confusing
+                    # "signal has None quality_score" errors. Filter them out right here.
+                    candidates = [c for c in candidates if c.get("signal_quality_score") is not None]
+                    if not candidates:
+                        logger.warning(f"[PHASE 7] All candidates filtered out due to missing signal quality scores")
+                        return []
 
             # CRITICAL FIX: Write computed signal_quality_scores back to buy_sell_daily
             # so that backtest and other systems can access them. Only write non-NULL scores.
