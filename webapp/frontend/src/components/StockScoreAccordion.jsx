@@ -239,8 +239,9 @@ function InputRow({ row }) {
 }
 
 // ─── factor inputs card — always shows every field, grouped by tier ───────
-function InputsCard({ title, stock, schema }) {
-  const rows = schema.map((s) => ({ ...s, value: stock[s.key] }));
+function InputsCard({ title, stock, schema, inputsKey = null }) {
+  const inputsObj = inputsKey ? stock[inputsKey] : stock;
+  const rows = schema.map((s) => ({ ...s, value: inputsObj?.[s.key] }));
   const used = rows.filter((r) => r.used);
   const tracked = rows.filter((r) => !r.used);
 
@@ -346,12 +347,12 @@ function StockDetail({ stock, marketAvgs, sectorAvgs }) {
         plain &quot;No data&quot; = tracked but missing for this stock only.
       </div>
       <div className="grid grid-3 gap-3" style={{ marginBottom: "var(--space-5)" }}>
-        <InputsCard title="Quality & Fundamentals" stock={stock} schema={QUALITY_SCHEMA} />
-        <InputsCard title="Momentum" stock={stock} schema={MOMENTUM_SCHEMA} />
-        <InputsCard title="Value" stock={stock} schema={VALUE_SCHEMA} />
-        <InputsCard title="Growth" stock={stock} schema={GROWTH_SCHEMA} />
-        <InputsCard title="Positioning" stock={stock} schema={POSITIONING_SCHEMA} />
-        <InputsCard title="Stability" stock={stock} schema={STABILITY_SCHEMA} />
+        <InputsCard title="Quality & Fundamentals" stock={stock} schema={QUALITY_SCHEMA} inputsKey="quality_inputs" />
+        <InputsCard title="Momentum" stock={stock} schema={MOMENTUM_SCHEMA} inputsKey="momentum_inputs" />
+        <InputsCard title="Value" stock={stock} schema={VALUE_SCHEMA} inputsKey="value_inputs" />
+        <InputsCard title="Growth" stock={stock} schema={GROWTH_SCHEMA} inputsKey="growth_inputs" />
+        <InputsCard title="Positioning" stock={stock} schema={POSITIONING_SCHEMA} inputsKey="positioning_inputs" />
+        <InputsCard title="Stability" stock={stock} schema={STABILITY_SCHEMA} inputsKey="stability_inputs" />
       </div>
 
       {/* Recent trading signals */}
@@ -430,19 +431,15 @@ const QUALITY_SCHEMA = [
 ];
 
 const MOMENTUM_SCHEMA = [
-  { key: 'momentum_1m', label: 'Momentum (1M)', fmt: v => pct(v, 2) },
   { key: 'momentum_3m', label: 'Momentum (3M)', fmt: v => pct(v, 2) },
   { key: 'momentum_6m', label: 'Momentum (6M)', fmt: v => pct(v, 2) },
-  { key: 'momentum_12m', label: 'Momentum (12M)', fmt: v => pct(v, 2) },
-  { key: 'rsi_14', label: 'RSI (14)', fmt: v => num(v, 1) },
-  { key: 'macd_line', label: 'MACD Line', fmt: v => num(v, 3) },
-  { key: 'macd_signal', label: 'MACD Signal', fmt: v => num(v, 3) },
+  { key: 'momentum_12_3', label: 'Momentum (12M)', fmt: v => pct(v, 2) },
+  { key: 'rsi', label: 'RSI (14)', fmt: v => num(v, 1) },
+  { key: 'macd', label: 'MACD Line', fmt: v => num(v, 3) },
+  { key: 'price_vs_52w_high', label: 'Price vs 52W High', fmt: v => pct(v, 2) },
   { key: 'price_vs_sma_50', label: 'Price vs 50-SMA', fmt: v => pct(v, 2) },
   { key: 'price_vs_sma_200', label: 'Price vs 200-SMA', fmt: v => pct(v, 2) },
-  { key: 'roc_20d', label: '20-Day ROC', fmt: v => pct(v, 2) },
-  { key: 'roc_60d', label: '60-Day ROC', fmt: v => pct(v, 2) },
-  { key: 'roc_120d', label: '120-Day ROC', fmt: v => pct(v, 2) },
-  { key: 'roc_252d', label: '252-Day ROC', fmt: v => pct(v, 2) },
+  { key: 'current_price', label: 'Current Price', fmt: v => num(v, 2) },
 ];
 
 const VALUE_SCHEMA = [

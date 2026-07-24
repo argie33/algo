@@ -60,7 +60,7 @@ class OrchestratorDiagnostics:
 
                 # Check for recent BUY signals
                 cur.execute(
-                    "SELECT COUNT(*) FROM buy_sell_daily WHERE signal = 'BUY' AND date >= %s - INTERVAL 7 AND date <= %s",
+                    "SELECT COUNT(*) FROM buy_sell_daily WHERE signal = 'BUY' AND date >= %s - INTERVAL '7 days' AND date <= %s",
                     (run_date, run_date),
                 )
                 bs_row = cur.fetchone()
@@ -69,13 +69,6 @@ class OrchestratorDiagnostics:
                 if result["buy_sell_signals"] == 0:
                     result["blockers"].append("No BUY signals in last 7 days")
                     result["blocked"] = True
-
-                # Check swing trader scores
-                cur.execute(
-                    "SELECT COUNT(*) FROM swing_trader_scores WHERE date <= %s AND score IS NOT NULL", (run_date,)
-                )
-                sw_row = cur.fetchone()
-                result["swing_scores"] = sw_row[0] if sw_row else 0
 
                 # Check circuit breaker status
                 cur.execute(
@@ -118,7 +111,7 @@ class OrchestratorDiagnostics:
             with DatabaseContext("read") as cur:
                 # Count pending trade signals
                 cur.execute(
-                    "SELECT COUNT(*) FROM algo_trades WHERE status = 'pending' AND created_at >= %s - INTERVAL 1 DAY",
+                    "SELECT COUNT(*) FROM algo_trades WHERE status = 'pending' AND created_at >= %s - INTERVAL '1 day'",
                     (run_date,),
                 )
                 sig_row = cur.fetchone()
