@@ -15,6 +15,7 @@ from typing import Any
 import psycopg2
 
 from utils.db.context import DatabaseContext
+from algo.infrastructure.config.main import AlgoConfig
 
 logger = logging.getLogger(__name__)
 
@@ -70,20 +71,28 @@ class OrchestratorDiagnostics:
                     result["blockers"].append("No BUY signals in last 7 days")
                     result["blocked"] = True
 
-                # Check circuit breaker status
-                cur.execute(
-                    "SELECT COUNT(*) FROM circuit_breaker_status WHERE any_triggered = TRUE AND check_date >= %s",
-                    (run_date,),
-                )
-                cb_row = cur.fetchone()
-                result["circuit_breaker_halted"] = (cb_row[0] if cb_row else 0) > 0
-
-                if result["circuit_breaker_halted"]:
-                    result["blockers"].append("Circuit breaker(s) triggered - entry execution halted")
-                    result["blocked"] = True
-
         except (psycopg2.DatabaseError, psycopg2.OperationalError) as e:
             result["blockers"].append(f"Database error checking signal generation: {e}")
+            result["blocked"] = True
+
+        # Check live circuit breaker status (not stale DB table)
+        try:
+            from algo.risk import CircuitBreaker
+            config = AlgoConfig()
+            cb = CircuitBreaker(config)
+            cb_result = cb.check_all(run_date)
+            result["circuit_breaker_halted"] = cb_result.get("halted", False)
+
+            if result["circuit_breaker_halted"]:
+                reasons = cb_result.get("halt_reasons", [])
+                if reasons:
+                    result["blockers"].append(f"Circuit breaker halted: {'; '.join(reasons)}")
+                else:
+                    result["blockers"].append("Circuit breaker(s) triggered - entry execution halted")
+                result["blocked"] = True
+        except Exception as e:
+            logger.error(f"Failed to check live circuit breaker: {e}")
+            result["blockers"].append(f"Could not check circuit breaker: {e}")
             result["blocked"] = True
 
         return result
