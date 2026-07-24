@@ -589,26 +589,37 @@ class MarketExposure:
 
             if avail_max < 100.0:
                 # Identify which factors returned None/0 score
-                # CRITICAL FIX: Skip optional factors marked as data_unavailable (e.g., put_call_ratio)
-                # Optional factors gracefully skip with data_unavailable=True, not an error condition
+                # CRITICAL FIX (Session 381): Handle optional factors gracefully
+                # Optional factors (put_call_ratio) are skipped with data_unavailable=True
+                # If ALL missing factors are optional, this is OK - proceed with reduced avail_max
                 missing_factors = []
+                unavailable_factors = []
                 for factor_key, factor_data in factors.items():
-                    # Skip if explicitly marked as unavailable (graceful skip, not missing data)
+                    # If explicitly marked as unavailable (graceful skip, not missing data), track separately
                     if factor_data.get("data_unavailable") is True:
+                        unavailable_factors.append(factor_key)
                         continue
                     if factor_data.get("pts") == 0.0 and factor_data.get("score") is None:
                         missing_factors.append(factor_key)
 
-                msg = (
-                    f"[MARKET EXPOSURE CRITICAL] Incomplete factor data - cannot calculate exposure. "
-                    f"Available: {avail_max:.1f}/100 points of factor weights. "
-                    f"Missing factors ({len(missing_factors)}): {missing_factors}. "
-                    f"Position sizing requires complete market assessment (all 12 factors). "
-                    f"Normalization would artificially inflate remaining factors' contribution. "
-                    f"Cannot proceed with degraded market exposure calculation."
-                )
-                logger.critical(msg)
-                raise RuntimeError(msg)
+                # If there are REQUIRED factors missing (not marked as unavailable), fail
+                if missing_factors:
+                    msg = (
+                        f"[MARKET EXPOSURE CRITICAL] Incomplete factor data - cannot calculate exposure. "
+                        f"Available: {avail_max:.1f}/100 points of factor weights. "
+                        f"Missing REQUIRED factors ({len(missing_factors)}): {missing_factors}. "
+                        f"Position sizing requires complete market assessment (all required factors). "
+                        f"Normalization would artificially inflate remaining factors' contribution. "
+                        f"Cannot proceed with degraded market exposure calculation."
+                    )
+                    logger.critical(msg)
+                    raise RuntimeError(msg)
+                elif unavailable_factors:
+                    # All missing factors are optional (gracefully skipped)
+                    logger.info(
+                        f"[MARKET EXPOSURE] Using reduced exposure calculation with optional factors unavailable: "
+                        f"{unavailable_factors}. Available: {avail_max:.1f}/100 (expected for this configuration)."
+                    )
 
             score = max(0.0, min(100.0, score))
 
