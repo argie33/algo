@@ -821,12 +821,18 @@ class EntryHandler:
 
         # CRITICAL FIX (Session 379): Validate sqs is being passed through TradeContext
         # This ensures signal_quality_score is stored in database for all trades
-        if context.sqs is not None:
-            logger.debug(f"[ENTRY_HANDLER] {symbol}: sqs={context.sqs} type={type(context.sqs).__name__}")
-        else:
-            logger.warning(
-                f"[ENTRY_HANDLER] {symbol}: sqs is None in TradeContext - this will result in NULL signal_quality_score in database"
+        # GOVERNANCE: Finance apps cannot accept NULL signal_quality_score for any trade
+        if context.sqs is None:
+            raise ValueError(
+                f"[ENTRY_HANDLER CRITICAL] {symbol}: signal_quality_score is None in TradeContext. "
+                f"Cannot proceed with trade entry - signal quality validation is mandatory. "
+                f"This indicates upstream Phase 7 signal quality score computation failed or did not complete. "
+                f"Check: (1) Phase 7 signal quality score computation status, "
+                f"(2) buy_sell_daily table has signal_quality_score populated for this signal, "
+                f"(3) SignalQualityScoresLoader executed without errors. "
+                f"Trades without valid signal quality scores must not be entered."
             )
+        logger.debug(f"[ENTRY_HANDLER] {symbol}: sqs={context.sqs} type={type(context.sqs).__name__}")
 
         trade_request = TradeInsertionRequest(
             trade_id=trade_id,

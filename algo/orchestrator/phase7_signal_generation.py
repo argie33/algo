@@ -958,14 +958,55 @@ def run(  # noqa: C901
             parallelism=8,
             backfill_days=60,  # Recompute all symbols for last 60 days (overrides watermarks)
         )
-        symbols_failed = score_result.get("symbols_failed", 0)
+
+        # CRITICAL: Validate result structure before using it
+        if not isinstance(score_result, dict):
+            raise RuntimeError(
+                f"Signal quality score loader returned invalid type: {type(score_result).__name__}. "
+                f"Expected dict with 'symbols_failed' and 'symbols_processed' keys."
+            )
+
+        if "symbols_failed" not in score_result:
+            raise RuntimeError(
+                f"Signal quality score result missing 'symbols_failed' key. "
+                f"Loader must return complete result structure. Got keys: {score_result.keys()}"
+            )
+
+        symbols_failed = score_result["symbols_failed"]
         if symbols_failed > 0:
             logger.warning(f"[PHASE 7] Signal quality score computation had {symbols_failed} failures: {score_result}")
-        else:
-            logger.info(f"[PHASE 7] Signal quality scores computed: {score_result.get('symbols_processed', 0)} symbols")
+
+        if "symbols_processed" not in score_result:
+            raise RuntimeError(
+                f"Signal quality score result missing 'symbols_processed' key. "
+                f"Loader must return complete result structure. Got keys: {score_result.keys()}"
+            )
+
+        symbols_processed = score_result["symbols_processed"]
+        logger.info(f"[PHASE 7] Signal quality scores computed: {symbols_processed} symbols")
+
     except Exception as e:
-        logger.warning(f"[PHASE 7] Signal quality score computation failed (non-critical): {e}")
-        # Don't halt - Phase 8 will proceed with NULL scores but will apply fallback
+        # CRITICAL: Signal quality scores are REQUIRED for Phase 8 entry gates.
+        # If computation fails, trades cannot proceed safely - must halt and investigate.
+        msg = (
+            f"[PHASE 7 CRITICAL] Signal quality score computation failed: {type(e).__name__}: {e} "
+            f"Signal quality scores are REQUIRED for Phase 8 entry quality gates (min SQS >= 60). "
+            f"Without scores, trades cannot be validated and must not proceed. "
+            f"Check: (1) load_signal_quality_scores.py - loader implementation, "
+            f"(2) buy_sell_daily table - signal data completeness, "
+            f"(3) technical_data_daily - required for score calculation, "
+            f"(4) Database connection and transaction state."
+        )
+        logger.critical(msg)
+        log_phase_result_fn(7, "signal_generation", "halt", msg)
+        return PhaseResult(
+            7,
+            "signal_generation",
+            "halted",
+            {"qualified_trades": [], "liquidity_passed": 0},
+            True,
+            msg,
+        )
 
     # BACKFILL: Compute quality scores for older loader-created signals that don't have scores
     # This is separate from the batch loader above - it specifically targets orphaned signals
@@ -1015,16 +1056,45 @@ def run(  # noqa: C901
 
                     rsi, macd, macd_signal, minervini, weinstein = tech_row
                     # Compute score using same logic as inline scorer (with trend data)
-                    base_score = scorer.calculate_base_quality_score()
-                    volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
-                    trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
-                    composite_sqs = min(100, int(base_score + volume_score + trend_score))
-
-                    backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
-                    logger.debug(f"[PHASE 7 BACKFILL] {symbol} {signal_date}: Computed score={composite_sqs}")
+                    try:
+                        base_score = scorer.calculate_base_quality_score()
+                        if base_score is None or base_score < 0:
+                            raise ValueError(
+                                f"Base score calculation failed: got {base_score} (expected 0-100 range)"
+                            )
+                        volume_score = scorer.calculate_volume_confirmation_score(rsi, macd, macd_signal)
+                        if volume_score is None:
+                            raise ValueError(
+                                f"Volume score calculation failed: got None for {symbol} {signal_date}"
+                            )
+                        trend_score = scorer.calculate_trend_template_score(minervini, weinstein)
+                        if trend_score is None:
+                            raise ValueError(
+                                f"Trend score calculation failed: got None for {symbol} {signal_date}"
+                            )
+                        composite_sqs = min(100, int(base_score + volume_score + trend_score))
+                        if composite_sqs < 0 or composite_sqs > 100:
+                            raise ValueError(
+                                f"Composite SQS out of range: {composite_sqs} (expected 0-100)"
+                            )
+                        backfill_scores.append((composite_sqs, composite_sqs, symbol, signal_date))
+                        logger.debug(f"[PHASE 7 BACKFILL] {symbol} {signal_date}: Computed score={composite_sqs}")
+                    except ValueError as calc_e:
+                        raise RuntimeError(
+                            f"[PHASE 7 BACKFILL] Score calculation failed for {symbol} {signal_date}: {calc_e} "
+                            f"Cannot backfill scores with invalid calculation logic. "
+                            f"Check scorer implementation and technical data quality."
+                        ) from calc_e
+                except RuntimeError:
+                    raise
                 except Exception as bf_e:
-                    logger.debug(f"[PHASE 7 BACKFILL] {symbol}: Failed to compute score: {bf_e}")
-                    continue
+                    logger.error(
+                        f"[PHASE 7 BACKFILL] Unexpected error computing score for {symbol}: {type(bf_e).__name__}: {bf_e}",
+                        exc_info=True,
+                    )
+                    raise RuntimeError(
+                        f"[PHASE 7 BACKFILL] Failed to compute score for {symbol} {signal_date}: {type(bf_e).__name__}: {bf_e}"
+                    ) from bf_e
 
             # Write backfill scores
             if backfill_scores:
@@ -1040,12 +1110,35 @@ def run(  # noqa: C901
                                 (bf_sqs, entry_sqs, symbol, signal_date),
                             )
                     logger.info(f"[PHASE 7 BACKFILL] Wrote {len(backfill_scores)} backfill scores to buy_sell_daily")
+                except (psycopg2.DatabaseError, psycopg2.OperationalError) as write_db_e:
+                    msg = (
+                        f"[PHASE 7 BACKFILL CRITICAL] Failed to persist backfill scores to database: {write_db_e} "
+                        f"Computed {len(backfill_scores)} signal quality scores but could not write them. "
+                        f"This leaves signals without scores, violating data integrity. "
+                        f"Check: (1) database connection, (2) buy_sell_daily table writable, "
+                        f"(3) sufficient disk space, (4) transaction state."
+                    )
+                    logger.critical(msg)
+                    raise RuntimeError(msg) from write_db_e
                 except Exception as write_bf_e:
-                    logger.warning(f"[PHASE 7 BACKFILL] Failed to write backfill scores: {write_bf_e}")
+                    msg = (
+                        f"[PHASE 7 BACKFILL CRITICAL] Unexpected error writing backfill scores: {type(write_bf_e).__name__}: {write_bf_e} "
+                        f"Cannot persist {len(backfill_scores)} computed signal quality scores. "
+                        f"This violates data integrity - scores must be persisted once computed."
+                    )
+                    logger.critical(msg)
+                    raise RuntimeError(msg) from write_bf_e
         else:
             logger.debug("[PHASE 7 BACKFILL] No orphaned signals to backfill")
+    except RuntimeError:
+        raise
     except Exception as bf_outer_e:
-        logger.warning(f"[PHASE 7 BACKFILL] Backfill process failed (non-critical): {bf_outer_e}")
+        msg = (
+            f"[PHASE 7 BACKFILL] Backfill process failed: {type(bf_outer_e).__name__}: {bf_outer_e} "
+            f"This is a secondary/optional process to score orphaned signals that weren't scored during initial generation. "
+            f"Log the error for investigation but allow Phase 7 to continue - primary score computation already ran."
+        )
+        logger.error(msg, exc_info=True)
 
     # Halt flag check before generating signals
     if check_halt_flag and check_halt_flag():
@@ -1232,8 +1325,10 @@ def run(  # noqa: C901
             # Filter out signals without valid SQS (fail-fast validation)
             quality_filtered = [c for c in quality_filtered if c.get("signal_quality_score") is not None]
             if not quality_filtered:
+                # No candidates have signal_quality_scores (likely due to missing technical data)
+                # This is an expected state - some days have no tradeable signals with sufficient history
                 msg = "[PHASE 7] All candidates rejected due to missing signal quality scores (insufficient technical data)"
-                logger.warning(msg)
+                logger.info(msg)
                 log_phase_result_fn(7, "signal_generation", "no_data", msg)
                 return PhaseResult(
                     7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
@@ -1297,14 +1392,22 @@ def run(  # noqa: C901
     for sig in quality_filtered:
         sqs: int | float | None = sig.get("signal_quality_score")
         if sqs is None:
-            # Should never reach here due to final filter above - this is a logic error in the filter
-            logger.error(
-                f"[PHASE 7 LOGIC ERROR] Signal {sig.get('symbol')} has None signal_quality_score "
-                f"after all filters. This indicates a bug in the filtering logic."
+            # This should NEVER reach here due to all previous filters removing None values
+            # If it does, it indicates a critical logic error in our filtering
+            msg = (
+                f"[PHASE 7 CRITICAL] Signal {sig.get('symbol')} has None signal_quality_score "
+                f"after all filters. This is a logic error in the filtering code - None values should "
+                f"have been removed by prior filters. Failing fast to expose the issue."
             )
-            continue
+            logger.critical(msg)
+            raise RuntimeError(msg)
         if not isinstance(sqs, (int, float)):
-            raise ValueError(f"Signal {sig.get('symbol')} signal_quality_score is {type(sqs).__name__}, expected float")
+            msg = (
+                f"[PHASE 7 CRITICAL] Signal {sig.get('symbol')} signal_quality_score is {type(sqs).__name__}, "
+                f"expected float. Signal quality score must be numeric for sorting. Cannot proceed."
+            )
+            logger.critical(msg)
+            raise ValueError(msg)
 
     # CRITICAL: Final defensive filter - remove ANY signals with None scores before sorting
     # (defensive in case filtering above had gaps)

@@ -659,28 +659,38 @@ def run(
             msg,
         )
 
-    # SESSION 396 FIX: GRACEFUL DEGRADATION WHEN DEPENDENCIES UNAVAILABLE
-    # Phase 5 (exposure policy) may be unavailable due to earlier phase halts.
-    # We can still run proactive risk checks and gracefully skip entries if constraints are missing.
+    # CRITICAL: Exposure constraints are REQUIRED - fail-fast if missing or incomplete
+    # Do NOT claim to use "defaults" and then halt silently - either provide defaults OR halt immediately
+    # This prevents confusion when debugging: misleading warnings followed by silent halts
+    # mask the actual problem (missing Phase 5 data) behind false claims of graceful degradation
     if not exposure_constraints:
-        logger.warning(
-            "[PHASE 8 DEGRADED] Exposure constraints not available (Phase 5 may have halted). "
-            "Phase 8 will run proactive risk check only, no entries will be attempted."
+        msg = (
+            "[PHASE 8 CRITICAL] Exposure constraints not available (Phase 5 may have halted). "
+            "Cannot execute trades without market exposure analysis from Phase 5 (Exposure Policy). "
+            "Position sizing requires valid exposure constraints. "
+            "Check earlier phases completed successfully."
         )
-        # Continue to proactive risk check below - don't halt
-    else:
-        required_constraint_keys = [
-            "halt_new_entries",
-            "max_new_positions_today",
-            "max_concentration_pct",
-        ]
-        missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
-        if missing_keys:
-            logger.warning(
-                f"[PHASE 8 DEGRADED] Exposure constraints missing keys: {missing_keys}. "
-                f"Using defaults for proactive risk check."
-            )
-            # Don't halt - continue with proactive check using defaults
+        logger.critical(msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+
+    # Validate required fields - fail-fast if any missing
+    required_constraint_keys = [
+        "halt_new_entries",
+        "max_new_positions_today",
+        "max_concentration_pct",
+    ]
+    missing_keys = [k for k in required_constraint_keys if k not in exposure_constraints]
+    if missing_keys:
+        msg = (
+            f"[PHASE 8 CRITICAL] Exposure constraints incomplete: missing keys {missing_keys}. "
+            f"Cannot execute trades without complete exposure policy data. "
+            f"Position sizing requires: {', '.join(required_constraint_keys)}. "
+            f"Check Phase 5 (Exposure Policy) produced valid constraint data."
+        )
+        logger.critical(msg)
+        log_phase_result_fn(8, "entry_execution", "halt", msg)
+        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
     # CRITICAL: Verify data freshness before executing trades
 
@@ -742,42 +752,8 @@ def run(
 
         return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
 
-    # Validate that exposure_constraints has all fields needed for position sizing
-    # CRITICAL: All required fields must be present; no silent defaults allowed
-    if exposure_constraints is None:
-        msg = (
-            "[PHASE 8 CRITICAL] exposure_constraints is None. "
-            "Cannot execute trades without market exposure constraints from Phase 5. "
-            "Phase 5 (Exposure Policy) must complete and provide constraint data."
-        )
-        logger.critical(msg)
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
-
-    required_fields = [
-        "tier_name",
-        "risk_multiplier",
-        "max_new_positions_today",
-        "halt_new_entries",
-        "max_concentration_pct",  # Added by Phase 5 fallback
-    ]
-
-    missing_fields = [f for f in required_fields if f not in exposure_constraints]
-
-    if missing_fields:
-        actual_keys = list(exposure_constraints.keys()) if exposure_constraints else []
-        msg = (
-            f"[PHASE 8 CRITICAL] exposure_constraints missing required fields: {missing_fields}. "
-            f"Actual keys present: {actual_keys}. "
-            "Cannot size positions without complete constraints. "
-            "Phase 5 (Exposure Policy) must provide complete constraint data."
-        )
-        logger.critical(f"[PHASE 8 DEBUG] Full constraints: {exposure_constraints}")
-        logger.critical(msg)
-
-        log_phase_result_fn(8, "entry_execution", "halt", msg)
-
-        return PhaseResult(8, "entry_execution", "halted", {"entered": 0}, True, msg)
+    # exposure_constraints validated above - guaranteed to exist and have all required fields
+    # Additional fields may be present (tier_name, risk_multiplier) but are not required for entry execution
 
     # Check for halt flag set by exposure policy
     # exposure_constraints validated above - always exists and has required keys
