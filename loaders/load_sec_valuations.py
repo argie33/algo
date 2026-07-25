@@ -190,22 +190,23 @@ class SecValuationsLoader(OptimalLoader):
                 # Note: None values mean EV metrics won't be computed
 
                 # Session 398: Calculate EBITDA from operating income + depreciation + amortization
+                # EBITDA = Operating Income + Depreciation + Amortization
+                # Use operating income as base; add D&A if available (even if just one of them)
                 ebitda = None
                 oi = safe_float(operating_income, f"{symbol}.operating_income", allow_none=True)
                 if oi is not None:
                     dep_exp = safe_float(depreciation_expense, f"{symbol}.depreciation_expense", allow_none=True)
                     amort_exp = safe_float(amortization_expense, f"{symbol}.amortization_expense", allow_none=True)
 
-                    # EBITDA = Operating Income + Depreciation + Amortization
+                    # Start with operating income as EBITDA base
                     ebitda_val = oi
                     if dep_exp:
                         ebitda_val += dep_exp
                     if amort_exp:
                         ebitda_val += amort_exp
 
-                    # Only set if we added at least depreciation or amortization to operating income
-                    if dep_exp or amort_exp:
-                        ebitda = ebitda_val
+                    # Set EBITDA - always use it if operating income is available
+                    ebitda = ebitda_val
 
             # Compute valuations (convert all values to float)
             # CRITICAL: Don't convert None to 0.0 - need to preserve None for PS ratio computation
