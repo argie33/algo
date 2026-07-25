@@ -68,6 +68,15 @@ def wrap_response(response: Any) -> dict[str, Any]:
     # Success responses should already have 'data' field from response utilities.
     # If they don't (legacy/direct returns), wrap them.
     if response.get("statusCode") == 200 and "data" not in response:
+        # GOVERNANCE: Paginated responses (items + pagination) are already properly structured.
+        # Do NOT add an extra "data" wrapper - it complicates frontend parsing and breaks the
+        # natural contract (frontend expects {statusCode, items, pagination} OR {statusCode, data: {...}}).
+        # Scores, signals, and other paginated endpoints return items directly at top level.
+        is_paginated = "items" in response and "pagination" in response
+        if is_paginated:
+            # Already correctly structured - return as-is
+            return response
+
         # Extract core fields: items, total, etc. but exclude metadata/timestamps
         payload = {
             k: v
