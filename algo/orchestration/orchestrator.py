@@ -855,15 +855,8 @@ class Orchestrator:
                     }
 
                     if is_stale:
-                        if last_updated is None:
-                            logger.critical(
-                                f"[ORCHESTRATOR CRITICAL] {table_name} marked STALE but last_updated is NULL. "
-                                f"Cannot calculate staleness age. Loader may not have run yet."
-                            )
-                            raise RuntimeError(
-                                f"Loader health check failed: {table_name} is stale but has no last_updated timestamp. "
-                                f"Loader execution tracking may be corrupted."
-                            )
+                        # NOTE: last_updated cannot be None here (would have raised error on line 826)
+                        # This null check was defensive but dead code - last_updated_utc is guaranteed valid
                         age_hours = (now_utc - last_updated_utc).total_seconds() / 3600
                         logger.warning(f"[LOADER HEALTH] {table_name} is STALE (last run {age_hours:.1f}h ago)")
                     elif not is_complete:
@@ -1191,7 +1184,7 @@ class Orchestrator:
         if not result.ok:
             return False
         # GOVERNANCE: Fail-fast on data contract violations. Phase 3 MUST provide recommendations.
-        if "recommendations" not in result.data:
+        if result.data is None or "recommendations" not in result.data:
             self.log_phase_result(
                 3,
                 "POSITION MONITOR",
@@ -1228,7 +1221,7 @@ class Orchestrator:
         if not result.ok:
             return False
         # GOVERNANCE: Fail-fast on data contract violations. Phase 5 MUST provide actions.
-        if "actions" not in result.data:
+        if result.data is None or "actions" not in result.data:
             self.log_phase_result(
                 5,
                 "EXPOSURE POLICY ACTIONS",
