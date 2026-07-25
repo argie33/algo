@@ -258,6 +258,16 @@ def _get_stock_scores(
                     pm.shares_short_prior_month_unavailable_reason,
                     pm.short_interest_trend AS short_interest_trend_val,
                     pm.short_interest_trend_unavailable_reason,
+                    pm.top_10_institutions_pct,
+                    pm.top_10_institutions_pct_unavailable_reason,
+                    pm.institutional_holders_count,
+                    pm.institutional_holders_count_unavailable_reason,
+                    pm.short_percent_of_float AS short_pct_float,
+                    pm.short_percent_of_float_unavailable_reason,
+                    pm.short_ratio AS days_to_cover,
+                    pm.short_ratio_unavailable_reason,
+                    pm.ad_rating,
+                    pm.ad_rating_unavailable_reason,
                     tl.rsi_14 AS tdd_rsi,
                     tl.macd AS tdd_macd,
                     tl.roc_20d AS tdd_roc_20d,
@@ -462,19 +472,24 @@ def _get_stock_scores(
             d["positioning_inputs"] = {
                 "institutional_ownership_pct": d.get("inst_own_val"),
                 "institutional_ownership_unavailable_reason": d.get("institutional_ownership_pct_unavailable_reason"),
-                "top_10_institutions_pct": d.get("top_10_inst_pct"),  # May be None
-                "institutional_holders_count": d.get("inst_holders_count"),  # May be None
+                "top_10_institutions_pct": d.get("top_10_institutions_pct"),
+                "top_10_institutions_pct_unavailable_reason": d.get("top_10_institutions_pct_unavailable_reason"),
+                "institutional_holders_count": d.get("institutional_holders_count"),
+                "institutional_holders_count_unavailable_reason": d.get("institutional_holders_count_unavailable_reason"),
                 "insider_ownership_pct": d.get("insider_own_val"),
                 "insider_ownership_unavailable_reason": d.get("insider_ownership_pct_unavailable_reason"),
                 "short_interest_pct": d.get("short_pct_val"),
                 "short_interest_unavailable_reason": d.get("short_interest_pct_unavailable_reason"),
-                "short_percent_of_float": d.get("short_pct_float"),  # May be None
+                "short_percent_of_float": d.get("short_pct_float"),
+                "short_percent_of_float_unavailable_reason": d.get("short_percent_of_float_unavailable_reason"),
                 "short_interest_trend": d.get("short_interest_trend_val"),
                 "short_interest_trend_unavailable_reason": d.get("short_interest_trend_unavailable_reason"),
                 "shares_short_prior_month": d.get("shares_short_prior_month_val"),
                 "shares_short_prior_month_unavailable_reason": d.get("shares_short_prior_month_unavailable_reason"),
-                "short_ratio": d.get("days_to_cover"),  # May be None
-                "ad_rating": d.get("ad_rating"),  # May be None
+                "short_ratio": d.get("days_to_cover"),
+                "short_ratio_unavailable_reason": d.get("short_ratio_unavailable_reason"),
+                "ad_rating": d.get("ad_rating"),
+                "ad_rating_unavailable_reason": d.get("ad_rating_unavailable_reason"),
             }
 
             # Stability Inputs: Volatility, beta, financial stability

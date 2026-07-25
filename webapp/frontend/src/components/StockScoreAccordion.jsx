@@ -65,6 +65,9 @@ const formatReasonDisplay = (reason) => {
     missing_price_or_shares: "Missing price/shares",
     missing_finra_data: "FINRA data unavailable",
     missing_price_data: "Price data unavailable",
+    institutional_data_not_available: "Institutional data not available",
+    short_float_data_not_calculated: "Short float metrics not calculated",
+    ad_rating_not_available: "A/D rating not available",
   };
   return reasonMap[reason] || reason;
 };
