@@ -291,18 +291,7 @@ function InputsCard({ title, stock, schema, inputsKey = null }) {
 
   const rows = schema.map((s) => {
     const value = inputsObj?.[s.key];
-    // Handle inconsistent reason key naming from API: try exact match first,
-    // then try with common suffixes removed (_pct, _val, _12m, etc.)
-    let reason = inputsObj?.[s.key + "_unavailable_reason"];
-    if (!reason && s.key.endsWith("_pct")) {
-      reason = inputsObj?.[s.key.slice(0, -4) + "_unavailable_reason"];
-    }
-    if (!reason && s.key.endsWith("_val")) {
-      reason = inputsObj?.[s.key.slice(0, -4) + "_unavailable_reason"];
-    }
-    if (!reason && s.key.endsWith("_12m")) {
-      reason = inputsObj?.[s.key.slice(0, -4) + "_unavailable_reason"];
-    }
+    const reason = inputsObj?.[s.key + "_unavailable_reason"];
     // DIAGNOSTIC: Log missing reason fields that have null values
     if (!value && !reason && inputsObj) {
       console.debug(`[InputsCard] No reason for ${s.key} on ${stock?.symbol || "unknown"}`);
