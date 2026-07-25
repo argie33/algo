@@ -162,6 +162,9 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                     skipped_count += 1
                     continue
 
+                # CRITICAL: Signal quality score is MANDATORY for audit trail and Phase 7 filtering
+                # Don't persist signals without explicit quality assessment
+                signal_quality_score = None
                 if "composite_score" in signal_data and signal_data["composite_score"] is not None:
                     try:
                         signal_quality_score = safe_float(
@@ -180,8 +183,15 @@ def _persist_signals_to_database(qualified_trades: list[dict[str, Any]], run_dat
                         logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: invalid signal_quality_score: {e}")
                         skipped_count += 1
                         continue
-                else:
-                    logger.warning(f"[PERSIST SIGNALS] Skipping {symbol}: missing signal quality score")
+
+                # CRITICAL VALIDATION: signal_quality_score cannot be None
+                # Each signal must have explicit quality assessment for audit and filtering
+                if signal_quality_score is None:
+                    logger.warning(
+                        f"[PERSIST SIGNALS] Skipping {symbol}: missing signal quality score. "
+                        f"Signal must have explicit quality assessment. "
+                        f"Fail-fast: signal quality is required for audit trail and Phase 7 filtering."
+                    )
                     skipped_count += 1
                     continue
 

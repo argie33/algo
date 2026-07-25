@@ -276,7 +276,9 @@ class SignalsDailyLoader(OptimalLoader):
 
                 # Fallback if no complete data found
                 if complete_date is None:
-                    # Use most recent date with ANY price data
+                    # CRITICAL FIX: Strict limit on data staleness
+                    # Use most recent date with ANY price data, BUT must be within 1 trading day
+                    # Using prices older than yesterday for today's signals is unacceptable for trading
                     cur.execute(
                         "SELECT MAX(date) FROM price_daily WHERE date <= %s",
                         (now_et.date(),),
@@ -287,6 +289,24 @@ class SignalsDailyLoader(OptimalLoader):
                             "CRITICAL: No price_daily data found at all. Cannot generate signals without price data."
                         )
                     complete_date = price_max_date_row[0]
+
+                    # CRITICAL: Enforce max staleness - if price data is > 1 trading day old, FAIL
+                    from algo.infrastructure import MarketCalendar
+                    days_since_price = 0
+                    check_date = end
+                    while check_date > complete_date and check_date > date(2020, 1, 1):
+                        if MarketCalendar.is_trading_day(check_date):
+                            days_since_price += 1
+                        if days_since_price > 1:
+                            raise RuntimeError(
+                                f"CRITICAL DATA QUALITY: Price data is {days_since_price} trading days old "
+                                f"(latest: {complete_date}, target: {end}). "
+                                f"This indicates upstream price loader failure or missing data. "
+                                f"Cannot generate signals on multi-day-old prices - this violates trading safety requirements. "
+                                f"Fail-fast: wait for price loader to complete."
+                            )
+                        check_date = check_date - timedelta(days=1)
+
                     end = complete_date
 
                     cur.execute(
@@ -299,7 +319,7 @@ class SignalsDailyLoader(OptimalLoader):
                         logger.warning(
                             f"[BUY_SELL_DAILY] No complete price_daily data found. "
                             f"Using most recent: date={end} with {price_coverage_symbols} symbols "
-                            f"(< 3000 minimum). Signals may be degraded."
+                            f"(< 3000 minimum, but within 1 trading day). Signals may have reduced coverage."
                         )
                     else:
                         raise RuntimeError(

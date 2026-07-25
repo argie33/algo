@@ -357,9 +357,22 @@ def _handle_top_movers(cur: cursor) -> Any:
     if not valid_items:
         raise_api_error(503, "no_data", "Top movers data validation failed - no valid price change data")
 
+    # CRITICAL FIX: Fail-fast if too many items have missing data
+    # Silent filtering masks data quality issues in finance app
+    total_items = len(items) if items else 1  # Avoid division by zero
+    invalid_rate = invalid_count / total_items if total_items > 0 else 0
+    if invalid_rate > 0.05:  # > 5% invalid data is unacceptable
+        raise_api_error(
+            503,
+            "data_quality",
+            f"Top movers data quality degraded: {invalid_count}/{total_items} items ({invalid_rate*100:.1f}%) "
+            f"missing price change data. Fail-fast: cannot show incomplete market view."
+        )
+
     if invalid_count > 0:
         logger.warning(
-            f"[TOP_MOVERS] Filtered {invalid_count} items with missing pct_change; showing {len(valid_items)} valid items"
+            f"[TOP_MOVERS] Filtered {invalid_count} items with missing pct_change ({invalid_rate*100:.1f}%); "
+            f"showing {len(valid_items)} valid items"
         )
 
     gainers = sorted(

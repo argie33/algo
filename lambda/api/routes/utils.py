@@ -682,15 +682,18 @@ def check_data_freshness(
         AttributeError,
         IndexError,
     ) as e:
-        # Return safe default instead of failing the entire endpoint
-        # Freshness check is non-critical and should not break API responses
-        logger.warning(
-            f"[DATA_FRESHNESS] Could not check freshness for {table_name}: {type(e).__name__}: {e}. Using safe default."
+        # CRITICAL: Freshness check failure must NOT be masked with is_stale=False
+        # For finance apps, returning is_stale=False on error falsely indicates "data is fresh"
+        # when we actually DON'T KNOW. This can lead to trading on stale data.
+        # Instead: return is_stale=None to signal "freshness unknown" to consumer.
+        logger.error(
+            f"[DATA_FRESHNESS_CRITICAL] Could not check freshness for {table_name}: {type(e).__name__}: {e}. "
+            f"Data freshness unknown - returning None to consumer to prevent false confidence in stale data."
         )
         return {
             "data_age_days": None,
-            "is_stale": False,
-            "warning": None,
+            "is_stale": None,  # CRITICAL FIX: None means "unknown", NOT "fresh"
+            "warning": "Data freshness check failed - treat data as potentially stale",
         }
 
 

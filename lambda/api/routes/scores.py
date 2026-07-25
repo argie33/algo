@@ -546,25 +546,32 @@ def _get_stock_scores(
                     f"Factor inputs NOT added for {d.get('symbol')} - quality_inputs missing after _build_factor_inputs call"
                 )
 
-            # Note: We include scores even if current prices are missing
-            # Scores are computed from other factors; current price is optional for display
+            # CRITICAL FIX: If current price is missing, mark data unavailable
+            # For trading, current price is REQUIRED to calculate entry/exit risk
+            # Don't silently include incomplete scores - that masks data quality issues
+            if d.get("current_price") is None:
+                d["_data_unavailable"] = True
+                d["_data_unavailable_reason"] = "current_price missing from price_daily - cannot calculate position risk"
+
             items.append(d)
 
         # Check data freshness
         freshness = check_data_freshness(cur, "stock_scores", "updated_at", warning_days=7)
 
-        # Log warning if many scores have missing prices (data quality issue)
+        # Audit: Count how many scores have missing prices (data quality indicator)
         prices_missing_count = sum(1 for item in items if item.get("current_price") is None)
         if prices_missing_count > 0 and items:
             filter_rate = prices_missing_count / len(items) if len(items) > 0 else 0
-            if filter_rate > 0.5:
-                logger.warning(
+            if filter_rate > 0.05:  # > 5% is degraded quality
+                logger.error(
                     f"Scores endpoint: {prices_missing_count}/{len(items)} scores ({filter_rate * 100:.1f}%) "
-                    f"have missing price data. Data quality is degraded."
+                    f"have missing price data. Marked as data_unavailable to consumer. "
+                    f"Data quality is degraded - upstream price_daily loader may be incomplete."
                 )
             else:
-                logger.debug(
-                    f"Scores endpoint: {prices_missing_count} scores have missing price data (out of {len(items)})"
+                logger.warning(
+                    f"Scores endpoint: {prices_missing_count} scores have missing price data ({filter_rate * 100:.1f}%). "
+                    f"Marked as data_unavailable to consumer."
                 )
 
         # CRITICAL FIX: Return scores in standard paginated format
