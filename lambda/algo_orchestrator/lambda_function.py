@@ -532,23 +532,39 @@ def lambda_handler(event: Any, context: Any) -> dict[str, Any]:
                 }
 
         # Verify EventBridge schedules are enabled (auto-fix if disabled)
-        # This addresses issue where loaders don't run because schedules become disabled
+        # In production, schedules should always be enabled by Terraform. If they're disabled,
+        # that's a real problem that should be surfaced, not silently ignored.
         try:
             import boto3
+            from botocore.exceptions import ClientError, BotoCoreError
 
             scheduler = boto3.client("scheduler", region_name="us-east-1")
             schedules = scheduler.list_schedules(MaxResults=50)
             algo_schedules = [s["Name"] for s in schedules.get("Schedules", []) if "algo" in s["Name"].lower()]
+
+            disabled_schedules = []
             for sched_name in algo_schedules:
-                try:
-                    sched = scheduler.get_schedule(Name=sched_name)
-                    if sched.get("State") == "DISABLED":
+                sched = scheduler.get_schedule(Name=sched_name)
+                if sched.get("State") == "DISABLED":
+                    try:
                         scheduler.update_schedule(Name=sched_name, State="ENABLED")
                         logger.info(f"[STARTUP] Re-enabled EventBridge schedule: {sched_name}")
-                except Exception:
-                    pass
-        except Exception:
-            logger.debug("[STARTUP] EventBridge schedule check skipped (non-critical)")
+                    except (ClientError, BotoCoreError) as e:
+                        # Schedule update failed - this is a real problem that should be logged
+                        disabled_schedules.append((sched_name, str(e)))
+
+            if disabled_schedules:
+                # Fail fast: if schedules were disabled and we couldn't fix them, don't proceed
+                failure_details = "; ".join(f"{name}: {err}" for name, err in disabled_schedules)
+                raise RuntimeError(
+                    f"[STARTUP] Found {len(disabled_schedules)} disabled EventBridge schedule(s) that could not be re-enabled. "
+                    f"This will prevent data loaders from running. Details: {failure_details}. "
+                    "Contact DevOps to investigate EventBridge scheduler permissions."
+                )
+        except (ImportError, ClientError, BotoCoreError) as e:
+            # EventBridge not available in this environment (e.g., local dev without AWS credentials)
+            # This is acceptable for local testing
+            logger.debug(f"[STARTUP] EventBridge schedule check skipped: {type(e).__name__}: {e}")
 
         # Set execution_mode in environment before creating orchestrator
         # (orchestrator.__init__ will pick it up from ORCHESTRATOR_EXECUTION_MODE)

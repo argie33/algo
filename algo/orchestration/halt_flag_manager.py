@@ -244,10 +244,32 @@ class HaltFlagManager:
 
             return False
         except Exception as e:
-            # Session 289 FIX: Don't crash on DynamoDB unavailability, fall back to RDS instead
-            # Log the error but return None to signal fallback, not fail-closed
-            logger.debug(f"[HALT_FLAG] DynamoDB check failed: {e}. Will try RDS fallback.")
-            return None
+            # Only fall back to RDS for AWS infrastructure failures (network, credentials, rate limit).
+            # Programming errors (KeyError, AttributeError, etc.) should propagate to fail-closed.
+            import sys
+            from botocore.exceptions import BotoCoreError, ClientError
+
+            # Check if this is an AWS infrastructure error that warrants RDS fallback
+            is_aws_error = isinstance(e, (BotoCoreError, ClientError))
+            # Also allow "service unavailable" errors that might indicate transient issues
+            is_service_unavailable = "ServiceUnavailable" in str(type(e).__name__) or "ConnectTimeout" in str(
+                type(e).__name__
+            )
+
+            if is_aws_error or is_service_unavailable:
+                logger.warning(
+                    f"[HALT_FLAG] DynamoDB check failed with AWS infrastructure error: {type(e).__name__}: {e}. "
+                    f"Attempting RDS fallback."
+                )
+                return None
+            else:
+                # Programming error (ValueError, AttributeError, etc.) - fail-closed
+                logger.error(
+                    f"[HALT_FLAG CRITICAL] Programming error in halt flag check: {type(e).__name__}: {e}. "
+                    f"Failing closed to prevent accidental trading during error condition."
+                )
+                # Fail closed: assume halt flag is set if we can't verify it
+                return True
 
     def _check_halt_flag_rds(self) -> bool | None:
         """Check halt flag in RDS. Returns True/False if successful, None if unavailable."""

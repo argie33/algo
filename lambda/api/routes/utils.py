@@ -470,25 +470,26 @@ def execute_with_timeout(
             # Convert tuple results to dicts using column names for consistency
             # This ensures routes can always access rows as dicts regardless of cursor type
             if rows and isinstance(rows[0], tuple) and cur.description:
-                try:
-                    # Try to extract column names from description
-                    col_names = []
-                    for desc in cur.description:
-                        try:
-                            # Handle both subscriptable tuples and non-subscriptable objects
-                            col_names.append(desc[0])
-                        except (TypeError, IndexError):
-                            # If desc is not subscriptable, try to get name attribute
-                            if hasattr(desc, "name"):
-                                col_names.append(desc.name)
-                            else:
-                                col_names.append(f"col_{len(col_names)}")
+                # Try to extract column names from description
+                col_names = []
+                for desc in cur.description:
+                    try:
+                        # Handle both subscriptable tuples and non-subscriptable objects
+                        col_names.append(desc[0])
+                    except (TypeError, IndexError):
+                        # If desc is not subscriptable, try to get name attribute
+                        if hasattr(desc, "name"):
+                            col_names.append(desc.name)
+                        else:
+                            col_names.append(f"col_{len(col_names)}")
 
-                    if col_names:
-                        return [dict(zip(col_names, row, strict=True)) for row in rows]
-                except Exception:
-                    # If column name extraction fails, return as-is
-                    pass
+                if col_names:
+                    return [dict(zip(col_names, row, strict=True)) for row in rows]
+                else:
+                    raise RuntimeError(
+                        "Failed to extract column names from cursor description. "
+                        "Cannot convert tuple results to dicts."
+                    )
 
             return list(rows)
 
@@ -1008,13 +1009,17 @@ def validate_api_response(endpoint_name: str) -> Callable[[Callable[P, dict[str,
                 return response
 
             except ImportError as e:
-                # ResponseValidator not available (should not happen in Lambda)
-                logger.warning(f"[VALIDATION] ResponseValidator not available: {e} - skipping validation")
-                return response
+                # ResponseValidator not available - this should not happen in Lambda, indicates a deployment issue
+                raise RuntimeError(
+                    f"ResponseValidator module not available (critical for response validation): {e}. "
+                    "Check that shared_contracts module is deployed with Lambda."
+                ) from e
             except Exception as e:
-                # Validation itself failed (shouldn't happen, but don't break the API)
-                logger.error(f"[VALIDATION] Validation check crashed for {endpoint_name}: {e}")
-                return response
+                # Validation itself failed - this is a programming error, not transient
+                raise RuntimeError(
+                    f"Response validation framework crashed for {endpoint_name}: {e}. "
+                    "This indicates a bug in the validation logic, not a data issue."
+                ) from e
 
         return wrapper
 
