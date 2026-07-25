@@ -704,7 +704,13 @@ class DailyReconciliation:
             logger.info(f"{'=' * 70}\n")
 
             # Get execution mode from config for cash calculation logic
-            execution_mode = self.config.get("execution_mode", "paper")
+            execution_mode = self.config.get("execution_mode")
+            if execution_mode is None:
+                raise ValueError(
+                    "[RECONCILIATION CRITICAL] execution_mode config missing. "
+                    "Cannot determine trading mode (live vs paper). "
+                    "Set explicit execution_mode in algo_config table."
+                )
 
             # 1. Fetch broker account (required - no fallback to stale DB data)
             account_data = self._fetch_account()

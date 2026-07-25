@@ -77,10 +77,17 @@ class AlpacaSyncManager:
 
         # Use execution mode from config to determine correct Alpaca endpoint
         if isinstance(self.config, dict):
-            execution_mode = self.config.get("execution_mode", "paper")
+            execution_mode = self.config.get("execution_mode")
         else:
             # AlgoConfig object - use get() method, not direct attribute access
-            execution_mode = self.config.get("execution_mode", "paper")
+            execution_mode = self.config.get("execution_mode")
+
+        if execution_mode is None:
+            raise ValueError(
+                "[ALPACA_SYNC_MANAGER CRITICAL] execution_mode config missing. "
+                "Cannot determine Alpaca endpoint (live vs paper). "
+                "Set explicit execution_mode in algo_config table."
+            )
         strategy = create_execution_mode_strategy(str(execution_mode).lower())
         configured_url = os.getenv("APCA_API_BASE_URL")
         self._alpaca_base_url = strategy.resolve_base_url(configured_url)

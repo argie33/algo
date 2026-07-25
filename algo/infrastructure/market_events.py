@@ -53,7 +53,13 @@ class MarketEventHandler:
         # because we need real market data to validate positions and detect halts.
         # However, we can use paper trading credentials instead of live trading credentials.
         # If credentials are not available, fail gracefully for paper mode operations.
-        execution_mode = config.get("execution_mode", "paper")
+        execution_mode = config.get("execution_mode")
+        if execution_mode is None:
+            raise ValueError(
+                "[MARKET_EVENTS CRITICAL] execution_mode config missing. "
+                "Cannot determine trading mode (live vs paper). "
+                "Set explicit execution_mode in algo_config table."
+            )
 
         try:
             cm = get_credential_manager()
