@@ -592,18 +592,25 @@ def run(
 
             # Try to get Phase 5 exposure constraints (also optional for proactive checks)
             phase5_result = executor.get_result(5)
-            if phase5_result and phase5_result.ok:
+            if phase5_result:
+                # CRITICAL FIX: Extract constraints from Phase 5 regardless of status.
+                # When Phase 5 halts due to missing market data or policy error, it returns
+                # halt_constraints with safe defaults (max_concentration_pct=0, halt_new_entries=True).
+                # Phase 8 MUST use these halt constraints, not ignore them.
                 exposure_constraints_from_executor = phase5_result.data.get("constraints")
                 if exposure_constraints_from_executor:
                     constraint_keys = list(exposure_constraints_from_executor.keys())
-                    logger.info(f"[PHASE 8] Retrieved exposure constraints from Phase 5: {constraint_keys}")
+                    if phase5_result.ok:
+                        logger.info(f"[PHASE 8] Retrieved exposure constraints from Phase 5: {constraint_keys}")
+                    else:
+                        logger.warning(
+                            f"[PHASE 8] Phase 5 halted ({phase5_result.status}), using halt constraints: {constraint_keys}"
+                        )
                 else:
-                    logger.warning("[PHASE 8] Phase 5 returned OK but constraints dict is empty")
-            elif phase5_result and phase5_result.halted:
-                logger.warning(
-                    f"[PHASE 8] Phase 5 halted: {phase5_result.error or 'unknown'}. "
-                    f"No exposure constraints available."
-                )
+                    logger.warning(
+                        f"[PHASE 8] Phase 5 returned {phase5_result.status} but constraints dict is empty. "
+                        f"This is a data contract violation - Phase 5 must always return constraints."
+                    )
             else:
                 logger.info("[PHASE 8] Phase 5 unavailable - will use defaults for proactive checks")
         except Exception as e:
