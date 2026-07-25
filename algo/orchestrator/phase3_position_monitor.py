@@ -140,14 +140,43 @@ def run(  # noqa: C901 -- grew complex from today's execution-mode/dependency-ch
                         current_price = float(current_price)
                         quantity = float(quantity)
 
-                        # Convert Decimal values to float for consistent arithmetic
-                        avg_entry = float(avg_entry) if avg_entry else 0
-                        stop_loss = float(stop_loss) if stop_loss else 0
+                        # FAIL-FAST: Critical position data must be present
+                        # avg_entry and stop_loss are required to monitor position health
+                        # Silent defaults (0) hide data quality issues and produce misleading P&L
+                        if avg_entry is None:
+                            logger.warning(
+                                f"[PHASE 3] {symbol}: Cannot update position - avg_entry_price is missing. "
+                                f"Position exists but entry cost basis unavailable. Skip position update."
+                            )
+                            continue
+                        if stop_loss is None:
+                            logger.warning(
+                                f"[PHASE 3] {symbol}: Cannot update position - stop_loss is missing. "
+                                f"Position exists but stop loss unavailable. Skip position update."
+                            )
+                            continue
+
+                        avg_entry = float(avg_entry)
+                        stop_loss = float(stop_loss)
+
+                        # Validate converted values
+                        if avg_entry <= 0:
+                            logger.warning(
+                                f"[PHASE 3] {symbol}: Invalid avg_entry_price ({avg_entry}). "
+                                f"Entry price must be positive. Skip position update."
+                            )
+                            continue
+                        if stop_loss <= 0:
+                            logger.warning(
+                                f"[PHASE 3] {symbol}: Invalid stop_loss ({stop_loss}). "
+                                f"Stop loss must be positive. Skip position update."
+                            )
+                            continue
 
                         # Calculate enrichment fields: days held and ladder % to stop
                         days_since_entry = (run_date - entry_date).days if entry_date else 0
                         ladder_pct_stop = 0.0
-                        if avg_entry and stop_loss and current_price and avg_entry > stop_loss:
+                        if current_price and avg_entry > stop_loss:
                             # ladder_pct_stop: how far we are from stop to entry as % of entry-to-stop range
                             entry_to_stop_range = avg_entry - stop_loss
                             current_to_stop_dist = current_price - stop_loss
