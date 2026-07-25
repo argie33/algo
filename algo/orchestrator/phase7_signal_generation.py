@@ -1306,6 +1306,19 @@ def run(  # noqa: C901
         if not isinstance(sqs, (int, float)):
             raise ValueError(f"Signal {sig.get('symbol')} signal_quality_score is {type(sqs).__name__}, expected float")
 
+    # CRITICAL: Final defensive filter - remove ANY signals with None scores before sorting
+    # (defensive in case filtering above had gaps)
+    quality_filtered = [s for s in quality_filtered if s.get("signal_quality_score") is not None]
+    if not quality_filtered:
+        msg = (
+            "[PHASE 7 CRITICAL] All signals filtered out in final defensive check. "
+            "This should not happen if quality filter worked correctly above."
+        )
+        logger.critical(msg)
+        return PhaseResult(
+            7, "signal_generation", "degraded", {"qualified_trades": [], "liquidity_passed": 0}, False, msg
+        )
+
     quality_filtered.sort(key=lambda s: float(s["signal_quality_score"]), reverse=True)
 
     # Liquidity checks on top candidates - parallelized
