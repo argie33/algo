@@ -723,8 +723,22 @@ class CircuitBreaker:
 
         # CRITICAL FIX: Ensure both operands are float before arithmetic. Database SUM may return
         # psycopg2 Decimal type; explicitly convert to avoid "Decimal * float" TypeError.
-        total_open_risk_f = float(total_open_risk) if total_open_risk else 0.0
-        portfolio_f = float(portfolio) if portfolio else 1.0
+        # NOTE: total_open_risk and portfolio are guaranteed non-None at this point:
+        # - total_open_risk: checked at line 700, returns if None
+        # - portfolio: checked at line 714, returns if None or <= 0
+        # No fallback defaults allowed (fail-fast accuracy principle)
+        if total_open_risk is None:
+            raise RuntimeError(
+                "[CIRCUIT_BREAKER CRITICAL] total_open_risk is None after earlier validation check. "
+                "This indicates a logic error in _check_total_risk. Cannot proceed with risk calculation."
+            )
+        if portfolio is None:
+            raise RuntimeError(
+                "[CIRCUIT_BREAKER CRITICAL] portfolio is None after earlier validation check. "
+                "This indicates a logic error in _check_total_risk. Cannot proceed with risk calculation."
+            )
+        total_open_risk_f = float(total_open_risk)
+        portfolio_f = float(portfolio)
         risk_pct = total_open_risk_f / portfolio_f * 100.0
         max_risk_val = self._get_required_config("max_total_risk_pct", "in total risk check")
         threshold = _float(
