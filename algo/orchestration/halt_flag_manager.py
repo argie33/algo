@@ -28,6 +28,7 @@ class HaltFlagManager:
     """Manage halt flag state in DynamoDB with auto-expiry and escalation tracking."""
 
     HALT_FLAG_DYNAMODB_KEY = "orchestrator_halt"
+    _dynamodb_unavailable_logged = False  # Cache fallback warning
 
     def __init__(self, alerts: Any, log_phase_result: Any) -> None:
         """Initialize with alert manager and phase logging callback.
@@ -38,6 +39,8 @@ class HaltFlagManager:
         """
         self.alerts = alerts
         self.log_phase_result = log_phase_result
+        # Reset cache per orchestrator run to allow re-detection if DynamoDB comes back online
+        HaltFlagManager._dynamodb_unavailable_logged = False
 
     def check_halt_flag(self) -> bool:
         """Check for halt flag with DynamoDB + RDS fallback. Returns True if halt was requested.
@@ -70,8 +73,11 @@ class HaltFlagManager:
                 self._alert_halt_detected("DynamoDB")
             return dynamodb_result
 
-        # Fall back to RDS if DynamoDB unavailable
-        logger.warning("[HALT_FLAG] DynamoDB unavailable, falling back to RDS")
+        # Fall back to RDS if DynamoDB unavailable (log only once per run)
+        if not HaltFlagManager._dynamodb_unavailable_logged:
+            logger.warning("[HALT_FLAG] DynamoDB unavailable, falling back to RDS")
+            HaltFlagManager._dynamodb_unavailable_logged = True
+
         rds_result = self._check_halt_flag_rds()
         if rds_result is not None:
             if rds_result:
